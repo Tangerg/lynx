@@ -22,7 +22,7 @@ mcp/
 ├── tool.go      // remote MCP tool -> tools.Tool
 ├── tools.go     // list remote tools and wrap them as []tools.Tool
 ├── server.go    // tools.Tool -> MCP server tool
-├── sampling.go  // MCP sampling via chatclient.Client
+├── sampling.go  // MCP sampling via a consumer-owned ChatCaller capability
 └── prompt.go    // MCP prompt messages -> []chat.Message
 ```
 
@@ -52,7 +52,7 @@ import (
 | `LogToClient` | 通过 MCP logging notification 向客户端发送日志 |
 | `Tools(ctx, sources, opts)` | 现场列出远端 MCP tools，并包装成 `[]tools.Tool` |
 | `Register(server, tools...)` | 把 lynx `tools.Tool` 暴露到 MCP server |
-| `NewSamplingHandler` | 用 `*chatclient.Client` 构造 MCP sampling handler |
+| `NewSamplingHandler` | 用最小 `ChatCaller` 能力构造 MCP sampling handler |
 | `PromptMessagesToChat` | 把 MCP prompt messages 转成 `[]chat.Message` |
 
 根包刻意不提供：

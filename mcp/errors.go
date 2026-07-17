@@ -14,6 +14,10 @@ var (
 
 	// ErrNilSession is returned when a [ToolSource] supplies a nil session.
 	ErrNilSession = errors.New("mcp: session must not be nil")
+
+	// ErrNilChatCaller is returned by [NewSamplingHandler] when caller is nil
+	// or holds a typed nil value.
+	ErrNilChatCaller = errors.New("mcp: chat caller must not be nil")
 )
 
 var errNilDescriptor = errors.New("mcp: descriptor must not be nil")

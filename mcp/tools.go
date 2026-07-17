@@ -78,8 +78,8 @@ type ConcurrencyFunc func(sourceName string, tool *sdkmcp.Tool, arguments string
 type ToolOptions struct {
 	// Naming maps each remote tool descriptor to its public name. Nil
 	// uses the package default, "<sourceName>_<toolName>" sanitized to the
-	// function-name charset accepted by model providers. The function must be
-	// deterministic.
+	// function-name charset accepted by model providers. tool is an isolated
+	// snapshot; the function must be deterministic and treat it as read-only.
 	Naming func(sourceName string, tool *sdkmcp.Tool) string
 
 	// MetaFunc is applied to every tool produced. Nil forwards no metadata on
@@ -118,8 +118,12 @@ func Tools(ctx context.Context, sources []ToolSource, opts ToolOptions) ([]toolc
 			if descriptor == nil {
 				return nil, fmt.Errorf("mcp.Tools: source %q: %w", src.Name, errNilDescriptor)
 			}
+			namingDescriptor, err := snapshotDescriptor(descriptor)
+			if err != nil {
+				return nil, fmt.Errorf("mcp.Tools: snapshot tool %q from source %q: %w", descriptor.Name, src.Name, err)
+			}
 
-			name := opts.Naming(src.Name, descriptor)
+			name := opts.Naming(src.Name, namingDescriptor)
 			if name == "" {
 				return nil, fmt.Errorf("mcp.Tools: source %q tool %q: public name must not be empty", src.Name, descriptor.Name)
 			}

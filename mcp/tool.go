@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -23,6 +25,7 @@ import (
 // The wrapper is immutable after construction.
 type tool struct {
 	session     *sdkmcp.ClientSession
+	remoteName  string
 	descriptor  *sdkmcp.Tool
 	definition  corechat.ToolDefinition
 	metaFunc    MetaFunc
@@ -74,23 +77,44 @@ func newTool(cfg toolConfig) (*tool, error) {
 		cfg.PrefixedName = cfg.Descriptor.Name
 	}
 
-	schema, err := schemaToJSON(cfg.Descriptor.InputSchema)
+	descriptor, err := snapshotDescriptor(cfg.Descriptor)
 	if err != nil {
-		return nil, fmt.Errorf("mcp.newTool: convert input schema for tool %q: %w", cfg.Descriptor.Name, err)
+		return nil, fmt.Errorf("mcp.newTool: snapshot descriptor for tool %q: %w", cfg.Descriptor.Name, err)
+	}
+	schema, err := schemaToJSON(descriptor.InputSchema)
+	if err != nil {
+		return nil, fmt.Errorf("mcp.newTool: convert input schema for tool %q: %w", descriptor.Name, err)
+	}
+	definition := corechat.ToolDefinition{
+		Name:        cfg.PrefixedName,
+		Description: descriptor.Description,
+		InputSchema: schema,
+	}
+	if err := definition.Validate(); err != nil {
+		return nil, fmt.Errorf("mcp.newTool: definition for remote tool %q: %w", descriptor.Name, err)
 	}
 
 	return &tool{
-		session:    cfg.Session,
-		descriptor: cfg.Descriptor,
-		definition: corechat.ToolDefinition{
-			Name:        cfg.PrefixedName,
-			Description: cfg.Descriptor.Description,
-			InputSchema: schema,
-		},
+		session:     cfg.Session,
+		remoteName:  descriptor.Name,
+		descriptor:  descriptor,
+		definition:  definition,
 		metaFunc:    cfg.MetaFunc,
 		sourceName:  cfg.SourceName,
 		concurrency: cfg.Concurrency,
 	}, nil
+}
+
+func snapshotDescriptor(descriptor *sdkmcp.Tool) (*sdkmcp.Tool, error) {
+	data, err := json.Marshal(descriptor)
+	if err != nil {
+		return nil, err
+	}
+	var snapshot sdkmcp.Tool
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return nil, err
+	}
+	return &snapshot, nil
 }
 
 func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
@@ -115,9 +139,9 @@ func (t *tool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 // status to Error (no separate bool attribute). No-op overhead when no
 // TracerProvider is configured.
 func (t *tool) Call(ctx context.Context, arguments string) (out string, err error) {
-	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.descriptor.Name,
+	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+t.remoteName,
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(attribute.String(attrToolName, t.descriptor.Name)),
+		trace.WithAttributes(attribute.String(attrToolName, t.remoteName)),
 	)
 	defer func() {
 		if err != nil {
@@ -129,29 +153,29 @@ func (t *tool) Call(ctx context.Context, arguments string) (out string, err erro
 
 	args, err := decodeArguments(arguments)
 	if err != nil {
-		return "", fmt.Errorf("mcp.tool.Call: decode arguments for %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.tool.Call: decode arguments for %q: %w", t.remoteName, err)
 	}
 
 	params := &sdkmcp.CallToolParams{
-		Name:      t.descriptor.Name,
+		Name:      t.remoteName,
 		Arguments: args,
 	}
 	if t.metaFunc != nil {
 		if meta := t.metaFunc(ctx); len(meta) > 0 {
-			params.Meta = meta
+			params.Meta = maps.Clone(meta)
 		}
 	}
 
 	res, err := t.session.CallTool(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("mcp.tool.Call: %q: %w", t.descriptor.Name, err)
+		return "", fmt.Errorf("mcp.tool.Call: %q: %w", t.remoteName, err)
 	}
 	if res == nil {
-		return "", fmt.Errorf("mcp.tool.Call: %q: nil CallToolResult", t.descriptor.Name)
+		return "", fmt.Errorf("mcp.tool.Call: %q: nil CallToolResult", t.remoteName)
 	}
 	if res.IsError {
 		err = &ToolCallError{
-			ToolName: t.descriptor.Name,
+			ToolName: t.remoteName,
 			Message:  firstTextOrFallback(res.Content, "tool returned isError=true with no text content"),
 		}
 		return "", err

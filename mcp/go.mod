@@ -3,7 +3,6 @@ module github.com/Tangerg/lynx/mcp
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
 	github.com/Tangerg/lynx/tools v0.0.0-20260715080233-229e06c8ed2f
