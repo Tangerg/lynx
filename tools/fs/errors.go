@@ -13,9 +13,4 @@ var (
 	// ErrBinaryFile is returned by Read/Edit when the target file
 	// looks binary. Only text files are supported.
 	ErrBinaryFile = errors.New("fs: file appears to be binary; only text files are supported")
-
-	// ErrNotFound is returned when a file or directory does not exist.
-	// Implementations should also wrap os.ErrNotExist for callers using
-	// errors.Is.
-	ErrNotFound = errors.New("fs: not found")
 )

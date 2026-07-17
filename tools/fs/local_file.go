@@ -118,7 +118,7 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	}
 
 	content, hadBOM, hadCRLF := normalizeText(data)
-	updated, replacements, err := (EditOperation{
+	updated, replacements, err := (editOperation{
 		OldString:  in.OldString,
 		NewString:  in.NewString,
 		ReplaceAll: in.ReplaceAll,
@@ -139,7 +139,7 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditInput) (EditOutput, error
 	return EditOutput{Replacements: replacements}, nil
 }
 
-func (op EditOperation) apply(content, path string) (string, int, error) {
+func (op editOperation) apply(content, path string) (string, int, error) {
 	if op.OldString == "" {
 		return "", 0, errors.New("old_string must not be empty")
 	}
