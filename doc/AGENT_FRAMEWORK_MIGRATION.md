@@ -134,6 +134,34 @@ func (t *TenantTool) ConcurrencyKey(arguments string) (string, bool) {
 }
 ```
 
+### Tool policy names and scope
+
+Tool decorators now use short names that remain clear after package
+qualification. Development consumers must migrate directly; no compatibility
+aliases remain:
+
+| 旧调用 | 当前调用 |
+|---|---|
+| `toolpolicy.OnceOnly` | `toolpolicy.Once` |
+| `toolpolicy.Unlocked` | `toolpolicy.Gate` |
+| `toolpolicy.UnlockCondition` | `toolpolicy.Condition` |
+| `toolpolicy.LoopScope` | `toolpolicy.WithScope` |
+| `toolpolicy.ErrToolAlreadyCalled` | `toolpolicy.ErrAlreadyCalled` |
+| `toolpolicy.ErrToolLocked` | `toolpolicy.ErrLocked` |
+
+需要每轮独立 allowance 时显式创建 scope：
+
+```go
+ctx = toolpolicy.WithScope(ctx)
+once, err := toolpolicy.Once(search)
+```
+
+同一 scope 按工具名共享调用记录。没有 scope 时，allowance 属于返回的 decorator
+实例：该实例生命周期内只有第一次调用成功；它不隐式猜测 Process 或 Session
+生命周期。`Gate` 每次 `Call` 才求值 condition，调度器读取文件目标等元数据不会提前
+消费 `Once` 状态，也不会执行 condition。两种有状态 decorator 均保持独占，不透传
+内层工具的并发声明。
+
 ## 5. Chat、Prompt 与 ToolLoop
 
 Engine 接受 provider-neutral chat capability：

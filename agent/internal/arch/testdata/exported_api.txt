@@ -615,12 +615,12 @@ toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint"
 toolloop: var ( ErrInvalidConfig = errors.New("toolloop: invalid config") ErrInvalidInput = errors.New("toolloop: invalid input") ErrRoundLimit = errors.New("toolloop: round limit reached") )
 toolloop: var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")
 toolloop: var ErrInvalidEvent = errors.New("toolloop: invalid event")
-toolpolicy: func LoopScope(ctx context.Context) context.Context
-toolpolicy: func OnceOnly(tool tools.Tool) (tools.Tool, error)
-toolpolicy: func Unlocked(tool tools.Tool, condition UnlockCondition) (tools.Tool, error)
-toolpolicy: type UnlockCondition func(ctx context.Context, arguments string) (allowed bool, reason string)
-toolpolicy: var ErrToolAlreadyCalled = errors.New("toolpolicy: tool has already been called once in this scope")
-toolpolicy: var ErrToolLocked = errors.New("toolpolicy: tool is locked by an unlock condition")
+toolpolicy: func Gate(tool tools.Tool, condition Condition) (tools.Tool, error)
+toolpolicy: func Once(tool tools.Tool) (tools.Tool, error)
+toolpolicy: func WithScope(ctx context.Context) context.Context
+toolpolicy: type Condition func(ctx context.Context, arguments string) (allowed bool, reason string)
+toolpolicy: var ErrAlreadyCalled = errors.New("toolpolicy: tool already called in this policy scope")
+toolpolicy: var ErrLocked = errors.New("toolpolicy: tool call blocked by condition")
 workflow: func (f Feedback) Acceptable(threshold float64) bool
 workflow: func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool)
 workflow: func (h *AttemptHistory[Out]) Count() int

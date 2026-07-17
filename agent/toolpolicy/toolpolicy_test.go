@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolpolicy"
@@ -39,13 +40,13 @@ func (t *fakeTool) MutationPaths(string) ([]string, error) {
 	return slices.Clone(t.paths), t.pathErr
 }
 
-// ---------- OnceOnly --------------------------------------------------
+// ---------- Once ------------------------------------------------------
 
-func TestOnceOnly_FirstCallSucceedsSecondRejects_LoopScope(t *testing.T) {
+func TestOnceFirstCallSucceedsSecondRejectsWithinScope(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	wrapped, _ := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.Once(inner)
 
-	ctx := toolpolicy.LoopScope(context.Background())
+	ctx := toolpolicy.WithScope(context.Background())
 	if _, err := wrapped.Call(ctx, `{"q":"a"}`); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
@@ -55,22 +56,22 @@ func TestOnceOnly_FirstCallSucceedsSecondRejects_LoopScope(t *testing.T) {
 
 	_, err := wrapped.Call(ctx, `{"q":"b"}`)
 	if err == nil {
-		t.Fatal("expected ErrToolAlreadyCalled on second call")
+		t.Fatal("expected ErrAlreadyCalled on second call")
 	}
-	if !errors.Is(err, toolpolicy.ErrToolAlreadyCalled) {
-		t.Fatalf("error = %v, want ErrToolAlreadyCalled", err)
+	if !errors.Is(err, toolpolicy.ErrAlreadyCalled) {
+		t.Fatalf("error = %v, want ErrAlreadyCalled", err)
 	}
 	if inner.calls != 1 {
 		t.Fatalf("delegate must NOT run twice; calls = %d", inner.calls)
 	}
 }
 
-func TestOnceOnly_DifferentScopesAreIndependent(t *testing.T) {
+func TestOnceDifferentScopesAreIndependent(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	wrapped, _ := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.Once(inner)
 
-	ctx1 := toolpolicy.LoopScope(context.Background())
-	ctx2 := toolpolicy.LoopScope(context.Background())
+	ctx1 := toolpolicy.WithScope(context.Background())
+	ctx2 := toolpolicy.WithScope(context.Background())
 
 	if _, err := wrapped.Call(ctx1, `{}`); err != nil {
 		t.Fatalf("ctx1 call: %v", err)
@@ -84,34 +85,68 @@ func TestOnceOnly_DifferentScopesAreIndependent(t *testing.T) {
 	}
 }
 
-func TestOnceOnly_FallbackToProcessWideWithoutScope(t *testing.T) {
+func TestOnceWithoutScopeUsesDecoratorLifetime(t *testing.T) {
 	inner := &fakeTool{name: "x", resp: "ok"}
-	wrapped, _ := toolpolicy.OnceOnly(inner)
+	wrapped, _ := toolpolicy.Once(inner)
 
 	if _, err := wrapped.Call(context.Background(), `{}`); err != nil {
 		t.Fatalf("first call: %v", err)
 	}
 	_, err := wrapped.Call(context.Background(), `{}`)
-	if !errors.Is(err, toolpolicy.ErrToolAlreadyCalled) {
-		t.Fatalf("expected ErrToolAlreadyCalled with no scope, got %v", err)
+	if !errors.Is(err, toolpolicy.ErrAlreadyCalled) {
+		t.Fatalf("expected ErrAlreadyCalled with no scope, got %v", err)
 	}
 }
 
-func TestOnceOnly_RejectsNilTool(t *testing.T) {
-	if _, err := toolpolicy.OnceOnly(nil); err == nil {
+func TestOnceWithoutScopeAdmitsOneConcurrentCall(t *testing.T) {
+	inner := &fakeTool{name: "x", resp: "ok"}
+	wrapped, _ := toolpolicy.Once(inner)
+
+	const callers = 16
+	start := make(chan struct{})
+	errs := make(chan error, callers)
+	var wait sync.WaitGroup
+	for range callers {
+		wait.Go(func() {
+			<-start
+			_, err := wrapped.Call(t.Context(), `{}`)
+			errs <- err
+		})
+	}
+	close(start)
+	wait.Wait()
+	close(errs)
+
+	succeeded := 0
+	for err := range errs {
+		switch {
+		case err == nil:
+			succeeded++
+		case errors.Is(err, toolpolicy.ErrAlreadyCalled):
+		default:
+			t.Fatalf("concurrent Call error = %v", err)
+		}
+	}
+	if succeeded != 1 || inner.calls != 1 {
+		t.Fatalf("successful/delegate calls = %d/%d, want 1/1", succeeded, inner.calls)
+	}
+}
+
+func TestOnceRejectsNilTool(t *testing.T) {
+	if _, err := toolpolicy.Once(nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
-func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
+func TestOnceForwardsToolCapabilities(t *testing.T) {
 	inner := &fakeTool{name: "notify", direct: true, paths: []string{"message.txt"}}
-	wrapped, err := toolpolicy.OnceOnly(inner)
+	wrapped, err := toolpolicy.Once(inner)
 	if err != nil {
-		t.Fatalf("OnceOnly: %v", err)
+		t.Fatalf("Once: %v", err)
 	}
 
 	assertPolicyCapabilities(t, wrapped, []string{"message.txt"})
-	if _, err := wrapped.Call(toolpolicy.LoopScope(t.Context()), `{}`); err != nil {
+	if _, err := wrapped.Call(toolpolicy.WithScope(t.Context()), `{}`); err != nil {
 		t.Fatalf("Call after metadata inspection: %v", err)
 	}
 	if inner.calls != 1 {
@@ -119,11 +154,11 @@ func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
 	}
 }
 
-// ---------- Unlocked ----------------------------------------------------
+// ---------- Gate ------------------------------------------------------
 
-func TestUnlocked_LockedReturnsErr(t *testing.T) {
+func TestGateRejectedCallReturnsErrLocked(t *testing.T) {
 	inner := &fakeTool{name: "delete", resp: "deleted"}
-	wrapped, _ := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+	wrapped, _ := toolpolicy.Gate(inner, func(context.Context, string) (bool, string) {
 		return false, "needs admin auth"
 	})
 
@@ -131,17 +166,17 @@ func TestUnlocked_LockedReturnsErr(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when locked")
 	}
-	if !errors.Is(err, toolpolicy.ErrToolLocked) {
-		t.Fatalf("expected ErrToolLocked, got %v", err)
+	if !errors.Is(err, toolpolicy.ErrLocked) {
+		t.Fatalf("expected ErrLocked, got %v", err)
 	}
 	if inner.calls != 0 {
 		t.Fatalf("delegate must not run when locked; calls = %d", inner.calls)
 	}
 }
 
-func TestUnlocked_UnlockedDelegatesNormally(t *testing.T) {
+func TestGateAcceptedCallDelegates(t *testing.T) {
 	inner := &fakeTool{name: "delete", resp: "deleted"}
-	wrapped, _ := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+	wrapped, _ := toolpolicy.Gate(inner, func(context.Context, string) (bool, string) {
 		return true, ""
 	})
 
@@ -157,10 +192,10 @@ func TestUnlocked_UnlockedDelegatesNormally(t *testing.T) {
 	}
 }
 
-func TestUnlocked_ConditionSeesArguments(t *testing.T) {
+func TestGateConditionReceivesArguments(t *testing.T) {
 	var seen string
 	inner := &fakeTool{name: "x", resp: "ok"}
-	wrapped, _ := toolpolicy.Unlocked(inner, func(_ context.Context, args string) (bool, string) {
+	wrapped, _ := toolpolicy.Gate(inner, func(_ context.Context, args string) (bool, string) {
 		seen = args
 		return true, ""
 	})
@@ -170,17 +205,17 @@ func TestUnlocked_ConditionSeesArguments(t *testing.T) {
 	}
 }
 
-func TestUnlocked_RejectsNilArgs(t *testing.T) {
+func TestGateRejectsNilInputs(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		fn   func() error
 	}{
 		{"nil tool", func() error {
-			_, err := toolpolicy.Unlocked(nil, func(context.Context, string) (bool, string) { return true, "" })
+			_, err := toolpolicy.Gate(nil, func(context.Context, string) (bool, string) { return true, "" })
 			return err
 		}},
 		{"nil condition", func() error {
-			_, err := toolpolicy.Unlocked(&fakeTool{name: "x"}, nil)
+			_, err := toolpolicy.Gate(&fakeTool{name: "x"}, nil)
 			return err
 		}},
 	} {
@@ -192,15 +227,15 @@ func TestUnlocked_RejectsNilArgs(t *testing.T) {
 	}
 }
 
-func TestUnlocked_ForwardsToolCapabilities(t *testing.T) {
+func TestGateForwardsToolCapabilities(t *testing.T) {
 	inner := &fakeTool{name: "notify", direct: true, paths: []string{"message.txt"}}
 	conditionCalls := 0
-	wrapped, err := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+	wrapped, err := toolpolicy.Gate(inner, func(context.Context, string) (bool, string) {
 		conditionCalls++
 		return true, ""
 	})
 	if err != nil {
-		t.Fatalf("Unlocked: %v", err)
+		t.Fatalf("Gate: %v", err)
 	}
 
 	assertPolicyCapabilities(t, wrapped, []string{"message.txt"})
@@ -238,23 +273,23 @@ func assertPolicyCapabilities(t *testing.T, wrapped tools.Tool, wantPaths []stri
 
 // ---------- Composition ---------------------------------------------------
 
-func TestCompose_OnceOnly_AndUnlock(t *testing.T) {
+func TestComposeOnceAndGate(t *testing.T) {
 	inner := &fakeTool{name: "search", resp: "ok"}
-	once, err := toolpolicy.OnceOnly(inner)
+	once, err := toolpolicy.Once(inner)
 	if err != nil {
-		t.Fatalf("OnceOnly: %v", err)
+		t.Fatalf("Once: %v", err)
 	}
-	gated, err := toolpolicy.Unlocked(once,
+	gated, err := toolpolicy.Gate(once,
 		func(context.Context, string) (bool, string) { return true, "" })
 	if err != nil {
-		t.Fatalf("Unlocked: %v", err)
+		t.Fatalf("Gate: %v", err)
 	}
 
-	ctx := toolpolicy.LoopScope(context.Background())
+	ctx := toolpolicy.WithScope(context.Background())
 	if _, err := gated.Call(ctx, `{}`); err != nil {
 		t.Fatalf("first composed call: %v", err)
 	}
-	if _, err := gated.Call(ctx, `{}`); !errors.Is(err, toolpolicy.ErrToolAlreadyCalled) {
-		t.Fatalf("expected ErrToolAlreadyCalled on duplicate, got %v", err)
+	if _, err := gated.Call(ctx, `{}`); !errors.Is(err, toolpolicy.ErrAlreadyCalled) {
+		t.Fatalf("expected ErrAlreadyCalled on duplicate, got %v", err)
 	}
 }
