@@ -515,8 +515,8 @@ export interface GenerationParams {
 // (read payload.tool — name+arguments always present). question is
 // self-contained (S1): its payload carries the Question, so no items.list join.
 export type Interrupt =
-  // payload is `map[string]any` + omitempty on the wire — guard it (the fold
-  // does) so a minimal/non-conformant backend can't strand an un-actionable card.
+  // Payload stays optional at the trust boundary so the fold can reject a
+  // minimal/non-conformant backend without stranding an un-actionable card.
   | { type: "approval"; itemId: ItemId; payload?: ApprovalPayload }
   | { type: "question"; itemId: ItemId; payload?: { question: Question } }
   | { type: "toolResult"; itemId: ItemId; payload?: ToolResultPayload };

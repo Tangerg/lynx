@@ -31,7 +31,10 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 			SessionID: "ses_1",
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
-				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
+				Approval: &transcript.Approval{
+					Tool: transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test ./..."}},
+					Risk: "high", Reason: "Runs commands in the workspace.",
+				},
 			}},
 			CreatedAt: created,
 		},
@@ -51,5 +54,15 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	open := got.Data[0]
 	if open.RunID != "run_waiting" || open.SessionID != "ses_1" || !open.CreatedAt.Equal(created) || len(open.Interrupts) != 1 {
 		t.Fatalf("wire open interrupt = %+v", open)
+	}
+	interrupt := open.Interrupts[0]
+	if interrupt.Type != protocol.InterruptApproval || interrupt.ItemID != "item_1" || interrupt.Payload == nil || interrupt.Payload.Tool == nil {
+		t.Fatalf("wire interrupt = %+v, want typed approval payload", interrupt)
+	}
+	if interrupt.Payload.Tool.Name != "shell" || interrupt.Payload.Tool.Arguments["command"] != "go test ./..." {
+		t.Fatalf("wire interrupt tool = %+v", interrupt.Payload.Tool)
+	}
+	if interrupt.Payload.Risk != protocol.ApprovalRiskHigh || interrupt.Payload.Reason != "Runs commands in the workspace." {
+		t.Fatalf("wire interrupt risk/reason = %q/%q", interrupt.Payload.Risk, interrupt.Payload.Reason)
 	}
 }
