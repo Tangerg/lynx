@@ -139,7 +139,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
-			reducer.abort(err.Error())
+			reducer.abort(fmt.Errorf("runs: activate continuation: %w", err))
 			cancel()
 		}
 	}
@@ -151,7 +151,10 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 }
 
 func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) ([]reduction, error) {
-	projected := reducer.open()
+	projected, err := reducer.open()
+	if err != nil {
+		return nil, fmt.Errorf("runs: reduce opening: %w", err)
+	}
 	if len(projected) == 0 {
 		return nil, errors.New("runs: reducer produced no opening events")
 	}

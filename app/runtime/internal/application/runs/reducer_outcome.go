@@ -10,9 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func (r *reducer) turnEnd(e TurnEnd) []RunEvent {
-	out := r.closeStreaming()
-	out = append(out, r.drainTools()...)
+func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	result := &RunResult{
 		Usage: r.turnUsage(e), Steps: r.step, Duration: e.Duration,
 	}
@@ -29,7 +27,13 @@ func (r *reducer) turnEnd(e TurnEnd) []RunEvent {
 			detail = r.cfg.CancelReason()
 		}
 	}
-	return append(out, r.finishedRun(e.Reason, result, detail))
+	terminal, err := r.finishedRun(e.Reason, result, detail)
+	if err != nil {
+		return nil, err
+	}
+	out := r.closeStreaming()
+	out = append(out, r.drainTools()...)
+	return append(out, terminal), nil
 }
 
 func (r *reducer) runRecord(state execution.RunState) transcript.Run {
@@ -45,17 +49,17 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 	}
 }
 
-func (r *reducer) finishedRun(outcome execution.Outcome, result *RunResult, detail string) SegmentFinished {
+func (r *reducer) finishedRun(outcome execution.Outcome, result *RunResult, detail string) (SegmentFinished, error) {
 	state, ok := execution.Running.Terminate(outcome)
 	if !ok {
-		panic("runs: terminal outcome does not terminate a running run")
+		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
 	}
 	run := r.runRecord(state)
 	run.Outcome = &outcome
 	run.Result = result
 	run.Detail = detail
 	run.FinishedAt = r.now()
-	return SegmentFinished{Run: run}
+	return SegmentFinished{Run: run}, nil
 }
 
 func budgetDetail(e TurnEnd) string {

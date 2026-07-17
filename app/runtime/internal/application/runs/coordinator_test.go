@@ -325,6 +325,46 @@ func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T
 	}
 }
 
+func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T) {
+	tests := []struct {
+		name  string
+		event EngineEvent
+	}{
+		{name: "unknown event", event: unsupportedEngineEvent{}},
+		{name: "invalid terminal outcome", event: TurnEnd{Reason: execution.Outcome(255)}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			executor := &fakeExecutor{events: []EngineEvent{test.event}}
+			effects := &fakeEffects{}
+			coordinator := testCoordinator(executor, effects)
+
+			stream, err := coordinator.openSegment(t.Context(), testSegment())
+			if err != nil {
+				t.Fatalf("openSegment: %v", err)
+			}
+			events := collectEvents(stream)
+			if len(events) != 2 {
+				t.Fatalf("journal events = %d, want opening and synthesized terminal", len(events))
+			}
+			finished, ok := events[1].Payload.(SegmentFinished)
+			if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
+				t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
+			}
+			if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != InternalProblem {
+				t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
+			}
+			if executor.cancels() != 1 {
+				t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+			}
+			if !effects.terminalized("ses_1", "run_1") {
+				t.Fatal("executor protocol violation did not terminalize the run")
+			}
+		})
+	}
+}
+
 func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 	executor := &fakeExecutor{
 		events:        []EngineEvent{TurnInterrupted{Interrupts: []Interrupt{{Kind: InterruptKind("unknown")}}}},
