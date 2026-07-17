@@ -1,5 +1,3 @@
-github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f h1:Wqka1F76e7w5un+kfiBDPGZkqpqJJqsTLpiAez6de8A=
-github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:zmF88NWQD6g0wV8ODhB89n03HFtvvM8tLBFT4wPCeL0=
 github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f h1:yi7YXYK9TGkCoORkI3yvj8y+R+B8rXm8ytSifl9Y5oE=
 github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f h1:gpgz81QrGbGa1vVRZNxzIaCNHBjfABaYMOtWjYBs0FI=

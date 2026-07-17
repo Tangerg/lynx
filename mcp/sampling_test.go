@@ -2,18 +2,27 @@ package mcp_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
-func TestNewSamplingHandlerRequiresClient(t *testing.T) {
-	if _, err := lynxmcp.NewSamplingHandler(nil); err == nil {
-		t.Fatal("NewSamplingHandler succeeded with a nil client")
+type nilChatCaller struct{}
+
+func (*nilChatCaller) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	panic("typed nil chat caller was used")
+}
+
+func TestNewSamplingHandlerRequiresCaller(t *testing.T) {
+	var typedNil *nilChatCaller
+	for _, caller := range []lynxmcp.ChatCaller{nil, typedNil} {
+		if _, err := lynxmcp.NewSamplingHandler(caller); !errors.Is(err, lynxmcp.ErrNilChatCaller) {
+			t.Fatalf("NewSamplingHandler error = %v, want ErrNilChatCaller", err)
+		}
 	}
 }
 
@@ -27,11 +36,7 @@ func TestNewSamplingHandlerForwardsRequestOptions(t *testing.T) {
 			FinishReason: chat.FinishReasonStop,
 		}}}, nil
 	})
-	client, err := chatclient.New(model)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler, err := lynxmcp.NewSamplingHandler(client)
+	handler, err := lynxmcp.NewSamplingHandler(model)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,5 +73,37 @@ func TestNewSamplingHandlerForwardsRequestOptions(t *testing.T) {
 	}
 	if len(captured.Options.Stop) != 1 || captured.Options.Stop[0] != "STOP" {
 		t.Fatalf("Stop = %v, want [STOP]", captured.Options.Stop)
+	}
+}
+
+func TestSamplingHandlerRejectsInvalidChatResponse(t *testing.T) {
+	user := chat.NewUserMessage(chat.NewTextPart("not an assistant response"))
+	tests := []struct {
+		name     string
+		response *chat.Response
+	}{
+		{name: "nil response"},
+		{
+			name: "invalid response",
+			response: &chat.Response{Choices: []chat.Choice{{
+				Message: &user,
+			}}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			caller := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+				return test.response, nil
+			})
+			handler, err := lynxmcp.NewSamplingHandler(caller)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = handler(t.Context(), &sdkmcp.CreateMessageRequest{Params: &sdkmcp.CreateMessageParams{}})
+			if !errors.Is(err, chat.ErrInvalidResponse) {
+				t.Fatalf("handler error = %v, want chat.ErrInvalidResponse", err)
+			}
+		})
 	}
 }

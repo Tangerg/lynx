@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -15,6 +15,14 @@ import (
 // [sdkmcp.ClientOptions.CreateMessageHandler]. Defining the alias
 // keeps user code from re-stating the unwieldy SDK signature.
 type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error)
+
+// ChatCaller is the synchronous chat capability needed by MCP sampling. The
+// interface is defined at this consumption boundary so callers may supply a
+// composed chat client, a chat.Model, or a focused test implementation without
+// coupling this package to a concrete client type.
+type ChatCaller interface {
+	Call(ctx context.Context, request *chat.Request) (*chat.Response, error)
+}
 
 // NewSamplingHandler returns a [SamplingHandler] that delegates the server's
 // createMessage request to client. An MCP server can then "borrow" the
@@ -31,14 +39,14 @@ type SamplingHandler = func(context.Context, *sdkmcp.CreateMessageRequest) (*sdk
 //     TextContent; StopReason mapped from chat.FinishReason).
 //
 // ModelPreferences is not forwarded: model selection belongs to the supplied
-// chatclient.Client, while MCP preferences are advisory.
+// [ChatCaller], while MCP preferences are advisory.
 //
 // Concurrency is not bounded — wrap the returned handler with your own
 // semaphore if your model quota requires it. Returns an error when
-// client is nil — caller decides whether to surface or panic.
-func NewSamplingHandler(client *chatclient.Client) (SamplingHandler, error) {
-	if client == nil {
-		return nil, errors.New("mcp.NewSamplingHandler: chatclient.Client must not be nil")
+// caller is nil — caller decides whether to surface or panic.
+func NewSamplingHandler(caller ChatCaller) (SamplingHandler, error) {
+	if isNilChatCaller(caller) {
+		return nil, ErrNilChatCaller
 	}
 	return func(ctx context.Context, req *sdkmcp.CreateMessageRequest) (*sdkmcp.CreateMessageResult, error) {
 		if req == nil || req.Params == nil {
@@ -60,12 +68,29 @@ func NewSamplingHandler(client *chatclient.Client) (SamplingHandler, error) {
 		}
 		chatReq.Options.Stop = append([]string(nil), req.Params.StopSequences...)
 
-		resp, err := client.Call(ctx, chatReq)
+		resp, err := caller.Call(ctx, chatReq)
 		if err != nil {
 			return nil, fmt.Errorf("mcp.NewSamplingHandler: sample via chat: %w", err)
 		}
-		return chatResponseToSamplingResult(resp), nil
+		result, err := chatResponseToSamplingResult(resp)
+		if err != nil {
+			return nil, fmt.Errorf("mcp.NewSamplingHandler: convert chat response: %w", err)
+		}
+		return result, nil
 	}, nil
+}
+
+func isNilChatCaller(caller ChatCaller) bool {
+	value := reflect.ValueOf(caller)
+	if !value.IsValid() {
+		return true
+	}
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
@@ -81,7 +106,10 @@ func samplingMessagesToChat(messages []*sdkmcp.SamplingMessage) []chat.Message {
 	return out
 }
 
-func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResult {
+func chatResponseToSamplingResult(resp *chat.Response) (*sdkmcp.CreateMessageResult, error) {
+	if err := resp.Validate(); err != nil {
+		return nil, err
+	}
 	text := resp.Text()
 	stop := "end_turn"
 	if first := resp.First(); first != nil {
@@ -91,7 +119,7 @@ func chatResponseToSamplingResult(resp *chat.Response) *sdkmcp.CreateMessageResu
 		Role:       "assistant",
 		Content:    &sdkmcp.TextContent{Text: text},
 		StopReason: stop,
-	}
+	}, nil
 }
 
 func mapStopReason(r chat.FinishReason) string {
