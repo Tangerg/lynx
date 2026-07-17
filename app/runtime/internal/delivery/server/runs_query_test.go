@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // fakeInterruptReader backs the query coordinator's interrupt read for the
@@ -33,7 +34,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test ./..."}},
-					Risk: "high", Reason: "Runs commands in the workspace.",
+					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.",
 				},
 			}},
 			CreatedAt: created,

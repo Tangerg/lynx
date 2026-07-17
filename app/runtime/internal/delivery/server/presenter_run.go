@@ -132,7 +132,7 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 			entry.Type = protocol.InterruptApproval
 			entry.Payload = &protocol.InterruptPayload{
 				Tool:   new(presentTool(interrupt.Approval.Tool)),
-				Risk:   protocol.ApprovalRisk(interrupt.Approval.Risk),
+				Risk:   presentApprovalRisk(interrupt.Approval.Risk),
 				Reason: interrupt.Approval.Reason,
 			}
 		case transcript.QuestionInterrupt:

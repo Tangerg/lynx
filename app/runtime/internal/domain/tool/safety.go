@@ -1,5 +1,16 @@
 package tool
 
+// RiskLevel is the coarse severity displayed when a tool call requires human
+// approval. The empty value is invalid; callers may use it to mean no approval
+// risk was attached.
+type RiskLevel string
+
+const (
+	RiskLow    RiskLevel = "low"
+	RiskMedium RiskLevel = "medium"
+	RiskHigh   RiskLevel = "high"
+)
+
 // SafetyClassFor maps a built-in tool name to its side-effect safety class. It
 // is the single source of truth for the name→class mapping — consumed for the
 // tools.list wire metadata AND by the approval gate ([approval.GateFor]) — so the
@@ -23,16 +34,35 @@ func SafetyClassFor(name string) SafetyClass {
 	}
 }
 
-// String is the wire vocabulary (API.md §4.4 SafetyClass: "safe" | "write" |
-// "exec") for a class — the canonical string a client renders, stamped on the
-// live toolCall Item and the approval prompt.
-func (c SafetyClass) String() string {
+// Valid reports whether c is a defined safety class.
+func (c SafetyClass) Valid() bool {
+	switch c {
+	case SafetyClassSafe, SafetyClassWrite, SafetyClassExec, SafetyClassNetwork:
+		return true
+	default:
+		return false
+	}
+}
+
+// Risk returns the conservative human-facing severity for c. An unknown class
+// is high risk so an uninitialized or future value never weakens a prompt.
+func (c SafetyClass) Risk() RiskLevel {
 	switch c {
 	case SafetyClassSafe:
-		return "safe"
+		return RiskLow
 	case SafetyClassWrite:
-		return "write"
+		return RiskMedium
 	default:
-		return "exec"
+		return RiskHigh
+	}
+}
+
+// Valid reports whether r is a defined risk level.
+func (r RiskLevel) Valid() bool {
+	switch r {
+	case RiskLow, RiskMedium, RiskHigh:
+		return true
+	default:
+		return false
 	}
 }

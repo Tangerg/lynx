@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestInterruptContractDiscriminatesAndRejectsGuesses(t *testing.T) {
@@ -36,12 +37,33 @@ func TestInterruptContractDiscriminatesAndRejectsGuesses(t *testing.T) {
 		t.Fatalf("decoded = %#v", got)
 	}
 
+	approval := Interrupt{
+		Kind: ApprovalInterruptKind,
+		Approval: &ApprovalPrompt{
+			ToolName: "webfetch", Arguments: `{"url":"https://example.com"}`,
+			SafetyClass: tool.SafetyClassNetwork, Risk: tool.RiskHigh,
+		},
+	}
+	raw, err = json.Marshal(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = DecodeInterrupt(raw)
+	if err != nil {
+		t.Fatalf("DecodeInterrupt approval: %v", err)
+	}
+	if got.Approval == nil || got.Approval.SafetyClass != tool.SafetyClassNetwork || got.Approval.Risk != tool.RiskHigh {
+		t.Fatalf("decoded approval = %#v", got.Approval)
+	}
+
 	for _, raw := range [][]byte{
 		[]byte(`{"toolName":"shell","arguments":"{}"}`),
 		[]byte(`{"kind":"future","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec"},"question":{"toolName":"ask_user","arguments":"{}","questions":[{"question":"x"}]}}`),
 		[]byte(`{"kind":"question","question":{"toolName":"ask_user","arguments":"{}","questions":[]}}`),
 		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"not-json","safetyClass":"exec"}}`),
+		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"future"}}`),
+		[]byte(`{"kind":"approval","approval":{"toolName":"shell","arguments":"{}","safetyClass":"exec","risk":"critical"}}`),
 	} {
 		if _, err := DecodeInterrupt(raw); err == nil {
 			t.Errorf("DecodeInterrupt(%s) succeeded, want error", raw)

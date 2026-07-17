@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -100,7 +101,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		ProcessID: "proc_1",
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_approval", Kind: transcript.ApprovalInterrupt,
-			Approval: &transcript.Approval{Risk: "high"},
+			Approval: &transcript.Approval{Risk: tool.RiskHigh},
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
 	}); err != nil {
@@ -112,7 +113,8 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Consume: ok=%v err=%v", ok, err)
 	}
-	if got.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" {
+	if got.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
+		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh {
 		t.Fatalf("Consume returned %+v", got)
 	}
 

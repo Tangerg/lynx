@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // ErrIdentityConflict reports an attempt to reuse a durable transcript identity
@@ -84,7 +85,7 @@ type Item struct {
 	Steps       []PlanStep
 	Question    *Question
 	Tool        *ToolInvocation
-	SafetyClass string
+	SafetyClass tool.SafetyClass
 	Error       *Problem
 
 	Summary         string
@@ -192,6 +193,6 @@ type Interrupt struct {
 
 type Approval struct {
 	Tool   ToolInvocation
-	Risk   string
+	Risk   tool.RiskLevel
 	Reason string
 }

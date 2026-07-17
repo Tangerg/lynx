@@ -39,7 +39,7 @@ type ToolCallPlan struct {
 	ArgumentOverride string
 	DenyReason       string
 	SafetyClass      tool.SafetyClass
-	Risk             string
+	Risk             tool.RiskLevel
 	PromptReason     string
 }
 
