@@ -60,11 +60,15 @@ func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) 
 
 // MaybeCompact inspects sessionID's history. When either trigger
 // (message count or estimated token footprint, see [shouldCompact]) is
-// breached the older slice is summarized and the store is rewritten as
-// [summary, recent...]. The returned
-// [turn.CompactionResult] reports whether the sweep fired and the
-// before/after message counts so callers can both chain follow-on
-// work (e.g. extraction) and surface an observable boundary event.
+// breached it runs a ladder, cheapest rung first: a non-LLM trim of oversized
+// tool-call arguments and old tool-result bodies (see [Compactor.trimForBudget]);
+// only if that leaves the footprint over budget is the older slice summarized by
+// the LLM and the store rewritten as [summary, recent...]. A trim that suffices
+// on its own rewrites history silently and reports no boundary (Compacted stays
+// false) — it drops no messages. The returned [turn.CompactionResult] reports
+// whether the LLM summary fired and the before/after message counts so callers
+// can chain follow-on work (e.g. extraction) and surface an observable boundary
+// event.
 //
 // No-op (zero result) on a nil receiver (compaction disabled) or an
 // empty sessionID.
@@ -102,6 +106,26 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	}
 
 	before := len(msgs)
+
+	// Compaction ladder, cheapest rung first: replace oversized tool-call
+	// arguments and OLD tool-result bodies with previews (deterministic, no LLM).
+	// If that alone brings the footprint under budget, commit the trimmed history
+	// and skip the LLM summary. This drops no messages and is invisible to the UI
+	// transcript (which renders the full tool results) — it only slims the LLM's
+	// re-sent context — so it reports no compaction boundary (Compacted stays
+	// false) and, correctly, triggers no fact-extraction LLM call.
+	trimmed, changed := c.trimForBudget(msgs)
+	if changed && !c.shouldCompact(trimmed) {
+		if err := history.Replace(ctx, c.store, sessionID, trimmed...); err != nil {
+			return turn.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
+		}
+		return turn.CompactionResult{}, nil
+	}
+
+	// Still over budget (or nothing was trimmable): fall to the LLM summary rung
+	// over the ORIGINAL older slice — the summariser caps tool bodies for its own
+	// input ([summaryToolResultCap]), so it sees more than the stored trim would
+	// leave and produces a fuller summary.
 	cutoff := len(msgs) - c.keepRecent
 
 	// Advance cutoff to the next UserMessage boundary so that `recent`
