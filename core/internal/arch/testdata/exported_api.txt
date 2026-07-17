@@ -27,6 +27,7 @@ chat: func (m Message) Validate() error
 chat: func (o *Options) UnmarshalJSON(data []byte) error
 chat: func (o Options) Clone() Options
 chat: func (o Options) MarshalJSON() ([]byte, error)
+chat: func (o Options) Overlay(other Options) Options
 chat: func (o Options) Validate() error
 chat: func (p *Part) UnmarshalJSON(data []byte) error
 chat: func (p Part) Clone() Part

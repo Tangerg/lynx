@@ -84,6 +84,49 @@ func TestOptionsClone(t *testing.T) {
 	}
 }
 
+func TestOptionsOverlay(t *testing.T) {
+	base := chat.Options{
+		Model:            "base-model",
+		FrequencyPenalty: new(0.1),
+		MaxTokens:        new(int64(10)),
+		PresencePenalty:  new(0.2),
+		Stop:             []string{"BASE"},
+		Temperature:      new(0.3),
+		TopK:             new(int64(4)),
+		TopP:             new(0.9),
+	}
+
+	if got := base.Overlay(chat.Options{}); !reflect.DeepEqual(got, base) {
+		t.Fatalf("Overlay(empty) = %#v, want unchanged %#v", got, base)
+	}
+
+	override := chat.Options{
+		Model:       "override-model",
+		MaxTokens:   new(int64(20)),
+		Stop:        []string{"OVERRIDE"},
+		Temperature: new(0.7),
+	}
+	got := base.Overlay(override)
+	if got.Model != "override-model" || *got.MaxTokens != 20 ||
+		got.Stop[0] != "OVERRIDE" || *got.Temperature != 0.7 {
+		t.Fatalf("Overlay did not apply set fields: %#v", got)
+	}
+	if *got.FrequencyPenalty != 0.1 || *got.PresencePenalty != 0.2 ||
+		*got.TopK != 4 || *got.TopP != 0.9 {
+		t.Fatalf("Overlay dropped base fields the override left unset: %#v", got)
+	}
+
+	*got.MaxTokens = 99
+	got.Stop[0] = "MUTATED"
+	*got.FrequencyPenalty = 99
+	if *override.MaxTokens != 20 || override.Stop[0] != "OVERRIDE" {
+		t.Fatalf("Overlay aliased the override: %#v", override)
+	}
+	if *base.FrequencyPenalty != 0.1 || base.Stop[0] != "BASE" {
+		t.Fatalf("Overlay aliased the base: %#v", base)
+	}
+}
+
 func TestOptionsValidateRejectsInvalidOverrides(t *testing.T) {
 	tests := []struct {
 		name    string
