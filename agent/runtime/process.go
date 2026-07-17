@@ -13,7 +13,7 @@ import (
 // read, control, and usage capabilities that runtime composition grants
 // separately to consumers.
 //
-// Internal layout — three concerns kept as named sub-struct fields so
+// Internal layout — four concerns kept as named sub-struct fields so
 // related fields & methods cluster together while the access path stays
 // explicit at every call site:
 //
@@ -25,8 +25,12 @@ import (
 //   - signals  channel + atomic-based signaling primitives
 //     (terminate / toolCallCancel) — no
 //     shared lock, all built on lock-free primitives.
+//   - nested   nested-child ownership, suspension staging, and deferred
+//     cleanup; owns a separate mutex because sibling AgentTools may update it
+//     concurrently.
 //
-// The remaining top-level fields are construction-time wiring (id /
+// checkpointMu serializes suspension transitions and durable tree capture.
+// The other top-level fields are construction-time wiring (id /
 // deployment / options / blackboard / state reader / planner / domain /
 // engine) — immutable after newProcess returns.
 type Process struct {

@@ -144,7 +144,7 @@ func (e *Engine) loadResumableTree(
 		if childErr != nil || childLoss != nil {
 			return nil, childLoss, childErr
 		}
-		if err := validateNestedChildSnapshot(snapshot, childTree.snapshot, relation); err != nil {
+		if err := relation.validateSnapshot(snapshot, childTree.snapshot); err != nil {
 			return nil, err, nil
 		}
 		tree.children = append(tree.children, childTree)

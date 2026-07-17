@@ -267,7 +267,7 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 		if !ok {
 			return fmt.Errorf("%w: nested child process %q is missing", interaction.ErrSuspensionStale, relation.ChildID)
 		}
-		if err := validateNestedChildProcess(process, child, relation); err != nil {
+		if err := relation.validateProcess(process, child); err != nil {
 			return err
 		}
 		if child.Status() == core.StatusWaiting {
