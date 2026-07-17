@@ -177,9 +177,9 @@ type Request struct {
 	// URL is the page to scrape. Required.
 	URL string `json:"url"`
 
-	// Formats picks one or more output formats. wires this as
-	// [{"type": "markdown"}] etc.; richer modes (json, summary) need
-	// the {type, schema}-style objects.
+	// Formats picks one or more output formats — the SPI wrapper wires the
+	// resolved format as [{"type": "markdown"}] etc.; richer modes (json,
+	// summary) need the {type, schema}-style objects.
 	Formats []FormatEntry `json:"formats"`
 
 	// OnlyMainContent strips boilerplate (defaults to true).
@@ -314,10 +314,7 @@ func (c *Client) FetchNative(ctx context.Context, req *Request) (*Response, erro
 // ============================================================== SPI wrapper
 
 func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Response, error) {
-	format := req.Format
-	if format == "" {
-		format = webfetch.FormatMarkdown
-	}
+	format := req.ResolvedFormat()
 	raw, err := c.FetchNative(ctx, &Request{
 		URL:             req.URL,
 		Formats:         []FormatEntry{{Type: string(format)}},
@@ -329,9 +326,9 @@ func (c *Client) Fetch(ctx context.Context, req *webfetch.Request) (*webfetch.Re
 	return &webfetch.Response{Content: raw.Data.content(format), Format: format}, nil
 }
 
-// content selects the field matching the caller's requested
-// format. Firecrawl returns multiple formats simultaneously; the field
-// matching the caller's requested format is selected.
+// content selects the field matching the caller's requested format.
+// Firecrawl returns multiple formats simultaneously, so the wrapper picks
+// the one the caller asked for.
 func (d ResponseData) content(format webfetch.ResponseFormat) string {
 	switch format {
 	case webfetch.FormatHTML:

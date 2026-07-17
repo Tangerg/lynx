@@ -41,6 +41,16 @@ func (r *Request) Validate() error {
 	return nil
 }
 
+// ResolvedFormat returns the effective response format, applying the markdown
+// default when Format is unset. Providers call it so the default lives in one
+// place instead of each backend re-deciding it.
+func (r *Request) ResolvedFormat() ResponseFormat {
+	if r == nil || r.Format == "" {
+		return FormatMarkdown
+	}
+	return r.Format
+}
+
 // Response is the normalized scrape result. Used as both the SPI
 // return type and the LLM-facing serialization shape.
 type Response struct {
