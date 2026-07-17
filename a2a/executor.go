@@ -35,7 +35,7 @@ type executor struct {
 
 var _ a2asrv.AgentExecutor = (*executor)(nil)
 
-func newExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
+func newExecutor(agent Agent) (*executor, error) {
 	if isNilAgent(agent) {
 		return nil, ErrNilAgent
 	}
@@ -88,12 +88,20 @@ func (e *executor) Execute(ctx context.Context, execCtx *a2asrv.ExecutorContext)
 			return
 		}
 
-		for chunk, err := range e.agent.Run(ctx, input) {
+		fail := func(err error) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			message := sdka2a.NewMessage(sdka2a.MessageRoleAgent, sdka2a.NewTextPart(err.Error()))
+			yield(sdka2a.NewStatusUpdateEvent(execCtx, sdka2a.TaskStateFailed, message), nil)
+		}
+		sequence := e.agent.Run(ctx, input)
+		if sequence == nil {
+			fail(errNilAgentSequence)
+			return
+		}
+		for chunk, err := range sequence {
 			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
-				failure := sdka2a.NewMessage(sdka2a.MessageRoleAgent, sdka2a.NewTextPart(err.Error()))
-				yield(sdka2a.NewStatusUpdateEvent(execCtx, sdka2a.TaskStateFailed, failure), nil)
+				fail(err)
 				return
 			}
 			if chunk == "" {

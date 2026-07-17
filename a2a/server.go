@@ -1,6 +1,8 @@
 package a2a
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
@@ -16,10 +18,10 @@ type ServerConfig struct {
 	// Agent is the capability served over A2A. Required.
 	Agent Agent
 
-	// Card is the AgentCard served at the well-known path. Required — its
-	// SupportedInterfaces should advertise a JSON-RPC interface whose URL
-	// ends in RPCPattern. Build it with [JSONRPCInterface] for the
-	// transport entry.
+	// Card is the AgentCard served at the well-known path. Required and
+	// snapshotted during construction — its SupportedInterfaces should advertise
+	// a JSON-RPC interface whose URL ends in RPCPattern. Build it with
+	// [JSONRPCInterface] for the transport entry.
 	Card *sdka2a.AgentCard
 
 	// RPCPattern overrides where the JSON-RPC endpoint is mounted. Empty
@@ -46,6 +48,10 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 	if cfg.Card == nil {
 		return nil, ErrNilCard
 	}
+	card, err := snapshotAgentCard(cfg.Card)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.RPCPattern == "" {
 		cfg.RPCPattern = DefaultRPCPattern
 	}
@@ -53,9 +59,33 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 	requestHandler := a2asrv.NewHandler(exec, cfg.HandlerOptions...)
 
 	mux := http.NewServeMux()
-	mux.Handle(cfg.RPCPattern, a2asrv.NewJSONRPCHandler(requestHandler))
-	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(cfg.Card))
+	mux.Handle(a2asrv.WellKnownAgentCardPath, a2asrv.NewStaticAgentCardHandler(card))
+	if err := registerRPCHandler(mux, cfg.RPCPattern, a2asrv.NewJSONRPCHandler(requestHandler)); err != nil {
+		return nil, err
+	}
 	return mux, nil
+}
+
+func snapshotAgentCard(card *sdka2a.AgentCard) (*sdka2a.AgentCard, error) {
+	data, err := json.Marshal(card)
+	if err != nil {
+		return nil, fmt.Errorf("%w %q: encode: %w", ErrInvalidCard, card.Name, err)
+	}
+	var snapshot sdka2a.AgentCard
+	if err := json.Unmarshal(data, &snapshot); err != nil {
+		return nil, fmt.Errorf("%w %q: decode snapshot: %w", ErrInvalidCard, card.Name, err)
+	}
+	return &snapshot, nil
+}
+
+func registerRPCHandler(mux *http.ServeMux, pattern string, handler http.Handler) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("%w %q: %v", ErrInvalidRPCPattern, pattern, recovered)
+		}
+	}()
+	mux.Handle(pattern, handler)
+	return nil
 }
 
 // JSONRPCInterface is a small helper for building an AgentCard: it declares a
