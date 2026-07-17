@@ -59,6 +59,41 @@ func TestRunSingleAction(t *testing.T) {
 	}
 }
 
+func TestRunPreservesPanickedActionCause(t *testing.T) {
+	cause := errors.New("action sentinel")
+	a := agent.New(agent.AgentConfig{
+		Name: "panicking-action",
+		Actions: []agent.Action{agent.NewAction("panic", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
+			panic(cause)
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+	if _, err := engine.Deploy(a); err != nil {
+		t.Fatalf("Deploy: %v", err)
+	}
+
+	process, err := engine.Run(
+		t.Context(),
+		a,
+		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process == nil || process.Status() != core.StatusFailed {
+		t.Fatalf("process = %#v, want failed process", process)
+	}
+	failure := process.Failure()
+	if !errors.Is(failure, cause) {
+		t.Fatalf("process failure = %v, want wrapped panic cause", failure)
+	}
+	if !strings.Contains(failure.Error(), "runtime.Process.invokeAction: action panicked") {
+		t.Fatalf("process failure = %v, want panic boundary context", failure)
+	}
+}
+
 // TestRunMultiStepPlanning confirms the GOAP planner sequences three actions
 // correctly: A produces X, B consumes X to produce Y, C consumes Y to produce
 // the goal type.

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/internal/toolcall"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -523,11 +524,7 @@ func invokeTool(
 func callRuntimeTool(ctx context.Context, tool tools.Tool, arguments string) (output string, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			if cause, ok := recovered.(error); ok {
-				err = fmt.Errorf("tool panicked: %w", cause)
-				return
-			}
-			err = fmt.Errorf("tool panicked: %v", recovered)
+			err = panicerr.New("tool panicked", recovered)
 		}
 	}()
 	return tool.Call(ctx, arguments)
