@@ -141,7 +141,7 @@ func (m *ChatMiddleware) Stream(next chat.Streamer) chat.Streamer {
 				}
 				if err := accumulator.Add(chunk); err != nil {
 					span.AddEvent("gen_ai.stream.accumulation_error",
-						trace.WithAttributes(attribute.String("error.type", errorType(err))),
+						trace.WithAttributes(semconv.ErrorTypeKey.String(errorType(err))),
 					)
 				}
 				stopped = !yield(chunk, nil)
@@ -198,7 +198,7 @@ func (m *ChatMiddleware) recordMetrics(
 ) {
 	attrs := metricAttributes(request, response)
 	if err != nil {
-		attrs = append(attrs, attribute.String("error.type", errorType(err)))
+		attrs = append(attrs, semconv.ErrorTypeKey.String(errorType(err)))
 	}
 	m.duration.Record(ctx, elapsed.Seconds(),
 		genaiconv.OperationNameChat,
