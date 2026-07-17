@@ -162,6 +162,9 @@ func TestMergeDoesNotMaskMalformedWinningSkill(t *testing.T) {
 	})
 
 	_, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md")
+	if !errors.Is(err, ErrInvalidSkill) {
+		t.Fatalf("ReadResource error = %v, want ErrInvalidSkill from project skill", err)
+	}
 	if !errors.Is(err, ErrDescriptionEmpty) {
 		t.Fatalf("ReadResource error = %v, want ErrDescriptionEmpty from project skill", err)
 	}

@@ -47,6 +47,19 @@ type cancelingResourceSource struct {
 	cancel context.CancelFunc
 }
 
+type failingOpenFS struct {
+	fs.FS
+	path string
+	err  error
+}
+
+func (f failingOpenFS) Open(name string) (fs.File, error) {
+	if name == f.path {
+		return nil, f.err
+	}
+	return f.FS.Open(name)
+}
+
 func (s cancelingResourceSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
 	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
 	s.cancel()
@@ -82,6 +95,8 @@ func newTestFS() ResourceSource {
 		"data-analysis/SKILL.md":                 {Data: []byte("---\nname: data-analysis\ndescription: Analyze data.\n---\nbody")},
 		// A directory that is not a valid skill — must be skipped by List.
 		"not-a-skill/readme.txt": {Data: []byte("ignore me")},
+		"malformed/SKILL.md":     {Data: []byte("missing frontmatter")},
+		"UPPER/SKILL.md":         skillFile("UPPER", "invalid directory name", "body"),
 	})
 }
 
@@ -189,6 +204,51 @@ func TestLoad(t *testing.T) {
 	}
 	if sk.Description == "" || sk.Body == "" {
 		t.Errorf("loaded skill missing description or body: %+v", sk)
+	}
+}
+
+func TestLoadClassifiesInvalidSkillAndPreservesCause(t *testing.T) {
+	source := NewFS(fstest.MapFS{
+		"bad-description/SKILL.md": {Data: []byte("---\nname: bad-description\ndescription:\n---\nbody")},
+		"bad-document/SKILL.md":    {Data: []byte("missing frontmatter")},
+		"mismatch/SKILL.md":        skillFile("another-name", "mismatched name", "body"),
+	})
+
+	for _, test := range []struct {
+		name  string
+		cause error
+	}{
+		{name: "bad-description", cause: ErrDescriptionEmpty},
+		{name: "bad-document", cause: ErrNoFrontmatter},
+		{name: "mismatch", cause: ErrNameMismatch},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := source.Load(t.Context(), test.name)
+			if !errors.Is(err, ErrInvalidSkill) {
+				t.Fatalf("Load error = %v, want ErrInvalidSkill", err)
+			}
+			if !errors.Is(err, test.cause) {
+				t.Fatalf("Load error = %v, want %v cause", err, test.cause)
+			}
+		})
+	}
+
+	_, err := source.Load(t.Context(), "missing")
+	if !errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrInvalidSkill) {
+		t.Fatalf("Load missing error = %v, want only fs.ErrNotExist", err)
+	}
+}
+
+func TestListReturnsRepositoryReadFailure(t *testing.T) {
+	readErr := errors.New("repository read failed")
+	base := fstest.MapFS{
+		"broken/SKILL.md": skillFile("broken", "broken skill", "body"),
+	}
+	source := NewFS(failingOpenFS{FS: base, path: "broken/SKILL.md", err: readErr})
+
+	_, err := source.List(t.Context())
+	if !errors.Is(err, readErr) {
+		t.Fatalf("List error = %v, want repository read failure", err)
 	}
 }
 
