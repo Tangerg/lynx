@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -45,10 +46,23 @@ type Tool struct {
 // NewTool builds a [Tool] over source. Unlike the local-by-default file tools,
 // a source has no sensible default — passing nil returns [ErrNilSource].
 func NewTool(source skillsrc.ResourceSource) (*Tool, error) {
-	if source == nil {
+	if isNilSource(source) {
 		return nil, ErrNilSource
 	}
 	return &Tool{source: source}, nil
+}
+
+func isNilSource(source skillsrc.ResourceSource) bool {
+	value := reflect.ValueOf(source)
+	if !value.IsValid() {
+		return true
+	}
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 func (t *Tool) Definition() chat.ToolDefinition {

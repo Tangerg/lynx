@@ -3,12 +3,27 @@ package skills
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"strings"
 	"testing"
 	"testing/fstest"
 
 	skillsrc "github.com/Tangerg/lynx/skills"
 )
+
+type panicSource struct{}
+
+func (*panicSource) List(context.Context) ([]skillsrc.Summary, error) {
+	panic("typed-nil source was used")
+}
+
+func (*panicSource) Load(context.Context, string) (*skillsrc.Skill, error) {
+	panic("typed-nil source was used")
+}
+
+func (*panicSource) OpenResource(context.Context, string, string) (fs.File, error) {
+	panic("typed-nil source was used")
+}
 
 func newToolFS() skillsrc.ResourceSource {
 	return skillsrc.NewFS(fstest.MapFS{
@@ -28,8 +43,20 @@ func newTool(t *testing.T) *Tool {
 }
 
 func TestNewToolNilSource(t *testing.T) {
-	if _, err := NewTool(nil); !errors.Is(err, ErrNilSource) {
-		t.Errorf("err = %v, want ErrNilSource", err)
+	var typedNil *panicSource
+	tests := []struct {
+		name   string
+		source skillsrc.ResourceSource
+	}{
+		{name: "nil", source: nil},
+		{name: "typed nil", source: typedNil},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := NewTool(test.source); !errors.Is(err, ErrNilSource) {
+				t.Errorf("err = %v, want ErrNilSource", err)
+			}
+		})
 	}
 }
 
