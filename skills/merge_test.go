@@ -2,13 +2,47 @@ package skills
 
 import (
 	"context"
-	"strings"
+	"errors"
+	"io/fs"
 	"testing"
 	"testing/fstest"
 )
 
 func skillFile(name, desc, body string) *fstest.MapFile {
 	return &fstest.MapFile{Data: []byte("---\nname: " + name + "\ndescription: " + desc + "\n---\n" + body)}
+}
+
+type cancelAfterListSource struct {
+	ResourceSource
+	cancel context.CancelFunc
+}
+
+func (s cancelAfterListSource) List(ctx context.Context) ([]Summary, error) {
+	summaries, err := s.ResourceSource.List(ctx)
+	s.cancel()
+	return summaries, err
+}
+
+type cancelAfterLoadSource struct {
+	ResourceSource
+	cancel context.CancelFunc
+}
+
+func (s cancelAfterLoadSource) Load(ctx context.Context, name string) (*Skill, error) {
+	skill, err := s.ResourceSource.Load(ctx, name)
+	s.cancel()
+	return skill, err
+}
+
+type cancelAfterOpenSource struct {
+	ResourceSource
+	cancel context.CancelFunc
+}
+
+func (s cancelAfterOpenSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	file, err := s.ResourceSource.OpenResource(ctx, name, resource)
+	s.cancel()
+	return file, err
 }
 
 func TestMergePrecedence(t *testing.T) {
@@ -103,8 +137,107 @@ func TestMergeReadResource(t *testing.T) {
 	}
 }
 
+func TestMergeKeepsResourcesWithWinningSkill(t *testing.T) {
+	project := NewFS(fstest.MapFS{
+		"shared/SKILL.md": skillFile("shared", "project shared", "project body without resource"),
+	})
+	global := NewFS(fstest.MapFS{
+		"shared/SKILL.md":           skillFile("shared", "global shared", "global body"),
+		"shared/references/note.md": {Data: []byte("GLOBAL note")},
+	})
+
+	_, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md")
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("ReadResource error = %v, want project resource not found", err)
+	}
+}
+
+func TestMergeDoesNotMaskMalformedWinningSkill(t *testing.T) {
+	project := NewFS(fstest.MapFS{
+		"shared/SKILL.md": {Data: []byte("---\nname: shared\ndescription: \n---\nbroken")},
+	})
+	global := NewFS(fstest.MapFS{
+		"shared/SKILL.md":           skillFile("shared", "global shared", "global body"),
+		"shared/references/note.md": {Data: []byte("GLOBAL note")},
+	})
+
+	_, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md")
+	if !errors.Is(err, ErrDescriptionEmpty) {
+		t.Fatalf("ReadResource error = %v, want ErrDescriptionEmpty from project skill", err)
+	}
+}
+
+func TestMergeTreatsEmptyMergedSourceAsNotFound(t *testing.T) {
+	global := NewFS(fstest.MapFS{
+		"global-skill/SKILL.md": skillFile("global-skill", "global skill", "body"),
+	})
+
+	skill, err := Merge(Merge(), global).Load(t.Context(), "global-skill")
+	if err != nil {
+		t.Fatalf("Load after empty merged source: %v", err)
+	}
+	if skill.Name != "global-skill" {
+		t.Fatalf("loaded skill = %q, want global-skill", skill.Name)
+	}
+}
+
+func TestMergeObservesCancellationAfterSourceCalls(t *testing.T) {
+	base := NewFS(fstest.MapFS{
+		"safe-skill/SKILL.md":           skillFile("safe-skill", "safe skill", "body"),
+		"safe-skill/references/note.md": {Data: []byte("note")},
+	})
+	fallback := NewFS(fstest.MapFS{})
+	tests := []struct {
+		name   string
+		source func(context.CancelFunc) ResourceSource
+		call   func(context.Context, ResourceSource) error
+	}{
+		{
+			name: "list",
+			source: func(cancel context.CancelFunc) ResourceSource {
+				return cancelAfterListSource{ResourceSource: base, cancel: cancel}
+			},
+			call: func(ctx context.Context, source ResourceSource) error {
+				_, err := source.List(ctx)
+				return err
+			},
+		},
+		{
+			name: "load",
+			source: func(cancel context.CancelFunc) ResourceSource {
+				return cancelAfterLoadSource{ResourceSource: base, cancel: cancel}
+			},
+			call: func(ctx context.Context, source ResourceSource) error {
+				_, err := source.Load(ctx, "safe-skill")
+				return err
+			},
+		},
+		{
+			name: "open resource",
+			source: func(cancel context.CancelFunc) ResourceSource {
+				return cancelAfterOpenSource{ResourceSource: base, cancel: cancel}
+			},
+			call: func(ctx context.Context, source ResourceSource) error {
+				_, err := source.OpenResource(ctx, "safe-skill", "references/note.md")
+				return err
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			source := Merge(test.source(cancel), fallback)
+			if err := test.call(ctx, source); !errors.Is(err, context.Canceled) {
+				t.Fatalf("error = %v, want context.Canceled", err)
+			}
+		})
+	}
+}
+
 // TestMergeNoSources proves the degenerate empty merge is well-behaved: List
-// is empty, and Load reports a clear not-found rather than a nil/nil result.
+// is empty, and Load reports the standard not-exist category rather than a
+// nil/nil result or a string-only private error.
 func TestMergeNoSources(t *testing.T) {
 	src := Merge() // no sources
 
@@ -113,10 +246,7 @@ func TestMergeNoSources(t *testing.T) {
 	}
 
 	_, err := src.Load(context.Background(), "anything")
-	if err == nil {
-		t.Fatal("Load on empty merge should error")
-	}
-	if !strings.Contains(err.Error(), "no sources") {
-		t.Errorf("err = %v, want a 'no sources' message", err)
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("Load error = %v, want fs.ErrNotExist", err)
 	}
 }

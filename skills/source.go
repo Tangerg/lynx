@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -26,7 +26,9 @@ const SkillFile = "SKILL.md"
 //
 // The interface lives here (consumer side) so callers depend on the
 // capability, not on a filesystem layout: a real directory, an embedded FS, a
-// remote store, or a test fake all satisfy it.
+// remote store, or a test fake all satisfy it. Implementations must honor ctx
+// cancellation and return an error matching context.Canceled or
+// context.DeadlineExceeded.
 type Source interface {
 	List(ctx context.Context) ([]Summary, error)
 	Load(ctx context.Context, name string) (*Skill, error)
@@ -45,8 +47,9 @@ var _ Source = (*fsSource)(nil)
 var _ ResourceSource = (*fsSource)(nil)
 
 var (
-	errNilFS     = errors.New("skills: filesystem must not be nil")
-	errNilSource = errors.New("skills: source must not be nil")
+	errNilFS           = errors.New("skills: filesystem must not be nil")
+	errNilSource       = errors.New("skills: source must not be nil")
+	errNilResourceFile = errors.New("resource source returned a nil file without an error")
 )
 
 // fsSource implements [Source] over any fs.FS whose top-level entries are skill
@@ -82,7 +85,9 @@ func isNil(value any) bool {
 }
 
 // Dir returns a [ResourceSource] backed by the directory rooted at root.
-// Every open is confined to root, including symbolic-link resolution.
+// Skill metadata opens are confined to root; resource opens are additionally
+// confined to the selected skill directory, including symbolic-link
+// resolution.
 func Dir(root string) ResourceSource {
 	return &fsSource{fsys: rootedFS(root)}
 }
@@ -94,6 +99,34 @@ type rootedFS string
 
 func (f rootedFS) Open(name string) (fs.File, error) {
 	return os.OpenInRoot(string(f), name)
+}
+
+// confinedResourceFS is the stronger capability used by [Dir]. Generic fs.FS
+// values are trusted to implement their own confinement; a rooted directory
+// can additionally anchor resource symlink resolution at the selected skill,
+// not merely at the repository root.
+type confinedResourceFS interface {
+	openInDir(dir, name string) (fs.File, error)
+}
+
+func (f rootedFS) openInDir(dir, name string) (fs.File, error) {
+	root, err := os.OpenRoot(string(f))
+	if err != nil {
+		return nil, err
+	}
+	sub, err := root.OpenRoot(filepath.FromSlash(dir))
+	if err != nil {
+		return nil, errors.Join(err, root.Close())
+	}
+	file, err := sub.Open(filepath.FromSlash(name))
+	closeErr := errors.Join(sub.Close(), root.Close())
+	if err != nil {
+		return nil, errors.Join(err, closeErr)
+	}
+	if closeErr != nil {
+		return nil, errors.Join(closeErr, file.Close())
+	}
+	return file, nil
 }
 
 // errorFS turns constructor misuse into an ordinary operation error instead
@@ -111,8 +144,14 @@ func (f errorFS) Open(string) (fs.File, error) {
 // skipped rather than failing the whole listing. A missing root directory is
 // not an error — it just means there are no skills yet (so a source pointed at
 // a not-yet-created ~/.lyra/skills lists empty rather than failing).
-func (f *fsSource) List(_ context.Context) ([]Summary, error) {
+func (f *fsSource) List(ctx context.Context) ([]Summary, error) {
+	if err := contextError(ctx, "list"); err != nil {
+		return nil, err
+	}
 	entries, err := fs.ReadDir(f.fsys, ".")
+	if ctxErr := contextError(ctx, "list"); ctxErr != nil {
+		return nil, ctxErr
+	}
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -121,11 +160,17 @@ func (f *fsSource) List(_ context.Context) ([]Summary, error) {
 	}
 	summaries := make([]Summary, 0, len(entries))
 	for _, entry := range entries {
+		if err := contextError(ctx, "list"); err != nil {
+			return nil, err
+		}
 		if !entry.IsDir() {
 			continue
 		}
-		sk, err := f.load(entry.Name())
+		sk, err := f.load(ctx, entry.Name())
 		if err != nil {
+			if ctxErr := contextError(ctx, "list"); ctxErr != nil {
+				return nil, ctxErr
+			}
 			continue // not a valid skill directory — skip it
 		}
 		summaries = append(summaries, sk.Summary())
@@ -137,27 +182,44 @@ func (f *fsSource) List(_ context.Context) ([]Summary, error) {
 }
 
 // Load reads, parses, and validates one skill by directory name.
-func (f *fsSource) Load(_ context.Context, name string) (*Skill, error) {
-	return f.load(name)
+func (f *fsSource) Load(ctx context.Context, name string) (*Skill, error) {
+	return f.load(ctx, name)
 }
 
-func (f *fsSource) load(name string) (*Skill, error) {
-	if err := validName(name); err != nil {
+func (f *fsSource) load(ctx context.Context, name string) (*Skill, error) {
+	if err := validateName(name); err != nil {
 		return nil, err
 	}
-	data, err := fs.ReadFile(f.fsys, path.Join(name, SkillFile))
-	if err != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, err)
+	operation := fmt.Sprintf("load %q", name)
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
 	}
-	fm, body, err := Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, err)
+	data, readErr := fs.ReadFile(f.fsys, name+"/"+SkillFile)
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
 	}
-	if err := fm.Validate(); err != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, err)
+	if readErr != nil {
+		return nil, fmt.Errorf("skills: load %q: %w", name, readErr)
+	}
+	fm, body, parseErr := Parse(data)
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
+	}
+	if parseErr != nil {
+		return nil, fmt.Errorf("skills: load %q: %w", name, parseErr)
+	}
+	validationErr := fm.Validate()
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
+	}
+	if validationErr != nil {
+		return nil, fmt.Errorf("skills: load %q: %w", name, validationErr)
 	}
 	if fm.Name != name {
 		return nil, fmt.Errorf("%w: frontmatter %q vs directory %q", ErrNameMismatch, fm.Name, name)
+	}
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
 	}
 	return &Skill{Frontmatter: fm, Body: body}, nil
 }
@@ -166,20 +228,29 @@ func (f *fsSource) load(name string) (*Skill, error) {
 // references/REFERENCE.md, scripts/run.py). The resource path is resolved
 // relative to the skill directory. Lexical traversal out of the directory is
 // rejected with [ErrResourcePath]; sources returned by [Dir] also reject
-// symbolic links that resolve outside the source root.
-func (f *fsSource) OpenResource(_ context.Context, name, resource string) (fs.File, error) {
-	if err := validName(name); err != nil {
+// symbolic links that resolve outside the selected skill directory.
+func (f *fsSource) OpenResource(ctx context.Context, name, resource string) (fs.File, error) {
+	if err := validateName(name); err != nil {
 		return nil, err
 	}
-	full := path.Join(name, resource)
-	if full == name || !strings.HasPrefix(full, name+"/") || !fs.ValidPath(full) {
-		return nil, fmt.Errorf("%w: %q", ErrResourcePath, resource)
+	if err := validateResourcePath(resource); err != nil {
+		return nil, err
 	}
-	file, err := f.fsys.Open(full)
+	operation := fmt.Sprintf("open resource %q/%q", name, resource)
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
+	}
+	var file fs.File
+	var err error
+	if confined, ok := f.fsys.(confinedResourceFS); ok {
+		file, err = confined.openInDir(name, resource)
+	} else {
+		file, err = f.fsys.Open(name + "/" + resource)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("skills: open resource %q/%q: %w", name, resource, err)
+		err = fmt.Errorf("skills: open resource %q/%q: %w", name, resource, err)
 	}
-	return file, nil
+	return checkedResourceFile(ctx, operation, name, resource, file, err)
 }
 
 // ReadResource reads and closes a bundled skill resource from src.
@@ -187,11 +258,23 @@ func ReadResource(ctx context.Context, src ResourceSource, name, resource string
 	if isNil(src) {
 		return nil, errNilSource
 	}
+	if err := validateName(name); err != nil {
+		return nil, err
+	}
+	if err := validateResourcePath(resource); err != nil {
+		return nil, err
+	}
+	operation := fmt.Sprintf("read resource %q/%q", name, resource)
+	if err := contextError(ctx, operation); err != nil {
+		return nil, err
+	}
 	file, err := src.OpenResource(ctx, name, resource)
+	file, err = checkedResourceFile(ctx, operation, name, resource, file, err)
 	if err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(file)
+	err = errors.Join(err, ctx.Err())
 	closeErr := file.Close()
 	err = errors.Join(
 		resourceIOError("read", name, resource, err),
@@ -203,6 +286,36 @@ func ReadResource(ctx context.Context, src ResourceSource, name, resource string
 	return data, nil
 }
 
+// checkedResourceFile normalizes the fs.File/error pair returned by a source.
+// It gives cancellation precedence, closes any unusable file, and rejects the
+// invalid nil-file/nil-error pair before callers can panic in io.ReadAll.
+func checkedResourceFile(
+	ctx context.Context,
+	operation string,
+	name string,
+	resource string,
+	file fs.File,
+	err error,
+) (fs.File, error) {
+	if ctxErr := contextError(ctx, operation); ctxErr != nil {
+		return nil, errors.Join(ctxErr, closeResourceFile(name, resource, file))
+	}
+	if err != nil {
+		return nil, errors.Join(err, closeResourceFile(name, resource, file))
+	}
+	if isNil(file) {
+		return nil, fmt.Errorf("skills: %s: %w", operation, errNilResourceFile)
+	}
+	return file, nil
+}
+
+func closeResourceFile(name, resource string, file fs.File) error {
+	if isNil(file) {
+		return nil
+	}
+	return resourceIOError("close", name, resource, file.Close())
+}
+
 func resourceIOError(operation, name, resource string, err error) error {
 	if err == nil {
 		return nil
@@ -210,14 +323,16 @@ func resourceIOError(operation, name, resource string, err error) error {
 	return fmt.Errorf("skills: %s resource %q/%q: %w", operation, name, resource, err)
 }
 
-// validName guards that a skill name is a single path element, so it cannot
-// escape the repository root via slashes or "..".
-func validName(name string) error {
-	if name == "" {
-		return ErrNameEmpty
+func validateResourcePath(resource string) error {
+	if resource == "." || !fs.ValidPath(resource) || strings.ContainsRune(resource, '\\') {
+		return fmt.Errorf("%w: %q", ErrResourcePath, resource)
 	}
-	if name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
-		return fmt.Errorf("%w: %q", ErrNameInvalid, name)
+	return nil
+}
+
+func contextError(ctx context.Context, operation string) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("skills: %s: %w", operation, err)
 	}
 	return nil
 }

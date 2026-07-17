@@ -17,6 +17,6 @@ type Summary struct {
 	Description string
 }
 
-func (s *Skill) Summary() Summary {
+func (s Skill) Summary() Summary {
 	return Summary{Name: s.Name, Description: s.Description}
 }

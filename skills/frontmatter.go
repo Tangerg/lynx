@@ -53,31 +53,42 @@ func (f Frontmatter) AllowedToolList() []string {
 func (f Frontmatter) Validate() error {
 	var errs []error
 
-	name := strings.TrimSpace(f.Name)
-	switch {
-	case name == "":
-		errs = append(errs, ErrNameEmpty)
-	case len(name) > maxNameLen:
-		errs = append(errs, fmt.Errorf("%w: %d characters", ErrNameTooLong, len(name)))
-	case !nameRE.MatchString(name):
-		errs = append(errs, fmt.Errorf("%w: %q", ErrNameInvalid, name))
+	if err := validateName(f.Name); err != nil {
+		errs = append(errs, err)
 	}
 
 	// Description / Compatibility limits are in characters (the spec's
 	// unit), so count runes — byte length over-counts non-ASCII text.
 	// Name stays byte-counted: its regex locks it to ASCII anyway.
+	descriptionLen := utf8.RuneCountInString(f.Description)
 	switch {
 	case strings.TrimSpace(f.Description) == "":
 		errs = append(errs, ErrDescriptionEmpty)
-	case utf8.RuneCountInString(f.Description) > maxDescriptionLen:
-		errs = append(errs, fmt.Errorf("%w: %d characters", ErrDescriptionTooLong, utf8.RuneCountInString(f.Description)))
+	case descriptionLen > maxDescriptionLen:
+		errs = append(errs, fmt.Errorf("%w: %d characters", ErrDescriptionTooLong, descriptionLen))
 	}
 
-	if utf8.RuneCountInString(f.Compatibility) > maxCompatibilityLen {
-		errs = append(errs, fmt.Errorf("%w: %d characters", ErrCompatibilityTooLong, utf8.RuneCountInString(f.Compatibility)))
+	if compatibilityLen := utf8.RuneCountInString(f.Compatibility); compatibilityLen > maxCompatibilityLen {
+		errs = append(errs, fmt.Errorf("%w: %d characters", ErrCompatibilityTooLong, compatibilityLen))
 	}
 
 	return errors.Join(errs...)
+}
+
+// validateName is the single owner of the specification's name rules. Source
+// implementations call it before touching a filesystem; Frontmatter.Validate
+// calls it for loaded metadata.
+func validateName(name string) error {
+	switch {
+	case strings.TrimSpace(name) == "":
+		return ErrNameEmpty
+	case len(name) > maxNameLen:
+		return fmt.Errorf("%w: %d characters", ErrNameTooLong, len(name))
+	case !nameRE.MatchString(name):
+		return fmt.Errorf("%w: %q", ErrNameInvalid, name)
+	default:
+		return nil
+	}
 }
 
 // Parse splits a SKILL.md document into its YAML frontmatter and Markdown
@@ -90,12 +101,12 @@ func Parse(content []byte) (Frontmatter, string, error) {
 	text = strings.TrimPrefix(text, "\ufeff")
 	lines := strings.Split(text, "\n")
 
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+	if len(lines) == 0 || lines[0] != "---" {
 		return Frontmatter{}, "", ErrNoFrontmatter
 	}
 	end := -1
 	for i := 1; i < len(lines); i++ {
-		if strings.TrimSpace(lines[i]) == "---" {
+		if lines[i] == "---" {
 			end = i
 			break
 		}
