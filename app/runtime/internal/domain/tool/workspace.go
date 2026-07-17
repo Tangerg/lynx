@@ -8,10 +8,16 @@ import (
 
 // mutatingPathArg maps a built-in file-mutating tool to the JSON argument that
 // carries its target path. Only these tools resolve to a single filesystem
-// target, so only they have a workspace-escape notion here. shell is
-// deliberately absent: its "path" is an opaque command line, not one resolvable
-// target — classifying a destructive command is a separate concern, not this
-// path check.
+// target, so only they have a workspace-escape notion — a PRECISE property
+// (does the resolved path leave cwd), which is why it's safe to gate on.
+//
+// shell is deliberately absent, and NOT for convenience: a shell "path" is an
+// opaque command line. Gating it would mean a destructive-command blocklist
+// (rm -rf, dd, …) — a fragile, trivially-bypassable pattern match that treats
+// symptoms and hands out false confidence (治标). The root fix for "shell can do
+// anything" is confinement (a sandbox executor, the deferred C7), not a regex.
+// So this check stays on the precise, reliable property and leaves shell safety
+// to the sandbox rather than shipping blocklist theater.
 var mutatingPathArg = map[string]string{
 	"write":       "file_path",
 	"edit":        "file_path",

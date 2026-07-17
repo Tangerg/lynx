@@ -21,6 +21,20 @@ import (
 // results. The DB must have been opened via [Open] so the tool_result_blobs
 // table exists.
 //
+// Deliberately separate from the transcript (history_items also records tool
+// results in full): this is the LLM's read-back store, keyed by an offload id
+// and holding the raw body, whereas the transcript is the UI's record keyed by
+// item id in a presenter shape. Serving read_tool_result from the transcript
+// would need the wrong key, the wrong shape, and an execution→delivery
+// dependency; storing the placeholder in the transcript instead would strip the
+// UI's full-result view (regress it to a click-to-expand fetch). The bounded
+// duplication of an oversized body (only bodies over the eviction threshold,
+// session-scoped, dropped on delete) buys that decoupling and the full-inline UI
+// — a deliberate trade-off, not an oversight. A rolled-back run's blobs are
+// unreferenced until the session is deleted (self-healing on delete); keying
+// blobs by run to drop them at rollback isn't worth the extra plumbing for that
+// bounded, rare case.
+//
 // Safe for concurrent use; the *sql.DB serializes writes (MaxOpenConns 1, see
 // [Open]).
 type ToolResultStore struct {
