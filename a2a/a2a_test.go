@@ -26,21 +26,31 @@ func (echoAgent) Run(_ context.Context, input string) iter.Seq2[string, error] {
 
 func TestNewHTTPHandlerRequiresAgentAndCard(t *testing.T) {
 	card := &sdka2a.AgentCard{Name: "test"}
-
-	for name, test := range map[string]struct {
+	var nilAgent *echoAgent
+	tests := []struct {
+		name string
 		cfg  a2a.ServerConfig
 		want error
 	}{
-		"agent": {
+		{
+			name: "agent",
 			cfg:  a2a.ServerConfig{Card: card},
 			want: a2a.ErrNilAgent,
 		},
-		"card": {
+		{
+			name: "typed nil agent",
+			cfg:  a2a.ServerConfig{Agent: nilAgent, Card: card},
+			want: a2a.ErrNilAgent,
+		},
+		{
+			name: "card",
 			cfg:  a2a.ServerConfig{Agent: echoAgent{}},
 			want: a2a.ErrNilCard,
 		},
-	} {
-		t.Run(name, func(t *testing.T) {
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			if _, err := a2a.NewHTTPHandler(test.cfg); !errors.Is(err, test.want) {
 				t.Fatalf("NewHTTPHandler error = %v, want %v", err, test.want)
 			}
