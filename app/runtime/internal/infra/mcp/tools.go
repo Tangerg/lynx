@@ -29,6 +29,7 @@ func sourceTools(ctx context.Context, src lynxmcp.ToolSource) ([]tools.Tool, err
 		Naming: func(server string, tool *sdkmcp.Tool) string {
 			return mcpserver.ToolName(server, tool.Name)
 		},
+		Concurrency: lynxmcp.AnnotatedReadOnlyConcurrency,
 	})
 }
 
