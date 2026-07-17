@@ -130,20 +130,17 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 				continue
 			}
 			entry.Type = protocol.InterruptApproval
-			tool := presentTool(interrupt.Approval.Tool)
-			entry.Payload = map[string]any{"tool": tool}
-			if interrupt.Approval.Risk != "" {
-				entry.Payload["risk"] = interrupt.Approval.Risk
-			}
-			if interrupt.Approval.Reason != "" {
-				entry.Payload["reason"] = interrupt.Approval.Reason
+			entry.Payload = &protocol.InterruptPayload{
+				Tool:   new(presentTool(interrupt.Approval.Tool)),
+				Risk:   protocol.ApprovalRisk(interrupt.Approval.Risk),
+				Reason: interrupt.Approval.Reason,
 			}
 		case transcript.QuestionInterrupt:
 			if interrupt.Question == nil {
 				continue
 			}
 			entry.Type = protocol.InterruptQuestion
-			entry.Payload = map[string]any{"question": presentQuestion(*interrupt.Question)}
+			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*interrupt.Question))}
 		default:
 			continue
 		}

@@ -269,12 +269,38 @@ const (
 	InterruptToolResult InterruptType = "toolResult"
 )
 
+// ApprovalRisk is the coarse severity shown on an approval prompt.
+type ApprovalRisk string
+
+const (
+	ApprovalRiskLow    ApprovalRisk = "low"
+	ApprovalRiskMedium ApprovalRisk = "medium"
+	ApprovalRiskHigh   ApprovalRisk = "high"
+)
+
+// InterruptPayload is the self-contained data for one [Interrupt]. Type
+// determines the legal fields:
+//
+//	approval   -> Tool, optional Risk and Reason
+//	question   -> Question
+//	toolResult -> Tool
+//
+// The pointer fields retain the wire distinction between an absent member and
+// a member whose value happens to be empty while avoiding an open-ended map at
+// the protocol boundary.
+type InterruptPayload struct {
+	Tool     *ToolInvocation `json:"tool,omitempty"`
+	Risk     ApprovalRisk    `json:"risk,omitempty"`
+	Reason   string          `json:"reason,omitempty"`
+	Question *Question       `json:"question,omitempty"`
+}
+
 // Interrupt is one pending HITL item (API.md §4.8). ItemID is the correlation
 // key (the toolCall/question item awaiting resolution).
 type Interrupt struct {
-	ItemID  string         `json:"itemId"`
-	Type    InterruptType  `json:"type"` // see InterruptType
-	Payload map[string]any `json:"payload,omitempty"`
+	ItemID  string            `json:"itemId"`
+	Type    InterruptType     `json:"type"` // see InterruptType
+	Payload *InterruptPayload `json:"payload,omitempty"`
 }
 
 // OpenInterrupt is a durable, resumable interrupt (API.md §4.8 / §6.2). RunID is
