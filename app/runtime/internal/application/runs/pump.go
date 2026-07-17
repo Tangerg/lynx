@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"fmt"
 	"iter"
 )
 
@@ -27,19 +28,19 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	abortTurn := false
 	commitCtx := ownerCtx
 
-	// publish stamps each reduced event with a cursor and drives
-	// commit-before-publish. It returns false to stop the pump: an aborted
-	// projection, or a cancel that won the interrupt-commit race.
-	publish := func(reductions []reduction) bool {
+	// publish validates the whole batch before side effects, then drives
+	// commit-before-publish. published=false with no error means cancellation won
+	// the interrupt-commit race.
+	publish := func(reductions []reduction) (published bool, err error) {
+		if err := validateReductionBatch(reductions); err != nil {
+			return false, err
+		}
 		if len(reductions) > 0 && reductions[0].Interrupt {
 			// Park is a batch boundary, not one event: commit every transcript
 			// projection + the open interrupt + Suspend, then publish the complete
 			// batch under one reserved boundary. A cancellation therefore observes
 			// either no park or the complete park and cancels + joins an in-flight
 			// durable commit without waiting on a mutex held across I/O.
-			if reductions[0].Commit == nil {
-				panic("runs: interrupt batch has no durable commit")
-			}
 			committed, err := live.commitInterrupt(commitCtx, func(interruptCtx context.Context) error {
 				if err := c.effects.CommitEvent(interruptCtx, *reductions[0].Commit); err != nil {
 					return err
@@ -55,23 +56,11 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 				return nil
 			})
 			if err != nil {
-				if ctx.Err() == nil && ownerCtx.Err() == nil {
-					reducer.abort(err.Error())
-				}
-				abortTurn = true
-				return false
+				return false, fmt.Errorf("runs: commit interrupt: %w", err)
 			}
-			return committed
+			return committed, nil
 		}
 		for _, reduced := range reductions {
-			if reduced.Abort {
-				abortTurn = true
-				return false
-			}
-			ev := c.event(spec, reduced)
-			if reduced.Interrupt {
-				panic("runs: interrupt batch marker must be first")
-			}
 			// Commit before publish: a durable event's atomic commit (for a terminal,
 			// recording the run + terminalizing the run-state) lands before the event
 			// is delivered or retained for replay, so a subscriber never observes an
@@ -79,22 +68,25 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// the interrupt path does) rather than publishing an unbacked event.
 			if reduced.Commit != nil {
 				if err := c.effects.CommitEvent(commitCtx, *reduced.Commit); err != nil {
-					if ctx.Err() == nil && ownerCtx.Err() == nil {
-						reducer.abort(err.Error())
-					}
-					abortTurn = true
-					return false
+					return false, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 				}
 			}
 			if reduced.Event.Terminal() {
 				finished = true
 			}
-			hub.Append(ev)
+			hub.Append(c.event(spec, reduced))
 			if reduced.Nudge != nil {
 				c.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
 			}
 		}
-		return true
+		return true, nil
+	}
+
+	fail := func(err error) {
+		abortTurn = true
+		if ctx.Err() == nil && ownerCtx.Err() == nil {
+			reducer.abort(err)
+		}
 	}
 
 	defer func() {
@@ -112,7 +104,12 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// consume the only budget available for the durable terminal boundary.
 			terminalCtx, cancelTerminal := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			commitCtx = terminalCtx
-			_ = publish(reducer.synthesizeTerminal())
+			reductions, err := reducer.synthesizeTerminal()
+			if err != nil {
+				fail(err)
+			} else if _, err := publish(reductions); err != nil {
+				fail(err)
+			}
 			cancelTerminal()
 		}
 		if ctx.Err() != nil || abortTurn {
@@ -146,7 +143,17 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	}()
 
 	for ev := range inner {
-		if !publish(reducer.reduce(ev)) {
+		reductions, err := reducer.reduce(ev)
+		if err != nil {
+			fail(err)
+			return
+		}
+		published, err := publish(reductions)
+		if err != nil {
+			fail(err)
+			return
+		}
+		if !published {
 			return
 		}
 		if parked {
