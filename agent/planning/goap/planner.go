@@ -24,15 +24,21 @@ var ErrInvalidActionCost = errors.New("goap: invalid action cost")
 // typo at one call site is impossible and listeners have one schema to
 // key off; treat as stable across releases.
 const (
-	spanGOAP = "agent.planner.goap"
+	spanGOAP = "goap.plan"
 
-	attrGoalName         = "agent.goal.name"
+	// Cross-planner schema shared by htn/utility/reactive — keep the keys and
+	// the "<algorithm>.plan" span name aligned so a backend keys off one schema.
+	attrPlannerName = "agent.planner"
+	attrGoalName    = "agent.goal.name"
+	attrPlanLength  = "agent.plan.length"
+
+	// GOAP-specific search diagnostics — no cross-planner equivalent, so they
+	// stay namespaced under the algorithm.
 	attrActionsCount     = "agent.actions.count"
 	attrGOAPAlreadySat   = "agent.goap.already_satisfied"
 	attrGOAPHasProducers = "agent.goap.has_goal_producers"
 	attrGOAPExpansions   = "agent.goap.expansions"
 	attrGOAPFound        = "agent.goap.found"
-	attrGOAPPlanLength   = "agent.goap.plan_length"
 )
 
 var plannerTracer = otel.Tracer("lynx/agent/planner")
@@ -70,6 +76,7 @@ func (p *Planner) PlanToGoal(
 
 	ctx, span := plannerTracer.Start(ctx, spanGOAP,
 		trace.WithAttributes(
+			attribute.String(attrPlannerName, "goap"),
 			attribute.String(attrGoalName, goal.Name()),
 			attribute.Int(attrActionsCount, len(domain.Actions())),
 		),
@@ -124,7 +131,7 @@ func (p *Planner) PlanToGoal(
 
 	span.SetAttributes(
 		attribute.Bool(attrGOAPFound, true),
-		attribute.Int(attrGOAPPlanLength, len(path)),
+		attribute.Int(attrPlanLength, len(path)),
 	)
 	return planning.NewPlan(path, goal), nil
 }
