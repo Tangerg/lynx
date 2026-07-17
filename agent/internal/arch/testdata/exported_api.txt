@@ -15,6 +15,7 @@
 .: func NewSession(id, userID, agentName string) Session
 .: func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error)
 .: func Result[T any](process ProcessView) (T, bool)
+.: func ToolCallFromContext(ctx context.Context) (chat.ToolCall, bool)
 .: type Action = core.Action
 .: type ActionConfig = core.ActionConfig
 .: type Agent = core.Agent

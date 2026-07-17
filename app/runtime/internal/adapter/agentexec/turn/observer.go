@@ -39,10 +39,10 @@ type turnObserver struct {
 //     human's [interrupts.Resolution], so the gate runs / denies /
 //     runs-with-edited-args accordingly.
 //
-// The interrupt key is the stable tool name + arguments (NOT the
-// per-invocation callID, which is generated fresh on every Call) so the
-// recorded resolution matches the same call site when the parked tool call is
-// re-presented on resume. This is the one interrupt mental model shared by
+// The interrupt key is the stable tool name + arguments rather than an
+// adapter-generated lifecycle ID. That semantic key survives persisted
+// records from older runtimes and still identifies the same gated call when it
+// is re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) agentexec.ToolApprovalVerdict {
 	// task is pure orchestration. Its child tools are independently observed and
@@ -139,7 +139,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		pending,
 	)
 	if err != nil {
-		return agentexec.ToolApprovalVerdict{Interrupt: err}
+		return agentexec.ToolApprovalVerdict{Interrupt: err, Arguments: plan.Arguments}
 	}
 	// "remember{scope}" persists this decision as a rule so matching future
 	// calls auto-resolve the same way — recorded for approve AND deny. Keyed on
@@ -239,7 +239,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, mutatedPaths []string, err error) {
+func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error) {
 	// HITL interrupt: the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
@@ -250,6 +250,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, output string, mutatedPat
 	result := decodeToolResult(output)
 	end := ToolCallEnd{
 		CallID:       callID,
+		Arguments:    arguments,
 		Result:       result,
 		OutputText:   toolOutputText(toolName, result),
 		MutatedPaths: mutatedPaths,

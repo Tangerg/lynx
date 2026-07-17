@@ -172,12 +172,13 @@ func turnProcessOptions(dependencies *core.Dependencies, sessionID string, obser
 		if dependencies == nil {
 			return core.ProcessOptions{}, errors.New("agentexec: dependencies are required when a tool observer is configured")
 		}
+		observation := newToolObservation(observer)
 		scope := dependencies.Child()
-		if err := core.RegisterDependency(scope, toolObserverKey, observer); err != nil {
-			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observer dependency: %w", err)
+		if err := core.RegisterDependency(scope, toolObservationKey, observation); err != nil {
+			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observation dependency: %w", err)
 		}
 		options.Dependencies = scope
-		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observer: observer})
+		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)

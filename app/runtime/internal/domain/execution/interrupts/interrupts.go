@@ -60,6 +60,9 @@ type Pending struct {
 // payload.
 type DrainedTool struct {
 	ItemID string `json:"itemId"`
+	// CallID is the stable application call identity. Older persisted records
+	// omit it and continue to correlate by canonical name + arguments.
+	CallID string `json:"callId,omitempty"`
 	Name   string `json:"name"`
 	// Arguments is the raw argument JSON exactly as the tool received
 	// it; consumers canonicalize when keying.

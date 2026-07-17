@@ -59,6 +59,7 @@ type ToolCallStart struct {
 type ToolCallEnd struct {
 	EventMeta
 	CallID       string
+	Arguments    string
 	Result       any
 	OutputText   string
 	MutatedPaths []string

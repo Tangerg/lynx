@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"slices"
 	"strconv"
 )
 
@@ -84,7 +85,7 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 	}})
 	ref := &openTool{
 		callID: e.CallID, order: r.toolOrder,
-		id: r.reuseOrNextItemID(e.ToolName, e.Arguments), createdAt: r.now(),
+		id: r.reuseOrNextItemID(e.CallID, e.ToolName, e.Arguments), createdAt: r.now(),
 		name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass,
 	}
 	r.tools.add(ref)
@@ -104,10 +105,36 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 }
 
 func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
-	ref, ok := r.tools.take(e.CallID)
+	ref, ok := r.tools[e.CallID]
 	if !ok {
 		return nil
 	}
+	if ref.end != nil {
+		return nil
+	}
+	copy := e
+	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
+	ref.end = &copy
+	return r.flushEndedTools()
+}
+
+// flushEndedTools commits only the longest completed prefix. Tools may finish
+// concurrently in any order, but transcript identity, mutation nudges, and
+// durable insertion order must follow the model's call order.
+func (r *reducer) flushEndedTools() []RunEvent {
+	ordered := r.tools.ordered()
+	var out []RunEvent
+	for _, ref := range ordered {
+		if ref.end == nil {
+			break
+		}
+		delete(r.tools, ref.callID)
+		out = append(out, r.completeTool(ref, *ref.end)...)
+	}
+	return out
+}
+
+func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) []RunEvent {
 	var out []RunEvent
 	if e.OutputText != "" {
 		out = append(out, ItemChanged{
@@ -115,10 +142,14 @@ func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
 			Delta:  ItemDelta{Kind: ToolOutputDelta, Text: e.OutputText},
 		})
 	}
+	arguments := ref.args
+	if e.Arguments != "" {
+		arguments = e.Arguments
+	}
 	item := Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemSucceeded,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        newToolInvocation(ref.name, ref.args, e.Result),
+		Tool:        newToolInvocation(ref.name, arguments, e.Result),
 		SafetyClass: ref.safetyClass,
 	}
 	switch {
