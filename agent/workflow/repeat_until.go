@@ -50,8 +50,8 @@ type RepeatUntilConfig[In, Out any] struct {
 // reached, so a never-accepting Accept can't loop forever.
 //
 // History is bound on the blackboard at first iteration and
-// mutated (via Append) on each subsequent run, so user-supplied
-// Task / Accept callbacks always see the running record.
+// mutated (via its record method) on each subsequent run, so
+// user-supplied Task / Accept callbacks always see the running record.
 //
 // Returns an error on missing Name, nil Task, or nil Accept.
 func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
