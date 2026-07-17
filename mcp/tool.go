@@ -19,7 +19,7 @@ import (
 // tool wraps a single remote MCP tool as a chat.Tool. Each Call
 // dials the bound *sdkmcp.ClientSession's tools/call RPC, translates the
 // result, and returns a (string, error) pair compatible with chat.Tool. A
-// remote IsError result is mapped to *ToolCallError; use errors.As to
+// remote IsError result is mapped to *ToolCallError; use errors.AsType to
 // distinguish it from transport or protocol failures.
 //
 // The wrapper is immutable after construction.
