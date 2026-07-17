@@ -21,10 +21,9 @@ type search struct {
 	frontier     *frontier
 	bestCosts    map[string]float64
 	predecessors map[string]edge
-	settled      map[string]struct{}
 	nextOrder    uint64
 
-	// expansions counts settled nodes; read for tracing after run.
+	// expansions counts expanded nodes; read for tracing after run.
 	expansions int
 }
 
@@ -52,7 +51,6 @@ func newSearch(
 		frontier:      &frontier{},
 		bestCosts:     map[string]float64{startKey: 0},
 		predecessors:  map[string]edge{},
-		settled:       map[string]struct{}{},
 	}
 	heap.Init(s.frontier)
 	s.push(start, 0)
@@ -74,13 +72,14 @@ func (s *search) run(ctx context.Context) (*searchNode, error) {
 
 		current := heap.Pop(s.frontier).(*searchNode)
 		key := current.state.Key()
-		if best, currentBest := s.bestCosts[key]; !currentBest || current.cost != best {
-			continue // stale queue entry superseded by a cheaper path
+		// expand pushes a key only on a strict cost decrease, so bestCosts[key]
+		// holds the minimum and exactly one queued entry — the one pushed at
+		// that minimum — matches here; costlier duplicates are skipped and each
+		// key is expanded at most once. This lazy-deletion guard is the whole
+		// closed set, so no separate settled map is required.
+		if current.cost != s.bestCosts[key] {
+			continue // stale entry superseded by a cheaper path
 		}
-		if _, seen := s.settled[key]; seen {
-			continue
-		}
-		s.settled[key] = struct{}{}
 		s.expansions++
 
 		if s.goal.SatisfiedBy(current.state) {
