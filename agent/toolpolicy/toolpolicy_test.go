@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type fakeTool struct {
@@ -17,6 +19,8 @@ type fakeTool struct {
 	resp    string
 	respErr error
 	direct  bool
+	paths   []string
+	pathErr error
 }
 
 func (t *fakeTool) Definition() chat.ToolDefinition {
@@ -28,6 +32,12 @@ func (t *fakeTool) Call(_ context.Context, args string) (string, error) {
 	return t.resp, t.respErr
 }
 func (t *fakeTool) ReturnsDirect() bool { return t.direct }
+func (t *fakeTool) ConcurrencyKey(string) (string, bool) {
+	return "resource", true
+}
+func (t *fakeTool) MutationPaths(string) ([]string, error) {
+	return slices.Clone(t.paths), t.pathErr
+}
 
 // ---------- OnceOnly --------------------------------------------------
 
@@ -94,15 +104,18 @@ func TestOnceOnly_RejectsNilTool(t *testing.T) {
 }
 
 func TestOnceOnly_ForwardsToolCapabilities(t *testing.T) {
-	inner := &fakeTool{name: "notify", direct: true}
+	inner := &fakeTool{name: "notify", direct: true, paths: []string{"message.txt"}}
 	wrapped, err := toolpolicy.OnceOnly(inner)
 	if err != nil {
 		t.Fatalf("OnceOnly: %v", err)
 	}
 
-	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
-	if !ok || !direct.ReturnsDirect() {
-		t.Fatal("return-direct capability was not forwarded")
+	assertPolicyCapabilities(t, wrapped, []string{"message.txt"})
+	if _, err := wrapped.Call(toolpolicy.LoopScope(t.Context()), `{}`); err != nil {
+		t.Fatalf("Call after metadata inspection: %v", err)
+	}
+	if inner.calls != 1 {
+		t.Fatalf("delegate calls after metadata inspection = %d, want 1", inner.calls)
 	}
 }
 
@@ -180,17 +193,46 @@ func TestUnlocked_RejectsNilArgs(t *testing.T) {
 }
 
 func TestUnlocked_ForwardsToolCapabilities(t *testing.T) {
-	inner := &fakeTool{name: "notify", direct: true}
+	inner := &fakeTool{name: "notify", direct: true, paths: []string{"message.txt"}}
+	conditionCalls := 0
 	wrapped, err := toolpolicy.Unlocked(inner, func(context.Context, string) (bool, string) {
+		conditionCalls++
 		return true, ""
 	})
 	if err != nil {
 		t.Fatalf("Unlocked: %v", err)
 	}
 
+	assertPolicyCapabilities(t, wrapped, []string{"message.txt"})
+	if conditionCalls != 0 {
+		t.Fatalf("metadata inspection evaluated unlock condition %d times", conditionCalls)
+	}
+	if _, err := wrapped.Call(t.Context(), `{}`); err != nil {
+		t.Fatalf("Call after metadata inspection: %v", err)
+	}
+	if conditionCalls != 1 || inner.calls != 1 {
+		t.Fatalf("condition/delegate calls = %d/%d, want 1/1", conditionCalls, inner.calls)
+	}
+}
+
+func assertPolicyCapabilities(t *testing.T, wrapped tools.Tool, wantPaths []string) {
+	t.Helper()
 	direct, ok := wrapped.(interface{ ReturnsDirect() bool })
 	if !ok || !direct.ReturnsDirect() {
 		t.Fatal("return-direct capability was not forwarded")
+	}
+	reporter, ok := wrapped.(tools.FileMutationReporter)
+	if !ok {
+		t.Fatal("file-mutation capability was not forwarded")
+	}
+	paths, err := reporter.MutationPaths(`{"path":"message.txt"}`)
+	if err != nil || !slices.Equal(paths, wantPaths) {
+		t.Fatalf("MutationPaths() = %v, %v; want %v, nil", paths, err, wantPaths)
+	}
+	if _, concurrent := wrapped.(interface {
+		ConcurrencyKey(string) (string, bool)
+	}); concurrent {
+		t.Fatal("stateful policy must keep the wrapped tool exclusive")
 	}
 }
 

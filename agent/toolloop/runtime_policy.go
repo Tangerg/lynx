@@ -26,6 +26,8 @@ type directRuntimeTool struct {
 	tools.Tool
 }
 
+var _ tools.FileMutationReporter = directRuntimeTool{}
+
 func (directRuntimeTool) ReturnsDirect() bool { return true }
 
 func (t directRuntimeTool) Definition() chat.ToolDefinition {
@@ -44,6 +46,16 @@ func (t directRuntimeTool) ConcurrencyKey(arguments string) (key string, concurr
 		return capability.ConcurrencyKey(arguments)
 	}
 	return "", false
+}
+
+// MutationPaths preserves file-side-effect metadata through the control-flow
+// decorator. Direct changes only what ends the loop; it must not hide which
+// resources the underlying call may mutate.
+func (t directRuntimeTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := t.Tool.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
+	}
+	return nil, nil
 }
 
 func returnsDirectRuntime(tool tools.Tool) bool {

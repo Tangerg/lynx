@@ -316,6 +316,8 @@ type observedTool struct {
 	observation *toolObservation
 }
 
+var _ tools.FileMutationReporter = (*observedTool)(nil)
+
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
 
 // ReturnsDirect forwards the wrapped tool's return-direct declaration. This
@@ -338,6 +340,15 @@ func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent 
 		return capability.ConcurrencyKey(arguments)
 	}
 	return "", false
+}
+
+// MutationPaths keeps observation transparent to file-aware outer middleware.
+// Lifecycle reporting itself consumes the same method after a successful call.
+func (o *observedTool) MutationPaths(arguments string) ([]string, error) {
+	if reporter, ok := o.inner.(tools.FileMutationReporter); ok {
+		return reporter.MutationPaths(arguments)
+	}
+	return nil, nil
 }
 
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {
@@ -378,11 +389,7 @@ func (o *observedTool) successfulMutationPaths(arguments string, callErr error) 
 	if callErr != nil {
 		return nil
 	}
-	reporter, ok := o.inner.(tools.FileMutationReporter)
-	if !ok {
-		return nil
-	}
-	paths, err := reporter.MutationPaths(arguments)
+	paths, err := o.MutationPaths(arguments)
 	if err != nil {
 		return nil
 	}

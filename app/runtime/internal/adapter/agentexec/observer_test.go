@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -128,6 +129,31 @@ func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 	ends = observer.ends()
 	if len(ends) != 1 || len(ends[0].mutatedPaths) != 0 {
 		t.Fatalf("failed call mutated paths = %+v, want none", ends)
+	}
+}
+
+func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
+	policy, err := toolpolicy.OnceOnly(mutatingTool{})
+	if err != nil {
+		t.Fatalf("OnceOnly: %v", err)
+	}
+	observer := new(recordingObserver)
+	wrapped := &observedTool{inner: policy, observation: newToolObservation(observer)}
+
+	reporter, ok := tools.Tool(wrapped).(tools.FileMutationReporter)
+	if !ok {
+		t.Fatal("observed tool dropped the file-mutation capability")
+	}
+	paths, err := reporter.MutationPaths(`{}`)
+	if err != nil || !slices.Equal(paths, []string{"b.go", "", "a.go", "b.go"}) {
+		t.Fatalf("MutationPaths() = %v, %v", paths, err)
+	}
+	if _, err := wrapped.Call(toolpolicy.LoopScope(t.Context()), `{}`); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	ends := observer.ends()
+	if len(ends) != 1 || !slices.Equal(ends[0].mutatedPaths, []string{"a.go", "b.go"}) {
+		t.Fatalf("observed mutation paths = %+v, want [a.go b.go]", ends)
 	}
 }
 
