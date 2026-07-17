@@ -40,6 +40,41 @@ func (o Options) Clone() Options {
 	}
 }
 
+// Overlay returns a copy of o with every explicitly-set field of other applied
+// on top: a non-empty Model, each non-nil pointer, and a non-nil Stop slice in
+// other override o, while other's unset fields leave o's value intact. It is
+// the field-aware merge that convenience layers use to apply per-request
+// options over client defaults; keeping it beside Clone/Validate means a new
+// Options field is handled here, not silently dropped by a distant merger.
+func (o Options) Overlay(other Options) Options {
+	merged := o.Clone()
+	if other.Model != "" {
+		merged.Model = other.Model
+	}
+	if other.FrequencyPenalty != nil {
+		merged.FrequencyPenalty = ptr.Clone(other.FrequencyPenalty)
+	}
+	if other.MaxTokens != nil {
+		merged.MaxTokens = ptr.Clone(other.MaxTokens)
+	}
+	if other.PresencePenalty != nil {
+		merged.PresencePenalty = ptr.Clone(other.PresencePenalty)
+	}
+	if other.Stop != nil {
+		merged.Stop = slices.Clone(other.Stop)
+	}
+	if other.Temperature != nil {
+		merged.Temperature = ptr.Clone(other.Temperature)
+	}
+	if other.TopK != nil {
+		merged.TopK = ptr.Clone(other.TopK)
+	}
+	if other.TopP != nil {
+		merged.TopP = ptr.Clone(other.TopP)
+	}
+	return merged
+}
+
 // Validate verifies explicitly supplied overrides. Options{} is valid.
 func (o Options) Validate() error {
 	if o.Model != "" && strings.TrimSpace(o.Model) != o.Model {
