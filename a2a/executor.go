@@ -3,6 +3,7 @@ package a2a
 import (
 	"context"
 	"iter"
+	"reflect"
 
 	sdka2a "github.com/a2aproject/a2a-go/v2/a2a"
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
@@ -35,10 +36,23 @@ type executor struct {
 var _ a2asrv.AgentExecutor = (*executor)(nil)
 
 func newExecutor(agent Agent) (a2asrv.AgentExecutor, error) {
-	if agent == nil {
+	if isNilAgent(agent) {
 		return nil, ErrNilAgent
 	}
 	return &executor{agent: agent}, nil
+}
+
+func isNilAgent(agent Agent) bool {
+	value := reflect.ValueOf(agent)
+	if !value.IsValid() {
+		return true
+	}
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }
 
 // Execute implements [a2asrv.AgentExecutor]. The first event creates the

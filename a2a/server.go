@@ -39,8 +39,9 @@ type ServerConfig struct {
 //
 // The transport is JSON-RPC over HTTP.
 func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
-	if cfg.Agent == nil {
-		return nil, ErrNilAgent
+	exec, err := newExecutor(cfg.Agent)
+	if err != nil {
+		return nil, err
 	}
 	if cfg.Card == nil {
 		return nil, ErrNilCard
@@ -49,10 +50,6 @@ func NewHTTPHandler(cfg ServerConfig) (http.Handler, error) {
 		cfg.RPCPattern = DefaultRPCPattern
 	}
 
-	exec, err := newExecutor(cfg.Agent)
-	if err != nil {
-		return nil, err
-	}
 	requestHandler := a2asrv.NewHandler(exec, cfg.HandlerOptions...)
 
 	mux := http.NewServeMux()
