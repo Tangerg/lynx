@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
@@ -53,8 +54,9 @@ type BuildConfig struct {
 	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
 	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 	Interrupt       interrupts.Func
-	Schedules       schedule.Registry // backs the schedule tool; nil → omitted
-	ToolResults     toolresult.Store  // backs read_tool_result (reads offloaded tool output); nil → omitted
+	Schedules       schedule.Registry      // backs the schedule tool; nil → omitted
+	ToolResults     toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
+	SkillAuthoring  skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -159,6 +161,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
+	// propose_skill lets the agent suggest a new reusable skill, gated behind a
+	// human approval before it joins the global library. Root/coding role only.
+	// nil / disabled authoring store → nil tool, simply omitted.
+	skillProposeTool, err := skillpropose.New(config.SkillAuthoring, interrupt)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
+	}
 
 	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(config.MCPServers))
 	if err != nil {
@@ -182,6 +191,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		Todo:            todoTool,
 		Schedule:        scheduleTool,
 		ToolResult:      toolResultTool,
+		SkillPropose:    skillProposeTool,
 		CodeIntel:       codeIntel,
 		ReadTracker:     tracker,
 		MCPToolDisabled: config.MCPToolDisabled,
@@ -215,6 +225,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	if toolResultTool != nil {
 		tools = append(tools, toolResultTool)
+	}
+	if skillProposeTool != nil {
+		tools = append(tools, skillProposeTool)
 	}
 	// codebase_search is in the catalog whenever the index is wired — the tool's
 	// metadata is meaningful regardless of the live embedding model, and the

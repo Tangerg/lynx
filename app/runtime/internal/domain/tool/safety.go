@@ -19,13 +19,15 @@ const (
 // users override per-tool via config.
 func SafetyClassFor(name string) SafetyClass {
 	switch name {
-	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode", "codebase_search", "sourcegraph_search", "task":
+	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode", "propose_skill", "codebase_search", "sourcegraph_search", "task":
 		// lsp / lsp_diagnostics are read-only code-intelligence queries — same
 		// class as read/glob/grep. skill only reads skill files. ask_user has no
 		// side effect (it IS a HITL interrupt, so gating it would double-prompt).
 		// exit_plan_mode is the way out of the read-only plan stance — it must
-		// stay Safe or the agent would be trapped in plan mode. task is pure
-		// orchestration; every child side effect is gated at the child tool.
+		// stay Safe or the agent would be trapped in plan mode. propose_skill only
+		// stages a draft and then gates promotion behind its own human-approval
+		// interrupt, so the mode gate would double-prompt (same as ask_user). task
+		// is pure orchestration; every child side effect is gated at the child tool.
 		return SafetyClassSafe
 	case "write", "edit", "apply_patch", "download", "schedule":
 		return SafetyClassWrite

@@ -53,6 +53,7 @@ type Resolver struct {
 	todo            tools.Tool          // todo_write task-list tool; both roles, nil when no todo store
 	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
 	toolResult      tools.Tool          // read_tool_result offloaded-output reader; both roles, nil when eviction is off
+	skillPropose    tools.Tool          // propose_skill authoring tool; coding role only, nil when authoring is off
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -91,6 +92,7 @@ type Deps struct {
 	Todo            tools.Tool          // todo_write task-list tool (both roles); nil → omitted
 	Schedule        tools.Tool          // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      tools.Tool          // read_tool_result offloaded-output reader (both roles); nil → omitted
+	SkillPropose    tools.Tool          // propose_skill authoring tool (coding role only); nil → omitted
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
@@ -136,6 +138,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		todo:            d.Todo,
 		schedule:        d.Schedule,
 		toolResult:      d.ToolResult,
+		skillPropose:    d.SkillPropose,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
@@ -311,6 +314,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 		}
 		if g.resolver.schedule != nil {
 			tools = append(tools, g.resolver.schedule)
+		}
+		// propose_skill curates the user's global skill library — a root-agent
+		// orchestration capability, gated behind human approval; a delegated
+		// subtask shouldn't author skills.
+		if g.resolver.skillPropose != nil {
+			tools = append(tools, g.resolver.skillPropose)
 		}
 	}
 	return tools, nil
