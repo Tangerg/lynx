@@ -19,9 +19,15 @@ type HookTrust interface {
 func NewHookResolver(trust HookTrust) HookResolver {
 	userHome, _ := os.UserHomeDir()
 	return adapterhooks.NewResolver(userHome,
-		func(ctx context.Context, projectRoot string) bool {
-			ok, _ := trust.IsTrusted(ctx, projectRoot)
-			return ok
+		func(ctx context.Context, projectRoot string) (bool, error) {
+			if trust == nil {
+				return false, nil
+			}
+			ok, err := trust.IsTrusted(ctx, projectRoot)
+			if err != nil {
+				return false, fmt.Errorf("hooks: read trust for project %q: %w", projectRoot, err)
+			}
+			return ok, nil
 		},
 		func(ctx context.Context, source string, err error) {
 			trace.SpanFromContext(ctx).RecordError(fmt.Errorf("hook %s: %w", source, err))

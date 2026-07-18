@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -10,7 +11,10 @@ import (
 func TestRuntimeInspectHooksReturnsEmptyWhenUnconfigured(t *testing.T) {
 	c := New(Config{})
 
-	got := c.InspectHooks(context.Background(), "/repo")
+	got, err := c.InspectHooks(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("InspectHooks: %v", err)
+	}
 	if got.ProjectRoot != "" || got.ProjectTrusted || len(got.Hooks) != 0 {
 		t.Fatalf("InspectHooks = %+v, want empty inspection", got)
 	}
@@ -29,7 +33,10 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 	}
 	c := New(Config{Hooks: inspector})
 
-	got := c.InspectHooks(context.Background(), "/repo")
+	got, err := c.InspectHooks(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("InspectHooks: %v", err)
+	}
 	if inspector.cwd != "/repo" {
 		t.Fatalf("inspect cwd = %q, want /repo", inspector.cwd)
 	}
@@ -41,9 +48,19 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 type fakeHookInspector struct {
 	cwd        string
 	inspection hooks.Inspection
+	err        error
 }
 
-func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) hooks.Inspection {
+func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (hooks.Inspection, error) {
 	i.cwd = cwd
-	return i.inspection
+	return i.inspection, i.err
+}
+
+func TestRuntimeInspectHooksPreservesInspectorFailure(t *testing.T) {
+	wantErr := errors.New("hook trust unavailable")
+	c := New(Config{Hooks: &fakeHookInspector{err: wantErr}})
+
+	if _, err := c.InspectHooks(context.Background(), "/repo"); !errors.Is(err, wantErr) {
+		t.Fatalf("InspectHooks error = %v, want %v", err, wantErr)
+	}
 }

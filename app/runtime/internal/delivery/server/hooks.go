@@ -18,7 +18,10 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	if err != nil {
 		return nil, err
 	}
-	insp := s.workspace.InspectHooks(ctx, root)
+	insp, err := s.workspace.InspectHooks(ctx, root)
+	if err != nil {
+		return nil, fmt.Errorf("workspace: inspect hooks for %q: %w", root, err)
+	}
 	out := &protocol.HooksListResult{
 		ProjectRoot:    insp.ProjectRoot,
 		ProjectTrusted: insp.ProjectTrusted,

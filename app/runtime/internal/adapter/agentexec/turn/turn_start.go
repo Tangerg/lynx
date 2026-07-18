@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 )
 
 func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
@@ -37,11 +38,20 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 	// can inject context into the prompt or block it; a block ends the span we
 	// just opened and fails the start.
 	if s.hooks != nil {
-		state.hooks = s.hooks.For(state.ctx, request.Cwd)
+		resolved, err := s.hooks.For(state.ctx, request.Cwd)
+		if err != nil {
+			state.cancel()
+			state.span.RecordError(err)
+			state.span.End()
+			return TurnHandle{}, fmt.Errorf("turn: resolve lifecycle hooks: %w", err)
+		}
+		state.hooks = resolved
 	}
 	if !state.hooks.Empty() {
 		msg, err := s.runPromptHooks(state.ctx, request, state)
 		if err != nil {
+			state.cancel()
+			state.span.RecordError(err)
 			state.span.End()
 			return TurnHandle{}, err
 		}

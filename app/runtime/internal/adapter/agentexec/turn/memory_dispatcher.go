@@ -32,7 +32,7 @@ const turnIDPrefix = "turn_"
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 
 type hookResolver interface {
-	For(ctx context.Context, cwd string) *hooks.Bound
+	For(ctx context.Context, cwd string) (*hooks.Bound, error)
 }
 
 // Dependencies names the collaborators needed by the in-process [Dispatcher].

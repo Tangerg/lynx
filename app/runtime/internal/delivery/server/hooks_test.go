@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 // fakeHookTrust records the workspace coordinator's trust calls (Trust/Untrust)
@@ -68,5 +69,26 @@ func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 	}
 	if trust.calls != 0 {
 		t.Fatalf("trust store calls = %d, want 0", trust.calls)
+	}
+}
+
+type failingHookInspector struct{ err error }
+
+func (i failingHookInspector) Inspect(context.Context, string) (domainhooks.Inspection, error) {
+	return domainhooks.Inspection{}, i.err
+}
+
+func TestWorkspaceListHooksPreservesInspectionFailure(t *testing.T) {
+	wantErr := errors.New("hook trust unavailable")
+	root := t.TempDir()
+	s := &Server{
+		serverInfo: protocol.ServerInfo{Cwd: root},
+		workspace: workspaceapp.New(workspaceapp.Config{
+			Hooks: failingHookInspector{err: wantErr},
+		}),
+	}
+
+	if _, err := s.WorkspaceListHooks(context.Background(), protocol.ListHooksRequest{}); !errors.Is(err, wantErr) {
+		t.Fatalf("WorkspaceListHooks error = %v, want %v", err, wantErr)
 	}
 }

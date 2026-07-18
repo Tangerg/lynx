@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,7 +19,14 @@ const hooksRelPath = ".lyra/hooks.json"
 
 // Load discovers and parses the hooks.json cascade for a working directory and
 // returns every configured hook, each stamped with its scope and source path.
-func Load(ctx context.Context, cwd, home string, onParseError func(path string, err error)) ([]domainhooks.Hook, error) {
+func Load(ctx context.Context, cwd, home string) ([]domainhooks.Hook, error) {
+	return load(ctx, cwd, home, true)
+}
+
+// load can exclude project hooks at the trust boundary. An untrusted project's
+// config is neither executed nor allowed to break otherwise-valid global hooks;
+// management inspection calls Load and still validates the complete cascade.
+func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainhooks.Hook, error) {
 	if cwd == "" {
 		return nil, errors.New("hooks: cwd is required")
 	}
@@ -32,18 +40,15 @@ func Load(ctx context.Context, cwd, home string, onParseError func(path string, 
 		}
 		abs, err := filepath.Abs(path)
 		if err != nil {
-			return nil
+			return fmt.Errorf("hooks: resolve config path %q: %w", path, err)
 		}
 		if _, dup := seen[abs]; dup {
 			return nil
 		}
 		seen[abs] = struct{}{}
-		cfg, ok, perr := readConfig(abs)
-		if perr != nil {
-			if onParseError != nil {
-				onParseError(abs, perr)
-			}
-			return nil
+		cfg, ok, err := readConfig(abs)
+		if err != nil {
+			return fmt.Errorf("hooks: load config %q: %w", abs, err)
 		}
 		if !ok {
 			return nil
@@ -61,9 +66,11 @@ func Load(ctx context.Context, cwd, home string, onParseError func(path string, 
 			return nil, err
 		}
 	}
-	for _, dir := range dirsRootToLeaf(cwd, ProjectRoot(cwd)) {
-		if err := add(filepath.Join(dir, hooksRelPath), domainhooks.ScopeProject); err != nil {
-			return nil, err
+	if includeProject {
+		for _, dir := range dirsRootToLeaf(cwd, ProjectRoot(cwd)) {
+			if err := add(filepath.Join(dir, hooksRelPath), domainhooks.ScopeProject); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return out, nil
@@ -75,12 +82,18 @@ type config struct {
 
 func readConfig(path string) (config, bool, error) {
 	info, err := os.Stat(path)
-	if err != nil || !info.Mode().IsRegular() {
+	if errors.Is(err, os.ErrNotExist) {
 		return config{}, false, nil
+	}
+	if err != nil {
+		return config{}, false, err
+	}
+	if !info.Mode().IsRegular() {
+		return config{}, false, errors.New("not a regular file")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return config{}, false, nil
+		return config{}, false, err
 	}
 	if len(data) == 0 {
 		return config{}, false, nil

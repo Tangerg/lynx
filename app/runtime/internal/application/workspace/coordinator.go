@@ -37,7 +37,7 @@ type SkillCurator interface {
 // HookInspector resolves the lifecycle hooks discovered for a cwd plus the
 // project's trust status.
 type HookInspector interface {
-	Inspect(ctx context.Context, cwd string) hooks.Inspection
+	Inspect(ctx context.Context, cwd string) (hooks.Inspection, error)
 }
 
 // HookTrustStore mutates project hook trust (the workspace.hooks.setTrust
@@ -167,9 +167,9 @@ func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Re
 
 // InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
 // trust status (workspace.hooks.list). Empty when hooks are unconfigured.
-func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) hooks.Inspection {
+func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error) {
 	if c.hooks == nil {
-		return hooks.Inspection{}
+		return hooks.Inspection{}, nil
 	}
 	return c.hooks.Inspect(ctx, cwd)
 }

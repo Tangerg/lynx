@@ -1,6 +1,7 @@
 package turn_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -44,5 +45,26 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	defer recorder.mu.Unlock()
 	if len(recorder.inputs) != 1 || recorder.inputs[0].Cwd != cwd {
 		t.Fatalf("restored hook inputs = %#v, want cwd %q", recorder.inputs, cwd)
+	}
+}
+
+func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
+	wantErr := errors.New("hook trust unavailable")
+	engine := &stubEngine{}
+	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
+		deps.Hooks = staticHookResolver{err: wantErr}
+	})))
+	t.Cleanup(func() { _ = dispatcher.Close() })
+
+	if _, err := dispatcher.Rehydrate(t.Context(), turn.RehydrateRequest{
+		SessionID: "sess",
+		TurnID:    "turn",
+		ProcessID: "process",
+		Cwd:       t.TempDir(),
+	}); !errors.Is(err, wantErr) {
+		t.Fatalf("Rehydrate error = %v, want %v", err, wantErr)
+	}
+	if got := engine.restoreCalls.Load(); got != 0 {
+		t.Fatalf("engine RestoreTurn calls = %d, want 0", got)
 	}
 }

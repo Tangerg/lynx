@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,7 +30,7 @@ func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
 	writeHooks(t, home, `{"hooks":[{"event":"SessionStart","inject":"global-ctx"}]}`)
 	writeHooks(t, cwd, `{"hooks":[{"event":"PreToolUse","matcher":"shell","command":"true"}]}`)
 
-	hooks, err := Load(context.Background(), cwd, home, nil)
+	hooks, err := Load(context.Background(), cwd, home)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,31 +48,32 @@ func TestLoad_TagsGlobalAndProjectScope(t *testing.T) {
 	}
 }
 
-func TestLoad_MalformedReportedAndSkipped(t *testing.T) {
+func TestLoad_MalformedReturnsError(t *testing.T) {
 	home := t.TempDir()
 	cwd := t.TempDir()
 	writeHooks(t, cwd, `{ this is not json `)
 
-	var bad string
-	hooks, err := Load(context.Background(), cwd, home, func(path string, _ error) { bad = path })
-	if err != nil {
-		t.Fatalf("Load must not fail on a malformed file: %v", err)
-	}
-	if len(hooks) != 0 {
-		t.Errorf("malformed file should yield no hooks, got %+v", hooks)
-	}
-	if bad == "" {
-		t.Error("onParseError not called for the malformed file")
+	if _, err := Load(context.Background(), cwd, home); err == nil {
+		t.Fatal("Load malformed config error = nil")
 	}
 }
 
 func TestLoad_MissingFilesAreFine(t *testing.T) {
-	hooks, err := Load(context.Background(), t.TempDir(), t.TempDir(), nil)
+	hooks, err := Load(context.Background(), t.TempDir(), t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(hooks) != 0 {
 		t.Errorf("no files -> no hooks, got %+v", hooks)
+	}
+}
+
+func TestLoadPreservesCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := Load(ctx, t.TempDir(), t.TempDir()); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Load error = %v, want context.Canceled", err)
 	}
 }
 
