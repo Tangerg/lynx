@@ -14,24 +14,15 @@ import (
 )
 
 type fakeOffloader struct {
-	calls      int
-	discards   int
-	lastArgs   [3]string // session, tool, body
-	discardRef offload.Ref
-	id         offload.ID
-	err        error
+	calls     int
+	lastStage offload.ToolResultStage
+	err       error
 }
 
-func (f *fakeOffloader) Discard(_ context.Context, _ string, ref offload.Ref) error {
-	f.discards++
-	f.discardRef = ref
-	return nil
-}
-
-func (f *fakeOffloader) Offload(_ context.Context, session, tool, body string) (offload.ID, error) {
+func (f *fakeOffloader) Stage(_ context.Context, stage offload.ToolResultStage) error {
 	f.calls++
-	f.lastArgs = [3]string{session, tool, body}
-	return f.id, f.err
+	f.lastStage = stage
+	return f.err
 }
 
 // fakeBlackboard / fakeProcessView satisfy just enough of the agent SDK's read
@@ -61,22 +52,28 @@ func newObservationWith(store toolResultOffloader, threshold int) *toolObservati
 }
 
 func TestEvict_OversizedIsOffloadedWithRetrievablePreview(t *testing.T) {
-	store := &fakeOffloader{id: "BLOB234ID"}
+	store := new(fakeOffloader)
 	obs := newObservationWith(store, 100)
 	body := strings.Repeat("x", 500)
 
 	got, ref := obs.evict(sessionCtx("sess-1"), "shell", body)
 	if store.calls != 1 {
-		t.Fatalf("Offload called %d times, want 1", store.calls)
+		t.Fatalf("Stage called %d times, want 1", store.calls)
 	}
-	if store.lastArgs != [3]string{"sess-1", "shell", body} {
-		t.Fatalf("Offload args = %v, want session/tool/full-body", store.lastArgs)
+	if store.lastStage.SessionID != "sess-1" || store.lastStage.ToolName != "shell" || store.lastStage.Body != body {
+		t.Fatalf("Stage value = %+v, want session/tool/full-body", store.lastStage)
 	}
 	if len(got) >= len(body) {
 		t.Fatalf("preview (%d) not smaller than body (%d)", len(got), len(body))
 	}
-	if ref == nil || ref.ID != "BLOB234ID" {
-		t.Fatalf("offload ref = %+v, want BLOB234ID", ref)
+	if ref == nil || ref.ID != store.lastStage.ID {
+		t.Fatalf("offload ref = %+v, staged ID = %q", ref, store.lastStage.ID)
+	}
+	if err := ref.Validate(); err != nil {
+		t.Fatalf("offload ref: %v", err)
+	}
+	if !strings.Contains(got, store.lastStage.ID.String()) {
+		t.Fatalf("preview %q does not contain staged ID %q", got, store.lastStage.ID)
 	}
 }
 
@@ -88,8 +85,8 @@ func TestEvict_SmallResultUntouched(t *testing.T) {
 	}
 }
 
-func TestEvict_UnprofitablePreviewKeepsBodyAndDiscardsStage(t *testing.T) {
-	store := &fakeOffloader{id: "BLOB234ID"}
+func TestEvict_UnprofitablePreviewKeepsBodyWithoutStaging(t *testing.T) {
+	store := new(fakeOffloader)
 	obs := newObservationWith(store, 1)
 	body := "xx"
 
@@ -97,13 +94,13 @@ func TestEvict_UnprofitablePreviewKeepsBodyAndDiscardsStage(t *testing.T) {
 	if got != body || ref != nil {
 		t.Fatalf("unprofitable eviction = (%q, %+v), want original body", got, ref)
 	}
-	if store.calls != 1 || store.discards != 1 || store.discardRef.ID != "BLOB234ID" {
-		t.Fatalf("stage lifecycle = offloads:%d discards:%d ref:%+v", store.calls, store.discards, store.discardRef)
+	if store.calls != 0 {
+		t.Fatalf("unprofitable eviction staged %d blob(s), want none", store.calls)
 	}
 }
 
 func TestEvict_ReadBackToolExcluded(t *testing.T) {
-	store := &fakeOffloader{id: "x"}
+	store := new(fakeOffloader)
 	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Evicting the read-back tool's own output would loop.
@@ -113,7 +110,7 @@ func TestEvict_ReadBackToolExcluded(t *testing.T) {
 }
 
 func TestEvict_NoSessionKeepsFullBody(t *testing.T) {
-	store := &fakeOffloader{id: "x"}
+	store := new(fakeOffloader)
 	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Bare ctx → no session → nothing to scope/retrieve the blob under.
@@ -122,7 +119,7 @@ func TestEvict_NoSessionKeepsFullBody(t *testing.T) {
 	}
 }
 
-func TestEvict_OffloadFailureDegradesToFullBody(t *testing.T) {
+func TestEvict_StageFailureDegradesToFullBody(t *testing.T) {
 	store := &fakeOffloader{err: errors.New("db down")}
 	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)

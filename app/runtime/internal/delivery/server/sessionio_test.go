@@ -133,9 +133,11 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	}
 	putRun(t, sourceRuntime, ses.ID, "run_offload", 1, 1)
 	body := strings.Repeat("portable-result-", 100)
-	id, err := sourceRuntime.toolResults.Offload(ctx, ses.ID, "vendor_tool", body)
-	if err != nil {
-		t.Fatalf("offload source result: %v", err)
+	id := resultoffload.NewID()
+	if err := sourceRuntime.toolResults.Stage(ctx, resultoffload.ToolResultStage{
+		ID: id, SessionID: ses.ID, ToolName: "vendor_tool", Body: body,
+	}); err != nil {
+		t.Fatalf("stage source result: %v", err)
 	}
 	preview := toolresultpreview.Render(body, id, "read_tool_result", 100)
 	ref := &resultoffload.Ref{ID: id}

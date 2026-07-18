@@ -6,13 +6,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
-// toolResultOffloader is the narrow write capability the observer needs to evict
-// an oversized tool result: Offload stages the full body and returns the typed
-// identity carried by the preview, transcript event, and read_tool_result call.
-// nil disables eviction.
+// toolResultOffloader is the narrow write capability the observer needs to
+// persist a body after its candidate preview has proven worth evicting. nil
+// disables eviction.
 type toolResultOffloader interface {
-	Offload(ctx context.Context, sessionID, toolName, body string) (offload.ID, error)
-	Discard(ctx context.Context, sessionID string, ref offload.Ref) error
+	Stage(ctx context.Context, stage offload.ToolResultStage) error
 }
 
 // toolResultPreviewBytes bounds the head+tail preview left inline once a body is
