@@ -89,10 +89,10 @@ func (f *fakeRunSessions) AcquireWorkingTreeRun(string) (func(), bool) {
 type fakeTurnControl struct {
 	validated    StartTurn
 	started      StartTurn
-	startTurn    Turn
-	prepared     Turn
+	startTurn    TurnRef
+	prepared     TurnRef
 	prepareErr   error
-	rehydrated   Turn
+	rehydrated   TurnRef
 	rehydrateReq RehydrateTurn
 	rehydrateErr error
 	resumeCheck  func()
@@ -108,16 +108,16 @@ func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
 	return nil
 }
 
-func (f *fakeTurnControl) Start(_ context.Context, req StartTurn) (Turn, error) {
+func (f *fakeTurnControl) Start(_ context.Context, req StartTurn) (TurnRef, error) {
 	f.started = req
 	return f.startTurn, nil
 }
 
-func (f *fakeTurnControl) Prepare(context.Context, TurnRef) (Turn, error) {
+func (f *fakeTurnControl) Prepare(context.Context, TurnRef) (TurnRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, Turn, interrupts.Resolution, []string) error {
+func (f *fakeTurnControl) Resume(context.Context, TurnRef, interrupts.Resolution, []string) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -125,7 +125,7 @@ func (f *fakeTurnControl) Resume(context.Context, Turn, interrupts.Resolution, [
 	return nil
 }
 
-func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (Turn, error) {
+func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (TurnRef, error) {
 	f.rehydrateReq = request
 	return f.rehydrated, f.rehydrateErr
 }
@@ -160,7 +160,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}, treeOK: true}
-	turns := &fakeTurnControl{startTurn: Turn{SessionID: "ses_1", TurnID: "turn_1", Handle: "opaque"}}
+	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	result, err := c.Start(context.Background(), StartCommand{
@@ -193,6 +193,25 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 }
 
+func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}, treeOK: true}
+	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+
+	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Message: "hello"})
+	if !errors.Is(err, ErrInvalidTurnRef) {
+		t.Fatalf("Start error = %v, want ErrInvalidTurnRef", err)
+	}
+	if len(turns.canceled) != 1 || turns.canceled[0] != turns.startTurn {
+		t.Fatalf("canceled turns = %+v, want invalid started turn", turns.canceled)
+	}
+	if len(effects.openings) != 0 || c.Contains("run_new") {
+		t.Fatal("invalid turn identity reached run admission")
+	}
+}
+
 func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 	effects := &fakeEffects{}
@@ -204,7 +223,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 			Interrupts: approvalInterrupt("item_1"),
 		}},
 	}
-	turns := &fakeTurnControl{prepared: Turn{SessionID: "ses_1", TurnID: "turn_1", Handle: "opaque"}}
+	turns := &fakeTurnControl{prepared: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	activatedAfterOpening := false
 	turns.resumeCheck = func() { activatedAfterOpening = effects.opening().Resume != nil }
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)

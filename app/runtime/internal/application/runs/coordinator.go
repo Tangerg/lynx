@@ -91,16 +91,16 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
 		if !resume {
-			_ = c.cancelTurnAfterAdmissionFailure(reqCtx, spec.Handle)
+			_ = c.cancelTurnAfterAdmissionFailure(reqCtx, spec.turnRef())
 		}
 		return nil, ErrClosed
 	}
 	runCtx, cancel := context.WithCancel(taskCtx)
-	inner, err := c.executor.TurnEvents(runCtx, spec.Handle)
+	inner, err := c.executor.TurnEvents(runCtx, spec.turnRef())
 	if err != nil {
 		cancel()
 		if !resume {
-			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+			_ = c.executor.CancelTurn(taskCtx, spec.turnRef())
 		}
 		release()
 		return nil, err
@@ -117,7 +117,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	if err != nil {
 		cancel()
 		if !resume {
-			_ = c.executor.CancelTurn(taskCtx, spec.Handle)
+			_ = c.executor.CancelTurn(taskCtx, spec.turnRef())
 		}
 		release()
 		return nil, err
@@ -199,10 +199,10 @@ func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
 
 // cancelTurnAfterAdmissionFailure tears down a turn that was created but never
 // admitted (the Coordinator closed between turn start and Attach).
-func (c *Coordinator) cancelTurnAfterAdmissionFailure(ctx context.Context, handle Handle) error {
+func (c *Coordinator) cancelTurnAfterAdmissionFailure(ctx context.Context, ref TurnRef) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	return c.executor.CancelTurn(cleanupCtx, handle)
+	return c.executor.CancelTurn(cleanupCtx, ref)
 }
 
 // CancelBinding identifies the durable run/turn a cancel must act on.

@@ -2,7 +2,10 @@ package runs
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
+	"strings"
 	"time"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -19,21 +22,14 @@ import (
 //
 // The application drives execution through engine-neutral [SegmentExecutor]
 // and [TurnControl] ports: it observes the application-owned [EngineEvent] sum
-// type and drives an opaque [Handle], so neither lifecycle nor Delivery depends
-// on agent-SDK types.
-
-// Handle is the per-segment execution handle the turn adapter returns and the
-// application hands back to observe and cancel a live turn. It stays opaque (any)
-// on purpose: unlike an [EngineEvent] it carries no lifecycle semantics the
-// application acts on — it is an inert token the executor recovers its turn from
-// — so typing it would be an empty-interface ceremony.
-type Handle = any
+// type and addresses turns through durable [TurnRef] values, so neither
+// lifecycle nor Delivery depends on agent-SDK handle types.
 
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
 type SegmentExecutor interface {
-	TurnEvents(ctx context.Context, handle Handle) (iter.Seq[EngineEvent], error)
-	CancelTurn(ctx context.Context, handle Handle) error
+	TurnEvents(ctx context.Context, ref TurnRef) (iter.Seq[EngineEvent], error)
+	CancelTurn(ctx context.Context, ref TurnRef) error
 }
 
 // SessionLifecycle is the run use cases' narrow view of session persistence,
@@ -58,13 +54,22 @@ type TurnRef struct {
 	TurnID    string
 }
 
-// Turn is the result of starting, preparing, or rehydrating an executor turn.
-// The identity is application-visible; Handle remains an opaque token used only
-// by the segment executor and turn-control adapter.
-type Turn struct {
-	SessionID string
-	TurnID    string
-	Handle    Handle
+// ErrInvalidTurnRef reports an incomplete or cross-session executor identity.
+var ErrInvalidTurnRef = errors.New("runs: invalid turn reference")
+
+// ValidateFor checks that the executor returned a complete identity bound to
+// the session whose admission the application owns.
+func (r TurnRef) ValidateFor(sessionID string) error {
+	if strings.TrimSpace(r.SessionID) == "" || strings.TrimSpace(r.SessionID) != r.SessionID {
+		return fmt.Errorf("%w: session ID must be non-empty without surrounding whitespace", ErrInvalidTurnRef)
+	}
+	if strings.TrimSpace(r.TurnID) == "" || strings.TrimSpace(r.TurnID) != r.TurnID {
+		return fmt.Errorf("%w: turn ID must be non-empty without surrounding whitespace", ErrInvalidTurnRef)
+	}
+	if r.SessionID != sessionID {
+		return fmt.Errorf("%w: turn session %q does not match admitted session %q", ErrInvalidTurnRef, r.SessionID, sessionID)
+	}
+	return nil
 }
 
 // StartTurn is the protocol-neutral command the run use case sends to the
@@ -95,14 +100,14 @@ type RehydrateTurn struct {
 }
 
 // TurnControl is the run use cases' engine-neutral control surface. Validation
-// happens before session creation; all opaque-handle recovery remains inside
-// the adapter implementation.
+// happens before session creation; the adapter translates durable references
+// into its concrete turn identity.
 type TurnControl interface {
 	ValidateStart(StartTurn) error
-	Start(ctx context.Context, req StartTurn) (Turn, error)
-	Prepare(ctx context.Context, ref TurnRef) (Turn, error)
-	Resume(ctx context.Context, turn Turn, resolution interrupts.Resolution, interruptKinds []string) error
-	Rehydrate(ctx context.Context, req RehydrateTurn) (Turn, error)
+	Start(ctx context.Context, req StartTurn) (TurnRef, error)
+	Prepare(ctx context.Context, ref TurnRef) (TurnRef, error)
+	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []string) error
+	Rehydrate(ctx context.Context, req RehydrateTurn) (TurnRef, error)
 	Cancel(ctx context.Context, ref TurnRef) error
 	Steer(ctx context.Context, ref TurnRef, message string) error
 }
@@ -174,11 +179,8 @@ type segmentSpec struct {
 	SegmentID string
 	SessionID string
 	Cwd       string
-	// TurnID is the executor's durable turn identity recorded on the live run —
-	// supplied alongside the opaque Handle so the application never reaches into
-	// the executor's handle representation.
+	// TurnID is the executor's durable turn identity recorded on the live run.
 	TurnID          string
-	Handle          Handle
 	Provider        string
 	Model           string
 	CreatedAt       time.Time
@@ -190,4 +192,8 @@ type segmentSpec struct {
 	// Run. Start establishes the event owner before calling it; an activation
 	// error becomes the segment's streamed error terminal.
 	Activate func(context.Context) error
+}
+
+func (s segmentSpec) turnRef() TurnRef {
+	return TurnRef{SessionID: s.SessionID, TurnID: s.TurnID}
 }

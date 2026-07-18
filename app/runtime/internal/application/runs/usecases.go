@@ -66,6 +66,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
+	if err := c.validateStartedTurn(ctx, turn, sess.ID); err != nil {
+		return StartResult{}, err
+	}
 
 	runID, segmentID := c.newRunID(), c.newSegmentID()
 	createdAt := c.now().UTC()
@@ -75,7 +78,6 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		SessionID:       sess.ID,
 		Cwd:             sess.Cwd,
 		TurnID:          turn.TurnID,
-		Handle:          turn.Handle,
 		Provider:        cmd.Provider,
 		Model:           cmd.Model,
 		CreatedAt:       createdAt,
@@ -156,7 +158,6 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		SessionID: pending.SessionID,
 		Cwd:       sess.Cwd,
 		TurnID:    turn.TurnID,
-		Handle:    turn.Handle,
 		Provider:  pending.Provider,
 		Model:     pending.Model,
 		CreatedAt: createdAt,
@@ -252,19 +253,22 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) error
 	return nil
 }
 
-func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (Turn, error) {
+func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (TurnRef, error) {
 	turn, err := c.turns.Prepare(ctx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
 	if err == nil {
+		if err := turn.ValidateFor(pending.SessionID); err != nil {
+			return TurnRef{}, err
+		}
 		return turn, nil
 	}
 	if errors.Is(err, ErrParkClaimed) {
-		return Turn{}, ErrInterruptNotOpen
+		return TurnRef{}, ErrInterruptNotOpen
 	}
 	if !errors.Is(err, ErrTurnNotLive) {
-		return Turn{}, err
+		return TurnRef{}, err
 	}
 	if pending.ProcessID == "" {
-		return Turn{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
+		return TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
 	}
 	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
 		SessionID: pending.SessionID,
@@ -275,9 +279,24 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		Cwd:       cwd,
 	})
 	if err != nil {
-		return Turn{}, errors.Join(ErrRunNotFound, err)
+		return TurnRef{}, errors.Join(ErrRunNotFound, err)
+	}
+	if err := turn.ValidateFor(pending.SessionID); err != nil {
+		return TurnRef{}, err
 	}
 	return turn, nil
+}
+
+func (c *Coordinator) validateStartedTurn(ctx context.Context, ref TurnRef, sessionID string) error {
+	if err := ref.ValidateFor(sessionID); err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+		defer cancel()
+		if cleanupErr := c.turns.Cancel(cleanupCtx, ref); cleanupErr != nil {
+			return errors.Join(err, fmt.Errorf("runs: cancel invalid started turn: %w", cleanupErr))
+		}
+		return err
+	}
+	return nil
 }
 
 func (c *Coordinator) requireUseCaseDependencies() error {
