@@ -111,3 +111,41 @@ func TestCloseReportsProcessCancellationFailure(t *testing.T) {
 		t.Fatalf("close error = %v, want process cancellation failure", err)
 	}
 }
+
+func TestCloseTimeoutKeepsLaterCancellationFailures(t *testing.T) {
+	stalled := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_a"})
+	cancelErr := errors.New("later cancellation failed")
+	release := make(chan struct{})
+	close(release)
+	failed := newTurnState(t.Context(), TurnHandle{SessionID: "ses_2", TurnID: "turn_b"})
+	failed.setProcess(&blockingCancelProcess{release: release, err: cancelErr})
+	if !failed.parkIfLive() {
+		t.Fatal("failed to park cancellation-error turn")
+	}
+	dispatcher := &memoryDispatcher{
+		turns: map[string]*turnState{
+			stalled.handle.TurnID: stalled,
+			failed.handle.TurnID:  failed,
+		},
+		seenSessions: map[string]struct{}{},
+	}
+
+	ctx, cancel := context.WithCancel(t.Context())
+	result := make(chan error, 1)
+	go func() { result <- dispatcher.close(ctx) }()
+	select {
+	case <-failed.done:
+	case <-time.After(time.Second):
+		t.Fatal("later cancellation did not finish")
+	}
+	cancel()
+	err := <-result
+	if !errors.Is(err, ErrCloseTimeout) {
+		t.Fatalf("close error = %v, want ErrCloseTimeout", err)
+	}
+	if !errors.Is(err, cancelErr) {
+		t.Fatalf("close error = %v, want completed cancellation failure", err)
+	}
+
+	close(stalled.done)
+}
