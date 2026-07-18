@@ -4,7 +4,7 @@
 // user archive/restore one (never deleting). Skills reach it only after the
 // agent proposes one and the user approves the promotion (propose_skill).
 
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { DataView, PillButton, SectionLabel } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
@@ -79,13 +79,21 @@ function SkillSection({ label, skills }: { label: string; skills: ManagedSkillIn
 function SkillRow({ skill }: { skill: ManagedSkillInfo }) {
   const t = useT();
   const archived = skill.lifecycle === "archived";
+  const actionPending = useRef(false);
+  const [busy, setBusy] = useState(false);
   const onAction = useCallback(async () => {
+    if (actionPending.current) return;
+    actionPending.current = true;
+    setBusy(true);
     try {
       await (archived ? restoreSkill(skill.name) : archiveSkill(skill.name));
     } catch (err) {
       notifyError(err instanceof Error ? err.message : t("skillLibrary.error"), {
         source: "skills",
       });
+    } finally {
+      actionPending.current = false;
+      setBusy(false);
     }
   }, [archived, skill.name, t]);
 
@@ -102,6 +110,7 @@ function SkillRow({ skill }: { skill: ManagedSkillInfo }) {
       <PillButton
         size="sm"
         variant={archived ? "outlined" : "danger"}
+        disabled={busy}
         onClick={() => void onAction()}
       >
         {archived ? t("skillLibrary.restore") : t("skillLibrary.archive")}
