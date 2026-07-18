@@ -15,16 +15,10 @@ import type {
   ApprovalMode,
   ApprovalRule,
   CanceledNotification,
-  CodeLocation,
-  CodePosition,
-  CodeQuery,
-  CompactionResult,
   ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
-  Diagnostic,
   Diff,
-  DocumentSymbol,
   ExportSessionResponse,
   FeedbackRequest,
   FileContent,
@@ -33,7 +27,6 @@ import type {
   ForkSessionRequest,
   GrepResult,
   HooksListResult,
-  Hover,
   ImportSessionResponse,
   DiscoverResponse,
   CodebaseHit,
@@ -71,7 +64,6 @@ import type {
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
-  TodoItem,
   ToolSpec,
   UpdateSessionRequest,
   Usage,
@@ -80,7 +72,6 @@ import type {
   UtilityRole,
   WorkspaceEvent,
   WorkspaceFileChange,
-  WorkspaceSymbol,
 } from "./shapes";
 import { streamRunEvents, streamWorkspaceEvents } from "./stream";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
@@ -129,10 +120,6 @@ export interface Methods {
     export: (sessionId: SessionId, format?: "md" | "json") => Promise<ExportSessionResponse>;
     // Restore semantics — rebuilds under the artifact's original id (idempotent).
     import: (artifact: SessionArtifact) => Promise<ImportSessionResponse>;
-    // Proactive context compaction (B10) — force:false only compacts past the
-    // internal threshold (same condition as autonomous). Rejected session_busy
-    // while a run is in flight. Internally calls the LLM → may take seconds.
-    compact: (params: { sessionId: SessionId; force?: boolean }) => Promise<CompactionResult>;
   };
   runs: {
     start: (
@@ -179,7 +166,7 @@ export interface Methods {
       path?: string;
       limit?: number;
     }) => Promise<GrepResult>;
-    // General directory listing / glob (B7/B8 → 613) — feeds the file tree + @file.
+    // General directory listing / glob — feeds the file tree + @file.
     // Respects .gitignore + backstop excludes unless includeIgnored; not gated (basic read).
     listFiles: (params: {
       cwd?: string;
@@ -251,23 +238,6 @@ export interface Methods {
       // mcp.serverChanged, same as reconnect). For servers that auth via OAuth.
       authorize: (server: string) => Promise<void>;
     };
-    // Code intelligence (B7) — LSP-backed, read-only, gated features.codeIntel. Positions
-    // 0-based / UTF-16 (LSP). No language server for the file type → no_language_server
-    // (non-fatal); indexing/unavailable → empty result (not an error).
-    code: {
-      definition: (params: CodeQuery & CodePosition) => Promise<{ locations: CodeLocation[] }>;
-      references: (
-        params: CodeQuery & CodePosition & { includeDeclaration?: boolean },
-      ) => Promise<Page<CodeLocation>>;
-      hover: (params: CodeQuery & CodePosition) => Promise<Hover>;
-      documentSymbols: (params: CodeQuery) => Promise<{ symbols: DocumentSymbol[] }>;
-      workspaceSymbols: (params: {
-        cwd?: string;
-        query: string;
-        limit?: number;
-      }) => Promise<Page<WorkspaceSymbol>>;
-      diagnostics: (params: CodeQuery) => Promise<{ diagnostics: Diagnostic[] }>;
-    };
   };
   providers: {
     list: () => Promise<Page<Provider>>;
@@ -332,11 +302,6 @@ export interface Methods {
     delete: (id: string) => Promise<void>;
     runNow: (id: string) => Promise<void>;
   };
-  // The model's working checklist (B11). Live updates ride state.snapshot (§5.3);
-  // this is the cold read for inactive runs / reopened history.
-  todos: {
-    list: (sessionId: SessionId) => Promise<{ todos: TodoItem[] }>;
-  };
 }
 
 export function createMethods(client: RpcClient): Methods {
@@ -358,7 +323,6 @@ export function createMethods(client: RpcClient): Methods {
       export: (sessionId, format) =>
         client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
       import: (artifact) => client.call<ImportSessionResponse>("sessions.import", { artifact }),
-      compact: (params) => client.call<CompactionResult>("sessions.compact", params),
     },
     runs: {
       start: async (params, signal) => {
@@ -447,19 +411,6 @@ export function createMethods(client: RpcClient): Methods {
         reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
         authorize: (server) => client.call<void>("workspace.mcp.authorize", { server }),
       },
-      code: {
-        definition: (params) =>
-          client.call<{ locations: CodeLocation[] }>("workspace.code.definition", params),
-        references: (params) =>
-          client.call<Page<CodeLocation>>("workspace.code.references", params),
-        hover: (params) => client.call<Hover>("workspace.code.hover", params),
-        documentSymbols: (params) =>
-          client.call<{ symbols: DocumentSymbol[] }>("workspace.code.documentSymbols", params),
-        workspaceSymbols: (params) =>
-          client.call<Page<WorkspaceSymbol>>("workspace.code.workspaceSymbols", params),
-        diagnostics: (params) =>
-          client.call<{ diagnostics: Diagnostic[] }>("workspace.code.diagnostics", params),
-      },
     },
     providers: {
       list: () => client.call<Page<Provider>>("providers.list"),
@@ -507,9 +458,6 @@ export function createMethods(client: RpcClient): Methods {
       update: (params) => client.call<Schedule>("schedules.update", params),
       delete: (id) => client.call<void>("schedules.delete", { id }),
       runNow: (id) => client.call<void>("schedules.runNow", { id }),
-    },
-    todos: {
-      list: (sessionId) => client.call<{ todos: TodoItem[] }>("todos.list", { sessionId }),
     },
   };
 }

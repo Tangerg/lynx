@@ -99,23 +99,13 @@ export type {
   FileLine,
   GrepMatch,
   GrepResult,
-  // Code intelligence (B7) / file browse (B8) — 613 proposal
-  CodeQuery,
-  CodePosition,
-  CodeRange,
-  CodeLocation,
-  Hover,
-  SymbolKind,
-  DocumentSymbol,
-  WorkspaceSymbol,
-  Diagnostic,
+  // File browse
   FileEntry,
   FileContent,
   // Approval control / compaction / todos (B9/B10/B11)
   ApprovalMode,
   ApprovalScope,
   ApprovalRule,
-  CompactionResult,
   TodoItem,
   // Usage / error / context / tools
   Usage,
@@ -125,7 +115,6 @@ export type {
   UsageSummaryRequest,
   ProblemData,
   FieldError,
-  ContextItem,
   JsonSchema,
   ToolSpec,
   GenerationParams,

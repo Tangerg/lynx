@@ -20,7 +20,7 @@ export const RUNTIME_ENDPOINT_CONFIG_KEY = "runtime.endpoint";
  * changes incompatibly. Matches the frozen v2 baseline + the Go runtime's
  * `ProtocolVersion` const.
  */
-export const PROTOCOL_VERSION = "2026-06-07";
+export const PROTOCOL_VERSION = "2026-07-19";
 
 /** Identifies this client to the runtime in request metadata. */
 export const CLIENT_INFO = { name: "lyra-desktop", version: "0.0.0" } as const;

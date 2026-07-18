@@ -3,11 +3,9 @@
 // the single place where the JSON-RPC method table (delivery/dispatch) and
 // the runtime's chat / session / tool / memory stores meet.
 //
-// Methods with an in-process equivalent (sessions, runs, items, tools,
-// memory) are wired through; the rest return protocol.ErrCapabilityNotNeg,
-// which the dispatch maps to capability_not_negotiated so the client
-// sees an honest "off on this build" signal consistent with the
-// capability flags advertised through discovery.
+// Every method is wired to an application coordinator or an explicit adapter;
+// discovery is generated from that same wiring so the advertised contract and
+// callable surface cannot drift.
 package server
 
 import (
@@ -289,8 +287,6 @@ func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabiliti
 			protocol.StreamItemDelta,
 			protocol.StreamItemCompleted,
 			protocol.StreamStateSnapshot,
-			protocol.StreamStateDelta,
-			protocol.StreamCustom,
 		},
 		// streamable-HTTP methods, machine-readable so the client knows which
 		// calls return an event stream rather than hardcoding the names (§7/§9).

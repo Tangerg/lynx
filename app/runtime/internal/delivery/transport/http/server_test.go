@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-const testProtocolVersion = "2026-06-07"
+const testProtocolVersion = "2026-07-19"
 
 // TestSidecarInfo confirms /v2/info returns a flat JSON snapshot (NOT a
 // JSON-RPC envelope) and surfaces serverInfo + protocolVersion.

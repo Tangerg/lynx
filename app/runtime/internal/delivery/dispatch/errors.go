@@ -29,7 +29,6 @@ var sentinelToCode = map[error]int{
 	protocol.ErrToolDenied:             protocol.CodeToolDenied,
 	protocol.ErrPathOutsideRoot:        protocol.CodePathOutsideRoot,
 	protocol.ErrInterruptNotOpen:       protocol.CodeInterruptNotOpen,
-	protocol.ErrIdempotencyConflict:    protocol.CodeIdempotencyConflict,
 	protocol.ErrInvalidProtocolVersion: protocol.CodeInvalidProtocolVersion,
 	protocol.ErrVcsUnavailable:         protocol.CodeVcsUnavailable,
 	protocol.ErrSessionBusy:            protocol.CodeSessionBusy,

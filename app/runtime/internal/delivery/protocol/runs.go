@@ -114,15 +114,12 @@ type RunResult struct {
 	DurationMs int `json:"durationMs,omitempty"`
 }
 
-// StartRunRequest is the runs.start body (API.md §7.1). No client-supplied
-// runId; no cwd (resolved from the session). (The X-Idempotency-Key retry
-// dedup is reserved but not yet implemented — see API.md §7.1.)
+// StartRunRequest is the runs.start body (API.md §7.1). The session owns cwd
+// and the runtime owns the toolset and shared-state lifecycle, so clients send
+// only the user input and explicit execution limits/model selection.
 type StartRunRequest struct {
 	SessionID string         `json:"sessionId"`
 	Input     []ContentBlock `json:"input"`
-	Context   []ContextItem  `json:"context,omitempty"`
-	Tools     []ToolSpec     `json:"tools,omitempty"`
-	State     map[string]any `json:"state,omitempty"`
 	// Provider + Model select the model for this run. They are paired: send
 	// both to pick a model, or neither to use the runtime's default. Sending
 	// one without the other is invalid_params — the provider is explicit,
@@ -190,6 +187,12 @@ type ListOpenInterruptsRequest struct {
 type ResumeRunRequest struct {
 	RunID     string              `json:"runId"`
 	Responses []InterruptResponse `json:"responses"`
+}
+
+// SubscribeRunRequest identifies the durable run whose live segment should be
+// rebound to the caller.
+type SubscribeRunRequest struct {
+	RunID string `json:"runId"`
 }
 
 // InterruptResponseType discriminates a client's answer to an interrupt
@@ -312,35 +315,7 @@ type OpenInterrupt struct {
 	CreatedAt  time.Time   `json:"createdAt"`
 }
 
-// ContextItemType discriminates a ContextItem (API.md §4.7).
-type ContextItemType string
-
-const (
-	ContextItemFile      ContextItemType = "file"
-	ContextItemSelection ContextItemType = "selection"
-	ContextItemURL       ContextItemType = "url"
-)
-
-// ContextItem is one piece of side-channel context attached to a run
-// (API.md §4.7). Tag-discriminated by Type:
-//
-//	file      → Path (relative to Session.cwd)
-//	selection → Path, Range ([startLine, endLine], 1-based inclusive)
-//	url       → URL (runtime fetches; SSRF egress policy applies)
-//
-// Images aren't context items — they ride the run's input inline as an
-// image ContentBlock (Mime + base64 Data), see StartRunRequest.Input.
-//
-// Security: file/selection paths relative to cwd; escaping cwd →
-// path_outside_root. URL fetches block loopback / private / metadata.
-type ContextItem struct {
-	Type  ContextItemType `json:"type"`
-	Path  string          `json:"path,omitempty"`
-	Range []int           `json:"range,omitempty"`
-	URL   string          `json:"url,omitempty"`
-}
-
-// ToolSpec is a client-supplied tool descriptor (API.md §4.7).
+// ToolSpec is the runtime's tool-catalog descriptor (API.md §4.7).
 type ToolSpec struct {
 	Name        string         `json:"name"`
 	Description string         `json:"description,omitempty"`

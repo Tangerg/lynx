@@ -13,6 +13,9 @@ import (
 // them while the server process is up; these methods manage the set.
 
 func (d *Dispatcher) handleSchedulesList(ctx context.Context, msg *transport.Request) HandleResult {
+	if bad := decodeEmpty(msg); bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.ListSchedules(ctx)
 	return reply(msg, out, err)
 }

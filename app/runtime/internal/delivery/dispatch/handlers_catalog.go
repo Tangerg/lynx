@@ -10,8 +10,10 @@ import (
 // ─── Providers / Models / Tools (API.md §7.6) ───────────────────────
 
 func (d *Dispatcher) handleProvidersList(ctx context.Context, msg *transport.Request) HandleResult {
-	var q protocol.PageQuery
-	_ = unmarshal(msg.Params, &q)
+	q, bad := decode[protocol.PageQuery](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.ListProviders(ctx, q)
 	return reply(msg, out, err)
 }
@@ -29,22 +31,30 @@ func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transpor
 }
 
 func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "provider")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.TestProviderRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
-	out, tErr := d.api.TestProvider(ctx, id)
+	if in.Provider == "" {
+		return responseError(msg.ID, invalidParams("provider is required"))
+	}
+	out, tErr := d.api.TestProvider(ctx, in.Provider)
 	return reply(msg, out, tErr)
 }
 
 func (d *Dispatcher) handleModelsList(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.ListModelsRequest
-	_ = unmarshal(msg.Params, &in) // provider optional; empty → empty page
+	in, bad := decode[protocol.ListModelsRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.ListModels(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleModelsGetUtilityRole(ctx context.Context, msg *transport.Request) HandleResult {
+	if bad := decodeEmpty(msg); bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.GetUtilityRole(ctx)
 	return reply(msg, out, err)
 }
@@ -59,6 +69,9 @@ func (d *Dispatcher) handleModelsSetUtilityRole(ctx context.Context, msg *transp
 }
 
 func (d *Dispatcher) handleModelsGetEmbeddingRole(ctx context.Context, msg *transport.Request) HandleResult {
+	if bad := decodeEmpty(msg); bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.GetEmbeddingRole(ctx)
 	return reply(msg, out, err)
 }
@@ -73,8 +86,10 @@ func (d *Dispatcher) handleModelsSetEmbeddingRole(ctx context.Context, msg *tran
 }
 
 func (d *Dispatcher) handleToolsList(ctx context.Context, msg *transport.Request) HandleResult {
-	var q protocol.PageQuery
-	_ = unmarshal(msg.Params, &q)
+	q, bad := decode[protocol.PageQuery](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.ListTools(ctx, q)
 	return reply(msg, out, err)
 }
@@ -94,17 +109,22 @@ func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Reque
 // ─── Usage reporting (API.md §7.7) ──────────────────────────────────
 
 func (d *Dispatcher) handleUsageSession(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "sessionId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.SessionUsageRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
-	out, uErr := d.api.SessionUsage(ctx, id)
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
+	out, uErr := d.api.SessionUsage(ctx, in.SessionID)
 	return reply(msg, out, uErr)
 }
 
 func (d *Dispatcher) handleUsageSummary(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.UsageSummaryRequest
-	_ = unmarshal(msg.Params, &in) // all fields optional (empty → all-time)
+	in, bad := decode[protocol.UsageSummaryRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.UsageSummary(ctx, in)
 	return reply(msg, out, err)
 }

@@ -13,6 +13,9 @@ import (
 // read-only planning stance the exit_plan_mode tool flips back to execute.
 
 func (d *Dispatcher) handleApprovalGetMode(ctx context.Context, msg *transport.Request) HandleResult {
+	if bad := decodeEmpty(msg); bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.GetApprovalMode(ctx)
 	return reply(msg, out, err)
 }

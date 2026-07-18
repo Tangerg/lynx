@@ -30,18 +30,18 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 // no (or an over-large) limit.
 const defaultItemPageLimit = 200
 
-// pageByID applies opaque-cursor + limit pagination over an ordered slice
-// whose elements carry a unique id. cursor is the previous page's last id
+// pageByCursor applies opaque-cursor + limit pagination over an ordered slice
+// whose elements carry a unique stable key. cursor is the previous page's key
 // (opaque to the client); a non-empty returned cursor is the "has more"
 // signal (§4.11) — the server never silently truncates. An unknown cursor
 // yields an empty page (the referenced element is gone), which the client
 // reads as "no more". Shared by items.list and sessions.list so both
 // surfaces keep identical cursor mechanics.
-func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimit int) ([]T, string) {
+func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, maxLimit int) ([]T, string) {
 	if cursor != "" {
 		start := len(elems) // unknown cursor → past the end → empty page
 		for idx, el := range elems {
-			if id(el) == cursor {
+			if key(el) == cursor {
 				start = idx + 1
 				break
 			}
@@ -53,14 +53,14 @@ func pageByID[T any](elems []T, id func(T) string, cursor string, limit, maxLimi
 	}
 	if len(elems) > limit {
 		page := elems[:limit]
-		return page, id(page[len(page)-1])
+		return page, key(page[len(page)-1])
 	}
 	return elems, ""
 }
 
 // listItemsFromHistory serves items.list from durable Item rows.
 func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcript.Run, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	pageRows, next := pageByID(hItems, func(item transcript.Item) string { return item.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
+	pageRows, next := pageByCursor(hItems, func(item transcript.Item) string { return item.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
 	items := make([]protocol.Item, 0, len(pageRows))
 	for _, item := range pageRows {
 		items = append(items, presentItem(item))

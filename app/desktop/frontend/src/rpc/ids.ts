@@ -6,9 +6,6 @@
 // Business resource ids are ALWAYS server-generated and carry a type
 // prefix on the wire: ses_ / run_ / item_ / evt_. The
 // client never mints business ids (§2.2) — only the JSON-RPC envelope id.
-// (An X-Idempotency-Key for retry-safe run creation, §10, is the other
-// client-minted non-business token, but isn't wired yet — see the
-// integration report's transport-conformance gaps.)
 //
 // Adopt these at boundaries that get ids from the server (RPC method
 // returns + notification params). At the wire boundary plain strings

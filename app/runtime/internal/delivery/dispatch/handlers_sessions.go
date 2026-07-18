@@ -10,24 +10,31 @@ import (
 // ─── Sessions (API.md §7.2) ─────────────────────────────────────────
 
 func (d *Dispatcher) handleSessionsList(ctx context.Context, msg *transport.Request) HandleResult {
-	var q protocol.PageQuery
-	_ = unmarshal(msg.Params, &q) // empty params is valid
+	q, bad := decode[protocol.PageQuery](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	page, err := d.api.ListSessions(ctx, q)
 	return reply(msg, page, err)
 }
 
 func (d *Dispatcher) handleSessionsGet(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "sessionId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.GetSessionRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
-	sess, gErr := d.api.GetSession(ctx, id)
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
+	sess, gErr := d.api.GetSession(ctx, in.SessionID)
 	return reply(msg, sess, gErr)
 }
 
 func (d *Dispatcher) handleSessionsCreate(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.CreateSessionRequest
-	_ = unmarshal(msg.Params, &in) // empty body defaults cwd to serve dir
+	in, bad := decode[protocol.CreateSessionRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	sess, err := d.api.CreateSession(ctx, in)
 	return reply(msg, sess, err)
 }
@@ -45,11 +52,14 @@ func (d *Dispatcher) handleSessionsUpdate(ctx context.Context, msg *transport.Re
 }
 
 func (d *Dispatcher) handleSessionsDelete(ctx context.Context, msg *transport.Request) HandleResult {
-	id, err := decodeStringParam(msg.Params, "sessionId")
-	if err != nil {
-		return responseError(msg.ID, invalidParams(err.Error()))
+	in, bad := decode[protocol.DeleteSessionRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
 	}
-	return replyDone(msg, d.api.DeleteSession(ctx, id))
+	if in.SessionID == "" {
+		return responseError(msg.ID, invalidParams("sessionId is required"))
+	}
+	return replyDone(msg, d.api.DeleteSession(ctx, in.SessionID))
 }
 
 func (d *Dispatcher) handleSessionsFork(ctx context.Context, msg *transport.Request) HandleResult {
