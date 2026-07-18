@@ -1,6 +1,8 @@
 package skills
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"regexp"
@@ -47,6 +49,47 @@ type Draft struct {
 	Name        string
 	Description string
 	Body        string
+}
+
+// DraftHandle identifies the immutable bytes staged for one proposal. Name is
+// the eventual active skill identity; Revision binds that name to the rendered
+// SKILL.md. Approval and publication carry this value so a same-name proposal
+// cannot substitute different bytes while a human decision is pending.
+type DraftHandle struct {
+	Name     string
+	Revision string
+}
+
+// NewDraftHandle returns the content-addressed identity for rendered SKILL.md
+// bytes. Equal proposals intentionally receive the same handle, making a
+// suspended tool replay idempotent.
+func NewDraftHandle(name string, content []byte) DraftHandle {
+	payload := make([]byte, 0, len(name)+1+len(content))
+	payload = append(payload, name...)
+	payload = append(payload, 0)
+	payload = append(payload, content...)
+	digest := sha256.Sum256(payload)
+	return DraftHandle{Name: name, Revision: hex.EncodeToString(digest[:])}
+}
+
+// Validate rejects malformed or path-like handles before a store uses them.
+func (h DraftHandle) Validate() error {
+	if err := (skillspec.Frontmatter{Name: h.Name, Description: "draft handle"}).Validate(); err != nil {
+		return fmt.Errorf("draft handle name: %w", err)
+	}
+	if len(h.Revision) != sha256.Size*2 {
+		return errors.New("draft handle revision must be a SHA-256 digest")
+	}
+	if _, err := hex.DecodeString(h.Revision); err != nil {
+		return fmt.Errorf("draft handle revision: %w", err)
+	}
+	return nil
+}
+
+// Matches reports whether content is the exact rendered proposal represented
+// by h.
+func (h DraftHandle) Matches(content []byte) bool {
+	return h == NewDraftHandle(h.Name, content)
 }
 
 // Validate checks a proposed skill against the SKILL.md spec — the same

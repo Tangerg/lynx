@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
 )
@@ -127,8 +128,9 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		policy approval.Policy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
+		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}
@@ -160,8 +162,9 @@ func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
 		policy approval.Policy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
+		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}

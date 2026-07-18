@@ -10,6 +10,7 @@ package skillpropose
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -29,9 +30,9 @@ const (
 // implements it.
 type Authoring interface {
 	Enabled() bool
-	SaveDraft(ctx context.Context, draft skills.Draft) error
-	Promote(ctx context.Context, name string) error
-	DiscardDraft(ctx context.Context, name string) error
+	SaveDraft(ctx context.Context, draft skills.Draft) (skills.DraftHandle, error)
+	Promote(ctx context.Context, handle skills.DraftHandle) error
+	DiscardDraft(ctx context.Context, handle skills.DraftHandle) error
 }
 
 const description = `Propose a new reusable skill (a SKILL.md the agent can later
@@ -84,10 +85,6 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 	if reason, dangerous := draft.Scan(); dangerous {
 		return "Rejected — " + reason + ". Rewrite the skill without it.", nil
 	}
-	if err := t.store.SaveDraft(ctx, draft); err != nil {
-		return "", err
-	}
-
 	arguments, err := in.arguments()
 	if err != nil {
 		return "", err
@@ -97,20 +94,25 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("propose_skill: %w", err)
 	}
+	handle, err := t.store.SaveDraft(ctx, draft)
+	if err != nil {
+		return "", err
+	}
 	res, err := t.interrupt(ctx,
 		interrupts.InterruptKey(string(runs.QuestionInterruptKind), toolName, arguments),
 		pending,
 	)
 	if err != nil {
-		return "", err
+		return "", errors.Join(err, t.store.DiscardDraft(context.WithoutCancel(ctx), handle))
 	}
 
 	if selectedChoice(res.Answer) != approveLabel {
-		// Declined: drop the staged draft so it doesn't linger.
-		_ = t.store.DiscardDraft(ctx, draft.Name)
+		if err := t.store.DiscardDraft(context.WithoutCancel(ctx), handle); err != nil {
+			return "", fmt.Errorf("propose_skill: discard rejected draft %q: %w", draft.Name, err)
+		}
 		return "The user declined the skill proposal; it was not added.", nil
 	}
-	if err := t.store.Promote(ctx, draft.Name); err != nil {
+	if err := t.store.Promote(ctx, handle); err != nil {
 		return "", err
 	}
 	return "The user approved the skill '" + draft.Name + "'; it was added to the global skill library and is now loadable via the skill tool.", nil

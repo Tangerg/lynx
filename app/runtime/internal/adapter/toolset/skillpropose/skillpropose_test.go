@@ -2,9 +2,13 @@ package skillpropose
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
@@ -12,20 +16,23 @@ import (
 type fakeStore struct {
 	enabled                    bool
 	saved, promoted, discarded string
+	discardErr                 error
+	discardContextErr          error
 }
 
 func (f *fakeStore) Enabled() bool { return f.enabled }
-func (f *fakeStore) SaveDraft(_ context.Context, d skills.Draft) error {
+func (f *fakeStore) SaveDraft(_ context.Context, d skills.Draft) (skills.DraftHandle, error) {
 	f.saved = d.Name
+	return skills.NewDraftHandle(d.Name, []byte(d.Body)), nil
+}
+func (f *fakeStore) Promote(_ context.Context, handle skills.DraftHandle) error {
+	f.promoted = handle.Name
 	return nil
 }
-func (f *fakeStore) Promote(_ context.Context, name string) error {
-	f.promoted = name
-	return nil
-}
-func (f *fakeStore) DiscardDraft(_ context.Context, name string) error {
-	f.discarded = name
-	return nil
+func (f *fakeStore) DiscardDraft(ctx context.Context, handle skills.DraftHandle) error {
+	f.discarded = handle.Name
+	f.discardContextErr = ctx.Err()
+	return f.discardErr
 }
 
 func answering(choice string) interrupts.Func {
@@ -84,6 +91,43 @@ func TestPropose_RejectedDiscards(t *testing.T) {
 	}
 	if !strings.Contains(out, "declined") {
 		t.Fatalf("output = %q, want a declined message", out)
+	}
+}
+
+func TestPropose_RejectedSurfacesDiscardFailure(t *testing.T) {
+	want := errors.New("discard failed")
+	store := &fakeStore{enabled: true, discardErr: want}
+	tool, _ := New(store, answering(rejectLabel))
+	if _, err := tool.Call(t.Context(), validArgs); !errors.Is(err, want) {
+		t.Fatalf("Call() error = %v, want discard failure", err)
+	}
+}
+
+func TestPropose_InterruptCleansDraftAndPreservesSuspension(t *testing.T) {
+	discardErr := errors.New("discard failed")
+	store := &fakeStore{enabled: true, discardErr: discardErr}
+	ctx, cancel := context.WithCancel(t.Context())
+	interrupt := func(context.Context, string, any) (interrupts.Resolution, error) {
+		cancel()
+		return interrupts.Resolution{}, fmt.Errorf("park proposal: %w", interaction.ErrSuspended)
+	}
+	proposeTool, err := New(store, interrupt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = proposeTool.Call(ctx, validArgs)
+	if !hitl.IsInterrupt(err) {
+		t.Fatalf("Call() error = %v, want preserved suspension", err)
+	}
+	if !errors.Is(err, discardErr) {
+		t.Fatalf("Call() error = %v, want joined discard failure", err)
+	}
+	if store.discarded != "git-bisect-helper" {
+		t.Fatalf("interrupted draft not discarded, discarded=%q", store.discarded)
+	}
+	if store.discardContextErr != nil {
+		t.Fatalf("discard context error = %v, want cleanup context detached from cancellation", store.discardContextErr)
 	}
 }
 

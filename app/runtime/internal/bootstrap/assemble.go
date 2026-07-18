@@ -151,6 +151,7 @@ type toolEnvironmentBuilder func(
 	approval.Policy,
 	mcpEnvironment,
 	toolset.CodebaseIndex,
+	*skillauthoring.Store,
 ) (toolset.Built, error)
 
 func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (_ Host, err error) {
@@ -218,7 +219,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		return Host{}, err
 	}
 
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index)
+	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -383,7 +385,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Workspace: workspace.New(workspace.Config{
 				Memory:  cfg.Engine.Knowledge,
 				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
-				Curator: skillauthoring.NewStore(cfg.SkillsGlobalDir),
+				Curator: skillStore,
 				Hooks:   cfg.HooksResolver,
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
