@@ -411,7 +411,7 @@ func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
 	if err := transcripts.AppendItem(ctx, transcript.Item{
 		SessionID: "ses_lost", ID: "item_tool", RunID: "run_lost",
 		Status: transcript.ItemRunning, Kind: transcript.ToolCall, CreatedAt: time.Unix(2, 0),
-		Tool: &transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{}},
+		Tool: &transcript.ToolInvocation{Name: "shell"},
 	}); err != nil {
 		t.Fatalf("put running item: %v", err)
 	}

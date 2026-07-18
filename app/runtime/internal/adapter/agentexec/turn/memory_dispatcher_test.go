@@ -70,7 +70,7 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if e.Err != "" {
 				t.Errorf("ToolCallEnd.Err = %q, want empty", e.Err)
 			}
-			result, ok := e.Result.(map[string]any)
+			result, ok := e.Result.Any().(map[string]any)
 			if !ok {
 				t.Fatalf("ToolCallEnd.Result = %T, want JSON object", e.Result)
 			}
@@ -397,7 +397,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 		case turn.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Result carries the reason.
-			if result, ok := e.Result.(string); ok && strings.Contains(result, "denied") {
+			if result, ok := e.Result.String(); ok && strings.Contains(result, "denied") {
 				sawDenial = true
 			}
 		case turn.TurnEnd:

@@ -32,7 +32,11 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 		return nil, err
 	}
 	out := r.closeStreaming()
-	out = append(out, r.drainTools()...)
+	drained, err := r.drainTools()
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, drained...)
 	return append(out, terminal), nil
 }
 

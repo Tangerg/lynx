@@ -346,7 +346,10 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	if item.Tool == nil || item.Tool.Offload == nil {
 		return nil
 	}
-	preview, ok := item.Tool.Result.(string)
+	if item.Tool.Result == nil {
+		return errors.New("runsegment: offloaded tool result is absent")
+	}
+	preview, ok := item.Tool.Result.String()
 	if !ok {
 		return errors.New("runsegment: offloaded tool result has no preview string")
 	}

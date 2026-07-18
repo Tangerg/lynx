@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestToolResultPresentation(t *testing.T) {
@@ -16,37 +17,34 @@ func TestToolResultPresentation(t *testing.T) {
 	}{
 		{
 			name: "command",
-			tool: transcript.ToolInvocation{
-				Name: "shell",
-				Result: map[string]any{
+			tool: testToolInvocation(t, "shell", nil,
+				map[string]any{
 					"stdout": "hello\n", "stderr": "warning", "exit_code": float64(2),
 				},
-			},
+			),
 			want: map[string]any{"exitCode": float64(2), "output": "hello\n\nwarning"},
 		},
 		{
 			name: "local search",
-			tool: transcript.ToolInvocation{
-				Name: "grep",
-				Result: map[string]any{"matches": []any{
+			tool: testToolInvocation(t, "grep", nil,
+				map[string]any{"matches": []any{
 					map[string]any{"path": "a.go", "line": float64(7), "text": "match"},
 				}},
-			},
+			),
 			want: map[string]any{"hits": []any{
 				map[string]any{"path": "a.go", "lineNumber": float64(7), "snippet": "match"},
 			}},
 		},
 		{
 			name: "web search",
-			tool: transcript.ToolInvocation{
-				Name: "web_search",
-				Result: map[string]any{"results": []any{
+			tool: testToolInvocation(t, "web_search", nil,
+				map[string]any{"results": []any{
 					map[string]any{
 						"title": "Lynx", "url": "https://example.com",
 						"snippet": "result", "favicon_url": "https://example.com/favicon.ico",
 					},
 				}},
-			},
+			),
 			want: map[string]any{"results": []any{
 				map[string]any{
 					"title": "Lynx", "url": "https://example.com",
@@ -56,13 +54,12 @@ func TestToolResultPresentation(t *testing.T) {
 		},
 		{
 			name: "edit",
-			tool: transcript.ToolInvocation{
-				Name: "edit",
-				Arguments: map[string]any{
+			tool: testToolInvocation(t, "edit",
+				map[string]any{
 					"file_path": "a.go", "old_string": "old\n", "new_string": "new\n",
 				},
-				Result: map[string]any{"replacements": float64(1)},
-			},
+				map[string]any{"replacements": float64(1)},
+			),
 			want: map[string]any{"changes": []any{
 				map[string]any{
 					"path": "a.go", "status": "modified", "diff": []any{
@@ -74,11 +71,10 @@ func TestToolResultPresentation(t *testing.T) {
 		},
 		{
 			name: "write",
-			tool: transcript.ToolInvocation{
-				Name:      "write",
-				Arguments: map[string]any{"file_path": "b.go"},
-				Result:    map[string]any{"bytes_written": float64(4)},
-			},
+			tool: testToolInvocation(t, "write",
+				map[string]any{"file_path": "b.go"},
+				map[string]any{"bytes_written": float64(4)},
+			),
 			want: map[string]any{"changes": []any{
 				map[string]any{"path": "b.go", "status": "modified"},
 			}},
@@ -95,17 +91,34 @@ func TestToolResultPresentation(t *testing.T) {
 
 func TestToolResultPresenterPreservesPresentedAndUnknownResults(t *testing.T) {
 	presented := map[string]any{"output": "ready", "exitCode": float64(0)}
-	if got := presentToolResult(transcript.ToolInvocation{Name: "shell", Result: presented}); !reflect.DeepEqual(got, presented) {
+	if got := jsonObject(t, presentToolResult(testToolInvocation(t, "shell", nil, presented))); !reflect.DeepEqual(got, presented) {
 		t.Fatalf("presented result = %#v, want %#v", got, presented)
 	}
 
 	raw := map[string]any{"custom": true}
-	if got := presentToolResult(transcript.ToolInvocation{Name: "vendor_tool", Result: raw}); !reflect.DeepEqual(got, raw) {
+	if got := jsonObject(t, presentToolResult(testToolInvocation(t, "vendor_tool", nil, raw))); !reflect.DeepEqual(got, raw) {
 		t.Fatalf("unknown result = %#v, want %#v", got, raw)
 	}
-	if got := presentToolResult(transcript.ToolInvocation{Name: "shell", Result: raw}); !reflect.DeepEqual(got, raw) {
+	if got := jsonObject(t, presentToolResult(testToolInvocation(t, "shell", nil, raw))); !reflect.DeepEqual(got, raw) {
 		t.Fatalf("unrecognized shell result = %#v, want raw result %#v", got, raw)
 	}
+}
+
+func testToolInvocation(t *testing.T, name string, arguments map[string]any, result any) transcript.ToolInvocation {
+	t.Helper()
+	var args tool.Arguments
+	var err error
+	if arguments != nil {
+		args, err = tool.ArgumentsFromMap(arguments)
+		if err != nil {
+			t.Fatalf("tool arguments: %v", err)
+		}
+	}
+	value, err := tool.NewResult(result)
+	if err != nil {
+		t.Fatalf("tool result: %v", err)
+	}
+	return transcript.ToolInvocation{Name: name, Arguments: args, Result: &value}
 }
 
 func TestToolActivity(t *testing.T) {

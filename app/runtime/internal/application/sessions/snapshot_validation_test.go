@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *testing.T) {
@@ -17,10 +18,10 @@ func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *test
 	if err != nil {
 		t.Fatalf("NormalizeForRestore: %v", err)
 	}
-	if got := normalized.Items[0].Tool.Result; got != "bounded preview" {
+	if got, _ := normalized.Items[0].Tool.Result.String(); got != "bounded preview" {
 		t.Fatalf("normalized result = %q, want bounded preview", got)
 	}
-	if got := snapshot.Items[0].Tool.Result; got != "full body" {
+	if got, _ := snapshot.Items[0].Tool.Result.String(); got != "full body" {
 		t.Fatalf("source result mutated to %q", got)
 	}
 	if normalized.Items[0].Tool == snapshot.Items[0].Tool {
@@ -58,7 +59,8 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 		{
 			name: "unrelated result",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Items[0].Tool.Result = "neither preview nor body"
+				result := tool.StringResult("neither preview nor body")
+				snapshot.Items[0].Tool.Result = &result
 			},
 			want: "matches neither",
 		},
@@ -86,11 +88,12 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 
 func offloadedSnapshot(result string) Snapshot {
 	ref := &offload.Ref{ID: "BLOB234"}
+	value := tool.StringResult(result)
 	return Snapshot{
 		Session: session.Session{ID: "ses_1"},
 		Items: []transcript.Item{{
 			SessionID: "ses_1", ID: "item_1", Kind: transcript.ToolCall,
-			Tool: &transcript.ToolInvocation{Name: "shell", Result: result, Offload: ref},
+			Tool: &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 		}},
 		ToolResults: []offload.ToolResultBlob{{
 			ID: "BLOB234", SessionID: "ses_1", ItemID: "item_1", ToolName: "shell",

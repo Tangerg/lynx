@@ -74,7 +74,7 @@ type openTool struct {
 	id          string
 	createdAt   time.Time
 	name        string
-	args        string
+	arguments   tool.Arguments
 	safetyClass tool.SafetyClass
 	end         *ToolCallEnd
 }
@@ -103,6 +103,9 @@ func (r *reducer) nextItemID() string {
 func userMessageItemID(segmentID string) string { return "item_" + segmentID + "_u" }
 
 func (r *reducer) open() ([]reduction, error) {
+	if r.resume != nil && r.resume.err != nil {
+		return nil, fmt.Errorf("%w: %w", errReducerInvariant, r.resume.err)
+	}
 	createdAt := r.cfg.CreatedAt
 	if createdAt.IsZero() {
 		createdAt = r.now()
@@ -129,9 +132,17 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 		out = r.closeText()
 		out = append(out, r.appendReasoning(e.Text)...)
 	case ToolCallStart:
-		out = r.toolStart(e)
+		var err error
+		out, err = r.toolStart(e)
+		if err != nil {
+			return nil, fmt.Errorf("%w: tool call start: %w", errExecutorProtocol, err)
+		}
 	case ToolCallEnd:
-		out = r.toolEnd(e)
+		var err error
+		out, err = r.toolEnd(e)
+		if err != nil {
+			return nil, fmt.Errorf("%w: tool call end: %w", errExecutorProtocol, err)
+		}
 	case UsageReported:
 		out = r.usageProgress(e)
 	case SteerMessage:
@@ -163,7 +174,11 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 
 func (r *reducer) synthesizeTerminal() ([]reduction, error) {
 	out := r.closeStreaming()
-	out = append(out, r.drainTools()...)
+	drained, err := r.drainTools()
+	if err != nil {
+		return nil, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
+	}
+	out = append(out, drained...)
 	result := &RunResult{}
 	outcome := execution.OutcomeCanceled
 	if r.errMsg != "" {

@@ -17,6 +17,7 @@ import (
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -42,6 +43,16 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 	putRun(t, rt, ses.ID, "run1", 1, 2)
 	putUserItem(t, rt, ses.ID, "run1", "item1", "hello")
+	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls"})
+	if err != nil {
+		t.Fatalf("tool arguments: %v", err)
+	}
+	result, err := tool.NewResult(map[string]any{
+		"stdout": "total 0\n", "stderr": "", "exit_code": float64(0),
+	})
+	if err != nil {
+		t.Fatalf("tool result: %v", err)
+	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		SessionID: ses.ID, RunID: "run1", ID: "item2",
 		CreatedAt: time.Unix(2, 0).UTC(),
@@ -49,10 +60,8 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		Kind:      transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{
 			Name:      "shell",
-			Arguments: map[string]any{"command": "ls"},
-			Result: map[string]any{
-				"stdout": "total 0\n", "stderr": "", "exit_code": float64(0),
-			},
+			Arguments: arguments,
+			Result:    &result,
 		},
 	}); err != nil {
 		t.Fatalf("seed tool item: %v", err)
@@ -141,10 +150,11 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	}
 	preview := toolresultpreview.Render(body, id, "read_tool_result", 100)
 	ref := &resultoffload.Ref{ID: id}
+	previewValue := tool.StringResult(preview)
 	item := transcript.Item{
 		SessionID: ses.ID, RunID: "run_offload", ID: "item_offload",
 		CreatedAt: time.Unix(2, 0).UTC(), Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
-		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Arguments: map[string]any{}, Result: preview, Offload: ref},
+		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Result: &previewValue, Offload: ref},
 	}
 	if err := sourceRuntime.hist.AppendItem(ctx, item); err != nil {
 		t.Fatalf("append source item: %v", err)
@@ -183,8 +193,11 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if err != nil {
 		t.Fatalf("list destination transcript: %v", err)
 	}
-	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result != body {
+	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result == nil {
 		t.Fatalf("destination transcript = %+v, want rehydrated tool result", items)
+	}
+	if got, ok := items[0].Tool.Result.String(); !ok || got != body {
+		t.Fatalf("destination transcript result = %q, want rehydrated tool result", got)
 	}
 	messages, err := destinationRuntime.ReadHistory(ctx, ses.ID)
 	if err != nil {

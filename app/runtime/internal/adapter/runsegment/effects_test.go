@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit persists
@@ -56,12 +57,13 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
 	effects := New(Config{Stores: stores, Tx: new(fakeTx).run})
 	ref := &offload.Ref{ID: "BLOB234"}
+	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1",
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
-			Tool: &transcript.ToolInvocation{Name: "shell", Result: "preview", Offload: ref},
+			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
 	if err != nil {
@@ -87,12 +89,13 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 		},
 	})
 	ref := &offload.Ref{ID: "BLOB234"}
+	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID: "run_1", SessionID: "ses_1",
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
-			Tool: &transcript.ToolInvocation{Name: "shell", Result: "preview", Offload: ref},
+			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
 	if !errors.Is(err, want) {

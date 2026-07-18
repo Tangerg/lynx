@@ -3,24 +3,26 @@ package turn
 import (
 	"encoding/json"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func decodeToolResult(output string) any {
+func decodeToolResult(output string) *tool.Result {
 	if output == "" {
 		return nil
 	}
-	var result any
-	if err := json.Unmarshal([]byte(output), &result); err != nil {
-		return output
+	result, err := tool.ParseResult([]byte(output))
+	if err != nil {
+		result = tool.StringResult(output)
 	}
-	return result
+	return &result
 }
 
-func toolOutputText(toolName string, result any) string {
-	if !strings.EqualFold(toolName, "shell") {
+func toolOutputText(toolName string, result *tool.Result) string {
+	if !strings.EqualFold(toolName, "shell") || result == nil {
 		return ""
 	}
-	data, err := json.Marshal(result)
+	data, err := json.Marshal(result.Any())
 	if err != nil {
 		return ""
 	}

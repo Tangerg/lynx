@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"encoding/json"
 	"errors"
 	"slices"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func testReducerConfig() reducerConfig {
@@ -82,20 +84,20 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	mustReduce(t, reducer, ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
 	raw := map[string]any{"stdout": "hi\n", "stderr": "oops", "exit_code": 0}
 	reduced := mustReduce(t, reducer, ToolCallEnd{
-		CallID: "shell_1", Result: raw, OutputText: "hi\n\noops",
+		CallID: "shell_1", Result: testToolResult(t, raw), OutputText: "hi\n\noops",
 	})
 	completed := completedItem(t, reduced)
 	if completed.Tool == nil {
 		t.Fatal("completed tool is nil")
 	}
-	result, ok := completed.Tool.Result.(map[string]any)
-	if !ok || result["stdout"] != "hi\n" || result["stderr"] != "oops" || result["exit_code"] != 0 {
+	result, ok := completed.Tool.Result.Any().(map[string]any)
+	if !ok || result["stdout"] != "hi\n" || result["stderr"] != "oops" || result["exit_code"] != json.Number("0") {
 		t.Fatalf("raw command result = %#v", completed.Tool.Result)
 	}
 
 	mustReduce(t, reducer, ToolCallStart{CallID: "write_1", ToolName: "write", Arguments: `{"file_path":"src/a.go"}`})
 	write := mustReduce(t, reducer, ToolCallEnd{
-		CallID: "write_1", Result: map[string]any{}, MutatedPaths: []string{"src/a.go"},
+		CallID: "write_1", Result: testToolResult(t, map[string]any{}), MutatedPaths: []string{"src/a.go"},
 	})
 	var nudge *Nudge
 	for _, reduction := range write {
@@ -124,21 +126,21 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 		mustReduce(t, reducer, event)
 	}
 
-	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-3", Result: "three"}); len(reduced) != 0 {
+	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-3", Result: testToolResult(t, "three")}); len(reduced) != 0 {
 		t.Fatalf("third completion escaped ordering barrier: %+v", reduced)
 	}
-	first := mustReduce(t, reducer, ToolCallEnd{CallID: "call-1", Result: "one"})
+	first := mustReduce(t, reducer, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "one")})
 	if got := completedToolNames(first); !slices.Equal(got, []string{"first"}) {
 		t.Fatalf("first completion batch = %v, want [first]", got)
 	}
 	remaining := mustReduce(t, reducer, ToolCallEnd{
-		CallID: "call-2", Arguments: `{"value":20}`, Result: "two",
+		CallID: "call-2", Arguments: `{"value":20}`, Result: testToolResult(t, "two"),
 	})
 	if got := completedToolNames(remaining); !slices.Equal(got, []string{"second", "third"}) {
 		t.Fatalf("released completion batch = %v, want [second third]", got)
 	}
 	second := completedItem(t, remaining)
-	if second.Tool.Arguments["value"] != float64(20) {
+	if second.Tool.Arguments.Map()["value"] != json.Number("20") {
 		t.Fatalf("effective arguments = %#v, want value 20", second.Tool.Arguments)
 	}
 }
@@ -152,7 +154,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	mustReduce(t, reducer, ToolCallStart{
 		CallID: "call-2", ToolName: "lookup", Arguments: `{"path":"b"}`, SafetyClass: "read",
 	})
-	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-2", Result: "found"}); len(reduced) != 0 {
+	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-2", Result: testToolResult(t, "found")}); len(reduced) != 0 {
 		t.Fatalf("later completion escaped paused prefix: %+v", reduced)
 	}
 
@@ -169,8 +171,12 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	if commit.Items[0].ID != firstID || commit.Items[0].Status != ItemRunning {
 		t.Fatalf("active approval item = %+v, want original running item %q", commit.Items[0], firstID)
 	}
-	if commit.Items[1].Tool == nil || commit.Items[1].Tool.Name != "lookup" ||
-		commit.Items[1].Status != ItemSucceeded || commit.Items[1].Tool.Result != "found" {
+	if commit.Items[1].Tool == nil || commit.Items[1].Tool.Result == nil {
+		t.Fatalf("completed sibling item = %+v", commit.Items[1])
+	}
+	result, ok := commit.Items[1].Tool.Result.String()
+	if commit.Items[1].Tool.Name != "lookup" ||
+		commit.Items[1].Status != ItemSucceeded || !ok || result != "found" {
 		t.Fatalf("completed sibling item = %+v", commit.Items[1])
 	}
 	if got := commit.Interrupt.Interrupts[0].ItemID; got != firstID {
@@ -210,7 +216,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	})); got != firstID {
 		t.Fatalf("resumed first item ID = %q, want %q", got, firstID)
 	}
-	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: "approved"})
+	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "approved")})
 
 	secondPark := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: ApprovalInterruptKind,
@@ -298,7 +304,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	config.Pending = &interrupts.Pending{
 		RunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", Kind: transcript.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test"}}}},
+			{ItemID: "item_approval", Kind: transcript.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
 			{ItemID: "item_question", Kind: transcript.QuestionInterrupt, Question: question},
 		},
 	}
@@ -319,7 +325,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	if itemID != "item_approval" {
 		t.Fatalf("resumed tool item id = %q, want item_approval", itemID)
 	}
-	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: "ok"})
+	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
 
 	second := mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet"}`})
 	var secondID string
@@ -392,6 +398,95 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 				t.Fatalf("reduce %T error = %v, want executor protocol violation", test.event, err)
 			}
 		})
+	}
+}
+
+func TestReducerRejectsMalformedToolArguments(t *testing.T) {
+	t.Run("start", func(t *testing.T) {
+		reducer := newReducer(testReducerConfig())
+		_, err := reducer.reduce(ToolCallStart{
+			CallID: "call_1", ToolName: "shell", Arguments: `{"command":`,
+		})
+		if !errors.Is(err, errExecutorProtocol) || !errors.Is(err, tool.ErrInvalidArguments) {
+			t.Fatalf("tool start error = %v, want executor protocol + invalid arguments", err)
+		}
+		if len(reducer.tools) != 0 || reducer.step != 0 {
+			t.Fatalf("malformed start mutated reducer: tools=%d step=%d", len(reducer.tools), reducer.step)
+		}
+	})
+
+	t.Run("effective end arguments", func(t *testing.T) {
+		reducer := newReducer(testReducerConfig())
+		mustReduce(t, reducer, ToolCallStart{
+			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test"}`,
+		})
+		_, err := reducer.reduce(ToolCallEnd{CallID: "call_1", Arguments: "null"})
+		if !errors.Is(err, errExecutorProtocol) || !errors.Is(err, tool.ErrInvalidArguments) {
+			t.Fatalf("tool end error = %v, want executor protocol + invalid arguments", err)
+		}
+	})
+}
+
+func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
+	tests := []struct {
+		name  string
+		event EngineEvent
+		want  string
+	}{
+		{name: "missing call id", event: ToolCallStart{ToolName: "shell"}, want: "id is required"},
+		{name: "missing tool name", event: ToolCallStart{CallID: "call_1"}, want: "name is required"},
+		{name: "end without start", event: ToolCallEnd{CallID: "call_1"}, want: "without an open start"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := newReducer(testReducerConfig()).reduce(test.event)
+			if !errors.Is(err, errExecutorProtocol) || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("reduce error = %v, want executor protocol containing %q", err, test.want)
+			}
+		})
+	}
+
+	t.Run("duplicate start", func(t *testing.T) {
+		reducer := newReducer(testReducerConfig())
+		start := ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{}`}
+		mustReduce(t, reducer, start)
+		_, err := reducer.reduce(start)
+		if !errors.Is(err, errExecutorProtocol) || !strings.Contains(err.Error(), "started more than once") {
+			t.Fatalf("duplicate start error = %v", err)
+		}
+	})
+}
+
+func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
+	config := testReducerConfig()
+	config.Pending = &interrupts.Pending{
+		RunID: "run_1", SessionID: "ses_1",
+		DrainedTools: []interrupts.DrainedTool{{
+			ItemID: "item_original", CallID: "old_call", Name: "lookup",
+			Arguments: `{"b":2,"a":{"enabled":true}}`,
+		}},
+	}
+	reducer := newReducer(config)
+	started := mustReduce(t, reducer, ToolCallStart{
+		CallID: "new_call", ToolName: "lookup",
+		Arguments: "{\n  \"a\": {\"enabled\": true}, \"b\": 2\n}",
+	})
+	if got := startedItemID(t, started); got != "item_original" {
+		t.Fatalf("resumed item id = %q, want canonical match item_original", got)
+	}
+}
+
+func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
+	config := testReducerConfig()
+	config.Pending = &interrupts.Pending{
+		RunID: "run_1", SessionID: "ses_1",
+		DrainedTools: []interrupts.DrainedTool{{
+			ItemID: "item_broken", Name: "lookup", Arguments: "[]",
+		}},
+	}
+	_, err := newReducer(config).open()
+	if !errors.Is(err, errReducerInvariant) || !errors.Is(err, tool.ErrInvalidArguments) {
+		t.Fatalf("open error = %v, want reducer invariant + invalid arguments", err)
 	}
 }
 
@@ -526,7 +621,10 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 	if got := []string{drained[0].Name, drained[1].Name, drained[2].Name}; !slices.Equal(got, []string{"first", "second", "third"}) {
 		t.Fatalf("drained tools = %v, want start order", got)
 	}
-	completed := reducer.drainTools()
+	completed, err := reducer.drainTools()
+	if err != nil {
+		t.Fatalf("drainTools: %v", err)
+	}
 	got := make([]string, 0, len(completed))
 	for _, event := range completed {
 		got = append(got, event.(ItemCompleted).Item.Tool.Name)
@@ -537,6 +635,24 @@ func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 	if len(reducer.tools) != 0 {
 		t.Fatalf("open tools after drain = %d, want 0", len(reducer.tools))
 	}
+}
+
+func testToolResult(t *testing.T, value any) *tool.Result {
+	t.Helper()
+	result, err := tool.NewResult(value)
+	if err != nil {
+		t.Fatalf("NewResult: %v", err)
+	}
+	return &result
+}
+
+func testToolArguments(t *testing.T, value map[string]any) tool.Arguments {
+	t.Helper()
+	result, err := tool.ArgumentsFromMap(value)
+	if err != nil {
+		t.Fatalf("ArgumentsFromMap: %v", err)
+	}
+	return result
 }
 
 func completedItem(t *testing.T, reductions []reduction) Item {

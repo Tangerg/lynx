@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // ValidateToolResults verifies that every typed transcript offload has exactly
@@ -40,7 +41,10 @@ func (s Snapshot) ValidateToolResults() error {
 		if err := ref.Validate(); err != nil {
 			return fmt.Errorf("sessions: item %q offload: %w", item.ID, err)
 		}
-		result, ok := item.Tool.Result.(string)
+		if item.Tool.Result == nil {
+			return fmt.Errorf("sessions: item %q offloaded result is absent", item.ID)
+		}
+		result, ok := item.Tool.Result.String()
 		if !ok {
 			return fmt.Errorf("sessions: item %q offloaded result is not a string", item.ID)
 		}
@@ -88,7 +92,8 @@ func (s Snapshot) NormalizeForRestore() (Snapshot, error) {
 		}
 		blob := byItem[item.ID]
 		invocation := *item.Tool
-		invocation.Result = blob.Preview
+		preview := tool.StringResult(blob.Preview)
+		invocation.Result = &preview
 		invocation.Offload = &offload.Ref{ID: blob.ID}
 		item.Tool = &invocation
 	}

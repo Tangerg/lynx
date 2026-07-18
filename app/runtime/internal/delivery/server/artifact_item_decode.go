@@ -215,16 +215,26 @@ func canonicalQuestion(path string, question protocol.Question) (transcript.Ques
 	return transcript.Question{Prompt: question.Prompt, Fields: fields}, nil
 }
 
-func canonicalTool(path string, tool protocol.ToolInvocation) (transcript.ToolInvocation, error) {
-	if tool.Name == "" {
+func canonicalTool(path string, wireTool protocol.ToolInvocation) (transcript.ToolInvocation, error) {
+	if wireTool.Name == "" {
 		return transcript.ToolInvocation{}, invalidArtifact(path+".name", "is required")
 	}
-	if tool.Arguments == nil {
+	if wireTool.Arguments == nil {
 		return transcript.ToolInvocation{}, invalidArtifact(path+".arguments", "must be a JSON object")
 	}
-	return transcript.ToolInvocation{
-		Name: tool.Name, Arguments: tool.Arguments, Result: tool.Result,
-	}, nil
+	arguments, err := tool.ArgumentsFromMap(wireTool.Arguments)
+	if err != nil {
+		return transcript.ToolInvocation{}, invalidArtifact(path+".arguments", "%v", err)
+	}
+	var result *tool.Result
+	if wireTool.Result != nil {
+		value, err := tool.NewResult(wireTool.Result)
+		if err != nil {
+			return transcript.ToolInvocation{}, invalidArtifact(path+".result", "%v", err)
+		}
+		result = &value
+	}
+	return transcript.ToolInvocation{Name: wireTool.Name, Arguments: arguments, Result: result}, nil
 }
 
 func canonicalProblem(path string, problem *protocol.ProblemData, channel protocol.ErrorChannel) (*transcript.Problem, error) {
