@@ -25,7 +25,8 @@ import (
 
 // Bundle holds every persistence backend opened for one runtime process. All
 // durable stores share one SQLite database at $LYRA_HOME/lyra.db, except
-// Knowledge, which is the user-editable LYRA.md cascade.
+// Knowledge, which is the user-editable LYRA.md cascade. AgentMemory is the
+// separate SQLite ledger + curated projection.
 type Bundle struct {
 	db        *sql.DB
 	closeOnce sync.Once
@@ -38,6 +39,7 @@ type Bundle struct {
 	Runs          *sqlitestore.RunStateStore
 	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
 	Memory        knowledge.Store
+	AgentMemory   *sqlitestore.AgentMemoryStore
 	Process       *sqlitestore.ProcessStore
 	Interrupt     *sqlitestore.InterruptStore
 	Transcript    *sqlitestore.TranscriptStore
@@ -79,6 +81,7 @@ func Open() (*Bundle, error) {
 		Runs:          sqlitestore.NewRunStateStore(db),
 		WorkspaceMuts: sqlitestore.NewWorkspaceMutationStore(db),
 		Memory:        mem,
+		AgentMemory:   sqlitestore.NewAgentMemoryStore(db),
 		Process:       sqlitestore.NewProcessStore(db),
 		Interrupt:     sqlitestore.NewInterruptStore(db),
 		Transcript:    sqlitestore.NewTranscriptStore(db),

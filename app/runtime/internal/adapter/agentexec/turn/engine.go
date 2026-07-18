@@ -32,9 +32,10 @@ type Compactor interface {
 	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error)
 }
 
-// ExtractionResult reports facts appended to project memory.
+// ExtractionResult reports daily-ledger and curated-memory changes.
 type ExtractionResult struct {
 	Extracted bool
+	Curated   bool
 	Facts     string
 }
 

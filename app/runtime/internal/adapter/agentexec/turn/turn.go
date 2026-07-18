@@ -201,14 +201,14 @@ func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
 // the user's reply is already on screen.
 //
 // Both maintenance actions are observable: a fired compaction emits
-// [CompactBoundary] (before/after message counts) and a successful
-// extraction emits [MemoryUpdated] (the facts saved). Surfacing them
-// keeps the runtime's housekeeping visible to clients instead of
-// silently mutating context behind the user's back — the SDK's
-// SDKCompactBoundaryMessage / memory-event spirit, adapted.
+// [CompactBoundary] (before/after message counts), and a ledger append or
+// curated-generation publish emits [MemoryUpdated]. Surfacing them keeps the
+// runtime's housekeeping visible to clients instead of silently mutating
+// context behind the user's back — the SDK's SDKCompactBoundaryMessage /
+// memory-event spirit, adapted.
 //
-// Fact extraction is gated on compaction firing: extraction is one
-// extra LLM call, so we amortize it onto the moments where the
+// Memory maintenance is gated on compaction firing: extraction and any due
+// curation add model calls, so we amortize them onto the moments where the
 // runtime had to summarize anyway.
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.compactor == nil {
@@ -246,12 +246,12 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	extraction, err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd)
 	if err != nil {
 		s.emit(st, ErrorEvent{
-			Message: "memory extraction failed: " + err.Error(),
-			Code:    "EXTRACTION_ERROR",
+			Message: "memory maintenance failed: " + err.Error(),
+			Code:    "MEMORY_MAINTENANCE_ERROR",
 		})
 		return
 	}
-	if extraction.Extracted {
+	if extraction.Extracted || extraction.Curated {
 		s.emit(st, MemoryUpdated{Facts: extraction.Facts})
 	}
 }

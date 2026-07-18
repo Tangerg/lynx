@@ -36,8 +36,8 @@ func buildTurnServices(cfg Config, messages messageEnvironment, resolveUtility f
 			maintenance.CompactionConfig{ContextWindow: window},
 		)
 	}
-	if services.extractor == nil && cfg.Engine.Knowledge != nil {
-		services.extractor = maintenance.NewExtractor(messages.history, cfg.Engine.Knowledge, resolveUtility)
+	if services.extractor == nil && cfg.AgentMemoryStore != nil {
+		services.extractor = maintenance.NewExtractor(messages.history, cfg.AgentMemoryStore, resolveUtility, maintenance.CurationConfig{})
 	}
 	return services
 }
