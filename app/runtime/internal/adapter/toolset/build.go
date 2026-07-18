@@ -118,8 +118,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	cleanupOnError := true
 	defer func() {
 		if cleanupOnError {
-			shells.KillAll()
-			err = errors.Join(err, codeIntel.Close(), mcpConns.Close(), a2aConns.Close())
+			err = errors.Join(err, shells.KillAll(), codeIntel.Close(), mcpConns.Close(), a2aConns.Close())
 		}
 	}()
 
@@ -255,7 +254,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		MCPRegistryCommands:   mcpControl,
 		Closers: []func() error{
 			codeIntel.Close,
-			func() error { shells.KillAll(); return nil },
+			shells.KillAll,
 			mcpConns.Close,
 			a2aConns.Close,
 		},
