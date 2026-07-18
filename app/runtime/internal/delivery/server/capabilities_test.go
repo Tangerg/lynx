@@ -31,4 +31,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if caps.Features["subagents"] != false || caps.Features["clientTools"] != false {
 		t.Fatalf("unsupported features advertised: %+v", caps.Features)
 	}
+	if caps.Limits.MaxConcurrentRuns != 0 {
+		t.Fatalf("maxConcurrentRuns = %d, want omitted without an enforced process-wide cap", caps.Limits.MaxConcurrentRuns)
+	}
 }

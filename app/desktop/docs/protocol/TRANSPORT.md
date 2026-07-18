@@ -424,13 +424,14 @@ InProcess / IPC 没有这种场景（无网络探针、客户端直接持有 run
       "multimodal": true
     },
     "providers": [],
-    "limits": { "maxConcurrentRuns": 8 }
+    "limits": {}
   }
 }
 ```
 
 > `features` 是**开放 map**（API.md §9）：未声明的 key 视为关闭，故 server 只需 advertise 它真正开启的能力，
 > 新增能力加一个 key 即可、不 bump 契约。`/v2/info` 与 `runtime.discover` 必须由同一份 server 状态支撑。
+> `limits.maxConcurrentRuns` 只在 server 实际实施进程级硬上限时出现；省略表示未声明全局上限，不能把客户端连接预算伪装成 admission 规则。
 
 ## 13. CORS
 
