@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -15,5 +16,9 @@ type sessionsTurns struct {
 }
 
 func (t sessionsTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {
-	return t.dispatcher.Cancel(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+	err := t.dispatcher.Cancel(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+	if errors.Is(err, turn.ErrTurnNotFound) {
+		return nil
+	}
+	return err
 }

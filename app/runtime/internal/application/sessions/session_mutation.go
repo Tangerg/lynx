@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -14,8 +15,8 @@ import (
 // write-set), then tears down process-local parked turns and the resume gate,
 // and finally drops the session's working-tree checkpoints. The open interrupts
 // are read up front so the abandoned turns can be canceled after the durable
-// state is gone. The checkpoint drop is best-effort cleanup (a shadow-git
-// concern) run last, after the durable delete has already succeeded.
+// state is gone. Checkpoint cleanup runs last, after the durable delete has
+// already succeeded; all post-commit cleanup failures are returned together.
 func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, sessionID string) error {
 	admissions, sessionIDs, err := c.claimDeleteTree(ctx, claims, sessionID)
 	if err != nil {
@@ -38,20 +39,25 @@ func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, 
 	if err := c.s.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs}); err != nil {
 		return err
 	}
+	var cleanupErrs []error
 	for _, item := range pending {
-		c.cancelTurn(ctx, RunTurnBinding{
+		if err := c.cancelTurn(ctx, RunTurnBinding{
 			RunID:     item.RunID,
 			SessionID: item.SessionID,
 			TurnID:    item.TurnID,
-		})
+		}); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
 	}
 	for _, id := range sessionIDs {
 		c.s.ForgetSession(id)
 		if c.checkpoints != nil {
-			_ = c.checkpoints.DropSession(id)
+			if err := c.checkpoints.DropSession(id); err != nil {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for deleted session %q: %w", id, err))
+			}
 		}
 	}
-	return nil
+	return errors.Join(cleanupErrs...)
 }
 
 func (c *Coordinator) claimDeleteTree(ctx context.Context, claims SessionClaimer, sessionID string) ([]RunAdmission, []string, error) {
