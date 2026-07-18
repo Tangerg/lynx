@@ -10,9 +10,10 @@ import (
 )
 
 type workerStore struct {
-	due       []schedule.Schedule
-	dueErr    error
-	markCalls []markCall
+	due         []schedule.Schedule
+	dueErr      error
+	markCalls   []markCall
+	markCtxErrs []error
 }
 
 type markCall struct {
@@ -36,8 +37,9 @@ func (s *workerStore) Delete(context.Context, string) error { return nil }
 func (s *workerStore) Due(_ context.Context, now time.Time) ([]schedule.Schedule, error) {
 	return s.due, s.dueErr
 }
-func (s *workerStore) MarkFired(_ context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
+func (s *workerStore) MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
 	s.markCalls = append(s.markCalls, markCall{id: id, ranAt: ranAt, prevNextRunAt: prevNextRunAt, nextRunAt: nextRunAt})
+	s.markCtxErrs = append(s.markCtxErrs, ctx.Err())
 	return nil
 }
 func (s *workerStore) RecordRun(context.Context, string, time.Time) error { return nil }
@@ -102,4 +104,60 @@ func TestWorkerFireDueStopsOnDueError(t *testing.T) {
 	if len(runner.fired) != 0 || len(store.markCalls) != 0 {
 		t.Fatalf("fired=%d marks=%d, want none", len(runner.fired), len(store.markCalls))
 	}
+}
+
+func TestWorkerFireDueDoesNotConsumeCancellationAbortedFiring(t *testing.T) {
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	store := &workerStore{due: []schedule.Schedule{
+		{ID: "sch_1", Cron: "* * * * *", NextRunAt: now},
+		{ID: "sch_2", Cron: "* * * * *", NextRunAt: now},
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
+
+	NewWorker(store, &runner).fireDue(ctx, now)
+
+	if len(runner.fired) != 1 || runner.fired[0] != "sch_1" {
+		t.Fatalf("fired = %v, want only sch_1", runner.fired)
+	}
+	if len(store.markCalls) != 0 {
+		t.Fatalf("mark calls = %+v, want none for cancellation-aborted firing", store.markCalls)
+	}
+}
+
+func TestWorkerFireDuePersistsAcceptedFiringAfterCancellation(t *testing.T) {
+	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
+	store := &workerStore{due: []schedule.Schedule{
+		{ID: "sch_1", Cron: "* * * * *", NextRunAt: now},
+		{ID: "sch_2", Cron: "* * * * *", NextRunAt: now},
+	}}
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
+
+	NewWorker(store, &runner).fireDue(ctx, now)
+
+	if len(runner.fired) != 1 || runner.fired[0] != "sch_1" {
+		t.Fatalf("fired = %v, want only sch_1", runner.fired)
+	}
+	if len(store.markCalls) != 1 || store.markCalls[0].id != "sch_1" {
+		t.Fatalf("mark calls = %+v, want accepted sch_1", store.markCalls)
+	}
+	if len(store.markCtxErrs) != 1 || store.markCtxErrs[0] != nil {
+		t.Fatalf("mark context errors = %v, want live post-attempt context", store.markCtxErrs)
+	}
+}
+
+type cancelingWorkerRunner struct {
+	cancel  context.CancelFunc
+	succeed bool
+	fired   []string
+}
+
+func (r *cancelingWorkerRunner) StartScheduledRun(ctx context.Context, sc schedule.Schedule) (string, error) {
+	r.fired = append(r.fired, sc.ID)
+	r.cancel()
+	if !r.succeed {
+		return "", ctx.Err()
+	}
+	return "ses_1", nil
 }

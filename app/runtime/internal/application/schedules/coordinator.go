@@ -1,5 +1,5 @@
 // Package schedules is the application coordinator for cron-triggered headless
-// runs: CRUD over saved schedules, off-cycle run recording, and the background
+// runs: CRUD over saved schedules, off-cycle firing, and the background
 // due-schedule worker. It is a thin use-case layer over the domain schedule
 // registry + worker store — the delivery layer drives it and supplies the
 // Runner that turns a fired schedule into a run.
@@ -7,6 +7,7 @@ package schedules
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -17,6 +18,7 @@ import (
 type Coordinator struct {
 	registry schedule.Registry
 	worker   WorkerStore
+	now      func() time.Time
 }
 
 // NewCoordinator returns a Coordinator over the schedule registry. A nil
@@ -27,7 +29,7 @@ func NewCoordinator(registry schedule.Registry, worker WorkerStore) *Coordinator
 	if registry == nil {
 		registry = disabledRegistry{}
 	}
-	return &Coordinator{registry: registry, worker: worker}
+	return &Coordinator{registry: registry, worker: worker, now: time.Now}
 }
 
 // List returns every saved schedule, newest-created first.
@@ -55,9 +57,25 @@ func (c *Coordinator) Delete(ctx context.Context, id string) error {
 	return c.registry.Delete(ctx, id)
 }
 
-// RecordRun records an off-cycle schedule firing without advancing the cron cursor.
-func (c *Coordinator) RecordRun(ctx context.Context, id string, ranAt time.Time) error {
-	return c.registry.RecordRun(ctx, id, ranAt)
+// RunNow starts one off-cycle schedule firing and records it without advancing
+// the cron cursor. Once the run is accepted, recording uses a bounded context
+// detached from the request: a client disconnect must not make the durable
+// LastRunAt claim that the accepted run never happened.
+func (c *Coordinator) RunNow(ctx context.Context, id string, runner Runner) error {
+	sc, err := c.registry.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if _, err := Fire(ctx, runner, sc); err != nil {
+		return err
+	}
+
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
+	defer cancel()
+	if err := c.registry.RecordRun(writeCtx, id, c.now().UTC()); err != nil {
+		return fmt.Errorf("schedules: record run-now for %q: %w", id, err)
+	}
+	return nil
 }
 
 // RunWorker starts the due-schedule scanner until ctx is canceled. No worker

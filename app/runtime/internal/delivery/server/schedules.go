@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -104,14 +103,7 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	sc, err := s.schedules.Get(ctx, in.ID)
-	if err != nil {
-		return mapScheduleErr(err, "schedules.runNow", in.ID)
-	}
-	if _, err := schedules.Fire(ctx, s.scheduledRunLauncher(), sc); err != nil {
-		return err
-	}
-	return mapScheduleErr(s.schedules.RecordRun(ctx, sc.ID, time.Now().UTC()), "schedules.runNow", sc.ID)
+	return mapScheduleErr(s.schedules.RunNow(ctx, in.ID, s.scheduledRunLauncher()), "schedules.runNow", in.ID)
 }
 
 func scheduleCwdFromWire(cwd string) (string, error) {
