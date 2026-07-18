@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-06-07",
+  "protocolVersion": "2026-07-19",
   "serverInfo": {
     "name": "lyra",
     "version": "0.1.0",
@@ -7,7 +7,7 @@
     "home": "/Users/dev/.lyra"
   },
   "capabilities": {
-    "protocolVersion": "2026-06-07",
+    "protocolVersion": "2026-07-19",
     "events": [
       "segment.started",
       "segment.progress",
@@ -15,9 +15,7 @@
       "item.started",
       "item.delta",
       "item.completed",
-      "state.snapshot",
-      "state.delta",
-      "custom"
+      "state.snapshot"
     ],
     "features": {
       "reasoning": true,
@@ -27,19 +25,19 @@
       "fileWatch": true,
       "checkpoints": true,
       "lsp": true,
-      "subagents": true,
+      "subagents": false,
       "skills": true,
       "sessionExport": true,
       "memory": true,
       "relocate": true,
       "todos": true,
       "compaction": true,
-      "clientTools": true
+      "clientTools": false
     },
     "providers": ["anthropic", "openai", "moonshot", "deepseek"],
     "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
     "limits": {
-      "maxConcurrentRuns": 4
+      "maxConcurrentRuns": 8
     }
   }
 }

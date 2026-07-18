@@ -38,8 +38,10 @@ func EncodeWorkspaceEvent(ev protocol.WorkspaceEvent) (transport.Message, error)
 func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
 	switch msg.Method {
 	case MethodShutdown:
-		var in protocol.ShutdownRequest
-		_ = unmarshal(msg.Params, &in)
+		in, bad := decode[protocol.ShutdownRequest](msg)
+		if bad != nil {
+			return
+		}
 		_ = d.api.Shutdown(ctx, in)
 	case NotificationCanceled:
 		// no-op at this layer (see method doc)

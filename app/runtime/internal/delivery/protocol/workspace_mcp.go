@@ -1,5 +1,15 @@
 package protocol
 
+// MCPServerRequest identifies a configured MCP server by name.
+type MCPServerRequest struct {
+	Server string `json:"server"`
+}
+
+// RemoveMCPServerRequest identifies the MCP configuration to remove.
+type RemoveMCPServerRequest struct {
+	Name string `json:"name"`
+}
+
 // MCPListToolsRequest — workspace.mcp.listTools body.
 type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`

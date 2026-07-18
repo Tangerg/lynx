@@ -35,17 +35,22 @@ func streamingResult(id transport.ID, result any, events <-chan StreamFrame) Han
 	return res
 }
 
-// decode unmarshals the typed request params. Empty params yield the zero
-// value (valid for methods whose fields are all optional); malformed
-// params map to invalid_params. The returned *transport.Error is nil on
-// success. List/query methods that tolerate garbage params decode
-// leniently with a bare [unmarshal] instead.
+// decode validates and unmarshals typed request params. Empty params yield the
+// zero value for methods whose fields are all optional. Present params must be
+// one JSON object whose fields are known by the request DTO; malformed, null,
+// or drifted requests fail at the delivery boundary instead of silently
+// discarding client intent.
 func decode[In any](msg *transport.Request) (In, *transport.Error) {
 	var in In
-	if err := unmarshal(msg.Params, &in); err != nil {
+	if err := decodeParams(msg.Params, &in); err != nil {
 		return in, invalidParams(err.Error())
 	}
 	return in, nil
+}
+
+func decodeEmpty(msg *transport.Request) *transport.Error {
+	_, bad := decode[struct{}](msg)
+	return bad
 }
 
 // reply maps a (result, error) method tail onto a HandleResult: errors go

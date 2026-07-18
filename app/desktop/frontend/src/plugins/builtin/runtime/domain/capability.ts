@@ -5,7 +5,6 @@ export type RuntimeCapability =
   | "git"
   | "fileWatch"
   | "lsp"
-  | "codeIntel"
   | "todos"
   | "compaction"
   | "subagents"

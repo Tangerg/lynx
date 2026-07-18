@@ -13,13 +13,13 @@ describe("SidecarClient", () => {
   it("info() returns flat JSON shape", async () => {
     const fetchStub = makeFetch(200, {
       serverInfo: { name: "lyra-core", version: "0.8.1" },
-      protocolVersion: "2026-06-07",
+      protocolVersion: "2026-07-19",
       capabilities: { events: [], features: {}, providers: [] },
     });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
     expect(info.serverInfo.name).toBe("lyra-core");
-    expect(info.protocolVersion).toBe("2026-06-07");
+    expect(info.protocolVersion).toBe("2026-07-19");
   });
 
   it("health() accepts 503 with body (unhealthy state)", async () => {

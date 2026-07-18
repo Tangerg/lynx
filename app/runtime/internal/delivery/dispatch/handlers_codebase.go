@@ -25,14 +25,18 @@ func (d *Dispatcher) handleCodebaseSearch(ctx context.Context, msg *transport.Re
 }
 
 func (d *Dispatcher) handleCodebaseStatus(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.CodebaseStatusRequest
-	_ = unmarshal(msg.Params, &in)
+	in, bad := decode[protocol.CodebaseStatusRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	out, err := d.api.CodebaseStatus(ctx, in)
 	return reply(msg, out, err)
 }
 
 func (d *Dispatcher) handleCodebaseReindex(ctx context.Context, msg *transport.Request) HandleResult {
-	var in protocol.CodebaseReindexRequest
-	_ = unmarshal(msg.Params, &in)
+	in, bad := decode[protocol.CodebaseReindexRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
 	return replyDone(msg, d.api.CodebaseReindex(ctx, in))
 }

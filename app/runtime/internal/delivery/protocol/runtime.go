@@ -12,7 +12,7 @@
 // continuation run).
 //
 // Discriminated unions (StreamEvent / Item / RunOutcome / ItemDelta /
-// ContextItem / Interrupt) are modeled as flat tag-discriminated
+// Interrupt) are modeled as flat tag-discriminated
 // structs: a single `type` discriminator field plus the optional
 // fields that tag declares (API.md §2.1: one discriminator `type`,
 // `kind` never appears on the wire). The wire JSON is exactly
@@ -40,8 +40,8 @@ type Runtime interface {
 }
 
 // ProtocolVersion is the wire version this build implements (API.md
-// §11: date string).
-const ProtocolVersion = "2026-06-07"
+// §12: date string).
+const ProtocolVersion = "2026-07-19"
 
 // Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
 const (

@@ -15,7 +15,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 		Method: MethodRunsCancel,
 		Params: json.RawMessage(`{
 			"_meta": {
-				"protocolVersion": "2026-06-07",
+				"protocolVersion": "2026-07-19",
 				"clientInfo": { "name": "cli", "version": "0.1.0" },
 				"clientCapabilities": {
 					"events": ["segment.started"],
@@ -36,7 +36,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("request metadata missing from context")
 	}
-	if meta.ProtocolVersion != "2026-06-07" {
+	if meta.ProtocolVersion != "2026-07-19" {
 		t.Fatalf("protocolVersion = %q", meta.ProtocolVersion)
 	}
 	if meta.ClientInfo == nil || meta.ClientInfo.Name != "cli" {
@@ -102,7 +102,7 @@ func TestHandleDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "unknown.method",
-		Params: json.RawMessage(`{"_meta":{"protocolVersion":"2026-06-07"},"value":1}`),
+		Params: json.RawMessage(`{"_meta":{"protocolVersion":"2026-07-19"},"value":1}`),
 	}
 	original := string(req.Params)
 	New(nil).Handle(context.Background(), req, "")

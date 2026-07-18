@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -18,9 +20,8 @@ import (
 // jailed to the workspace root. Recursive (or a glob) yields a flat subtree
 // file list — the @file / fuzzy source; otherwise the immediate children — the
 // lazy file-tree level. gitignore-aware in a repo, backstop-filtered otherwise.
-// Not gated: a basic read like getFileHead. A capped result is simply returned
-// at the limit (the Page wire carries no truncation flag; consumers narrow via
-// path / glob).
+// Not gated: a basic read like getFileHead. Results use stable cursor pagination;
+// an oversized candidate set fails clearly instead of looking complete.
 func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
 	root, err := s.workspaceRoot(in.Cwd)
 	if err != nil {
@@ -32,21 +33,50 @@ func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRe
 			return nil, err
 		}
 	}
-	entries, _, err := workspace.ListFiles(ctx, root, workspace.ListFilesOptions{
+	entries, err := workspace.ListFiles(ctx, root, workspace.ListFilesOptions{
 		Path:           relPath,
 		Glob:           in.Glob,
 		Recursive:      in.Recursive,
 		IncludeIgnored: in.IncludeIgnored,
-		Limit:          in.Limit,
 	})
+	if errors.Is(err, workspace.ErrListingTooLarge) {
+		return nil, fmt.Errorf("%w: file listing is too large; narrow path", protocol.ErrInvalidParams)
+	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list workspace files: %w", err)
 	}
-	data := make([]protocol.FileEntry, 0, len(entries))
-	for _, e := range entries {
-		data = append(data, protocol.FileEntry{Path: e.Path, Name: e.Name, Type: protocol.FileEntryType(e.Kind)})
+	page, next := pageFileEntries(entries, in.Cursor, in.Limit)
+	data := make([]protocol.FileEntry, 0, len(page))
+	for _, entry := range page {
+		var sizeBytes *int64
+		if entry.Kind == workspace.EntryFile {
+			sizeBytes = &entry.SizeBytes
+		}
+		data = append(data, protocol.FileEntry{
+			Path:       entry.Path,
+			Name:       entry.Name,
+			Type:       protocol.FileEntryType(entry.Kind),
+			SizeBytes:  sizeBytes,
+			ModifiedAt: entry.ModifiedAt.Format(time.RFC3339Nano),
+		})
 	}
-	return protocol.NewPage(data), nil
+	return &protocol.Page[protocol.FileEntry]{Data: data, NextCursor: next}, nil
+}
+
+const defaultFileListPageLimit = 1000
+
+func pageFileEntries(entries []workspace.FileEntry, cursor string, limit int) ([]workspace.FileEntry, string) {
+	if cursor != "" {
+		start := len(entries)
+		for idx, entry := range entries {
+			if entry.OrderKey() > cursor {
+				start = idx
+				break
+			}
+		}
+		entries = entries[start:]
+	}
+	return pageByCursor(entries, workspace.FileEntry.OrderKey, "", limit, defaultFileListPageLimit)
 }
 
 // defaultFileHeadLines caps a workspace.getFileHead preview when the client

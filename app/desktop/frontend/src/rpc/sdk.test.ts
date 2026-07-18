@@ -9,7 +9,7 @@ describe("createLyraClient", () => {
     const transport = createMemoryTransport();
     const client = createLyraClient(transport, {
       requestMeta: () => ({
-        protocolVersion: "2026-06-07",
+        protocolVersion: "2026-07-19",
         clientInfo: { name: "test", version: "0" },
         clientCapabilities: { events: [], features: {}, interruptTypes: ["approval"] },
       }),
@@ -20,7 +20,7 @@ describe("createLyraClient", () => {
 
     expect(req.params).toMatchObject({
       _meta: {
-        protocolVersion: "2026-06-07",
+        protocolVersion: "2026-07-19",
         clientCapabilities: { interruptTypes: ["approval"] },
       },
     });

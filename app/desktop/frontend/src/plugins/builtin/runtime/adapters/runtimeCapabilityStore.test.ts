@@ -4,7 +4,7 @@ import { useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return {
-    protocolVersion: "2026-06-07",
+    protocolVersion: "2026-07-19",
     events: ["segment.started", "segment.finished", "item.started", "item.delta", "item.completed"],
     features: {
       multimodal: false,

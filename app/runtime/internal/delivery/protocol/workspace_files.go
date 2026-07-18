@@ -24,7 +24,7 @@ type GrepRequest struct {
 // Path (relative to Cwd, jailed). Recursive (or a Glob) yields a flat subtree
 // file list — the @file / fuzzy source; otherwise the immediate children — the
 // lazy file-tree level. .gitignore + backstop excludes apply unless
-// IncludeIgnored. PageQuery carries the limit (cursor unused — bounded list).
+// IncludeIgnored. PageQuery carries stable cursor pagination.
 type ListFilesRequest struct {
 	Cwd            string `json:"cwd,omitempty"`
 	Path           string `json:"path,omitempty"`
@@ -69,16 +69,15 @@ const (
 	FileEntrySymlink FileEntryType = "symlink"
 )
 
-// FileEntry is one entry in workspace.listFiles (API.md §7.5). Path is relative
-// to the workspace root. SizeBytes/ModifiedAt are optional and currently
-// unpopulated — the consumers (file tree + @file) don't need them and statting
-// every entry of a recursive list would dominate the call.
+// FileEntry is one inspected entry in workspace.listFiles (API.md §7.5). Path
+// is relative to the workspace root; type, size, and modification time come
+// from one inspection of that entry.
 type FileEntry struct {
 	Path       string        `json:"path"`
 	Name       string        `json:"name"`
 	Type       FileEntryType `json:"type"`
-	SizeBytes  int64         `json:"sizeBytes,omitempty"`
-	ModifiedAt string        `json:"modifiedAt,omitempty"`
+	SizeBytes  *int64        `json:"sizeBytes,omitempty"`
+	ModifiedAt string        `json:"modifiedAt"`
 }
 
 // FileHead is a file preview (API.md §4.5).

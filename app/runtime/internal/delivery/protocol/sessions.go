@@ -67,6 +67,16 @@ type Sessions interface {
 	ImportSession(ctx context.Context, in ImportSessionRequest) (*ImportSessionResponse, error)
 }
 
+// GetSessionRequest identifies the session returned by sessions.get.
+type GetSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
+// DeleteSessionRequest identifies the session removed by sessions.delete.
+type DeleteSessionRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
 // CreateSessionRequest — sessions.create body. Cwd is optional; empty
 // defaults to ServerInfo.cwd (cold-start zero friction, API.md §7.2).
 type CreateSessionRequest struct {

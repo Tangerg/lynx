@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -41,7 +42,7 @@ func paths(entries []FileEntry) []string {
 
 func TestListFiles_RecursiveSkipsBackstop(t *testing.T) {
 	root := buildTree(t)
-	got, _, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true})
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +57,7 @@ func TestListFiles_RecursiveSkipsBackstop(t *testing.T) {
 
 func TestListFiles_IncludeIgnoredSurfacesBackstop(t *testing.T) {
 	root := buildTree(t)
-	got, _, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true, IncludeIgnored: true})
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true, IncludeIgnored: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +71,7 @@ func TestListFiles_IncludeIgnoredSurfacesBackstop(t *testing.T) {
 
 func TestListFiles_OneLevelDirsThenFiles(t *testing.T) {
 	root := buildTree(t)
-	got, _, err := ListFiles(context.Background(), root, ListFilesOptions{})
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +86,7 @@ func TestListFiles_OneLevelDirsThenFiles(t *testing.T) {
 
 func TestListFiles_ScopedToSubdir(t *testing.T) {
 	root := buildTree(t)
-	got, _, err := ListFiles(context.Background(), root, ListFilesOptions{Path: "sub"})
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{Path: "sub"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestListFiles_ScopedToSubdir(t *testing.T) {
 
 func TestListFiles_GlobFilters(t *testing.T) {
 	root := buildTree(t)
-	got, _, err := ListFiles(context.Background(), root, ListFilesOptions{Glob: "**/*.go"})
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{Glob: "**/*.go"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,13 +110,39 @@ func TestListFiles_GlobFilters(t *testing.T) {
 	}
 }
 
-func TestListFiles_LimitTruncates(t *testing.T) {
+func TestListFilesInspectsMetadataAndSymlinks(t *testing.T) {
 	root := buildTree(t)
-	got, truncated, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true, Limit: 1})
+	if err := os.Symlink("a.txt", filepath.Join(root, "a-link")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	got, err := ListFiles(context.Background(), root, ListFilesOptions{Recursive: true})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || !truncated {
-		t.Fatalf("limit=1 → %d entries truncated=%v, want 1 + true", len(got), truncated)
+	var file, link FileEntry
+	for _, entry := range got {
+		switch entry.Path {
+		case "a.txt":
+			file = entry
+		case "a-link":
+			link = entry
+		}
+	}
+	if file.Kind != EntryFile || file.SizeBytes != 1 || file.ModifiedAt.IsZero() {
+		t.Fatalf("file metadata = %+v", file)
+	}
+	if link.Kind != EntrySymlink {
+		t.Fatalf("symlink metadata = %+v", link)
+	}
+}
+
+func TestListFilesHonorsCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := ListFiles(ctx, t.TempDir(), ListFilesOptions{Recursive: true, IncludeIgnored: true})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ListFiles() error = %v, want context.Canceled", err)
 	}
 }

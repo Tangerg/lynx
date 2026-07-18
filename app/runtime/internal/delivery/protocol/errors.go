@@ -92,7 +92,6 @@ const (
 	CodeToolDenied             = -32012
 	CodePathOutsideRoot        = -32013
 	CodeInterruptNotOpen       = -32014
-	CodeIdempotencyConflict    = -32015
 	CodeInvalidProtocolVersion = -32016
 	CodeVcsUnavailable         = -32017
 	CodeSessionBusy            = -32018
@@ -116,7 +115,6 @@ var (
 	ErrToolDenied             = errors.New("tool_denied")
 	ErrPathOutsideRoot        = errors.New("path_outside_root")
 	ErrInterruptNotOpen       = errors.New("interrupt_not_open")
-	ErrIdempotencyConflict    = errors.New("idempotency_conflict")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")
 	// ErrVcsUnavailable: git is available but the cwd isn't a repo (AUX_API
 	// §2.3) — distinct from "clean repo" (empty result). NOT for missing git

@@ -5,7 +5,7 @@ import type { LyraClient, Methods, ServerCapabilities } from "@/rpc";
 import { useRuntimeStore } from "./adapters/runtimeCapabilityStore";
 import runtimePlugin from "./index";
 
-const fakeCapabilities = { protocolVersion: "2026-06-07", features: {}, providers: [], events: [] };
+const fakeCapabilities = { protocolVersion: "2026-07-19", features: {}, providers: [], events: [] };
 
 function stubContainer(discover: Methods["runtime"]["discover"]) {
   setContainer({
@@ -31,7 +31,7 @@ afterEach(() => {
 describe("runtime plugin", () => {
   it("discovers capabilities through the Runtime composition boundary", async () => {
     const discover = vi.fn().mockResolvedValue({
-      protocolVersion: "2026-06-07",
+      protocolVersion: "2026-07-19",
       serverInfo: { name: "lyra-runtime", version: "1.2.3", cwd: "/w", home: "/h" },
       capabilities: fakeCapabilities as unknown as ServerCapabilities,
     });

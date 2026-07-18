@@ -9,6 +9,11 @@ type Providers interface {
 	TestProvider(ctx context.Context, providerID string) (*ProviderTestResult, error)
 }
 
+// TestProviderRequest identifies the configured provider to probe.
+type TestProviderRequest struct {
+	Provider string `json:"provider"`
+}
+
 // Models is the models.* method group.
 type Models interface {
 	ListModels(ctx context.Context, in ListModelsRequest) (*Page[Model], error)

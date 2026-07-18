@@ -52,7 +52,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     transport = createMemoryTransport();
     client = createRpcClient(transport, {
       requestMeta: () => ({
-        protocolVersion: "2026-06-07",
+        protocolVersion: "2026-07-19",
         clientInfo: { name: "smoke-test", version: "0.1" },
         clientCapabilities: {
           events: [
@@ -74,15 +74,15 @@ describe("smoke: v2 end-to-end happy path", () => {
     const discoverReq = await waitForRequest(transport, "runtime.discover");
     expect(discoverReq.params).toMatchObject({
       _meta: {
-        protocolVersion: "2026-06-07",
+        protocolVersion: "2026-07-19",
         clientCapabilities: { interruptTypes: ["approval", "question"] },
       },
     });
     respondSuccess(transport, discoverReq.id, {
-      protocolVersion: "2026-06-07",
+      protocolVersion: "2026-07-19",
       serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
       capabilities: {
-        protocolVersion: "2026-06-07",
+        protocolVersion: "2026-07-19",
         events: [
           "segment.started",
           "segment.finished",
@@ -105,7 +105,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     const createReq = await waitForRequest(transport, "sessions.create");
     expect(createReq.params).toMatchObject({
       title: "smoke",
-      _meta: { protocolVersion: "2026-06-07" },
+      _meta: { protocolVersion: "2026-07-19" },
     });
     respondSuccess(transport, createReq.id, {
       id: "ses_1",

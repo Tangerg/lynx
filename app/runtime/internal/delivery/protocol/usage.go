@@ -14,6 +14,11 @@ type UsageReports interface {
 	UsageSummary(ctx context.Context, in UsageSummaryRequest) (*UsageSummary, error)
 }
 
+// SessionUsageRequest identifies the session whose aggregate usage is read.
+type SessionUsageRequest struct {
+	SessionID string `json:"sessionId"`
+}
+
 // UsageSummaryRequest — usage.summary body (API.md §7.7).
 type UsageSummaryRequest struct {
 	// SinceDays limits the report to runs finished within the last N days;

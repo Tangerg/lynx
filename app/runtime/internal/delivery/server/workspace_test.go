@@ -120,6 +120,45 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 	}
 }
 
+func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	for _, name := range []string{"a.txt", "b.txt", "c.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+
+	first, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{Recursive: true, PageQuery: protocol.PageQuery{Limit: 2}})
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(first.Data) != 2 || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want two entries and a cursor", first)
+	}
+	if first.Data[0].Type != protocol.FileEntryFile || first.Data[0].SizeBytes == nil || *first.Data[0].SizeBytes == 0 || first.Data[0].ModifiedAt == "" {
+		t.Fatalf("entry is not fully inspected: %+v", first.Data[0])
+	}
+	// The cursor is an ordered key rather than a row-existence dependency: if
+	// its file disappears between pages, the next page still advances.
+	if err := os.Remove(filepath.Join(dir, first.Data[1].Path)); err != nil {
+		t.Fatal(err)
+	}
+
+	second, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+		Recursive: true,
+		PageQuery: protocol.PageQuery{Cursor: first.NextCursor, Limit: 2},
+	})
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if len(second.Data) != 1 || second.Data[0].Path != "c.txt" || second.NextCursor != "" {
+		t.Fatalf("second page = %+v, want c.txt and no cursor", second)
+	}
+}
+
 func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
 	root := t.TempDir()
 	outside := t.TempDir()

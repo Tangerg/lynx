@@ -31,12 +31,8 @@ export interface ServerFeatures {
   fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
   checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.1)
   lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
-  // workspace.code.* RPC surface (B7, 613) — distinct from `lsp` above, which gates the
-  // model's lsp_* TOOLS; this gates the direct RPC methods the UI calls for @symbol / code-nav.
-  // Optional: absent until the backend ships it ⇒ reads as false. Folds into API.md §9 on landing.
-  codeIntel?: boolean;
-  // todos.list + state.snapshot{todos} (B11) / sessions.compact (B10) — 613 proposals,
-  // optional until shipped ⇒ read as false. Fold into API.md §9 on landing.
+  // todos and automatic compaction are runtime projections; optional means an
+  // older runtime may omit the feature and the client must treat it as off.
   todos?: boolean;
   compaction?: boolean;
   subagents: boolean;
@@ -312,9 +308,9 @@ export type Item =
       safetyClass?: string;
       error?: ProblemData;
     })
-  // A context-compaction boundary (B10, 613) — the durable marker that "N
-  // earlier messages were summarized here". Emitted by autonomous (turn-edge)
-  // compaction and explicit sessions.compact alike; folds to a timeline divider.
+  // A context-compaction boundary — the durable marker that "N
+  // earlier messages were summarized here". Emitted by turn-edge compaction
+  // and folded to a timeline divider.
   | (ItemBase & { type: "compaction"; summary?: string; droppedMessages?: number });
 
 export type ItemType = Item["type"];
@@ -488,15 +484,8 @@ export interface ProblemData {
 }
 
 // ---------------------------------------------------------------------------
-// §4.7 — Context / tool specs
+// §4.7 — Tool specs
 // ---------------------------------------------------------------------------
-
-export type ContextItem =
-  | { type: "file"; path: string } // relative to Session.cwd
-  | { type: "selection"; path: string; range: [number, number] } // 1-based inclusive
-  | { type: "url"; url: string }; // Runtime fetches (SSRF surface)
-// Images are NOT context items — they ride inline as image ContentBlocks (mime +
-// base64 data) in runs.start.input (MULTIMODAL_IMAGE_INPUT, API.md §4.7).
 
 export type JsonSchema = Record<string, unknown>;
 
@@ -981,9 +970,6 @@ export function isDurableEvent(event: StreamEvent): boolean {
 export interface StartRunRequest {
   sessionId: SessionId; // cwd resolved from session; no cwd, no runId on this request
   input: ContentBlock[]; // user message body
-  context?: ContextItem[]; // file.path relative to session.cwd (§4.7)
-  tools?: ToolSpec[]; // override this run's tool set
-  state?: Record<string, unknown>; // initial shared state
   // provider + model are a PAIR (API §7.3): send both or neither. Only one →
   // invalid_params. provider is NOT inferred from model (same model id can
   // span providers). Both come straight from models.list's Model.{provider,id}.
@@ -1040,86 +1026,7 @@ export interface WorkspaceQuery {
 }
 
 // ---------------------------------------------------------------------------
-// §7.5 — Code intelligence (workspace.code.*) — PROPOSAL, 613 B7
-// ---------------------------------------------------------------------------
-//
-// LSP-backed, read-only code navigation. Positions are 0-based and `character`
-// counts UTF-16 code units (LSP convention) — NOT the 1-based line range
-// workspace.readFile uses (human/editor-facing). Do not cross the two. Gated by
-// features.codeIntel; a file type with no language server → no_language_server
-// (non-fatal, UI retreats), an indexing/unavailable server → EMPTY result (not
-// an error — "no results" and "not ready" are indistinguishable at the wire).
-
-// Base for per-file code-intel queries: a workspace path under cwd (jailed, §7.5).
-export interface CodeQuery extends WorkspaceQuery {
-  path: string;
-}
-export interface CodePosition {
-  line: number; // 0-based
-  character: number; // 0-based, UTF-16 code unit
-}
-export interface CodeRange {
-  start: CodePosition;
-  end: CodePosition;
-}
-export interface CodeLocation {
-  path: string; // relative to cwd; external deps (GOROOT/node_modules) give an absolute path + external:true
-  range: CodeRange;
-  external?: boolean; // outside the workspace
-  preview?: string; // the location's line text (saves a follow-up readFile)
-}
-export interface Hover {
-  contents: string; // markdown: signature + doc
-  range?: CodeRange; // matched symbol range (editor can highlight)
-}
-// Mirrors LSP SymbolKind names; open (the `& {}` keeps the known set as
-// autocomplete while allowing an unknown kind to degrade to a default icon).
-export type SymbolKind =
-  | "file"
-  | "module"
-  | "namespace"
-  | "package"
-  | "class"
-  | "method"
-  | "property"
-  | "field"
-  | "constructor"
-  | "enum"
-  | "interface"
-  | "function"
-  | "variable"
-  | "constant"
-  | "string"
-  | "number"
-  | "struct"
-  | "enumMember"
-  | "typeParameter"
-  | (string & {});
-export interface DocumentSymbol {
-  name: string;
-  kind: SymbolKind;
-  detail?: string; // signature summary
-  range: CodeRange; // whole range (incl. doc/modifiers)
-  selectionRange: CodeRange; // the name itself (jump/highlight anchor)
-  children?: DocumentSymbol[]; // nested (methods in a class, …)
-}
-export interface WorkspaceSymbol {
-  name: string;
-  kind: SymbolKind;
-  path: string; // relative to cwd
-  range: CodeRange;
-  containerName?: string; // owning class/package
-}
-export interface Diagnostic {
-  range: CodeRange;
-  severity: "error" | "warning" | "info" | "hint";
-  message: string;
-  source?: string; // producer, e.g. "gopls" / "tsserver"
-  code?: string; // rule code, e.g. "deadcode"
-}
-
-// ---------------------------------------------------------------------------
-// §7.5 — File browse (workspace.listFiles / readFile) — PROPOSAL, 613 B8
+// §7.5 — File browse (workspace.listFiles / readFile)
 // ---------------------------------------------------------------------------
 
 export interface FileEntry {
@@ -1127,10 +1034,10 @@ export interface FileEntry {
   name: string; // basename
   type: "file" | "dir" | "symlink";
   sizeBytes?: number; // file only
-  modifiedAt?: string; // ISO-8601 (sortable)
+  modifiedAt: string; // ISO-8601 (sortable)
 }
 // workspace.readFile result. `startLine`/`endLine` echo the served range —
-// 1-based inclusive (editor-facing), unlike code-intel's 0-based positions.
+// 1-based inclusive (editor-facing).
 export interface FileContent {
   path: string;
   content: string; // full text, or the requested line slice
@@ -1142,7 +1049,7 @@ export interface FileContent {
 }
 
 // ---------------------------------------------------------------------------
-// §7.9 / §7.2 / §7.10 — Approval control · compaction · todos — PROPOSAL, 613 B9/B10/B11
+// §7.9 / §7.2 / §7.10 — Approval control · compaction · todos
 // ---------------------------------------------------------------------------
 
 // B9 — global approval stance (one per Runtime, not per-session). Orthogonal to
@@ -1166,17 +1073,6 @@ export interface ApprovalRule {
   subject?: string; // command/path glob the rule matches; omitted = any arguments
   dir?: string; // project-scope directory (display only; omitted for session/global)
   decision: "allow" | "deny";
-}
-
-// B10 — sessions.compact result. The `compaction` Item variant that makes the
-// boundary visible on the timeline is deferred to the fold-layer phase (it
-// touches the Item union + reducer).
-export interface CompactionResult {
-  session: Session; // post-compaction (usage updated)
-  compacted: boolean; // false = under threshold and not forced — nothing done
-  beforeMessages?: number;
-  afterMessages?: number;
-  summaryItemId?: ItemId; // the compaction Item produced, if any
 }
 
 // B11 — the model's working checklist (todo_write), NOT the removed background.*

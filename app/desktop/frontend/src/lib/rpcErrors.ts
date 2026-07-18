@@ -46,12 +46,11 @@ export function rpcErrorText(err: unknown): string | undefined {
 }
 
 /** True when a call failed because the connected runtime doesn't implement the
- *  method — an unregistered RPC, e.g. a 613 proposal-surface method (file-tree
- *  browse, remembered-approval management) the backend hasn't shipped yet. lynx
+ *  method — for example an older or custom runtime missing an optional surface. lynx
  *  answers an unknown method with HTTP 404 + a -32601 envelope, so the HTTP
  *  transport surfaces it as a RpcTransportError(status 404); an in-process
  *  transport would surface the JSON-RPC -32601 directly as an RpcError. Lets a
- *  panel for a not-yet-supported feature render a calm "unavailable on this
+ *  panel for an unavailable feature render a calm "unavailable on this
  *  runtime" state instead of a hard error. */
 export function isUnsupportedMethod(err: unknown): boolean {
   return (

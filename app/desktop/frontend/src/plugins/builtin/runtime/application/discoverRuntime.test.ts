@@ -3,10 +3,10 @@ import type { DiscoverResponse, RpcClient, ServerCapabilities } from "@/rpc";
 import { discoverRuntime, type RuntimeCapabilitySink } from "./discoverRuntime";
 
 const discovery: DiscoverResponse = {
-  protocolVersion: "2026-06-07",
+  protocolVersion: "2026-07-19",
   serverInfo: { name: "lyra-runtime", version: "1.0.0", cwd: "/work", home: "/home" },
   capabilities: {
-    protocolVersion: "2026-06-07",
+    protocolVersion: "2026-07-19",
     events: [],
     streamingMethods: [],
     features: {
