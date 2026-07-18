@@ -737,9 +737,14 @@ func userMentions(messages []chat.Message, text string) bool {
 	return false
 }
 
-type staticHookResolver struct{ bound *hooks.Bound }
+type staticHookResolver struct {
+	bound *hooks.Bound
+	err   error
+}
 
-func (r staticHookResolver) For(context.Context, string) *hooks.Bound { return r.bound }
+func (r staticHookResolver) For(context.Context, string) (*hooks.Bound, error) {
+	return r.bound, r.err
+}
 
 type hookCommandRecorder struct {
 	mu               sync.Mutex

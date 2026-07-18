@@ -221,8 +221,8 @@ type HookTrustStore interface {
 
 // HookResolver is the runtime's consumer view of lifecycle-hook resolution.
 type HookResolver interface {
-	For(ctx context.Context, cwd string) *hooks.Bound
-	Inspect(ctx context.Context, cwd string) hooks.Inspection
+	For(ctx context.Context, cwd string) (*hooks.Bound, error)
+	Inspect(ctx context.Context, cwd string) (hooks.Inspection, error)
 }
 
 // Transactor runs fn inside a single storage transaction; the seam the

@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/chatclient"
@@ -28,7 +29,12 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 	state := newTurnState(ctx, handle)
 	state.cwd = request.Cwd
 	if s.hooks != nil {
-		state.hooks = s.hooks.For(state.ctx, request.Cwd)
+		var err error
+		state.hooks, err = s.hooks.For(state.ctx, request.Cwd)
+		if err != nil {
+			state.cancel()
+			return TurnHandle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.ProcessID, err)
+		}
 	}
 	// Re-resolve the parked run's per-run client from the persisted
 	// provider+model so the continuation runs against the SAME model (mirrors

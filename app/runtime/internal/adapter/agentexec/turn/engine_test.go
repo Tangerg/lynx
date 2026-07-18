@@ -62,6 +62,26 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	}
 }
 
+func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
+	wantErr := errors.New("hook trust unavailable")
+	stub := &stubEngine{runReply: "must not run"}
+	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
+		deps.Hooks = staticHookResolver{err: wantErr}
+	})))
+	t.Cleanup(func() { _ = dispatcher.Close() })
+
+	if _, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+		SessionID: "sess-hook-error",
+		Message:   "hi",
+		Cwd:       t.TempDir(),
+	}); !errors.Is(err, wantErr) {
+		t.Fatalf("StartTurn error = %v, want %v", err, wantErr)
+	}
+	if got := stub.runTurnCalls.Load(); got != 0 {
+		t.Fatalf("engine StartTurn calls = %d, want 0", got)
+	}
+}
+
 // TestDispatcher_DiscardsProcessOnTerminal verifies the turn discards its backing
 // process at terminal teardown (endTurn → TurnProcess.Discard) — the seam that
 // deletes the auto-snapshot. Without it every run leaks one process_snapshot
