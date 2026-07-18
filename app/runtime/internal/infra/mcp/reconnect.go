@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // Reconnect tears down a configured server's current session (if any) and
@@ -34,11 +35,16 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	}
 	old := ms.session
 	ms.session = nil
+	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg := ms.config
 	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in (nil for non-OAuth)
 	c.mu.Unlock()
+
+	// Publish the connecting state before closing/dialing: no new turn may keep
+	// resolving wrappers backed by the session we are about to close.
+	c.publishTools()
 
 	// Close the old session outside the lock — Close may block on I/O.
 	if old != nil {
@@ -76,10 +82,13 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	old := ms.session
 	ms.config = cfg
 	ms.session = nil
+	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in across a reconfigure
 	c.mu.Unlock()
+
+	c.publishTools()
 
 	if old != nil {
 		recordCleanupError(ctx, old.Close())
@@ -116,10 +125,13 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	}
 	old := ms.session
 	ms.session = nil
+	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg := ms.config
 	c.mu.Unlock()
+
+	c.publishTools()
 
 	if old != nil {
 		recordCleanupError(ctx, old.Close())
@@ -156,11 +168,13 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 // reuse an existing one and pass false).
 func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerConfig, keepHandler bool) error {
 	session, err := dial(ctx, c.client, cfg)
+	var verifiedTools []tools.Tool
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
-		if _, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); terr != nil {
-			terr = errors.Join(terr, session.Close())
-			err, session = terr, nil
+		verifiedTools, err = sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session})
+		if err != nil {
+			err = errors.Join(err, session.Close())
+			session = nil
 		}
 	}
 
@@ -178,18 +192,19 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 		return errors.Join(ErrConnectionsClosed, err, closeErr)
 	}
 	if err != nil {
-		ms.session, ms.state, ms.lastErr = nil, dialStatus(err), err
+		ms.session, ms.tools, ms.state, ms.lastErr = nil, nil, dialStatus(err), err
 	} else {
-		ms.session, ms.state, ms.lastErr = session, mcpserver.ConnectionConnected, nil
+		ms.session, ms.tools, ms.state, ms.lastErr = session, verifiedTools, mcpserver.ConnectionConnected, nil
 		if keepHandler {
 			ms.oauth = cfg.OAuthHandler // keep the authorized handler for this session's reconnects
 		}
 	}
 	c.mu.Unlock()
 
-	// Rebuild the live tool set from whatever is connected now and hand it to the
-	// sink. Outside the lock — it runs tools/list RPCs.
-	c.refreshTools(ctx)
+	// Publish only the snapshots proved above. Re-querying every other server
+	// here would let an unrelated transient tools/list failure or cancellation
+	// silently erase its tools while its status remained connected.
+	c.publishTools()
 	return err
 }
 
@@ -203,6 +218,6 @@ func recordCleanupError(ctx context.Context, err error) {
 // shared tail for the early-failure paths that don't reach the dial.
 func (c *Connections) setState(ms *server, state mcpserver.ConnectionState, err error) {
 	c.mu.Lock()
-	ms.session, ms.state, ms.lastErr = nil, state, err
+	ms.session, ms.tools, ms.state, ms.lastErr = nil, nil, state, err
 	c.mu.Unlock()
 }

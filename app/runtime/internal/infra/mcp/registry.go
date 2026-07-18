@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -97,47 +97,40 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 		return
 	}
 	var old *sdkmcp.ClientSession
-	kept := c.servers[:0]
-	for _, ms := range c.servers {
-		if ms.name() == name {
-			old = ms.session
-			continue
-		}
-		kept = append(kept, ms)
+	if index := slices.IndexFunc(c.servers, func(ms *server) bool { return ms.name() == name }); index >= 0 {
+		old = c.servers[index].session
+		// slices.Delete clears the vacated pointer, so the long-lived backing
+		// array cannot retain the removed session and its verified tool wrappers.
+		c.servers = slices.Delete(c.servers, index, index+1)
 	}
-	c.servers = kept
 	c.mu.Unlock()
+
+	// Shrink the model-facing catalog before a potentially-blocking session
+	// close. The mutation lock keeps this publication ordered with every dial.
+	c.publishTools()
 
 	if old != nil {
 		recordCleanupError(ctx, old.Close())
 	}
-	c.refreshTools(ctx)
 }
 
-// refreshTools rebuilds the model-facing tool set from the currently-connected
-// sessions and pushes it to the tool sink. A per-server tools/list error drops
-// just that server's tools. Runs the RPCs outside mu.
-func (c *Connections) refreshTools(ctx context.Context) {
+// publishTools rebuilds the model-facing catalog from each connected server's
+// last verified tool snapshot. Network I/O happens only while establishing that
+// server's session; publication itself is deterministic and cannot turn caller
+// cancellation or another server's transient failure into a false catalog.
+func (c *Connections) publishTools() {
 	c.mu.Lock()
-	var targets []target
+	var catalog []tools.Tool
 	for _, ms := range c.servers {
 		if ms.session != nil {
-			targets = append(targets, target{ms.name(), ms.session})
+			catalog = append(catalog, ms.tools...)
 		}
 	}
 	sink := c.onTools
 	c.mu.Unlock()
 
-	var tools []tools.Tool
-	for _, t := range targets {
-		srcTools, err := sourceTools(ctx, lynxmcp.ToolSource{Name: t.name, Session: t.session})
-		if err != nil {
-			continue // already-failed server; skip its tools
-		}
-		tools = append(tools, srcTools...)
-	}
 	if sink != nil {
-		sink(tools)
+		sink(catalog)
 	}
 }
 

@@ -84,7 +84,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 			c.servers = append(c.servers, ms)
 			continue
 		}
-		ms.session, ms.state = session, mcpserver.ConnectionConnected
+		ms.session, ms.tools, ms.state = session, srcTools, mcpserver.ConnectionConnected
 		tools = append(tools, srcTools...)
 		c.servers = append(c.servers, ms)
 	}
