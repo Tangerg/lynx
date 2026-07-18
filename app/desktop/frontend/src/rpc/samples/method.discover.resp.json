@@ -36,8 +36,6 @@
     },
     "providers": ["anthropic", "openai", "moonshot", "deepseek"],
     "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
-    "limits": {
-      "maxConcurrentRuns": 8
-    }
+    "limits": {}
   }
 }

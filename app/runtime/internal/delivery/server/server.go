@@ -192,7 +192,7 @@ func New(cfg Config) (*Server, error) {
 		return nil, errors.New("server: Sessions is required")
 	}
 	if cfg.Integrations == nil {
-		return nil, errors.New("server: Capabilities is required")
+		return nil, errors.New("server: Integrations is required")
 	}
 	if cfg.Approvals == nil {
 		return nil, errors.New("server: Approvals is required")
@@ -315,7 +315,9 @@ func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabiliti
 			"clientTools": false,
 		},
 		Providers: providerIDs(rt.SupportedProviders()),
-		Limits:    protocol.RuntimeLimits{MaxConcurrentRuns: 8},
+		// No process-wide run cap is enforced. Leave maxConcurrentRuns omitted
+		// rather than advertising a hard limit the admission layer does not own.
+		Limits: protocol.RuntimeLimits{},
 	}
 }
 
