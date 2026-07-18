@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -427,265 +427,48 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	}
 }
 
-// TestOpenDiscardsAnOlderSchema codifies the development contract: unknown
-// obsolete shapes reset local state instead of growing compatibility readers.
-func TestOpenDiscardsAnOlderSchema(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "legacy.db")
-	legacy, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatalf("open legacy database: %v", err)
-	}
-	if _, err := legacy.Exec(`CREATE TABLE legacy_runs (id TEXT PRIMARY KEY); INSERT INTO legacy_runs(id) VALUES ('old'); PRAGMA user_version = 1`); err != nil {
-		_ = legacy.Close()
-		t.Fatalf("seed legacy schema: %v", err)
-	}
-	if err := legacy.Close(); err != nil {
-		t.Fatalf("close legacy database: %v", err)
-	}
+// TestOpenDiscardsEveryMismatchedSchema pins the pre-release storage contract:
+// only the current shape is supported, including for an unversioned non-empty
+// database. No old version receives a compatibility path.
+func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
+	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 8} {
+		t.Run(fmt.Sprintf("version_%d", staleVersion), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "stale.db")
+			stale, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatalf("open stale database: %v", err)
+			}
+			_, seedErr := stale.Exec(fmt.Sprintf(
+				`CREATE TABLE stale_runs (id TEXT PRIMARY KEY); INSERT INTO stale_runs(id) VALUES ('old'); PRAGMA user_version = %d`,
+				staleVersion,
+			))
+			if seedErr != nil {
+				_ = stale.Close()
+				t.Fatalf("seed stale schema: %v", seedErr)
+			}
+			if err := stale.Close(); err != nil {
+				t.Fatalf("close stale database: %v", err)
+			}
 
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("Open current schema: %v", err)
-	}
-	defer db.Close()
-	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
-		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
-	}
-	var legacyTables int
-	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {
-		t.Fatalf("legacy table count = %d, err=%v, want discarded", legacyTables, err)
-	}
-	var currentTables int
-	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&currentTables); err != nil || currentTables != 1 {
-		t.Fatalf("sessions table count = %d, err=%v, want current schema", currentTables, err)
-	}
-}
+			db, err := sqlite.Open(path)
+			if err != nil {
+				t.Fatalf("open current schema: %v", err)
+			}
+			defer db.Close()
 
-// TestOpenMigratesV5AddsPortableToolResultsWithoutDataLoss is the regression
-// for the v5→v7 additive migration: a database at version 5 must gain portable
-// tool-result storage WITHOUT being discarded, so a user's sessions survive.
-func TestOpenMigratesV5AddsPortableToolResultsWithoutDataLoss(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "v5.db")
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("open: %v", err)
-	}
-	sess, err := sqlite.NewSessionStore(db).Create(t.Context(), "keep me", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	if _, err := db.Exec(`DROP TABLE tool_result_blobs`); err != nil {
-		t.Fatalf("drop v6 table: %v", err)
-	}
-	if _, err := db.Exec(`PRAGMA user_version = 5`); err != nil {
-		t.Fatalf("set version 5: %v", err)
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close: %v", err)
-	}
-
-	reopened, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("reopen: %v", err)
-	}
-	defer reopened.Close()
-
-	var version int
-	if err := reopened.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
-		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
-	}
-	// The v5 data survived (not discarded)...
-	var kept int
-	if err := reopened.QueryRow(`SELECT count(*) FROM sessions WHERE id = ?`, sess.ID).Scan(&kept); err != nil || kept != 1 {
-		t.Fatalf("session count = %d, err=%v, want the v5 session preserved", kept, err)
-	}
-	// ...and the new table is present and usable.
-	if err := sqlite.NewToolResultStore(reopened).Stage(t.Context(), resultoffload.ToolResultStage{
-		ID: resultoffload.NewID(), SessionID: sess.ID, ToolName: "shell", Body: "body",
-	}); err != nil {
-		t.Fatalf("tool_result_blobs unusable after migration: %v", err)
-	}
-}
-
-func TestOpenMigratesV6BindsLegacyOffloadedResults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "v6.db")
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("open current: %v", err)
-	}
-	ses, err := sqlite.NewSessionStore(db).Create(t.Context(), "keep legacy offload", "")
-	if err != nil {
-		t.Fatalf("create session: %v", err)
-	}
-	blobs := sqlite.NewToolResultStore(db)
-	id := stageToolResult(t, blobs, ses.ID, "shell", "legacy full body")
-	preview := toolresultpreview.Render("legacy full body", id, "read_tool_result", 8)
-	item := transcript.Item{
-		SessionID: ses.ID, RunID: "run_legacy", ID: "item_legacy", Kind: transcript.ToolCall,
-		Tool: &transcript.ToolInvocation{Name: "shell", Result: preview},
-	}
-	if err := sqlite.NewTranscriptStore(db).AppendItem(t.Context(), item); err != nil {
-		t.Fatalf("append legacy item: %v", err)
-	}
-	for _, statement := range []string{
-		`DROP INDEX idx_tool_result_blobs_item`,
-		`DROP INDEX idx_history_items_offload`,
-		`ALTER TABLE history_items DROP COLUMN offload_id`,
-		`ALTER TABLE tool_result_blobs DROP COLUMN item_id`,
-		`ALTER TABLE tool_result_blobs DROP COLUMN preview`,
-		`PRAGMA user_version = 6`,
-	} {
-		if _, err := db.Exec(statement); err != nil {
-			t.Fatalf("downgrade fixture with %q: %v", statement, err)
-		}
-	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close v6 fixture: %v", err)
-	}
-
-	reopened, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("migrate v6: %v", err)
-	}
-	defer reopened.Close()
-	items, _, err := sqlite.NewTranscriptStore(reopened).List(t.Context(), ses.ID)
-	if err != nil {
-		t.Fatalf("list migrated transcript: %v", err)
-	}
-	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result != "legacy full body" {
-		t.Fatalf("migrated items = %+v, want rehydrated legacy body", items)
-	}
-	ref := items[0].Tool.Offload
-	if ref == nil || ref.ID != resultoffload.ID(id) {
-		t.Fatalf("migrated ref = %+v, want %q", ref, id)
-	}
-}
-
-func TestOpenMigratesV3ByDiscardingOnlyProcessContinuations(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "v3.db")
-	legacy, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = legacy.Exec(`
-		CREATE TABLE sessions (
-			id TEXT PRIMARY KEY, title TEXT NOT NULL, cwd TEXT NOT NULL DEFAULT '', parent_id TEXT NOT NULL DEFAULT '',
-			started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, metadata TEXT NOT NULL DEFAULT '{}',
-			model TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0
-		);
-		INSERT INTO sessions(id,title,started_at,updated_at) VALUES ('ses_keep','kept',1,1);
-		CREATE TABLE process_snapshots (id TEXT PRIMARY KEY, snapshot TEXT NOT NULL, captured_at INTEGER NOT NULL);
-		INSERT INTO process_snapshots VALUES ('proc_old','{}',1);
-		CREATE TABLE runs (
-			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, state TEXT NOT NULL, provider TEXT NOT NULL DEFAULT '',
-			model TEXT NOT NULL DEFAULT '', outcome TEXT NOT NULL DEFAULT '', started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-		);
-		INSERT INTO runs(run_id,session_id,state,started_at,updated_at) VALUES ('run_old','ses_keep','interrupted',1,1);
-		CREATE TABLE interrupts (
-			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL DEFAULT '', turn_id TEXT NOT NULL DEFAULT '',
-			process_id TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '',
-			payload TEXT NOT NULL DEFAULT '', drained_tools TEXT NOT NULL DEFAULT '', run_created_at INTEGER NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL
-		);
-		INSERT INTO interrupts(run_id,session_id,process_id,created_at) VALUES ('run_old','ses_keep','proc_old',1);
-		PRAGMA user_version = 3;
-	`)
-	if err != nil {
-		_ = legacy.Close()
-		t.Fatalf("seed v3: %v", err)
-	}
-	if err := legacy.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("Open v5: %v", err)
-	}
-	defer db.Close()
-	var sessions, snapshots, interrupts int
-	if err := db.QueryRow(`SELECT count(*) FROM sessions WHERE id='ses_keep'`).Scan(&sessions); err != nil || sessions != 1 {
-		t.Fatalf("preserved sessions = %d, err %v", sessions, err)
-	}
-	var userID, agentName string
-	if err := db.QueryRow(`SELECT user_id, agent_name FROM sessions WHERE id='ses_keep'`).Scan(&userID, &agentName); err != nil || userID != "" || agentName != "" {
-		t.Fatalf("migrated session identity = %q/%q, err %v", userID, agentName, err)
-	}
-	if err := db.QueryRow(`SELECT count(*) FROM process_snapshots`).Scan(&snapshots); err != nil || snapshots != 0 {
-		t.Fatalf("snapshots = %d, err %v", snapshots, err)
-	}
-	if err := db.QueryRow(`SELECT count(*) FROM interrupts`).Scan(&interrupts); err != nil || interrupts != 0 {
-		t.Fatalf("interrupts = %d, err %v", interrupts, err)
-	}
-	var state, outcome string
-	if err := db.QueryRow(`SELECT state, outcome FROM runs WHERE run_id='run_old'`).Scan(&state, &outcome); err != nil || state != "terminal" || outcome != "snapshot_schema_incompatible" {
-		t.Fatalf("migrated run = (%q,%q), err %v", state, outcome, err)
-	}
-}
-
-func TestOpenMigratesV4SessionIdentity(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "v4.db")
-	legacy, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = legacy.Exec(`
-		CREATE TABLE sessions (
-			id TEXT PRIMARY KEY, title TEXT NOT NULL, cwd TEXT NOT NULL DEFAULT '', parent_id TEXT NOT NULL DEFAULT '',
-			started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, metadata TEXT NOT NULL DEFAULT '{}',
-			model TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL DEFAULT '', favorite INTEGER NOT NULL DEFAULT 0
-		);
-		INSERT INTO sessions(id,title,started_at,updated_at) VALUES ('ses_keep','kept',1,1);
-		CREATE TABLE process_snapshots (
-			id TEXT PRIMARY KEY, revision INTEGER NOT NULL, snapshot TEXT NOT NULL, captured_at INTEGER NOT NULL
-		);
-		INSERT INTO process_snapshots VALUES ('proc_old',1,'{}',1);
-		CREATE TABLE runs (
-			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL, state TEXT NOT NULL, provider TEXT NOT NULL DEFAULT '',
-			model TEXT NOT NULL DEFAULT '', outcome TEXT NOT NULL DEFAULT '', started_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-		);
-		INSERT INTO runs(run_id,session_id,state,started_at,updated_at) VALUES ('run_old','ses_keep','running',1,1);
-		CREATE TABLE interrupts (
-			run_id TEXT PRIMARY KEY, session_id TEXT NOT NULL DEFAULT '', turn_id TEXT NOT NULL DEFAULT '',
-			process_id TEXT NOT NULL DEFAULT '', provider TEXT NOT NULL DEFAULT '', model TEXT NOT NULL DEFAULT '',
-			payload TEXT NOT NULL DEFAULT '', drained_tools TEXT NOT NULL DEFAULT '', run_created_at INTEGER NOT NULL DEFAULT 0,
-			created_at INTEGER NOT NULL
-		);
-		INSERT INTO interrupts(run_id,session_id,process_id,created_at) VALUES ('run_old','ses_keep','proc_old',1);
-		PRAGMA user_version = 4;
-	`)
-	if err != nil {
-		_ = legacy.Close()
-		t.Fatalf("seed v4: %v", err)
-	}
-	if err := legacy.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	db, err := sqlite.Open(path)
-	if err != nil {
-		t.Fatalf("Open v5: %v", err)
-	}
-	defer db.Close()
-	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
-		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
-	}
-	var userID, agentName string
-	if err := db.QueryRow(`SELECT user_id, agent_name FROM sessions WHERE id='ses_keep'`).Scan(&userID, &agentName); err != nil || userID != "" || agentName != "" {
-		t.Fatalf("migrated session identity = %q/%q, err %v", userID, agentName, err)
-	}
-	var snapshots, interrupts int
-	if err := db.QueryRow(`SELECT count(*) FROM process_snapshots`).Scan(&snapshots); err != nil || snapshots != 0 {
-		t.Fatalf("snapshots = %d, err %v", snapshots, err)
-	}
-	if err := db.QueryRow(`SELECT count(*) FROM interrupts`).Scan(&interrupts); err != nil || interrupts != 0 {
-		t.Fatalf("interrupts = %d, err %v", interrupts, err)
-	}
-	var state, outcome string
-	if err := db.QueryRow(`SELECT state, outcome FROM runs WHERE run_id='run_old'`).Scan(&state, &outcome); err != nil || state != "terminal" || outcome != "snapshot_schema_incompatible" {
-		t.Fatalf("migrated run = (%q,%q), err %v", state, outcome, err)
+			var version int
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
+				t.Fatalf("schema version = %d, err=%v, want 7", version, err)
+			}
+			var staleTables int
+			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {
+				t.Fatalf("stale table count = %d, err=%v, want discarded", staleTables, err)
+			}
+			var currentTables int
+			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`).Scan(&currentTables); err != nil || currentTables != 1 {
+				t.Fatalf("sessions table count = %d, err=%v, want current schema", currentTables, err)
+			}
+		})
 	}
 }
 

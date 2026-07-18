@@ -178,9 +178,8 @@ type Config struct {
 
 	// Transactor runs a write-set inside one storage transaction, so the sessions
 	// coordinator's cross-store operations (sessions.import / rollback / delete
-	// cascade) commit atomically. nil runs each function directly (no atomicity),
-	// keeping non-sqlite / test runtimes working. The composition root wires the
-	// sqlite-backed transactor into the sessions coordinator.
+	// cascade) commit atomically. Required; the composition root wires the single
+	// SQLite backend's transactor into the sessions coordinator.
 	Transactor Transactor
 }
 

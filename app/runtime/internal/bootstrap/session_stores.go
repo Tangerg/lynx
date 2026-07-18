@@ -80,15 +80,10 @@ func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sess
 
 func (s sessionStores) ForgetSession(sessionID string) { s.forgetter.ForgetSession(sessionID) }
 
-// runInTx runs fn inside one storage transaction, falling back to a direct call
-// when no transactor is wired (a non-sqlite / test runtime) — see
-// [Transactor]. The Apply* write-sets below drive it; it is the one
-// transactional seam left, now behind the atomic ports rather than the
-// coordinator's own surface (§8.4).
+// runInTx runs fn inside the required storage transaction. The Apply* write-sets
+// below drive it; it is the one transactional seam left, behind atomic ports
+// rather than the coordinator's own surface (§8.4).
 func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {
-	if s.tx == nil {
-		return fn(ctx)
-	}
 	return s.tx(ctx, fn)
 }
 
