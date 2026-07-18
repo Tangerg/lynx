@@ -41,7 +41,7 @@ type downloadResponse struct {
 	ContentType string `json:"content_type,omitempty"`
 }
 
-var downloadSchema, _ = pkgjson.StringDefSchemaOf(downloadRequest{})
+var downloadSchema = pkgjson.MustStringDefSchemaOf(downloadRequest{})
 
 type downloadTool struct {
 	workdir string

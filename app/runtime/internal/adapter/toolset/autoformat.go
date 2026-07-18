@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,7 +36,13 @@ func withAutoFormat(inner tools.Tool, workdir string) tools.Tool {
 
 func formatPath(ctx context.Context, path string) error {
 	info, err := os.Stat(path)
-	if err != nil || info.IsDir() {
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("%s: inspect before formatting: %w", path, err)
+	}
+	if info.IsDir() {
 		return nil
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
@@ -63,14 +70,14 @@ func runFormatter(ctx context.Context, name string, args ...string) error {
 		return nil
 	}
 	msg := strings.TrimSpace(string(out))
-	if msg == "" {
-		msg = err.Error()
-	}
 	target := name
 	if len(args) > 0 {
 		target = args[len(args)-1]
 	}
-	return fmt.Errorf("%s: %s", target, msg)
+	if msg == "" {
+		return fmt.Errorf("%s: run %s: %w", target, name, err)
+	}
+	return fmt.Errorf("%s: %s: %w", target, msg, err)
 }
 
 func formatJSON(path string, mode os.FileMode) error {

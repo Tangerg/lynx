@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -84,11 +85,11 @@ func run(ctx context.Context, dir string, args ...string) (string, error) {
 		if errors.Is(err, exec.ErrNotFound) {
 			return "", ErrUnavailable
 		}
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = err.Error()
+		command := strings.Join(args, " ")
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return stdout.String(), fmt.Errorf("git %s: %s: %w", command, msg, err)
 		}
-		return stdout.String(), errors.New("git: " + msg)
+		return stdout.String(), fmt.Errorf("git %s: %w", command, err)
 	}
 	return stdout.String(), nil
 }

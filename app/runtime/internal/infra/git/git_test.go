@@ -118,3 +118,15 @@ func TestNotRepo(t *testing.T) {
 		t.Errorf("ListChanges on non-repo err = %v, want ErrNotRepo", err)
 	}
 }
+
+func TestRunPreservesContextCancellation(t *testing.T) {
+	if !Available() {
+		t.Skip("git not on PATH")
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	_, err := run(ctx, t.TempDir(), "status", "--short")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("run error = %v, want context.Canceled", err)
+	}
+}

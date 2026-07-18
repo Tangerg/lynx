@@ -3,6 +3,7 @@ package lsp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -41,6 +42,11 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("lsp: start %s: %w", spec.Command, err)
 	}
+	wait := make(chan error, 1)
+	go func() {
+		wait <- cmd.Wait()
+		close(wait)
+	}()
 
 	// WithoutCancel: the read loop outlives this call (the connection is cached
 	// and reused) so it must not die when ctx ends, but keeping ctx's values
@@ -51,6 +57,7 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 		root:    root,
 		cmd:     cmd,
 		cancel:  cancel,
+		wait:    wait,
 		open:    map[string]openDoc{},
 		diags:   map[string]diagSet{},
 		updated: make(chan struct{}),
@@ -91,17 +98,38 @@ func (c *client) initialize(ctx context.Context) error {
 // connection (which closes stdin), then a hard process kill as a backstop.
 // Safe to call more than once.
 func (c *client) close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	_ = c.conn.Call(ctx, "shutdown", nil, nil)
-	_ = c.conn.Notify(ctx, "exit", nil)
-	c.cancel()
-	_ = c.conn.Close()
-	if c.cmd.Process != nil {
-		_ = c.cmd.Process.Kill()
-	}
-	_ = c.cmd.Wait()
-	return nil
+	c.closeOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		// Protocol shutdown is advisory: a crashed or wedged server still needs
+		// its local resources reclaimed below.
+		_ = c.conn.Call(ctx, "shutdown", nil, nil)
+		_ = c.conn.Notify(ctx, "exit", nil)
+		c.cancel()
+
+		var errs []error
+		if err := c.conn.Close(); err != nil && !errors.Is(err, jsonrpc2.ErrClosed) {
+			errs = append(errs, fmt.Errorf("lsp: close %s connection: %w", c.spec.Name, err))
+		}
+
+		select {
+		case err := <-c.wait:
+			if err != nil {
+				errs = append(errs, fmt.Errorf("lsp: wait for %s shutdown: %w", c.spec.Name, err))
+			}
+		case <-ctx.Done():
+			// The dedicated waiter owns cmd.Wait and will reap the process after
+			// this hard-stop fallback; Close itself remains bounded.
+			if c.cmd.Process != nil {
+				if err := c.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+					errs = append(errs, fmt.Errorf("lsp: kill unresponsive %s: %w", c.spec.Name, err))
+				}
+			}
+		}
+		c.closeErr = errors.Join(errs...)
+	})
+	return c.closeErr
 }
 
 // pipeRWC adapts a child process's separate stdout (read) and stdin (write)
@@ -115,10 +143,5 @@ func (p *pipeRWC) Read(b []byte) (int, error)  { return p.out.Read(b) }
 func (p *pipeRWC) Write(b []byte) (int, error) { return p.in.Write(b) }
 
 func (p *pipeRWC) Close() error {
-	werr := p.in.Close()
-	rerr := p.out.Close()
-	if werr != nil {
-		return werr
-	}
-	return rerr
+	return errors.Join(p.in.Close(), p.out.Close())
 }

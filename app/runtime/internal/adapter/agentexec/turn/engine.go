@@ -32,14 +32,7 @@ type Compactor interface {
 	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error)
 }
 
-// ExtractionResult reports daily-ledger and curated-memory changes.
-type ExtractionResult struct {
-	Extracted bool
-	Curated   bool
-	Facts     string
-}
-
 // Extractor mines recent conversation facts after a successful compaction.
 type Extractor interface {
-	MaybeExtract(ctx context.Context, sessionID, cwd string) (ExtractionResult, error)
+	MaybeExtract(ctx context.Context, sessionID, cwd string) error
 }

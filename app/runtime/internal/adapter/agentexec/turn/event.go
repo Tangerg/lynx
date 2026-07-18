@@ -13,7 +13,6 @@ type ReasoningDelta = runs.ReasoningDelta
 type ToolCallStart = runs.ToolCallStart
 type ToolCallEnd = runs.ToolCallEnd
 type CompactBoundary = runs.CompactBoundary
-type MemoryUpdated = runs.MemoryUpdated
 type TurnInterrupted = runs.TurnInterrupted
 type Interrupt = runs.Interrupt
 type InterruptKind = runs.InterruptKind

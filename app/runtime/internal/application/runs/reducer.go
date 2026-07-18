@@ -143,8 +143,6 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 		return nil, nil
 	case CompactBoundary:
 		out = r.compaction(e)
-	case MemoryUpdated:
-		return nil, nil
 	case TurnInterrupted:
 		var err error
 		out, err = r.interrupt(e)

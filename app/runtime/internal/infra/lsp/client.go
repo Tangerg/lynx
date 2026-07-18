@@ -20,6 +20,10 @@ type client struct {
 	cmd    *exec.Cmd
 	conn   *jsonrpc2.Conn
 	cancel context.CancelFunc // tears down the connection's read loop
+	wait   <-chan error       // exactly one goroutine owns cmd.Wait
+
+	closeOnce sync.Once
+	closeErr  error
 
 	mu    sync.Mutex
 	open  map[string]openDoc // uri → last synced version + content hash

@@ -7,8 +7,8 @@
 // The registry is seeded at startup with the supported provider ids (so
 // providers.list always reports the full supported set), and a provider
 // becomes "enabled" once it has an API key — set from config at boot or via
-// providers.configure at runtime. Persisted backends (file / sqlite) keep
-// runtime edits across restarts.
+// providers.configure at runtime. The SQLite registry keeps runtime edits
+// across restarts.
 //
 // Deliberately a data-only registry (credentials + enablement + CRUD): model
 // metadata/pricing live in the models catalog and per-turn client construction

@@ -7,8 +7,8 @@
 // external COMMAND (any language) invoked with the event as JSON on stdin; it
 // answers with an exit code (+ optional JSON on stdout). This is a host-language-
 // agnostic contract — the same model Claude Code uses — so being a Go runtime is
-// no disadvantage (Go orchestrates processes well), it composes with a future OS
-// sandbox, and users write hooks in whatever they like. A declarative `inject`
+// no disadvantage (Go orchestrates processes well), and users write hooks in
+// whatever they like. A declarative `inject`
 // covers the common "add this context" case with zero process spawn; the matcher
 // gates exec so an unrelated tool never forks a hook. There is deliberately NO
 // embedded interpreter (Goja/Starlark/…): that's weight + a security surface the
