@@ -78,7 +78,7 @@ func (mutatingTool) MutationPaths(string) ([]string, error) {
 }
 
 func TestObservedToolForwardsReturnsDirect(t *testing.T) {
-	observation := newToolObservation(noopObserver{})
+	observation := newToolObservation(noopObserver{}, nil, 0)
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
 	direct, ok := tools.Tool(keyed).(interface{ ReturnsDirect() bool })
 	if !ok {
@@ -95,7 +95,7 @@ func TestObservedToolForwardsReturnsDirect(t *testing.T) {
 }
 
 func TestObservedToolForwardsConcurrencyKey(t *testing.T) {
-	observation := newToolObservation(noopObserver{})
+	observation := newToolObservation(noopObserver{}, nil, 0)
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
 	key, concurrent := keyed.ConcurrencyKey(`{}`)
 	if key != "resource" || !concurrent {
@@ -111,7 +111,7 @@ func TestObservedToolForwardsConcurrencyKey(t *testing.T) {
 
 func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 	observer := new(recordingObserver)
-	tool := &observedTool{inner: mutatingTool{}, observation: newToolObservation(observer)}
+	tool := &observedTool{inner: mutatingTool{}, observation: newToolObservation(observer, nil, 0)}
 	if _, err := tool.Call(t.Context(), `{}`); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 
 	observer = new(recordingObserver)
 	callErr := errors.New("write failed")
-	tool = &observedTool{inner: mutatingTool{err: callErr}, observation: newToolObservation(observer)}
+	tool = &observedTool{inner: mutatingTool{err: callErr}, observation: newToolObservation(observer, nil, 0)}
 	if _, err := tool.Call(t.Context(), `{}`); !errors.Is(err, callErr) {
 		t.Fatalf("Call error = %v, want %v", err, callErr)
 	}
@@ -138,7 +138,7 @@ func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
 		t.Fatalf("Once: %v", err)
 	}
 	observer := new(recordingObserver)
-	wrapped := &observedTool{inner: policy, observation: newToolObservation(observer)}
+	wrapped := &observedTool{inner: policy, observation: newToolObservation(observer, nil, 0)}
 
 	reporter, ok := tools.Tool(wrapped).(tools.FileMutationReporter)
 	if !ok {
@@ -159,7 +159,7 @@ func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
 
 func TestToolObservationPublishesPreparedStartsInModelOrder(t *testing.T) {
 	observer := new(recordingObserver)
-	observation := newToolObservation(observer)
+	observation := newToolObservation(observer, nil, 0)
 	observation.begin("process-1", 2, chat.ToolCall{ID: "call-1", Name: "first", Arguments: `{}`})
 	observation.begin("process-1", 2, chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`})
 
@@ -201,7 +201,7 @@ func TestToolObservationSerializesClaimedStartBatches(t *testing.T) {
 		firstEntered: make(chan struct{}),
 		releaseFirst: make(chan struct{}),
 	}
-	observation := newToolObservation(observer)
+	observation := newToolObservation(observer, nil, 0)
 	for index, name := range []string{"first", "second", "third"} {
 		observation.begin("process-1", 1, chat.ToolCall{
 			ID: fmt.Sprintf("call-%d", index+1), Name: name, Arguments: `{}`,
@@ -273,7 +273,7 @@ func TestModelToolCallIDIncludesProcessAndRoundOwnership(t *testing.T) {
 
 func TestToolObservationClosesUnknownCallsButIgnoresRestoredSettledResults(t *testing.T) {
 	observer := new(recordingObserver)
-	observation := newToolObservation(observer)
+	observation := newToolObservation(observer, nil, 0)
 	result := chat.ToolResult{ID: "missing-1", Name: "missing", Result: "not available", IsError: true}
 
 	observation.result("process-1", 1, result)
