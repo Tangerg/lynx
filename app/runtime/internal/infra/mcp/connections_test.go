@@ -2,10 +2,28 @@ package mcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
+
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Tangerg/lynx/core/chat"
+	lynxmcp "github.com/Tangerg/lynx/mcp"
+	"github.com/Tangerg/lynx/tools"
 )
+
+type catalogTool string
+
+func (t catalogTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: string(t), InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (catalogTool) Call(context.Context, string) (string, error) { return "", nil }
 
 func TestConnectionsRejectMutationsAfterClose(t *testing.T) {
 	c := &Connections{client: newClient()}
@@ -72,4 +90,118 @@ func TestCloneServerConfigOwnsMutableFields(t *testing.T) {
 	if cloned.Args[0] != "one" || cloned.Env[0] != "A=1" || cloned.Headers["X-Test"] != "before" {
 		t.Fatalf("clone retained caller-owned storage: %+v", cloned)
 	}
+}
+
+func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
+	c := &Connections{servers: []*server{
+		{
+			config:  ServerConfig{Name: "alpha"},
+			session: new(sdkmcp.ClientSession),
+			tools:   []tools.Tool{catalogTool("alpha_read"), catalogTool("alpha_list")},
+		},
+		{
+			config:  ServerConfig{Name: "beta"},
+			session: new(sdkmcp.ClientSession),
+			tools:   []tools.Tool{catalogTool("beta_read")},
+		},
+	}}
+	var got []string
+	c.SetToolSink(func(catalog []tools.Tool) {
+		got = make([]string, 0, len(catalog))
+		for _, tool := range catalog {
+			got = append(got, tool.Definition().Name)
+		}
+	})
+
+	c.publishTools()
+	want := []string{"alpha_read", "alpha_list", "beta_read"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("published tools = %v, want %v", got, want)
+	}
+}
+
+func TestRemovePublishesRemainingSnapshotWithCanceledContext(t *testing.T) {
+	c := &Connections{servers: []*server{
+		{config: ServerConfig{Name: "remove"}, tools: []tools.Tool{catalogTool("remove_read")}},
+		{
+			config:  ServerConfig{Name: "keep"},
+			session: new(sdkmcp.ClientSession),
+			tools:   []tools.Tool{catalogTool("keep_read")},
+		},
+	}}
+	published := make(chan []string, 1)
+	c.SetToolSink(func(catalog []tools.Tool) {
+		names := make([]string, 0, len(catalog))
+		for _, tool := range catalog {
+			names = append(names, tool.Definition().Name)
+		}
+		published <- names
+	})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	c.Remove(ctx, "remove")
+	if got := <-published; !slices.Equal(got, []string{"keep_read"}) {
+		t.Fatalf("published tools = %v, want [keep_read]", got)
+	}
+}
+
+func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
+	remote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v1"}, nil)
+	addRemoteTool(t, remote, "first")
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return remote },
+		nil,
+	))
+	t.Cleanup(httpServer.Close)
+
+	config := ServerConfig{Name: "remote", Transport: TransportHTTP, Endpoint: httpServer.URL}
+	c, initial, err := Dial(t.Context(), []ServerConfig{config})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+	if len(initial) != 1 || initial[0].Definition().Name != "remote_first" {
+		t.Fatalf("initial tools = %v, want [remote_first]", toolNames(initial))
+	}
+
+	publications := make(chan []string, 2)
+	c.SetToolSink(func(catalog []tools.Tool) { publications <- toolNames(catalog) })
+	addRemoteTool(t, remote, "second")
+	if err := c.Reconnect(t.Context(), config.Name); err != nil {
+		t.Fatalf("Reconnect: %v", err)
+	}
+	if connecting := <-publications; len(connecting) != 0 {
+		t.Fatalf("connecting publication = %v, want empty", connecting)
+	}
+	settled := <-publications
+	slices.Sort(settled)
+	if want := []string{"remote_first", "remote_second"}; !slices.Equal(settled, want) {
+		t.Fatalf("settled publication = %v, want %v", settled, want)
+	}
+}
+
+func addRemoteTool(t *testing.T, server *sdkmcp.Server, name string) {
+	t.Helper()
+	tool, err := tools.New[struct{}, string](tools.Config{Name: name}, func(context.Context, struct{}) (string, error) {
+		return name, nil
+	})
+	if err != nil {
+		t.Fatalf("build remote tool %q: %v", name, err)
+	}
+	if err := lynxmcp.Register(server, tool); err != nil {
+		t.Fatalf("register remote tool %q: %v", name, err)
+	}
+}
+
+func toolNames(catalog []tools.Tool) []string {
+	names := make([]string, 0, len(catalog))
+	for _, tool := range catalog {
+		names = append(names, tool.Definition().Name)
+	}
+	return names
 }

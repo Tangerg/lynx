@@ -17,6 +17,7 @@ import (
 type server struct {
 	config  ServerConfig
 	session *sdkmcp.ClientSession // nil when not connected
+	tools   []tools.Tool          // last tool set proved on this session
 	state   mcpserver.ConnectionState
 	lastErr error
 
