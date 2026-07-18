@@ -107,6 +107,10 @@ func (s *Servers) clientFor(ctx context.Context, root string, spec ServerSpec) (
 		s.mu.Unlock()
 		return awaitClientStart(ctx, pending)
 	}
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
 
 	startCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	pending := &clientStart{done: make(chan struct{}), cancel: cancel}
@@ -256,24 +260,37 @@ func (s *Servers) DocumentSymbols(ctx context.Context, root, file string) ([]Sym
 }
 
 // WorkspaceSymbols searches the whole workspace for symbols matching query,
-// across every language whose root marker is present. Returns ErrNoServer when
-// no configured language applies to root.
+// across every language whose root marker is present. A failed language does
+// not discard another language's successful result; when every applicable
+// server fails, their errors are joined in configured-server order. Returns
+// ErrNoServer when no configured language applies to root.
 func (s *Servers) WorkspaceSymbols(ctx context.Context, root, query string) ([]Symbol, error) {
 	specs := s.table.forRoot(root)
 	if len(specs) == 0 {
 		return nil, ErrNoServer
 	}
 	var out []Symbol
+	var errs []error
+	succeeded := false
 	for _, spec := range specs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		c, err := s.clientFor(ctx, root, spec)
 		if err != nil {
-			continue // one language's server failing shouldn't sink the rest
+			errs = append(errs, fmt.Errorf("lsp: start %s for workspace symbols: %w", spec.Name, err))
+			continue
 		}
 		syms, err := c.workspaceSymbols(ctx, query)
 		if err != nil {
+			errs = append(errs, fmt.Errorf("lsp: query workspace symbols from %s: %w", spec.Name, err))
 			continue
 		}
+		succeeded = true
 		out = append(out, syms...)
+	}
+	if !succeeded {
+		return nil, errors.Join(errs...)
 	}
 	return out, nil
 }

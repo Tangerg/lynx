@@ -307,6 +307,56 @@ func TestServersCallerCancellationDoesNotCancelSharedStartup(t *testing.T) {
 	}
 }
 
+func TestServersCanceledCallerDoesNotStartClient(t *testing.T) {
+	servers := NewServers(nil)
+	t.Cleanup(func() { _ = servers.Close() })
+	var calls atomic.Int32
+	servers.launch = func(context.Context, ServerSpec, string) (*client, error) {
+		calls.Add(1)
+		return inertClient(nil), nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if _, err := servers.clientFor(ctx, t.TempDir(), ServerSpec{Name: "test"}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("clientFor error = %v, want context.Canceled", err)
+	}
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("start calls = %d, want 0", got)
+	}
+}
+
+func TestWorkspaceSymbolsReportsEveryStartupFailure(t *testing.T) {
+	root := t.TempDir()
+	for _, marker := range []string{"go.mod", "package.json"} {
+		if err := os.WriteFile(filepath.Join(root, marker), nil, 0o644); err != nil {
+			t.Fatalf("write marker %s: %v", marker, err)
+		}
+	}
+	servers := NewServers([]ServerSpec{
+		{Name: "go", Extensions: []string{".go"}, RootMarkers: []string{"go.mod"}},
+		{Name: "typescript", Extensions: []string{".ts"}, RootMarkers: []string{"package.json"}},
+	})
+	t.Cleanup(func() { _ = servers.Close() })
+	goErr := errors.New("gopls unavailable")
+	tsErr := errors.New("typescript server unavailable")
+	servers.launch = func(_ context.Context, spec ServerSpec, _ string) (*client, error) {
+		switch spec.Name {
+		case "go":
+			return nil, goErr
+		case "typescript":
+			return nil, tsErr
+		default:
+			return nil, errors.New("unexpected server")
+		}
+	}
+
+	_, err := servers.WorkspaceSymbols(context.Background(), root, "Handler")
+	if !errors.Is(err, goErr) || !errors.Is(err, tsErr) {
+		t.Fatalf("WorkspaceSymbols error = %v, want both startup failures", err)
+	}
+}
+
 func inertClient(closeErr error) *client {
 	c := &client{closeErr: closeErr}
 	c.closeOnce.Do(func() {})
