@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -156,7 +157,37 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
+	for i := range out {
+		s.rehydrateToolResult(ctx, sessionID, &out[i])
+	}
 	return out, nil
+}
+
+// rehydrateToolResult restores an offloaded tool-result body for presentation:
+// the transcript stores only a placeholder for an evicted result (the full body
+// lives once in tool_result_blobs), so every reader of a session's durable
+// record — items.list, session export — rebuilds the full result here. The LLM's
+// own view is the chat-history messages, which keep the placeholder untouched
+// (that is the read_tool_result affordance), so this rehydration is display-only.
+// Best-effort: a missing blob leaves the placeholder in place.
+func (s *TranscriptStore) rehydrateToolResult(ctx context.Context, sessionID string, item *transcript.Item) {
+	if item.Tool == nil {
+		return
+	}
+	text, ok := item.Tool.Result.(string)
+	if !ok {
+		return
+	}
+	id, ok := offload.ID(text)
+	if !ok {
+		return
+	}
+	var body string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT body FROM tool_result_blobs WHERE id = ? AND session_id = ?`, id, sessionID).Scan(&body)
+	if err == nil {
+		item.Tool.Result = body
+	}
 }
 
 func (s *TranscriptStore) listRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {

@@ -67,7 +67,7 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	}
 	var observation *toolObservation
 	if p.observer != nil {
-		observation = newToolObservation(p.observer)
+		observation = newToolObservation(p.observer, p.toolResultStore, p.evictThreshold)
 		if err := core.RegisterDependency(dependencies, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register child tool observation: %w", err)
 		}
@@ -78,12 +78,6 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	}
 	if p.observer != nil {
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
-	}
-	// Registered after the observer so it wraps outer (see turnProcessOptions):
-	// a subtask offloads its own oversized tool results, scoped to its own
-	// session by the per-call turn context.
-	if ext := newToolResultEviction(p.toolResultStore, p.evictThreshold); ext != nil {
-		options.Extensions = append(options.Extensions, ext)
 	}
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})

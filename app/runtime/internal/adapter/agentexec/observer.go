@@ -11,6 +11,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -127,6 +130,15 @@ func observationFrom(dependencies *core.Dependencies) *toolObservation {
 type toolObservation struct {
 	target toolObserver
 
+	// evictStore + evictThreshold drive tool-result eviction at the observation
+	// chokepoint: an oversized successful result is offloaded to the store and
+	// replaced — for BOTH the transcript (via OnToolCallEnd) and the model (the
+	// value returned to the tool loop) — by a head+tail placeholder carrying the
+	// blob id, so the full body lives in exactly one place. nil store / a
+	// non-positive threshold disables it.
+	evictStore     toolResultOffloader
+	evictThreshold int
+
 	mu         sync.Mutex
 	model      map[string]*observedModelCall
 	pending    []*observedModelCall
@@ -144,14 +156,16 @@ type observedModelCall struct {
 	started   chan struct{}
 }
 
-func newToolObservation(target toolObserver) *toolObservation {
+func newToolObservation(target toolObserver, evictStore toolResultOffloader, evictThreshold int) *toolObservation {
 	if toolObserverIsNil(target) {
 		return nil
 	}
 	return &toolObservation{
-		target:   target,
-		model:    make(map[string]*observedModelCall),
-		finished: make(map[string]struct{}),
+		target:         target,
+		evictStore:     evictStore,
+		evictThreshold: evictThreshold,
+		model:          make(map[string]*observedModelCall),
+		finished:       make(map[string]struct{}),
 	}
 }
 
@@ -380,9 +394,42 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	}
 
 	output, err := o.inner.Call(ctx, arguments)
-	o.observation.finish(call, bound, arguments, output, o.successfulMutationPaths(arguments, err), err)
+	displayed := output
+	if err == nil {
+		// Evict an oversized body to the blob store, substituting a placeholder
+		// for BOTH the transcript (finish → OnToolCallEnd) and the model (the
+		// returned value the tool loop records) — so the full body lives in the
+		// blob alone. The transcript presenter rehydrates it from the placeholder
+		// id when serving items to the UI.
+		displayed = o.observation.evict(ctx, name, output)
+	}
+	o.observation.finish(call, bound, arguments, displayed, o.successfulMutationPaths(arguments, err), err)
 
-	return output, err
+	return displayed, err
+}
+
+// evict offloads an oversized successful tool result to the blob store and
+// returns a head+tail placeholder carrying the blob id; it returns output
+// unchanged when eviction is disabled, the output fits, there is no session to
+// scope the blob under, the tool is the read-back tool (evicting its output
+// would loop), or the offload fails (best-effort — degrade to the full body
+// rather than fail an otherwise-successful call).
+func (o *toolObservation) evict(ctx context.Context, toolName, output string) string {
+	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
+		return output
+	}
+	if toolName == toolport.ToolNameReadToolResult {
+		return output
+	}
+	sessionID := turnctx.TurnSession(ctx)
+	if sessionID == "" {
+		return output
+	}
+	id, err := o.evictStore.Offload(ctx, sessionID, toolName, output)
+	if err != nil {
+		return output
+	}
+	return offload.Placeholder(output, id, toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
 }
 
 func (o *observedTool) successfulMutationPaths(arguments string, callErr error) []string {

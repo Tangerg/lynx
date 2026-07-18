@@ -173,21 +173,13 @@ func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, lis
 		if dependencies == nil {
 			return core.ProcessOptions{}, errors.New("agentexec: dependencies are required when a tool observer is configured")
 		}
-		observation := newToolObservation(observer)
+		observation := newToolObservation(observer, e.toolResultStore, e.toolResultThreshold)
 		scope := dependencies.Child()
 		if err := core.RegisterDependency(scope, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observation dependency: %w", err)
 		}
 		options.Dependencies = scope
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
-	}
-	// Tool-result eviction is registered AFTER the observer so it wraps OUTER:
-	// the observer's finish() still reports the full body to the UI, and only the
-	// value flowing on to history is offloaded + replaced by a placeholder. The
-	// session id is read per call off the turn context, so one middleware serves
-	// root and subtask turns alike.
-	if ext := e.toolResultEviction(); ext != nil {
-		options.Extensions = append(options.Extensions, ext)
 	}
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)
@@ -199,12 +191,6 @@ func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, lis
 		options.Guardrails = guardrails
 	}
 	return options, nil
-}
-
-// toolResultEviction builds the tool-result eviction middleware, or nil when
-// eviction is disabled. Shared by the root turn and delegated subtasks.
-func (e *Engine) toolResultEviction() core.Extension {
-	return newToolResultEviction(e.toolResultStore, e.toolResultThreshold)
 }
 
 func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, error) {
