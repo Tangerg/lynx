@@ -18,6 +18,12 @@ var workerTracer = otel.Tracer("lynx/lyra/schedule")
 
 const workerTick = time.Minute
 
+// firingStateWriteTimeout gives an already-attempted firing a bounded window to
+// advance its durable cursor after process shutdown cancels the worker context.
+// Without this post-attempt scope, a successfully admitted run could be fired
+// again on restart because MarkFired observed only the canceled worker context.
+const firingStateWriteTimeout = 5 * time.Second
+
 // Runner starts one scheduled prompt as a headless run. The delivery layer
 // supplies it; it is the application-owned seam between a fired schedule and a
 // run start.
@@ -91,14 +97,27 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, sc := range due {
+		if ctx.Err() != nil {
+			return
+		}
 		next, nerr := schedule.NextRun(sc.Cron, now)
 		if nerr != nil {
 			recordWorkerError(ctx, "unparseable cron", fmt.Errorf("schedule %s: %w", sc.ID, nerr))
 			next = time.Time{}
 		}
-		_, _ = Fire(ctx, w.runner, sc)
-		if err := w.schedules.MarkFired(ctx, sc.ID, now, sc.NextRunAt, next); err != nil {
-			recordWorkerError(ctx, "mark fired failed", fmt.Errorf("schedule %s: %w", sc.ID, err))
+		_, fireErr := Fire(ctx, w.runner, sc)
+		if fireErr != nil && ctx.Err() != nil && errors.Is(fireErr, ctx.Err()) {
+			return
+		}
+
+		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
+		markErr := w.schedules.MarkFired(writeCtx, sc.ID, now, sc.NextRunAt, next)
+		cancel()
+		if markErr != nil {
+			recordWorkerError(ctx, "mark fired failed", fmt.Errorf("schedule %s: %w", sc.ID, markErr))
+		}
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
