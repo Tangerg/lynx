@@ -67,6 +67,7 @@ import type {
   SessionArtifact,
   ShutdownRequest,
   Skill,
+  ManagedSkill,
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
@@ -220,6 +221,15 @@ export interface Methods {
     hooks: {
       list: (cwd?: string) => Promise<HooksListResult>;
       setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
+    };
+    // Self-authored skill-library management (§7.5): the global library with each
+    // skill's lifecycle, plus archive/restore (never deleting). Distinct from
+    // listSkills — that is the agent's project+global discovery view; this is the
+    // curator surface and also lists archived skills.
+    skills: {
+      list: () => Promise<Page<ManagedSkill>>;
+      archive: (name: string) => Promise<void>;
+      restore: (name: string) => Promise<void>;
     };
     mcp: {
       // The editable registry (configure/remove/setEnabled) PLUS a best-effort
@@ -417,6 +427,11 @@ export function createMethods(client: RpcClient): Methods {
         list: (cwd) => client.call<HooksListResult>("workspace.hooks.list", { cwd }),
         setTrust: (projectRoot, trusted) =>
           client.call<void>("workspace.hooks.setTrust", { projectRoot, trusted }),
+      },
+      skills: {
+        list: () => client.call<Page<ManagedSkill>>("workspace.skills.list"),
+        archive: (name) => client.call<void>("workspace.skills.archive", { name }),
+        restore: (name) => client.call<void>("workspace.skills.restore", { name }),
       },
       mcp: {
         listConfigs: (query) =>

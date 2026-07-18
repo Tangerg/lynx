@@ -679,6 +679,19 @@ export interface Skill {
   description?: string;
   source?: string;
 }
+
+// A managed skill's curator state (workspace.skills.list): active (loadable by
+// the agent) or archived (preserved, not loaded).
+export type SkillLifecycle = "active" | "archived";
+
+// One entry in the global self-authored skill library (workspace.skills.list).
+// Distinct from Skill (the agent's project+global discovery view): this is the
+// management surface, which also lists archived skills.
+export interface ManagedSkill {
+  name: string;
+  description?: string;
+  lifecycle: SkillLifecycle;
+}
 // A recipe is a user-invoked, parameterized prompt template (workspace.recipes.
 // list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
 // and sends the result as a turn; body travels with the listing (recipes are
