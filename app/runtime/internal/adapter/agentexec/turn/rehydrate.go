@@ -84,12 +84,15 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 
 // rejectRestoredTurn tears down a process restored during a dispatcher-close
 // race. The close error and process cancellation failure are both preserved;
-// snapshot discard remains terminal maintenance.
+// snapshot discard remains terminal maintenance, but its failure is preserved
+// alongside cancellation because this caller still owns a synchronous error
+// boundary.
 func rejectRestoredTurn(state *turnState, process agentexec.TurnProcess, cause error) error {
 	cancelErr := cancelTurnProcess(process)
 	recordTurnCleanupError(state, cancelErr)
-	discardProcess(state.ctx, process)
+	discardErr := discardProcess(state.ctx, process)
+	recordTurnCleanupError(state, discardErr)
 	state.cancel()
 	state.span.End()
-	return errors.Join(cause, cancelErr)
+	return errors.Join(cause, cancelErr, discardErr)
 }

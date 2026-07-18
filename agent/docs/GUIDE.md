@@ -125,6 +125,10 @@ Action 默认只执行一次。`RetryPolicy` 的零值与 `DefaultRetryPolicy()`
 - `Process`、`Processes`：读取当前 registry 快照；
 - `Save`、`Restore`、`RestoreSnapshot`：durable process 协调。
 
+`Continue`、`Resume`、`Kill` 或 `Remove` 指向已不存在的 Process 时，错误可通过
+`errors.Is(err, runtime.ErrProcessNotFound)` 稳定分类。幂等清理应匹配该 sentinel，不得解析
+错误文本。
+
 同一 Process 同时只能有一个 active owner 驱动执行。CAS 防止旧快照覆盖新快照，但不负责
 跨节点选主；多节点 handoff 仍需 Host 提供 lease/fencing。
 

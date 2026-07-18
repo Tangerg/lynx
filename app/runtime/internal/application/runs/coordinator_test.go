@@ -102,10 +102,11 @@ func (e *fakeEffects) Nudge(string, []string) {
 	e.nudges++
 }
 
-func (e *fakeEffects) Finish(_ context.Context, finish Finish) {
+func (e *fakeEffects) Finish(_ context.Context, finish Finish) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.finishes = append(e.finishes, finish)
+	return nil
 }
 
 func (e *fakeEffects) opening() OpeningCommit {

@@ -2,7 +2,9 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -63,10 +65,11 @@ type TurnProcess interface {
 	// completion — but that snapshot only matters while the process is PARKED
 	// awaiting HITL resume; once the turn reaches a terminal state it is dead
 	// weight, and left behind it accumulates one orphaned snapshot row per run.
-	// Best-effort: cleanup failures don't affect the already-finished turn. Call
-	// exactly once at terminal teardown — NEVER on a parked process, whose
-	// snapshot must survive for resume.
-	Discard(ctx context.Context)
+	// Cleanup failures don't rewrite the already-finished turn outcome, but are
+	// returned so the owning turn span can retain them. Call exactly once at
+	// terminal teardown — NEVER on a parked process, whose snapshot must survive
+	// for resume.
+	Discard(ctx context.Context) error
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -98,9 +101,31 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
-func (p *turnProcess) Discard(ctx context.Context) {
-	rootID := p.process.ID()
-	store := p.engine.ProcessStore()
+func (p *turnProcess) Discard(ctx context.Context) error {
+	if p == nil || p.process == nil || p.engine == nil {
+		return errors.New("agentexec: discard process: incomplete turn process")
+	}
+	return discardProcessTree(ctx, p.process.ID(), p.engine)
+}
+
+type processTreeEngine interface {
+	Processes() []*runtime.Process
+	ProcessStore() core.ProcessStore
+	Kill(id string) error
+	Remove(id string) error
+}
+
+// discardProcessTree removes descendants before parents in stable identity
+// order. It combines the live registry with durable snapshots because either
+// side may contain the only surviving edge after a crash or cancellation race.
+func discardProcessTree(ctx context.Context, rootID string, engine processTreeEngine) error {
+	if rootID == "" {
+		return errors.New("agentexec: discard process tree: root process ID is empty")
+	}
+	if engine == nil {
+		return errors.New("agentexec: discard process tree: engine is nil")
+	}
+	store := engine.ProcessStore()
 
 	// Build the descendant graph from both live registry entries and durable
 	// snapshots. A canceled nested tree may still have terminal child entries;
@@ -109,56 +134,129 @@ func (p *turnProcess) Discard(ctx context.Context) {
 	// an orphan when the application discards the terminal root.
 	children := make(map[string]map[string]struct{})
 	live := make(map[string]*runtime.Process)
-	addChild := func(parentID, childID string) {
+	parents := make(map[string]string)
+	var cleanupErrs []error
+	snapshotGraphComplete := true
+	addChild := func(source, parentID, childID string) {
 		if parentID == "" || childID == "" {
 			return
 		}
+		if parentID == childID {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: %s process %q is its own parent", rootID, source, childID))
+			snapshotGraphComplete = false
+			return
+		}
+		if existing, ok := parents[childID]; ok && existing != parentID {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: %s process %q has parent %q, already linked to %q", rootID, source, childID, parentID, existing))
+			snapshotGraphComplete = false
+			return
+		}
+		parents[childID] = parentID
 		if children[parentID] == nil {
 			children[parentID] = make(map[string]struct{})
 		}
 		children[parentID][childID] = struct{}{}
 	}
-	for _, process := range p.engine.Processes() {
+	for _, process := range engine.Processes() {
+		if process == nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: live registry contains a nil process", rootID))
+			continue
+		}
 		live[process.ID()] = process
-		addChild(process.ParentID(), process.ID())
+		addChild("live", process.ParentID(), process.ID())
 	}
-	if lister, ok := store.(core.SnapshotLister); ok {
-		if ids, err := lister.List(ctx); err == nil {
+	if store != nil {
+		lister, ok := store.(core.SnapshotLister)
+		if !ok {
+			cleanupErrs = append(cleanupErrs, errors.New("agentexec: discard process tree: process store cannot list descendant snapshots"))
+			snapshotGraphComplete = false
+		} else if ids, err := lister.List(ctx); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: list snapshots: %w", rootID, err))
+			snapshotGraphComplete = false
+		} else {
+			slices.Sort(ids)
 			for _, id := range ids {
 				snapshot, err := store.Load(ctx, id)
 				if err != nil {
+					if !errors.Is(err, core.ErrSnapshotNotFound) {
+						cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: load snapshot %q: %w", rootID, id, err))
+						snapshotGraphComplete = false
+					}
 					continue
 				}
-				addChild(snapshot.ParentID, snapshot.ID)
+				if snapshot.ID != id {
+					cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: snapshot key %q contains process %q", rootID, id, snapshot.ID))
+					snapshotGraphComplete = false
+					continue
+				}
+				addChild("snapshot", snapshot.ParentID, snapshot.ID)
 			}
 		}
 	}
 
 	var order []string
-	visited := make(map[string]struct{})
+	visitState := make(map[string]uint8)
 	var walk func(string)
 	walk = func(id string) {
-		if _, seen := visited[id]; seen {
+		switch visitState[id] {
+		case 1:
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: descendant cycle reaches %q", rootID, id))
+			snapshotGraphComplete = false
+			return
+		case 2:
 			return
 		}
-		visited[id] = struct{}{}
+		visitState[id] = 1
+		childIDs := make([]string, 0, len(children[id]))
 		for childID := range children[id] {
+			childIDs = append(childIDs, childID)
+		}
+		slices.Sort(childIDs)
+		for _, childID := range childIDs {
 			walk(childID)
 		}
+		visitState[id] = 2
 		order = append(order, id)
 	}
 	walk(rootID)
 
 	deleter, canDelete := store.(core.SnapshotDeleter)
+	if store != nil && !canDelete {
+		cleanupErrs = append(cleanupErrs, errors.New("agentexec: discard process tree: process store cannot delete terminal snapshots"))
+	}
+	blocked := make(map[string]bool)
 	for _, id := range order {
-		if process := live[id]; process != nil && !process.Status().IsTerminal() {
-			_ = p.engine.Kill(id)
+		for childID := range children[id] {
+			if blocked[childID] {
+				blocked[id] = true
+				break
+			}
 		}
-		_ = p.engine.Remove(id)
-		if canDelete {
-			_ = deleter.Delete(ctx, id)
+		if blocked[id] {
+			continue
+		}
+		if process := live[id]; process != nil && !process.Status().IsTerminal() {
+			if err := engine.Kill(id); err != nil && !errors.Is(err, runtime.ErrProcessNotFound) {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: kill process %q: %w", rootID, id, err))
+				blocked[id] = true
+				continue
+			}
+		}
+		if live[id] != nil {
+			if err := engine.Remove(id); err != nil && !errors.Is(err, runtime.ErrProcessNotFound) {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: remove process %q: %w", rootID, id, err))
+				blocked[id] = true
+				continue
+			}
+		}
+		if canDelete && snapshotGraphComplete {
+			if err := deleter.Delete(ctx, id); err != nil {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: delete snapshot %q: %w", rootID, id, err))
+				blocked[id] = true
+			}
 		}
 	}
+	return errors.Join(cleanupErrs...)
 }
 
 func (p *turnProcess) Output() (TurnOutput, error) {
