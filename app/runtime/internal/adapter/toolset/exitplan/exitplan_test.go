@@ -22,7 +22,11 @@ func TestNew_NilApproval(t *testing.T) {
 // TestExitPlan_Validation: malformed args and an empty plan are model-facing
 // errors raised before the call parks.
 func TestExitPlan_Validation(t *testing.T) {
-	tool, err := New(approval.New(approval.ModePlan, nil), nil)
+	policy, err := approval.New(approval.ModePlan, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := New(policy, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +41,11 @@ func TestExitPlan_Validation(t *testing.T) {
 // TestExitPlan_NotInPlanMode: calling exit_plan_mode outside the plan stance is
 // a no-op message (not an error, no park) — it only applies in plan mode.
 func TestExitPlan_NotInPlanMode(t *testing.T) {
-	tool, err := New(approval.New(approval.ModeBalanced, nil), nil) // not plan
+	policy, err := approval.New(approval.ModeBalanced, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := New(policy, nil) // not plan
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"iter"
 	"sync"
 	"sync/atomic"
+	"testing"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -40,6 +41,15 @@ func withApproval(policy approval.Policy) func(*turn.Dependencies) {
 	return func(deps *turn.Dependencies) {
 		deps.Approval = policy
 	}
+}
+
+func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleStore) approval.Policy {
+	t.Helper()
+	policy, err := approval.New(mode, store)
+	if err != nil {
+		t.Fatalf("new approval policy: %v", err)
+	}
+	return policy
 }
 
 func withClientResolver(resolver interface {

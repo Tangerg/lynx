@@ -83,7 +83,7 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 				{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 				{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 			}, hooks.NewRunner(recorder, nil))
-			policy := approval.New(approval.ModeBalanced, nil)
+			policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 			dispatcher := buildB8Dispatcher(t, &childToolModel{
 				defaults:       &chat.Options{Model: "b8-child-hitl"},
 				childTool:      test.childTool,
@@ -189,7 +189,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 	}, hooks.NewRunner(recorder, nil))
-	policy := approval.New(approval.ModeBalanced, nil)
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8Dispatcher(t, &twoQuestionChildModel{
 		defaults: &chat.Options{Model: "b8-two-questions"},
 	}, policy, staticHookResolver{bound: bound})
@@ -253,7 +253,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		childTool:      "shell",
 		childArguments: `{"command":"echo original"}`,
 	}
-	policy := approval.New(approval.ModeBalanced, nil)
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 
 	firstHooks := &hookCommandRecorder{
 		rewriteTool: "shell", rewriteArguments: `{"command":"echo first-hook"}`,
@@ -371,7 +371,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		childTool:      "shell",
 		childArguments: `{"command":"echo must-not-run"}`,
 	}
-	policy := approval.New(approval.ModeBalanced, nil)
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8PersistentDispatcher(
 		t, model, policy, staticHookResolver{}, store, history.NewInMemoryStore(), buildID,
 	)
@@ -425,7 +425,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		childTool:      "shell",
 		childArguments: `{"command":"echo original"}`,
 	}
-	policy := approval.New(approval.ModeBalanced, nil)
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	first := buildB8PersistentDispatcher(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
@@ -489,7 +489,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		childTool:      "shell",
 		childArguments: `{"command":"echo race"}`,
 	}
-	policy := approval.New(approval.ModeBalanced, nil)
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8Dispatcher(t, model, policy, staticHookResolver{})
 
 	for index := range 20 {

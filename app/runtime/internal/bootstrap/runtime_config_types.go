@@ -113,14 +113,15 @@ type Config struct {
 	// composition root injects the sqlite-backed store.
 	TodoStore todo.Store
 
-	// ApprovalMode sets the initial runtime approval stance. The service is
-	// always constructed; mode defaults to [approval.ModeYolo] when this field is
-	// the zero value.
+	// ApprovalMode sets the initial runtime approval stance. The zero value is
+	// [approval.ModeSafe]; [RuntimeConfig] explicitly selects the product default
+	// [approval.ModeBalanced]. Unknown modes fail assembly.
 	ApprovalMode approval.Mode
 
 	// ApprovalRuleStore persists fine-grained "remember this decision" rules
-	// (AUX_API §6). nil means no rules are remembered (Decide never matches);
-	// the composition root injects the sqlite-backed store.
+	// (AUX_API §6). nil is supported for mode-only test environments: Decide
+	// never matches and remember/forget return an unavailable error. The product
+	// composition root injects the sqlite-backed store.
 	ApprovalRuleStore approval.RuleStore
 
 	// Provider / Model name the runtime's DEFAULT provider+model; the one a turn

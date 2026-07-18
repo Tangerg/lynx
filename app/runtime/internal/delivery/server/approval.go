@@ -15,7 +15,11 @@ func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeRes
 	if err != nil {
 		return nil, err
 	}
-	return &protocol.ApprovalModeResult{Mode: approvalModeToWire(m)}, nil
+	mode, ok := approvalModeToWire(m)
+	if !ok {
+		return nil, fmt.Errorf("server: %w: %d", approval.ErrInvalidMode, m)
+	}
+	return &protocol.ApprovalModeResult{Mode: mode}, nil
 }
 
 // SetApprovalMode sets the runtime tool-permission stance (approval.setMode).
@@ -70,18 +74,20 @@ func approvalRuleToWire(r approval.Rule) protocol.ApprovalRule {
 	return wire
 }
 
-// approvalModeToWire maps the engine stance to its wire name. An unknown value
-// maps to balanced (the documented default execute stance).
-func approvalModeToWire(m approval.Mode) protocol.ApprovalMode {
+// approvalModeToWire maps the complete domain vocabulary to wire names. An
+// unknown value is rejected rather than disguised as a valid stance.
+func approvalModeToWire(m approval.Mode) (protocol.ApprovalMode, bool) {
 	switch m {
 	case approval.ModeSafe:
-		return protocol.ApprovalModeSafe
+		return protocol.ApprovalModeSafe, true
+	case approval.ModeBalanced:
+		return protocol.ApprovalModeBalanced, true
 	case approval.ModeYolo:
-		return protocol.ApprovalModeYolo
+		return protocol.ApprovalModeYolo, true
 	case approval.ModePlan:
-		return protocol.ApprovalModePlan
+		return protocol.ApprovalModePlan, true
 	default:
-		return protocol.ApprovalModeBalanced
+		return "", false
 	}
 }
 

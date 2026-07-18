@@ -14,7 +14,19 @@
 //     not the blunt "allow every shell call ever".
 package approval
 
-import "context"
+import (
+	"context"
+	"errors"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+)
+
+var (
+	ErrInvalidMode          = errors.New("approval: invalid mode")
+	ErrInvalidQuery         = errors.New("approval: invalid query")
+	ErrInvalidRule          = errors.New("approval: invalid rule")
+	ErrRuleStoreUnavailable = errors.New("approval: rule store unavailable")
+)
 
 // Mode is the runtime-wide permission stance. Set via config or the
 // approval.setMode method; read at each tool call by the chat
@@ -47,6 +59,15 @@ const (
 	ModePlan
 )
 
+func (m Mode) Valid() bool {
+	switch m {
+	case ModeSafe, ModeBalanced, ModeYolo, ModePlan:
+		return true
+	default:
+		return false
+	}
+}
+
 // Scope is how far a remembered rule reaches.
 type Scope string
 
@@ -60,6 +81,15 @@ const (
 	ScopeGlobal Scope = "global"
 )
 
+func (s Scope) Valid() bool {
+	switch s {
+	case ScopeSession, ScopeProject, ScopeGlobal:
+		return true
+	default:
+		return false
+	}
+}
+
 // Decision is a rule's standing verdict.
 type Decision string
 
@@ -67,6 +97,8 @@ const (
 	Allow Decision = "allow"
 	Deny  Decision = "deny"
 )
+
+func (d Decision) Valid() bool { return d == Allow || d == Deny }
 
 // Rule is one standing approval decision. A rule matches a tool call when the
 // call's scope key matches (same session / same project dir / always for
@@ -83,12 +115,12 @@ type Rule struct {
 
 // Query identifies one gated tool call for [Policy.Decide]. ProjectDir is the
 // call's working directory (the project scope key); empty for sessions without
-// a cwd. Arguments is the raw tool-call JSON — the subject is extracted from it.
+// a cwd. Arguments owns the validated call object used to derive its subject.
 type Query struct {
 	SessionID  string
 	ProjectDir string
 	Tool       string
-	Arguments  string
+	Arguments  tool.Arguments
 }
 
 // RememberRequest persists a rule from a user's "approve/deny + remember{scope}"
@@ -99,7 +131,7 @@ type RememberRequest struct {
 	SessionID  string
 	ProjectDir string
 	Tool       string
-	Arguments  string
+	Arguments  tool.Arguments
 	Decision   Decision
 }
 
@@ -121,9 +153,10 @@ type Policy interface {
 	// Deny (the conservative choice).
 	Decide(ctx context.Context, q Query) (decision Decision, ok bool, err error)
 
-	// Remember persists a rule from an approve/deny + remember choice. A project
-	// rule with no ProjectDir, or a session rule with no SessionID, is dropped
-	// rather than stored under an empty key.
+	// Remember persists a rule from an approve/deny + remember choice. Invalid
+	// scopes, missing scope keys, malformed tool subjects, and unknown decisions
+	// are explicit errors; callers must never report an unpersisted rule as
+	// remembered.
 	Remember(ctx context.Context, req RememberRequest) error
 
 	// Rules lists every rule visible from a session — its session rules, its

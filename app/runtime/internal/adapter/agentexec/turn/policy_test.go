@@ -2,10 +2,17 @@ package turn
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // TestApproveToolCall_RememberedShortCircuit verifies the gate consults a
@@ -14,25 +21,33 @@ import (
 // hitl.Interrupt, so no agent process context is needed.
 func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // shell gates → would prompt
+	appr := newTestApprovalPolicy(t, approval.ModeSafe)
 	obs := &turnObserver{
 		dispatcher: &memoryDispatcher{approval: appr},
 		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 
 	// Remembered allow → verdict runs (no interrupt, not denied).
-	_ = appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Arguments: "{}", Decision: approval.Allow,
-	})
-	if v := obs.ApproveToolCall(ctx, "c1", "shell", "{}", nil); v.Interrupt != nil || v.Denied {
+	shellArguments := `{"command":"go test"}`
+	if err := appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell",
+		Arguments: mustToolArguments(t, shellArguments), Decision: approval.Allow,
+	}); err != nil {
+		t.Fatalf("remember shell allow: %v", err)
+	}
+	if v := obs.ApproveToolCall(ctx, "c1", "shell", shellArguments, nil); v.Interrupt != nil || v.Denied {
 		t.Fatalf("remembered allow = %+v, want a clean run verdict", v)
 	}
 
 	// Remembered deny → verdict denies (no interrupt).
-	_ = appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write", Arguments: "{}", Decision: approval.Deny,
-	})
-	if v := obs.ApproveToolCall(ctx, "c2", "write", "{}", nil); v.Interrupt != nil || !v.Denied {
+	writeArguments := `{"file_path":"main.go"}`
+	if err := appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write",
+		Arguments: mustToolArguments(t, writeArguments), Decision: approval.Deny,
+	}); err != nil {
+		t.Fatalf("remember write deny: %v", err)
+	}
+	if v := obs.ApproveToolCall(ctx, "c2", "write", writeArguments, nil); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }
@@ -44,7 +59,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 // GateDeny is never reached, since that's a separate switch case above).
 func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
-	appr := approval.New(approval.ModeSafe, approvaltest.NewMemoryStore()) // unknown tool → exec → would prompt
+	appr := newTestApprovalPolicy(t, approval.ModeSafe)
 	obs := &turnObserver{
 		dispatcher: &memoryDispatcher{
 			approval:            appr,
@@ -63,10 +78,124 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	// non-whitelisted tool still gates; that prompt path needs real HITL
 	// plumbing and is covered by the TestDispatcher_ApprovalGate_* integration
 	// tests, not this bare-construction unit test.)
-	_ = appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read", Arguments: "{}", Decision: approval.Deny,
-	})
+	if err := appr.Remember(ctx, approval.RememberRequest{
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read",
+		Arguments: mustToolArguments(t, `{}`), Decision: approval.Deny,
+	}); err != nil {
+		t.Fatalf("remember MCP deny: %v", err)
+	}
 	if v := obs.ApproveToolCall(ctx, "c2", "srv_read", "{}", nil); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny over auto-approve = %+v, want a denied verdict", v)
 	}
+}
+
+func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
+	t.Run("decide", func(t *testing.T) {
+		want := errors.New("rule store unavailable")
+		observer := approvalObserver(&errorApprovalPolicy{decideErr: want})
+		verdict := observer.ApproveToolCall(
+			t.Context(), "call_1", "shell", `{"command":"go test"}`, nil,
+		)
+		if !errors.Is(verdict.Interrupt, want) {
+			t.Fatalf("approval verdict = %+v, want decision error", verdict)
+		}
+	})
+
+	t.Run("remember restored response", func(t *testing.T) {
+		want := errors.New("rule write unavailable")
+		const arguments = `{"command":"go test"}`
+		pending := runs.Interrupt{
+			Kind: runs.ApprovalInterruptKind,
+			Approval: &runs.ApprovalPrompt{
+				CallID: "call_1", ToolName: "shell", Arguments: arguments,
+				SafetyClass: tool.SafetyClassExec,
+			},
+		}
+		prompt, err := json.Marshal(pending)
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := json.Marshal(interrupts.Resolution{
+			Approved: true, RememberScope: string(approval.ScopeSession),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := interrupts.InterruptKey(string(runs.ApprovalInterruptKind), "shell", arguments)
+		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
+			ID: key, Prompt: prompt, Response: response,
+		}})
+		verdict := approvalObserver(&errorApprovalPolicy{rememberErr: want}).ApproveToolCall(
+			ctx, "call_1", "shell", arguments, nil,
+		)
+		if !errors.Is(verdict.Interrupt, want) {
+			t.Fatalf("approval verdict = %+v, want remember error", verdict)
+		}
+	})
+}
+
+func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
+	verdict := approvalObserver(newTestApprovalPolicy(t, approval.ModeSafe)).ApproveToolCall(
+		t.Context(), "call_1", "shell", `{"command":`, nil,
+	)
+	if !errors.Is(verdict.Interrupt, tool.ErrInvalidArguments) {
+		t.Fatalf("approval verdict = %+v, want invalid tool arguments", verdict)
+	}
+}
+
+func approvalObserver(policy approval.Policy) *turnObserver {
+	return &turnObserver{
+		dispatcher: &memoryDispatcher{approval: policy},
+		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
+	}
+}
+
+type errorApprovalPolicy struct {
+	decideErr   error
+	rememberErr error
+}
+
+func (*errorApprovalPolicy) Mode(context.Context) (approval.Mode, error) {
+	return approval.ModeSafe, nil
+}
+
+func (*errorApprovalPolicy) SetMode(context.Context, approval.Mode) error { return nil }
+
+func (p *errorApprovalPolicy) Decide(context.Context, approval.Query) (approval.Decision, bool, error) {
+	return "", false, p.decideErr
+}
+
+func (p *errorApprovalPolicy) Remember(context.Context, approval.RememberRequest) error {
+	return p.rememberErr
+}
+
+func (*errorApprovalPolicy) Rules(context.Context, string, string) ([]approval.Rule, error) {
+	return nil, nil
+}
+
+func (*errorApprovalPolicy) Forget(context.Context, string) error { return nil }
+
+type suspendedProcessView struct {
+	core.ProcessView
+	value *interaction.Suspension
+}
+
+func (p suspendedProcessView) Suspension() *interaction.Suspension { return p.value }
+
+func newTestApprovalPolicy(t *testing.T, mode approval.Mode) approval.Policy {
+	t.Helper()
+	policy, err := approval.New(mode, approvaltest.NewMemoryStore())
+	if err != nil {
+		t.Fatalf("new approval policy: %v", err)
+	}
+	return policy
+}
+
+func mustToolArguments(t *testing.T, raw string) tool.Arguments {
+	t.Helper()
+	arguments, err := tool.ParseArguments(raw)
+	if err != nil {
+		t.Fatalf("parse tool arguments: %v", err)
+	}
+	return arguments
 }
