@@ -91,7 +91,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
 		if !resume {
-			_ = c.cancelTurnAfterAdmissionFailure(reqCtx, spec.turnRef())
+			return nil, c.rejectUnadmittedTurn(reqCtx, spec.turnRef(), ErrClosed)
 		}
 		return nil, ErrClosed
 	}
@@ -100,7 +100,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	if err != nil {
 		cancel()
 		if !resume {
-			_ = c.executor.CancelTurn(taskCtx, spec.turnRef())
+			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
 		}
 		release()
 		return nil, err
@@ -117,7 +117,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	if err != nil {
 		cancel()
 		if !resume {
-			_ = c.executor.CancelTurn(taskCtx, spec.turnRef())
+			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
 		}
 		release()
 		return nil, err
@@ -197,12 +197,18 @@ func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
 	}
 }
 
-// cancelTurnAfterAdmissionFailure tears down a turn that was created but never
-// admitted (the Coordinator closed between turn start and Attach).
-func (c *Coordinator) cancelTurnAfterAdmissionFailure(ctx context.Context, ref TurnRef) error {
+// rejectUnadmittedTurn tears down a fresh turn that failed before its opening
+// write-set committed. The rejection cause and teardown failure are both
+// preserved: hiding the latter would report a clean rejection while leaking an
+// executor turn the application never admitted.
+func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref TurnRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	return c.executor.CancelTurn(cleanupCtx, ref)
+	if err := c.executor.CancelTurn(cleanupCtx, ref); err != nil {
+		cleanupErr := fmt.Errorf("runs: cancel unadmitted turn %q: %w", ref.TurnID, err)
+		return errors.Join(cause, cleanupErr)
+	}
+	return cause
 }
 
 // CancelBinding identifies the durable run/turn a cancel must act on.

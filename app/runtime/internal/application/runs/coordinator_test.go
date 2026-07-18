@@ -20,6 +20,7 @@ type fakeExecutor struct {
 	mu            sync.Mutex
 	canceled      int
 	startErr      error
+	cancelErr     error
 	cancelStarted chan struct{}
 	releaseCancel chan struct{}
 }
@@ -51,7 +52,7 @@ func (f *fakeExecutor) CancelTurn(context.Context, TurnRef) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.canceled++
-	return nil
+	return f.cancelErr
 }
 
 func (f *fakeExecutor) cancels() int {
@@ -176,6 +177,21 @@ func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	}
 	if effects.finishCount() != 0 {
 		t.Fatalf("Finish calls = %d, want none without a committed terminal", effects.finishCount())
+	}
+}
+
+func TestCoordinatorPreservesUnadmittedTurnCleanupFailure(t *testing.T) {
+	cleanupErr := errors.New("executor cleanup failed")
+	executor := &fakeExecutor{cancelErr: cleanupErr}
+	openingErr := errors.New("opening commit failed")
+	coordinator := testCoordinator(executor, &fakeEffects{openingErr: openingErr})
+
+	_, err := coordinator.openSegment(t.Context(), testSegment())
+	if !errors.Is(err, openingErr) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("openSegment error = %v, want opening and cleanup failures", err)
+	}
+	if executor.cancels() != 1 {
+		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
 	}
 }
 
@@ -426,6 +442,18 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 	}
 }
 
+func TestCoordinatorPreservesSubscriptionAndCleanupFailures(t *testing.T) {
+	startErr := errors.New("event subscription failed")
+	cleanupErr := errors.New("executor cleanup failed")
+	executor := &fakeExecutor{startErr: startErr, cancelErr: cleanupErr}
+	coordinator := testCoordinator(executor, &fakeEffects{})
+
+	_, err := coordinator.openSegment(t.Context(), testSegment())
+	if !errors.Is(err, startErr) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("openSegment error = %v, want subscription and cleanup failures", err)
+	}
+}
+
 func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{rejectCanceled: true}
@@ -463,6 +491,18 @@ func TestCoordinatorStartAfterClose(t *testing.T) {
 	}
 	if executor.cancels() != 1 {
 		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	}
+}
+
+func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
+	cleanupErr := errors.New("executor cleanup failed")
+	executor := &fakeExecutor{cancelErr: cleanupErr}
+	coordinator := testCoordinator(executor, &fakeEffects{})
+	coordinator.Close()
+
+	_, err := coordinator.openSegment(t.Context(), testSegment())
+	if !errors.Is(err, ErrClosed) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("openSegment error = %v, want ErrClosed and cleanup failure", err)
 	}
 }
 

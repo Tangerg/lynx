@@ -175,8 +175,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 }
 
 // Cancel handles both live and parked runs under the same run/session admission
-// rules. Executor cancellation is best-effort; the durable abandon write-set is
-// authoritative and must succeed.
+// rules. The durable abandon write-set is authoritative and commits before a
+// parked turn is torn down. Process cleanup errors are returned unless the turn
+// already disappeared, which is the idempotent completion race.
 func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	if err := c.requireControlDependencies(); err != nil {
 		return err
@@ -184,7 +185,9 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	binding, cleanupCtx, cancel, live := c.BeginCancel(ctx, cmd.RunID, cmd.Reason)
 	if live {
 		defer cancel()
-		_ = c.turns.Cancel(cleanupCtx, TurnRef(binding))
+		if err := c.turns.Cancel(cleanupCtx, TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
+			return fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
+		}
 		return nil
 	}
 
@@ -207,7 +210,9 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	cancel()
 	turnCtx, cancelTurn := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancelTurn()
-	_ = c.turns.Cancel(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
+	if err := c.turns.Cancel(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
+		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
+	}
 	return nil
 }
 

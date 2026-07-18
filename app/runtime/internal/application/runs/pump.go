@@ -2,8 +2,11 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
+
+	"go.opentelemetry.io/otel/trace"
 )
 
 // pump is the run segment goroutine: Start has already atomically committed and
@@ -114,7 +117,9 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		}
 		if ctx.Err() != nil || abortTurn {
 			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
-			_ = c.executor.CancelTurn(teardownCtx, spec.turnRef())
+			if err := c.executor.CancelTurn(teardownCtx, spec.turnRef()); err != nil && !errors.Is(err, ErrTurnNotLive) {
+				recordRunCleanupError(teardownCtx, fmt.Errorf("runs: tear down turn %q: %w", spec.TurnID, err))
+			}
 			cancelTeardown()
 		}
 		hub.Close()
@@ -160,5 +165,11 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
+	}
+}
+
+func recordRunCleanupError(ctx context.Context, err error) {
+	if err != nil {
+		trace.SpanFromContext(ctx).RecordError(err)
 	}
 }

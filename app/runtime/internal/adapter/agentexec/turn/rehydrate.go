@@ -68,20 +68,28 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 	state.lifecycle.setRoot(process.ID())
 	state.setProcess(process)
 	if !state.parkIfLive() {
-		_ = process.Cancel()
-		discardProcess(state.ctx, process)
-		state.cancel()
-		state.span.End()
-		return TurnHandle{}, ErrDispatcherClosed
+		return TurnHandle{}, rejectRestoredTurn(
+			state,
+			process,
+			errors.New("turn: restored turn was canceled before registration"),
+		)
 	}
 
 	if !s.register(state) {
-		_ = process.Cancel()
-		discardProcess(state.ctx, process)
-		state.cancel()
-		state.span.End()
-		return TurnHandle{}, ErrDispatcherClosed
+		return TurnHandle{}, rejectRestoredTurn(state, process, ErrDispatcherClosed)
 	}
 
 	return handle, nil
+}
+
+// rejectRestoredTurn tears down a process restored during a dispatcher-close
+// race. The close error and process cancellation failure are both preserved;
+// snapshot discard remains terminal maintenance.
+func rejectRestoredTurn(state *turnState, process agentexec.TurnProcess, cause error) error {
+	cancelErr := cancelTurnProcess(process)
+	recordTurnCleanupError(state, cancelErr)
+	discardProcess(state.ctx, process)
+	state.cancel()
+	state.span.End()
+	return errors.Join(cause, cancelErr)
 }

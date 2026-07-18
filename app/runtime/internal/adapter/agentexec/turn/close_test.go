@@ -72,6 +72,7 @@ func TestCloseDeadlineCoversCancellationWork(t *testing.T) {
 
 type blockingCancelProcess struct {
 	release <-chan struct{}
+	err     error
 }
 
 func (*blockingCancelProcess) ID() string                 { return "proc_1" }
@@ -82,10 +83,30 @@ func (*blockingCancelProcess) Output() (agentexec.TurnOutput, error) {
 }
 func (p *blockingCancelProcess) Cancel() error {
 	<-p.release
-	return nil
+	return p.err
 }
 func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) (<-chan error, error) {
 	return nil, nil
 }
 func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
 func (*blockingCancelProcess) Discard(context.Context)       {}
+
+func TestCloseReportsProcessCancellationFailure(t *testing.T) {
+	cancelErr := errors.New("kill failed")
+	release := make(chan struct{})
+	close(release)
+	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
+	st.setProcess(&blockingCancelProcess{release: release, err: cancelErr})
+	if !st.parkIfLive() {
+		t.Fatal("failed to park test turn")
+	}
+	dispatcher := &memoryDispatcher{
+		turns:        map[string]*turnState{st.handle.TurnID: st},
+		seenSessions: map[string]struct{}{},
+	}
+
+	err := dispatcher.close(t.Context())
+	if !errors.Is(err, cancelErr) {
+		t.Fatalf("close error = %v, want process cancellation failure", err)
+	}
+}

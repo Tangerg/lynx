@@ -41,7 +41,7 @@ func (e *Executor) TurnEvents(ctx context.Context, ref runs.TurnRef) (iter.Seq[r
 
 // CancelTurn stops a live or parked turn by durable identity.
 func (e *Executor) CancelTurn(ctx context.Context, ref runs.TurnRef) error {
-	return e.dispatcher.Cancel(ctx, concreteHandle(ref))
+	return mapControlError(e.dispatcher.Cancel(ctx, concreteHandle(ref)))
 }
 
 // ValidateStart applies application-owned turn invariants plus the adapter's
@@ -111,7 +111,7 @@ func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (r
 
 // Cancel tears down a live or parked turn addressed by neutral identity.
 func (e *Executor) Cancel(ctx context.Context, ref runs.TurnRef) error {
-	return e.dispatcher.Cancel(ctx, concreteHandle(ref))
+	return mapControlError(e.dispatcher.Cancel(ctx, concreteHandle(ref)))
 }
 
 // Steer injects a message into a live turn addressed by neutral identity.
