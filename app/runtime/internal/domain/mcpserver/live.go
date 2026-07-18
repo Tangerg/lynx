@@ -35,7 +35,7 @@ type ToolInfo struct {
 	Server      string
 	Name        string
 	Description string
-	InputSchema map[string]any
+	InputSchema InputSchema
 }
 
 // ConnectionStatus is the per-server live connection state exposed by the MCP

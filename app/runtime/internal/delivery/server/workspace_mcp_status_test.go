@@ -61,8 +61,12 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 }
 
 func TestWorkspaceMCPListTools(t *testing.T) {
+	readSchema, err := mcpserver.ParseInputSchema([]byte(`{"type":"object"}`))
+	if err != nil {
+		t.Fatalf("ParseInputSchema: %v", err)
+	}
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{tools: []mcpserver.ToolInfo{
-		{Server: "fs", Name: "read", Description: "read a file", InputSchema: map[string]any{"type": "object"}},
+		{Server: "fs", Name: "read", Description: "read a file", InputSchema: readSchema},
 		{Server: "fs", Name: "write"},
 		{Server: "git", Name: "log"},
 	}}))

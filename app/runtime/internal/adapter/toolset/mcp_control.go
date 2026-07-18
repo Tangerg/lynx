@@ -38,20 +38,11 @@ func (c *mcpControl) Statuses() []mcpserver.ConnectionStatus {
 }
 
 func (c *mcpControl) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
-	tools, err := c.inner.Tools(ctx, server)
+	catalog, err := c.inner.Tools(ctx, server)
 	if err != nil {
 		return nil, mapMCPError(err)
 	}
-	out := make([]mcpserver.ToolInfo, len(tools))
-	for i, t := range tools {
-		out[i] = mcpserver.ToolInfo{
-			Server:      t.Server,
-			Name:        t.Name,
-			Description: t.Description,
-			InputSchema: t.InputSchema,
-		}
-	}
-	return out, nil
+	return catalog, nil
 }
 
 func (c *mcpControl) Reconnect(ctx context.Context, name string) error {

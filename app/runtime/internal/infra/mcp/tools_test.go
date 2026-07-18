@@ -3,15 +3,29 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
 type concurrencyKeyer interface {
 	ConcurrencyKey(arguments string) (key string, concurrent bool)
+}
+
+func TestInputSchemaRejectsMissingAndInvalidValues(t *testing.T) {
+	if _, err := inputSchema(nil); !errors.Is(err, mcpserver.ErrInvalidInputSchema) {
+		t.Fatalf("inputSchema(nil) error = %v, want ErrInvalidInputSchema", err)
+	}
+	if _, err := inputSchema(map[string]any{"type": "array"}); !errors.Is(err, mcpserver.ErrInvalidInputSchema) {
+		t.Fatalf("inputSchema(array) error = %v, want ErrInvalidInputSchema", err)
+	}
+	if _, err := inputSchema(make(chan int)); !errors.Is(err, mcpserver.ErrInvalidInputSchema) {
+		t.Fatalf("inputSchema(channel) error = %v, want ErrInvalidInputSchema", err)
+	}
 }
 
 func TestSourceToolsEnablesOnlyAnnotatedReadOnlyConcurrency(t *testing.T) {

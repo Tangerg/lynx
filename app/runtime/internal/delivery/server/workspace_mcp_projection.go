@@ -79,7 +79,7 @@ func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
 		Server:      t.Server,
 		Name:        t.Name,
 		Description: t.Description,
-		InputSchema: t.InputSchema,
+		InputSchema: t.InputSchema.Map(),
 	}
 }
 

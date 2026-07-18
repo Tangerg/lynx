@@ -7,6 +7,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -36,7 +37,7 @@ func (c *Connections) Statuses() []ServerStatus {
 // Tools lists the tools advertised by the connected servers, scoped to server
 // when non-empty. It queries each session's tools/list live, ordered by
 // (server, tool name) as dialed. Nil-safe.
-func (c *Connections) Tools(ctx context.Context, server string) ([]ToolInfo, error) {
+func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if c == nil {
 		return nil, nil
 	}
@@ -53,17 +54,26 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]ToolInfo, err
 	}
 	c.mu.Unlock()
 
-	var out []ToolInfo
+	var out []mcpserver.ToolInfo
 	for _, t := range targets {
 		for descriptor, err := range t.session.Tools(ctx, nil) {
 			if err != nil {
 				return nil, fmt.Errorf("mcp: list tools from server %q: %w", t.name, err)
 			}
-			out = append(out, ToolInfo{
+			schema, err := inputSchema(descriptor.InputSchema)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"mcp: decode input schema for tool %q from server %q: %w",
+					descriptor.Name,
+					t.name,
+					err,
+				)
+			}
+			out = append(out, mcpserver.ToolInfo{
 				Server:      t.name,
 				Name:        descriptor.Name,
 				Description: descriptor.Description,
-				InputSchema: schemaToMap(descriptor.InputSchema),
+				InputSchema: schema,
 			})
 		}
 	}
