@@ -25,18 +25,16 @@ func (r *toolRegistryFake) Invoke(_ context.Context, name string, arguments stri
 }
 
 func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
+	shellSchema, err := tool.ParseSchema([]byte(`{"type":"object","properties":{"cmd":{"type":"string"}}}`))
+	if err != nil {
+		t.Fatalf("ParseSchema: %v", err)
+	}
 	s := serverWithTools(&toolRegistryFake{tools: []tool.Tool{
 		{
 			Name:        "shell",
 			Description: "run a command",
-			Schema:      `{"type":"object","properties":{"cmd":{"type":"string"}}}`,
+			Schema:      shellSchema,
 			SafetyClass: tool.SafetyClassExec,
-		},
-		{
-			Name:        "bad-schema",
-			Description: "still listed",
-			Schema:      `{`,
-			SafetyClass: tool.SafetyClassSafe,
 		},
 	}})
 
@@ -44,17 +42,14 @@ func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list tools: %v", err)
 	}
-	if len(page.Data) != 2 {
-		t.Fatalf("tools = %+v, want 2", page.Data)
+	if len(page.Data) != 1 {
+		t.Fatalf("tools = %+v, want 1", page.Data)
 	}
 	if page.Data[0].Name != "shell" || page.Data[0].SafetyClass != protocol.SafetyClassExec {
 		t.Fatalf("shell wire = %+v", page.Data[0])
 	}
 	if page.Data[0].Parameters["type"] != "object" {
 		t.Fatalf("schema = %+v, want decoded object schema", page.Data[0].Parameters)
-	}
-	if len(page.Data[1].Parameters) != 0 {
-		t.Fatalf("bad schema parameters = %+v, want empty object", page.Data[1].Parameters)
 	}
 }
 

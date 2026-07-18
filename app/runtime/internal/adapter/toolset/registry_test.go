@@ -30,8 +30,8 @@ func TestRegistryListsCatalogMetadata(t *testing.T) {
 	got := make(map[string]tool.SafetyClass, len(found))
 	for _, candidate := range found {
 		got[candidate.Name] = candidate.SafetyClass
-		if candidate.Schema == "" {
-			t.Errorf("tool %q has empty schema", candidate.Name)
+		if candidate.Schema.Map() == nil {
+			t.Errorf("tool %q has nil schema object", candidate.Name)
 		}
 		if candidate.Description == "" {
 			t.Errorf("tool %q has empty description", candidate.Name)

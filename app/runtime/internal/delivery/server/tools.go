@@ -19,7 +19,7 @@ func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 		out = append(out, protocol.ToolSpec{
 			Name:        t.Name,
 			Description: t.Description,
-			Parameters:  parseSchema(t.Schema),
+			Parameters:  t.Schema.Map(),
 			SafetyClass: presentSafetyClass(t.SafetyClass),
 		})
 	}
@@ -35,17 +35,4 @@ func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) 
 		return nil, err
 	}
 	return s.tools.Invoke(ctx, in.Name, string(args))
-}
-
-// parseSchema decodes a tool's JSON Schema string into a structured
-// object; an empty / unparseable schema becomes an empty object.
-func parseSchema(raw string) map[string]any {
-	if raw == "" {
-		return map[string]any{}
-	}
-	var m map[string]any
-	if json.Unmarshal([]byte(raw), &m) != nil {
-		return map[string]any{}
-	}
-	return m
 }
