@@ -19,7 +19,10 @@ package exec
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -38,10 +41,15 @@ type Shells struct {
 	shells    map[string]*Shell
 	closed    bool
 	closeOnce sync.Once
+	closeErr  error
 }
 
-// ErrShellsClosed reports a launch attempted after the shell owner shut down.
-var ErrShellsClosed = errors.New("exec: shells closed")
+var (
+	// ErrShellsClosed reports a launch attempted after the shell owner shut down.
+	ErrShellsClosed = errors.New("exec: shells closed")
+	// ErrShellNotFound reports a command addressed outside this owner's shell set.
+	ErrShellNotFound = errors.New("exec: shell not found")
+)
 
 // NewShells creates an empty background-shell set.
 func NewShells() *Shells {
@@ -104,14 +112,15 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	// whose exec.Cmd is only partly initialized. Once the shell is published,
 	// cmd.Process is immutable and Kill/KillAll may safely use it.
 	startErr := cmd.Start()
-	s.shells[id] = sh
-	s.mu.Unlock()
-
 	if startErr != nil {
 		cancel()
 		sh.finish("start failed: "+startErr.Error(), -1, false)
+		s.shells[id] = sh
+		s.mu.Unlock()
 		return id, nil
 	}
+	s.shells[id] = sh
+	s.mu.Unlock()
 	go func() {
 		err := cmd.Wait()
 		killed := runCtx.Err() != nil // ctx done = timeout or an explicit Kill
@@ -138,21 +147,28 @@ func (s *Shells) Get(id string) (*Shell, bool) {
 	return sh, ok
 }
 
-// Kill stops a background shell; reports whether it was still running and
-// whether it existed.
-func (s *Shells) Kill(id string) (running, ok bool) {
+// Kill stops a background shell and reports whether it was still running.
+// Missing ids have the stable [ErrShellNotFound] identity. A process that exits
+// between the state snapshot and the kill is an idempotent success.
+func (s *Shells) Kill(id string) (running bool, err error) {
 	sh, ok := s.Get(id)
 	if !ok {
-		return false, false
+		return false, fmt.Errorf("%w: %q", ErrShellNotFound, id)
 	}
 	sh.mu.Lock()
 	running = !sh.finished
 	sh.mu.Unlock()
-	if running {
-		sh.cancel()
-		_ = sh.cmd.Process.Kill()
+	if !running {
+		return false, nil
 	}
-	return running, true
+	sh.cancel()
+	if sh.cmd.Process == nil {
+		return true, fmt.Errorf("exec: kill shell %q: process is unavailable", id)
+	}
+	if err := sh.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return true, fmt.Errorf("exec: kill shell %q: %w", id, err)
+	}
+	return true, nil
 }
 
 // Remove drops a shell from the set without killing it. The foreground
@@ -165,24 +181,37 @@ func (s *Shells) Remove(id string) {
 	s.mu.Unlock()
 }
 
-// KillAll stops and joins every background shell — called on engine shutdown.
-func (s *Shells) KillAll() {
+// KillAll stops and joins every background shell in stable id order. It keeps
+// every process-kill failure while still joining the complete set. Safe to call
+// repeatedly; subsequent calls return the original shutdown result.
+func (s *Shells) KillAll() error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
 		shells := s.shells
 		s.shells = map[string]*Shell{}
 		s.mu.Unlock()
-		for _, sh := range shells {
+		ids := make([]string, 0, len(shells))
+		for id := range shells {
+			ids = append(ids, id)
+		}
+		slices.Sort(ids)
+		var errs []error
+		for _, id := range ids {
+			sh := shells[id]
 			sh.cancel()
 			if sh.cmd.Process != nil {
-				_ = sh.cmd.Process.Kill()
+				if err := sh.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+					errs = append(errs, fmt.Errorf("exec: kill shell %q during shutdown: %w", id, err))
+				}
 			}
 		}
-		for _, sh := range shells {
-			<-sh.done
+		for _, id := range ids {
+			<-shells[id].done
 		}
+		s.closeErr = errors.Join(errs...)
 	})
+	return s.closeErr
 }
 
 func (s *Shell) finish(info string, code int, killed bool) {

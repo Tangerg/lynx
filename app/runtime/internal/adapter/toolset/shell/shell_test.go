@@ -26,12 +26,21 @@ func shellTool(t *testing.T, shells *exec.Shells, name string) tools.Tool {
 	return nil
 }
 
+func cleanupShells(t *testing.T, shells *exec.Shells) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := shells.KillAll(); err != nil {
+			t.Errorf("KillAll: %v", err)
+		}
+	})
+}
+
 // TestShell_CompletesInline checks the foreground fast path: a quick command
 // finishes within the auto-background window and returns its output + exit code
 // inline (not as a background job).
 func TestShell_CompletesInline(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
 	out, err := shell.Call(context.Background(), `{"command":"printf hello"}`)
@@ -55,7 +64,7 @@ func TestShell_CompletesInline(t *testing.T) {
 // returns a shell id immediately, and shell_output reads its output.
 func TestShell_RunInBackground(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
 
@@ -83,7 +92,7 @@ func TestShell_RunInBackground(t *testing.T) {
 // design — event-driven, no sleep poll loop).
 func TestShellOutput_Wait(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
 
@@ -105,7 +114,7 @@ func TestShellOutput_Wait(t *testing.T) {
 // error) when timeout_seconds elapses before the command exits.
 func TestShellOutput_WaitTimeout(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
 
@@ -126,22 +135,22 @@ func TestShellOutput_WaitTimeout(t *testing.T) {
 // addressable by its shell id.
 func TestShell_AutoBackground(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
 	out, err := shell.Call(context.Background(), `{"command":"sleep 30","auto_background_after":1}`)
 	if err != nil || !strings.Contains(out, "shell bg_1") {
 		t.Fatalf("shell(auto-bg) = %q err=%v, want a background notice with bg_1", out, err)
 	}
-	if running, ok := shells.Kill("bg_1"); !ok || !running {
-		t.Fatalf("kill = (running=%v ok=%v), want the backgrounded shell still running", running, ok)
+	if running, err := shells.Kill("bg_1"); err != nil || !running {
+		t.Fatalf("kill = (running=%v err=%v), want the backgrounded shell still running", running, err)
 	}
 }
 
 // TestShellOutput_UnknownShell reports an unknown id gracefully (not an error).
 func TestShellOutput_UnknownShell(t *testing.T) {
 	shells := exec.NewShells()
-	t.Cleanup(shells.KillAll)
+	cleanupShells(t, shells)
 	output := shellTool(t, shells, "shell_output")
 
 	miss, err := output.Call(context.Background(), `{"shell_id":"bg_999"}`)

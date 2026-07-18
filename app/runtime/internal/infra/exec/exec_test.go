@@ -13,7 +13,11 @@ import (
 // and kill stops a still-running shell.
 func TestShells_RunReadKill(t *testing.T) {
 	shells := NewShells()
-	t.Cleanup(shells.KillAll)
+	t.Cleanup(func() {
+		if err := shells.KillAll(); err != nil {
+			t.Errorf("KillAll: %v", err)
+		}
+	})
 
 	// A quick command: capture output + completion.
 	id, err := shells.Launch(context.Background(), "", "printf hello", 0)
@@ -39,12 +43,12 @@ func TestShells_RunReadKill(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	running, ok := shells.Kill(longID)
-	if !ok || !running {
-		t.Fatalf("kill = (running=%v ok=%v), want a running shell stopped", running, ok)
+	running, err := shells.Kill(longID)
+	if err != nil || !running {
+		t.Fatalf("kill = (running=%v err=%v), want a running shell stopped", running, err)
 	}
 	waitDone(t, shells, longID)
-	if running2, _ := shells.Kill(longID); running2 {
+	if running2, err := shells.Kill(longID); err != nil || running2 {
 		t.Error("second kill should report not-running")
 	}
 }
@@ -53,7 +57,11 @@ func TestShells_RunReadKill(t *testing.T) {
 // its timeout is killed, and Outcome reports it as killed with a duration.
 func TestShells_TimeoutKills(t *testing.T) {
 	shells := NewShells()
-	t.Cleanup(shells.KillAll)
+	t.Cleanup(func() {
+		if err := shells.KillAll(); err != nil {
+			t.Errorf("KillAll: %v", err)
+		}
+	})
 
 	id, err := shells.Launch(context.Background(), "", "sleep 30", 200*time.Millisecond)
 	if err != nil {
@@ -82,7 +90,9 @@ func TestShellsKillAllJoinsProcesses(t *testing.T) {
 	}
 	sh := mustShell(t, shells, id)
 
-	shells.KillAll()
+	if err := shells.KillAll(); err != nil {
+		t.Fatalf("KillAll: %v", err)
+	}
 	select {
 	case <-sh.Done():
 	default:
@@ -95,9 +105,32 @@ func TestShellsKillAllJoinsProcesses(t *testing.T) {
 
 func TestShellsRejectLaunchAfterKillAll(t *testing.T) {
 	shells := NewShells()
-	shells.KillAll()
+	if err := shells.KillAll(); err != nil {
+		t.Fatalf("KillAll: %v", err)
+	}
 	if _, err := shells.Launch(context.Background(), "", "printf late", 0); !errors.Is(err, ErrShellsClosed) {
 		t.Fatalf("Launch after KillAll = %v, want ErrShellsClosed", err)
+	}
+}
+
+func TestShellsKillMissingHasStableIdentity(t *testing.T) {
+	shells := NewShells()
+	if _, err := shells.Kill("bg_missing"); !errors.Is(err, ErrShellNotFound) {
+		t.Fatalf("Kill missing shell = %v, want ErrShellNotFound", err)
+	}
+}
+
+func TestShellsFailedLaunchCanBeShutDown(t *testing.T) {
+	shells := NewShells()
+	id, err := shells.Launch(t.Context(), t.TempDir()+"/missing", "printf unreachable", 0)
+	if err != nil {
+		t.Fatalf("Launch: %v", err)
+	}
+	if id == "" {
+		t.Fatal("failed launch has no shell identity")
+	}
+	if err := shells.KillAll(); err != nil {
+		t.Fatalf("KillAll after failed launch: %v", err)
 	}
 }
 
@@ -115,7 +148,9 @@ func TestShellsLaunchRacesKillAll(t *testing.T) {
 				err error
 			}{id: id, err: err}
 		}()
-		shells.KillAll()
+		if err := shells.KillAll(); err != nil {
+			t.Errorf("KillAll: %v", err)
+		}
 		got := <-result
 		if got.err != nil && !errors.Is(got.err, ErrShellsClosed) {
 			t.Fatalf("Launch error = %v", got.err)

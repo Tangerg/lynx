@@ -175,7 +175,9 @@ func (t *toolSet) cancelForeground(ctx context.Context, id string, sh *exec.Shel
 		// Canceled mid-run: kill AND remove. A killed-and-discarded foreground
 		// command is not a background job the model will query later, so leaving
 		// it in the shell set just leaks a dead entry until engine shutdown.
-		t.shells.Kill(id)
+		if _, err := t.shells.Kill(id); err != nil && !errors.Is(err, exec.ErrShellNotFound) {
+			return "", errors.Join(ctx.Err(), fmt.Errorf("shell: stop canceled foreground command %q: %w", id, err))
+		}
 		t.shells.Remove(id)
 		return "", ctx.Err()
 	}
@@ -212,10 +214,12 @@ func (t *toolSet) kill(_ context.Context, a shellIDArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", err
 	}
-	running, ok := t.shells.Kill(a.ShellID)
+	running, err := t.shells.Kill(a.ShellID)
 	switch {
-	case !ok:
+	case errors.Is(err, exec.ErrShellNotFound):
 		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
+	case err != nil:
+		return "", fmt.Errorf("shell: kill background shell %q: %w", a.ShellID, err)
 	case running:
 		return fmt.Sprintf("Killed background shell %s.", a.ShellID), nil
 	default:
