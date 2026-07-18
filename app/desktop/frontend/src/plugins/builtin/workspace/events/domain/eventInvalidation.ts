@@ -6,7 +6,8 @@ export type WorkspaceInvalidationTarget =
   | "mcpServers"
   | "mcpTools"
   | "sessions"
-  | "skills";
+  | "skills"
+  | "managedSkills";
 
 export interface WorkspaceEventLike {
   type: string;
@@ -17,7 +18,7 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "files.changed":
       return ["filesChanged", "diff"];
     case "skills.changed":
-      return ["skills"];
+      return ["skills", "managedSkills"];
     case "mcp.serverChanged":
       return ["mcpServers", "mcpConfigs", "mcpTools"];
     case "schedules.fired":

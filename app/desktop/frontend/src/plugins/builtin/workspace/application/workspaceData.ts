@@ -29,6 +29,16 @@ export interface WorkspaceSkill {
   source: string;
 }
 
+// One entry in the global self-authored skill library (workspace.skills.list),
+// tagged with its curator lifecycle. Distinct from WorkspaceSkill (the agent's
+// project+global discovery view): this is the management surface, which also
+// lists archived skills.
+export interface ManagedSkillInfo {
+  name: string;
+  description: string;
+  lifecycle: "active" | "archived";
+}
+
 export interface WorkspaceAgentDoc {
   path: string;
   title: string;
@@ -138,6 +148,7 @@ export const WORKSPACE_PROJECTS_KEY = "projects";
 export const WORKSPACE_FILES_CHANGED_KEY = "files-changed";
 export const WORKSPACE_DIFF_KEY = "diff";
 export const WORKSPACE_SKILLS_KEY = "skills";
+export const WORKSPACE_MANAGED_SKILLS_KEY = "managed-skills";
 export const WORKSPACE_MEMORY_KEY = "memory";
 export const WORKSPACE_BUILTIN_TOOLS_KEY = "builtin-tools";
 export const WORKSPACE_GREP_KEY = "grep";
@@ -167,6 +178,7 @@ export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolInfo[]>(
   WORKSPACE_BUILTIN_TOOLS_KEY,
 );
 export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
+export const useManagedSkills = createDataQuery<ManagedSkillInfo[]>(WORKSPACE_MANAGED_SKILLS_KEY);
 export const useWorkspaceMemory = createParameterizedDataQuery<
   WorkspaceMemoryQuery,
   WorkspaceMemoryEntry[]

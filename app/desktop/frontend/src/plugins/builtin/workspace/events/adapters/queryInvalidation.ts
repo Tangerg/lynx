@@ -8,6 +8,7 @@ import {
 import {
   WORKSPACE_DIFF_KEY,
   WORKSPACE_FILES_CHANGED_KEY,
+  WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILLS_KEY,
 } from "@/plugins/builtin/workspace/public/data";
 import {
@@ -24,6 +25,7 @@ const QUERY_KEYS: Record<Exclude<WorkspaceInvalidationTarget, "all">, string> = 
   mcpTools: MCP_TOOLS_KEY,
   sessions: AGENT_SESSIONS_KEY,
   skills: WORKSPACE_SKILLS_KEY,
+  managedSkills: WORKSPACE_MANAGED_SKILLS_KEY,
 };
 
 export function invalidateWorkspaceTargets(targets: WorkspaceInvalidationTarget[]): void {

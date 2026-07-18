@@ -10,6 +10,7 @@ export {
   WORKSPACE_PROJECTS_KEY,
   WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
+  WORKSPACE_MANAGED_SKILLS_KEY,
   useWorkspaceAgentDocs,
   useWorkspaceBuiltinTools,
   useWorkspaceDiff,
@@ -22,6 +23,7 @@ export {
   useWorkspaceReadFile,
   useWorkspaceRecipes,
   useWorkspaceSkills,
+  useManagedSkills,
   type BuiltinToolInfo,
   type WorkspaceAgentDoc,
   type WorkspaceDiff,
@@ -44,4 +46,5 @@ export {
   type WorkspaceReadFileQuery,
   type WorkspaceScope,
   type WorkspaceSkill,
+  type ManagedSkillInfo,
 } from "../application/workspaceData";
