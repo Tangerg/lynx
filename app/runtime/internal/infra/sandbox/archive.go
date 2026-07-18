@@ -203,7 +203,7 @@ func extractArchive(ctx context.Context, destination string, archive []byte) err
 				return fmt.Errorf("create directory %q: %w", name, err)
 			}
 			directories = append(directories, directoryMode{name: rootName, mode: mode})
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg:
 			if header.Size < 0 || header.Size > maxSnapshotFileBytes {
 				return fmt.Errorf("archive file %q has invalid size %d", name, header.Size)
 			}
