@@ -36,10 +36,14 @@ func (r *registry) List(context.Context) ([]tool.Tool, error) {
 	out := make([]tool.Tool, 0, len(chatTools))
 	for _, candidate := range chatTools {
 		definition := candidate.Definition()
+		schema, err := tool.ParseSchema(definition.InputSchema)
+		if err != nil {
+			return nil, fmt.Errorf("toolset: decode input schema for tool %q: %w", definition.Name, err)
+		}
 		out = append(out, tool.Tool{
 			Name:        definition.Name,
 			Description: definition.Description,
-			Schema:      string(definition.InputSchema),
+			Schema:      schema,
 			SafetyClass: tool.SafetyClassFor(definition.Name),
 		})
 	}

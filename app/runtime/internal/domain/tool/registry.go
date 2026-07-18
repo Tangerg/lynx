@@ -11,7 +11,7 @@ import "context"
 type Tool struct {
 	Name        string
 	Description string
-	Schema      string
+	Schema      Schema
 	SafetyClass SafetyClass
 }
 
