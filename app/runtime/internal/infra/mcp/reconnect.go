@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
@@ -33,7 +34,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	}
 	old := ms.session
 	ms.session = nil
-	ms.status = statusConnecting
+	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg := ms.config
 	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in (nil for non-OAuth)
@@ -75,7 +76,7 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	old := ms.session
 	ms.config = cfg
 	ms.session = nil
-	ms.status = statusConnecting
+	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in across a reconfigure
 	c.mu.Unlock()
@@ -115,7 +116,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	}
 	old := ms.session
 	ms.session = nil
-	ms.status = statusConnecting
+	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
 	cfg := ms.config
 	c.mu.Unlock()
@@ -132,13 +133,13 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 
 	flow, err := newOAuthFlow()
 	if err != nil {
-		c.setStatus(ms, statusFailed, err)
+		c.setState(ms, mcpserver.ConnectionFailed, err)
 		return err
 	}
 	defer flow.close(ctx)
 	handler, err := newOAuthHandler(flow)
 	if err != nil {
-		c.setStatus(ms, statusFailed, err)
+		c.setState(ms, mcpserver.ConnectionFailed, err)
 		return err
 	}
 	cfg.OAuthHandler = handler
@@ -177,9 +178,9 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 		return errors.Join(ErrConnectionsClosed, err, closeErr)
 	}
 	if err != nil {
-		ms.session, ms.status, ms.lastErr = nil, dialStatus(err), err
+		ms.session, ms.state, ms.lastErr = nil, dialStatus(err), err
 	} else {
-		ms.session, ms.status, ms.lastErr = session, statusConnected, nil
+		ms.session, ms.state, ms.lastErr = session, mcpserver.ConnectionConnected, nil
 		if keepHandler {
 			ms.oauth = cfg.OAuthHandler // keep the authorized handler for this session's reconnects
 		}
@@ -198,10 +199,10 @@ func recordCleanupError(ctx context.Context, err error) {
 	}
 }
 
-// setStatus records a terminal dial outcome on one server under the lock — the
+// setState records a terminal dial outcome on one server under the lock — the
 // shared tail for the early-failure paths that don't reach the dial.
-func (c *Connections) setStatus(ms *server, status string, err error) {
+func (c *Connections) setState(ms *server, state mcpserver.ConnectionState, err error) {
 	c.mu.Lock()
-	ms.session, ms.status, ms.lastErr = nil, status, err
+	ms.session, ms.state, ms.lastErr = nil, state, err
 	c.mu.Unlock()
 }

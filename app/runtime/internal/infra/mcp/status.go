@@ -3,6 +3,8 @@ package mcp
 import (
 	"errors"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // ErrUnknownServer is returned by [Connections.Reconnect] for a name that was
@@ -14,34 +16,14 @@ var ErrUnknownServer = errors.New("mcp: unknown server")
 // new registry instead of reviving sessions behind the component owner's back.
 var ErrConnectionsClosed = errors.New("mcp: connections closed")
 
-// Connection status (wire vocabulary, AUX_API §5.1). "connecting" is the
-// transient reconnect state; "needsAuth" is produced when a dial fails with an
-// auth-distinguishable error (a 401 / Unauthorized), so the client can prompt
-// for credentials rather than treat it as a generic "failed".
-const (
-	statusConnected  = "connected"
-	statusConnecting = "connecting"
-	statusFailed     = "failed"
-	statusNeedsAuth  = "needsAuth"
-)
-
-// ServerStatus is the per-server connection state exposed to
-// workspace.mcp.listServers. Err is the dial / tools-list failure reason, set
-// only when Status is "failed".
-type ServerStatus struct {
-	Name   string
-	Status string
-	Err    error
-}
-
 // dialStatus maps a dial error to the connection status: an
 // auth-distinguishable failure becomes "needsAuth" (so the client can prompt
 // for credentials), otherwise "failed".
-func dialStatus(err error) string {
+func dialStatus(err error) mcpserver.ConnectionState {
 	if isAuthError(err) {
-		return statusNeedsAuth
+		return mcpserver.ConnectionNeedsAuth
 	}
-	return statusFailed
+	return mcpserver.ConnectionFailed
 }
 
 // isAuthError reports whether err looks like an MCP server rejecting the

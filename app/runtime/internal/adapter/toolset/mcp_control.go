@@ -25,16 +25,7 @@ func (c *mcpControl) Statuses() []mcpserver.ConnectionStatus {
 	if c == nil || c.inner == nil {
 		return nil
 	}
-	statuses := c.inner.Statuses()
-	out := make([]mcpserver.ConnectionStatus, len(statuses))
-	for i, st := range statuses {
-		out[i] = mcpserver.ConnectionStatus{
-			Name:   st.Name,
-			Status: st.Status,
-			Err:    st.Err,
-		}
-	}
-	return out
+	return c.inner.Statuses()
 }
 
 func (c *mcpControl) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {

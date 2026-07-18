@@ -11,7 +11,7 @@ import (
 
 func TestMCPStatusAndToolsUsePorts(t *testing.T) {
 	ports := &fakeMCPPorts{
-		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
+		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}
 	c := New(configWithMCPPorts(ports))

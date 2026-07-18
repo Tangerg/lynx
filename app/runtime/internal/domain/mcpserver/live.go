@@ -38,13 +38,25 @@ type ToolInfo struct {
 	InputSchema InputSchema
 }
 
+// ConnectionState is the lifecycle state of a configured MCP connection.
+// Keeping this vocabulary in the domain prevents infrastructure and delivery
+// adapters from inventing subtly different string values.
+type ConnectionState string
+
+const (
+	ConnectionConnecting ConnectionState = "connecting"
+	ConnectionConnected  ConnectionState = "connected"
+	ConnectionFailed     ConnectionState = "failed"
+	ConnectionNeedsAuth  ConnectionState = "needsAuth"
+)
+
 // ConnectionStatus is the per-server live connection state exposed by the MCP
-// control plane: connected or boot-failed alike, carrying the dial error when
-// failed.
+// control plane: connected or boot-failed alike. Err carries the most recent
+// connection failure for ConnectionFailed and ConnectionNeedsAuth.
 type ConnectionStatus struct {
-	Name   string
-	Status string
-	Err    error
+	Name  string
+	State ConnectionState
+	Err   error
 }
 
 // ErrUnknownServer is returned when a live MCP operation addresses a server that
