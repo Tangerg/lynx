@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"maps"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,7 +41,7 @@ func (s *SessionStore) Fork(ctx context.Context, parentID string) (session.Sessi
 
 // SaveSubtask persists the complete Agent runtime identity while enriching a
 // new product session with the parent's title and cwd. Re-saving the same
-// child updates audit/metadata fields; changing immutable identity or reusing
+// child updates audit/agent-annotation fields; changing immutable identity or reusing
 // its ID for a user-facing session fails closed.
 func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask) (session.Session, error) {
 	if err := subtask.Validate(); err != nil {
@@ -68,7 +67,7 @@ func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask)
 			}
 			saved = existing
 			saved.UpdatedAt = subtask.UpdatedAt
-			saved.Metadata = maps.Clone(subtask.Metadata)
+			saved.AgentAnnotations = subtask.AgentAnnotations
 			return s.updateSubtaskAudit(ctx, saved)
 		case errors.Is(err, session.ErrNotFound):
 			parent, parentErr := s.Get(ctx, subtask.ParentID)
@@ -93,16 +92,12 @@ func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask)
 }
 
 func (s *SessionStore) updateSubtaskAudit(ctx context.Context, subtask session.Session) error {
-	metadata, err := encodeMetadata(subtask.Metadata)
-	if err != nil {
-		return err
-	}
 	return s.updateByID(
 		ctx,
 		"save subtask",
-		`UPDATE sessions SET updated_at = ?, metadata = ? WHERE id = ?`,
+		`UPDATE sessions SET updated_at = ?, agent_annotations = ? WHERE id = ?`,
 		subtask.UpdatedAt.UnixNano(),
-		metadata,
+		subtask.AgentAnnotations.String(),
 		subtask.ID,
 	)
 }

@@ -1,7 +1,7 @@
 {
   "format": "json",
   "artifact": {
-    "version": 4,
+    "version": 5,
     "session": {
       "id": "ses_01",
       "title": "Refactor the runtime protocol",
@@ -9,8 +9,7 @@
       "model": "claude-opus-4-8",
       "cwd": "/Users/dev/project",
       "createdAt": "2026-07-07T10:00:00Z",
-      "updatedAt": "2026-07-07T10:05:00Z",
-      "metadata": {}
+      "updatedAt": "2026-07-07T10:05:00Z"
     },
     "messages": [],
     "runs": [

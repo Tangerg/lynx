@@ -29,16 +29,12 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 // of sessions.import. It preserves the supplied id and all fields, overwriting
 // any existing row with that id (restore semantics).
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
-	metaJSON, err := encodeMetadata(sess.Metadata)
-	if err != nil {
-		return err
-	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		metaJSON, sess.Model, sess.Kind, sess.Favorite,
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -77,11 +73,6 @@ func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch
 		}
 		if patch.Cwd != nil {
 			if err := s.SetCwd(ctx, id, *patch.Cwd); err != nil {
-				return err
-			}
-		}
-		if patch.Metadata != nil {
-			if err := s.SetMetadata(ctx, id, *patch.Metadata); err != nil {
 				return err
 			}
 		}
@@ -139,18 +130,6 @@ func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 		cwd, time.Now().UTC().UnixNano(), id)
 }
 
-// SetMetadata full-replaces the session's metadata + refreshes UpdatedAt.
-// ErrNotFound for unknown id.
-func (s *SessionStore) SetMetadata(ctx context.Context, id string, meta map[string]any) error {
-	metaJSON, err := encodeMetadata(meta)
-	if err != nil {
-		return err
-	}
-	return s.updateByID(ctx, "set session metadata",
-		`UPDATE sessions SET metadata = ?, updated_at = ? WHERE id = ?`,
-		metaJSON, time.Now().UTC().UnixNano(), id)
-}
-
 // SetFavorite pins / unpins the session + refreshes UpdatedAt. ErrNotFound for
 // unknown id.
 func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool) error {
@@ -187,16 +166,12 @@ func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
 // execInsert is shared by Create and Fork; the shared [execer] (see tx.go)
 // accepts either *sql.DB or *sql.Tx.
 func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
-	metaJSON, err := encodeMetadata(sess.Metadata)
-	if err != nil {
-		return err
-	}
-	_, err = ex.ExecContext(ctx,
+	_, err := ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		metaJSON, sess.Model, sess.Kind, sess.Favorite,
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite,
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

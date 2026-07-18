@@ -21,7 +21,7 @@ import (
 )
 
 // TestSessionExportImport_RoundTrip exports a populated session to a json
-// artifact, wipes it, and imports it back — verifying metadata, chat history,
+// artifact, wipes it, and imports it back — verifying identity, chat history,
 // items, and runs all survive the round trip under the original id (restore
 // semantics).
 func TestSessionExportImport_RoundTrip(t *testing.T) {
@@ -67,7 +67,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Cwd != cwd {
+	if art.Session.Title != "My Session" || art.Session.Cwd != canonicalCwd {
 		t.Errorf("artifact session = %+v, want title/cwd preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {

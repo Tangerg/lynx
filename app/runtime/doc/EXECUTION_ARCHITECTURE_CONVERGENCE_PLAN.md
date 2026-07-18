@@ -816,7 +816,7 @@ Batch 4
 - Commit: `75adcec22`
 - Invariants preserved/added:
   - terminal Run 的 conversation watermark 解析失败会使整个 event transaction 失败，不再持久化 `-1` 假边界；
-  - Session export 先 claim single-writer slot，再从一个 SQLite transaction 读取 metadata、conversation 和 transcript；active/open-interrupt Session 返回 `session_busy`；
+  - Session export 先 claim single-writer slot，再从一个 SQLite transaction 读取 session identity、conversation 和 transcript；active/open-interrupt Session 返回 `session_busy`；
   - artifact 只接受 terminal Run，且 terminal outcome 必须携带 Result 和已解析 watermark；running/interrupt artifact 在 mutation 前拒绝；
   - parked cancel 原子写入 canceled Run、incomplete interrupt items、取消原因、完成时间与 message watermark，同时关闭 interrupt/admission；
   - executor 发出 empty/unknown/mismatched interrupt union 时中止 turn，并通过 canonical error terminal 收口，不再默认强制转换成 question；

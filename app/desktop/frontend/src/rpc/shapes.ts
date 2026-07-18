@@ -98,9 +98,7 @@ export interface Session {
   cwdMissing?: boolean; // cwd lost on disk → degrade to plain chat + relocate
   createdAt: string;
   updatedAt: string;
-  usage?: Usage; // cumulative for this session
   favorite?: boolean; // user-pinned: sorts ahead in the session list
-  metadata: Record<string, unknown>;
 }
 
 export interface Project {
@@ -116,8 +114,6 @@ export interface Project {
 export interface CreateSessionRequest {
   cwd?: string; // default = ServerInfo.cwd (cold-start zero friction)
   title?: string;
-  model?: string;
-  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateSessionRequest {
@@ -125,7 +121,6 @@ export interface UpdateSessionRequest {
   title?: string;
   cwd?: string; // changing cwd = relocate (features.relocate)
   model?: string;
-  metadata?: Record<string, unknown>; // full replace
   favorite?: boolean; // pin / unpin in the session list
 }
 
@@ -188,7 +183,7 @@ export interface ExportSessionResponse {
 // sessions.import). `messages` is the provider chat-message blob — opaque
 // to the client, carried verbatim.
 export interface SessionArtifact {
-  version: number; // artifact schema version (currently 4); import rejects unknown
+  version: number; // artifact schema version (currently 5); import rejects unknown
   session: Session;
   messages: unknown[];
   runs: { updatedAt: string; messageMark: number; run: RunRef }[];

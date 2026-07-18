@@ -299,8 +299,7 @@ interface Session {
   cwdMissing?: boolean; // cwd 在磁盘失联 → 降级纯聊天 + 可 relocate
   createdAt: string; // ISO-8601
   updatedAt: string;
-  usage?: Usage; // 本 session 累计
-  metadata: Record<string, unknown>;
+  favorite?: boolean; // 用户置顶；列表内优先排序
 }
 
 interface Project {
@@ -974,8 +973,6 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   | ---------- | ------ | ---- | ------------------------------------------------------- |
   | `cwd`      | string | 否   | 缺省 = `ServerInfo.cwd`（冷启动零摩擦，不弹强制选择框） |
   | `title`    | string | 否   |                                                         |
-  | `model`    | string | 否   | 默认模型                                                |
-  | `metadata` | object | 否   |                                                         |
 
 - 返回 `Session`（`cwd` 为 server 规范化后的绝对路径）。错误 `cwd_unavailable`。
 
@@ -989,7 +986,6 @@ server 走非阻塞默认策略（auto-deny / 不进该模式）。`toolResult` 
   | `title`     | string | 否   |                                                    |
   | `cwd`       | string | 否   | **改 cwd = relocate**；受 `features.relocate` 门控 |
   | `model`     | string | 否   |                                                    |
-  | `metadata`  | object | 否   | 全替换                                             |
   | `favorite`  | bool   | 否   | 置顶/取消置顶；favorited 会话在列表里排在前面      |
 
 - 返回 `Session`。错误 `session_not_found` / `capability_not_negotiated`（relocate 关闭时改 cwd）/ `cwd_unavailable`。
@@ -1038,8 +1034,8 @@ interface DroppedRun {
 
 ```ts
 interface SessionArtifact {
-  version: number; // artifact schema 版本（当前 4）；import 不识别即 invalid_params
-  session: Session; // 会话元数据（wire 形态）
+  version: number; // artifact schema 版本（当前 5）；import 不识别即 invalid_params
+  session: Session; // 会话身份与展示状态（wire 形态）
   messages: unknown[]; // chat 消息 blob（模型上下文）
   runs: {
     updatedAt: string;
