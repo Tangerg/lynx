@@ -43,6 +43,7 @@ import type {
   Session,
   SessionArtifact,
   Skill,
+  ManagedSkill,
   StartRunRequest,
   StartRunResponse,
   UsageSummary,
@@ -117,6 +118,7 @@ import schedule from "./samples/schedule.json";
 import sessionArtifact from "./samples/session.artifact.json";
 import session from "./samples/session.json";
 import skill from "./samples/skill.json";
+import managedSkill from "./samples/managedSkill.json";
 import stateDelta from "./samples/state.delta.json";
 import stateSnapshot from "./samples/state.snapshot.json";
 import usageSummary from "./samples/usageSummary.json";
@@ -262,6 +264,7 @@ const samples: unknown[] = [
   wire<Schedule>(schedule),
   wire<Recipe>(recipe),
   wire<Skill>(skill),
+  wire<ManagedSkill>(managedSkill),
   wire<AgentDoc>(agentDoc),
   wire<McpServer>(mcpServer),
   wire<McpServerConfig>(mcpServerConfig),

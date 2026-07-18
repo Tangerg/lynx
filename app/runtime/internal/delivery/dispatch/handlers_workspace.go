@@ -83,6 +83,35 @@ func (d *Dispatcher) handleWorkspaceListSkills(ctx context.Context, msg *transpo
 	return reply(msg, out, err)
 }
 
+func (d *Dispatcher) handleWorkspaceListManagedSkills(ctx context.Context, msg *transport.Request) HandleResult {
+	var q protocol.PageQuery
+	_ = unmarshal(msg.Params, &q)
+	out, err := d.api.WorkspaceListManagedSkills(ctx, q)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleWorkspaceArchiveSkill(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SkillNameRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Name == "" {
+		return responseError(msg.ID, invalidParams("name is required"))
+	}
+	return replyDone(msg, d.api.WorkspaceArchiveSkill(ctx, in))
+}
+
+func (d *Dispatcher) handleWorkspaceRestoreSkill(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SkillNameRequest](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	if in.Name == "" {
+		return responseError(msg.ID, invalidParams("name is required"))
+	}
+	return replyDone(msg, d.api.WorkspaceRestoreSkill(ctx, in))
+}
+
 func (d *Dispatcher) handleWorkspaceListRecipes(ctx context.Context, msg *transport.Request) HandleResult {
 	var in protocol.WorkspaceListQuery
 	_ = unmarshal(msg.Params, &in)

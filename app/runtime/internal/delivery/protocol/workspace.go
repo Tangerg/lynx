@@ -14,6 +14,12 @@ type Workspace interface {
 	WorkspaceReadFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
+	// Self-authored skill-library management (workspace.skills.*): list the
+	// global library with each skill's lifecycle, and archive/restore one
+	// (never deleting).
+	WorkspaceListManagedSkills(ctx context.Context, q PageQuery) (*Page[ManagedSkill], error)
+	WorkspaceArchiveSkill(ctx context.Context, in SkillNameRequest) error
+	WorkspaceRestoreSkill(ctx context.Context, in SkillNameRequest) error
 	WorkspaceListRecipes(ctx context.Context, in WorkspaceListQuery) (*Page[Recipe], error)
 	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
