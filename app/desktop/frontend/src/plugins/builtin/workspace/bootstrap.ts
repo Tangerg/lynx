@@ -2,6 +2,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
 import { installConversationArchiveGateway } from "./adapters/runtimeConversationArchiveGateway";
 import { installWorkspaceMemoryGateway } from "./adapters/runtimeMemoryGateway";
+import { installSkillLibraryGateway } from "./adapters/runtimeSkillLibraryGateway";
 import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
@@ -14,6 +15,7 @@ export default definePlugin({
       installCodebaseGateway(),
       installConversationArchiveGateway(),
       installWorkspaceMemoryGateway(),
+      installSkillLibraryGateway(),
       installToolCatalogGateway(),
       installWorkspaceErrorClassifier(),
       installWorkspaceNavigationPort(),

@@ -12,6 +12,7 @@ export { filesView } from "./files";
 export { fileTreeView } from "./filetree";
 export { memoryView } from "./memory";
 export { skillsView } from "./skills";
+export { skillLibraryView } from "./skillLibrary";
 export { recipesView } from "./recipes";
 export { codebaseView } from "./codebase";
 export { notificationsView } from "./notifications";
