@@ -24,8 +24,8 @@ const (
 	MCPTransportStreamableHTTP = "streamableHttp"
 )
 
-// MCPServerConfig is one env-sourced MCP server entry. It is the config
-// package's source DTO; runtime maps it into its MCP-server registry model.
+// MCPServerConfig is one MCP server entry parsed from LYRA_MCP_SERVERS. It is
+// the config package's source DTO; runtime maps it into its registry model.
 type MCPServerConfig struct {
 	Name          string
 	Transport     string
@@ -78,13 +78,12 @@ type Config struct {
 	Online OnlineConfig
 
 	// MCPServers is the parsed list of external MCP servers dialed at startup.
-	// First cut: sourced from LYRA_MCP_SERVERS env (yaml support is a later
-	// addition).
+	// Sourced from LYRA_MCP_SERVERS.
 	MCPServers []MCPServerConfig
 
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
 	// Sourced from LYRA_A2A_AGENTS env (same name=value shape as
-	// LYRA_MCP_SERVERS; yaml support is a later addition).
+	// LYRA_MCP_SERVERS).
 	A2AAgents []A2AAgentConfig
 
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.

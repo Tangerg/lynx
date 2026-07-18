@@ -179,9 +179,7 @@ func (noopTurnServices) MaybeCompact(context.Context, string, func(context.Conte
 	return turn.CompactionResult{}, nil
 }
 
-func (noopTurnServices) MaybeExtract(context.Context, string, string) (turn.ExtractionResult, error) {
-	return turn.ExtractionResult{}, nil
-}
+func (noopTurnServices) MaybeExtract(context.Context, string, string) error { return nil }
 
 // slowStubEngine simulates an engine that respects ctx cancellation without
 // ever returning normally.

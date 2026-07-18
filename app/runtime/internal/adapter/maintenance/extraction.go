@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
@@ -90,29 +89,26 @@ func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, co
 // project ledger, and publishes a curated generation when its watermark gate
 // is due. Short conversations skip extraction but still fold pending ledger
 // entries, so a previous provider failure can recover on a later turn.
-func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (turn.ExtractionResult, error) {
+func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) error {
 	if e == nil || e.memory == nil || sessionID == "" || cwd == "" {
-		return turn.ExtractionResult{}, nil
+		return nil
 	}
 	project := filepath.Clean(cwd)
 	messages, err := e.history.Read(ctx, sessionID)
 	if err != nil {
-		return turn.ExtractionResult{}, fmt.Errorf("memory extraction: read session %q: %w", sessionID, err)
+		return fmt.Errorf("memory extraction: read session %q: %w", sessionID, err)
 	}
 	now := e.now()
 	if len(messages) < e.minMsgs {
-		curated, err := e.maybeCurate(ctx, project, now)
-		if err != nil {
-			return turn.ExtractionResult{}, err
-		}
-		return turn.ExtractionResult{Curated: curated}, nil
+		_, err := e.maybeCurate(ctx, project, now)
+		return err
 	}
 
 	markdown, err := e.askForFacts(ctx, messages)
 	if err != nil {
-		return turn.ExtractionResult{}, fmt.Errorf("memory extraction: identify facts: %w", err)
+		return fmt.Errorf("memory extraction: identify facts: %w", err)
 	}
-	inserted, err := e.memory.AppendLedger(ctx, knowledge.FactBatch{
+	_, err = e.memory.AppendLedger(ctx, knowledge.FactBatch{
 		Project:    project,
 		SessionID:  sessionID,
 		Day:        now.Format(time.DateOnly),
@@ -120,21 +116,10 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) (tu
 		CapturedAt: now,
 	})
 	if err != nil {
-		return turn.ExtractionResult{}, fmt.Errorf("memory extraction: append daily ledger: %w", err)
+		return fmt.Errorf("memory extraction: append daily ledger: %w", err)
 	}
-	curated, err := e.maybeCurate(ctx, project, now)
-	if err != nil {
-		return turn.ExtractionResult{}, err
-	}
-	facts := make([]string, len(inserted))
-	for index, fact := range inserted {
-		facts[index] = fact.Content
-	}
-	return turn.ExtractionResult{
-		Extracted: len(inserted) > 0,
-		Curated:   curated,
-		Facts:     strings.Join(facts, "\n"),
-	}, nil
+	_, err = e.maybeCurate(ctx, project, now)
+	return err
 }
 
 func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Time) (bool, error) {

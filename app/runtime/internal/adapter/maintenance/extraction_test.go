@@ -76,12 +76,8 @@ func TestExtractorAppendsDailyLedgerAndPublishesCuratedMemory(t *testing.T) {
 		scriptedReply{text: "- use make test\n- prefer concise errors"},
 		scriptedReply{text: "# Project memory\n\n- Run `make test`.\n- Prefer concise errors."},
 	)
-	result, err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo")
-	if err != nil {
+	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
-	}
-	if !result.Extracted || !result.Curated || !strings.Contains(result.Facts, "make test") {
-		t.Fatalf("extraction result = %+v", result)
 	}
 	curated, err := memory.CuratedMemory(t.Context(), "/repo")
 	if err != nil {
@@ -110,7 +106,7 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 		scriptedReply{err: providerFailure},
 		scriptedReply{text: "- durable fact"},
 	)
-	if _, err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); !errors.Is(err, providerFailure) {
+	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); !errors.Is(err, providerFailure) {
 		t.Fatalf("first extraction error = %v", err)
 	}
 	curated, err := memory.CuratedMemory(t.Context(), "/repo")
@@ -125,12 +121,8 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 	// Extraction is no longer eligible, but curation must still recover the
 	// durable backlog instead of waiting for another long conversation.
 	extractor.minMsgs = 100
-	result, err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo")
-	if err != nil {
+	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
-	}
-	if result.Extracted || !result.Curated {
-		t.Fatalf("recovery result = %+v", result)
 	}
 	curated, _ = memory.CuratedMemory(t.Context(), "/repo")
 	if curated.Watermark != pending[0].Sequence || curated.Content != "- durable fact" {
@@ -166,7 +158,7 @@ func TestExtractorDoesNotAdvanceWatermarkForOversizedCuration(t *testing.T) {
 		scriptedReply{text: strings.Repeat("界", 20)},
 	)
 	extractor.config.MaxTokens = 10
-	if _, err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err == nil || !strings.Contains(err.Error(), "limit is 10") {
+	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err == nil || !strings.Contains(err.Error(), "limit is 10") {
 		t.Fatalf("oversized curation error = %v", err)
 	}
 	curated, err := memory.CuratedMemory(t.Context(), "/repo")

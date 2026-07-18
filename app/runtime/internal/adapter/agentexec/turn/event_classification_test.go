@@ -44,7 +44,7 @@ func TestEventLifecycleClassification(t *testing.T) {
 	// that follows carries OutcomeError.
 	midRun := []execution.Event{
 		TurnStart{}, MessageDelta{}, ReasoningDelta{}, ToolCallStart{}, ToolCallEnd{},
-		UsageReported{}, CompactBoundary{}, MemoryUpdated{}, TodosUpdated{}, SteerMessage{}, ErrorEvent{},
+		UsageReported{}, CompactBoundary{}, TodosUpdated{}, SteerMessage{}, ErrorEvent{},
 	}
 	for _, ev := range midRun {
 		if _, ok := ev.Terminal(); ok {

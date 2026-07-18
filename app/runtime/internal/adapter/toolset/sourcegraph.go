@@ -53,7 +53,7 @@ type sourcegraphLineMatch struct {
 	LineNumber int    `json:"line_number"`
 }
 
-var sourcegraphSchema, _ = pkgjson.StringDefSchemaOf(sourcegraphRequest{})
+var sourcegraphSchema = pkgjson.MustStringDefSchemaOf(sourcegraphRequest{})
 
 type sourcegraphTool struct {
 	streamURL string

@@ -15,8 +15,7 @@ const (
 // is the single source of truth for the name→class mapping — consumed for the
 // tools.list wire metadata AND by the approval gate ([approval.GateFor]) — so the
 // two views never drift apart. Unknown tools (MCP, third-party tools) fall
-// to Exec (fail-conservative: they may do anything). A future milestone may let
-// users override per-tool via config.
+// to Exec (fail-conservative: they may do anything).
 func SafetyClassFor(name string) SafetyClass {
 	switch name {
 	case "read", "glob", "grep", "lsp", "lsp_diagnostics", "skill", "ask_user", "exit_plan_mode", "propose_skill", "codebase_search", "sourcegraph_search", "task":

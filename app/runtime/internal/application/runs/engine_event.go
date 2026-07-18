@@ -75,11 +75,6 @@ type CompactBoundary struct {
 	MessagesAfter  int
 }
 
-type MemoryUpdated struct {
-	EventMeta
-	Facts string
-}
-
 type TurnInterrupted struct {
 	EventMeta
 	Interrupts []Interrupt
@@ -142,7 +137,6 @@ func (e ReasoningDelta) WithMeta(m EventMeta) EngineEvent  { e.EventMeta = m; re
 func (e ToolCallStart) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
 func (e ToolCallEnd) WithMeta(m EventMeta) EngineEvent     { e.EventMeta = m; return e }
 func (e CompactBoundary) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
-func (e MemoryUpdated) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
 func (e TurnInterrupted) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
 func (e TurnEnd) WithMeta(m EventMeta) EngineEvent         { e.EventMeta = m; return e }
 func (e ErrorEvent) WithMeta(m EventMeta) EngineEvent      { e.EventMeta = m; return e }
