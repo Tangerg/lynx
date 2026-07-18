@@ -11,9 +11,13 @@ import (
 )
 
 func TestSubtaskRoleCanAskAndExitPlanWithoutDelegating(t *testing.T) {
+	policy, err := approval.New(approval.ModeBalanced, nil)
+	if err != nil {
+		t.Fatalf("approval policy: %v", err)
+	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
-		Approval: approval.New(approval.ModeBalanced, nil),
+		Approval: policy,
 		Interrupt: func(context.Context, string, any) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},

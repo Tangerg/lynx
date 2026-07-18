@@ -72,6 +72,22 @@ func TestArgumentsJSONRoundTrip(t *testing.T) {
 	}
 }
 
+func TestArgumentsStringField(t *testing.T) {
+	arguments, err := ParseArguments(`{"command":"go test","timeout":30}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := arguments.StringField("command"); !ok || got != "go test" {
+		t.Fatalf("command = (%q, %v), want go test/true", got, ok)
+	}
+	if _, ok := arguments.StringField("timeout"); ok {
+		t.Fatal("numeric timeout reported as a string")
+	}
+	if _, ok := arguments.StringField("missing"); ok {
+		t.Fatal("missing field reported as present")
+	}
+}
+
 func TestArgumentsPreserveLargeNumbers(t *testing.T) {
 	arguments, err := ParseArguments(`{"id":9007199254740993}`)
 	if err != nil {

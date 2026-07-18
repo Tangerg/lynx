@@ -31,9 +31,12 @@ func TestApprovalRuleStore_VisibleScopes(t *testing.T) {
 			t.Fatalf("put: %v", err)
 		}
 	}
-	put(approval.Rule{ID: "s", Scope: approval.ScopeSession, ScopeKey: "sess1", Tool: "shell", Decision: approval.Allow})
-	put(approval.Rule{ID: "p", Scope: approval.ScopeProject, ScopeKey: "/proj/a", Tool: "write", Decision: approval.Deny})
-	put(approval.Rule{ID: "g", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow})
+	sessionRule := newApprovalRule(t, approval.ScopeSession, "sess1", "shell", "", approval.Allow)
+	projectRule := newApprovalRule(t, approval.ScopeProject, "/proj/a", "write", "", approval.Deny)
+	globalRule := newApprovalRule(t, approval.ScopeGlobal, "", "read", "", approval.Allow)
+	put(sessionRule)
+	put(projectRule)
+	put(globalRule)
 
 	ids := func(sessionID, dir string) map[string]bool {
 		rules, err := store.Visible(ctx, sessionID, dir)
@@ -48,15 +51,15 @@ func TestApprovalRuleStore_VisibleScopes(t *testing.T) {
 	}
 
 	// From sess1 in /proj/a: all three visible.
-	if got := ids("sess1", "/proj/a"); !got["s"] || !got["p"] || !got["g"] || len(got) != 3 {
+	if got := ids("sess1", "/proj/a"); !got[sessionRule.ID] || !got[projectRule.ID] || !got[globalRule.ID] || len(got) != 3 {
 		t.Fatalf("sess1@/proj/a sees %v, want s+p+g", got)
 	}
 	// From another session in another dir: only global.
-	if got := ids("sess2", "/proj/b"); got["s"] || got["p"] || !got["g"] || len(got) != 1 {
+	if got := ids("sess2", "/proj/b"); got[sessionRule.ID] || got[projectRule.ID] || !got[globalRule.ID] || len(got) != 1 {
 		t.Fatalf("sess2@/proj/b sees %v, want only g", got)
 	}
 	// With no cwd: project rule must not match (skipped when dir is empty).
-	if got := ids("sess1", ""); got["p"] {
+	if got := ids("sess1", ""); got[projectRule.ID] {
 		t.Fatalf("project rule leaked with empty dir: %v", got)
 	}
 }
@@ -66,7 +69,7 @@ func TestApprovalRuleStore_VisibleScopes(t *testing.T) {
 func TestApprovalRuleStore_UpsertAndDelete(t *testing.T) {
 	ctx := context.Background()
 	store := newApprovalStore(t)
-	r := approval.Rule{ID: "x", Scope: approval.ScopeGlobal, Tool: "shell", Subject: "npm run *", Decision: approval.Allow}
+	r := newApprovalRule(t, approval.ScopeGlobal, "", "shell", "npm run *", approval.Allow)
 	if err := store.Put(ctx, r); err != nil {
 		t.Fatalf("put: %v", err)
 	}
@@ -78,7 +81,7 @@ func TestApprovalRuleStore_UpsertAndDelete(t *testing.T) {
 	if len(rules) != 1 || rules[0].Decision != approval.Deny || rules[0].Subject != "npm run *" {
 		t.Fatalf("after upsert = %+v, want one Deny rule (no duplicate)", rules)
 	}
-	if err := store.Delete(ctx, "x"); err != nil {
+	if err := store.Delete(ctx, r.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 	if rules, _ := store.Visible(ctx, "s", "/p"); len(rules) != 0 {
@@ -89,12 +92,11 @@ func TestApprovalRuleStore_UpsertAndDelete(t *testing.T) {
 func TestApprovalRuleStore_DeleteSessionPreservesBroaderScopes(t *testing.T) {
 	ctx := context.Background()
 	store := newApprovalStore(t)
-	for _, rule := range []approval.Rule{
-		{ID: "s1", Scope: approval.ScopeSession, ScopeKey: "sess1", Tool: "shell", Decision: approval.Allow},
-		{ID: "s2", Scope: approval.ScopeSession, ScopeKey: "sess2", Tool: "shell", Decision: approval.Allow},
-		{ID: "p", Scope: approval.ScopeProject, ScopeKey: "/proj", Tool: "write", Decision: approval.Allow},
-		{ID: "g", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow},
-	} {
+	sessionOne := newApprovalRule(t, approval.ScopeSession, "sess1", "shell", "", approval.Allow)
+	sessionTwo := newApprovalRule(t, approval.ScopeSession, "sess2", "shell", "", approval.Allow)
+	project := newApprovalRule(t, approval.ScopeProject, "/proj", "write", "", approval.Allow)
+	global := newApprovalRule(t, approval.ScopeGlobal, "", "read", "", approval.Allow)
+	for _, rule := range []approval.Rule{sessionOne, sessionTwo, project, global} {
 		if err := store.Put(ctx, rule); err != nil {
 			t.Fatalf("put %s: %v", rule.ID, err)
 		}
@@ -110,10 +112,19 @@ func TestApprovalRuleStore_DeleteSessionPreservesBroaderScopes(t *testing.T) {
 	for _, rule := range rules {
 		ids[rule.ID] = true
 	}
-	if ids["s1"] || !ids["p"] || !ids["g"] || len(ids) != 2 {
+	if ids[sessionOne.ID] || !ids[project.ID] || !ids[global.ID] || len(ids) != 2 {
 		t.Fatalf("visible after DeleteSession = %v, want p+g", ids)
 	}
 	if rules, err := store.Visible(ctx, "sess2", ""); err != nil || len(rules) != 2 {
 		t.Fatalf("other session after DeleteSession = %+v, %v, want s2+g", rules, err)
 	}
+}
+
+func newApprovalRule(t *testing.T, scope approval.Scope, scopeKey, toolName, subject string, decision approval.Decision) approval.Rule {
+	t.Helper()
+	rule, err := approval.NewRule(scope, scopeKey, toolName, subject, decision)
+	if err != nil {
+		t.Fatalf("new approval rule: %v", err)
+	}
+	return rule
 }

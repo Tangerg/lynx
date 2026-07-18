@@ -2,10 +2,11 @@ package approval
 
 import "context"
 
-// RuleStore persists approval rules. It is a dumb CRUD SPI — all matching /
-// precedence lives in rule.go — so a backend only has to scope-filter on read.
-// Defined here (the consumer) per DIP; production wires the sqlite-backed store
-// (an in-memory implementation for tests lives in the approvaltest package).
+// RuleStore persists approval rules. Matching and precedence live in rule.go;
+// adapters own storage validation and scope filtering on read so corrupt rows
+// never enter policy evaluation. Defined here (the consumer) per DIP;
+// production wires the sqlite-backed store (an in-memory implementation for
+// tests lives in the approvaltest package).
 type RuleStore interface {
 	// Put upserts a rule by its id (deterministic over scope/key/tool/subject),
 	// so re-remembering the same rule replaces the decision rather than piling

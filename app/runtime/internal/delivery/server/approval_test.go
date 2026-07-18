@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
@@ -64,10 +65,17 @@ func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error)
 // and back, and that an unknown wire value is rejected (→ invalid_params).
 func TestApprovalModeWireRoundTrip(t *testing.T) {
 	for _, m := range []approval.Mode{approval.ModeSafe, approval.ModeBalanced, approval.ModeYolo, approval.ModePlan} {
-		back, ok := approvalModeFromWire(approvalModeToWire(m))
-		if !ok || back != m {
-			t.Errorf("round-trip %v → %q → %v (ok=%v)", m, approvalModeToWire(m), back, ok)
+		wire, ok := approvalModeToWire(m)
+		if !ok {
+			t.Fatalf("domain mode %v has no wire mapping", m)
 		}
+		back, ok := approvalModeFromWire(wire)
+		if !ok || back != m {
+			t.Errorf("round-trip %v → %q → %v (ok=%v)", m, wire, back, ok)
+		}
+	}
+	if _, ok := approvalModeToWire(approval.Mode(255)); ok {
+		t.Error("unknown domain approval mode must be rejected")
 	}
 	if _, ok := approvalModeFromWire(protocol.ApprovalMode("bogus")); ok {
 		t.Error("unknown wire approval mode must be rejected")
@@ -95,6 +103,13 @@ func TestApprovalModeHandlersMapToWire(t *testing.T) {
 	}
 	if len(rt.set) != 1 || rt.set[0] != approval.ModeBalanced {
 		t.Fatalf("set modes = %+v, want balanced", rt.set)
+	}
+}
+
+func TestGetApprovalModeRejectsUnknownDomainValue(t *testing.T) {
+	s := serverWithApprovals(&approvalPolicyFake{mode: approval.Mode(255)}, nil)
+	if _, err := s.GetApprovalMode(t.Context()); !errors.Is(err, approval.ErrInvalidMode) {
+		t.Fatalf("GetApprovalMode error = %v, want ErrInvalidMode", err)
 	}
 }
 

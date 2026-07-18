@@ -2,18 +2,23 @@ package approval
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 )
 
-// New returns the runtime approval [Policy]: a mutable mode (lock-free
-// atomic) plus a persistent rule store. Pass [ModeYolo] for environments where
-// every tool call auto-passes (CI, smoke tests). store may be nil — then no
-// rules are remembered (Decide never matches, Remember is a no-op), which is
-// the right shape for tests that exercise only mode gating.
-func New(mode Mode, store RuleStore) Policy {
+// New returns the runtime approval [Policy]: a validated mutable mode
+// (lock-free atomic) plus a persistent rule store. Pass [ModeYolo] for
+// environments where every tool call auto-passes (CI, smoke tests). store may
+// be nil for mode-only environments: Decide never matches and persistence
+// operations return [ErrRuleStoreUnavailable]. An unknown initial mode is
+// rejected.
+func New(mode Mode, store RuleStore) (Policy, error) {
+	if !mode.Valid() {
+		return nil, fmt.Errorf("%w: %d", ErrInvalidMode, mode)
+	}
 	p := &policy{store: store}
 	p.mode.Store(int32(mode))
-	return p
+	return p, nil
 }
 
 // policy is the approval stance: an atomic mode + a rule store. The mode is
@@ -26,33 +31,43 @@ type policy struct {
 var _ Policy = (*policy)(nil)
 
 func (p *policy) Mode(_ context.Context) (Mode, error) {
-	return Mode(p.mode.Load()), nil
+	mode := Mode(p.mode.Load())
+	if !mode.Valid() {
+		return 0, fmt.Errorf("%w: stored value %d", ErrInvalidMode, mode)
+	}
+	return mode, nil
 }
 
 func (p *policy) SetMode(_ context.Context, mode Mode) error {
+	if !mode.Valid() {
+		return fmt.Errorf("%w: %d", ErrInvalidMode, mode)
+	}
 	p.mode.Store(int32(mode))
 	return nil
 }
 
 func (p *policy) Decide(ctx context.Context, q Query) (Decision, bool, error) {
 	if p.store == nil {
-		return "", false, nil
+		return ruleSet(nil).decide(q)
 	}
 	candidates, err := p.store.Visible(ctx, q.SessionID, q.ProjectDir)
 	if err != nil {
 		return "", false, err
 	}
-	d, ok := ruleSet(candidates).decide(q)
+	d, ok, err := ruleSet(candidates).decide(q)
+	if err != nil {
+		return "", false, err
+	}
 	return d, ok, nil
 }
 
 func (p *policy) Remember(ctx context.Context, req RememberRequest) error {
-	if p.store == nil {
-		return nil
+	rule, err := req.rule()
+	if err != nil {
+		return err
 	}
-	rule, ok := req.rule()
-	if !ok {
-		return nil // can't key this scope (e.g. project rule with no cwd) — drop it
+	if p.store == nil {
+		return ErrRuleStoreUnavailable
 	}
 	return p.store.Put(ctx, rule)
 }
@@ -61,12 +76,24 @@ func (p *policy) Rules(ctx context.Context, sessionID, projectDir string) ([]Rul
 	if p.store == nil {
 		return nil, nil
 	}
-	return p.store.Visible(ctx, sessionID, projectDir)
+	rules, err := p.store.Visible(ctx, sessionID, projectDir)
+	if err != nil {
+		return nil, err
+	}
+	for index, rule := range rules {
+		if err := rule.Validate(); err != nil {
+			return nil, fmt.Errorf("approval: visible rule %d: %w", index, err)
+		}
+	}
+	return rules, nil
 }
 
 func (p *policy) Forget(ctx context.Context, id string) error {
+	if id == "" {
+		return fmt.Errorf("%w: id is required", ErrInvalidRule)
+	}
 	if p.store == nil {
-		return nil
+		return ErrRuleStoreUnavailable
 	}
 	return p.store.Delete(ctx, id)
 }

@@ -222,7 +222,7 @@ func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
-	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
+	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-approve",
@@ -275,7 +275,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	client, _ := chatclient.New(model)
 	store := history.NewInMemoryStore()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
-	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil))))) // shell → gate
+	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-rmodel",
@@ -333,7 +333,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
-	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
+	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-cancel-parked",
@@ -377,7 +377,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
-	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeBalanced, nil)))))
+	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-deny",
@@ -418,7 +418,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
-	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(approval.New(approval.ModeYolo, nil)))))
+	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeYolo, nil)))))
 
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID: "sess-yolo",

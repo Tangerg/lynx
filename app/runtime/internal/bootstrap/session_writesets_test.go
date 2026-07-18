@@ -258,7 +258,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
-	if err := ss.approvals.Put(ctx, approval.Rule{ID: "session", Scope: approval.ScopeSession, ScopeKey: "ses_A", Tool: "shell", Decision: approval.Allow}); err != nil {
+	if err := ss.approvals.Put(ctx, testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)); err != nil {
 		t.Fatalf("seed approval: %v", err)
 	}
 
@@ -296,11 +296,10 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "stale", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
-	for _, rule := range []approval.Rule{
-		{ID: "session", Scope: approval.ScopeSession, ScopeKey: "ses_A", Tool: "shell", Decision: approval.Allow},
-		{ID: "project", Scope: approval.ScopeProject, ScopeKey: "/repo", Tool: "write", Decision: approval.Allow},
-		{ID: "global", Scope: approval.ScopeGlobal, Tool: "read", Decision: approval.Allow},
-	} {
+	sessionRule := testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)
+	projectRule := testApprovalRule(t, approval.ScopeProject, "/repo", "write", approval.Allow)
+	globalRule := testApprovalRule(t, approval.ScopeGlobal, "", "read", approval.Allow)
+	for _, rule := range []approval.Rule{sessionRule, projectRule, globalRule} {
 		if err := ss.approvals.Put(ctx, rule); err != nil {
 			t.Fatalf("seed approval %s: %v", rule.ID, err)
 		}
@@ -320,9 +319,18 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	for _, rule := range rules {
 		ids[rule.ID] = true
 	}
-	if ids["session"] || !ids["project"] || !ids["global"] || len(ids) != 2 {
+	if ids[sessionRule.ID] || !ids[projectRule.ID] || !ids[globalRule.ID] || len(ids) != 2 {
 		t.Fatalf("approvals after restore = %v, want project+global only", ids)
 	}
+}
+
+func testApprovalRule(t *testing.T, scope approval.Scope, scopeKey, toolName string, decision approval.Decision) approval.Rule {
+	t.Helper()
+	rule, err := approval.NewRule(scope, scopeKey, toolName, "", decision)
+	if err != nil {
+		t.Fatalf("new approval rule: %v", err)
+	}
+	return rule
 }
 
 func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {

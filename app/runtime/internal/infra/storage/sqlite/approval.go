@@ -26,6 +26,9 @@ func NewApprovalRuleStore(db *sql.DB) *ApprovalRuleStore {
 }
 
 func (s *ApprovalRuleStore) Put(ctx context.Context, r approval.Rule) error {
+	if err := r.Validate(); err != nil {
+		return fmt.Errorf("sqlite: put approval rule: %w", err)
+	}
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO approval_rules (id, scope, scope_key, tool, subject, decision, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -63,9 +66,15 @@ func (s *ApprovalRuleStore) Visible(ctx context.Context, sessionID, projectDir s
 		}
 		r.Scope = approval.Scope(scope)
 		r.Decision = approval.Decision(decision)
+		if err := r.Validate(); err != nil {
+			return nil, fmt.Errorf("sqlite: decode approval rule %q: %w", r.ID, err)
+		}
 		out = append(out, r)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list approval rules: %w", err)
+	}
+	return out, nil
 }
 
 func (s *ApprovalRuleStore) Delete(ctx context.Context, id string) error {

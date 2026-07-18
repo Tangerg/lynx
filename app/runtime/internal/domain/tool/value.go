@@ -73,6 +73,17 @@ func (a Arguments) Map() map[string]any {
 	return value
 }
 
+// StringField returns one textual argument without exposing the mutable object
+// projection. Domain policies use this to derive stable command/path subjects.
+func (a Arguments) StringField(name string) (string, bool) {
+	value, exists := a.Map()[name]
+	if !exists {
+		return "", false
+	}
+	text, ok := value.(string)
+	return text, ok
+}
+
 func (a Arguments) MarshalJSON() ([]byte, error) { return []byte(a.Canonical()), nil }
 
 func (a *Arguments) UnmarshalJSON(data []byte) error {

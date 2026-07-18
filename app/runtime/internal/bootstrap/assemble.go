@@ -224,7 +224,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// Approval stance is built early: the toolset's exit_plan_mode tool needs it
 	// (it flips the stance to execute when a plan is approved), and the turn gate
 	// reads it per tool call.
-	approvalPolicy := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
+	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
+	if err != nil {
+		return Host{}, fmt.Errorf("runtime: approval policy: %w", err)
+	}
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {

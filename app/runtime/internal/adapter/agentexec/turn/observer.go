@@ -100,12 +100,25 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		FileMutation:       fileMutationScope(mutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
+	var rememberedArguments tool.Arguments
 	if plan.Action == approval.GatePrompt {
+		var err error
+		rememberedArguments, err = tool.ParseArguments(plan.Arguments)
+		if err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: validate gated tool %q arguments: %w", toolName, err),
+			}
+		}
 		var d approval.Decision
 		var ok bool
 		if approvalConfigured {
-			query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: plan.Arguments}
-			d, ok, _ = t.dispatcher.approval.Decide(ctx, query)
+			query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: rememberedArguments}
+			d, ok, err = t.dispatcher.approval.Decide(ctx, query)
+			if err != nil {
+				return agentexec.ToolApprovalVerdict{
+					Interrupt: fmt.Errorf("turn: evaluate remembered approval for tool %q: %w", toolName, err),
+				}
+			}
 		}
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
@@ -150,14 +163,18 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// the ORIGINAL arguments (the model regenerates calls like this one); any
 	// editedArgs override stays one-shot, never folded into the rule.
 	if res.RememberScope != "" && t.dispatcher.approval != nil {
-		_ = t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
+		if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
 			Scope:      approval.Scope(res.RememberScope),
 			SessionID:  sessionID,
 			ProjectDir: t.st.cwd,
 			Tool:       toolName,
-			Arguments:  plan.Arguments,
+			Arguments:  rememberedArguments,
 			Decision:   approval.DecisionOf(res.Approved),
-		})
+		}); err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: remember approval decision for tool %q: %w", toolName, err),
+			}
+		}
 	}
 	if !res.Approved {
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(res.Reason)}
@@ -227,6 +244,12 @@ func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) 
 	case runs.QuestionInterruptKind:
 		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
 	case runs.ApprovalInterruptKind:
+		rememberedArguments, err := tool.ParseArguments(effectiveArguments)
+		if err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: validate restored approval tool %q arguments: %w", toolName, err),
+			}, true
+		}
 		var resolution interrupts.Resolution
 		if err := json.Unmarshal(suspension.Response, &resolution); err != nil {
 			return agentexec.ToolApprovalVerdict{
@@ -234,14 +257,18 @@ func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) 
 			}, true
 		}
 		if resolution.RememberScope != "" && t.dispatcher.approval != nil {
-			_ = t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
+			if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
 				Scope:      approval.Scope(resolution.RememberScope),
 				SessionID:  t.st.handle.SessionID,
 				ProjectDir: t.st.cwd,
 				Tool:       toolName,
-				Arguments:  effectiveArguments,
+				Arguments:  rememberedArguments,
 				Decision:   approval.DecisionOf(resolution.Approved),
-			})
+			}); err != nil {
+				return agentexec.ToolApprovalVerdict{
+					Interrupt: fmt.Errorf("turn: remember restored approval decision for tool %q: %w", toolName, err),
+				}, true
+			}
 		}
 		if !resolution.Approved {
 			return agentexec.ToolApprovalVerdict{
