@@ -27,11 +27,7 @@ type ToolCallInput struct {
 	Mode               Mode
 	ApprovalConfigured bool
 	Hook               HookDecision
-	// Cwd is the turn's workspace directory. It lets [ToolCallInput.Plan]
-	// recognize a bypass-immune call — a file mutation whose target escapes the
-	// workspace — which is confirmed even under a mode that would auto-pass it.
-	// Empty disables the check (no workspace boundary to escape).
-	Cwd string
+	FileMutation       tool.FileMutationScope
 }
 
 // ToolCallPlan is the approval policy's verdict before any HITL interrupt is
@@ -82,7 +78,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	// same seam a PreToolUse hook's Ask uses to force a prompt, but
 	// tool/argument-driven and built in. A remembered approval still lets a repeat
 	// call through.
-	immuneReason, unbypassable := tool.BypassImmuneReason(in.Tool, arguments, in.Cwd)
+	immuneReason, unbypassable := tool.BypassImmuneReason(in.Tool, arguments, in.FileMutation)
 	if action == GatePass && (in.Hook.Ask || unbypassable) {
 		action = GatePrompt
 	}

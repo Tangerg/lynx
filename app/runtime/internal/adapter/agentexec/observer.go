@@ -52,7 +52,7 @@ type toolObserver interface {
 	//
 	// Receives the same callID it will later get on Start / End so the
 	// implementation can pair the gate with the lifecycle.
-	ApproveToolCall(ctx context.Context, callID, toolName, arguments string) ToolApprovalVerdict
+	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, mutations FileMutationReporter) ToolApprovalVerdict
 
 	OnToolCallStart(callID, toolName, arguments string)
 	OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error)
@@ -82,6 +82,13 @@ type toolObserver interface {
 	// after a compaction, so the client can render a live context-occupancy
 	// gauge (distinct from the summed usage, which only ever grows).
 	OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64)
+}
+
+// FileMutationReporter is the prospective filesystem capability consumed by
+// the approval adapter. It is defined here, where it is used; concrete tools
+// satisfy it structurally without coupling this package to their type.
+type FileMutationReporter interface {
+	MutationPaths(arguments string) ([]string, error)
 }
 
 var toolObservationKey = core.MustDependencyKey[*toolObservation]("lyra.tool_observation")
@@ -372,7 +379,8 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		call = &observedModelCall{id: "direct:" + rand.Text(), name: name, arguments: arguments}
 	}
 
-	v := o.observation.target.ApproveToolCall(ctx, call.id, name, arguments)
+	mutations, _ := o.inner.(FileMutationReporter)
+	v := o.observation.target.ApproveToolCall(ctx, call.id, name, arguments, mutations)
 	if v.Arguments != "" {
 		arguments = v.Arguments
 	}

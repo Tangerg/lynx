@@ -52,7 +52,7 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 		Arguments:          `{"file_path":"/etc/hosts"}`,
 		Mode:               ModeYolo,
 		ApprovalConfigured: true,
-		Cwd:                "/work/project",
+		FileMutation:       tool.FileMutationOutsideWorkspace,
 	}.Plan()
 	if plan.Action != GatePrompt {
 		t.Fatalf("action = %v, want GatePrompt (bypass-immune)", plan.Action)
@@ -68,15 +68,14 @@ func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T
 		Arguments:          `{"file_path":"src/a.go"}`,
 		Mode:               ModeYolo,
 		ApprovalConfigured: true,
-		Cwd:                "/work/project",
+		FileMutation:       tool.FileMutationWithinWorkspace,
 	}.Plan()
 	if plan.Action != GatePass {
 		t.Fatalf("action = %v, want GatePass (in-workspace write under Yolo)", plan.Action)
 	}
 }
 
-func TestToolCallInputPlan_OutOfWorkspaceNeedsAConfiguredWorkspace(t *testing.T) {
-	// No cwd → no workspace boundary → the escalation can't fire (Yolo passes).
+func TestToolCallInputPlan_NoMutationScopeDoesNotEscalate(t *testing.T) {
 	plan := ToolCallInput{
 		Tool:               "write",
 		Arguments:          `{"file_path":"/etc/hosts"}`,

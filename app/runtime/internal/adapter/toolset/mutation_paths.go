@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -30,7 +31,7 @@ func mutationPaths(tool tools.Tool, arguments string) []string {
 func resolvedMutationPaths(tool tools.Tool, arguments, workdir string) []string {
 	paths := mutationPaths(tool, arguments)
 	for i, path := range paths {
-		paths[i] = canonicalAbs(workdir, path)
+		paths[i] = pathidentity.Canonical(workdir, path)
 	}
 	return cleanPathList(paths)
 }

@@ -1,6 +1,7 @@
 package turn
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -44,7 +46,7 @@ type turnObserver struct {
 // records from older runtimes and still identifies the same gated call when it
 // is re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
-func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string) agentexec.ToolApprovalVerdict {
+func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, mutations agentexec.FileMutationReporter) agentexec.ToolApprovalVerdict {
 	// task is pure orchestration. Its child tools are independently observed and
 	// gated, while SubagentStart/SubagentStop own the task lifecycle hooks.
 	// Running tool hooks or approval for task itself would double-count the
@@ -94,7 +96,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		Mode:               mode,
 		ApprovalConfigured: approvalConfigured,
 		Hook:               hookDecision,
-		Cwd:                t.st.cwd,
+		FileMutation:       fileMutationScope(mutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	if plan.Action == approval.GatePrompt {
@@ -162,6 +164,38 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return agentexec.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
+}
+
+func fileMutationScope(reporter agentexec.FileMutationReporter, arguments, cwd string) tool.FileMutationScope {
+	if reporter == nil || cwd == "" {
+		return tool.FileMutationNone
+	}
+	paths, err := reporter.MutationPaths(arguments)
+	if err != nil {
+		return tool.FileMutationUnknown
+	}
+	if len(paths) == 0 {
+		return tool.FileMutationNone
+	}
+
+	root, err := pathidentity.Resolve("", cwd)
+	if err != nil {
+		return tool.FileMutationUnknown
+	}
+	for _, path := range paths {
+		target, resolveErr := pathidentity.Resolve(root, path)
+		if resolveErr != nil {
+			return tool.FileMutationUnknown
+		}
+		inside, compareErr := pathidentity.Contains(root, target)
+		if compareErr != nil {
+			return tool.FileMutationUnknown
+		}
+		if !inside {
+			return tool.FileMutationOutsideWorkspace
+		}
+	}
+	return tool.FileMutationWithinWorkspace
 }
 
 // resumedToolVerdict recognizes a responded application-owned suspension for

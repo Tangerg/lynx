@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/core/chat"
 	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/tools"
@@ -102,7 +103,7 @@ func (t *downloadTool) Call(ctx context.Context, arguments string) (string, erro
 	if maxBytes <= 0 {
 		maxBytes = defaultDownloadMaxBytes
 	}
-	path := resolveAbs(t.workdir, request.FilePath)
+	path := pathidentity.Absolute(t.workdir, request.FilePath)
 	if !request.Overwrite {
 		if err := checkDownloadTarget(path, request.FilePath); err != nil {
 			return "", err

@@ -2,9 +2,21 @@ package tool
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"regexp"
 	"strings"
+)
+
+// FileMutationScope describes what a filesystem-capable tool will affect
+// relative to the active workspace. The adapter derives it from the concrete
+// tool's mutation-reporting capability after hook argument rewrites and after
+// resolving symlinks; policy never guesses paths from a tool name or JSON key.
+type FileMutationScope uint8
+
+const (
+	FileMutationNone FileMutationScope = iota
+	FileMutationWithinWorkspace
+	FileMutationOutsideWorkspace
+	FileMutationUnknown
 )
 
 // BypassImmuneReason reports whether a tool call is dangerous enough to confirm
@@ -22,73 +34,27 @@ import (
 //   - a shell command matching a high-confidence catastrophic pattern
 //     (rm -rf of / or $HOME, --no-preserve-root, a fork bomb, mkfs/dd to a
 //     device). Tight by design so an ordinary command never trips it.
-func BypassImmuneReason(name, arguments, cwd string) (reason string, immune bool) {
-	if mutatesOutsideWorkspace(name, arguments, cwd) {
+func BypassImmuneReason(name, arguments string, mutation FileMutationScope) (reason string, immune bool) {
+	switch mutation {
+	case FileMutationOutsideWorkspace:
 		return "targets a path outside the workspace directory", true
+	case FileMutationUnknown:
+		return "has filesystem mutation targets that could not be verified", true
 	}
-	if name == "shell" && catastrophicCommand(stringArg(arguments, "command")) {
+	if name == "shell" && catastrophicCommand(shellCommand(arguments)) {
 		return "runs a high-confidence catastrophic shell command (e.g. rm -rf of a root/home path, mkfs, a fork bomb)", true
 	}
 	return "", false
 }
 
-// mutatingPathArg maps a built-in file-mutating tool to the JSON argument that
-// carries its target path. Only these tools resolve to a single filesystem
-// target, so only they have a workspace-escape notion — a precise property
-// (does the resolved path leave cwd). shell is handled separately by
-// [catastrophicCommand] because its "path" is an opaque command line, not a
-// single resolvable target.
-var mutatingPathArg = map[string]string{
-	"write":       "file_path",
-	"edit":        "file_path",
-	"apply_patch": "file_path",
-	"download":    "file_path",
-}
-
-// mutatesOutsideWorkspace reports whether a file-mutating tool call's target
-// path escapes the workspace directory cwd. Pure and conservative — it fails
-// toward asking: a home-relative (~) target, an undecodable argument blob, or a
-// path that can't be relativized all count as outside. An empty cwd (no
-// workspace boundary) or a non-mutating / non-file tool is never outside.
-func mutatesOutsideWorkspace(name, arguments, cwd string) bool {
-	arg, ok := mutatingPathArg[name]
-	if !ok || cwd == "" {
-		return false
+func shellCommand(arguments string) string {
+	var input struct {
+		Command string `json:"command"`
 	}
-	target := stringArg(arguments, arg)
-	if target == "" {
-		return false
-	}
-	return escapesDir(target, cwd)
-}
-
-// stringArg pulls a single string field out of a tool's JSON arguments, or ""
-// when it is absent, not a string, or the blob doesn't decode.
-func stringArg(arguments, key string) string {
-	var fields map[string]any
-	if json.Unmarshal([]byte(arguments), &fields) != nil {
+	if json.Unmarshal([]byte(arguments), &input) != nil {
 		return ""
 	}
-	value, _ := fields[key].(string)
-	return value
-}
-
-// escapesDir reports whether path resolves outside dir. A ~-prefixed target is
-// home-relative and treated as outside (the workspace is the project dir, not
-// home); a relative target is anchored under dir; an absolute target is compared
-// directly. Rune/separator-safe via filepath.Rel.
-func escapesDir(path, dir string) bool {
-	if strings.HasPrefix(path, "~") {
-		return true
-	}
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(dir, path)
-	}
-	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(path))
-	if err != nil {
-		return true
-	}
-	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
+	return input.Command
 }
 
 var (

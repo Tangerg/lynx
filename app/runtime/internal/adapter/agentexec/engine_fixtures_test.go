@@ -118,7 +118,7 @@ type recordingObserver struct {
 	deltaList []string
 }
 
-func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string) ToolApprovalVerdict {
+func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string, _ FileMutationReporter) ToolApprovalVerdict {
 	return ToolApprovalVerdict{} // auto-run; tests don't exercise the approval gate
 }
 
@@ -180,7 +180,7 @@ type hitlApprovalObserver struct {
 	recordingObserver
 }
 
-func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string) ToolApprovalVerdict {
+func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string, _ FileMutationReporter) ToolApprovalVerdict {
 	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
 		interrupts.InterruptKey("kernel-test.approval", toolName, arguments),
 		map[string]string{"tool": toolName, "arguments": arguments},

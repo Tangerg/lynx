@@ -6,8 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	skillspec "github.com/Tangerg/lynx/skills"
 	"gopkg.in/yaml.v3"
+
+	skillspec "github.com/Tangerg/lynx/skills"
 )
 
 // DraftsSubdir is the reserved directory, under a skills root, where proposed

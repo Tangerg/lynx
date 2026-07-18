@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -22,14 +23,14 @@ var protectedDirs = []string{".git"}
 // resolved path lies inside a [protectedDirs] directory is refused with a
 // model-facing message instead of executed. Like the read/edit guards the
 // refusal is a normal result (not an error), so the model adapts rather
-// than the run aborting. Resolution runs through [resolveAbs], so a "../"
-// traversal that lands in a protected directory is caught too. Apply it as
+// than the run aborting. Resolution uses the canonical physical path, so a
+// traversal or symlink that lands in a protected directory is caught too. Apply it as
 // the OUTERMOST wrap so the check gates before any staleness/diagnostics work.
 func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := mutationPaths(inner, arguments)
 		for _, path := range paths {
-			resolved, err := resolvePhysicalAbs(workdir, path)
+			resolved, err := pathidentity.Resolve(workdir, path)
 			if err != nil {
 				return fmt.Sprintf("Refused: %q could not be resolved safely (%v).", path, err), nil
 			}
