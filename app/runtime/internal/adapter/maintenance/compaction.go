@@ -4,17 +4,24 @@ import (
 	"context"
 	"fmt"
 
-	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 )
 
+// compactionStore is the worker's narrow history view. Replace must be atomic:
+// compaction rewrites the complete model context and cannot tolerate a
+// clear-then-append fallback.
+type compactionStore interface {
+	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
+	Replace(ctx context.Context, sessionID string, messages ...chat.Message) error
+}
+
 // Compactor is the auto-compaction worker. Constructed by the kernel
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
-	store       history.Store
+	store       compactionStore
 	client      ClientFunc
 	maxMessages int
 	maxTokens   int
@@ -24,7 +31,7 @@ type Compactor struct {
 // NewCompactor builds a Compactor over the chat history store and a
 // per-call chat-client resolver. Zero / out-of-range config fields fall back
 // to the package defaults.
-func NewCompactor(store history.Store, client ClientFunc, cfg CompactionConfig) *Compactor {
+func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
@@ -116,7 +123,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	// false) and, correctly, triggers no fact-extraction LLM call.
 	trimmed, changed := c.trimForBudget(msgs)
 	if changed && !c.shouldCompact(trimmed) {
-		if err := history.Replace(ctx, c.store, sessionID, trimmed...); err != nil {
+		if err := c.store.Replace(ctx, sessionID, trimmed...); err != nil {
 			return turn.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
 		return turn.CompactionResult{}, nil
@@ -157,10 +164,10 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	rewritten := make([]chat.Message, 0, 1+len(recent))
 	rewritten = append(rewritten, summary)
 	rewritten = append(rewritten, recent...)
-	// Atomically swap the history for [summary, ...recent] via history.Replace —
-	// a transactional backend rolls back on a failed rewrite, so a crash can't
+	// Atomically swap the history for [summary, ...recent]. The store rolls back
+	// a failed rewrite, so a crash cannot
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
-	if err := history.Replace(ctx, c.store, sessionID, rewritten...); err != nil {
+	if err := c.store.Replace(ctx, sessionID, rewritten...); err != nil {
 		return turn.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
 	return turn.CompactionResult{

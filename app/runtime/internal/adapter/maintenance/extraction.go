@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
-	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -59,11 +58,15 @@ type agentMemory interface {
 	PublishCuratedMemory(ctx context.Context, project string, expectedWatermark, through int64, content string, updatedAt time.Time) (bool, error)
 }
 
+type messageReader interface {
+	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
+}
+
 // Extractor mines durable facts into a daily append-only ledger, then folds due
 // ledger entries into a bounded complete project memory. It never writes the
 // human-owned LYRA.md cascade.
 type Extractor struct {
-	history history.Store
+	history messageReader
 	memory  agentMemory
 	client  ClientFunc
 	config  CurationConfig
@@ -72,7 +75,7 @@ type Extractor struct {
 }
 
 // NewExtractor builds the turn-boundary extraction and curation worker.
-func NewExtractor(store history.Store, memory agentMemory, client ClientFunc, config CurationConfig) *Extractor {
+func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, config CurationConfig) *Extractor {
 	return &Extractor{
 		history: store,
 		memory:  memory,

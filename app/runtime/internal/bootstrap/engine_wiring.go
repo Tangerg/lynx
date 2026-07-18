@@ -1,7 +1,7 @@
 package bootstrap
 
 import (
-	history "github.com/Tangerg/lynx/chathistory"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -9,11 +9,11 @@ import (
 )
 
 type messageEnvironment struct {
-	history      history.Store
+	store        conversation.Store
 	conversation *conversation.Messages
 }
 
-func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
+func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, error) {
 	ecfg := cfg.Engine
 	ecfg.ChildSessionStore = newChildSessionStore(cfg.SessionStore)
 	ecfg.ProcessStore = cfg.ProcessStore
@@ -28,20 +28,22 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
 		ecfg.ToolResultStore = cfg.ToolResultStore
 		ecfg.ToolResultThreshold = cfg.ToolResultThreshold
 	}
-	messages := buildMessageEnvironment(&ecfg)
-	return ecfg, messages
+	messages, err := buildMessageEnvironment(&ecfg)
+	return ecfg, messages, err
 }
 
-func buildMessageEnvironment(ecfg *agentexec.Config) messageEnvironment {
-	historyStore := ecfg.HistoryStore
-	if historyStore == nil {
-		historyStore = history.NewInMemoryStore()
-		ecfg.HistoryStore = historyStore
+func buildMessageEnvironment(ecfg *agentexec.Config) (messageEnvironment, error) {
+	if ecfg.HistoryStore == nil {
+		return messageEnvironment{}, errors.New("runtime: Engine.HistoryStore is required")
+	}
+	store, ok := ecfg.HistoryStore.(conversation.Store)
+	if !ok {
+		return messageEnvironment{}, errors.New("runtime: Engine.HistoryStore must support atomic replace and count")
 	}
 	return messageEnvironment{
-		history:      historyStore,
-		conversation: conversation.NewMessages(historyStore),
-	}
+		store:        store,
+		conversation: conversation.NewMessages(store),
+	}, nil
 }
 
 func attachToolEnvironment(ecfg *agentexec.Config, built toolset.Built) {

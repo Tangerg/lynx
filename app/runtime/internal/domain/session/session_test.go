@@ -74,7 +74,7 @@ func TestSessionFork(t *testing.T) {
 		Metadata:  map[string]any{"k": "v"},
 	}
 
-	child := parent.Fork("ses_child", "msg-7", now)
+	child := parent.Fork("ses_child", now)
 
 	if child.ID != "ses_child" {
 		t.Errorf("ID = %q, want ses_child", child.ID)
@@ -91,8 +91,8 @@ func TestSessionFork(t *testing.T) {
 	if child.UserID != parent.UserID || child.AgentName != parent.AgentName {
 		t.Errorf("runtime identity = %q/%q, want %q/%q", child.UserID, child.AgentName, parent.UserID, parent.AgentName)
 	}
-	if child.Metadata[ForkAtMessageIDKey] != "msg-7" {
-		t.Errorf("Metadata[%s] = %q, want msg-7", ForkAtMessageIDKey, child.Metadata[ForkAtMessageIDKey])
+	if len(child.Metadata) != 0 {
+		t.Errorf("Metadata = %#v, want empty (not inherited)", child.Metadata)
 	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)

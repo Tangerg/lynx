@@ -126,7 +126,8 @@ func TestDomainHooksStayPure(t *testing.T) {
 
 // TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
 // heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
-// process I/O, network, database driver, or external SDK/storage library.
+// process I/O, network, database driver, or external SDK/storage library
+// (including the reusable chathistory adapter contract).
 // Pure path-string composition via path/filepath remains allowed. The single
 // agent-SDK edge (accounting reads core.ModelCall token counts, a value
 // type) is a deliberate, documented exception and stays allowed.
@@ -625,6 +626,7 @@ var frameworkImports = []string{
 	"github.com/go-git",
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
+	"github.com/Tangerg/lynx/chathistory",
 }
 
 // forbidExternalImports fails the test for any production file under dir whose

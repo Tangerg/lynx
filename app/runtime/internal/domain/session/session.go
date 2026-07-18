@@ -20,11 +20,6 @@ import (
 // identical regardless of backend.
 const IDPrefix = "ses_"
 
-// ForkAtMessageIDKey is the metadata key under which a forked session records
-// the parent message it branched from. Stored on the child's Metadata so the
-// branch point survives a round-trip through storage.
-const ForkAtMessageIDKey = "fork_at_message_id"
-
 // KindSubtask marks a session created for a sub-agent delegation (the `task`
 // tool). Such a session has its OWN conversation history (isolated from the
 // parent) and records the parent via [Session.ParentID], but it is internal:
@@ -150,16 +145,15 @@ func (s Session) EffectiveModel(defaultModel string) string {
 	return defaultModel
 }
 
-// Fork derives a child session that branches from s at atMessageID. The child
-// inherits s's working directory, takes s's title with a " (fork)" suffix, and
-// records the branch point in metadata; ParentID points back at s. The parent's
-// turn history, model and other accumulated state are NOT inherited — a fork
-// starts a fresh conversation from the shared prefix.
+// Fork derives a child session from s. The child inherits s's working
+// directory, takes s's title with a " (fork)" suffix, and points ParentID back
+// at s. The application copies the selected conversation prefix separately;
+// the parent's model, metadata, and other accumulated state are not inherited.
 //
 // id and now are supplied by the caller: the storage adapter owns id generation
 // (uuid) and the clock, keeping this derivation a pure, DB-free function the
 // "what a fork is" rule can be unit-tested against.
-func (s Session) Fork(id, atMessageID string, now time.Time) Session {
+func (s Session) Fork(id string, now time.Time) Session {
 	return Session{
 		ID:        id,
 		UserID:    s.UserID,
@@ -169,7 +163,7 @@ func (s Session) Fork(id, atMessageID string, now time.Time) Session {
 		ParentID:  s.ID,
 		StartedAt: now,
 		UpdatedAt: now,
-		Metadata:  map[string]any{ForkAtMessageIDKey: atMessageID},
+		Metadata:  map[string]any{},
 	}
 }
 

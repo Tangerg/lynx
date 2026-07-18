@@ -9,6 +9,8 @@ import (
 
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 )
 
 // errEmptyConversationID guards every store operation: the conversation id is
@@ -28,9 +30,10 @@ type MessageStore struct {
 }
 
 var (
-	_ history.Store    = (*MessageStore)(nil)
-	_ history.Replacer = (*MessageStore)(nil)
-	_ history.Counter  = (*MessageStore)(nil)
+	_ history.Store      = (*MessageStore)(nil)
+	_ history.Replacer   = (*MessageStore)(nil)
+	_ history.Counter    = (*MessageStore)(nil)
+	_ conversation.Store = (*MessageStore)(nil)
 )
 
 // NewMessageStore binds the chat history store to a database opened via [Open].
@@ -104,7 +107,8 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 // Replace atomically sets conversationID's history to exactly messages — a
 // single transaction that DELETEs the existing rows then INSERTs the new ones,
 // so a failed rewrite rolls back and leaves the prior history intact (the
-// [history.Replacer] contract). Empty messages clears the conversation.
+// [conversation.Store] atomic-replacement contract). Empty messages clears the
+// conversation.
 // Retention (truncate / compaction) uses this instead of Clear+Write, which
 // would lose the conversation if the Write failed after the Clear committed.
 func (s *MessageStore) Replace(ctx context.Context, conversationID string, messages ...chat.Message) error {
@@ -135,7 +139,7 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 }
 
 // Count returns conversationID's message count via a COUNT(*) query — the
-// [history.Counter] capability — so a watermark read (sessions.rollback /
+// [conversation.Store] contract — so a watermark read (sessions.rollback /
 // fork{fromRunId}) doesn't load and unmarshal the whole history just to take
 // its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read
 // skips any that fail to unmarshal, but Write only persists marshalable

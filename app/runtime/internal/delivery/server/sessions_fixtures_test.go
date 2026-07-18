@@ -278,7 +278,7 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
-	child, err := s.rt.sess.Fork(ctx, plan.ParentID, "")
+	child, err := s.rt.sess.Fork(ctx, plan.ParentID)
 	if err != nil {
 		return session.Session{}, err
 	}

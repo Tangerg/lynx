@@ -31,13 +31,13 @@ func buildTurnServices(cfg Config, messages messageEnvironment, resolveUtility f
 			window = int(info.Limits.ContextWindow)
 		}
 		services.compactor = maintenance.NewCompactor(
-			messages.history,
+			messages.store,
 			resolveUtility,
 			maintenance.CompactionConfig{ContextWindow: window},
 		)
 	}
 	if services.extractor == nil && cfg.AgentMemoryStore != nil {
-		services.extractor = maintenance.NewExtractor(messages.history, cfg.AgentMemoryStore, resolveUtility, maintenance.CurationConfig{})
+		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, maintenance.CurationConfig{})
 	}
 	return services
 }
