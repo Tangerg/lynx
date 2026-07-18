@@ -17,7 +17,7 @@ import (
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
 // format=json (default) produces a round-trippable SessionArtifact —
-// metadata + chat history + canonical items + runs + portable offloaded tool
+// session identity + chat history + canonical items + runs + portable offloaded tool
 // bodies — that ImportSession restores. format=md produces a human-readable
 // transcript (not re-importable).
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
@@ -35,12 +35,16 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if format == "" {
 		format = protocol.ExportFormatJSON
 	}
+	presentedSession, err := s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle)
+	if err != nil {
+		return nil, err
+	}
 
 	switch format {
 	case protocol.ExportFormatMarkdown:
 		return &protocol.ExportSessionResponse{
 			Format:   format,
-			Markdown: renderSessionMarkdown(s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle), snapshot.Items),
+			Markdown: renderSessionMarkdown(presentedSession, snapshot.Items),
 		}, nil
 	case protocol.ExportFormatJSON:
 	default:
@@ -83,7 +87,7 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 		Format: format,
 		Artifact: &protocol.SessionArtifact{
 			Version:  protocol.SessionArtifactVersion,
-			Session:  s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle),
+			Session:  presentedSession,
 			Messages: msgBlobs, Runs: artRuns, Items: artItems, ToolResults: artToolResults,
 		},
 	}, nil
@@ -148,7 +152,10 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	if err != nil {
+		return nil, err
+	}
 	return &protocol.ImportSessionResponse{Session: &out}, nil
 }
 
@@ -164,7 +171,7 @@ func artifactToSession(w protocol.Session) session.Session {
 		Model:     w.Model,
 		StartedAt: w.CreatedAt,
 		UpdatedAt: w.UpdatedAt,
-		Metadata:  w.Metadata,
+		Favorite:  w.Favorite,
 	}
 }
 

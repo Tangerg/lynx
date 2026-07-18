@@ -19,8 +19,6 @@ type crudSessionStore struct {
 	model         [2]string
 	modelErr      error
 	cwd           [2]string
-	metadataID    string
-	metadata      map[string]any
 	favoriteID    string
 	favoriteValue bool
 	patched       bool
@@ -55,10 +53,6 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 	}
 	if patch.Cwd != nil {
 		s.cwd = [2]string{id, *patch.Cwd}
-	}
-	if patch.Metadata != nil {
-		s.metadataID = id
-		s.metadata = *patch.Metadata
 	}
 	if patch.Favorite != nil {
 		s.favoriteID = id
@@ -132,14 +126,12 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	title := "  Renamed  "
 	model := "claude-opus-4-8"
 	cwd := t.TempDir()
-	meta := map[string]any{"pinned": true}
 	favorite := true
 
 	got, err := c.Update(ctx, claims, "ses_1", session.Patch{
 		Title:    &title,
 		Model:    &model,
 		Cwd:      &cwd,
-		Metadata: &meta,
 		Favorite: &favorite,
 	})
 	if err != nil {
@@ -156,9 +148,6 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	}
 	if store.cwd != ([2]string{"ses_1", workspacepath.Canonical(cwd)}) {
 		t.Fatalf("cwd = %v", store.cwd)
-	}
-	if store.metadataID != "ses_1" || store.metadata["pinned"] != true {
-		t.Fatalf("metadata id=%q meta=%+v", store.metadataID, store.metadata)
 	}
 	if store.favoriteID != "ses_1" || !store.favoriteValue {
 		t.Fatalf("favorite id=%q value=%v", store.favoriteID, store.favoriteValue)

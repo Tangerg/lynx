@@ -17,18 +17,16 @@ const (
 
 // Session is one conversation, bound to a working directory (API.md §4.1).
 type Session struct {
-	ID          string         `json:"id"`
-	Title       string         `json:"title"`
-	Status      SessionStatus  `json:"status"`
-	Model       string         `json:"model"`
-	Cwd         string         `json:"cwd"`                   // abs path, server-resolved (symlinks)
-	ProjectRoot string         `json:"projectRoot,omitempty"` // derived: nearest .git ancestor, else = cwd
-	CwdMissing  bool           `json:"cwdMissing,omitempty"`  // cwd lost on disk → degrade to chat + relocate
-	CreatedAt   time.Time      `json:"createdAt"`
-	UpdatedAt   time.Time      `json:"updatedAt"`
-	Usage       *Usage         `json:"usage,omitempty"`
-	Favorite    bool           `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
-	Metadata    map[string]any `json:"metadata"`
+	ID          string        `json:"id"`
+	Title       string        `json:"title"`
+	Status      SessionStatus `json:"status"`
+	Model       string        `json:"model"`
+	Cwd         string        `json:"cwd"`                   // abs path, server-resolved (symlinks)
+	ProjectRoot string        `json:"projectRoot,omitempty"` // derived: nearest .git ancestor, else = cwd
+	CwdMissing  bool          `json:"cwdMissing,omitempty"`  // cwd lost on disk → degrade to chat + relocate
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+	Favorite    bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
 }
 
 // Project is the distinct-Session.cwd derived view (API.md §4.1). No
@@ -80,21 +78,18 @@ type DeleteSessionRequest struct {
 // CreateSessionRequest — sessions.create body. Cwd is optional; empty
 // defaults to ServerInfo.cwd (cold-start zero friction, API.md §7.2).
 type CreateSessionRequest struct {
-	Cwd      string         `json:"cwd,omitempty"`
-	Title    string         `json:"title,omitempty"`
-	Model    string         `json:"model,omitempty"`
-	Metadata map[string]any `json:"metadata,omitempty"`
+	Cwd   string `json:"cwd,omitempty"`
+	Title string `json:"title,omitempty"`
 }
 
 // UpdateSessionRequest — sessions.update body. Nil pointers mean
 // "leave alone". Setting Cwd is a relocate (gated on features.relocate).
 type UpdateSessionRequest struct {
-	SessionID string          `json:"sessionId"`
-	Title     *string         `json:"title,omitempty"`
-	Cwd       *string         `json:"cwd,omitempty"`
-	Model     *string         `json:"model,omitempty"`
-	Metadata  *map[string]any `json:"metadata,omitempty"`
-	Favorite  *bool           `json:"favorite,omitempty"`
+	SessionID string  `json:"sessionId"`
+	Title     *string `json:"title,omitempty"`
+	Cwd       *string `json:"cwd,omitempty"`
+	Model     *string `json:"model,omitempty"`
+	Favorite  *bool   `json:"favorite,omitempty"`
 }
 
 // ForkSessionRequest — sessions.fork body (AUX_API §4.2). Omit fromRunId for a
@@ -176,10 +171,10 @@ type ExportSessionResponse struct {
 // SessionArtifactVersion is the artifact schema version. Import rejects an
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
-const SessionArtifactVersion = 4
+const SessionArtifactVersion = 5
 
 // SessionArtifact is the portable, round-trippable form of a session: its
-// metadata plus the full conversation — chat messages (the model's context),
+// identity plus the full conversation — chat messages (the model's context),
 // items + runs (the UI transcript), and any structurally bound full tool-result
 // bodies. Offloaded item DTOs carry only their bounded preview; ToolResults is
 // their single full-body source. Messages remain opaque chat.Message values;

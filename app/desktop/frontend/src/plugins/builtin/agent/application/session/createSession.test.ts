@@ -39,7 +39,6 @@ const fakeSession = (id: string) => ({
   model: "gpt-4o",
   createdAt: "",
   updatedAt: "",
-  metadata: {},
 });
 
 describe("useCreateSession", () => {

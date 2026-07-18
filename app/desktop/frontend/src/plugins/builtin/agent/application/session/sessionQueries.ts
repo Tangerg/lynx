@@ -8,7 +8,6 @@ export interface AgentSessionSummary {
   model: string;
   cwd?: string;
   cwdMissing?: boolean;
-  usage?: { inputTokens?: number; outputTokens?: number; costUsd?: number };
   favorite?: boolean;
   time: string;
 }

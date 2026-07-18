@@ -49,7 +49,10 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 			out = append(out, protocol.DroppedRun{Run: presentRun(dropped.Run), UserInput: input})
 		}
 	}
-	sess := s.sessionToWire(result.Session, s.liveStatus(ctx, result.Session.ID))
+	sess, err := s.sessionToWire(result.Session, s.liveStatus(ctx, result.Session.ID))
+	if err != nil {
+		return nil, err
+	}
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
 }
 

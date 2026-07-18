@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -75,14 +76,15 @@ func TestUpdateSession(t *testing.T) {
 	}
 	s.coordinator.ReleaseSession(created.ID)
 
-	// metadata is full-replaced and round-trips arbitrary JSON values
-	meta := map[string]any{"pinned": true, "n": float64(3)}
-	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Metadata: &meta})
-	if err != nil {
-		t.Fatalf("set metadata: %v", err)
+	if err := os.RemoveAll(newCwd); err != nil {
+		t.Fatalf("remove cwd: %v", err)
 	}
-	if out.Metadata["pinned"] != true || out.Metadata["n"] != float64(3) {
-		t.Errorf("Metadata = %+v, want {pinned:true, n:3}", out.Metadata)
+	out, err = s.GetSession(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("get session with missing cwd: %v", err)
+	}
+	if !out.CwdMissing || out.ProjectRoot != out.Cwd {
+		t.Fatalf("missing workspace projection = %+v", out)
 	}
 }
 

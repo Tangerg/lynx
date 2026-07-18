@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -42,14 +43,25 @@ func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
 	if err := sess.Validate(); err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
 	}
-	_, err := s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
-		ID:        sess.ID,
-		ParentID:  sess.ParentID,
-		UserID:    sess.UserID,
-		AgentName: sess.AgentName,
-		StartedAt: sess.StartedAt,
-		UpdatedAt: sess.UpdatedAt,
-		Metadata:  sess.Metadata,
+	metadataJSON, err := json.Marshal(sess.Metadata)
+	if err != nil {
+		return fmt.Errorf("child session store: encode annotations for %q: %w", sess.ID, err)
+	}
+	if sess.Metadata == nil {
+		metadataJSON = []byte("{}")
+	}
+	annotations, err := sessionsvc.ParseAgentAnnotations(metadataJSON)
+	if err != nil {
+		return fmt.Errorf("child session store: encode annotations for %q: %w", sess.ID, err)
+	}
+	_, err = s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
+		ID:               sess.ID,
+		ParentID:         sess.ParentID,
+		UserID:           sess.UserID,
+		AgentName:        sess.AgentName,
+		StartedAt:        sess.StartedAt,
+		UpdatedAt:        sess.UpdatedAt,
+		AgentAnnotations: annotations,
 	})
 	if err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
@@ -75,6 +87,10 @@ func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, 
 			ls.Kind,
 		)
 	}
+	var metadata map[string]any
+	if err := json.Unmarshal(ls.AgentAnnotations.JSON(), &metadata); err != nil {
+		return core.Session{}, fmt.Errorf("child session store: decode annotations for %q: %w", id, err)
+	}
 	loaded := core.Session{
 		ID:        ls.ID,
 		ParentID:  ls.ParentID,
@@ -82,7 +98,7 @@ func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, 
 		AgentName: ls.AgentName,
 		StartedAt: ls.StartedAt,
 		UpdatedAt: ls.UpdatedAt,
-		Metadata:  ls.Metadata,
+		Metadata:  metadata,
 	}
 	if err := loaded.Validate(); err != nil {
 		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)

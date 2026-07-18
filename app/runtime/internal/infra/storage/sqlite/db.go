@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 7
+const schemaVersion = 8
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -72,7 +72,7 @@ func installCurrentSchema(db *sql.DB) error {
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			metadata    TEXT    NOT NULL DEFAULT '{}',
+			agent_annotations TEXT NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0

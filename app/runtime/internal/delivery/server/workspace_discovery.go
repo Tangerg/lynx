@@ -16,15 +16,25 @@ import (
 // AGENTS.md discovery rather than the filesystem or git.
 
 // WorkspaceListProjects derives the Project view from sessions: one
-// entry per distinct Session.cwd (API.md §0.2 / §7.5), newest-active
-// first. projectRoot / branch are best-effort decorations left empty
-// until the engine grows a git probe.
+// entry per distinct Session.cwd (API.md §0.2 / §7.5), newest-active first.
+// Filesystem identity is inspected after the pure aggregation so projects and
+// sessions report the same canonical root/missing state.
 func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
 	sessions, err := s.sessions.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return protocol.NewPage(projectsFromSessions(sessions)), nil
+	projects := projectsFromSessions(sessions)
+	for i := range projects {
+		identity, err := s.sessions.InspectWorkspace(projects[i].Cwd)
+		if err != nil {
+			return nil, err
+		}
+		projects[i].Cwd = identity.Cwd
+		projects[i].ProjectRoot = identity.ProjectRoot
+		projects[i].CwdMissing = identity.Missing
+	}
+	return protocol.NewPage(projects), nil
 }
 
 // projectsFromSessions collapses sessions into the distinct-cwd Project

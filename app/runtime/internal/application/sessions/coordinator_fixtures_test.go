@@ -150,6 +150,16 @@ func (r testCwdResolver) ResolveExistingDir(path string) (string, error) {
 	return path, nil
 }
 
+func (r testCwdResolver) Inspect(path string) (session.WorkspaceIdentity, error) {
+	if r.err != nil {
+		return session.WorkspaceIdentity{}, r.err
+	}
+	if r.resolved != "" {
+		path = r.resolved
+	}
+	return session.WorkspaceIdentity{Cwd: path, ProjectRoot: path}, nil
+}
+
 type emptyTranscript struct{}
 
 func (emptyTranscript) List(context.Context, string) ([]transcript.Item, []transcript.Run, error) {

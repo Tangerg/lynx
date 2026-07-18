@@ -104,9 +104,6 @@ func TestSessionFork(t *testing.T) {
 	if child.ParentID != parent.ID {
 		t.Fatalf("child.ParentID = %q, want %q", child.ParentID, parent.ID)
 	}
-	if len(child.Metadata) != 0 {
-		t.Fatalf("child metadata = %#v, want empty", child.Metadata)
-	}
 	if child.Title != "parent (fork)" {
 		t.Fatalf("child title = %q", child.Title)
 	}
@@ -117,13 +114,13 @@ func TestSessionFork(t *testing.T) {
 		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
 	}
 
-	// child round-trips through Get with canonical empty metadata.
+	// child round-trips through Get with canonical empty agent annotations.
 	gotChild, err := svc.Get(ctx, child.ID)
 	if err != nil {
 		t.Fatalf("Get child: %v", err)
 	}
-	if len(gotChild.Metadata) != 0 {
-		t.Fatalf("metadata round trip = %#v, want empty", gotChild.Metadata)
+	if gotChild.AgentAnnotations.String() != "{}" {
+		t.Fatalf("agent annotations round trip = %s, want {}", gotChild.AgentAnnotations.String())
 	}
 }
 
@@ -431,7 +428,7 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 // only the current shape is supported, including for an unversioned non-empty
 // database. No old version receives a compatibility path.
 func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
-	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 8} {
+	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 9} {
 		t.Run(fmt.Sprintf("version_%d", staleVersion), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "stale.db")
 			stale, err := sql.Open("sqlite", path)
@@ -457,8 +454,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
-				t.Fatalf("schema version = %d, err=%v, want 7", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 8 {
+				t.Fatalf("schema version = %d, err=%v, want 8", version, err)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {
@@ -475,7 +472,7 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 // TestSessionSubtaskLineage covers the delegation-lineage recording: a
 // subtask child is stored under a caller-supplied id, inherits the parent's
 // cwd, is marked KindSubtask, is hidden from List, yet is reachable via
-// Children and Get. Re-saving may update audit metadata but not identity.
+// Children and Get. Re-saving may update agent annotations but not identity.
 func TestSessionSubtaskLineage(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
@@ -486,14 +483,18 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
+	annotations, err := session.ParseAgentAnnotations([]byte(`{"source":"runtime"}`))
+	if err != nil {
+		t.Fatalf("ParseAgentAnnotations: %v", err)
+	}
 	subtask := session.Subtask{
-		ID:        "proc-123",
-		ParentID:  parent.ID,
-		UserID:    "user-1",
-		AgentName: "research-agent",
-		StartedAt: now,
-		UpdatedAt: now,
-		Metadata:  map[string]any{"source": "runtime"},
+		ID:               "proc-123",
+		ParentID:         parent.ID,
+		UserID:           "user-1",
+		AgentName:        "research-agent",
+		StartedAt:        now,
+		UpdatedAt:        now,
+		AgentAnnotations: annotations,
 	}
 	child, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil {
@@ -511,18 +512,21 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	if child.Cwd != "/work/proj" {
 		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
 	}
-	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.Metadata["source"] != "runtime" {
+	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.AgentAnnotations.String() != `{"source":"runtime"}` {
 		t.Errorf("child runtime identity = %#v, want %#v", child, subtask)
 	}
 
 	// Re-saving the same identity updates the durable runtime fields without
 	// losing product-owned title/cwd enrichment.
 	subtask.UpdatedAt = now.Add(time.Second)
-	subtask.Metadata = map[string]any{"source": "updated"}
+	subtask.AgentAnnotations, err = session.ParseAgentAnnotations([]byte(`{"source":"updated"}`))
+	if err != nil {
+		t.Fatalf("ParseAgentAnnotations update: %v", err)
+	}
 	again, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil || again.ID != child.ID ||
 		again.Title != child.Title || again.Cwd != child.Cwd || again.Kind != child.Kind ||
-		!again.UpdatedAt.Equal(subtask.UpdatedAt) || again.Metadata["source"] != "updated" {
+		!again.UpdatedAt.Equal(subtask.UpdatedAt) || again.AgentAnnotations.String() != `{"source":"updated"}` {
 		t.Fatalf("SaveSubtask update = (%#v, %v)", again, err)
 	}
 	for name, mutate := range map[string]func(*session.Subtask){

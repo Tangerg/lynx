@@ -43,7 +43,11 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	waiting := s.waitingSessionSet(ctx)
 	data := make([]protocol.Session, 0, len(page))
 	for _, ses := range page {
-		data = append(data, s.sessionToWire(ses, sessionStatus(running[ses.ID], waiting[ses.ID])))
+		presented, err := s.sessionToWire(ses, sessionStatus(running[ses.ID], waiting[ses.ID]))
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, presented)
 	}
 	return &protocol.Page[protocol.Session]{Data: data, NextCursor: next}, nil
 }
@@ -53,7 +57,10 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -69,7 +76,10 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 		return nil, err
 	}
 	// A freshly created session has no run and no interrupt — idle.
-	out := s.sessionToWire(ses, protocol.SessionStatusIdle)
+	out, err := s.sessionToWire(ses, protocol.SessionStatusIdle)
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -89,16 +99,15 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	return nil
 }
 
-// UpdateSession applies a sessions.update edit: title (rename), model,
-// cwd (relocate, gated by features.relocate) and metadata (full replace) are
-// all live. Nil fields are left alone; the updated session is returned. The
+// UpdateSession applies a sessions.update edit: title (rename), model, cwd
+// (relocate, gated by features.relocate), and favorite are all live. Nil
+// fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
 	ses, err := s.sessions.Update(ctx, s.coordinator, in.SessionID, session.Patch{
 		Title:    in.Title,
 		Model:    in.Model,
 		Cwd:      in.Cwd,
-		Metadata: in.Metadata,
 		Favorite: in.Favorite,
 	})
 	if err != nil {
@@ -107,7 +116,10 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		return nil, wireSessionErr(err)
 	}
-	out := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -134,7 +146,10 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		return nil, wireSessionErr(err)
 	}
 	// A freshly forked child has no run of its own yet — idle.
-	out := s.sessionToWire(child, protocol.SessionStatusIdle)
+	out, err := s.sessionToWire(child, protocol.SessionStatusIdle)
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -144,22 +159,23 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 // back to the runtime default when the session never explicitly selected one,
 // so the wire always carries a real model name (the frontend resolves the
 // assistant's displayName from it).
-func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatus) protocol.Session {
-	meta := ses.Metadata
-	if meta == nil {
-		meta = map[string]any{} // Session.metadata is an object, never null (API.md §4.1)
+func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatus) (protocol.Session, error) {
+	workspace, err := s.sessions.InspectWorkspace(ses.Cwd)
+	if err != nil {
+		return protocol.Session{}, fmt.Errorf("sessions: inspect workspace %q: %w", ses.Cwd, err)
 	}
 	return protocol.Session{
-		ID:        ses.ID,
-		Title:     ses.Title,
-		Cwd:       ses.Cwd,
-		Model:     ses.EffectiveModel(s.models.DefaultModel()),
-		Status:    status,
-		CreatedAt: ses.StartedAt,
-		UpdatedAt: ses.UpdatedAt,
-		Favorite:  ses.Favorite,
-		Metadata:  meta,
-	}
+		ID:          ses.ID,
+		Title:       ses.Title,
+		Cwd:         workspace.Cwd,
+		ProjectRoot: workspace.ProjectRoot,
+		CwdMissing:  workspace.Missing,
+		Model:       ses.EffectiveModel(s.models.DefaultModel()),
+		Status:      status,
+		CreatedAt:   ses.StartedAt,
+		UpdatedAt:   ses.UpdatedAt,
+		Favorite:    ses.Favorite,
+	}, nil
 }
 
 // sessionStatus picks the wire status from the two live signals: running wins

@@ -115,7 +115,6 @@ describe("smoke: v2 end-to-end happy path", () => {
       cwd: "/work",
       createdAt: "2026-06-03T00:00:00Z",
       updatedAt: "2026-06-03T00:00:00Z",
-      metadata: {},
     });
     const session = await createPromise;
     expect(session.id).toBe("ses_1");

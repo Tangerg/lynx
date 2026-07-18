@@ -9,7 +9,6 @@ package session
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"strings"
 	"time"
 )
@@ -20,12 +19,27 @@ import (
 // identical regardless of backend.
 const IDPrefix = "ses_"
 
-// KindSubtask marks a session created for a sub-agent delegation (the `task`
-// tool). Such a session has its OWN conversation history (isolated from the
-// parent) and records the parent via [Session.ParentID], but it is internal:
-// the user-facing session list hides it so it never clutters the user's view,
-// while the lineage stays queryable by id and by parent.
-const KindSubtask = "subtask"
+// Kind identifies the lifecycle semantics of a persisted session.
+type Kind string
+
+const (
+	// KindConversation is a user-facing root or forked conversation.
+	KindConversation Kind = ""
+	// KindSubtask marks a session created for a sub-agent delegation (the
+	// `task` tool). Such a session has its own conversation history and is
+	// hidden from the user-facing session list.
+	KindSubtask Kind = "subtask"
+)
+
+// ParseKind rejects storage values the domain does not understand.
+func ParseKind(value string) (Kind, error) {
+	switch Kind(value) {
+	case KindConversation, KindSubtask:
+		return Kind(value), nil
+	default:
+		return KindConversation, fmt.Errorf("session: unknown kind %q", value)
+	}
+}
 
 // ErrTitleRequired reports a session edit with an empty title.
 var ErrTitleRequired = errors.New("session: title required")
@@ -46,7 +60,6 @@ type Patch struct {
 	Title    *string
 	Model    *string
 	Cwd      *string
-	Metadata *map[string]any
 	Favorite *bool
 }
 
@@ -80,23 +93,25 @@ type Session struct {
 	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
 	ParentID  string // empty for root sessions; non-empty for a fork or a subtask child
-	Kind      string // "" for a user-facing session (root / fork); KindSubtask for an internal delegation child
+	Kind      Kind
 	StartedAt time.Time
 	UpdatedAt time.Time
-	Metadata  map[string]any // free-form, full-replaced by sessions.update (API.md §4.1, an object)
-	Favorite  bool           // user-pinned: sorts ahead of the rest in the session list
+	// AgentAnnotations belongs only to an internal delegated session. It is
+	// opaque to the product model and never appears on the public Session API.
+	AgentAnnotations AgentAnnotations
+	Favorite         bool // user-pinned: sorts ahead of the rest in the session list
 }
 
 // Subtask is the Agent runtime identity that must survive the product
 // session's title/cwd enrichment and SQLite round trip.
 type Subtask struct {
-	ID        string
-	ParentID  string
-	UserID    string
-	AgentName string
-	StartedAt time.Time
-	UpdatedAt time.Time
-	Metadata  map[string]any
+	ID               string
+	ParentID         string
+	UserID           string
+	AgentName        string
+	StartedAt        time.Time
+	UpdatedAt        time.Time
+	AgentAnnotations AgentAnnotations
 }
 
 // Validate checks the identity and audit invariants required for a resumable
@@ -121,8 +136,8 @@ func (s Subtask) Validate() error {
 }
 
 // SameIdentity reports whether existing is the durable product projection of
-// this delegated conversation. UpdatedAt and Metadata are mutable audit data;
-// the remaining runtime-owned fields are immutable identity.
+// this delegated conversation. UpdatedAt and AgentAnnotations are mutable
+// agent-owned data; the remaining runtime-owned fields are immutable identity.
 func (s Subtask) SameIdentity(existing Session) bool {
 	return existing.Kind == KindSubtask &&
 		existing.ID == s.ID &&
@@ -148,7 +163,7 @@ func (s Session) EffectiveModel(defaultModel string) string {
 // Fork derives a child session from s. The child inherits s's working
 // directory, takes s's title with a " (fork)" suffix, and points ParentID back
 // at s. The application copies the selected conversation prefix separately;
-// the parent's model, metadata, and other accumulated state are not inherited.
+// the parent's model and other accumulated state are not inherited.
 //
 // id and now are supplied by the caller: the storage adapter owns id generation
 // (uuid) and the clock, keeping this derivation a pure, DB-free function the
@@ -163,7 +178,6 @@ func (s Session) Fork(id string, now time.Time) Session {
 		ParentID:  s.ID,
 		StartedAt: now,
 		UpdatedAt: now,
-		Metadata:  map[string]any{},
 	}
 }
 
@@ -190,15 +204,15 @@ func (s Session) NewSubtask(subtask Subtask) (Session, error) {
 		title = s.Title + " · subtask"
 	}
 	return Session{
-		ID:        subtask.ID,
-		UserID:    subtask.UserID,
-		AgentName: subtask.AgentName,
-		Title:     title,
-		Cwd:       s.Cwd,
-		ParentID:  s.ID,
-		Kind:      KindSubtask,
-		StartedAt: subtask.StartedAt,
-		UpdatedAt: subtask.UpdatedAt,
-		Metadata:  maps.Clone(subtask.Metadata),
+		ID:               subtask.ID,
+		UserID:           subtask.UserID,
+		AgentName:        subtask.AgentName,
+		Title:            title,
+		Cwd:              s.Cwd,
+		ParentID:         s.ID,
+		Kind:             KindSubtask,
+		StartedAt:        subtask.StartedAt,
+		UpdatedAt:        subtask.UpdatedAt,
+		AgentAnnotations: subtask.AgentAnnotations,
 	}, nil
 }

@@ -24,13 +24,6 @@ export function toAgentSessionSummary(s: Session): AgentSessionSummary {
     model: s.model,
     cwd: s.cwd,
     cwdMissing: s.cwdMissing,
-    usage: s.usage
-      ? {
-          inputTokens: s.usage.inputTokens,
-          outputTokens: s.usage.outputTokens,
-          costUsd: s.usage.costUsd,
-        }
-      : undefined,
     favorite: s.favorite,
     time: s.updatedAt || s.createdAt,
   };

@@ -87,7 +87,6 @@ describe("defaultData — providers over JSON-RPC", () => {
               cwd: "/work/auth",
               createdAt: "2026-06-01T00:00:00Z",
               updatedAt: "2026-06-01T01:00:00Z",
-              metadata: {},
             },
           ],
         },
