@@ -1,6 +1,7 @@
 package turn
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 )
@@ -13,13 +14,17 @@ func TestDecodeToolResult(t *testing.T) {
 	}{
 		{name: "empty"},
 		{name: "object", output: `{"stdout":"ok","exit_code":0}`, want: map[string]any{
-			"stdout": "ok", "exit_code": float64(0),
+			"stdout": "ok", "exit_code": json.Number("0"),
 		}},
 		{name: "plain text", output: "denied", want: "denied"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := decodeToolResult(test.output); !reflect.DeepEqual(got, test.want) {
+			got := decodeToolResult(test.output)
+			if got == nil && test.want == nil {
+				return
+			}
+			if got == nil || !reflect.DeepEqual(got.Any(), test.want) {
 				t.Fatalf("decodeToolResult = %#v, want %#v", got, test.want)
 			}
 		})
@@ -27,11 +32,11 @@ func TestDecodeToolResult(t *testing.T) {
 }
 
 func TestToolOutputText(t *testing.T) {
-	result := map[string]any{"stdout": "out", "stderr": "err"}
-	if got := toolOutputText("shell", result); got != "out\nerr" {
+	encoded := decodeToolResult(`{"stdout":"out","stderr":"err"}`)
+	if got := toolOutputText("shell", encoded); got != "out\nerr" {
 		t.Fatalf("shell output = %q, want %q", got, "out\nerr")
 	}
-	if got := toolOutputText("grep", result); got != "" {
+	if got := toolOutputText("grep", encoded); got != "" {
 		t.Fatalf("grep output = %q, want empty", got)
 	}
 }

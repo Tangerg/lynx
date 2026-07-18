@@ -26,6 +26,10 @@ func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]inter
 
 func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 	created := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
+	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "go test ./..."})
+	if err != nil {
+		t.Fatalf("tool arguments: %v", err)
+	}
 	reader := &fakeInterruptReader{pending: []interrupts.Pending{
 		{
 			RunID:     "run_waiting",
@@ -33,7 +37,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
 				Approval: &transcript.Approval{
-					Tool: transcript.ToolInvocation{Name: "shell", Arguments: map[string]any{"command": "go test ./..."}},
+					Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.",
 				},
 			}},

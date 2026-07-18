@@ -161,8 +161,11 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			if childEnd.Denied != test.wantDenied {
 				t.Fatalf("child denied = %v, want %v", childEnd.Denied, test.wantDenied)
 			}
-			if test.wantDenyReason != "" && childEnd.Result != test.wantDenyReason {
-				t.Fatalf("child deny result = %#v, want %q", childEnd.Result, test.wantDenyReason)
+			if test.wantDenyReason != "" {
+				result, ok := childEnd.Result.String()
+				if !ok || result != test.wantDenyReason {
+					t.Fatalf("child deny result = %#v, want %q", childEnd.Result, test.wantDenyReason)
+				}
 			}
 			if got := recorder.count(hooks.PreToolUse, test.childTool); got != 1 {
 				t.Fatalf("PreToolUse(%s) count = %d, want 1", test.childTool, got)

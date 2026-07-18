@@ -1,19 +1,15 @@
 package runs
 
-import "encoding/json"
+import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 
-func newToolInvocation(name, argumentsJSON string, result any) *ToolInvocation {
+func newToolInvocation(name string, arguments tool.Arguments, result *tool.Result) *ToolInvocation {
 	return &ToolInvocation{
 		Name:      name,
-		Arguments: parseArgs(argumentsJSON),
+		Arguments: arguments,
 		Result:    result,
 	}
 }
 
-func parseArgs(raw string) map[string]any {
-	arguments := map[string]any{}
-	if raw != "" {
-		_ = json.Unmarshal([]byte(raw), &arguments)
-	}
-	return arguments
+func parseToolArguments(raw string) (tool.Arguments, error) {
+	return tool.ParseArguments(raw)
 }

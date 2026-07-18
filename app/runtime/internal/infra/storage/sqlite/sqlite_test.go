@@ -13,6 +13,7 @@ import (
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -398,11 +399,12 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewTranscriptStore(db)
 	now := time.Now().UTC()
+	preview := tool.StringResult("preview")
 	original := transcript.Item{
 		SessionID: "ses_a", RunID: "run_1", ID: "item_1", CreatedAt: now,
 		Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{
-			Name: "shell", Result: "preview", Offload: &resultoffload.Ref{ID: "BLOB234"},
+			Name: "shell", Result: &preview, Offload: &resultoffload.Ref{ID: "BLOB234"},
 		},
 	}
 	if err := store.AppendItem(t.Context(), original); err != nil {
@@ -410,8 +412,9 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	}
 
 	changed := original
+	otherPreview := tool.StringResult("other preview")
 	changed.Tool = &transcript.ToolInvocation{
-		Name: "shell", Result: "other preview", Offload: &resultoffload.Ref{ID: "OTHER234"},
+		Name: "shell", Result: &otherPreview, Offload: &resultoffload.Ref{ID: "OTHER234"},
 	}
 	if err := store.AppendItem(t.Context(), changed); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("replace offload error = %v, want ErrIdentityConflict", err)

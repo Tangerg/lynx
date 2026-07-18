@@ -2,6 +2,7 @@ package runs
 
 import (
 	"cmp"
+	"fmt"
 	"maps"
 	"slices"
 
@@ -16,20 +17,30 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	}
 	out := r.closeStreaming()
 	open := r.tools.drain()
-	matched := matchApprovalTools(open, e.Interrupts)
+	matched, err := matchApprovalTools(open, e.Interrupts)
+	if err != nil {
+		return nil, err
+	}
 	priorDrained := r.resume.remainingDrainedTools()
 	r.drained = mergeDrainedTools(priorDrained, drainedToolRefs(open, matched))
 
 	approvalItems := make(map[int]Item, len(matched))
 	for _, ref := range open {
 		if index, ok := matched[ref]; ok {
-			item := r.approvalItem(*e.Interrupts[index].Approval, ref)
+			item, err := r.approvalItem(*e.Interrupts[index].Approval, ref)
+			if err != nil {
+				return nil, err
+			}
 			approvalItems[index] = item
 			out = append(out, ItemStarted{Item: item})
 			continue
 		}
 		if ref.end != nil {
-			out = append(out, r.completeTool(ref, *ref.end)...)
+			completed, err := r.completeTool(ref, *ref.end)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, completed...)
 			continue
 		}
 		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
@@ -43,9 +54,13 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		case ApprovalInterruptKind:
 			if matchedItem, ok := approvalItems[index]; ok {
 				item = matchedItem
-				interrupt = approvalTranscriptInterrupt(item.ID, *in.Approval)
+				interrupt = approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool)
 			} else {
-				item, interrupt = r.approvalInterrupt(in)
+				var err error
+				item, interrupt, err = r.approvalInterrupt(in)
+				if err != nil {
+					return nil, err
+				}
 				out = append(out, ItemStarted{Item: item})
 			}
 		case QuestionInterruptKind:
@@ -60,48 +75,58 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	return append(out, SegmentFinished{Run: run}), nil
 }
 
-func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt) {
+func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt, error) {
 	if in.Approval == nil {
-		return Item{}, transcript.Interrupt{}
+		return Item{}, transcript.Interrupt{}, nil
 	}
-	item := r.approvalItem(*in.Approval, nil)
-	return item, approvalTranscriptInterrupt(item.ID, *in.Approval)
+	item, err := r.approvalItem(*in.Approval, nil)
+	if err != nil {
+		return Item{}, transcript.Interrupt{}, err
+	}
+	return item, approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool), nil
 }
 
-func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) Item {
+func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (Item, error) {
+	arguments, err := parseToolArguments(prompt.Arguments)
+	if err != nil {
+		return Item{}, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
+	}
 	id, createdAt := "", r.now()
 	if ref != nil {
 		id, createdAt = ref.id, ref.createdAt
 	} else {
-		id = r.reuseOrNextItemID(prompt.CallID, prompt.ToolName, prompt.Arguments)
+		id = r.reuseOrNextItemID(prompt.CallID, prompt.ToolName, arguments)
 		r.removeDrained(id)
 	}
 	return Item{
 		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
 		Kind: ToolCall, CreatedAt: createdAt,
-		Tool:        newToolInvocation(prompt.ToolName, prompt.Arguments, nil),
+		Tool:        newToolInvocation(prompt.ToolName, arguments, nil),
 		SafetyClass: prompt.SafetyClass,
-	}
+	}, nil
 }
 
-func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt) transcript.Interrupt {
-	tool := newToolInvocation(prompt.ToolName, prompt.Arguments, nil)
+func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool ToolInvocation) transcript.Interrupt {
 	return transcript.Interrupt{
 		ItemID: itemID,
 		Kind:   transcript.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: *tool, Risk: prompt.Risk, Reason: prompt.Reason,
+			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason,
 		},
 	}
 }
 
-func matchApprovalTools(open []*openTool, values []Interrupt) map[*openTool]int {
+func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int, error) {
 	matched := make(map[*openTool]int)
 	for index, value := range values {
 		if value.Kind != ApprovalInterruptKind || value.Approval == nil {
 			continue
 		}
 		prompt := value.Approval
+		arguments, err := parseToolArguments(prompt.Arguments)
+		if err != nil {
+			return nil, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
+		}
 		for _, ref := range open {
 			if ref.end != nil {
 				continue
@@ -113,15 +138,14 @@ func matchApprovalTools(open []*openTool, values []Interrupt) map[*openTool]int 
 				if ref.callID != prompt.CallID {
 					continue
 				}
-			} else if ref.name != prompt.ToolName ||
-				argsKey(parseArgs(ref.args)) != argsKey(parseArgs(prompt.Arguments)) {
+			} else if ref.name != prompt.ToolName || argumentIdentity(ref.arguments) != argumentIdentity(arguments) {
 				continue
 			}
 			matched[ref] = index
 			break
 		}
 	}
-	return matched
+	return matched, nil
 }
 
 func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.DrainedTool {
@@ -130,7 +154,7 @@ func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.D
 		_, activeApproval := matched[ref]
 		if ref.end == nil && !activeApproval {
 			drained = append(drained, interrupts.DrainedTool{
-				ItemID: ref.id, CallID: ref.callID, Name: ref.name, Arguments: ref.args,
+				ItemID: ref.id, CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
 			})
 		}
 	}
@@ -162,7 +186,7 @@ func incompleteToolItem(runID string, ref *openTool) ItemCompleted {
 	return ItemCompleted{Item: Item{
 		ID: ref.id, RunID: runID, Status: ItemIncomplete,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        newToolInvocation(ref.name, ref.args, nil),
+		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}}
 }
@@ -224,18 +248,22 @@ func (tools openTools) ordered() []*openTool {
 	return ordered
 }
 
-func (r *reducer) drainTools() []RunEvent {
+func (r *reducer) drainTools() ([]RunEvent, error) {
 	tools := r.tools.drain()
 	if len(tools) == 0 {
-		return nil
+		return nil, nil
 	}
 	var out []RunEvent
 	for _, ref := range tools {
 		if ref.end != nil {
-			out = append(out, r.completeTool(ref, *ref.end)...)
+			completed, err := r.completeTool(ref, *ref.end)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, completed...)
 			continue
 		}
 		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
 	}
-	return out
+	return out, nil
 }

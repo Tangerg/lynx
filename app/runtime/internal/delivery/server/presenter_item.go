@@ -103,7 +103,7 @@ func presentQuestion(question transcript.Question) protocol.Question {
 
 func presentTool(tool transcript.ToolInvocation) protocol.ToolInvocation {
 	return protocol.ToolInvocation{
-		Name: tool.Name, Arguments: tool.Arguments, Result: presentToolResult(tool),
+		Name: tool.Name, Arguments: tool.Arguments.Map(), Result: presentToolResult(tool),
 	}
 }
 

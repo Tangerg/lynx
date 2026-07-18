@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -22,12 +23,13 @@ func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.Tool
 }
 
 func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.Item {
+	value := tool.StringResult(result)
 	return transcript.Item{
 		SessionID: sessionID,
 		ID:        id,
 		RunID:     "run-1",
 		Kind:      transcript.ToolCall,
-		Tool:      &transcript.ToolInvocation{Name: "shell", Result: result, Offload: ref},
+		Tool:      &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 	}
 }
 
@@ -56,8 +58,8 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	if len(items) != 1 {
 		t.Fatalf("got %d items, want 1", len(items))
 	}
-	if got := items[0].Tool.Result; got != full {
-		t.Fatalf("tool result not rehydrated: got %d bytes, want the full %d", len(got.(string)), len(full))
+	if got, ok := items[0].Tool.Result.String(); !ok || got != full {
+		t.Fatalf("tool result not rehydrated: got %q, want the full %d-byte body", got, len(full))
 	}
 }
 
@@ -86,7 +88,7 @@ func TestTranscriptLeavesOrdinaryToolResultUntouched(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := items[0].Tool.Result; got != plain {
+	if got, _ := items[0].Tool.Result.String(); got != plain {
 		t.Fatalf("ordinary result altered: %q", got)
 	}
 }

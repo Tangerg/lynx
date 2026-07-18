@@ -61,7 +61,7 @@ type ToolCallEnd struct {
 	EventMeta
 	CallID       string
 	Arguments    string
-	Result       any
+	Result       *tool.Result
 	Offload      *offload.Ref
 	OutputText   string
 	MutatedPaths []string

@@ -1,8 +1,11 @@
 package runs
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 )
 
 func itemPair(build func(ItemStatus) Item) []RunEvent {
@@ -75,7 +78,20 @@ func (r *reducer) closeStreaming() []RunEvent {
 	return append(r.closeReasoning(), r.closeText()...)
 }
 
-func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
+func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
+	if strings.TrimSpace(e.CallID) == "" {
+		return nil, errors.New("tool call id is required")
+	}
+	if strings.TrimSpace(e.ToolName) == "" {
+		return nil, errors.New("tool name is required")
+	}
+	if _, duplicate := r.tools[e.CallID]; duplicate {
+		return nil, fmt.Errorf("tool call %q started more than once", e.CallID)
+	}
+	arguments, err := parseToolArguments(e.Arguments)
+	if err != nil {
+		return nil, fmt.Errorf("tool %q arguments: %w", e.ToolName, err)
+	}
 	out := r.closeStreaming()
 	r.step++
 	step := r.step
@@ -85,14 +101,14 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 	}})
 	ref := &openTool{
 		callID: e.CallID, order: r.toolOrder,
-		id: r.reuseOrNextItemID(e.CallID, e.ToolName, e.Arguments), createdAt: r.now(),
-		name: e.ToolName, args: e.Arguments, safetyClass: e.SafetyClass,
+		id: r.reuseOrNextItemID(e.CallID, e.ToolName, arguments), createdAt: r.now(),
+		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,
 	}
 	r.tools.add(ref)
 	out = append(out, ItemStarted{Item: Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemRunning,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        newToolInvocation(e.ToolName, e.Arguments, nil),
+		Tool:        newToolInvocation(e.ToolName, arguments, nil),
 		SafetyClass: e.SafetyClass,
 	}})
 	if e.Arguments != "" {
@@ -101,16 +117,16 @@ func (r *reducer) toolStart(e ToolCallStart) []RunEvent {
 			Delta:  ItemDelta{Kind: ToolArgumentsDelta, ArgumentsTextDelta: e.Arguments},
 		})
 	}
-	return out
+	return out, nil
 }
 
-func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
+func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 	ref, ok := r.tools[e.CallID]
 	if !ok {
-		return nil
+		return nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
 	}
 	if ref.end != nil {
-		return nil
+		return nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
 	}
 	copy := e
 	if e.Offload != nil {
@@ -125,7 +141,7 @@ func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
 // flushEndedTools commits only the longest completed prefix. Tools may finish
 // concurrently in any order, but transcript identity, mutation nudges, and
 // durable insertion order must follow the model's call order.
-func (r *reducer) flushEndedTools() []RunEvent {
+func (r *reducer) flushEndedTools() ([]RunEvent, error) {
 	ordered := r.tools.ordered()
 	var out []RunEvent
 	for _, ref := range ordered {
@@ -133,12 +149,16 @@ func (r *reducer) flushEndedTools() []RunEvent {
 			break
 		}
 		delete(r.tools, ref.callID)
-		out = append(out, r.completeTool(ref, *ref.end)...)
+		completed, err := r.completeTool(ref, *ref.end)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, completed...)
 	}
-	return out
+	return out, nil
 }
 
-func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) []RunEvent {
+func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error) {
 	var out []RunEvent
 	if e.OutputText != "" {
 		out = append(out, ItemChanged{
@@ -146,9 +166,13 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) []RunEvent {
 			Delta:  ItemDelta{Kind: ToolOutputDelta, Text: e.OutputText},
 		})
 	}
-	arguments := ref.args
+	arguments := ref.arguments
 	if e.Arguments != "" {
-		arguments = e.Arguments
+		parsed, err := parseToolArguments(e.Arguments)
+		if err != nil {
+			return nil, fmt.Errorf("tool %q effective arguments: %w", ref.name, err)
+		}
+		arguments = parsed
 	}
 	invocation := newToolInvocation(ref.name, arguments, e.Result)
 	invocation.Offload = e.Offload
@@ -166,7 +190,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) []RunEvent {
 		item.Status = ItemIncomplete
 		item.Error = &Problem{Kind: ToolFailedProblem, Scope: ToolProblem, Detail: e.Err}
 	}
-	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths})
+	return append(out, ItemCompleted{Item: item, mutatedPaths: e.MutatedPaths}), nil
 }
 
 func (r *reducer) usageProgress(e UsageReported) []RunEvent {

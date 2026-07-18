@@ -143,8 +143,8 @@ type QuestionOption struct {
 
 type ToolInvocation struct {
 	Name      string
-	Arguments map[string]any
-	Result    any
+	Arguments tool.Arguments
+	Result    *tool.Result
 	Offload   *offload.Ref `json:"-"`
 }
 

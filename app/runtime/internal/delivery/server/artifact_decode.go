@@ -41,7 +41,10 @@ func canonicalToolResults(art protocol.SessionArtifact, items []transcript.Item)
 		if encoded.ToolName != item.Tool.Name {
 			return nil, invalidArtifact(path+".toolName", "got %q, want item tool %q", encoded.ToolName, item.Tool.Name)
 		}
-		itemPreview, ok := item.Tool.Result.(string)
+		if item.Tool.Result == nil {
+			return nil, invalidArtifact(path+".preview", "bound item result is absent")
+		}
+		itemPreview, ok := item.Tool.Result.String()
 		if !ok || itemPreview != encoded.Preview {
 			return nil, invalidArtifact(path+".preview", "must equal the bound item's string result")
 		}

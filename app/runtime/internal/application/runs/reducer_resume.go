@@ -1,12 +1,13 @@
 package runs
 
 import (
-	"encoding/json"
+	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type resumeBinding struct {
@@ -16,6 +17,7 @@ type resumeBinding struct {
 	questions []resumedQuestion
 	drained   []interrupts.DrainedTool
 	consumed  map[string]struct{}
+	err       error
 }
 
 type resumedQuestion struct {
@@ -47,7 +49,7 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 		switch in.Kind {
 		case transcript.ApprovalInterrupt:
 			if in.Approval != nil && in.Approval.Tool.Name != "" {
-				addItem("", in.Approval.Tool.Name, argsKey(in.Approval.Tool.Arguments), in.ItemID)
+				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID)
 			}
 		case transcript.QuestionInterrupt:
 			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: in.Question})
@@ -55,7 +57,11 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 	}
 	for _, tool := range pending.DrainedTools {
 		if tool.Name != "" && tool.ItemID != "" {
-			addItem(tool.CallID, tool.Name, argsKey(parseArgs(tool.Arguments)), tool.ItemID)
+			arguments, err := parseToolArguments(tool.Arguments)
+			if err != nil {
+				return &resumeBinding{err: fmt.Errorf("resume drained tool %q arguments: %w", tool.Name, err)}
+			}
+			addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID)
 		}
 	}
 	if len(calls) == 0 && len(items) == 0 && len(questions) == 0 {
@@ -69,18 +75,15 @@ func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
 
 func resumeKey(toolName, arguments string) string { return toolName + "\x00" + arguments }
 
-func argsKey(args map[string]any) string {
-	b, _ := json.Marshal(args)
-	return string(b)
-}
+func argumentIdentity(arguments tool.Arguments) string { return arguments.Canonical() }
 
-func (r *reducer) reuseOrNextItemID(callID, toolName, rawArguments string) string {
+func (r *reducer) reuseOrNextItemID(callID, toolName string, arguments tool.Arguments) string {
 	if r.resume != nil {
 		if id, ok := r.resume.callItems[callID]; callID != "" && ok {
 			r.resume.consumeToolItem(id)
 			return id
 		}
-		key := resumeKey(toolName, argsKey(parseArgs(rawArguments)))
+		key := resumeKey(toolName, argumentIdentity(arguments))
 		if id, ok := r.resume.toolItems[key]; ok {
 			r.resume.consumeToolItem(id)
 			return id

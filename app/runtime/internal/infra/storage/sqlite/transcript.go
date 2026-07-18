@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type TranscriptStore struct{ db *sql.DB }
@@ -28,7 +29,10 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 		if err := item.Tool.Offload.Validate(); err != nil {
 			return fmt.Errorf("sqlite: history item offload: %w", err)
 		}
-		if _, ok := item.Tool.Result.(string); !ok {
+		if item.Tool.Result == nil {
+			return errors.New("sqlite: offloaded history item result is absent")
+		}
+		if _, ok := item.Tool.Result.String(); !ok {
 			return errors.New("sqlite: offloaded history item result must be a preview string")
 		}
 		offloadID = item.Tool.Offload.ID
@@ -196,14 +200,18 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 			if item.Tool == nil {
 				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no tool invocation", itemID)
 			}
-			if _, ok := item.Tool.Result.(string); !ok {
+			if item.Tool.Result == nil {
+				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no preview", itemID)
+			}
+			if _, ok := item.Tool.Result.String(); !ok {
 				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no preview string", itemID)
 			}
 			if !offloadedBody.Valid {
 				return nil, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
 			}
 			item.Tool.Offload = &offload.Ref{ID: id}
-			item.Tool.Result = offloadedBody.String
+			body := tool.StringResult(offloadedBody.String)
+			item.Tool.Result = &body
 		}
 		out = append(out, item)
 	}

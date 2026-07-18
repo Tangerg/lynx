@@ -110,11 +110,12 @@ func presentToolResult(tool transcript.ToolInvocation) any {
 	if tool.Result == nil {
 		return nil
 	}
+	result := tool.Result.Any()
 	presentation := toolPresentations[strings.ToLower(tool.Name)]
 	if presentation.presentResult == nil {
-		return tool.Result
+		return result
 	}
-	return presentation.presentResult(tool.Arguments, tool.Result)
+	return presentation.presentResult(tool.Arguments.Map(), result)
 }
 
 func presentCommandResult(_ map[string]any, result any) any {

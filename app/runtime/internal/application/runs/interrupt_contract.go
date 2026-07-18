@@ -169,24 +169,10 @@ func (q QuestionSpec) validate() error {
 
 func validateArguments(arguments string) error {
 	if strings.TrimSpace(arguments) == "" {
-		return errors.New("JSON value is required")
+		return fmt.Errorf("%w: value is required", tool.ErrInvalidArguments)
 	}
-	var value any
-	decoder := json.NewDecoder(strings.NewReader(arguments))
-	decoder.UseNumber()
-	if err := decoder.Decode(&value); err != nil {
-		return err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("multiple JSON values")
-		}
-		return err
-	}
-	if _, ok := value.(map[string]any); !ok {
-		return errors.New("JSON object is required")
-	}
-	return nil
+	_, err := tool.ParseArguments(arguments)
+	return err
 }
 
 // DecodeInterrupt performs the adapter-boundary decode exactly once. It
