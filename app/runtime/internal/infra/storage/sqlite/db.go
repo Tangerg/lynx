@@ -18,9 +18,9 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
-// Open dials a SQLite database at path and installs the current schema. Known
-// recent schemas receive targeted migrations that preserve product history;
-// other mismatched development schemas are discarded. The returned *sql.DB is
+// Open dials a SQLite database at path and installs the current schema. Any
+// mismatched development schema is discarded; this pre-release runtime carries
+// exactly one storage shape and no compatibility migrations. The returned *sql.DB is
 // safe for concurrent use; callers share it across every
 // sqlite-backed store (session / transcript / interrupt / provider / message /
 // agent memory). Human-authored knowledge (LYRA.md) is file-backed, not here.
@@ -57,27 +57,7 @@ func installCurrentSchema(db *sql.DB) error {
 	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return fmt.Errorf("sqlite: read schema version: %w", err)
 	}
-	switch version {
-	case 3:
-		if err := migrateSnapshotSchemaV1(db); err != nil {
-			return err
-		}
-		fallthrough
-	case 4:
-		if err := migrateSessionIdentitySchema(db); err != nil {
-			return err
-		}
-		fallthrough
-	case 5:
-		if err := migrateToolResultBindings(db); err != nil {
-			return err
-		}
-	case 6:
-		if err := migrateToolResultBindings(db); err != nil {
-			return err
-		}
-	case schemaVersion:
-	default:
+	if version != schemaVersion {
 		if err := discardSchema(db); err != nil {
 			return err
 		}
@@ -369,66 +349,6 @@ func installCurrentSchema(db *sql.DB) error {
 	}
 	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
 		return fmt.Errorf("sqlite: set schema version: %w", err)
-	}
-	return nil
-}
-
-// migrateSnapshotSchemaV1 preserves product history while discarding only the
-// obsolete process continuation wire. A non-terminal Run cannot remain
-// resumable without its exact snapshot, so it is terminalized explicitly.
-func migrateSnapshotSchemaV1(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("sqlite: begin snapshot schema migration: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, statement := range []string{
-		`DROP TABLE IF EXISTS process_snapshots`,
-		`UPDATE runs
-		 SET state = 'terminal', outcome = 'snapshot_schema_incompatible', updated_at = max(updated_at, strftime('%s','now') * 1000)
-		 WHERE state != 'terminal'`,
-		`DELETE FROM interrupts`,
-	} {
-		if _, err := tx.Exec(statement); err != nil {
-			return fmt.Errorf("sqlite: migrate snapshot schema: %w", err)
-		}
-	}
-	if _, err := tx.Exec(`PRAGMA user_version = 4`); err != nil {
-		return fmt.Errorf("sqlite: migrate snapshot schema version: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit snapshot schema migration: %w", err)
-	}
-	return nil
-}
-
-// migrateSessionIdentitySchema adds the Agent-owned identity needed to restore
-// delegated sessions. Existing product sessions and terminal history remain,
-// but continuations created without those fields cannot be resumed safely.
-func migrateSessionIdentitySchema(db *sql.DB) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return fmt.Errorf("sqlite: begin session identity migration: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, statement := range []string{
-		`ALTER TABLE sessions ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`,
-		`ALTER TABLE sessions ADD COLUMN agent_name TEXT NOT NULL DEFAULT ''`,
-		`DROP TABLE IF EXISTS process_snapshots`,
-		`UPDATE runs
-		 SET state = 'terminal', outcome = 'snapshot_schema_incompatible', updated_at = max(updated_at, strftime('%s','now') * 1000)
-		 WHERE state != 'terminal'`,
-		`DELETE FROM interrupts`,
-	} {
-		if _, err := tx.Exec(statement); err != nil {
-			return fmt.Errorf("sqlite: migrate session identity: %w", err)
-		}
-	}
-	if _, err := tx.Exec(`PRAGMA user_version = 5`); err != nil {
-		return fmt.Errorf("sqlite: migrate session identity version: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: commit session identity migration: %w", err)
 	}
 	return nil
 }
