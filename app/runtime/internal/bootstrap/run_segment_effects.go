@@ -19,13 +19,15 @@ type runSegmentStores struct {
 	interrupts   runsegment.InterruptStore
 	session      runsegment.SessionStore
 	transcript   runsegment.TranscriptStore
+	toolResults  runsegment.ToolResultStore
 	conversation *conversation.Messages
 	titler       *maintenance.Titler
 }
 
-func (s runSegmentStores) Interrupts() runsegment.InterruptStore  { return s.interrupts }
-func (s runSegmentStores) Session() runsegment.SessionStore       { return s.session }
-func (s runSegmentStores) Transcript() runsegment.TranscriptStore { return s.transcript }
+func (s runSegmentStores) Interrupts() runsegment.InterruptStore   { return s.interrupts }
+func (s runSegmentStores) Session() runsegment.SessionStore        { return s.session }
+func (s runSegmentStores) Transcript() runsegment.TranscriptStore  { return s.transcript }
+func (s runSegmentStores) ToolResults() runsegment.ToolResultStore { return s.toolResults }
 
 func (s runSegmentStores) MessageCount(ctx context.Context, sessionID string) (int, error) {
 	return s.conversation.Count(ctx, sessionID)

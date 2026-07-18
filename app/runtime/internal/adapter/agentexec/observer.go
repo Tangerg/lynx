@@ -13,8 +13,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -55,7 +56,7 @@ type toolObserver interface {
 	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, mutations FileMutationReporter) ToolApprovalVerdict
 
 	OnToolCallStart(callID, toolName, arguments string)
-	OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error)
+	OnToolCallEnd(callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
 
 	// OnMessageDelta is invoked for every non-empty text chunk the
 	// model streams out. Implementations typically append the chunk
@@ -140,8 +141,9 @@ type toolObservation struct {
 	// evictStore + evictThreshold drive tool-result eviction at the observation
 	// chokepoint: an oversized successful result is offloaded to the store and
 	// replaced — for BOTH the transcript (via OnToolCallEnd) and the model (the
-	// value returned to the tool loop) — by a head+tail placeholder carrying the
-	// blob id, so the full body lives in exactly one place. nil store / a
+	// value returned to the tool loop) — by a head+tail preview carrying the
+	// model-facing blob id; the observer also emits the typed relationship used
+	// by persistence. The full body lives in exactly one place. nil store / a
 	// non-positive threshold disables it.
 	evictStore     toolResultOffloader
 	evictThreshold int
@@ -263,13 +265,13 @@ func (o *toolObservation) publishStarts(calls []*observedModelCall) {
 	}
 }
 
-func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments, output string, mutatedPaths []string, err error) {
+func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
 	if bound {
 		o.mu.Lock()
 		o.finished[call.id] = struct{}{}
 		o.mu.Unlock()
 	}
-	o.target.OnToolCallEnd(call.id, call.name, arguments, output, mutatedPaths, err)
+	o.target.OnToolCallEnd(call.id, call.name, arguments, output, ref, mutatedPaths, err)
 }
 
 // result closes canonical calls that never reached a resolved tool wrapper,
@@ -305,7 +307,7 @@ func (o *toolObservation) result(processID string, round int, result chat.ToolRe
 	if result.IsError {
 		err = errors.New(result.Result)
 	}
-	o.target.OnToolCallEnd(id, result.Name, call.arguments, result.Result, nil, err)
+	o.target.OnToolCallEnd(id, result.Name, call.arguments, result.Result, nil, nil, err)
 }
 
 // toolObserverMiddleware is the process-scope [core.ToolMiddleware]
@@ -397,47 +399,56 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		// result and adapts instead of aborting. Start/End still fire so
 		// UI counts stay matched; End carries ErrToolDenied so the wire
 		// renders a distinct "denied" terminal (not a green success).
-		o.observation.finish(call, bound, arguments, v.DenyReason, nil, ErrToolDenied)
+		o.observation.finish(call, bound, arguments, v.DenyReason, nil, nil, ErrToolDenied)
 		return v.DenyReason, nil
 	}
 
 	output, err := o.inner.Call(ctx, arguments)
 	displayed := output
+	var ref *offload.Ref
 	if err == nil {
-		// Evict an oversized body to the blob store, substituting a placeholder
+		// Evict an oversized body to the blob store, substituting a bounded preview
 		// for BOTH the transcript (finish → OnToolCallEnd) and the model (the
 		// returned value the tool loop records) — so the full body lives in the
-		// blob alone. The transcript presenter rehydrates it from the placeholder
-		// id when serving items to the UI.
-		displayed = o.observation.evict(ctx, name, output)
+		// blob alone. The transcript store rehydrates it through the typed item-to-
+		// blob relationship when serving items to the UI.
+		displayed, ref = o.observation.evict(ctx, name, output)
 	}
-	o.observation.finish(call, bound, arguments, displayed, o.successfulMutationPaths(arguments, err), err)
+	o.observation.finish(call, bound, arguments, displayed, ref, o.successfulMutationPaths(arguments, err), err)
 
 	return displayed, err
 }
 
 // evict offloads an oversized successful tool result to the blob store and
-// returns a head+tail placeholder carrying the blob id; it returns output
+// returns a head+tail preview plus its typed blob reference; it returns output
 // unchanged when eviction is disabled, the output fits, there is no session to
 // scope the blob under, the tool is the read-back tool (evicting its output
 // would loop), or the offload fails (best-effort — degrade to the full body
 // rather than fail an otherwise-successful call).
-func (o *toolObservation) evict(ctx context.Context, toolName, output string) string {
+func (o *toolObservation) evict(ctx context.Context, toolName, output string) (string, *offload.Ref) {
 	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
-		return output
+		return output, nil
 	}
 	if toolName == toolport.ToolNameReadToolResult {
-		return output
+		return output, nil
 	}
 	sessionID := turnctx.TurnSession(ctx)
 	if sessionID == "" {
-		return output
+		return output, nil
 	}
 	id, err := o.evictStore.Offload(ctx, sessionID, toolName, output)
 	if err != nil {
-		return output
+		return output, nil
 	}
-	return offload.Placeholder(output, id, toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	preview := toolresultpreview.Render(output, id, toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	if len(preview) >= len(output) {
+		// Very small configured thresholds can make the retrieval marker larger
+		// than the body. Keep the body inline and compensate the unused stage;
+		// if cleanup is temporarily unavailable, startup reconciliation removes it.
+		_ = o.evictStore.Discard(ctx, sessionID, offload.Ref{ID: id})
+		return output, nil
+	}
+	return preview, &offload.Ref{ID: id}
 }
 
 func (o *observedTool) successfulMutationPaths(arguments string, callErr error) []string {

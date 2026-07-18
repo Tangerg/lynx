@@ -4,8 +4,62 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
+
+func canonicalToolResults(art protocol.SessionArtifact, items []transcript.Item) ([]offload.ToolResultBlob, error) {
+	itemsByID := make(map[string]*transcript.Item, len(items))
+	for i := range items {
+		itemsByID[items[i].ID] = &items[i]
+	}
+	seenIDs := make(map[offload.ID]struct{}, len(art.ToolResults))
+	seenItems := make(map[string]struct{}, len(art.ToolResults))
+	blobs := make([]offload.ToolResultBlob, 0, len(art.ToolResults))
+	for i, encoded := range art.ToolResults {
+		path := fmt.Sprintf("artifact.toolResults[%d]", i)
+		id, err := offload.ParseID(encoded.ID)
+		if err != nil {
+			return nil, invalidArtifact(path+".id", "%v", err)
+		}
+		if _, duplicate := seenIDs[id]; duplicate {
+			return nil, invalidArtifact(path+".id", "duplicate id %q", id)
+		}
+		if _, duplicate := seenItems[encoded.ItemID]; encoded.ItemID != "" && duplicate {
+			return nil, invalidArtifact(path+".itemId", "duplicate item binding %q", encoded.ItemID)
+		}
+		item := itemsByID[encoded.ItemID]
+		if item == nil {
+			return nil, invalidArtifact(path+".itemId", "references unknown item %q", encoded.ItemID)
+		}
+		if item.Tool == nil {
+			return nil, invalidArtifact(path+".itemId", "must reference a toolCall item")
+		}
+		if item.Status != transcript.ItemCompleted || item.Error != nil {
+			return nil, invalidArtifact(path+".itemId", "must reference a successfully completed toolCall item")
+		}
+		if encoded.ToolName != item.Tool.Name {
+			return nil, invalidArtifact(path+".toolName", "got %q, want item tool %q", encoded.ToolName, item.Tool.Name)
+		}
+		itemPreview, ok := item.Tool.Result.(string)
+		if !ok || itemPreview != encoded.Preview {
+			return nil, invalidArtifact(path+".preview", "must equal the bound item's string result")
+		}
+		blob := offload.ToolResultBlob{
+			ID: id, SessionID: art.Session.ID, ItemID: encoded.ItemID,
+			ToolName: encoded.ToolName, Preview: encoded.Preview, Body: encoded.Body,
+			CreatedAt: encoded.CreatedAt,
+		}
+		if err := blob.Validate(); err != nil {
+			return nil, invalidArtifact(path, "%v", err)
+		}
+		item.Tool.Offload = &offload.Ref{ID: id}
+		seenIDs[id] = struct{}{}
+		seenItems[encoded.ItemID] = struct{}{}
+		blobs = append(blobs, blob)
+	}
+	return blobs, nil
+}
 
 func canonicalArtifact(art protocol.SessionArtifact, messageCount int) ([]transcript.Run, []transcript.Item, error) {
 	runs := make([]transcript.Run, 0, len(art.Runs))

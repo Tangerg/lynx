@@ -1,7 +1,7 @@
 {
   "format": "json",
   "artifact": {
-    "version": 3,
+    "version": 4,
     "session": {
       "id": "ses_01",
       "title": "Refactor the runtime protocol",
@@ -39,10 +39,20 @@
           "tool": {
             "name": "shell",
             "arguments": { "command": "ls -la" },
-            "result": { "exitCode": 0, "output": "total 0\n" }
+            "result": "total 0\n…[result offloaded; use read_tool_result with BLOB234]…"
           },
           "safetyClass": "exec"
         }
+      }
+    ],
+    "toolResults": [
+      {
+        "id": "BLOB234",
+        "itemId": "item_01",
+        "toolName": "shell",
+        "preview": "total 0\n…[result offloaded; use read_tool_result with BLOB234]…",
+        "body": "total 0\n",
+        "createdAt": "2026-07-07T10:00:05Z"
       }
     ]
   }

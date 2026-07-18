@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -48,6 +49,11 @@ type TranscriptStore interface {
 	PutRun(ctx context.Context, r transcript.Run) error
 }
 
+type ToolResultStore interface {
+	Bind(ctx context.Context, sessionID, itemID, preview string, ref offload.Ref) error
+	Discard(ctx context.Context, sessionID string, ref offload.Ref) error
+}
+
 // RunStateWriter applies the run's mid-flight admission-state transitions inside
 // the event commit (§8.3): a park suspends the run, a terminal terminalizes it —
 // each in the SAME transaction as the interrupt / terminal record it must stay
@@ -72,6 +78,7 @@ type Stores interface {
 	Interrupts() InterruptStore
 	Session() SessionStore
 	Transcript() TranscriptStore
+	ToolResults() ToolResultStore
 	MessageCount(ctx context.Context, sessionID string) (int, error)
 	GenerateTitle(ctx context.Context, firstMessage string) (string, error)
 }
@@ -196,12 +203,39 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		p := *commit.Interrupt
 		procID, err := e.interruptProcessID(ctx, p)
 		if err != nil {
-			return err
+			return e.compensateFailedCommit(ctx, commit, err)
 		}
 		p.ProcessID = procID
 		pending = &p
 	}
-	return e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit, pending) })
+	err := e.runInTx(ctx, func(ctx context.Context) error { return e.applyCommit(ctx, commit, pending) })
+	if err != nil {
+		return e.compensateFailedCommit(ctx, commit, err)
+	}
+	return nil
+}
+
+const stagedToolResultCleanupTimeout = 5 * time.Second
+
+// compensateFailedCommit removes only unbound blobs staged by the failed
+// event. Cleanup is request-detached because cancellation is one of the failure
+// paths; Discard's unbound predicate makes an ambiguous successful commit safe.
+func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventCommit, commitErr error) error {
+	if e.stores == nil || e.stores.ToolResults() == nil {
+		return commitErr
+	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stagedToolResultCleanupTimeout)
+	defer cancel()
+	var cleanupErrs []error
+	for _, item := range commit.Items {
+		if item.Tool == nil || item.Tool.Offload == nil {
+			continue
+		}
+		if err := e.stores.ToolResults().Discard(cleanupCtx, item.SessionID, *item.Tool.Offload); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("runsegment: discard staged tool result %q: %w", item.Tool.Offload.ID, err))
+		}
+	}
+	return errors.Join(commitErr, errors.Join(cleanupErrs...))
 }
 
 func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pending *interrupts.Pending) error {
@@ -306,7 +340,23 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	if e.stores == nil || e.stores.Transcript() == nil {
 		return errors.New("runsegment: transcript persistence is unavailable")
 	}
-	return e.stores.Transcript().AppendItem(ctx, item)
+	if err := e.stores.Transcript().AppendItem(ctx, item); err != nil {
+		return err
+	}
+	if item.Tool == nil || item.Tool.Offload == nil {
+		return nil
+	}
+	preview, ok := item.Tool.Result.(string)
+	if !ok {
+		return errors.New("runsegment: offloaded tool result has no preview string")
+	}
+	if e.stores.ToolResults() == nil {
+		return errors.New("runsegment: tool-result persistence is unavailable")
+	}
+	if err := e.stores.ToolResults().Bind(ctx, item.SessionID, item.ID, preview, *item.Tool.Offload); err != nil {
+		return fmt.Errorf("runsegment: bind offloaded tool result: %w", err)
+	}
+	return nil
 }
 
 // putRun upserts a transcript run, resolving the terminal message watermark

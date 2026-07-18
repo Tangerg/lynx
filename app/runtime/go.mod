@@ -3,18 +3,18 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/a2a v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/agent v0.0.0-20260716163424-71261f63a160
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/core v0.0.0-20260716134603-cc8be60da95e
+	github.com/Tangerg/lynx/a2a v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/agent v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/core v0.0.0-20260718160633-cefbfc124534
 	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/mcp v0.0.0-20260716134603-cc8be60da95e
+	github.com/Tangerg/lynx/mcp v0.0.0-20260718160633-cefbfc124534
 	github.com/Tangerg/lynx/models v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/otel v0.0.0-20260716134603-cc8be60da95e
+	github.com/Tangerg/lynx/otel v0.0.0-20260718160633-cefbfc124534
 	github.com/Tangerg/lynx/pkg v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/skills v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/tools v0.0.0-20260716134603-cc8be60da95e
+	github.com/Tangerg/lynx/skills v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/tools v0.0.0-20260718160633-cefbfc124534
 	github.com/Tangerg/sse v0.0.1
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/fsnotify/fsnotify v1.10.1

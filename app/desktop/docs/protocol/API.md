@@ -1045,23 +1045,30 @@ interface DroppedRun {
 
 ```ts
 interface SessionArtifact {
-  version: number; // artifact schema 版本（当前 2）；import 不识别即 invalid_params
+  version: number; // artifact schema 版本（当前 4）；import 不识别即 invalid_params
   session: Session; // 会话元数据（wire 形态）
   messages: unknown[]; // chat 消息 blob（模型上下文）
   runs: {
-    runId: string;
     updatedAt: string;
     messageMark: number;
     run: RunRef;
   }[]; // messageMark：rollback/fork 边界水位（-1=未知）
-  items: { runId: string; itemId: string; createdAt: string; item: Item }[];
+  items: { item: Item }[];
+  toolResults: {
+    id: string;
+    itemId: string;
+    toolName: string;
+    preview: string;
+    body: string;
+    createdAt: string;
+  }[]; // 被 offload 的工具全文；保证跨数据库导入后仍可 read_tool_result
 }
 ```
 
 #### `sessions.import`
 
 - 入参 `{ artifact: SessionArtifact }`；返回 `{ session: Session }`。
-- **restore 语义**：在 artifact **原 id** 下重建会话（已存在则覆盖），并替换其历史后重灌 messages + runs + items。
+- **restore 语义**：在 artifact **原 id** 下重建会话（已存在则覆盖），并在同一事务中替换历史后重灌 messages + runs + items + toolResults。
   幂等：重复导入同一 artifact 不产生副本（按 id UPSERT）。受 `features.sessionExport` 门控。
 - 错误 `invalid_params`（缺 `artifact.session.id` / 版本不识别 / 消息 blob 损坏）。
 

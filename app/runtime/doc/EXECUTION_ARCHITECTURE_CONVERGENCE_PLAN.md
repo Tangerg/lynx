@@ -456,7 +456,7 @@ Executor EngineEvent
 
 - SQLite current schema 升为 version 2；打开旧版本数据库时直接删除旧结构并安装当前 schema，不迁移历史数据；
 - Transcript 与 Pending Interrupt 只序列化 canonical typed record，不保留 protocol JSON blob；
-- session export/import artifact 升为 version 3，旧 version 2 明确拒绝；
+- 该批 session export/import artifact 升为 version 3，旧 version 2 明确拒绝；当前协议已继续演进到 version 4，并携带可移植的 offloaded tool results；
 - 删除旧 artifact 外层存储键和旧投影路径，不提供双读、双写或转换 shim；
 - 当前 command/event wire contract 保持不变，只有持久化与导入导出 artifact 按当前正确模型切断历史。
 

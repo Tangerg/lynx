@@ -10,9 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/core/chat"
@@ -117,6 +119,82 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("re-export: %v", err)
 	}
 	assertArtifactToolResult(t, reexported.Artifact.Items, "item2", wantToolResult)
+}
+
+func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testing.T) {
+	source, sourceRuntime := rollbackHarness(t)
+	destination, destinationRuntime := rollbackHarness(t)
+	ctx := t.Context()
+	cwd := t.TempDir()
+
+	ses, err := sourceRuntime.sess.Create(ctx, "Portable offload", cwd)
+	if err != nil {
+		t.Fatalf("create source session: %v", err)
+	}
+	putRun(t, sourceRuntime, ses.ID, "run_offload", 1, 1)
+	body := strings.Repeat("portable-result-", 100)
+	id, err := sourceRuntime.toolResults.Offload(ctx, ses.ID, "vendor_tool", body)
+	if err != nil {
+		t.Fatalf("offload source result: %v", err)
+	}
+	preview := toolresultpreview.Render(body, id, "read_tool_result", 100)
+	ref := &resultoffload.Ref{ID: id}
+	item := transcript.Item{
+		SessionID: ses.ID, RunID: "run_offload", ID: "item_offload",
+		CreatedAt: time.Unix(2, 0).UTC(), Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Arguments: map[string]any{}, Result: preview, Offload: ref},
+	}
+	if err := sourceRuntime.hist.AppendItem(ctx, item); err != nil {
+		t.Fatalf("append source item: %v", err)
+	}
+	if err := sourceRuntime.toolResults.Bind(ctx, ses.ID, item.ID, preview, *ref); err != nil {
+		t.Fatalf("bind source result: %v", err)
+	}
+	if err := sourceRuntime.SeedHistory(ctx, ses.ID, []chat.Message{
+		chat.NewToolMessage(chat.ToolResult{ID: "call_offload", Name: "vendor_tool", Result: preview}),
+	}); err != nil {
+		t.Fatalf("seed source history: %v", err)
+	}
+
+	exported, err := source.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
+	if err != nil {
+		t.Fatalf("export source: %v", err)
+	}
+	if got := len(exported.Artifact.ToolResults); got != 1 {
+		t.Fatalf("artifact tool results = %d, want 1", got)
+	}
+	if exported.Artifact.ToolResults[0].Body != body || exported.Artifact.ToolResults[0].Preview != preview {
+		t.Fatal("artifact did not preserve the offloaded body and preview")
+	}
+	if len(exported.Artifact.Items) != 1 || exported.Artifact.Items[0].Item.Tool == nil || exported.Artifact.Items[0].Item.Tool.Result != preview {
+		t.Fatal("artifact item duplicated the full body instead of carrying its bounded preview")
+	}
+
+	if _, err := destination.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
+		t.Fatalf("import destination: %v", err)
+	}
+	restored, found, err := destinationRuntime.toolResults.Fetch(ctx, ses.ID, id)
+	if err != nil || !found || restored != body {
+		t.Fatalf("destination read-back = (found %v, bytes %d, err %v), want full body", found, len(restored), err)
+	}
+	items, _, err := destinationRuntime.hist.List(ctx, ses.ID)
+	if err != nil {
+		t.Fatalf("list destination transcript: %v", err)
+	}
+	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result != body {
+		t.Fatalf("destination transcript = %+v, want rehydrated tool result", items)
+	}
+	messages, err := destinationRuntime.ReadHistory(ctx, ses.ID)
+	if err != nil {
+		t.Fatalf("read destination history: %v", err)
+	}
+	encodedMessages, err := json.Marshal(messages)
+	if err != nil {
+		t.Fatalf("marshal destination history: %v", err)
+	}
+	if !strings.Contains(string(encodedMessages), id.String()) || strings.Contains(string(encodedMessages), body) {
+		t.Fatal("destination model history must keep only the retrievable preview")
+	}
 }
 
 func assertArtifactToolResult(t *testing.T, items []protocol.ArtifactItem, itemID, want string) {
@@ -296,11 +374,9 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.sessions.RestoreSession(ctx, s.coordinator, session.Session{
-		ID:    ses.ID,
-		Title: "Restored",
-		Cwd:   restoreCwd,
-	}, nil, nil, nil); !errors.Is(err, sessions.ErrSessionBusy) {
+	if err := s.sessions.RestoreSession(ctx, s.coordinator, sessions.Snapshot{Session: session.Session{
+		ID: ses.ID, Title: "Restored", Cwd: restoreCwd,
+	}}); !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
 	}
 	pending, err := rt.interrupts.List(ctx, ses.ID)
@@ -349,7 +425,7 @@ func TestSessionExportRejectsUnknownFormat(t *testing.T) {
 // TestSessionImport_VersionMismatch rejects an unrecognized artifact version.
 func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
-	for _, version := range []int{2, 999} {
+	for _, version := range []int{2, 3, 999} {
 		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
 			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.Session{ID: "ses_x"}},
 		})

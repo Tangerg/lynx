@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -144,6 +145,7 @@ type ToolInvocation struct {
 	Name      string
 	Arguments map[string]any
 	Result    any
+	Offload   *offload.Ref `json:"-"`
 }
 
 type ProblemScope uint8

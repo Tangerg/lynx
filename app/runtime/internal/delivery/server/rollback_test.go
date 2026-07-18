@@ -26,12 +26,13 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	rt := &stubRuntime{
-		sess:       sqlite.NewSessionStore(db),
-		model:      "default-model",
-		history:    map[string][]chat.Message{},
-		hist:       sqlite.NewTranscriptStore(db),
-		interrupts: sqlite.NewInterruptStore(db),
-		muts:       sqlite.NewWorkspaceMutationStore(db),
+		sess:        sqlite.NewSessionStore(db),
+		model:       "default-model",
+		history:     map[string][]chat.Message{},
+		hist:        sqlite.NewTranscriptStore(db),
+		toolResults: sqlite.NewToolResultStore(db),
+		interrupts:  sqlite.NewInterruptStore(db),
+		muts:        sqlite.NewWorkspaceMutationStore(db),
 	}
 	return newTestServer(rt), rt
 }

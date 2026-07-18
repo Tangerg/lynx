@@ -138,9 +138,10 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).RestoreSession(
 		t.Context(),
 		new(testClaimer),
-		session.Session{ID: "ses_1", Cwd: "/workspace"},
-		[]chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
-		nil, nil,
+		Snapshot{
+			Session:  session.Session{ID: "ses_1", Cwd: "/workspace"},
+			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
+		},
 	)
 	if err != nil {
 		t.Fatalf("RestoreSession: %v", err)
@@ -161,7 +162,7 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	})
 
 	err := coordinator.RestoreSession(
-		t.Context(), new(testClaimer), session.Session{ID: "ses_1", Cwd: "relative"}, nil, nil, nil,
+		t.Context(), new(testClaimer), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}},
 	)
 	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)

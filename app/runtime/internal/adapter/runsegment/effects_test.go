@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -47,6 +48,58 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	}
 	if tx.calls != 1 {
 		t.Fatalf("RunInTx calls = %d, want 1 (the whole commit is one transaction)", tx.calls)
+	}
+}
+
+func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
+	toolResults := new(fakeToolResults)
+	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
+	effects := New(Config{Stores: stores, Tx: new(fakeTx).run})
+	ref := &offload.Ref{ID: "BLOB234"}
+
+	err := effects.CommitEvent(t.Context(), runs.EventCommit{
+		RunID: "run_1", SessionID: "ses_1",
+		Items: []transcript.Item{{
+			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
+			Tool: &transcript.ToolInvocation{Name: "shell", Result: "preview", Offload: ref},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
+	if len(toolResults.bindings) != 1 {
+		t.Fatalf("bindings = %+v, want one", toolResults.bindings)
+	}
+	got := toolResults.bindings[0]
+	if got.sessionID != "ses_1" || got.itemID != "item_1" || got.preview != "preview" || got.ref != *ref {
+		t.Fatalf("binding = %+v, want exact item/ref", got)
+	}
+}
+
+func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
+	want := errors.New("transaction failed")
+	toolResults := new(fakeToolResults)
+	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
+	effects := New(Config{
+		Stores: stores,
+		Tx: func(context.Context, func(context.Context) error) error {
+			return want
+		},
+	})
+	ref := &offload.Ref{ID: "BLOB234"}
+
+	err := effects.CommitEvent(t.Context(), runs.EventCommit{
+		RunID: "run_1", SessionID: "ses_1",
+		Items: []transcript.Item{{
+			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
+			Tool: &transcript.ToolInvocation{Name: "shell", Result: "preview", Offload: ref},
+		}},
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("CommitEvent error = %v, want %v", err, want)
+	}
+	if len(toolResults.discarded) != 1 || toolResults.discarded[0].sessionID != "ses_1" || toolResults.discarded[0].ref != *ref {
+		t.Fatalf("discarded = %+v, want exact staged blob", toolResults.discarded)
 	}
 }
 
@@ -276,17 +329,19 @@ func waitString(t *testing.T, ch <-chan string) string {
 }
 
 type fakeStores struct {
-	transcript *fakeTranscript
-	interrupts *fakeInterrupts
-	session    *fakeSession
-	mark       int
-	markErr    error
-	title      string
+	transcript  *fakeTranscript
+	interrupts  *fakeInterrupts
+	session     *fakeSession
+	mark        int
+	markErr     error
+	title       string
+	toolResults *fakeToolResults
 }
 
-func (s *fakeStores) Interrupts() InterruptStore  { return s.interrupts }
-func (s *fakeStores) Session() SessionStore       { return s.session }
-func (s *fakeStores) Transcript() TranscriptStore { return s.transcript }
+func (s *fakeStores) Interrupts() InterruptStore   { return s.interrupts }
+func (s *fakeStores) Session() SessionStore        { return s.session }
+func (s *fakeStores) Transcript() TranscriptStore  { return s.transcript }
+func (s *fakeStores) ToolResults() ToolResultStore { return s.toolResults }
 func (s *fakeStores) MessageCount(context.Context, string) (int, error) {
 	return s.mark, s.markErr
 }
@@ -342,6 +397,30 @@ func (t *fakeTx) run(ctx context.Context, fn func(context.Context) error) error 
 type fakeTranscript struct {
 	items []transcript.Item
 	runs  []transcript.Run
+}
+
+type toolResultBinding struct {
+	sessionID string
+	itemID    string
+	preview   string
+	ref       offload.Ref
+}
+
+type fakeToolResults struct {
+	bindings  []toolResultBinding
+	discarded []toolResultBinding
+}
+
+func (s *fakeToolResults) Bind(_ context.Context, sessionID, itemID, preview string, ref offload.Ref) error {
+	s.bindings = append(s.bindings, toolResultBinding{
+		sessionID: sessionID, itemID: itemID, preview: preview, ref: ref,
+	})
+	return nil
+}
+
+func (s *fakeToolResults) Discard(_ context.Context, sessionID string, ref offload.Ref) error {
+	s.discarded = append(s.discarded, toolResultBinding{sessionID: sessionID, ref: ref})
+	return nil
 }
 
 func (s *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error {

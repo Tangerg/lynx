@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/core/chat"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -147,23 +145,23 @@ func releaseAdmissions(admissions []RunAdmission) {
 // the Session admission boundary (including rejection of an open interrupt),
 // then resolves Cwd exactly as Create and Update do before committing the
 // decoded aggregate.
-func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer, ses session.Session, msgs []chat.Message, runs []transcript.Run, items []transcript.Item) error {
-	admission, err := c.ClaimRunSlot(ctx, claims, ses.ID)
+func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer, snapshot Snapshot) error {
+	normalized, err := snapshot.NormalizeForRestore()
+	if err != nil {
+		return err
+	}
+	snapshot = normalized
+	admission, err := c.ClaimRunSlot(ctx, claims, snapshot.Session.ID)
 	if err != nil {
 		return err
 	}
 	defer admission.Release()
-	cwd, err := c.resolveSessionCwd(ses.Cwd)
+	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
 	if err != nil {
 		return err
 	}
-	ses.Cwd = cwd
-	return c.s.ApplyRestore(ctx, RestorePlan{
-		Session:  ses,
-		Messages: msgs,
-		Runs:     runs,
-		Items:    items,
-	})
+	snapshot.Session.Cwd = cwd
+	return c.s.ApplyRestore(ctx, snapshot)
 }
 
 // subtaskSessionsAfter resolves the internal subtask subtrees a rollback must

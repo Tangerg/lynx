@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
 type fakeStore struct {
@@ -16,10 +17,10 @@ type fakeStore struct {
 	found       bool
 	err         error
 	lastSession string
-	lastID      string
+	lastID      resultoffload.ID
 }
 
-func (f *fakeStore) Fetch(_ context.Context, session, id string) (string, bool, error) {
+func (f *fakeStore) Fetch(_ context.Context, session string, id resultoffload.ID) (string, bool, error) {
 	f.lastSession, f.lastID = session, id
 	return f.body, f.found, f.err
 }
@@ -67,12 +68,12 @@ func TestNew_ToolName(t *testing.T) {
 func TestRead_ReturnsStoredBody(t *testing.T) {
 	store := &fakeStore{body: "ABCDEFGHIJ", found: true}
 	tool, _ := New(store)
-	out, err := tool.Call(sessionCtx("sess-1"), `{"id":"blob-1"}`)
+	out, err := tool.Call(sessionCtx("sess-1"), `{"id":"BLOB234"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if store.lastSession != "sess-1" || store.lastID != "blob-1" {
-		t.Fatalf("Fetch called with (%q, %q), want (sess-1, blob-1)", store.lastSession, store.lastID)
+	if store.lastSession != "sess-1" || store.lastID != "BLOB234" {
+		t.Fatalf("Fetch called with (%q, %q), want (sess-1, BLOB234)", store.lastSession, store.lastID)
 	}
 	if !strings.Contains(out, "ABCDEFGHIJ") || !strings.Contains(out, "10 bytes total") {
 		t.Fatalf("output missing body or total:\n%s", out)
@@ -82,7 +83,7 @@ func TestRead_ReturnsStoredBody(t *testing.T) {
 func TestRead_PagesWithOffsetAndLimit(t *testing.T) {
 	store := &fakeStore{body: "ABCDEFGHIJ", found: true}
 	tool, _ := New(store)
-	out, err := tool.Call(sessionCtx("s"), `{"id":"x","offset":2,"limit":3}`)
+	out, err := tool.Call(sessionCtx("s"), `{"id":"ABCDE234","offset":2,"limit":3}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +98,7 @@ func TestRead_PagesWithOffsetAndLimit(t *testing.T) {
 
 func TestRead_UnknownIDIsRecoverable(t *testing.T) {
 	tool, _ := New(&fakeStore{found: false})
-	out, err := tool.Call(sessionCtx("s"), `{"id":"nope"}`)
+	out, err := tool.Call(sessionCtx("s"), `{"id":"NOPE234"}`)
 	if err != nil {
 		t.Fatalf("an unknown id must not error: %v", err)
 	}
@@ -117,9 +118,21 @@ func TestRead_EmptyIDRejected(t *testing.T) {
 	}
 }
 
+func TestRead_InvalidIDRejectedBeforeStore(t *testing.T) {
+	store := new(fakeStore)
+	tool, _ := New(store)
+	out, err := tool.Call(sessionCtx("s"), `{"id":"not-valid"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "uppercase base32") || store.lastID != "" {
+		t.Fatalf("invalid id output = %q, store id = %q", out, store.lastID)
+	}
+}
+
 func TestRead_NoSession(t *testing.T) {
 	tool, _ := New(&fakeStore{})
-	out, err := tool.Call(context.Background(), `{"id":"x"}`)
+	out, err := tool.Call(context.Background(), `{"id":"ABCDE234"}`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -20,6 +20,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -101,10 +102,11 @@ type Stores interface {
 // exports. The application owns this shape; delivery only projects it onto the
 // selected wire format.
 type Snapshot struct {
-	Session  session.Session
-	Messages []chat.Message
-	Items    []transcript.Item
-	Runs     []transcript.Run
+	Session     session.Session
+	Messages    []chat.Message
+	Items       []transcript.Item
+	Runs        []transcript.Run
+	ToolResults []offload.ToolResultBlob
 }
 
 // RunRef identifies the durable turn a lifecycle write-set acts on, without

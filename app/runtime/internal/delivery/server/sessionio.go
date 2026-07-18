@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/core/chat"
@@ -16,8 +17,9 @@ import (
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
 // format=json (default) produces a round-trippable SessionArtifact —
-// metadata + chat history + canonical items + runs — that ImportSession
-// restores. format=md produces a human-readable transcript (not re-importable).
+// metadata + chat history + canonical items + runs + portable offloaded tool
+// bodies — that ImportSession restores. format=md produces a human-readable
+// transcript (not re-importable).
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
@@ -44,6 +46,11 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	default:
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
+	portable, err := snapshot.NormalizeForRestore()
+	if err != nil {
+		return nil, fmt.Errorf("sessions.export: project portable tool results: %w", err)
+	}
+	snapshot = portable
 
 	msgBlobs := make([]json.RawMessage, 0, len(snapshot.Messages))
 	for _, m := range snapshot.Messages {
@@ -64,23 +71,28 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	for _, it := range snapshot.Items {
 		artItems = append(artItems, protocol.ArtifactItem{Item: presentItem(it)})
 	}
+	artToolResults := make([]protocol.ArtifactToolResult, 0, len(snapshot.ToolResults))
+	for _, blob := range snapshot.ToolResults {
+		artToolResults = append(artToolResults, protocol.ArtifactToolResult{
+			ID: blob.ID.String(), ItemID: blob.ItemID, ToolName: blob.ToolName,
+			Preview: blob.Preview, Body: blob.Body, CreatedAt: blob.CreatedAt,
+		})
+	}
 
 	return &protocol.ExportSessionResponse{
 		Format: format,
 		Artifact: &protocol.SessionArtifact{
 			Version:  protocol.SessionArtifactVersion,
 			Session:  s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle),
-			Messages: msgBlobs,
-			Runs:     artRuns,
-			Items:    artItems,
+			Messages: msgBlobs, Runs: artRuns, Items: artItems, ToolResults: artToolResults,
 		},
 	}, nil
 }
 
 // ImportSession recreates a session from a SessionArtifact under its ORIGINAL
 // id (restore semantics): it upserts the session record, replaces any existing
-// history, then re-seeds the chat messages and re-persists the canonical items
-// and runs. Re-importing the same artifact is idempotent; importing over an
+// history, then re-seeds the chat messages, canonical items/runs, and offloaded
+// tool bodies. Re-importing the same artifact is idempotent; importing over an
 // existing session restores it.
 func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 	art := in.Artifact
@@ -105,22 +117,28 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err != nil {
 		return nil, err
 	}
+	toolResults, err := canonicalToolResults(art, items)
+	if err != nil {
+		return nil, err
+	}
 
 	id := art.Session.ID
 
 	// Hand the strictly-decoded canonical aggregate to the lifecycle coordinator.
 	// It commits the whole thing as ONE transaction — upsert the
-	// session row, replace existing history (drop old items/runs + clear the
+	// session row, replace existing history (drop old items/runs/tool bodies + clear the
 	// chat log + stale open interrupts), re-seed the messages, re-persist
-	// runs+items — so a mid-sequence failure after the destructive
+	// runs+items+tool bodies — so a mid-sequence failure after the destructive
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	if err := s.sessions.RestoreSession(ctx, s.coordinator, artifactToSession(art.Session), msgs, runs, items); err != nil {
+	if err := s.sessions.RestoreSession(ctx, s.coordinator, sessions.Snapshot{
+		Session: artifactToSession(art.Session), Messages: msgs, Runs: runs, Items: items, ToolResults: toolResults,
+	}); err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
 		}
-		if errors.Is(err, transcript.ErrIdentityConflict) {
+		if errors.Is(err, transcript.ErrIdentityConflict) || errors.Is(err, offload.ErrIdentityConflict) {
 			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 		}
 		return nil, wireSessionErr(err)

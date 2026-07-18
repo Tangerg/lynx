@@ -68,6 +68,7 @@ type blockingRunStores struct{}
 func (blockingRunStores) Interrupts() runsegment.InterruptStore                 { return nil }
 func (blockingRunStores) Session() runsegment.SessionStore                      { return nil }
 func (blockingRunStores) Transcript() runsegment.TranscriptStore                { return blockingTranscript{} }
+func (blockingRunStores) ToolResults() runsegment.ToolResultStore               { return nil }
 func (blockingRunStores) MessageCount(context.Context, string) (int, error)     { return 0, nil }
 func (blockingRunStores) GenerateTitle(context.Context, string) (string, error) { return "", nil }
 

@@ -4,7 +4,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type RollbackPlan struct {
@@ -23,12 +22,7 @@ type ForkPlan struct {
 	Title    string
 }
 
-type RestorePlan struct {
-	Session  session.Session
-	Messages []chat.Message
-	Runs     []transcript.Run
-	Items    []transcript.Item
-}
+type RestorePlan = Snapshot
 
 // DeletePlan is the post-order session set removed by one delete cascade. It
 // contains the addressed session plus its owned internal-subtask descendants;
