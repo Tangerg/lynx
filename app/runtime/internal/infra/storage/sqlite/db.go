@@ -328,6 +328,15 @@ func installCurrentSchema(db *sql.DB) error {
 			ON tool_result_blobs(session_id)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_result_blobs_item
 			ON tool_result_blobs(item_id) WHERE item_id != ''`,
+		// Immutable workspace snapshots for sandbox stop/resume. The id is the
+		// sha256 digest of the deterministic tar body, so repeated snapshots
+		// naturally deduplicate and no live backend/client state enters storage.
+		`CREATE TABLE IF NOT EXISTS sandbox_snapshots (
+			id         TEXT    PRIMARY KEY,
+			archive    BLOB    NOT NULL,
+			size       INTEGER NOT NULL,
+			created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
