@@ -3,8 +3,14 @@ package runsegment
 import (
 	"context"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -320,6 +326,77 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 	}
 }
 
+func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
+	snapshotErr := errors.New("snapshot failed")
+	renameErr := errors.New("rename failed")
+	var operations []string
+	stores := &fakeStores{
+		session: &fakeSession{
+			sess:       session.Session{ID: "ses_1"},
+			operations: &operations,
+			renameErr:  renameErr,
+		},
+		title:      "Generated title",
+		operations: &operations,
+	}
+	effects := New(Config{
+		Stores: stores,
+		Checkpoints: fakeCheckpoints{
+			operations: &operations,
+			err:        snapshotErr,
+		},
+	})
+
+	err := effects.Finish(t.Context(), runs.Finish{
+		SessionID:       "ses_1",
+		RunID:           "run_1",
+		Cwd:             "/repo",
+		OpeningUserText: "hello",
+	})
+	if !errors.Is(err, snapshotErr) || !errors.Is(err, renameErr) {
+		t.Fatalf("Finish error = %v, want snapshot and rename failures", err)
+	}
+	want := []string{"checkpoint.snapshot", "session.get", "title.generate", "session.rename"}
+	if !slices.Equal(operations, want) {
+		t.Fatalf("operations = %v, want %v", operations, want)
+	}
+}
+
+func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
+	snapshotErr := errors.New("background snapshot failed")
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	previous := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previous)
+		if err := provider.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("shutdown tracer provider: %v", err)
+		}
+	})
+	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
+	effects := New(Config{
+		Checkpoints: fakeCheckpoints{err: snapshotErr},
+		Tasks:       inlineTaskLauncher{},
+	})
+
+	if err := effects.Finish(ctx, runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/repo"}); err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+	span.End()
+
+	for _, recorded := range exporter.GetSpans() {
+		for _, event := range recorded.Events {
+			for _, attr := range event.Attributes {
+				if recorded.Name == "run terminal maintenance" && event.Name == "exception" && string(attr.Key) == "exception.message" && strings.Contains(attr.Value.AsString(), snapshotErr.Error()) {
+					return
+				}
+			}
+		}
+	}
+	t.Fatal("background maintenance failure was not recorded on the run span")
+}
+
 func waitString(t *testing.T, ch <-chan string) string {
 	t.Helper()
 	select {
@@ -338,7 +415,9 @@ type fakeStores struct {
 	mark        int
 	markErr     error
 	title       string
+	titleErr    error
 	toolResults *fakeToolResults
+	operations  *[]string
 }
 
 func (s *fakeStores) Interrupts() InterruptStore   { return s.interrupts }
@@ -349,7 +428,10 @@ func (s *fakeStores) MessageCount(context.Context, string) (int, error) {
 	return s.mark, s.markErr
 }
 func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {
-	return s.title, nil
+	if s.operations != nil {
+		*s.operations = append(*s.operations, "title.generate")
+	}
+	return s.title, s.titleErr
 }
 
 type fakeProcess struct {
@@ -455,13 +537,22 @@ func (s *fakeInterrupts) Consume(_ context.Context, runID string) (interrupts.Pe
 }
 
 type fakeSession struct {
-	sess    session.Session
-	renamed chan string
+	sess       session.Session
+	renamed    chan string
+	operations *[]string
+	getErr     error
+	renameErr  error
 }
 
 func (s *fakeSession) List(context.Context) ([]session.Session, error) { return nil, nil }
 
 func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error) {
+	if s.operations != nil {
+		*s.operations = append(*s.operations, "session.get")
+	}
+	if s.getErr != nil {
+		return session.Session{}, s.getErr
+	}
 	if id != s.sess.ID {
 		return session.Session{}, session.ErrNotFound
 	}
@@ -469,18 +560,37 @@ func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error)
 }
 
 func (s *fakeSession) RenameIfUntitled(_ context.Context, id, title string) error {
+	if s.operations != nil {
+		*s.operations = append(*s.operations, "session.rename")
+	}
 	if id != s.sess.ID {
 		return session.ErrNotFound
 	}
-	s.renamed <- title
-	return nil
+	if s.renamed != nil {
+		s.renamed <- title
+	}
+	return s.renameErr
 }
 
 type fakeCheckpoints struct {
 	snapshotted chan<- string
+	operations  *[]string
+	err         error
 }
 
 func (c fakeCheckpoints) Snapshot(_ context.Context, sessionID, cwd, runID string) error {
-	c.snapshotted <- sessionID + ":" + cwd + ":" + runID
-	return nil
+	if c.operations != nil {
+		*c.operations = append(*c.operations, "checkpoint.snapshot")
+	}
+	if c.snapshotted != nil {
+		c.snapshotted <- sessionID + ":" + cwd + ":" + runID
+	}
+	return c.err
+}
+
+type inlineTaskLauncher struct{}
+
+func (inlineTaskLauncher) Start(ctx context.Context, task func(context.Context)) bool {
+	task(ctx)
+	return true
 }

@@ -64,14 +64,15 @@ func withClientResolver(resolver interface {
 // engine. The done channel is pre-fired so runTurn receives immediately;
 // status / output / cancel return the values the test wired.
 type stubTurnProcess struct {
-	id        string
-	status    atomic.Int32 // core.ProcessStatus
-	failure   error
-	output    agentexec.TurnOutput
-	done      chan error
-	onCancel  func()
-	resumeErr error       // when set, Resume fails with it
-	discarded atomic.Bool // set by Discard to assert terminal snapshot cleanup
+	id         string
+	status     atomic.Int32 // core.ProcessStatus
+	failure    error
+	output     agentexec.TurnOutput
+	done       chan error
+	onCancel   func()
+	resumeErr  error       // when set, Resume fails with it
+	discardErr error       // returned by Discard to verify teardown observability
+	discarded  atomic.Bool // set by Discard to assert terminal snapshot cleanup
 }
 
 func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess {
@@ -115,7 +116,10 @@ func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<
 
 func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
 
-func (cp *stubTurnProcess) Discard(_ context.Context) { cp.discarded.Store(true) }
+func (cp *stubTurnProcess) Discard(_ context.Context) error {
+	cp.discarded.Store(true)
+	return cp.discardErr
+}
 
 // stubEngine satisfies the turn dispatcher's engine dependency without touching
 // the real engine, conversation history, or MCP wiring.
@@ -125,6 +129,7 @@ type stubEngine struct {
 	runReply         string
 	stopReason       agentexec.StopReason
 	restoreResumeErr error
+	discardErr       error
 
 	mu                   sync.Mutex
 	lastClient           *chatclient.Client
@@ -159,6 +164,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 		Reply:      s.runReply,
 		StopReason: s.stopReason,
 	})
+	process.discardErr = s.discardErr
 	s.lastProcess.Store(process)
 	return process, nil
 }

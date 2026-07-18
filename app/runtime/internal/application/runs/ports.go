@@ -138,9 +138,12 @@ type Effects interface {
 	CommitEvent(ctx context.Context, commit EventCommit) error
 	// Nudge publishes a non-durable live workspace change to subscribers.
 	Nudge(cwd string, paths []string)
-	// Finish runs terminal boundary maintenance off the live path. A parked run is
-	// resumable, not a boundary, so Finish no-ops for it (fin.Parked).
-	Finish(ctx context.Context, fin Finish)
+	// Finish starts ordered terminal boundary maintenance off the live path. A
+	// parked run is resumable, not a boundary, so Finish no-ops for it
+	// (fin.Parked). It returns synchronous maintenance or task-admission failures;
+	// errors raised by accepted background work remain observable on a dedicated
+	// terminal-maintenance span.
+	Finish(ctx context.Context, fin Finish) error
 }
 
 // OpeningCommit is the single atomic acceptance commit for a segment. Exactly

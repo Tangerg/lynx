@@ -29,7 +29,7 @@ func (s *memoryDispatcher) endTurn(st *turnState) {
 	// canceled, keeping the trace span without letting best-effort cleanup wedge
 	// terminal delivery or component shutdown.
 	if p := st.process(); p != nil {
-		discardProcess(st.ctx, p)
+		recordTurnCleanupError(st, discardProcess(st.ctx, p))
 	}
 	if st.span != nil {
 		st.span.End()
@@ -43,10 +43,13 @@ func (s *memoryDispatcher) endTurn(st *turnState) {
 
 const processDiscardTimeout = 2 * time.Second
 
-func discardProcess(ctx context.Context, process agentexec.TurnProcess) {
+func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
 	defer cancel()
-	process.Discard(cleanupCtx)
+	if err := process.Discard(cleanupCtx); err != nil {
+		return fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
+	}
+	return nil
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)

@@ -17,6 +17,11 @@ import (
 	"strings"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -130,6 +135,8 @@ type Effects struct {
 }
 
 var _ runs.Effects = (*Effects)(nil)
+
+const runsegmentTracerName = "lynx/lyra/runsegment"
 
 // New returns an Effects coordinator.
 func New(cfg Config) *Effects {
@@ -287,22 +294,63 @@ func (e *Effects) Nudge(cwd string, paths []string) {
 	}
 }
 
-// Finish starts best-effort terminal maintenance off the live stream path. A
-// parked run is resumable, not a boundary, so it does not snapshot or title.
-func (e *Effects) Finish(ctx context.Context, fin runs.Finish) {
+// Finish starts terminal maintenance off the live stream path. Checkpointing
+// always precedes title generation: both are allowed to fail independently,
+// but their observable order is stable and a title never races the boundary
+// snapshot. A parked run is resumable, not a boundary, so it does neither.
+func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 	if fin.Parked {
-		return
+		return nil
 	}
-	if e.checkpoints != nil {
-		e.startBackground(ctx, func(ctx context.Context) {
-			e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID)
-		})
+	needsSnapshot := e.checkpoints != nil && fin.Cwd != ""
+	needsTitle := strings.TrimSpace(fin.OpeningUserText) != ""
+	if !needsSnapshot && !needsTitle {
+		return nil
 	}
-	if fin.OpeningUserText != "" {
-		e.startBackground(ctx, func(ctx context.Context) {
-			e.title(ctx, fin.SessionID, fin.OpeningUserText)
-		})
+	maintenance := func(ctx context.Context) error {
+		var errs []error
+		if needsSnapshot {
+			if err := e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		if needsTitle {
+			if err := e.title(ctx, fin.SessionID, fin.OpeningUserText); err != nil {
+				errs = append(errs, err)
+			}
+		}
+		return errors.Join(errs...)
 	}
+	observed := func(ctx context.Context) error {
+		return observeTerminalMaintenance(ctx, fin, maintenance)
+	}
+	if e.tasks == nil {
+		return observed(ctx)
+	}
+	if !e.tasks.Start(ctx, func(ctx context.Context) {
+		_ = observed(ctx)
+	}) {
+		rejected := fmt.Errorf("runsegment: terminal maintenance for run %q was rejected during shutdown", fin.RunID)
+		return observeTerminalMaintenance(ctx, fin, func(context.Context) error { return rejected })
+	}
+	return nil
+}
+
+func observeTerminalMaintenance(ctx context.Context, fin runs.Finish, maintenance func(context.Context) error) error {
+	ctx, span := otel.Tracer(runsegmentTracerName).Start(ctx, "run terminal maintenance",
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(
+			attribute.String("run.id", fin.RunID),
+			attribute.String("gen_ai.conversation.id", fin.SessionID),
+		),
+	)
+	defer span.End()
+	err := maintenance(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) error {
@@ -400,35 +448,38 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 	}
 }
 
-func (e *Effects) startBackground(ctx context.Context, task func(context.Context)) {
-	if e.tasks != nil {
-		e.tasks.Start(ctx, task)
-		return
+func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) error {
+	if err := e.checkpoints.Snapshot(ctx, sessionID, cwd, runID); err != nil {
+		return fmt.Errorf("runsegment: snapshot workspace for run %q: %w", runID, err)
 	}
-	task(ctx)
+	return nil
 }
 
-func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) {
-	if cwd == "" {
-		return
-	}
-	_ = e.checkpoints.Snapshot(ctx, sessionID, cwd, runID)
-}
-
-func (e *Effects) title(ctx context.Context, sessionID, prompt string) {
+func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
 	if e.stores == nil || e.stores.Session() == nil {
-		return
+		return errors.New("runsegment: session persistence is unavailable for title generation")
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
-		return
+		return nil
 	}
-	if sess, err := e.stores.Session().Get(ctx, sessionID); err != nil || strings.TrimSpace(sess.Title) != "" {
-		return
+	sess, err := e.stores.Session().Get(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("runsegment: load session %q for title generation: %w", sessionID, err)
+	}
+	if strings.TrimSpace(sess.Title) != "" {
+		return nil
 	}
 	title, err := e.stores.GenerateTitle(ctx, prompt)
-	if err != nil || title == "" {
-		return
+	if err != nil {
+		return fmt.Errorf("runsegment: generate title for session %q: %w", sessionID, err)
 	}
-	_ = e.stores.Session().RenameIfUntitled(ctx, sessionID, title)
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return fmt.Errorf("runsegment: generated title for session %q is empty", sessionID)
+	}
+	if err := e.stores.Session().RenameIfUntitled(ctx, sessionID, title); err != nil {
+		return fmt.Errorf("runsegment: rename untitled session %q: %w", sessionID, err)
+	}
+	return nil
 }

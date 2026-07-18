@@ -1,11 +1,34 @@
 package runtime
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
+
+func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
+	engine, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{name: "kill", run: func() error { return engine.Kill("proc_missing") }},
+		{name: "remove", run: func() error { return engine.Remove("proc_missing") }},
+		{name: "resume", run: func() error { return engine.Resume("proc_missing", "susp_1", true) }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.run(); !errors.Is(err, ErrProcessNotFound) {
+				t.Fatalf("error = %v, want ErrProcessNotFound", err)
+			}
+		})
+	}
+}
 
 type constructorExtension struct{ name string }
 

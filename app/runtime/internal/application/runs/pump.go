@@ -136,13 +136,15 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		// finished too; Effects deliberately treats it as non-terminal.
 		if finished {
 			finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
-			c.effects.Finish(finishCtx, Finish{
+			if err := c.effects.Finish(finishCtx, Finish{
 				SessionID:       spec.SessionID,
 				RunID:           spec.RunID,
 				Cwd:             spec.Cwd,
 				Parked:          parked,
 				OpeningUserText: spec.OpeningUserText,
-			})
+			}); err != nil {
+				recordRunCleanupError(finishCtx, err)
+			}
 			cancelFinish()
 		}
 	}()

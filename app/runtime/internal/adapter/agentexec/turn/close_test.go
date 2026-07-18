@@ -71,8 +71,9 @@ func TestCloseDeadlineCoversCancellationWork(t *testing.T) {
 }
 
 type blockingCancelProcess struct {
-	release <-chan struct{}
-	err     error
+	release    <-chan struct{}
+	err        error
+	discardErr error
 }
 
 func (*blockingCancelProcess) ID() string                 { return "proc_1" }
@@ -88,8 +89,8 @@ func (p *blockingCancelProcess) Cancel() error {
 func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) (<-chan error, error) {
 	return nil, nil
 }
-func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
-func (*blockingCancelProcess) Discard(context.Context)       {}
+func (*blockingCancelProcess) Suspension() *agent.Suspension   { return nil }
+func (p *blockingCancelProcess) Discard(context.Context) error { return p.discardErr }
 
 func TestCloseReportsProcessCancellationFailure(t *testing.T) {
 	cancelErr := errors.New("kill failed")

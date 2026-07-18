@@ -15,6 +15,11 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 )
 
+// ErrProcessNotFound is the stable identity for an operation that addressed a
+// process no longer present in the engine registry. Callers performing
+// idempotent teardown can match it with [errors.Is] without parsing text.
+var ErrProcessNotFound = errors.New("runtime: process not found")
+
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
 // the resulting process (whether completed or terminal-failed). The first run
 // of a definition installs its immutable Deployment in the catalog; later runs
@@ -368,6 +373,17 @@ func (e *Engine) Prune() []string {
 	})
 }
 
+type processNotFound struct {
+	operation string
+	id        string
+}
+
+func (e *processNotFound) Error() string {
+	return fmt.Sprintf("%s: process %q not found", e.operation, e.id)
+}
+
+func (*processNotFound) Unwrap() error { return ErrProcessNotFound }
+
 func processNotFoundError(operation, id string) error {
-	return fmt.Errorf("%s: process %q not found", operation, id)
+	return &processNotFound{operation: operation, id: id}
 }
