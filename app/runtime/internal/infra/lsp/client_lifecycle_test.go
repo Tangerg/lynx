@@ -3,7 +3,10 @@ package lsp
 import (
 	"errors"
 	"io"
+	"os"
+	"os/exec"
 	"testing"
+	"time"
 )
 
 func TestPipeRWCCloseJoinsBothPipeErrors(t *testing.T) {
@@ -16,6 +19,36 @@ func TestPipeRWCCloseJoinsBothPipeErrors(t *testing.T) {
 	err := pipe.Close()
 	if !errors.Is(err, writeErr) || !errors.Is(err, readErr) {
 		t.Fatalf("Close error = %v, want both pipe errors", err)
+	}
+}
+
+func TestKillAndJoinProcessReapsWaiter(t *testing.T) {
+	cmd := exec.Command(os.Args[0], "-test.run=^TestLSPProcessHelper$")
+	cmd.Env = append(os.Environ(), "LYNX_LSP_PROCESS_HELPER=1")
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start helper process: %v", err)
+	}
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
+	wait := make(chan error, 1)
+	go func() {
+		wait <- cmd.Wait()
+		close(wait)
+	}()
+
+	if err := killAndJoinProcess("test", cmd.Process, wait); err != nil {
+		t.Fatalf("killAndJoinProcess: %v", err)
+	}
+	if _, open := <-wait; open {
+		t.Fatal("process waiter was not joined")
+	}
+}
+
+func TestLSPProcessHelper(t *testing.T) {
+	if os.Getenv("LYNX_LSP_PROCESS_HELPER") != "1" {
+		return
+	}
+	for {
+		time.Sleep(time.Hour)
 	}
 }
 
