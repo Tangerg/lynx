@@ -101,6 +101,7 @@ type fakeTurnControl struct {
 	steered      []TurnRef
 	steerMessage string
 	operations   *[]string
+	cancelErr    error
 }
 
 func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
@@ -135,7 +136,7 @@ func (f *fakeTurnControl) Cancel(_ context.Context, ref TurnRef) error {
 		*f.operations = append(*f.operations, "turn.cancel")
 	}
 	f.canceled = append(f.canceled, ref)
-	return nil
+	return f.cancelErr
 }
 
 func (f *fakeTurnControl) Steer(_ context.Context, ref TurnRef, message string) error {
@@ -329,6 +330,57 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	}
 	if c.ActiveSession("ses_1") {
 		t.Fatal("parked cancel leaked the session admission claim")
+	}
+}
+
+func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
+	cleanupErr := errors.New("turn cleanup failed")
+	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
+		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+	}}}
+	turns := &fakeTurnControl{cancelErr: cleanupErr}
+	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
+
+	err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+	if !errors.Is(err, cleanupErr) {
+		t.Fatalf("Cancel error = %v, want cleanup failure", err)
+	}
+	if sessions.canceledRunID != "run_1" {
+		t.Fatal("turn cleanup failure prevented the durable cancel commit")
+	}
+}
+
+func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T) {
+	cleanupErr := errors.New("turn cleanup failed")
+	executor := &fakeExecutor{block: true}
+	effects := &fakeEffects{}
+	turns := &fakeTurnControl{cancelErr: cleanupErr}
+	c := NewCoordinator(Dependencies{Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects})
+	stream, err := c.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	<-stream
+
+	err = c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+	if !errors.Is(err, cleanupErr) {
+		t.Fatalf("Cancel error = %v, want cleanup failure", err)
+	}
+	collectEvents(stream)
+	if !effects.terminalized("ses_1", "run_1") {
+		t.Fatal("turn cleanup failure prevented live run terminalization")
+	}
+}
+
+func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
+	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{"run_1": {
+		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+	}}}
+	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
+	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
+
+	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"}); err != nil {
+		t.Fatalf("Cancel error = %v, want idempotent success", err)
 	}
 }
 

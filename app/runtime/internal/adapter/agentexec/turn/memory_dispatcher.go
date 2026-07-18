@@ -1,6 +1,7 @@
 package turn
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -142,12 +143,21 @@ type memoryDispatcher struct {
 	turns     map[string]*turnState // turn_id → state
 	closed    bool
 	closeOnce sync.Once
-	closing   []*turnState
+	closing   []*closeTarget
 
 	// seenSessions tracks which sessions this process has already opened a turn
 	// for, so the SessionStart hook fires once per session per process (not on
 	// every turn). Guarded by mu.
 	seenSessions map[string]struct{}
+}
+
+// closeTarget owns one shutdown cancellation result. Publishing err before
+// closing cancelDone gives every Close caller a stable, race-free result even
+// when an earlier Close timed out and a later call finishes the join.
+type closeTarget struct {
+	state      *turnState
+	cancelDone chan struct{}
+	err        error
 }
 
 func (s *memoryDispatcher) register(st *turnState) bool {
@@ -181,31 +191,52 @@ func (s *memoryDispatcher) close(ctx context.Context) error {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
-		s.closing = slices.Collect(maps.Values(s.turns))
-		states := slices.Clone(s.closing)
+		states := slices.Collect(maps.Values(s.turns))
+		slices.SortFunc(states, func(left, right *turnState) int {
+			return cmp.Compare(left.handle.TurnID, right.handle.TurnID)
+		})
+		s.closing = make([]*closeTarget, 0, len(states))
+		for _, st := range states {
+			s.closing = append(s.closing, &closeTarget{state: st, cancelDone: make(chan struct{})})
+		}
+		targets := slices.Clone(s.closing)
 		s.mu.Unlock()
 
-		for _, st := range states {
+		for _, target := range targets {
 			go func() {
-				_ = s.Cancel(context.WithoutCancel(st.ctx), st.handle)
+				target.err = s.Cancel(context.WithoutCancel(target.state.ctx), target.state.handle)
+				close(target.cancelDone)
 			}()
 		}
 	})
 
-	for _, st := range s.closing {
+	var cancelErrs []error
+	for _, target := range s.closing {
 		select {
-		case <-st.done:
-		case <-ctx.Done():
-			remaining := 0
-			for _, pending := range s.closing {
-				select {
-				case <-pending.done:
-				default:
-					remaining++
-				}
+		case <-target.cancelDone:
+			if target.err != nil && !errors.Is(target.err, ErrTurnNotFound) {
+				cancelErrs = append(cancelErrs, fmt.Errorf("turn: close turn %q: %w", target.state.handle.TurnID, target.err))
 			}
-			return fmt.Errorf("%w: %d turn(s) still running", ErrCloseTimeout, remaining)
+		case <-ctx.Done():
+			return errors.Join(closeTimeoutError(s.closing), errors.Join(cancelErrs...))
+		}
+		select {
+		case <-target.state.done:
+		case <-ctx.Done():
+			return errors.Join(closeTimeoutError(s.closing), errors.Join(cancelErrs...))
 		}
 	}
-	return nil
+	return errors.Join(cancelErrs...)
+}
+
+func closeTimeoutError(targets []*closeTarget) error {
+	remaining := 0
+	for _, target := range targets {
+		select {
+		case <-target.state.done:
+		default:
+			remaining++
+		}
+	}
+	return fmt.Errorf("%w: %d turn(s) still running", ErrCloseTimeout, remaining)
 }

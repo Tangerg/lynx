@@ -2,8 +2,10 @@ package turn
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -33,20 +35,30 @@ func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
 		case claimed && status != core.StatusRunning:
 			// This Cancel owns the parked suspension. There is no continuation
 			// loop to observe ctx cancellation, so terminate the whole tree.
-			_ = process.Cancel()
+			err = cancelTurnProcess(process)
 		case !claimed && status != core.StatusRunning && status != core.StatusWaiting:
 			// A not-yet-running, non-parked process also has no loop that can
 			// observe ctx cancellation. Waiting is deliberately excluded: a
 			// racing Resume may have won claimPark but not yet recorded the
 			// response. Killing that transient Waiting process would clear its
 			// suspension and make the winning Resume fail stale.
-			_ = process.Cancel()
+			err = cancelTurnProcess(process)
 		}
 	}
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is waiting on
 		// it, so emit the terminal + tear down here.
 		s.finishTurn(state, execution.OutcomeCanceled)
+	}
+	return err
+}
+
+func cancelTurnProcess(process agentexec.TurnProcess) error {
+	if process == nil {
+		return nil
+	}
+	if err := process.Cancel(); err != nil {
+		return fmt.Errorf("turn: cancel process %q: %w", process.ID(), err)
 	}
 	return nil
 }

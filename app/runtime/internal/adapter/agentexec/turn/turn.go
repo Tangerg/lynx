@@ -112,7 +112,7 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 	// afterwards lands here with a dead ctx. Don't surface an interrupt nobody
 	// will answer — terminate the suspended process and emit the terminal.
 	if st.ctx.Err() != nil {
-		_ = process.Cancel()
+		recordTurnCleanupError(st, cancelTurnProcess(process))
 		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
@@ -139,19 +139,19 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		// an interrupt nobody will answer — terminate like the canceled path so
 		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
 		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
-		_ = process.Cancel()
+		recordTurnCleanupError(st, cancelTurnProcess(process))
 		s.finishTurn(st, execution.OutcomeCanceled)
 		return
 	}
 	if suspension == nil {
-		_ = process.Cancel()
+		recordTurnCleanupError(st, cancelTurnProcess(process))
 		s.emit(st, ErrorEvent{Message: "agent process is waiting without a suspension", Code: "ENGINE_ERROR"})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
-		_ = process.Cancel()
+		recordTurnCleanupError(st, cancelTurnProcess(process))
 		s.emit(st, ErrorEvent{Message: "agent process returned an unsupported interrupt payload", Code: "ENGINE_ERROR"})
 		s.finishTurn(st, execution.OutcomeError)
 		return

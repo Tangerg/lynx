@@ -87,3 +87,12 @@ func finishTurnSpan(span trace.Span, reason execution.Outcome, usage accounting.
 		span.SetStatus(codes.Error, errMsg)
 	}
 }
+
+// recordTurnCleanupError keeps an internal teardown failure observable without
+// rewriting the already-decided user-visible run outcome.
+func recordTurnCleanupError(st *turnState, err error) {
+	if err == nil || st == nil || st.span == nil {
+		return
+	}
+	st.span.RecordError(err)
+}
