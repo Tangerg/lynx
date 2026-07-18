@@ -210,33 +210,50 @@ func (s *memoryDispatcher) close(ctx context.Context) error {
 		}
 	})
 
-	var cancelErrs []error
 	for _, target := range s.closing {
 		select {
 		case <-target.cancelDone:
-			if target.err != nil && !errors.Is(target.err, ErrTurnNotFound) {
-				cancelErrs = append(cancelErrs, fmt.Errorf("turn: close turn %q: %w", target.state.handle.TurnID, target.err))
-			}
 		case <-ctx.Done():
-			return errors.Join(closeTimeoutError(s.closing), errors.Join(cancelErrs...))
+			return errors.Join(closeTimeoutError(s.closing), closeCancellationErrors(s.closing))
 		}
+	}
+	cancelErr := closeCancellationErrors(s.closing)
+	for _, target := range s.closing {
 		select {
 		case <-target.state.done:
 		case <-ctx.Done():
-			return errors.Join(closeTimeoutError(s.closing), errors.Join(cancelErrs...))
+			return errors.Join(closeTimeoutError(s.closing), cancelErr)
 		}
 	}
-	return errors.Join(cancelErrs...)
+	return cancelErr
 }
 
 func closeTimeoutError(targets []*closeTarget) error {
 	remaining := 0
 	for _, target := range targets {
-		select {
-		case <-target.state.done:
-		default:
+		if !channelClosed(target.cancelDone) || !channelClosed(target.state.done) {
 			remaining++
 		}
 	}
-	return fmt.Errorf("%w: %d turn(s) still running", ErrCloseTimeout, remaining)
+	return fmt.Errorf("%w: %d turn(s) still shutting down", ErrCloseTimeout, remaining)
+}
+
+func closeCancellationErrors(targets []*closeTarget) error {
+	var errs []error
+	for _, target := range targets {
+		if !channelClosed(target.cancelDone) || target.err == nil || errors.Is(target.err, ErrTurnNotFound) {
+			continue
+		}
+		errs = append(errs, fmt.Errorf("turn: close turn %q: %w", target.state.handle.TurnID, target.err))
+	}
+	return errors.Join(errs...)
+}
+
+func channelClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
 }
