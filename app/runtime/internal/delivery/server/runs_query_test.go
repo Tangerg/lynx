@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -17,11 +19,45 @@ import (
 type fakeInterruptReader struct {
 	sessionID string
 	pending   []interrupts.Pending
+	err       error
 }
 
 func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
 	r.sessionID = sessionID
-	return r.pending, nil
+	return r.pending, r.err
+}
+
+func TestSessionStatusPreservesInterruptReadFailure(t *testing.T) {
+	want := errors.New("interrupt store unavailable")
+	reader := &fakeInterruptReader{err: want}
+	s := &Server{
+		coordinator: runs.NewCoordinator(runs.Dependencies{}),
+		queries:     queries.New(queries.Dependencies{Interrupts: reader}),
+	}
+
+	if _, err := s.liveStatus(t.Context(), "ses_1"); !errors.Is(err, want) {
+		t.Fatalf("liveStatus error = %v, want interrupt read failure", err)
+	}
+	if _, err := s.waitingSessionSet(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("waitingSessionSet error = %v, want interrupt read failure", err)
+	}
+}
+
+func TestSessionStatusDoesNotQueryInterruptsForActiveRun(t *testing.T) {
+	reader := &fakeInterruptReader{err: errors.New("must not be read")}
+	coordinator := runs.NewCoordinator(runs.Dependencies{})
+	if !coordinator.ClaimSession("ses_1") {
+		t.Fatal("ClaimSession rejected an empty registry")
+	}
+	s := &Server{
+		coordinator: coordinator,
+		queries:     queries.New(queries.Dependencies{Interrupts: reader}),
+	}
+
+	status, err := s.liveStatus(t.Context(), "ses_1")
+	if err != nil || status != protocol.SessionStatusRunning {
+		t.Fatalf("liveStatus = (%q, %v), want running", status, err)
+	}
 }
 
 func TestListOpenInterruptsProjectsToWire(t *testing.T) {

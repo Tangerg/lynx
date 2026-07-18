@@ -40,7 +40,10 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	}
 	page, next := pageByCursor(sessions, func(ses session.Session) string { return ses.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
 	running := s.runningSessionSet()
-	waiting := s.waitingSessionSet(ctx)
+	waiting, err := s.waitingSessionSet(ctx)
+	if err != nil {
+		return nil, err
+	}
 	data := make([]protocol.Session, 0, len(page))
 	for _, ses := range page {
 		presented, err := s.sessionToWire(ses, sessionStatus(running[ses.ID], waiting[ses.ID]))
@@ -57,7 +60,11 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	status, err := s.liveStatus(ctx, ses.ID)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.sessionToWire(ses, status)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +123,11 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		return nil, wireSessionErr(err)
 	}
-	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	status, err := s.liveStatus(ctx, ses.ID)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.sessionToWire(ses, status)
 	if err != nil {
 		return nil, err
 	}
@@ -196,15 +207,15 @@ func sessionStatus(running, waiting bool) protocol.SessionStatus {
 // registry, waiting from a targeted open-interrupt lookup. For the list path
 // use the batched runningSessionSet / waitingSessionSet instead (this would be
 // an N+1 there).
-func (s *Server) liveStatus(ctx context.Context, sessionID string) protocol.SessionStatus {
+func (s *Server) liveStatus(ctx context.Context, sessionID string) (protocol.SessionStatus, error) {
 	if s.hasActiveRun(sessionID) {
-		return protocol.SessionStatusRunning
+		return protocol.SessionStatusRunning, nil
 	}
-	waiting := false
-	if pending, err := s.queries.ListPendingInterrupts(ctx, sessionID); err == nil {
-		waiting = len(pending) > 0
+	pending, err := s.queries.ListPendingInterrupts(ctx, sessionID)
+	if err != nil {
+		return "", fmt.Errorf("sessions: resolve live status for session %q: %w", sessionID, err)
 	}
-	return sessionStatus(false, waiting)
+	return sessionStatus(false, len(pending) > 0), nil
 }
 
 // runningSessionSet snapshots the session ids with a live run, in one lock pass
@@ -215,15 +226,16 @@ func (s *Server) runningSessionSet() map[string]bool {
 
 // waitingSessionSet fetches every open interrupt once and returns the set of
 // sessions awaiting a HITL answer — the list path's batched form, so per-session
-// status costs no extra query. Empty on error (status degrades to running/idle).
-func (s *Server) waitingSessionSet(ctx context.Context) map[string]bool {
+// status costs no extra query. A failed durable read is returned; presenting the
+// affected sessions as idle would be a false state transition.
+func (s *Server) waitingSessionSet(ctx context.Context) (map[string]bool, error) {
 	pending, err := s.queries.ListPendingInterrupts(ctx, "")
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("sessions: resolve waiting session statuses: %w", err)
 	}
 	set := make(map[string]bool, len(pending))
 	for _, p := range pending {
 		set[p.SessionID] = true
 	}
-	return set
+	return set, nil
 }

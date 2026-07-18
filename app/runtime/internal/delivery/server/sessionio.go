@@ -152,7 +152,11 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out, err := s.sessionToWire(ses, s.liveStatus(ctx, ses.ID))
+	status, err := s.liveStatus(ctx, ses.ID)
+	if err != nil {
+		return nil, err
+	}
+	out, err := s.sessionToWire(ses, status)
 	if err != nil {
 		return nil, err
 	}
