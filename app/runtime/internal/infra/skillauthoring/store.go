@@ -11,6 +11,8 @@ import (
 	"os"
 	"path/filepath"
 
+	skillspec "github.com/Tangerg/lynx/skills"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -78,6 +80,79 @@ func (s *Store) Promote(_ context.Context, name string) error {
 		return fmt.Errorf("skillauthoring: promote draft %q: %w", name, err)
 	}
 	return nil
+}
+
+// Archive moves an active skill into the archive (preserved, not loaded). It
+// errors if no such active skill exists; a prior archived version of the same
+// name is replaced. The move is not transactional (see [Store.Promote]).
+func (s *Store) Archive(_ context.Context, name string) error {
+	return s.move(name, s.activeDir(name), s.archiveDir(name), "archive")
+}
+
+// Restore moves an archived skill back into the active set. It errors if no such
+// archived skill exists; a prior active version of the same name is replaced.
+func (s *Store) Restore(_ context.Context, name string) error {
+	return s.move(name, s.archiveDir(name), s.activeDir(name), "restore")
+}
+
+// move relocates a skill directory from src to dest, replacing any existing dest.
+func (s *Store) move(name, src, dest, op string) error {
+	if !s.Enabled() {
+		return fmt.Errorf("skillauthoring: no skills root configured")
+	}
+	if !validName(name) {
+		return fmt.Errorf("skillauthoring: invalid skill name %q", name)
+	}
+	if _, err := os.Stat(filepath.Join(src, skillFile)); err != nil {
+		return fmt.Errorf("skillauthoring: cannot %s %q: %w", op, name, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("skillauthoring: %s %q: %w", op, name, err)
+	}
+	if err := os.RemoveAll(dest); err != nil {
+		return fmt.Errorf("skillauthoring: %s %q: clear destination: %w", op, name, err)
+	}
+	if err := os.Rename(src, dest); err != nil {
+		return fmt.Errorf("skillauthoring: %s %q: %w", op, name, err)
+	}
+	return nil
+}
+
+// List returns the management view: every active skill followed by every
+// archived one, each with its description (parsed via the read-only spec loader,
+// so the two views can't disagree on what a skill says).
+func (s *Store) List(ctx context.Context) ([]skills.Entry, error) {
+	if !s.Enabled() {
+		return nil, nil
+	}
+	active, err := entries(ctx, s.root, skills.Active)
+	if err != nil {
+		return nil, err
+	}
+	archived, err := entries(ctx, filepath.Join(s.root, skills.ArchivedSubdir), skills.Archived)
+	if err != nil {
+		return nil, err
+	}
+	return append(active, archived...), nil
+}
+
+// entries lists the skills directly under dir (the spec loader skips reserved
+// underscore dirs and invalid entries), tagging each with lifecycle.
+func entries(ctx context.Context, dir string, lifecycle skills.Lifecycle) ([]skills.Entry, error) {
+	summaries, err := skillspec.Dir(dir).List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("skillauthoring: list %s skills: %w", lifecycle, err)
+	}
+	out := make([]skills.Entry, len(summaries))
+	for i, sm := range summaries {
+		out[i] = skills.Entry{Name: sm.Name, Description: sm.Description, Lifecycle: lifecycle}
+	}
+	return out, nil
+}
+
+func (s *Store) activeDir(name string) string { return filepath.Join(s.root, name) }
+func (s *Store) archiveDir(name string) string {
+	return filepath.Join(s.root, skills.ArchivedSubdir, name)
 }
 
 // DiscardDraft removes a rejected/abandoned draft. Missing is not an error.

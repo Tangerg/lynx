@@ -57,6 +57,77 @@ func TestSaveDraftThenPromote(t *testing.T) {
 	}
 }
 
+func promote(t *testing.T, store *skillauthoring.Store, name string) {
+	t.Helper()
+	d := skills.Draft{Name: name, Description: "A description that is long enough to validate.", Body: "do the thing"}
+	if err := store.SaveDraft(t.Context(), d); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Promote(t.Context(), name); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func lifecycleOf(entries []skills.Entry, name string) (skills.Lifecycle, bool) {
+	for _, e := range entries {
+		if e.Name == name {
+			return e.Lifecycle, true
+		}
+	}
+	return "", false
+}
+
+func TestArchiveRestoreAndList(t *testing.T) {
+	root := t.TempDir()
+	store := skillauthoring.NewStore(root)
+	promote(t, store, "alpha-skill")
+	promote(t, store, "beta-skill")
+
+	// Both active.
+	list, err := store.List(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lc, ok := lifecycleOf(list, "alpha-skill"); !ok || lc != skills.Active {
+		t.Fatalf("alpha should be active, got %q (%v)", lc, ok)
+	}
+
+	// Archive alpha → it leaves the active set, still listed as archived, and is
+	// no longer discovered by the read-only source (not loadable).
+	if err := store.Archive(t.Context(), "alpha-skill"); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	list, _ = store.List(t.Context())
+	if lc, _ := lifecycleOf(list, "alpha-skill"); lc != skills.Archived {
+		t.Fatalf("alpha should be archived, got %q", lc)
+	}
+	if _, err := os.Stat(filepath.Join(root, "alpha-skill", "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatal("archived skill must leave the active directory")
+	}
+	if _, err := os.Stat(filepath.Join(root, "_archive", "alpha-skill", "SKILL.md")); err != nil {
+		t.Fatalf("archived skill must be preserved under _archive: %v", err)
+	}
+
+	// Restore → active again.
+	if err := store.Restore(t.Context(), "alpha-skill"); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	list, _ = store.List(t.Context())
+	if lc, _ := lifecycleOf(list, "alpha-skill"); lc != skills.Active {
+		t.Fatalf("restored alpha should be active, got %q", lc)
+	}
+}
+
+func TestArchiveMissingErrors(t *testing.T) {
+	store := skillauthoring.NewStore(t.TempDir())
+	if err := store.Archive(t.Context(), "nope"); err == nil {
+		t.Fatal("archiving a nonexistent skill must error")
+	}
+	if err := store.Restore(t.Context(), "nope"); err == nil {
+		t.Fatal("restoring a nonexistent archived skill must error")
+	}
+}
+
 func TestPromoteMissingDraftErrors(t *testing.T) {
 	store := skillauthoring.NewStore(t.TempDir())
 	if err := store.Promote(t.Context(), "never-proposed"); err == nil {

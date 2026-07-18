@@ -33,6 +33,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
 // Stack is the assembled application: the coordinators + adapters the delivery
@@ -382,6 +383,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Workspace: workspace.New(workspace.Config{
 				Memory:  cfg.Engine.Knowledge,
 				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
+				Curator: skillauthoring.NewStore(cfg.SkillsGlobalDir),
 				Hooks:   cfg.HooksResolver,
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
