@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -50,12 +52,26 @@ func startGitWatcher(gitDirs []string, emit func(protocol.WorkspaceEvent)) (*git
 		// .git holds HEAD / index / packed-refs / ORIG_HEAD / MERGE_HEAD as
 		// direct children; refs/heads holds the per-branch refs. Watching these
 		// two directories (non-recursive) covers every git state transition at a
-		// fixed, tiny FD cost. Best-effort: a missing dir is simply not watched.
-		_ = fsw.Add(g)
-		_ = fsw.Add(filepath.Join(g, "refs", "heads"))
+		// fixed, tiny FD cost. The resolved .git directory is mandatory: accepting
+		// a subscription without it would promise updates this watcher can never
+		// deliver. refs/heads is optional until the repository has its first branch.
+		if err := fsw.Add(g); err != nil {
+			return nil, closeFailedWatcher(fsw, fmt.Errorf("watch git directory %q: %w", g, err))
+		}
+		refsHeads := filepath.Join(g, "refs", "heads")
+		if err := fsw.Add(refsHeads); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, closeFailedWatcher(fsw, fmt.Errorf("watch git refs directory %q: %w", refsHeads, err))
+		}
 	}
 	go w.run()
 	return w, nil
+}
+
+func closeFailedWatcher(watcher *fsnotify.Watcher, cause error) error {
+	if err := watcher.Close(); err != nil {
+		return errors.Join(cause, fmt.Errorf("close failed git watcher: %w", err))
+	}
+	return cause
 }
 
 func (w *gitWatcher) run() {

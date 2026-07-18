@@ -18,7 +18,7 @@ import (
 func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	dir := t.TempDir()
 	gitDir := filepath.Join(dir, ".git")
-	if err := os.MkdirAll(filepath.Join(gitDir, "refs", "heads"), 0o755); err != nil {
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
 		t.Fatalf("mkdir .git: %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v0"), 0o644); err != nil {
@@ -46,6 +46,14 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("no resync within 3s of a .git change")
+	}
+}
+
+func TestStartGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {
+	watcher, err := startGitWatcher([]string{filepath.Join(t.TempDir(), "missing", ".git")}, func(protocol.WorkspaceEvent) {})
+	if err == nil {
+		watcher.Close()
+		t.Fatal("startGitWatcher accepted a missing resolved git directory")
 	}
 }
 
