@@ -8,7 +8,7 @@ import (
 // EnsureIndexed builds or incrementally refreshes cwd's index. No-op on the
 // fast path (corpus loaded, same model, scanned within the debounce window).
 func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
-	emb, err := ix.resolve(ctx)
+	emb, err := ix.resolveEmbedder(ctx)
 	if err != nil {
 		return err
 	}
@@ -49,9 +49,9 @@ func (ix *Indexer) corpusFor(ctx context.Context, cwd string, emb Embedder, mode
 
 // Reindex forces a full rebuild of cwd's index from scratch.
 func (ix *Indexer) Reindex(ctx context.Context, cwd string) error {
-	emb, err := ix.resolve(ctx)
+	emb, err := ix.resolveEmbedder(ctx)
 	if err != nil {
-		return err
+		return ix.fail(cwd, err)
 	}
 	lock := ix.cwdLock(cwd)
 	lock.Lock()

@@ -2,6 +2,7 @@ package codebaseindex
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"strings"
 	"sync"
@@ -180,11 +181,42 @@ func TestSearchFindsRelevantFile(t *testing.T) {
 // Available is false.
 func TestNoEmbeddingModel(t *testing.T) {
 	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return nil, ErrNoEmbeddingModel }, newMemSource())
-	if ix.Available(context.Background()) {
+	available, err := ix.Available(context.Background())
+	if err != nil {
+		t.Fatalf("Available err = %v", err)
+	}
+	if available {
 		t.Error("Available = true with no embedder")
 	}
-	if _, err := ix.Search(context.Background(), t.TempDir(), "x", 1); err != ErrNoEmbeddingModel {
+	if _, err = ix.Search(context.Background(), t.TempDir(), "x", 1); err != ErrNoEmbeddingModel {
 		t.Errorf("Search err = %v, want ErrNoEmbeddingModel", err)
+	}
+}
+
+func TestAvailabilityPreservesResolverFailure(t *testing.T) {
+	wantErr := errors.New("provider store unavailable")
+	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return nil, wantErr }, newMemSource())
+
+	available, err := ix.Available(context.Background())
+	if available || !errors.Is(err, wantErr) {
+		t.Fatalf("Available = %v, %v; want false, %v", available, err, wantErr)
+	}
+}
+
+func TestReindexRecordsResolverFailure(t *testing.T) {
+	wantErr := errors.New("provider store unavailable")
+	cwd := t.TempDir()
+	ix := New(newMemStore(), func(context.Context) (Embedder, error) { return nil, wantErr }, newMemSource())
+
+	if err := ix.Reindex(context.Background(), cwd); !errors.Is(err, wantErr) {
+		t.Fatalf("Reindex err = %v, want %v", err, wantErr)
+	}
+	status, err := ix.Status(context.Background(), cwd)
+	if err != nil {
+		t.Fatalf("Status: %v", err)
+	}
+	if status.State != StateError || !strings.Contains(status.Err, wantErr.Error()) {
+		t.Fatalf("Status = %+v, want error containing %q", status, wantErr)
 	}
 }
 

@@ -8,6 +8,7 @@ package codebase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -53,13 +54,31 @@ func (c *Coordinator) Status(ctx context.Context, root string) (codebaseindex.St
 // StartReindex starts a full rebuild that outlives the request context, owned by
 // this component's task group (canceled + joined by Close).
 func (c *Coordinator) StartReindex(ctx context.Context, root string) error {
-	if c.index == nil || !c.index.Available(ctx) {
+	if c.index == nil {
 		return codebaseindex.ErrNoEmbeddingModel
 	}
-	if !c.tasks.Start(ctx, func(ctx context.Context) {
-		_ = c.index.Reindex(ctx, root)
-	}) {
+	taskCtx, release, ok := c.tasks.Attach(ctx)
+	if !ok {
 		return errClosed
 	}
+	available, err := c.index.Available(taskCtx)
+	if err != nil {
+		closed := taskCtx.Err() != nil
+		release()
+		if closed {
+			return errClosed
+		}
+		return fmt.Errorf("codebase: check embedding availability: %w", err)
+	}
+	if !available {
+		release()
+		return codebaseindex.ErrNoEmbeddingModel
+	}
+	go func() {
+		defer release()
+		// Reindex records every accepted task's terminal failure in Status; the
+		// management surface is the asynchronous operation's result channel.
+		_ = c.index.Reindex(taskCtx, root)
+	}()
 	return nil
 }
