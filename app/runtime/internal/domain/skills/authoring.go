@@ -17,6 +17,28 @@ import (
 // human promotes it out.
 const DraftsSubdir = "_drafts"
 
+// ArchivedSubdir is the reserved directory holding archived skills. Archiving is
+// "remove from active use without deleting" — the skill moves here (skipped by
+// discovery, same as _drafts) and can be restored. Never a valid skill name.
+const ArchivedSubdir = "_archive"
+
+// Lifecycle is a skill's curator state in the management surface.
+type Lifecycle string
+
+const (
+	// Active skills are discovered + loadable by the agent.
+	Active Lifecycle = "active"
+	// Archived skills are preserved but not loaded; a human can restore them.
+	Archived Lifecycle = "archived"
+)
+
+// Entry is one skill in the management view: its identity + curator state.
+type Entry struct {
+	Name        string
+	Description string
+	Lifecycle   Lifecycle
+}
+
 // Draft is a skill an agent proposes through propose_skill: the required
 // frontmatter fields plus the SKILL.md body. It is never visible to the model
 // until a human approves its promotion into the active skill set.
