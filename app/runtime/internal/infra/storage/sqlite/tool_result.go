@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -13,7 +12,7 @@ import (
 )
 
 // ToolResultStore is the single full-body source for oversized tool outputs.
-// Offload creates an unbound row before the tool returns; the run's atomic event
+// Stage creates an unbound row before the tool returns; the run's atomic event
 // commit binds it to the canonical transcript item and its inline preview.
 type ToolResultStore struct {
 	db *sql.DB
@@ -25,32 +24,21 @@ func NewToolResultStore(db *sql.DB) *ToolResultStore {
 	return &ToolResultStore{db: db}
 }
 
-// Offload stores body under a freshly minted, unguessable id and returns that
-// id for the bounded preview that replaces the body in history. toolName is
-// recorded for diagnostics only. It joins an ambient lifecycle write-set
-// transaction through conn(ctx).
-func (s *ToolResultStore) Offload(ctx context.Context, sessionID, toolName, body string) (offload.ID, error) {
-	if strings.TrimSpace(sessionID) == "" {
-		return "", errors.New("sqlite: offload tool result requires a session ID")
+// Stage persists a body under its precomputed identity after the observer has
+// verified that replacing it with a preview reduces model context. ToolName is
+// retained for relationship validation and diagnostics.
+func (s *ToolResultStore) Stage(ctx context.Context, stage offload.ToolResultStage) error {
+	if err := stage.Validate(); err != nil {
+		return fmt.Errorf("sqlite: stage tool result: %w", err)
 	}
-	if strings.TrimSpace(toolName) == "" {
-		return "", errors.New("sqlite: offload tool result requires a tool name")
-	}
-	if body == "" {
-		return "", errors.New("sqlite: offload tool result requires a body")
-	}
-	id, err := offload.ParseID(rand.Text())
-	if err != nil {
-		return "", fmt.Errorf("sqlite: mint tool-result ID: %w", err)
-	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO tool_result_blobs(id, session_id, tool_name, body, created_at)
 		 VALUES (?, ?, ?, ?, strftime('%s','now'))`,
-		id, sessionID, toolName, body)
+		stage.ID, stage.SessionID, stage.ToolName, stage.Body)
 	if err != nil {
-		return "", fmt.Errorf("sqlite: offload tool result: %w", err)
+		return fmt.Errorf("sqlite: stage tool result %q: %w", stage.ID, err)
 	}
-	return id, nil
+	return nil
 }
 
 // Fetch returns the full offloaded body for (sessionID, id). found is false —

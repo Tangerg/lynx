@@ -436,16 +436,16 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 	if sessionID == "" {
 		return output, nil
 	}
-	id, err := o.evictStore.Offload(ctx, sessionID, toolName, output)
-	if err != nil {
-		return output, nil
-	}
+	id := offload.NewID()
 	preview := toolresultpreview.Render(output, id, toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
-		// than the body. Keep the body inline and compensate the unused stage;
-		// if cleanup is temporarily unavailable, startup reconciliation removes it.
-		_ = o.evictStore.Discard(ctx, sessionID, offload.Ref{ID: id})
+		// than the body. Keep the body inline without staging any durable state.
+		return output, nil
+	}
+	if err := o.evictStore.Stage(ctx, offload.ToolResultStage{
+		ID: id, SessionID: sessionID, ToolName: toolName, Body: output,
+	}); err != nil {
 		return output, nil
 	}
 	return preview, &offload.Ref{ID: id}

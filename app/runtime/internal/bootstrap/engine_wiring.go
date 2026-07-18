@@ -23,7 +23,7 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment) {
 	}
 	// Guard the concrete-nil before it lands in an interface field: a typed-nil
 	// offloader would read as non-nil and drive the eviction middleware into a
-	// nil-pointer Offload. Threshold rides along only when a store is present.
+	// nil-pointer Stage. Threshold rides along only when a store is present.
 	if cfg.ToolResultStore != nil {
 		ecfg.ToolResultStore = cfg.ToolResultStore
 		ecfg.ToolResultThreshold = cfg.ToolResultThreshold

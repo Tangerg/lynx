@@ -20,19 +20,24 @@ func newToolResultStore(t *testing.T) *sqlite.ToolResultStore {
 	return sqlite.NewToolResultStore(db)
 }
 
-func TestToolResultOffloadRoundTrip(t *testing.T) {
+func stageToolResult(t *testing.T, store *sqlite.ToolResultStore, sessionID, toolName, body string) offload.ID {
+	t.Helper()
+	id := offload.NewID()
+	if err := store.Stage(t.Context(), offload.ToolResultStage{
+		ID: id, SessionID: sessionID, ToolName: toolName, Body: body,
+	}); err != nil {
+		t.Fatalf("stage: %v", err)
+	}
+	return id
+}
+
+func TestToolResultStageRoundTrip(t *testing.T) {
 	store := newToolResultStore(t)
 	const (
 		sessID = "sess-1"
 		body   = "the full, oversized tool output that was offloaded"
 	)
-	id, err := store.Offload(t.Context(), sessID, "shell", body)
-	if err != nil {
-		t.Fatalf("offload: %v", err)
-	}
-	if id == "" {
-		t.Fatal("offload returned an empty id")
-	}
+	id := stageToolResult(t, store, sessID, "shell", body)
 
 	got, found, err := store.Fetch(t.Context(), sessID, id)
 	if err != nil {
@@ -46,27 +51,9 @@ func TestToolResultOffloadRoundTrip(t *testing.T) {
 	}
 }
 
-func TestToolResultOffloadMintsDistinctIDs(t *testing.T) {
-	store := newToolResultStore(t)
-	first, err := store.Offload(t.Context(), "s", "shell", "a")
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := store.Offload(t.Context(), "s", "shell", "b")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first == second {
-		t.Fatalf("two offloads collided on id %q", first)
-	}
-}
-
 func TestToolResultFetchIsSessionScoped(t *testing.T) {
 	store := newToolResultStore(t)
-	id, err := store.Offload(t.Context(), "owner", "shell", "secret")
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := stageToolResult(t, store, "owner", "shell", "secret")
 	// A different session must not read another session's offloaded body.
 	if _, found, err := store.Fetch(t.Context(), "intruder", id); err != nil || found {
 		t.Fatalf("cross-session fetch = (found %v, err %v), want (false, nil)", found, err)
@@ -82,10 +69,7 @@ func TestToolResultFetchUnknownIDIsRecoverableMiss(t *testing.T) {
 
 func TestToolResultDropSession(t *testing.T) {
 	store := newToolResultStore(t)
-	id, err := store.Offload(t.Context(), "doomed", "shell", "body")
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := stageToolResult(t, store, "doomed", "shell", "body")
 	if err := store.DropSession(t.Context(), "doomed"); err != nil {
 		t.Fatalf("drop: %v", err)
 	}
@@ -96,10 +80,7 @@ func TestToolResultDropSession(t *testing.T) {
 
 func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 	store := newToolResultStore(t)
-	discardedID, err := store.Offload(t.Context(), "ses_1", "shell", "discard me")
-	if err != nil {
-		t.Fatal(err)
-	}
+	discardedID := stageToolResult(t, store, "ses_1", "shell", "discard me")
 	if err := store.Discard(t.Context(), "ses_1", offload.Ref{ID: discardedID}); err != nil {
 		t.Fatalf("discard: %v", err)
 	}
@@ -107,10 +88,7 @@ func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 		t.Fatalf("discarded fetch = (found %v, err %v), want (false, nil)", found, err)
 	}
 
-	boundID, err := store.Offload(t.Context(), "ses_1", "shell", "keep me")
-	if err != nil {
-		t.Fatal(err)
-	}
+	boundID := stageToolResult(t, store, "ses_1", "shell", "keep me")
 	boundRef := offload.Ref{ID: boundID}
 	if err := store.Bind(t.Context(), "ses_1", "item_1", "preview", boundRef); err != nil {
 		t.Fatal(err)
@@ -122,9 +100,7 @@ func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 		t.Fatalf("bound fetch after discard = (found %v, err %v), want (true, nil)", found, err)
 	}
 
-	if _, err := store.Offload(t.Context(), "ses_1", "shell", "stale after crash"); err != nil {
-		t.Fatal(err)
-	}
+	stageToolResult(t, store, "ses_1", "shell", "stale after crash")
 	removed, err := store.PurgeUnbound(t.Context())
 	if err != nil {
 		t.Fatalf("purge: %v", err)
@@ -139,23 +115,27 @@ func TestToolResultDiscardAndStartupPurgeOnlyRemoveUnboundBlobs(t *testing.T) {
 
 func TestToolResultStoreRejectsIncompleteIdentity(t *testing.T) {
 	store := newToolResultStore(t)
-	if _, err := store.Offload(t.Context(), "", "shell", "body"); err == nil {
-		t.Fatal("Offload accepted an empty session ID")
+	valid := offload.ToolResultStage{ID: offload.NewID(), SessionID: "ses_1", ToolName: "shell", Body: "body"}
+	missingSession := valid
+	missingSession.SessionID = ""
+	if err := store.Stage(t.Context(), missingSession); err == nil {
+		t.Fatal("Stage accepted an empty session ID")
 	}
-	if _, err := store.Offload(t.Context(), "ses_1", "", "body"); err == nil {
-		t.Fatal("Offload accepted an empty tool name")
+	missingTool := valid
+	missingTool.ToolName = ""
+	if err := store.Stage(t.Context(), missingTool); err == nil {
+		t.Fatal("Stage accepted an empty tool name")
 	}
-	if _, err := store.Offload(t.Context(), "ses_1", "shell", ""); err == nil {
-		t.Fatal("Offload accepted an empty body")
+	missingBody := valid
+	missingBody.Body = ""
+	if err := store.Stage(t.Context(), missingBody); err == nil {
+		t.Fatal("Stage accepted an empty body")
 	}
 }
 
 func TestToolResultBindingListAndRestore(t *testing.T) {
 	store := newToolResultStore(t)
-	id, err := store.Offload(t.Context(), "source", "shell", "full body")
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := stageToolResult(t, store, "source", "shell", "full body")
 	ref := offload.Ref{ID: id}
 	if err := store.Bind(t.Context(), "source", "item_1", "preview", ref); err != nil {
 		t.Fatalf("bind: %v", err)
@@ -190,10 +170,7 @@ func TestToolResultBindingListAndRestore(t *testing.T) {
 
 func TestToolResultRestoreNeverReparentsAnID(t *testing.T) {
 	store := newToolResultStore(t)
-	id, err := store.Offload(t.Context(), "owner", "shell", "body")
-	if err != nil {
-		t.Fatal(err)
-	}
+	id := stageToolResult(t, store, "owner", "shell", "body")
 	blob := offload.ToolResultBlob{
 		ID: id, SessionID: "intruder", ItemID: "item_1", ToolName: "shell",
 		Preview: "preview", Body: "body", CreatedAt: time.Now().UTC(),

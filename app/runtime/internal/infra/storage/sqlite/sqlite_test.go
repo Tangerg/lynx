@@ -501,7 +501,9 @@ func TestOpenMigratesV5AddsPortableToolResultsWithoutDataLoss(t *testing.T) {
 		t.Fatalf("session count = %d, err=%v, want the v5 session preserved", kept, err)
 	}
 	// ...and the new table is present and usable.
-	if _, err := sqlite.NewToolResultStore(reopened).Offload(t.Context(), sess.ID, "shell", "body"); err != nil {
+	if err := sqlite.NewToolResultStore(reopened).Stage(t.Context(), resultoffload.ToolResultStage{
+		ID: resultoffload.NewID(), SessionID: sess.ID, ToolName: "shell", Body: "body",
+	}); err != nil {
 		t.Fatalf("tool_result_blobs unusable after migration: %v", err)
 	}
 }
@@ -517,10 +519,7 @@ func TestOpenMigratesV6BindsLegacyOffloadedResults(t *testing.T) {
 		t.Fatalf("create session: %v", err)
 	}
 	blobs := sqlite.NewToolResultStore(db)
-	id, err := blobs.Offload(t.Context(), ses.ID, "shell", "legacy full body")
-	if err != nil {
-		t.Fatalf("offload: %v", err)
-	}
+	id := stageToolResult(t, blobs, ses.ID, "shell", "legacy full body")
 	preview := toolresultpreview.Render("legacy full body", id, "read_tool_result", 8)
 	item := transcript.Item{
 		SessionID: ses.ID, RunID: "run_legacy", ID: "item_legacy", Kind: transcript.ToolCall,

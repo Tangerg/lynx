@@ -3,6 +3,7 @@
 package offload
 
 import (
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"strings"
@@ -22,6 +23,9 @@ var (
 // ID is the opaque identity copied from an offload preview into
 // read_tool_result calls and session artifacts.
 type ID string
+
+// NewID returns a new unguessable tool-result identity.
+func NewID() ID { return ID(rand.Text()) }
 
 // ParseID validates raw before admitting it as an offloaded-result identity.
 func ParseID(raw string) (ID, error) {
@@ -56,6 +60,32 @@ type Ref struct {
 }
 
 func (r Ref) Validate() error { return r.ID.Validate() }
+
+// ToolResultStage is the complete unbound record persisted only after its
+// rendered preview has proven worth evicting from model context.
+type ToolResultStage struct {
+	ID        ID
+	SessionID string
+	ToolName  string
+	Body      string
+}
+
+func (s ToolResultStage) Validate() error {
+	var errs []error
+	if err := s.ID.Validate(); err != nil {
+		errs = append(errs, err)
+	}
+	if strings.TrimSpace(s.SessionID) == "" {
+		errs = append(errs, errors.New("offload: session ID is required"))
+	}
+	if strings.TrimSpace(s.ToolName) == "" {
+		errs = append(errs, errors.New("offload: tool name is required"))
+	}
+	if s.Body == "" {
+		errs = append(errs, errors.New("offload: body is required"))
+	}
+	return errors.Join(errs...)
+}
 
 // ToolResultBlob is the portable, session-owned record needed to restore both
 // transcript presentation and read_tool_result behavior on another database.
