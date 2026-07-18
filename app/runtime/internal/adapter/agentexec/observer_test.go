@@ -20,7 +20,7 @@ import (
 // it, so every method is a no-op.
 type noopObserver struct{}
 
-func (noopObserver) ApproveToolCall(context.Context, string, string, string) ToolApprovalVerdict {
+func (noopObserver) ApproveToolCall(context.Context, string, string, string, FileMutationReporter) ToolApprovalVerdict {
 	return ToolApprovalVerdict{}
 }
 func (noopObserver) OnToolCallStart(string, string, string) {}

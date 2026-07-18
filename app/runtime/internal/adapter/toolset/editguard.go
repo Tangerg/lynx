@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -37,7 +38,7 @@ func withReadTracking(inner tools.Tool, tr *editguard.Tracker, workdir string) t
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			abs := canonicalAbs(workdir, a.Path)
+			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.Record(turnctx.TurnSession(ctx), abs, fingerprint, a.Offset > 0 || a.Limit > 0)
 			}
@@ -55,7 +56,7 @@ func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tool
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths := mutationPaths(inner, arguments)
 		for _, path := range paths {
-			abs := canonicalAbs(workdir, path)
+			abs := pathidentity.Canonical(workdir, path)
 			if !isExistingFile(abs) {
 				continue
 			}
@@ -72,7 +73,7 @@ func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tool
 			return out, err
 		}
 		for _, path := range paths {
-			abs := canonicalAbs(workdir, path)
+			abs := pathidentity.Canonical(workdir, path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
 			}
@@ -95,7 +96,7 @@ func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) too
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" && !a.Append {
-			abs := canonicalAbs(workdir, a.Path)
+			abs := pathidentity.Canonical(workdir, a.Path)
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)
 				if err == nil {
@@ -110,7 +111,7 @@ func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) too
 			return out, err
 		}
 		if a.Path != "" {
-			abs := canonicalAbs(workdir, a.Path)
+			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.Refresh(turnctx.TurnSession(ctx), abs, fingerprint)
 			}
@@ -125,6 +126,11 @@ func fingerprintFile(path string) (editguard.Fingerprint, error) {
 		return editguard.Fingerprint{}, err
 	}
 	return editguard.FingerprintOf(content), nil
+}
+
+func isExistingFile(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }
 
 // withEditDiagnostics wraps a file-mutating tool (write / edit) so a successful

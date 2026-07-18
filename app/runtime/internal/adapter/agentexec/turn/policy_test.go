@@ -24,7 +24,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	_ = appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Arguments: "{}", Decision: approval.Allow,
 	})
-	if v := obs.ApproveToolCall(ctx, "c1", "shell", "{}"); v.Interrupt != nil || v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c1", "shell", "{}", nil); v.Interrupt != nil || v.Denied {
 		t.Fatalf("remembered allow = %+v, want a clean run verdict", v)
 	}
 
@@ -32,7 +32,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	_ = appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write", Arguments: "{}", Decision: approval.Deny,
 	})
-	if v := obs.ApproveToolCall(ctx, "c2", "write", "{}"); v.Interrupt != nil || !v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c2", "write", "{}", nil); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }
@@ -54,7 +54,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	}
 
 	// Whitelisted MCP tool → passes without an interrupt (no standing rule).
-	if v := obs.ApproveToolCall(ctx, "c1", "srv_read", "{}"); v.Interrupt != nil || v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c1", "srv_read", "{}", nil); v.Interrupt != nil || v.Denied {
 		t.Fatalf("auto-approved tool = %+v, want a clean run verdict", v)
 	}
 
@@ -66,7 +66,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	_ = appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read", Arguments: "{}", Decision: approval.Deny,
 	})
-	if v := obs.ApproveToolCall(ctx, "c2", "srv_read", "{}"); v.Interrupt != nil || !v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c2", "srv_read", "{}", nil); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny over auto-approve = %+v, want a denied verdict", v)
 	}
 }
