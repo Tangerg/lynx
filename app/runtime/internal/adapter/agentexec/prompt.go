@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
@@ -13,8 +14,8 @@ import (
 )
 
 // basePrompt is the always-on identity / behavioral preamble. It
-// stays small on purpose — anything project-specific lives in
-// LYRA.md / AGENTS.md and gets appended during prompt assembly.
+// stays small on purpose — project-specific context lives in curated memory,
+// LYRA.md, or AGENTS.md and gets appended during prompt assembly.
 // Anything user-specific lives in ~/.lyra/LYRA.md.
 const basePrompt = `You are Lyra, a general-purpose AI coding agent.
 
@@ -34,6 +35,7 @@ task is ambiguous, ask one focused question rather than guess.`
 //
 //	<base prompt>
 //	<user memory>     (~/.lyra/LYRA.md — global, user-managed)
+//	<curated memory>  (SQLite — project-scoped, agent-managed)
 //	<project memory>  (<cwd>/LYRA.md — per-session project dir)
 //	<discovered>      (agentdoc cascade — global AGENTS.md first
 //	                   (~/.lyra, ~/.agents), then project root → cwd)
@@ -46,10 +48,10 @@ task is ambiguous, ask one focused question rather than guess.`
 //
 // knowledge.Store is Lyra's writable memory surface managed over the runtime
 // protocol; agentdoc is the read-only cross-tool AGENTS.md convention.
-// Engines built without a memory store simply yield the base prompt +
+// Engines built without either memory source simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, turnctx.TurnCwd(ctx, e.workdir))
+	prompt := composePrompt(ctx, e.knowledge, e.curated, turnctx.TurnCwd(ctx, e.workdir))
 	return appendTodos(ctx, prompt, e.todos)
 }
 
@@ -77,7 +79,7 @@ func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 // composePrompt is the pure form behind [Engine.systemPrompt],
 // exposed unexported so the unit tests (which build stub memory stores without
 // a full Engine) can exercise the cascade directly.
-func composePrompt(ctx context.Context, mem knowledge.Store, cwd string) string {
+func composePrompt(ctx context.Context, mem knowledge.Store, curated CuratedMemoryReader, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
@@ -87,7 +89,21 @@ func composePrompt(ctx context.Context, mem knowledge.Store, cwd string) string 
 			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
 			b.WriteString(s)
 		}
+	}
 
+	if curated != nil {
+		project := resolveCwd(cwd)
+		if project != "" {
+			project = filepath.Clean(project)
+			memory, _ := curated.CuratedMemory(ctx, project)
+			if s := strings.TrimSpace(memory.Content); s != "" {
+				b.WriteString("\n\n## Agent-curated project memory (managed by Lyra)\n\n")
+				b.WriteString(s)
+			}
+		}
+	}
+
+	if mem != nil {
 		projectMem, _ := mem.Get(ctx, knowledge.ScopeProject, cwd)
 		if s := strings.TrimSpace(projectMem); s != "" {
 			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")

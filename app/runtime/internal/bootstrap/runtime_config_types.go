@@ -36,6 +36,11 @@ type Config struct {
 	Compactor turn.Compactor
 	Extractor turn.Extractor
 
+	// AgentMemoryStore is the SQLite append-only fact ledger and atomic curated
+	// projection used by the default Extractor. nil disables agent-maintained
+	// memory without affecting user-editable LYRA.md.
+	AgentMemoryStore *sqlitestore.AgentMemoryStore
+
 	// Resources are process adapters whose ownership transfers to Runtime only
 	// when [Assemble] succeeds. Close releases them after background tasks and the
 	// execution/tool capabilities have stopped; callers retain ownership when

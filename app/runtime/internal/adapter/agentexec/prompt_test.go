@@ -11,7 +11,7 @@ import (
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory store
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
-	got := composePrompt(context.Background(), nil, "")
+	got := composePrompt(context.Background(), nil, nil, "")
 	if !strings.Contains(got, "You are Lyra") {
 		t.Errorf("base prompt missing identity, got %q", got)
 	}
@@ -27,7 +27,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 		user:    "prefer terse output",
 		project: "build with `make test`",
 	}
-	got := composePrompt(context.Background(), store, "")
+	got := composePrompt(context.Background(), store, nil, "")
 	if !strings.Contains(got, "## User preferences") {
 		t.Error("user section missing")
 	}
@@ -46,7 +46,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 // don't produce empty markdown headers.
 func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	store := &stubKnowledgeStore{project: "only project"}
-	got := composePrompt(context.Background(), store, "")
+	got := composePrompt(context.Background(), store, nil, "")
 	if strings.Contains(got, "## User preferences") {
 		t.Error("empty user scope should be skipped")
 	}
@@ -60,9 +60,20 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 // cwd), not a directory fixed at construction time.
 func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
 	store := &stubKnowledgeStore{project: "project body"}
-	composePrompt(context.Background(), store, "/projects/alpha")
+	composePrompt(context.Background(), store, nil, "/projects/alpha")
 	if store.projectDir != "/projects/alpha" {
 		t.Fatalf("project memory read dir = %q, want /projects/alpha", store.projectDir)
+	}
+}
+
+func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T) {
+	store := &stubKnowledgeStore{user: "global", project: "human project rule"}
+	curated := stubCuratedMemory{content: "agent learned fact"}
+	got := composePrompt(context.Background(), store, curated, "/projects/alpha")
+	curatedIndex := strings.Index(got, "## Agent-curated project memory")
+	projectIndex := strings.Index(got, "## Project knowledge")
+	if curatedIndex < 0 || projectIndex < 0 || curatedIndex > projectIndex {
+		t.Fatalf("prompt precedence is wrong:\n%s", got)
 	}
 }
 
@@ -77,6 +88,12 @@ type stubKnowledgeStore struct {
 	// projectDir records the dir the last ScopeProject Get received —
 	// the per-session-cwd regression assertions read it.
 	projectDir string
+}
+
+type stubCuratedMemory struct{ content string }
+
+func (s stubCuratedMemory) CuratedMemory(_ context.Context, _ string) (knowledge.Curated, error) {
+	return knowledge.Curated{Content: s.content}, nil
 }
 
 func (s *stubKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {

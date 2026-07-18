@@ -1,6 +1,8 @@
 package agentexec
 
 import (
+	"context"
+
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
@@ -10,6 +12,12 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 )
+
+// CuratedMemoryReader is the prompt assembler's project-scoped view of
+// agent-maintained memory.
+type CuratedMemoryReader interface {
+	CuratedMemory(ctx context.Context, project string) (knowledge.Curated, error)
+}
 
 // Config is the engine construction-time bundle. ChatClient is the
 // only hard requirement (New errors without it); the rest are
@@ -32,8 +40,8 @@ type Config struct {
 	// Workdir is the DEFAULT working directory — the fallback for
 	// turns that carry no session cwd. A turn that does carry one
 	// (runs.start resolves Session.Cwd) overrides it everywhere
-	// cwd-dependent: fs/shell tools, project skills, and the system
-	// prompt's project LYRA.md + AGENTS.md cascade (see turnCwd).
+	// cwd-dependent: fs/shell tools, project skills, curated memory, and the
+	// system prompt's project LYRA.md + AGENTS.md cascade (see turnCwd).
 	// Empty disables tool path scoping (LocalExecutor permits any
 	// path) — fine for tests, not recommended for production.
 	Workdir string
@@ -44,10 +52,15 @@ type Config struct {
 	// — fine for tests but loses history on restart.
 	HistoryStore history.Store
 
-	// Knowledge optionally supplies the LYRA.md cascade reader the agent
-	// injects into every system prompt. nil disables the injection — the
-	// base prompt is used verbatim. (Wire/API calls this "memory".)
+	// Knowledge optionally supplies the human-authored LYRA.md cascade reader.
+	// nil disables that prompt layer; curated memory and discovered AGENTS.md
+	// remain independent. (Wire/API calls this "memory".)
 	Knowledge knowledge.Store
+
+	// CuratedMemory optionally supplies the agent-maintained project memory
+	// projection. It is read after user preferences and before project LYRA.md,
+	// so explicit project instructions remain authoritative. nil disables it.
+	CuratedMemory CuratedMemoryReader
 
 	// Todos optionally supplies the per-session task list backing the
 	// todo_write tool: when set, the tool is registered and the session's

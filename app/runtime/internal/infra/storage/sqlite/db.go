@@ -1,9 +1,9 @@
 // Package sqlite hosts the SQLite-backed implementations of Runtime's storage
 // ports. One SQLite file is the single
 // durable backend — sessions / process snapshots / interrupts / history /
-// providers each live in their own table, sharing one *sql.DB. (Memory is
-// the deliberate exception: it stays a user-editable LYRA.md file cascade,
-// so it isn't stored here.)
+// providers each live in their own table, sharing one *sql.DB. Human-authored
+// memory is the deliberate exception: it stays a user-editable LYRA.md file
+// cascade. Agent-extracted ledger and curated memory are ordinary SQLite state.
 //
 // Driver: modernc.org/sqlite (pure Go). No CGO, cross-compilation
 // works out of the box.
@@ -22,8 +22,8 @@ import (
 // recent schemas receive targeted migrations that preserve product history;
 // other mismatched development schemas are discarded. The returned *sql.DB is
 // safe for concurrent use; callers share it across every
-// sqlite-backed store (session / transcript / interrupt / provider /
-// message). Knowledge (LYRA.md) is file-backed, not here.
+// sqlite-backed store (session / transcript / interrupt / provider / message /
+// agent memory). Human-authored knowledge (LYRA.md) is file-backed, not here.
 //
 // Tuning baked in:
 //   - journal_mode = WAL — concurrent readers don't block the writer
@@ -336,6 +336,30 @@ func installCurrentSchema(db *sql.DB) error {
 			archive    BLOB    NOT NULL,
 			size       INTEGER NOT NULL,
 			created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		)`,
+		// Append-only per-project fact ledger. day is the daily-ledger partition
+		// (YYYY-MM-DD); seq is both stable ordering and the curation watermark.
+		// A content digest deduplicates facts independently, so mixed old/new
+		// extraction batches never lose their new members.
+		`CREATE TABLE IF NOT EXISTS agent_memory_ledger (
+			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+			project     TEXT    NOT NULL,
+			day         TEXT    NOT NULL,
+			session_id  TEXT    NOT NULL,
+			fact        TEXT    NOT NULL,
+			digest      TEXT    NOT NULL,
+			captured_at INTEGER NOT NULL,
+			UNIQUE(project, digest)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_memory_ledger_project
+			ON agent_memory_ledger(project, seq)`,
+		// Content and watermark share one row so publishing a complete curated
+		// generation is a single SQLite update, never a two-file half-state.
+		`CREATE TABLE IF NOT EXISTS agent_memory_curated (
+			project    TEXT    PRIMARY KEY,
+			content    TEXT    NOT NULL,
+			watermark  INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL
 		)`,
 	}
 	for _, stmt := range stmts {
