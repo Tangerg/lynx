@@ -15,17 +15,20 @@ import (
 // fakeCodebaseIndex is the codebaseindex.Index the codebase coordinator drives;
 // the codebase wire handlers are tested against it.
 type fakeCodebaseIndex struct {
-	available   bool
-	hits        []codebaseindex.Hit
-	status      codebaseindex.Status
-	searchRoot  string
-	searchQuery string
-	searchLimit int
-	statusRoot  string
-	reindexed   chan string
+	available    bool
+	availableErr error
+	hits         []codebaseindex.Hit
+	status       codebaseindex.Status
+	searchRoot   string
+	searchQuery  string
+	searchLimit  int
+	statusRoot   string
+	reindexed    chan string
 }
 
-func (i *fakeCodebaseIndex) Available(context.Context) bool { return i.available }
+func (i *fakeCodebaseIndex) Available(context.Context) (bool, error) {
+	return i.available, i.availableErr
+}
 
 func (i *fakeCodebaseIndex) Reindex(_ context.Context, root string) error {
 	i.reindexed <- root

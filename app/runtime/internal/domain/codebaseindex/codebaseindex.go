@@ -122,6 +122,7 @@ type Index interface {
 	// Status reports cwd's current index state for the management surface.
 	Status(ctx context.Context, cwd string) (Status, error)
 	// Available reports whether an embedding model is configured (the tool is
-	// offered only when true).
-	Available(ctx context.Context) bool
+	// offered only when true). Operational resolver failures are returned rather
+	// than being misreported as an unconfigured model.
+	Available(ctx context.Context) (bool, error)
 }

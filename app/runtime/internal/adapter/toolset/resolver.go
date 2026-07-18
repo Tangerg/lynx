@@ -291,12 +291,20 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the
 	// live embedding role), so it appears once the user sets one — no restart.
-	if index := g.resolver.codebaseIndex; index != nil && index.Available(ctx) {
-		codebaseSearch, err := codebasesearch.New(index)
+	// Dependency failures are not treated as a missing model: failing resolution
+	// keeps the runtime from advertising a false capability state.
+	if index := g.resolver.codebaseIndex; index != nil {
+		available, err := index.Available(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("toolset: resolve codebase_search: %w", err)
+			return nil, fmt.Errorf("toolset: resolve codebase_search availability: %w", err)
 		}
-		tools = append(tools, codebaseSearch)
+		if available {
+			codebaseSearch, err := codebasesearch.New(index)
+			if err != nil {
+				return nil, fmt.Errorf("toolset: resolve codebase_search: %w", err)
+			}
+			tools = append(tools, codebaseSearch)
+		}
 	}
 	// Both roles can ask the user and leave plan mode. A child question parks
 	// through the same nested suspension tree as a child approval.

@@ -2,17 +2,40 @@ package codebaseindex
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
 
-// Available reports whether an embedding model is configured.
-func (ix *Indexer) Available(ctx context.Context) bool {
-	if ix == nil {
-		return false
+var errNilEmbedder = errors.New("codebaseindex: embedding resolver returned a nil embedder")
+
+// Available reports whether an embedding model is configured. A missing model
+// is a normal false result; resolver and provider failures remain errors so a
+// caller never mistakes an unhealthy dependency for an unconfigured feature.
+func (ix *Indexer) Available(ctx context.Context) (bool, error) {
+	_, err := ix.resolveEmbedder(ctx)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, ErrNoEmbeddingModel):
+		return false, nil
+	default:
+		return false, err
+	}
+}
+
+func (ix *Indexer) resolveEmbedder(ctx context.Context) (Embedder, error) {
+	if ix == nil || ix.resolve == nil {
+		return nil, ErrNoEmbeddingModel
 	}
 	emb, err := ix.resolve(ctx)
-	return err == nil && emb != nil
+	if err != nil {
+		return nil, err
+	}
+	if emb == nil {
+		return nil, errNilEmbedder
+	}
+	return emb, nil
 }
 
 // Search embeds the query and returns the topK most-similar chunks, building or
@@ -21,7 +44,7 @@ func (ix *Indexer) Search(ctx context.Context, cwd, query string, topK int) ([]H
 	if topK <= 0 {
 		topK = defaultTopK
 	}
-	emb, err := ix.resolve(ctx)
+	emb, err := ix.resolveEmbedder(ctx)
 	if err != nil {
 		return nil, err
 	}

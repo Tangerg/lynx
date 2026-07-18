@@ -39,7 +39,7 @@ import (
 // CodebaseIndex is the live @codebase capability the tool resolver consumes.
 type CodebaseIndex interface {
 	codebasesearch.SearchIndex
-	Available(ctx context.Context) bool
+	Available(ctx context.Context) (bool, error)
 }
 
 // BuildConfig is the tool-environment construction input (the working-directory
