@@ -2,10 +2,13 @@ package lsp
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -173,28 +176,141 @@ func TestNewServersSnapshotsSpecs(t *testing.T) {
 	}
 }
 
-func TestServersCloseWaitsForRegisteredStartup(t *testing.T) {
+func TestServersShareConcurrentStartup(t *testing.T) {
 	servers := NewServers(nil)
-	servers.mu.Lock()
-	servers.starting.Add(1)
-	servers.mu.Unlock()
-	closed := make(chan error, 1)
-	go func() { closed <- servers.Close() }()
-
-	select {
-	case err := <-closed:
-		t.Fatalf("Close returned before startup cleanup: %v", err)
-	case <-time.After(20 * time.Millisecond):
-	}
-	servers.starting.Done()
-	select {
-	case err := <-closed:
-		if err != nil {
-			t.Fatalf("Close: %v", err)
+	t.Cleanup(func() { _ = servers.Close() })
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	want := inertClient(nil)
+	servers.launch = func(ctx context.Context, _ ServerSpec, _ string) (*client, error) {
+		if calls.Add(1) == 1 {
+			close(started)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("Close did not finish after startup cleanup")
+		select {
+		case <-release:
+			return want, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
+
+	const callers = 8
+	results := make(chan *client, callers)
+	errs := make(chan error, callers)
+	root := t.TempDir()
+	var ready sync.WaitGroup
+	ready.Add(callers)
+	begin := make(chan struct{})
+	for range callers {
+		go func() {
+			ready.Done()
+			<-begin
+			got, err := servers.clientFor(context.Background(), root, ServerSpec{Name: "test"})
+			results <- got
+			errs <- err
+		}()
+	}
+	ready.Wait()
+	close(begin)
+	<-started
+	close(release)
+
+	for range callers {
+		if err := <-errs; err != nil {
+			t.Fatalf("clientFor: %v", err)
+		}
+		if got := <-results; got != want {
+			t.Fatalf("clientFor returned %p, want shared client %p", got, want)
+		}
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("start calls = %d, want 1", got)
+	}
+}
+
+func TestServersCloseCancelsAndJoinsStartupCleanup(t *testing.T) {
+	servers := NewServers(nil)
+	started := make(chan struct{})
+	cleanupErr := errors.New("close late client")
+	servers.launch = func(ctx context.Context, _ ServerSpec, _ string) (*client, error) {
+		close(started)
+		<-ctx.Done()
+		// Simulate a handshake that completed just after shutdown cancellation.
+		return inertClient(cleanupErr), nil
+	}
+
+	clientErr := make(chan error, 1)
+	root := t.TempDir()
+	go func() {
+		_, err := servers.clientFor(context.Background(), root, ServerSpec{Name: "test"})
+		clientErr <- err
+	}()
+	<-started
+
+	if err := servers.Close(); !errors.Is(err, cleanupErr) {
+		t.Fatalf("Close error = %v, want late cleanup error", err)
+	}
+	if err := <-clientErr; !errors.Is(err, ErrClosed) {
+		t.Fatalf("clientFor error = %v, want ErrClosed", err)
+	}
+}
+
+func TestServersCallerCancellationDoesNotCancelSharedStartup(t *testing.T) {
+	servers := NewServers(nil)
+	t.Cleanup(func() { _ = servers.Close() })
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var calls atomic.Int32
+	want := inertClient(nil)
+	servers.launch = func(ctx context.Context, _ ServerSpec, _ string) (*client, error) {
+		calls.Add(1)
+		close(started)
+		select {
+		case <-release:
+			return want, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	first := make(chan error, 1)
+	root := t.TempDir()
+	spec := ServerSpec{Name: "test"}
+	go func() {
+		_, err := servers.clientFor(ctx, root, spec)
+		first <- err
+	}()
+	<-started
+	cancel()
+	if err := <-first; !errors.Is(err, context.Canceled) {
+		t.Fatalf("first clientFor error = %v, want context.Canceled", err)
+	}
+
+	second := make(chan *client, 1)
+	secondErr := make(chan error, 1)
+	go func() {
+		got, err := servers.clientFor(context.Background(), root, spec)
+		second <- got
+		secondErr <- err
+	}()
+	close(release)
+	if err := <-secondErr; err != nil {
+		t.Fatalf("second clientFor: %v", err)
+	}
+	if got := <-second; got != want {
+		t.Fatalf("second clientFor returned %p, want shared client %p", got, want)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("start calls = %d, want 1", got)
+	}
+}
+
+func inertClient(closeErr error) *client {
+	c := &client{closeErr: closeErr}
+	c.closeOnce.Do(func() {})
+	return c
 }
 
 func hasSymbol(syms []Symbol, name string) bool {

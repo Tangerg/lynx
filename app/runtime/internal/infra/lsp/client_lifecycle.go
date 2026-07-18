@@ -19,6 +19,10 @@ import (
 // large module can still take a few seconds.
 const initializeTimeout = 30 * time.Second
 
+// clientShutdownTimeout bounds the protocol-level shutdown handshake. Once it
+// expires, close hard-stops and reaps the owned child process.
+const clientShutdownTimeout = 2 * time.Second
+
 // startClient launches spec's server with its working directory at root,
 // wires its stdio to a JSON-RPC connection, and completes the LSP initialize
 // handshake. The returned client is ready for queries; the caller owns it and
@@ -71,7 +75,9 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 	initCtx, initCancel := context.WithTimeout(ctx, initializeTimeout)
 	defer initCancel()
 	if err := c.initialize(initCtx); err != nil {
-		_ = c.close()
+		if cleanupErr := c.close(); cleanupErr != nil {
+			return nil, errors.Join(err, cleanupErr)
+		}
 		return nil, err
 	}
 	return c, nil
@@ -99,7 +105,7 @@ func (c *client) initialize(ctx context.Context) error {
 // Safe to call more than once.
 func (c *client) close() error {
 	c.closeOnce.Do(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), clientShutdownTimeout)
 		defer cancel()
 
 		// Protocol shutdown is advisory: a crashed or wedged server still needs
@@ -119,17 +125,34 @@ func (c *client) close() error {
 				errs = append(errs, fmt.Errorf("lsp: wait for %s shutdown: %w", c.spec.Name, err))
 			}
 		case <-ctx.Done():
-			// The dedicated waiter owns cmd.Wait and will reap the process after
-			// this hard-stop fallback; Close itself remains bounded.
-			if c.cmd.Process != nil {
-				if err := c.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-					errs = append(errs, fmt.Errorf("lsp: kill unresponsive %s: %w", c.spec.Name, err))
-				}
+			errs = append(errs, fmt.Errorf(
+				"lsp: graceful shutdown of %s exceeded %s: %w",
+				c.spec.Name,
+				clientShutdownTimeout,
+				ctx.Err(),
+			))
+			if err := killAndJoinProcess(c.spec.Name, c.cmd.Process, c.wait); err != nil {
+				errs = append(errs, err)
 			}
 		}
 		c.closeErr = errors.Join(errs...)
 	})
 	return c.closeErr
+}
+
+// killAndJoinProcess is the hard-stop half of client ownership. cmd.Wait has a
+// dedicated goroutine, so this function sends the terminal signal and consumes
+// that goroutine's result before returning. The resulting ExitError is expected
+// after Kill; the caller already reports why a hard stop was necessary.
+func killAndJoinProcess(name string, process *os.Process, wait <-chan error) error {
+	if process == nil {
+		return fmt.Errorf("lsp: kill unresponsive %s: process is unavailable", name)
+	}
+	if err := process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return fmt.Errorf("lsp: kill unresponsive %s: %w", name, err)
+	}
+	<-wait
+	return nil
 }
 
 // pipeRWC adapts a child process's separate stdout (read) and stdin (write)
