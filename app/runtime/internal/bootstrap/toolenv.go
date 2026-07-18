@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
 func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex) (toolset.Built, error) {
@@ -26,6 +27,9 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config
 		Schedules:       cfg.ScheduleRegistry,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,
+		// propose_skill writes to the global skills dir; an empty dir yields a
+		// disabled store (Enabled() false), which omits the tool.
+		SkillAuthoring: skillauthoring.NewStore(cfg.SkillsGlobalDir),
 	}
 	// Set the read-back store only when concretely present, so a nil store never
 	// reaches the tool builder as a non-nil interface holding a nil pointer.
