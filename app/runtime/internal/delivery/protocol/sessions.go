@@ -166,20 +166,22 @@ type ExportSessionResponse struct {
 // SessionArtifactVersion is the artifact schema version. Import rejects an
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
-const SessionArtifactVersion = 3
+const SessionArtifactVersion = 4
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // metadata plus the full conversation — chat messages (the model's context),
-// and the items + runs (the UI transcript). Messages remain opaque
-// chat.Message values; items and runs are explicit protocol DTOs. Runs are
-// terminal-only: live and interrupted executor state is process-local and is
-// therefore not portable.
+// items + runs (the UI transcript), and any structurally bound full tool-result
+// bodies. Offloaded item DTOs carry only their bounded preview; ToolResults is
+// their single full-body source. Messages remain opaque chat.Message values;
+// items and runs are explicit protocol DTOs. Runs are terminal-only: live and
+// interrupted executor state is process-local and is therefore not portable.
 type SessionArtifact struct {
-	Version  int               `json:"version"`
-	Session  Session           `json:"session"`
-	Messages []json.RawMessage `json:"messages"`
-	Runs     []ArtifactRun     `json:"runs"`
-	Items    []ArtifactItem    `json:"items"`
+	Version     int                  `json:"version"`
+	Session     Session              `json:"session"`
+	Messages    []json.RawMessage    `json:"messages"`
+	Runs        []ArtifactRun        `json:"runs"`
+	Items       []ArtifactItem       `json:"items"`
+	ToolResults []ArtifactToolResult `json:"toolResults"`
 }
 
 // ArtifactRun is one run record plus the storage-side fields not carried by
@@ -193,6 +195,19 @@ type ArtifactRun struct {
 // ArtifactItem is one canonical item projection in a SessionArtifact.
 type ArtifactItem struct {
 	Item Item `json:"item"`
+}
+
+// ArtifactToolResult carries the single full-body source for an offloaded tool
+// item. ItemID binds it structurally; Preview is the model-history replacement
+// restored into the transcript while Body remains available to presentation and
+// read_tool_result.
+type ArtifactToolResult struct {
+	ID        string    `json:"id"`
+	ItemID    string    `json:"itemId"`
+	ToolName  string    `json:"toolName"`
+	Preview   string    `json:"preview"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 // ImportSessionRequest — sessions.import body. Restore semantics: the session

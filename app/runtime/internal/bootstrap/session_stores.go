@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -62,8 +63,17 @@ func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sess
 		if err != nil {
 			return err
 		}
-		snapshot = sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs}
-		return nil
+		var toolResults []offload.ToolResultBlob
+		if s.toolResults != nil {
+			toolResults, err = s.toolResults.List(ctx, sessionID)
+			if err != nil {
+				return err
+			}
+		}
+		snapshot = sessions.Snapshot{
+			Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults,
+		}
+		return snapshot.ValidateToolResults()
 	})
 	return snapshot, err
 }
@@ -162,6 +172,11 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 // history atomically: clear the old interrupts / admission rows / transcript /
 // chat log, then seed the decoded messages, runs, and items.
 func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
+	normalized, err := plan.NormalizeForRestore()
+	if err != nil {
+		return err
+	}
+	plan = normalized
 	id := plan.Session.ID
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
@@ -175,6 +190,13 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 		}
 		if err := s.transcript.DeleteSession(ctx, id); err != nil {
 			return err
+		}
+		if s.toolResults != nil {
+			if err := s.toolResults.DropSession(ctx, id); err != nil {
+				return err
+			}
+		} else if len(plan.ToolResults) > 0 {
+			return errors.New("bootstrap: cannot restore tool results without blob persistence")
 		}
 		if err := s.history.Truncate(ctx, id, 0); err != nil {
 			return err
@@ -199,6 +221,11 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 		}
 		for _, it := range plan.Items {
 			if err := s.transcript.AppendItem(ctx, it); err != nil {
+				return err
+			}
+		}
+		for _, blob := range plan.ToolResults {
+			if err := s.toolResults.Restore(ctx, blob); err != nil {
 				return err
 			}
 		}

@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -390,6 +392,41 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	}
 }
 
+func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewTranscriptStore(db)
+	now := time.Now().UTC()
+	original := transcript.Item{
+		SessionID: "ses_a", RunID: "run_1", ID: "item_1", CreatedAt: now,
+		Kind: transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{
+			Name: "shell", Result: "preview", Offload: &resultoffload.Ref{ID: "BLOB234"},
+		},
+	}
+	if err := store.AppendItem(t.Context(), original); err != nil {
+		t.Fatalf("seed item: %v", err)
+	}
+
+	changed := original
+	changed.Tool = &transcript.ToolInvocation{
+		Name: "shell", Result: "other preview", Offload: &resultoffload.Ref{ID: "OTHER234"},
+	}
+	if err := store.AppendItem(t.Context(), changed); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("replace offload error = %v, want ErrIdentityConflict", err)
+	}
+
+	duplicate := original
+	duplicate.ID = "item_2"
+	if err := store.AppendItem(t.Context(), duplicate); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("reuse offload error = %v, want ErrIdentityConflict", err)
+	}
+}
+
 // TestOpenDiscardsAnOlderSchema codifies the development contract: unknown
 // obsolete shapes reset local state instead of growing compatibility readers.
 func TestOpenDiscardsAnOlderSchema(t *testing.T) {
@@ -412,8 +449,8 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
-		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
+		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
 	}
 	var legacyTables int
 	if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='legacy_runs'`).Scan(&legacyTables); err != nil || legacyTables != 0 {
@@ -425,12 +462,10 @@ func TestOpenDiscardsAnOlderSchema(t *testing.T) {
 	}
 }
 
-// TestOpenMigratesV5AddsToolResultsWithoutDataLoss is the regression for the
-// v5→v6 additive migration: a database at the previous shipping version (5)
-// must gain the tool_result_blobs table WITHOUT being discarded, so a user's
-// sessions survive the upgrade. It mimics a v5 DB by dropping the v6-only table
-// and resetting the version marker on a real database, then reopening.
-func TestOpenMigratesV5AddsToolResultsWithoutDataLoss(t *testing.T) {
+// TestOpenMigratesV5AddsPortableToolResultsWithoutDataLoss is the regression
+// for the v5→v7 additive migration: a database at version 5 must gain portable
+// tool-result storage WITHOUT being discarded, so a user's sessions survive.
+func TestOpenMigratesV5AddsPortableToolResultsWithoutDataLoss(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "v5.db")
 	db, err := sqlite.Open(path)
 	if err != nil {
@@ -457,8 +492,8 @@ func TestOpenMigratesV5AddsToolResultsWithoutDataLoss(t *testing.T) {
 	defer reopened.Close()
 
 	var version int
-	if err := reopened.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
-		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
+	if err := reopened.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
+		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
 	}
 	// The v5 data survived (not discarded)...
 	var kept int
@@ -468,6 +503,63 @@ func TestOpenMigratesV5AddsToolResultsWithoutDataLoss(t *testing.T) {
 	// ...and the new table is present and usable.
 	if _, err := sqlite.NewToolResultStore(reopened).Offload(t.Context(), sess.ID, "shell", "body"); err != nil {
 		t.Fatalf("tool_result_blobs unusable after migration: %v", err)
+	}
+}
+
+func TestOpenMigratesV6BindsLegacyOffloadedResults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "v6.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open current: %v", err)
+	}
+	ses, err := sqlite.NewSessionStore(db).Create(t.Context(), "keep legacy offload", "")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	blobs := sqlite.NewToolResultStore(db)
+	id, err := blobs.Offload(t.Context(), ses.ID, "shell", "legacy full body")
+	if err != nil {
+		t.Fatalf("offload: %v", err)
+	}
+	preview := toolresultpreview.Render("legacy full body", id, "read_tool_result", 8)
+	item := transcript.Item{
+		SessionID: ses.ID, RunID: "run_legacy", ID: "item_legacy", Kind: transcript.ToolCall,
+		Tool: &transcript.ToolInvocation{Name: "shell", Result: preview},
+	}
+	if err := sqlite.NewTranscriptStore(db).AppendItem(t.Context(), item); err != nil {
+		t.Fatalf("append legacy item: %v", err)
+	}
+	for _, statement := range []string{
+		`DROP INDEX idx_tool_result_blobs_item`,
+		`DROP INDEX idx_history_items_offload`,
+		`ALTER TABLE history_items DROP COLUMN offload_id`,
+		`ALTER TABLE tool_result_blobs DROP COLUMN item_id`,
+		`ALTER TABLE tool_result_blobs DROP COLUMN preview`,
+		`PRAGMA user_version = 6`,
+	} {
+		if _, err := db.Exec(statement); err != nil {
+			t.Fatalf("downgrade fixture with %q: %v", statement, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close v6 fixture: %v", err)
+	}
+
+	reopened, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("migrate v6: %v", err)
+	}
+	defer reopened.Close()
+	items, _, err := sqlite.NewTranscriptStore(reopened).List(t.Context(), ses.ID)
+	if err != nil {
+		t.Fatalf("list migrated transcript: %v", err)
+	}
+	if len(items) != 1 || items[0].Tool == nil || items[0].Tool.Result != "legacy full body" {
+		t.Fatalf("migrated items = %+v, want rehydrated legacy body", items)
+	}
+	ref := items[0].Tool.Offload
+	if ref == nil || ref.ID != resultoffload.ID(id) {
+		t.Fatalf("migrated ref = %+v, want %q", ref, id)
 	}
 }
 
@@ -578,8 +670,8 @@ func TestOpenMigratesV4SessionIdentity(t *testing.T) {
 	}
 	defer db.Close()
 	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 6 {
-		t.Fatalf("schema version = %d, err=%v, want 6", version, err)
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 7 {
+		t.Fatalf("schema version = %d, err=%v, want 7", version, err)
 	}
 	var userID, agentName string
 	if err := db.QueryRow(`SELECT user_id, agent_name FROM sessions WHERE id='ses_keep'`).Scan(&userID, &agentName); err != nil || userID != "" || agentName != "" {

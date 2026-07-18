@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -23,26 +23,50 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	if item.ID == "" {
 		return errors.New("sqlite: history item id is required")
 	}
+	var offloadID offload.ID
+	if item.Tool != nil && item.Tool.Offload != nil {
+		if err := item.Tool.Offload.Validate(); err != nil {
+			return fmt.Errorf("sqlite: history item offload: %w", err)
+		}
+		if _, ok := item.Tool.Result.(string); !ok {
+			return errors.New("sqlite: offloaded history item result must be a preview string")
+		}
+		offloadID = item.Tool.Offload.ID
+	}
 	payload, err := json.Marshal(item)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode history item: %w", err)
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO history_items(session_id, run_id, item_id, created_at, payload)
-		 VALUES (?, ?, ?, ?, ?)
+		`INSERT INTO history_items(session_id, run_id, item_id, created_at, payload, offload_id)
+		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(item_id) DO UPDATE SET
-		   payload = excluded.payload
+		   payload = excluded.payload,
+		   offload_id = excluded.offload_id
 		 WHERE history_items.session_id = excluded.session_id
-		   AND history_items.run_id = excluded.run_id`,
-		item.SessionID, item.RunID, item.ID, item.CreatedAt.UnixNano(), string(payload),
+		   AND history_items.run_id = excluded.run_id
+		   AND (history_items.offload_id = '' OR history_items.offload_id = excluded.offload_id)`,
+		item.SessionID, item.RunID, item.ID, item.CreatedAt.UnixNano(), string(payload), offloadID,
 	)
 	if err != nil {
+		if offloadID != "" {
+			var ownerItem string
+			ownerErr := conn(ctx, s.db).QueryRowContext(ctx,
+				`SELECT item_id FROM history_items WHERE offload_id = ?`, offloadID,
+			).Scan(&ownerItem)
+			if ownerErr == nil && ownerItem != item.ID {
+				return fmt.Errorf("%w: offload %q already belongs to item %q", transcript.ErrIdentityConflict, offloadID, ownerItem)
+			}
+			if ownerErr != nil && !errors.Is(ownerErr, sql.ErrNoRows) {
+				return fmt.Errorf("sqlite: inspect history item offload conflict: %w", errors.Join(err, ownerErr))
+			}
+		}
 		return fmt.Errorf("sqlite: append history item: %w", err)
 	}
 	if changed, err := res.RowsAffected(); err != nil {
 		return fmt.Errorf("sqlite: inspect history item write: %w", err)
 	} else if changed != 1 {
-		return fmt.Errorf("%w: item %q already belongs to another session or run", transcript.ErrIdentityConflict, item.ID)
+		return fmt.Errorf("%w: item %q already belongs to another session, run, or offload identity", transcript.ErrIdentityConflict, item.ID)
 	}
 	return nil
 }
@@ -82,6 +106,14 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
+		if _, err := q.ExecContext(ctx,
+			`DELETE FROM tool_result_blobs
+			 WHERE item_id IN (
+			   SELECT item_id FROM history_items WHERE session_id = ? AND run_id = ?
+			 )`, sessionID, runID,
+		); err != nil {
+			return fmt.Errorf("sqlite: delete run tool results: %w", err)
+		}
 		if _, err := q.ExecContext(ctx,
 			`DELETE FROM history_items WHERE session_id = ? AND run_id = ?`, sessionID, runID,
 		); err != nil {
@@ -130,8 +162,11 @@ func (s *TranscriptStore) ListRuns(ctx context.Context, sessionID string) ([]tra
 
 func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT session_id, run_id, item_id, created_at, payload
-		 FROM history_items WHERE session_id = ? ORDER BY seq`, sessionID)
+		`SELECT h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
+		 FROM history_items AS h
+		 LEFT JOIN tool_result_blobs AS b
+		   ON b.id = h.offload_id AND b.session_id = h.session_id AND b.item_id = h.item_id
+		 WHERE h.session_id = ? ORDER BY h.seq`, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
@@ -139,9 +174,10 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 
 	var out []transcript.Item
 	for rows.Next() {
-		var session, runID, itemID, payload string
+		var session, runID, itemID, payload, rawOffloadID string
+		var offloadedBody sql.NullString
 		var createdAt int64
-		if err := rows.Scan(&session, &runID, &itemID, &createdAt, &payload); err != nil {
+		if err := rows.Scan(&session, &runID, &itemID, &createdAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history item: %w", err)
 		}
 		var item transcript.Item
@@ -152,42 +188,29 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 		item.RunID = runID
 		item.ID = itemID
 		item.CreatedAt = time.Unix(0, createdAt).UTC()
+		if rawOffloadID != "" {
+			id, err := offload.ParseID(rawOffloadID)
+			if err != nil {
+				return nil, fmt.Errorf("sqlite: decode history item %q offload: %w", itemID, err)
+			}
+			if item.Tool == nil {
+				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no tool invocation", itemID)
+			}
+			if _, ok := item.Tool.Result.(string); !ok {
+				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no preview string", itemID)
+			}
+			if !offloadedBody.Valid {
+				return nil, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
+			}
+			item.Tool.Offload = &offload.Ref{ID: id}
+			item.Tool.Result = offloadedBody.String
+		}
 		out = append(out, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
-	for i := range out {
-		s.rehydrateToolResult(ctx, sessionID, &out[i])
-	}
 	return out, nil
-}
-
-// rehydrateToolResult restores an offloaded tool-result body for presentation:
-// the transcript stores only a placeholder for an evicted result (the full body
-// lives once in tool_result_blobs), so every reader of a session's durable
-// record — items.list, session export — rebuilds the full result here. The LLM's
-// own view is the chat-history messages, which keep the placeholder untouched
-// (that is the read_tool_result affordance), so this rehydration is display-only.
-// Best-effort: a missing blob leaves the placeholder in place.
-func (s *TranscriptStore) rehydrateToolResult(ctx context.Context, sessionID string, item *transcript.Item) {
-	if item.Tool == nil {
-		return
-	}
-	text, ok := item.Tool.Result.(string)
-	if !ok {
-		return
-	}
-	id, ok := offload.ID(text)
-	if !ok {
-		return
-	}
-	var body string
-	err := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT body FROM tool_result_blobs WHERE id = ? AND session_id = ?`, id, sessionID).Scan(&body)
-	if err == nil {
-		item.Tool.Result = body
-	}
 }
 
 func (s *TranscriptStore) listRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {

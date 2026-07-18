@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -24,7 +25,7 @@ func (noopObserver) ApproveToolCall(context.Context, string, string, string, Fil
 	return ToolApprovalVerdict{}
 }
 func (noopObserver) OnToolCallStart(string, string, string) {}
-func (noopObserver) OnToolCallEnd(string, string, string, string, []string, error) {
+func (noopObserver) OnToolCallEnd(string, string, string, string, *offload.Ref, []string, error) {
 }
 func (noopObserver) OnMessageDelta(string)                         {}
 func (noopObserver) OnReasoningDelta(string)                       {}

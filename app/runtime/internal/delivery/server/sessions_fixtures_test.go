@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"sync/atomic"
@@ -19,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -39,13 +41,14 @@ type testRuntime interface {
 // executor + effects (testRuntime) over its own in-memory + sqlite stores, and
 // the coordinator-provider seams (sessions / queries / turn control).
 type stubRuntime struct {
-	sess       *sqlite.SessionStore
-	model      string
-	history    map[string][]chat.Message      // per-session chat history (fork copies it)
-	hist       *sqlite.TranscriptStore        // durable Item/run history (rollback/fork read runs)
-	interrupts *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
-	muts       *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
-	turns      turn.Dispatcher
+	sess        *sqlite.SessionStore
+	model       string
+	history     map[string][]chat.Message // per-session chat history (fork copies it)
+	hist        *sqlite.TranscriptStore   // durable Item/run history (rollback/fork read runs)
+	toolResults *sqlite.ToolResultStore
+	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
+	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
+	turns       turn.Dispatcher
 }
 
 // sessionsCoordinatorProvider is the optional test seam newTestServer uses to
@@ -262,7 +265,14 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 	if err != nil {
 		return sessions.Snapshot{}, err
 	}
-	return sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs}, nil
+	var toolResults []offload.ToolResultBlob
+	if s.rt.toolResults != nil {
+		toolResults, err = s.rt.toolResults.List(ctx, id)
+		if err != nil {
+			return sessions.Snapshot{}, err
+		}
+	}
+	return sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults}, nil
 }
 
 func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
@@ -322,6 +332,11 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	if err := s.rt.hist.DeleteSession(ctx, id); err != nil {
 		return err
 	}
+	if s.rt.toolResults != nil {
+		if err := s.rt.toolResults.DropSession(ctx, id); err != nil {
+			return err
+		}
+	}
 	if err := s.rt.TruncateMessages(ctx, id, 0); err != nil {
 		return err
 	}
@@ -335,6 +350,14 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	}
 	for _, it := range plan.Items {
 		if err := s.rt.hist.AppendItem(ctx, it); err != nil {
+			return err
+		}
+	}
+	for _, blob := range plan.ToolResults {
+		if s.rt.toolResults == nil {
+			return errors.New("test runtime: tool-result persistence is unavailable")
+		}
+		if err := s.rt.toolResults.Restore(ctx, blob); err != nil {
 			return err
 		}
 	}
@@ -359,6 +382,11 @@ func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string
 	}
 	if err := s.deleteInterrupts(ctx, sessionID); err != nil {
 		return err
+	}
+	if s.rt.toolResults != nil {
+		if err := s.rt.toolResults.DropSession(ctx, sessionID); err != nil {
+			return err
+		}
 	}
 	return s.rt.sess.Delete(ctx, sessionID)
 }
@@ -397,6 +425,8 @@ func (s stubRunSegmentStores) Interrupts() runsegment.InterruptStore { return s.
 func (s stubRunSegmentStores) Session() runsegment.SessionStore { return s.rt.sess }
 
 func (s stubRunSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.hist }
+
+func (s stubRunSegmentStores) ToolResults() runsegment.ToolResultStore { return s.rt.toolResults }
 
 func (s stubRunSegmentStores) MessageCount(ctx context.Context, id string) (int, error) {
 	return s.rt.MessageCount(ctx, id)

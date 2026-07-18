@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -61,6 +62,7 @@ type ToolCallEnd struct {
 	CallID       string
 	Arguments    string
 	Result       any
+	Offload      *offload.Ref
 	OutputText   string
 	MutatedPaths []string
 	Err          string

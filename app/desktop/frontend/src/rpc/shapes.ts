@@ -192,11 +192,19 @@ export interface ExportSessionResponse {
 // sessions.import). `messages` is the provider chat-message blob — opaque
 // to the client, carried verbatim.
 export interface SessionArtifact {
-  version: number; // artifact schema version (currently 3); import rejects unknown
+  version: number; // artifact schema version (currently 4); import rejects unknown
   session: Session;
   messages: unknown[];
   runs: { updatedAt: string; messageMark: number; run: RunRef }[];
   items: { item: Item }[];
+  toolResults: {
+    id: string;
+    itemId: string;
+    toolName: string;
+    preview: string;
+    body: string;
+    createdAt: string;
+  }[];
 }
 
 // sessions.import — RESTORE semantics: rebuilds the session under the

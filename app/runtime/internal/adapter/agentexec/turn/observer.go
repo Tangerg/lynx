@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -274,7 +275,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error) {
+func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
 	// HITL interrupt: the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
@@ -287,6 +288,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 		CallID:       callID,
 		Arguments:    arguments,
 		Result:       result,
+		Offload:      ref,
 		OutputText:   toolOutputText(toolName, result),
 		MutatedPaths: mutatedPaths,
 	}

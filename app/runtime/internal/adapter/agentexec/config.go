@@ -89,7 +89,7 @@ type Config struct {
 
 	// ToolResultStore backs tool-result eviction: a single tool output larger
 	// than ToolResultThreshold is offloaded here and replaced in history by a
-	// head+tail placeholder the model can read back via read_tool_result. nil
+	// head+tail preview the model can read back via read_tool_result. nil
 	// disables eviction (results always flow to history in full).
 	ToolResultStore toolResultOffloader
 

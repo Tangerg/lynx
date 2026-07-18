@@ -128,6 +128,47 @@ func TestCanonicalArtifactPreservesNetworkSafetyClass(t *testing.T) {
 	}
 }
 
+func TestCanonicalToolResultsRejectsInvalidBindings(t *testing.T) {
+	base := validArtifact()
+	item := &base.Items[0].Item
+	item.Type = protocol.ItemTypeToolCall
+	item.Content = nil
+	item.Tool = &protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{}, Result: "preview"}
+	valid := protocol.ArtifactToolResult{
+		ID: "BLOB234", ItemID: item.ID, ToolName: "shell",
+		Preview: "preview", Body: "full", CreatedAt: time.Unix(2, 0).UTC(),
+	}
+
+	for _, test := range []struct {
+		name   string
+		mutate func(*protocol.SessionArtifact)
+	}{
+		{"invalid id", func(a *protocol.SessionArtifact) { a.ToolResults[0].ID = "not-valid" }},
+		{"unknown item", func(a *protocol.SessionArtifact) { a.ToolResults[0].ItemID = "missing" }},
+		{"wrong tool", func(a *protocol.SessionArtifact) { a.ToolResults[0].ToolName = "write" }},
+		{"missing preview", func(a *protocol.SessionArtifact) { a.ToolResults[0].Preview = "" }},
+		{"missing body", func(a *protocol.SessionArtifact) { a.ToolResults[0].Body = "" }},
+		{"mismatched item preview", func(a *protocol.SessionArtifact) {
+			a.Items[0].Item.Tool = &protocol.ToolInvocation{Name: "shell", Arguments: map[string]any{}, Result: "different"}
+		}},
+		{"duplicate id", func(a *protocol.SessionArtifact) { a.ToolResults = append(a.ToolResults, a.ToolResults[0]) }},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			artifact := base
+			artifact.Items = append([]protocol.ArtifactItem(nil), base.Items...)
+			artifact.ToolResults = []protocol.ArtifactToolResult{valid}
+			test.mutate(&artifact)
+			_, items, err := canonicalArtifact(artifact, 0)
+			if err != nil {
+				t.Fatalf("canonicalArtifact setup: %v", err)
+			}
+			if _, err := canonicalToolResults(artifact, items); !errors.Is(err, protocol.ErrInvalidParams) {
+				t.Fatalf("canonicalToolResults error = %v, want ErrInvalidParams", err)
+			}
+		})
+	}
+}
+
 func TestCanonicalArtifactRejectsCyclicRunTree(t *testing.T) {
 	tool := func(id, runID string) protocol.ArtifactItem {
 		return protocol.ArtifactItem{Item: protocol.Item{

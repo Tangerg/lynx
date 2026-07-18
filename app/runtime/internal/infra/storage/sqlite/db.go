@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 6
+const schemaVersion = 7
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -67,10 +67,15 @@ func installCurrentSchema(db *sql.DB) error {
 		if err := migrateSessionIdentitySchema(db); err != nil {
 			return err
 		}
+		fallthrough
 	case 5:
-		// v5 → v6 adds tool_result_blobs, a purely additive table the shared
-		// CREATE TABLE IF NOT EXISTS block below installs — no data transform, so
-		// this case only exists to keep a v5 database off the discard path.
+		if err := migrateToolResultBindings(db); err != nil {
+			return err
+		}
+	case 6:
+		if err := migrateToolResultBindings(db); err != nil {
+			return err
+		}
 	case schemaVersion:
 	default:
 		if err := discardSchema(db); err != nil {
@@ -158,10 +163,13 @@ func installCurrentSchema(db *sql.DB) error {
 			run_id      TEXT    NOT NULL DEFAULT '',
 			item_id     TEXT    NOT NULL UNIQUE,
 			created_at  INTEGER NOT NULL,
-			payload     TEXT    NOT NULL
+			payload     TEXT    NOT NULL,
+			offload_id  TEXT    NOT NULL DEFAULT ''
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_history_items_session
 			ON history_items(session_id, seq)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_history_items_offload
+			ON history_items(offload_id) WHERE offload_id != ''`,
 		`CREATE TABLE IF NOT EXISTS history_runs (
 			run_id       TEXT    PRIMARY KEY,
 			session_id   TEXT    NOT NULL,
@@ -302,21 +310,24 @@ func installCurrentSchema(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_codebase_chunks_cwd
 			ON codebase_chunks(cwd)`,
 		// Offloaded tool-result bodies (context eviction): a single tool output
-		// that exceeds the eviction threshold is moved here and the conversation
-		// history keeps only a head+tail placeholder carrying id, so one huge
-		// result stops re-inflating every later LLM request while staying
-		// retrievable (read_tool_result fetches by id). session_id scopes both the
-		// read-back and the session-delete cascade; created_at is DB-stamped for
-		// operational visibility only.
+		// that exceeds the eviction threshold is moved here and model history keeps
+		// only a bounded head+tail preview. history_items.offload_id + item_id form
+		// the typed one-to-one relationship used to hydrate transcript reads; the
+		// model-facing preview carries id only for read_tool_result. session_id
+		// scopes read-back, export, and delete; created_at orders portable records.
 		`CREATE TABLE IF NOT EXISTS tool_result_blobs (
 			id          TEXT    PRIMARY KEY,
 			session_id  TEXT    NOT NULL DEFAULT '',
+			item_id     TEXT    NOT NULL DEFAULT '',
 			tool_name   TEXT    NOT NULL DEFAULT '',
+			preview     TEXT    NOT NULL DEFAULT '',
 			body        TEXT    NOT NULL,
 			created_at  INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_result_blobs_session
 			ON tool_result_blobs(session_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_result_blobs_item
+			ON tool_result_blobs(item_id) WHERE item_id != ''`,
 	}
 	for _, stmt := range stmts {
 		if _, err := db.Exec(stmt); err != nil {
@@ -380,7 +391,7 @@ func migrateSessionIdentitySchema(db *sql.DB) error {
 			return fmt.Errorf("sqlite: migrate session identity: %w", err)
 		}
 	}
-	if _, err := tx.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
+	if _, err := tx.Exec(`PRAGMA user_version = 5`); err != nil {
 		return fmt.Errorf("sqlite: migrate session identity version: %w", err)
 	}
 	if err := tx.Commit(); err != nil {

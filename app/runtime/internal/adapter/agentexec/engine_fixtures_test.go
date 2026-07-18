@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
 // newHistoryStore re-exports history.NewInMemoryStore under a
@@ -128,7 +129,7 @@ func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) 
 	r.startList = append(r.startList, startCall{callID, toolName, arguments})
 }
 
-func (r *recordingObserver) OnToolCallEnd(callID, toolName, arguments, output string, mutatedPaths []string, err error) {
+func (r *recordingObserver) OnToolCallEnd(callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endList = append(r.endList, endCall{

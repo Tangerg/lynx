@@ -161,9 +161,10 @@ type Config struct {
 	// ToolResultStore persists tool-result bodies offloaded on context eviction
 	// (read back by read_tool_result). Injected sqlite-backed for the same
 	// single-backend / composition-ring reason as the other concrete stores; the
-	// runtime threads its offload view onto the engine, its read view onto the
-	// tool environment, and its drop view onto the session-delete cascade. nil
-	// disables eviction (results always flow to history in full).
+	// runtime threads its stage/bind view onto execution, its read view onto the
+	// tool environment, its portable-blob view onto session I/O, and its cleanup
+	// view onto startup reconciliation and the session-delete cascade. nil disables
+	// eviction (results always flow to history in full).
 	ToolResultStore *sqlitestore.ToolResultStore
 
 	// ToolResultThreshold is the byte size above which a single tool result is

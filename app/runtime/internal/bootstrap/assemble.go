@@ -182,6 +182,15 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if cfg.Transactor == nil {
 		return Host{}, errors.New("runtime: Transactor is required")
 	}
+	// Offloads are staged before their ordered transcript event commits so a
+	// following model round can read them immediately. A process crash may leave
+	// that short-lived stage behind; startup is the only point with no live tool
+	// calls, so reconcile it before constructing the engine.
+	if cfg.ToolResultStore != nil {
+		if _, err := cfg.ToolResultStore.PurgeUnbound(ctx); err != nil {
+			return Host{}, fmt.Errorf("runtime: reconcile staged tool results: %w", err)
+		}
+	}
 
 	ecfg, messages := prepareEngineConfig(cfg)
 
@@ -287,6 +296,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			interrupts:   cfg.InterruptStore,
 			session:      cfg.SessionStore,
 			transcript:   cfg.TranscriptStore,
+			toolResults:  cfg.ToolResultStore,
 			conversation: messages.conversation,
 			titler:       maintenance.NewTitler(utilityEnv.resolve),
 		},

@@ -113,6 +113,10 @@ func (r *reducer) toolEnd(e ToolCallEnd) []RunEvent {
 		return nil
 	}
 	copy := e
+	if e.Offload != nil {
+		ref := *e.Offload
+		copy.Offload = &ref
+	}
 	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
 	ref.end = &copy
 	return r.flushEndedTools()
@@ -146,10 +150,12 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) []RunEvent {
 	if e.Arguments != "" {
 		arguments = e.Arguments
 	}
+	invocation := newToolInvocation(ref.name, arguments, e.Result)
+	invocation.Offload = e.Offload
 	item := Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: ItemSucceeded,
 		Kind: ToolCall, CreatedAt: ref.createdAt,
-		Tool:        newToolInvocation(ref.name, arguments, e.Result),
+		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}
 	switch {

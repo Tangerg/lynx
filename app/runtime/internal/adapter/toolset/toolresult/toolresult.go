@@ -18,6 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -40,7 +41,7 @@ call this when the preview you already have is not enough.`
 // store (consumer-side interface). Fetch returns found=false with a nil error
 // for an unknown id, which the tool surfaces to the model as a recoverable miss.
 type Store interface {
-	Fetch(ctx context.Context, sessionID, id string) (body string, found bool, err error)
+	Fetch(ctx context.Context, sessionID string, id resultoffload.ID) (body string, found bool, err error)
 }
 
 // readArgs is the model-facing argument shape; [tools.New] derives the JSON
@@ -79,7 +80,11 @@ func (t *tool) read(ctx context.Context, a readArgs) (string, error) {
 	if a.ID == "" {
 		return "error: id is required (copy it from the offloaded-result marker)", nil
 	}
-	body, found, err := t.store.Fetch(ctx, sessionID, a.ID)
+	id, err := resultoffload.ParseID(a.ID)
+	if err != nil {
+		return "error: id must be the uppercase base32 value from an offloaded-result marker", nil
+	}
+	body, found, err := t.store.Fetch(ctx, sessionID, id)
 	if err != nil {
 		return "", err
 	}
