@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	history "github.com/Tangerg/lynx/chathistory"
+
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
@@ -37,6 +39,20 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 				cfg.Engine.ChatClient = nil
 			},
 			want: "runtime: Engine.ChatClient is required",
+		},
+		{
+			name: "history store",
+			edit: func(cfg *Config) {
+				cfg.Engine.HistoryStore = nil
+			},
+			want: "runtime: Engine.HistoryStore is required",
+		},
+		{
+			name: "atomic history store",
+			edit: func(cfg *Config) {
+				cfg.Engine.HistoryStore = basicHistoryStore{Store: cfg.Engine.HistoryStore}
+			},
+			want: "runtime: Engine.HistoryStore must support atomic replace and count",
 		},
 		{
 			name: "provider registry",
@@ -108,6 +124,10 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 		})
 	}
 }
+
+// basicHistoryStore intentionally erases optional concrete capabilities so the
+// composition test proves atomic replacement and counting are required.
+type basicHistoryStore struct{ history.Store }
 
 func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
@@ -201,8 +221,9 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	processes := sqlitestore.NewProcessStore(db)
 	return Config{
 		Engine: agentexec.Config{
-			ChatClient: client,
-			BuildID:    "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			ChatClient:   client,
+			BuildID:      "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+			HistoryStore: sqlitestore.NewMessageStore(db),
 		},
 		ProviderRegistry: sqlitestore.NewProviderStore(db),
 		MCPRegistry:      sqlitestore.NewMCPServerStore(db),

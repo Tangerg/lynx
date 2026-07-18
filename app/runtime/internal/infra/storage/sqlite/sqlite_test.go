@@ -89,41 +89,41 @@ func TestSessionCRUD(t *testing.T) {
 	}
 }
 
-// TestSessionFork confirms a child session is linked to its parent and
-// metadata records the fork-at-message-id.
+// TestSessionFork confirms a child session is linked to its parent without
+// inheriting unrelated parent state.
 func TestSessionFork(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
 
 	parent, _ := svc.Create(ctx, "parent", "")
 
-	child, err := svc.Fork(ctx, parent.ID, "msg-7")
+	child, err := svc.Fork(ctx, parent.ID)
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
 	if child.ParentID != parent.ID {
 		t.Fatalf("child.ParentID = %q, want %q", child.ParentID, parent.ID)
 	}
-	if got := child.Metadata["fork_at_message_id"]; got != "msg-7" {
-		t.Fatalf("metadata fork_at_message_id = %q", got)
+	if len(child.Metadata) != 0 {
+		t.Fatalf("child metadata = %#v, want empty", child.Metadata)
 	}
 	if child.Title != "parent (fork)" {
 		t.Fatalf("child title = %q", child.Title)
 	}
 
 	// fork of unknown parent → ErrNotFound
-	_, err = svc.Fork(ctx, "nope", "msg-0")
+	_, err = svc.Fork(ctx, "nope")
 	if !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
 	}
 
-	// child round-trips through Get + retains metadata
+	// child round-trips through Get with canonical empty metadata.
 	gotChild, err := svc.Get(ctx, child.ID)
 	if err != nil {
 		t.Fatalf("Get child: %v", err)
 	}
-	if gotChild.Metadata["fork_at_message_id"] != "msg-7" {
-		t.Fatalf("metadata not persisted: %+v", gotChild.Metadata)
+	if len(gotChild.Metadata) != 0 {
+		t.Fatalf("metadata round trip = %#v, want empty", gotChild.Metadata)
 	}
 }
 

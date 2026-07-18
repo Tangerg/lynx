@@ -93,7 +93,7 @@ func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) err
 func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	var child session.Session
 	err := s.runInTx(ctx, func(ctx context.Context) error {
-		ch, err := s.sessions.Fork(ctx, plan.ParentID, "")
+		ch, err := s.sessions.Fork(ctx, plan.ParentID)
 		if err != nil {
 			return err
 		}

@@ -192,7 +192,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		}
 	}
 
-	ecfg, messages := prepareEngineConfig(cfg)
+	ecfg, messages, err := prepareEngineConfig(cfg)
+	if err != nil {
+		return Host{}, err
+	}
 
 	// Turn-boundary ports are owned by the dispatcher. The runtime supplies the
 	// in-house implementations when the composition root did not inject one.

@@ -110,7 +110,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed subtask: %v", err)
 	}
-	fork, err := svc.Fork(ctx, id, "")
+	fork, err := svc.Fork(ctx, id)
 	if err != nil {
 		t.Fatalf("seed user fork: %v", err)
 	}

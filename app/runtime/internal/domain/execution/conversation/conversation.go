@@ -1,7 +1,7 @@
 // Package conversation is the LLM message-context domain: the
 // chat.Message[] history fed to the model each turn, keyed by session.
-// It wraps the chat history store (the same store the chat history
-// middleware loads/saves) and owns the operations that read, seed,
+// It wraps the same persistence the chat-history middleware loads and saves,
+// and owns the operations that read, seed,
 // count, truncate, and inject into that history.
 //
 // This is one of the three distinct "histories" (see
@@ -13,25 +13,39 @@ package conversation
 import (
 	"context"
 	"errors"
+	"fmt"
 
-	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// errSessionIDRequired guards every operation: a session id is the history key,
-// so an empty one is a programming error, not an empty history.
-var errSessionIDRequired = errors.New("conversation: sessionID is required")
+var (
+	// errSessionIDRequired guards every operation: a session ID is the history
+	// key, so an empty one is a programming error, not an empty history.
+	errSessionIDRequired = errors.New("conversation: session ID is required")
+	errTextRequired      = errors.New("conversation: text must not be empty")
+)
+
+// Store is the conversation domain's persistence port. Replace must set the
+// complete history atomically: rollback and restore may never expose a cleared
+// or partially rewritten conversation. Count is required because run-boundary
+// watermarks are part of the domain contract, not an optional optimization.
+type Store interface {
+	Read(ctx context.Context, sessionID string) ([]chat.Message, error)
+	Write(ctx context.Context, sessionID string, messages ...chat.Message) error
+	Count(ctx context.Context, sessionID string) (int, error)
+	Replace(ctx context.Context, sessionID string, messages ...chat.Message) error
+}
 
 // Messages owns LLM message histories keyed by session over a chat history store.
 type Messages struct {
-	store history.Store
+	store Store
 }
 
 // NewMessages builds the message histories over store — the chat history
 // backend (sqlite MessageStore in production, in-memory for tests). The chat
 // history middleware loads/saves the same store during a turn; this type is the
 // out-of-turn read/edit surface (fork, rollback, steering, messages.list).
-func NewMessages(store history.Store) *Messages {
+func NewMessages(store Store) *Messages {
 	return &Messages{store: store}
 }
 
@@ -42,22 +56,29 @@ func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, 
 	if sessionID == "" {
 		return nil, errSessionIDRequired
 	}
-	return m.store.Read(ctx, sessionID)
+	messages, err := m.store.Read(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("conversation: read session %q: %w", sessionID, err)
+	}
+	return messages, nil
 }
 
-// Seed writes msgs into sessionID's history. Used by sessions.fork to copy a
+// Seed writes messages into sessionID's history. Used by sessions.fork to copy a
 // slice of the parent's history into a freshly created child so the child's
 // next turn continues from the fork point. No-op for an empty slice. The store
 // appends, so seed a fresh session only (seeding one with existing history
 // would concatenate).
-func (m *Messages) Seed(ctx context.Context, sessionID string, msgs []chat.Message) error {
+func (m *Messages) Seed(ctx context.Context, sessionID string, messages []chat.Message) error {
 	if sessionID == "" {
 		return errSessionIDRequired
 	}
-	if len(msgs) == 0 {
+	if len(messages) == 0 {
 		return nil
 	}
-	return m.store.Write(ctx, sessionID, msgs...)
+	if err := m.store.Write(ctx, sessionID, messages...); err != nil {
+		return fmt.Errorf("conversation: seed session %q: %w", sessionID, err)
+	}
+	return nil
 }
 
 // Count returns sessionID's message count — the per-run watermark
@@ -67,32 +88,34 @@ func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
 		return 0, errSessionIDRequired
 	}
-	// history.Count uses the store's Counter capability (SQLite: SELECT COUNT(*))
-	// when present, so this hot segment.finished watermark read doesn't load and
-	// unmarshal the entire history just to count it; it falls back to len(Read)
-	// for backends that can't count cheaply.
-	return history.Count(ctx, m.store, sessionID)
+	count, err := m.store.Count(ctx, sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("conversation: count session %q: %w", sessionID, err)
+	}
+	return count, nil
 }
 
 // Truncate keeps the first keepN messages of sessionID and drops the rest
 // (sessions.rollback). keepN >= current count is a no-op; keepN <= 0 clears the
-// session. Store-agnostic — read the prefix, then atomically replace the
-// history with it via [history.Replace], so a transactional backend can't be
-// left wiped if the rewrite fails (the seq renumbering on re-write is
-// immaterial; rollback doesn't depend on stable seqs).
+// session. It reads the prefix and atomically replaces the history through the
+// required [Store] contract, so a failed rewrite leaves the prior history
+// intact (sequence renumbering is immaterial; rollback does not depend on it).
 func (m *Messages) Truncate(ctx context.Context, sessionID string, keepN int) error {
 	if sessionID == "" {
 		return errSessionIDRequired
 	}
-	msgs, err := m.store.Read(ctx, sessionID)
+	stored, err := m.Read(ctx, sessionID)
 	if err != nil {
 		return err
 	}
-	if keepN >= len(msgs) {
+	if keepN >= len(stored) {
 		return nil
 	}
 	// keepN <= 0 replaces with nothing, which clears the session.
-	return history.Replace(ctx, m.store, sessionID, msgs[:max(keepN, 0)]...)
+	if err := m.store.Replace(ctx, sessionID, stored[:max(keepN, 0)]...); err != nil {
+		return fmt.Errorf("conversation: truncate session %q to %d messages: %w", sessionID, max(keepN, 0), err)
+	}
+	return nil
 }
 
 // InjectUser appends a synthetic user message to sessionID's history — it
@@ -104,7 +127,10 @@ func (m *Messages) InjectUser(ctx context.Context, sessionID, text string) error
 		return errSessionIDRequired
 	}
 	if text == "" {
-		return errors.New("conversation: text must not be empty")
+		return errTextRequired
 	}
-	return m.store.Write(ctx, sessionID, chat.NewUserMessage(chat.NewTextPart(text)))
+	if err := m.store.Write(ctx, sessionID, chat.NewUserMessage(chat.NewTextPart(text))); err != nil {
+		return fmt.Errorf("conversation: inject user message into session %q: %w", sessionID, err)
+	}
+	return nil
 }

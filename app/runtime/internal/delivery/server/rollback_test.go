@@ -185,7 +185,7 @@ func TestRollbackSessionPreservesUserForks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
-	fork, err := rt.sess.Fork(ctx, parent.ID, "")
+	fork, err := rt.sess.Fork(ctx, parent.ID)
 	if err != nil {
 		t.Fatalf("create fork: %v", err)
 	}
