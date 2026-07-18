@@ -230,7 +230,7 @@ func TestToolEnvironmentToleratesUnreachableMCP(t *testing.T) {
 		},
 	})
 	statuses := built.MCPStatusReader.Statuses()
-	if len(statuses) != 1 || statuses[0].Name != "down" || statuses[0].Status != "failed" || statuses[0].Err == nil {
+	if len(statuses) != 1 || statuses[0].Name != "down" || statuses[0].State != mcpserver.ConnectionFailed || statuses[0].Err == nil {
 		t.Fatalf("statuses = %+v, want [down failed <reason>]", statuses)
 	}
 	tools, err := built.MCPToolCatalog.Tools(context.Background(), "")
@@ -257,7 +257,7 @@ func TestToolEnvironmentReconnectsMCP(t *testing.T) {
 		t.Fatal("reconnect of an unreachable server must return the dial error")
 	}
 	st := built.MCPStatusReader.Statuses()
-	if len(st) != 1 || st[0].Status != "failed" || st[0].Err == nil {
+	if len(st) != 1 || st[0].State != mcpserver.ConnectionFailed || st[0].Err == nil {
 		t.Fatalf("statuses = %+v, want [down failed <reason>]", st)
 	}
 	if tools, _ := built.MCPToolCatalog.Tools(context.Background(), ""); len(tools) != 0 {

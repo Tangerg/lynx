@@ -18,14 +18,40 @@ func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
 }
 
 func (s *Server) mcpServerWire(ctx context.Context, st mcpserver.ConnectionStatus) protocol.McpServer {
-	entry := protocol.McpServer{Name: st.Name, Status: protocol.McpStatus(st.Status)}
-	switch st.Status {
-	case "connected":
+	status, ok := mcpStateWire(st.State)
+	if !ok {
+		return protocol.McpServer{
+			Name:   st.Name,
+			Status: protocol.McpFailed,
+			Error: &protocol.ProblemData{
+				Type:   "mcp_invalid_connection_state",
+				Detail: "runtime reported an unknown MCP connection state",
+			},
+		}
+	}
+	entry := protocol.McpServer{Name: st.Name, Status: status}
+	switch st.State {
+	case mcpserver.ConnectionConnected:
 		entry.ToolCount = s.mcpToolCount(ctx, st.Name)
-	case "failed":
+	case mcpserver.ConnectionFailed, mcpserver.ConnectionNeedsAuth:
 		entry.Error = mcpDialFailedProblem(st.Err)
 	}
 	return entry
+}
+
+func mcpStateWire(state mcpserver.ConnectionState) (protocol.McpStatus, bool) {
+	switch state {
+	case mcpserver.ConnectionConnecting:
+		return protocol.McpConnecting, true
+	case mcpserver.ConnectionConnected:
+		return protocol.McpConnected, true
+	case mcpserver.ConnectionFailed:
+		return protocol.McpFailed, true
+	case mcpserver.ConnectionNeedsAuth:
+		return protocol.McpNeedsAuth, true
+	default:
+		return "", false
+	}
 }
 
 func (s *Server) mcpLiveStatus(ctx context.Context, name string) (protocol.McpStatus, *int, *protocol.ProblemData, bool) {

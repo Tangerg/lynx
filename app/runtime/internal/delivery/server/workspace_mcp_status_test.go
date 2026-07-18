@@ -12,8 +12,8 @@ import (
 func TestWorkspaceMCPListServers(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{
-			{Name: "fs", Status: "connected"},
-			{Name: "down", Status: "failed", Err: errors.New("connection refused")},
+			{Name: "fs", State: mcpserver.ConnectionConnected},
+			{Name: "down", State: mcpserver.ConnectionFailed, Err: errors.New("connection refused")},
 		},
 		tools: []mcpserver.ToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
@@ -36,9 +36,43 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 	}
 }
 
+func TestMCPStateWire(t *testing.T) {
+	tests := []struct {
+		name  string
+		state mcpserver.ConnectionState
+		want  protocol.McpStatus
+		ok    bool
+	}{
+		{"connecting", mcpserver.ConnectionConnecting, protocol.McpConnecting, true},
+		{"connected", mcpserver.ConnectionConnected, protocol.McpConnected, true},
+		{"failed", mcpserver.ConnectionFailed, protocol.McpFailed, true},
+		{"needs auth", mcpserver.ConnectionNeedsAuth, protocol.McpNeedsAuth, true},
+		{"unknown", mcpserver.ConnectionState("typo"), "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := mcpStateWire(tt.state)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("mcpStateWire(%q) = (%q, %t), want (%q, %t)", tt.state, got, ok, tt.want, tt.ok)
+			}
+		})
+	}
+}
+
+func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
+	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{}))
+	got := s.mcpServerWire(context.Background(), mcpserver.ConnectionStatus{
+		Name:  "broken",
+		State: mcpserver.ConnectionState("typo"),
+	})
+	if got.Status != protocol.McpFailed || got.Error == nil || got.Error.Type != "mcp_invalid_connection_state" {
+		t.Fatalf("mcpServerWire(unknown state) = %+v, want explicit failed projection", got)
+	}
+}
+
 func TestWorkspaceMCPReconnect(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
-		statuses: []mcpserver.ConnectionStatus{{Name: "fs", Status: "connected"}},
+		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}))
 	defer s.Close()

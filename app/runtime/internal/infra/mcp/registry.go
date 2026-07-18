@@ -21,15 +21,15 @@ type target struct {
 
 // Statuses returns one entry per CONFIGURED server (connected and failed
 // alike), in dial order. Nil-safe.
-func (c *Connections) Statuses() []ServerStatus {
+func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 	if c == nil {
 		return nil
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	out := make([]ServerStatus, 0, len(c.servers))
+	out := make([]mcpserver.ConnectionStatus, 0, len(c.servers))
 	for _, ms := range c.servers {
-		out = append(out, ServerStatus{Name: ms.name(), Status: ms.status, Err: ms.lastErr})
+		out = append(out, mcpserver.ConnectionStatus{Name: ms.name(), State: ms.state, Err: ms.lastErr})
 	}
 	return out
 }

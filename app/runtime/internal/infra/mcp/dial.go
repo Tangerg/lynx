@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -70,7 +71,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 		ms := &server{config: srv}
 		session, derr := dial(ctx, client, srv)
 		if derr != nil {
-			ms.status, ms.lastErr = dialStatus(derr), derr
+			ms.state, ms.lastErr = dialStatus(derr), derr
 			failures++
 			c.servers = append(c.servers, ms)
 			continue
@@ -78,12 +79,12 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
 		if terr != nil {
 			terr = errors.Join(terr, session.Close()) // half-open: drop an unusable session
-			ms.status, ms.lastErr = statusFailed, terr
+			ms.state, ms.lastErr = mcpserver.ConnectionFailed, terr
 			failures++
 			c.servers = append(c.servers, ms)
 			continue
 		}
-		ms.session, ms.status = session, statusConnected
+		ms.session, ms.state = session, mcpserver.ConnectionConnected
 		tools = append(tools, srcTools...)
 		c.servers = append(c.servers, ms)
 	}

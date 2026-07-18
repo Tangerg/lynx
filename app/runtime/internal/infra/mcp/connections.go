@@ -8,6 +8,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -16,7 +17,7 @@ import (
 type server struct {
 	config  ServerConfig
 	session *sdkmcp.ClientSession // nil when not connected
-	status  string
+	state   mcpserver.ConnectionState
 	lastErr error
 
 	// oauth is the live OAuth handler obtained by a successful [Connections.
