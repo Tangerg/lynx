@@ -24,7 +24,7 @@ type fakeExecutor struct {
 	releaseCancel chan struct{}
 }
 
-func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[EngineEvent], error) {
+func (f *fakeExecutor) TurnEvents(ctx context.Context, _ TurnRef) (iter.Seq[EngineEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
@@ -41,7 +41,7 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ Handle) (iter.Seq[Engin
 	}, nil
 }
 
-func (f *fakeExecutor) CancelTurn(context.Context, Handle) error {
+func (f *fakeExecutor) CancelTurn(context.Context, TurnRef) error {
 	if f.cancelStarted != nil {
 		close(f.cancelStarted)
 	}
@@ -146,7 +146,7 @@ func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
 func testSegment() segmentSpec {
 	return segmentSpec{
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1",
-		TurnID: "turn_1", Handle: "opaque", Provider: "openai", Model: "model",
+		TurnID: "turn_1", Provider: "openai", Model: "model",
 		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
 	}
 }

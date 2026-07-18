@@ -44,15 +44,15 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
 
-func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.Handle) (iter.Seq[runs.EngineEvent], error) {
+func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.TurnRef) (iter.Seq[runs.EngineEvent], error) {
 	return func(func(runs.EngineEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelTurn(context.Context, runs.Handle) error { return nil }
+func (*blockingRunRuntime) CancelTurn(context.Context, runs.TurnRef) error { return nil }
 
-func (*blockingRunRuntime) Start(_ context.Context, req runs.StartTurn) (runs.Turn, error) {
+func (*blockingRunRuntime) Start(_ context.Context, req runs.StartTurn) (runs.TurnRef, error) {
 	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}
-	return runs.Turn{SessionID: handle.SessionID, TurnID: handle.TurnID, Handle: handle}, nil
+	return runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
 }
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {

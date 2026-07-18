@@ -114,7 +114,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		}
 		if ctx.Err() != nil || abortTurn {
 			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
-			_ = c.executor.CancelTurn(teardownCtx, spec.Handle)
+			_ = c.executor.CancelTurn(teardownCtx, spec.turnRef())
 			cancelTeardown()
 		}
 		hub.Close()

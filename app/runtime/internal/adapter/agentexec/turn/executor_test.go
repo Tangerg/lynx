@@ -27,15 +27,16 @@ func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
 	return nil
 }
 
-// TestExecutorForwardsOpaqueHandle: the run executor asserts the opaque handle
-// back to a TurnHandle and drives the dispatcher.
-func TestExecutorForwardsOpaqueHandle(t *testing.T) {
+// TestExecutorTranslatesTurnReference verifies the application-owned durable
+// identity is translated into the dispatcher's concrete handle.
+func TestExecutorTranslatesTurnReference(t *testing.T) {
 	ctx := context.Background()
 	handle := TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
+	ref := runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
 	disp := &executorFakeDispatcher{events: func(func(Event) bool) {}}
 	exec := NewExecutor(disp)
 
-	seq, err := exec.TurnEvents(ctx, handle)
+	seq, err := exec.TurnEvents(ctx, ref)
 	if err != nil {
 		t.Fatalf("TurnEvents: %v", err)
 	}
@@ -43,23 +44,11 @@ func TestExecutorForwardsOpaqueHandle(t *testing.T) {
 		t.Fatalf("events handle=%+v seq nil=%v", disp.eventsHandle, seq == nil)
 	}
 
-	if err := exec.CancelTurn(ctx, handle); err != nil {
+	if err := exec.CancelTurn(ctx, ref); err != nil {
 		t.Fatalf("CancelTurn: %v", err)
 	}
 	if disp.cancelHandle != handle {
 		t.Fatalf("cancel handle=%+v", disp.cancelHandle)
-	}
-}
-
-// TestExecutorRejectsForeignHandle: a handle that is not a TurnHandle is an
-// error, not a panic — the application must only hand back the executor's own.
-func TestExecutorRejectsForeignHandle(t *testing.T) {
-	exec := NewExecutor(&executorFakeDispatcher{})
-	if _, err := exec.TurnEvents(context.Background(), "not-a-handle"); err == nil {
-		t.Fatal("TurnEvents must reject a non-turn handle")
-	}
-	if err := exec.CancelTurn(context.Background(), 42); err == nil {
-		t.Fatal("CancelTurn must reject a non-turn handle")
 	}
 }
 
