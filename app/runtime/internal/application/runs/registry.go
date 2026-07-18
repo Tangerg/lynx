@@ -1,8 +1,8 @@
 package runs
 
 import (
-	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -115,7 +115,17 @@ func (r *Registry[P]) MarkCancel(id, reason string) (Entry[P], bool) {
 func (r *Registry[P]) List() []Entry[P] {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return slices.Collect(maps.Values(r.runs))
+	out := make([]Entry[P], 0, len(r.runs))
+	for _, entry := range r.runs {
+		out = append(out, entry)
+	}
+	slices.SortFunc(out, func(left, right Entry[P]) int {
+		if order := left.Record.CreatedAt.Compare(right.Record.CreatedAt); order != 0 {
+			return order
+		}
+		return strings.Compare(left.Record.ID, right.Record.ID)
+	})
+	return out
 }
 
 // ActiveSession reports whether the session has an open run or admission claim.

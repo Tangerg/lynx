@@ -70,6 +70,60 @@ func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing
 	}
 }
 
+func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
+	turnErr := errors.New("turn cleanup failed")
+	checkpointErr := errors.New("checkpoint cleanup failed")
+	stores := newMutationStores("")
+	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
+	coordinator := New(Dependencies{
+		Stores:      stores,
+		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
+		Paths:       testCwdResolver{},
+		Checkpoints: checkpoints,
+	})
+
+	err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1")
+	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
+		t.Fatalf("DeleteSession error = %v, want turn and checkpoint cleanup failures", err)
+	}
+	want := []string{"interrupts.list", "apply.delete", "turn.cancel", "session.forget", "checkpoint.drop:ses_1"}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want %v", stores.operations, want)
+	}
+	if len(stores.deleted) != 1 || stores.deleted[0] != "ses_1" {
+		t.Fatal("cleanup failure prevented durable session deletion")
+	}
+}
+
+func TestRollbackDropsSubtaskCheckpointsAndReportsCleanupFailures(t *testing.T) {
+	turnErr := errors.New("turn cleanup failed")
+	checkpointErr := errors.New("checkpoint cleanup failed")
+	stores := newMutationStores("")
+	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
+	coordinator := New(Dependencies{
+		Stores:      stores,
+		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
+		Paths:       testCwdResolver{},
+		Checkpoints: checkpoints,
+	})
+	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
+
+	err := coordinator.applyRollback(t.Context(), "ses_1", boundary, []string{"ses_sub"})
+	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
+		t.Fatalf("applyRollback error = %v, want turn and checkpoint cleanup failures", err)
+	}
+	want := []string{
+		"interrupts.list",
+		"apply.rollback",
+		"turn.cancel",
+		"session.forget",
+		"checkpoint.drop:ses_sub",
+	}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want %v", stores.operations, want)
+	}
+}
+
 func TestDeleteSessionRemovesOwnedSubtaskTreeButPreservesUserForks(t *testing.T) {
 	stores := newMutationStores("")
 	stores.children = map[string][]session.Session{
@@ -259,18 +313,28 @@ func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]interr
 	}
 	return i.stores.pending[sessionID], nil
 }
-func (i *mutationInterrupts) Get(context.Context, string) (interrupts.Pending, bool, error) {
-	panic("unused")
+func (i *mutationInterrupts) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
+	for _, pending := range i.stores.pending {
+		for _, item := range pending {
+			if item.RunID == runID {
+				return item, true, nil
+			}
+		}
+	}
+	return interrupts.Pending{}, false, nil
 }
 func (i *mutationInterrupts) Consume(context.Context, string) (interrupts.Pending, bool, error) {
 	panic("unused")
 }
 
-type mutationTurns struct{ operations *[]string }
+type mutationTurns struct {
+	operations *[]string
+	err        error
+}
 
 func (t mutationTurns) Cancel(context.Context, RunRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
-	return nil
+	return t.err
 }
 
 type observingTurns struct {
@@ -284,4 +348,18 @@ func (t *observingTurns) Cancel(ctx context.Context, _ RunRef) error {
 	t.canceled = ctx.Err() != nil
 	_, t.bounded = ctx.Deadline()
 	return nil
+}
+
+type mutationCheckpoints struct {
+	operations *[]string
+	err        error
+}
+
+func (*mutationCheckpoints) Restore(context.Context, string, string, string) error {
+	panic("unused")
+}
+
+func (c *mutationCheckpoints) DropSession(sessionID string) error {
+	*c.operations = append(*c.operations, "checkpoint.drop:"+sessionID)
+	return c.err
 }

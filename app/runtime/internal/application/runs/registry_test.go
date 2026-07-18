@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"slices"
 	"testing"
 	"time"
 )
@@ -25,6 +26,23 @@ func TestRegistryClaimSession(t *testing.T) {
 	}
 	if !r.ClaimSession("s1") {
 		t.Fatal("claim must succeed again after release")
+	}
+}
+
+func TestRegistryListIsStableByCreationAndRunIdentity(t *testing.T) {
+	var registry Registry[struct{}]
+	createdAt := time.Unix(42, 0).UTC()
+	registry.Open(Record{ID: "run_b", CreatedAt: createdAt}, struct{}{})
+	registry.Open(Record{ID: "run_c", CreatedAt: createdAt.Add(time.Second)}, struct{}{})
+	registry.Open(Record{ID: "run_a", CreatedAt: createdAt}, struct{}{})
+
+	entries := registry.List()
+	ids := make([]string, len(entries))
+	for index, entry := range entries {
+		ids[index] = entry.Record.ID
+	}
+	if want := []string{"run_a", "run_b", "run_c"}; !slices.Equal(ids, want) {
+		t.Fatalf("List IDs = %v, want %v", ids, want)
 	}
 }
 

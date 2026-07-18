@@ -2,6 +2,8 @@ package sessions
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -44,13 +46,21 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	}); err != nil {
 		return err
 	}
+	var cleanupErrs []error
 	for _, r := range slices.Concat(parked, childParked) {
-		c.cancelTurn(ctx, r)
+		if err := c.cancelTurn(ctx, r); err != nil {
+			cleanupErrs = append(cleanupErrs, err)
+		}
 	}
 	for _, id := range dropSessionIDs {
 		c.s.ForgetSession(id)
+		if c.checkpoints != nil {
+			if err := c.checkpoints.DropSession(id); err != nil {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for rolled-back subtask session %q: %w", id, err))
+			}
+		}
 	}
-	return nil
+	return errors.Join(cleanupErrs...)
 }
 
 func parkedProcessIDs(parked []RunTurnBinding) []string {

@@ -128,9 +128,9 @@ type RunRef struct {
 // adapter package.
 type WorkspaceCheckpoints interface {
 	Restore(ctx context.Context, sessionID, cwd, runID string) error
-	// DropSession removes a session's checkpoint history. Best-effort cleanup
-	// after the durable delete — a failed drop leaks a shadow repo but corrupts no
-	// session state.
+	// DropSession removes a session's checkpoint history after the durable
+	// aggregate deletion. A failure cannot roll the transaction back, but it is
+	// returned to the caller and never disguised as successful cleanup.
 	DropSession(sessionID string) error
 }
 

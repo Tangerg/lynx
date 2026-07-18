@@ -153,10 +153,14 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 	return out, nil
 }
 
-func (c *Coordinator) cancelTurn(ctx context.Context, r RunTurnBinding) {
-	if c.turns != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnCleanupTimeout)
-		defer cancel()
-		_ = c.turns.Cancel(cleanupCtx, r.ref())
+func (c *Coordinator) cancelTurn(ctx context.Context, r RunTurnBinding) error {
+	if c.turns == nil {
+		return nil
 	}
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnCleanupTimeout)
+	defer cancel()
+	if err := c.turns.Cancel(cleanupCtx, r.ref()); err != nil {
+		return fmt.Errorf("sessions: cancel turn %q for run %q: %w", r.TurnID, r.RunID, err)
+	}
+	return nil
 }
