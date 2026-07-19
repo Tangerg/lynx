@@ -128,11 +128,23 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("ConfigureMCPServer after durable commit: %v", err)
 	}
-	live.mu.Lock()
-	livePresent := live.servers[server.Name]
-	live.mu.Unlock()
-	if !livePresent {
-		t.Fatal("request cancellation abandoned post-commit live reconciliation")
+	// The live (re)dial is dispatched detached so a slow handshake never holds the
+	// mutation lock, so it settles shortly after the call returns rather than
+	// synchronously. It must still run despite the request-ctx cancellation, since
+	// it is dispatched on the owner-scoped task group.
+	deadline := time.After(time.Second)
+	for {
+		live.mu.Lock()
+		livePresent := live.servers[server.Name]
+		live.mu.Unlock()
+		if livePresent {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatal("request cancellation abandoned post-commit live reconciliation")
+		case <-time.After(time.Millisecond):
+		}
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
+	"github.com/Tangerg/lynx/models/catalog"
 )
 
 // runTurn starts the turn's agent process and drives its first run
@@ -221,7 +222,14 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
 		return !dec.Block
 	}
-	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, preCompact)
+	// Resolve the run's model context window so the token trigger is relative to the
+	// model this run actually pinned, not a process-wide default. An unknown model
+	// (default selection / catalog miss) passes 0 and the compactor falls back.
+	contextWindow := 0
+	if info, ok := catalog.Lookup(st.provider, st.model); ok {
+		contextWindow = int(info.Limits.ContextWindow)
+	}
+	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, contextWindow, preCompact)
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),

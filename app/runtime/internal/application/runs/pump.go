@@ -170,6 +170,15 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// Interrupt segment done; leave the turn parked for resume.
 			return
 		}
+		if finished {
+			// A committed terminal is the last event this run can durably back: stop
+			// before consuming any further buffered event. A cancel that races a turn
+			// in the act of parking can emit a TurnInterrupted after the terminal
+			// TurnEnd; processing it would try to Suspend an already-terminalized run.
+			// The pump owns durable run-state integrity, so it enforces "nothing after
+			// a terminal" here rather than trusting the upstream event ordering.
+			return
+		}
 	}
 }
 

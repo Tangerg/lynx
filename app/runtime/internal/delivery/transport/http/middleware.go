@@ -125,6 +125,13 @@ func (w *recordingResponseWriter) Flush() {
 	}
 }
 
+// Unwrap exposes the wrapped writer so http.ResponseController can reach the
+// underlying connection — notably for the per-frame write deadline the SSE stream
+// relies on to bound a blocked write (see serveStream).
+func (w *recordingResponseWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
 func handlerPanicError(recovered any) error {
 	if cause, ok := recovered.(error); ok {
 		return fmt.Errorf("http handler panicked: %w", cause)

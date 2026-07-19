@@ -112,7 +112,10 @@ func (s *RunStateStore) validateParkedRun(ctx context.Context, active nonTermina
 	if pending.RunID != active.runID || pending.SessionID != active.sessionID {
 		return false, fmt.Errorf("sqlite: validate parked run %q: interrupt identity is %q/%q, want %q/%q", active.runID, pending.SessionID, pending.RunID, active.sessionID, active.runID)
 	}
-	if pending.RunCreatedAt.IsZero() || pending.CreatedAt.IsZero() || len(pending.Interrupts) == 0 {
+	// These columns decode via time.Unix(0, ns), so the schema default 0 becomes the
+	// 1970 epoch — whose time.IsZero() is false (Go's zero time is year 1). Test the
+	// decoded nanos against 0 to actually detect an unset timestamp / incomplete boundary.
+	if pending.RunCreatedAt.UnixNano() == 0 || pending.CreatedAt.UnixNano() == 0 || len(pending.Interrupts) == 0 {
 		return false, fmt.Errorf("sqlite: validate parked run %q: incomplete interrupt boundary", active.runID)
 	}
 	if pending.TurnID == "" {

@@ -21,11 +21,12 @@ type compactionStore interface {
 // unless compaction is disabled (negative MaxMessages); a nil
 // Compactor makes [Compactor.MaybeCompact] a silent no-op.
 type Compactor struct {
-	store       compactionStore
-	client      ClientFunc
-	maxMessages int
-	maxTokens   int
-	keepRecent  int
+	store             compactionStore
+	client            ClientFunc
+	maxMessages       int
+	explicitMaxTokens int // cfg.MaxTokens override; 0 = derive from the run's model window
+	fallbackWindow    int // default model's context window; used when the run's window is unknown
+	keepRecent        int
 }
 
 // NewCompactor builds a Compactor over the chat history store and a
@@ -35,17 +36,6 @@ func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
-	}
-	maxTokens := cfg.MaxTokens
-	if maxTokens <= 0 {
-		// Window-relative when the model's context window is known, else a
-		// coarse fixed fallback. Relative tracks the real model across the
-		// 32k…1M range; fixed was wrong at both ends.
-		if cfg.ContextWindow > 0 {
-			maxTokens = cfg.ContextWindow * windowTriggerPct / 100
-		} else {
-			maxTokens = defaultCompactMaxTokens
-		}
 	}
 	keep := cfg.KeepRecent
 	if keep <= 0 {
@@ -57,12 +47,33 @@ func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig
 		keep = maxMessages / 2
 	}
 	return &Compactor{
-		store:       store,
-		client:      client,
-		maxMessages: maxMessages,
-		maxTokens:   maxTokens,
-		keepRecent:  keep,
+		store:             store,
+		client:            client,
+		maxMessages:       maxMessages,
+		explicitMaxTokens: cfg.MaxTokens,
+		fallbackWindow:    cfg.ContextWindow,
+		keepRecent:        keep,
 	}
+}
+
+// tokenTrigger resolves the token-footprint compaction threshold for a run whose
+// model has contextWindow tokens (0 = unknown). An explicit MaxTokens config wins;
+// otherwise the trigger is window-relative to the RUN's model when known, else the
+// default model's window, else a coarse fixed fallback. Resolving this per run
+// (not once at construction) is what lets a run pinning a smaller-context model
+// than the default still compact before it overflows that model's window.
+func (c *Compactor) tokenTrigger(contextWindow int) int {
+	if c.explicitMaxTokens > 0 {
+		return c.explicitMaxTokens
+	}
+	window := contextWindow
+	if window <= 0 {
+		window = c.fallbackWindow
+	}
+	if window > 0 {
+		return window * windowTriggerPct / 100
+	}
+	return defaultCompactMaxTokens
 }
 
 // MaybeCompact inspects sessionID's history. When either trigger
@@ -84,15 +95,16 @@ func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (turn.CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (turn.CompactionResult, error) {
 	if c == nil || sessionID == "" {
 		return turn.CompactionResult{}, nil
 	}
+	maxTokens := c.tokenTrigger(contextWindow)
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
 		return turn.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
-	if !c.shouldCompact(msgs) {
+	if !c.shouldCompact(msgs, maxTokens) {
 		return turn.CompactionResult{}, nil
 	}
 	// The whole history is within keep-recent — nothing OLDER to summarize, and
@@ -122,7 +134,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, preCompa
 	// re-sent context — so it reports no compaction boundary (Compacted stays
 	// false) and, correctly, triggers no fact-extraction LLM call.
 	trimmed, changed := c.trimForBudget(msgs)
-	if changed && !c.shouldCompact(trimmed) {
+	if changed && !c.shouldCompact(trimmed, maxTokens) {
 		if err := c.store.Replace(ctx, sessionID, trimmed...); err != nil {
 			return turn.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
