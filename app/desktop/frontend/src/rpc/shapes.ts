@@ -18,36 +18,40 @@ export type InterruptType = "approval" | "question" | "toolResult";
 
 export interface ClientCapabilities {
   events: string[]; // event types this client can render
-  features: Record<string, unknown>;
+  features: Record<string, { enabled: boolean }>;
   interruptTypes?: InterruptType[]; // HITL types we can handle (anti-deadlock, §6.2)
-  optOutNotificationMethods?: string[]; // suppress high-freq notifications, e.g. ["item.delta"]
+  excludedEvents?: string[]; // suppress high-freq notifications, e.g. ["item.delta"]
+}
+
+export interface FeatureCapability {
+  enabled: boolean;
+  stability: "stable" | "experimental";
 }
 
 export interface ServerFeatures {
-  reasoning: boolean;
-  mcp: boolean;
-  multimodal: boolean;
-  git: boolean; // git binary on PATH — gates workspace.getDiff/listFileChanges (AUX_API §1)
-  fileWatch: boolean; // workspace.subscribe `watches` (git-state watch) available (AUX_API §3.1)
-  checkpoints: boolean; // sessions.rollback{restoreType:files|both} — shadow-git file restore (AUX_API §4.1)
-  lsp: boolean; // code-intelligence tool set (lsp_*) + post-edit auto typecheck; tools render as ordinary toolCalls
+  reasoning: FeatureCapability;
+  mcp: FeatureCapability;
+  multimodal: FeatureCapability;
+  git: FeatureCapability;
+  fileWatch: FeatureCapability;
+  checkpoints: FeatureCapability;
+  lsp: FeatureCapability;
   // todos and automatic compaction are runtime projections; optional means an
   // older runtime may omit the feature and the client must treat it as off.
-  todos?: boolean;
-  compaction?: boolean;
-  subagents: boolean;
-  skills: boolean;
-  sessionExport: boolean;
-  memory: boolean;
-  relocate: boolean;
-  clientTools: boolean;
+  todos?: FeatureCapability;
+  compaction?: FeatureCapability;
+  subagents: FeatureCapability;
+  skills: FeatureCapability;
+  sessionExport: FeatureCapability;
+  memory: FeatureCapability;
+  relocate: FeatureCapability;
+  clientTools: FeatureCapability;
+  [name: string]: FeatureCapability | undefined;
 }
 
 export interface ServerCapabilities {
-  protocolVersion: string;
   events: string[]; // event types the server emits
   features: ServerFeatures; // unset flag ⇒ false
-  providers: string[];
   streamingMethods: string[]; // machine-readable stream-method set (§9) — clients never hardcode
   limits: { maxConcurrentRuns?: number };
 }
@@ -66,20 +70,9 @@ export interface RequestMeta {
 }
 
 export interface DiscoverResponse {
-  protocolVersion: string;
+  protocol: { current: string; minSupported: string };
   serverInfo: ServerInfo;
   capabilities: ServerCapabilities;
-}
-
-export interface ShutdownRequest {
-  reason?: string;
-}
-
-// notifications.canceled (client→server): cancel an in-flight Request by
-// its envelope id. NOT runs.cancel (which stops a run by runId).
-export interface CanceledNotification {
-  id: string;
-  reason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -99,6 +92,7 @@ export interface Session {
   createdAt: string;
   updatedAt: string;
   favorite?: boolean; // user-pinned: sorts ahead in the session list
+  revision: number;
 }
 
 export interface Project {
@@ -118,6 +112,7 @@ export interface CreateSessionRequest {
 
 export interface UpdateSessionRequest {
   sessionId: SessionId;
+  expectedRevision: number;
   title?: string;
   cwd?: string; // changing cwd = relocate (features.relocate)
   model?: string;
@@ -653,6 +648,7 @@ export interface CodebaseHit {
   score: number; // cosine similarity [0,1]
 }
 export interface CodebaseStatus {
+  operationId?: string;
   state: CodebaseState;
   modelId?: string;
   fileCount: number;
@@ -672,11 +668,11 @@ export interface Skill {
   source?: string;
 }
 
-// A managed skill's curator state (workspace.skills.list): active (loadable by
+// A managed skill's curator state (skills.library.list): active (loadable by
 // the agent) or archived (preserved, not loaded).
 export type SkillLifecycle = "active" | "archived";
 
-// One entry in the global self-authored skill library (workspace.skills.list).
+// One entry in the global self-authored skill library (skills.library.list).
 // Distinct from Skill (the agent's project+global discovery view): this is the
 // management surface, which also lists archived skills.
 export interface ManagedSkill {
@@ -684,7 +680,7 @@ export interface ManagedSkill {
   description?: string;
   lifecycle: SkillLifecycle;
 }
-// A recipe is a user-invoked, parameterized prompt template (workspace.recipes.
+// A recipe is a user-invoked, parameterized prompt template (recipes.
 // list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
 // and sends the result as a turn; body travels with the listing (recipes are
 // small). name doubles as the slash command (review → /review).
@@ -712,6 +708,7 @@ export interface Schedule {
   lastRunAt?: string;
   nextRunAt?: string;
   createdAt: string;
+  revision: number;
 }
 // The editable fields a schedules.create / update carries (create is always
 // enabled; update adds id + enabled).
@@ -755,9 +752,9 @@ export interface McpTool {
 // pastes). stdio = local subprocess; streamableHttp = remote Streamable HTTP.
 export type McpTransport = "stdio" | "streamableHttp";
 
-// One entry in the editable MCP registry (workspace.mcp.listConfigs /
+// One entry in the editable MCP registry (mcp.configs.list /
 // configure). Carries the persisted config only — live status
-// (status/toolCount/error) comes from workspace.mcp.listServers
+// (status/toolCount/error) comes from mcp.servers.list
 // (McpServer), joined by server name.
 // `authorizationMasked` is the never-reversible echo of an http server's
 // stored bearer token ("" / absent = none); the raw token only travels on
@@ -787,7 +784,7 @@ export interface McpServerConfig {
   autoApproveTools?: string[];
 }
 
-// workspace.mcp.configure — upsert by `name`. `authorization` is the RAW bearer
+// mcp.configs.configure — upsert by `name`. `authorization` is the RAW bearer
 // token (NOT the masked echo): omitted/empty KEEPS the already-stored token, so
 // editing a non-secret field never forces a token re-entry. The runtime returns
 // the resulting McpServerConfig with the token re-masked.
@@ -808,14 +805,14 @@ export interface ConfigureMCPServerRequest {
   autoApproveTools?: string[];
 }
 
-// workspace.mcp.setEnabled — flip a registered server's enablement without
+// mcp.configs.setEnabled — flip a registered server's enablement without
 // re-sending its whole config.
 export interface SetMCPEnabledRequest {
   name: string;
   enabled: boolean;
 }
 
-// workspace.mcp.test — live connection probe (dry-run, NOT persisted). A
+// mcp.configs.test — live connection probe (dry-run, NOT persisted). A
 // failed probe comes back as `{ ok:false, error }` (a ProblemData), never an
 // RPC error, so the pane renders the reason inline (mirrors ProviderTestResult).
 export interface McpTestResult {
@@ -837,7 +834,7 @@ export type HookEvent =
   | "Stop"
   | "Notification";
 
-// One discovered hook (workspace.hooks.list), for review before trusting.
+// One discovered hook (hooks.list), for review before trusting.
 // `command` (shown so the user can audit a project's hooks) and `inject` (the
 // declarative no-exec context alternative) are mutually exclusive. `active`
 // reports whether it currently runs: global hooks always do, project hooks only
@@ -853,7 +850,7 @@ export interface HookInfo {
   active: boolean;
 }
 
-// workspace.hooks.list result — the discovered hooks plus the project's trust
+// hooks.list result — the discovered hooks plus the project's trust
 // status. projectRoot is the trust key (the nearest .git ancestor of the cwd);
 // projectTrusted reports whether its project-scope hooks are enabled. A cloned
 // repo's project hooks stay inert (active:false) until the user trusts it.
@@ -917,7 +914,7 @@ export type StreamEvent =
 // Mid-run progress preview — a live readout of step/usage/cost while the Run
 // streams. Ephemeral like item.delta: dropping every segment.progress still yields
 // the correct totals from segment.finished.result (the authoritative landing), so
-// §5.2's durable invariant holds. Suppressible via optOutNotificationMethods.
+// §5.2's durable invariant holds. Suppressible via excludedEvents.
 // Cumulative cost reads `usage.costUsd` — no separate RunProgress.costUsd (§5).
 export interface RunProgress {
   step?: number; // agent steps elapsed so far
@@ -1105,21 +1102,23 @@ export interface SubscribeWorkspaceRequest {
   watches?: WatchSpec[];
 }
 
-// Lossy "something changed → refetch" signals — no seq, no replay; a
+// Lossy "something changed → refetch" signals. sequence is process-monotonic;
+// a gap means the client must invalidate and refetch its workspace caches. A
 // (re)subscribe is an implicit `resync`. Type names are globally unique
 // across the run/workspace event unions (optOut matches by type name).
 export type WorkspaceEvent =
-  | { type: "files.changed"; watchId?: string; paths: string[]; cwd?: string } // watchId echoes a registered watch; the agent's own write/edit tools push precise paths relative to cwd
-  | { type: "skills.changed" } // cwd-agnostic: any skill dir changed
+  | { type: "files.changed"; sequence: number; watchId?: string; paths: string[]; cwd?: string }
+  | { type: "skills.changed"; sequence: number }
   | {
       type: "mcp.serverChanged";
+      sequence: number;
       server: string;
       status?: McpStatus;
       toolCount?: number;
       error?: ProblemData;
     } // status absent = entry removed
-  | { type: "schedules.fired"; scheduleId?: string } // a scheduled run started; refetch the session list
-  | { type: "resync" }; // watched cwd's git state changed, or events were lost — refetch
+  | { type: "schedules.fired"; sequence: number; scheduleId?: string }
+  | { type: "resync"; sequence: number };
 
 export type WorkspaceEventType = WorkspaceEvent["type"];
 

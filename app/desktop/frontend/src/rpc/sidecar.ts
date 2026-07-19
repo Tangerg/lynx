@@ -1,31 +1,34 @@
-// Sidecar HTTP endpoints — flat JSON, **not** JSON-RPC envelope.
-// See TRANSPORT.md §12. Used for liveness probes + runtime info discovery.
-// No Bearer token, no Last-Event-Id, no envelope — curl-friendly metadata only.
-//
-// These are HTTP-transport-only — InProcess/Wails IPC don't have an
-// equivalent (those cover the same need via runtime.discover / runtime.ping).
-// `/v2/info` content == the discover response's flat subset; `/v2/health` ==
-// runtime.ping (TRANSPORT.md §12).
+import { parseTransportProblem, RpcTransportError } from "./errors";
 
-import { RpcTransportError } from "./errors";
-import type { ServerCapabilities, ServerInfo } from "./shapes";
+const INFO_PATH = "/v2/info";
+const LIVENESS_PATH = "/v2/health/live";
+const READINESS_PATH = "/v2/health/ready";
 
-/**
- * Response of `GET /v2/info` — the flat subset of the `runtime.discover`
- * result. Backed by the same server state as `runtime.discover`
- * (TRANSPORT.md §12.2).
- */
 export interface RuntimeInfo {
-  protocolVersion: string;
-  serverInfo: ServerInfo;
-  capabilities: ServerCapabilities;
+  protocol: {
+    current: string;
+    minSupported: string;
+  };
+  server: {
+    name: string;
+    version: string;
+  };
+  transport: "http";
+  endpoints: {
+    rpc: string;
+    info: string;
+    liveness: string;
+    readiness: string;
+  };
 }
 
-// Body of `GET /v2/health` (TRANSPORT.md §12.1): a flat liveness ack.
-// Health is conveyed by HTTP status — 200 = ok, 503 = degraded/unhealthy
-// — so the body is just `{ ok: boolean }`; no tri-state, no per-check map.
-export interface HealthStatus {
-  ok: boolean;
+export interface LivenessStatus {
+  status: "ok";
+}
+
+export interface ReadinessStatus {
+  status: "ok" | "degraded" | "unhealthy";
+  checks?: Record<string, "ok" | "degraded" | "unhealthy">;
 }
 
 export interface SidecarClientConfig {
@@ -35,14 +38,19 @@ export interface SidecarClientConfig {
 
 export interface SidecarClient {
   info(signal?: AbortSignal): Promise<RuntimeInfo>;
-  health(signal?: AbortSignal): Promise<HealthStatus>;
+  liveness(signal?: AbortSignal): Promise<LivenessStatus>;
+  readiness(signal?: AbortSignal): Promise<ReadinessStatus>;
 }
 
 export function createSidecarClient(config: SidecarClientConfig): SidecarClient {
-  const baseUrl = config.baseUrl.replace(/\/$/, "");
+  const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
-  async function getJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  async function getJson<T>(
+    path: string,
+    signal?: AbortSignal,
+    acceptUnavailable = false,
+  ): Promise<T> {
     let res: Response;
     try {
       res = await fetchImpl(`${baseUrl}${path}`, {
@@ -53,20 +61,41 @@ export function createSidecarClient(config: SidecarClientConfig): SidecarClient 
     } catch (err) {
       throw new RpcTransportError(`sidecar ${path}: ${(err as Error).message}`);
     }
-    // 503 from /v2/health is still valid JSON — let caller see `ok: false`.
-    if (!res.ok && res.status !== 503) {
-      throw new RpcTransportError(`sidecar ${path}: http ${res.status}`, res.status);
+    let text: string;
+    try {
+      text = await res.text();
+    } catch (err) {
+      throw new RpcTransportError(
+        `sidecar ${path}: response could not be read: ${(err as Error).message}`,
+        res.status,
+        res.headers.get("Request-Id") ?? undefined,
+      );
     }
-    const text = await res.text();
+    if (!res.ok && !(acceptUnavailable && res.status === 503)) {
+      const problem = parseTransportProblem(text);
+      const requestId = problem?.requestId ?? res.headers.get("Request-Id") ?? undefined;
+      const detail = problem?.detail || res.statusText || "sidecar request failed";
+      throw new RpcTransportError(
+        `sidecar ${path}: http ${res.status}: ${detail}`,
+        res.status,
+        requestId,
+        problem?.type,
+      );
+    }
     try {
       return JSON.parse(text) as T;
     } catch (err) {
-      throw new RpcTransportError(`sidecar ${path}: invalid JSON: ${(err as Error).message}`);
+      throw new RpcTransportError(
+        `sidecar ${path}: invalid JSON: ${(err as Error).message}`,
+        res.status,
+        res.headers.get("Request-Id") ?? undefined,
+      );
     }
   }
 
   return {
-    info: (signal) => getJson<RuntimeInfo>("/v2/info", signal),
-    health: (signal) => getJson<HealthStatus>("/v2/health", signal),
+    info: (signal) => getJson<RuntimeInfo>(INFO_PATH, signal),
+    liveness: (signal) => getJson<LivenessStatus>(LIVENESS_PATH, signal),
+    readiness: (signal) => getJson<ReadinessStatus>(READINESS_PATH, signal, true),
   };
 }

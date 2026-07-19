@@ -10,48 +10,67 @@ function makeFetch(status: number, body: unknown): typeof fetch {
 }
 
 describe("SidecarClient", () => {
-  it("info() returns flat JSON shape", async () => {
+  it("info() returns public bootstrap metadata", async () => {
     const fetchStub = makeFetch(200, {
-      serverInfo: { name: "lyra-core", version: "0.8.1" },
-      protocolVersion: "2026-07-19",
-      capabilities: { events: [], features: {}, providers: [] },
+      protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
+      server: { name: "lyra-core", version: "0.8.1" },
+      transport: "http",
+      endpoints: {
+        rpc: "/v2/rpc",
+        info: "/v2/info",
+        liveness: "/v2/health/live",
+        readiness: "/v2/health/ready",
+      },
     });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
     const info = await client.info();
-    expect(info.serverInfo.name).toBe("lyra-core");
-    expect(info.protocolVersion).toBe("2026-07-19");
+    expect(info.server.name).toBe("lyra-core");
+    expect(info.protocol.current).toBe("2026-07-19");
   });
 
-  it("health() accepts 503 with body (unhealthy state)", async () => {
-    const fetchStub = makeFetch(503, { ok: false });
+  it("readiness() accepts 503 with its diagnostic body", async () => {
+    const fetchStub = makeFetch(503, { status: "unhealthy", checks: { storage: "unhealthy" } });
     const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
-    const health = await client.health();
-    expect(health.ok).toBe(false);
+    await expect(client.readiness()).resolves.toMatchObject({
+      status: "unhealthy",
+      checks: { storage: "unhealthy" },
+    });
   });
 
-  it("info() throws RpcTransportError on non-2xx (except 503)", async () => {
-    const fetchStub = makeFetch(500, "internal error");
-    const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
+  it("info() throws RpcTransportError on non-2xx", async () => {
+    const client = createSidecarClient({ baseUrl: "http://x", fetch: makeFetch(500, "error") });
     await expect(client.info()).rejects.toBeInstanceOf(RpcTransportError);
   });
 
-  it("info() throws RpcTransportError on invalid JSON", async () => {
-    const fetchStub = makeFetch(200, "<html>not json</html>");
-    const client = createSidecarClient({ baseUrl: "http://x", fetch: fetchStub });
-    await expect(client.info()).rejects.toBeInstanceOf(RpcTransportError);
+  it("preserves problem details on sidecar failures", async () => {
+    const client = createSidecarClient({
+      baseUrl: "http://x",
+      fetch: makeFetch(500, {
+        type: "urn:lyra:transport:internal_error",
+        detail: "probe registry unavailable",
+        requestId: "req_123",
+      }),
+    });
+    await expect(client.info()).rejects.toMatchObject({
+      status: 500,
+      requestId: "req_123",
+      problemType: "urn:lyra:transport:internal_error",
+      message: expect.stringContaining("probe registry unavailable"),
+    } satisfies Partial<RpcTransportError>);
   });
 
-  it("strips trailing slash from baseUrl", async () => {
+  it("uses distinct liveness and readiness endpoints", async () => {
     const seen: string[] = [];
     const stub = vi.fn(async (url: string) => {
       seen.push(url);
-      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+      return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
     });
     const client = createSidecarClient({
       baseUrl: "http://x/",
       fetch: stub as unknown as typeof fetch,
     });
-    await client.health();
-    expect(seen[0]).toBe("http://x/v2/health");
+    await client.liveness();
+    await client.readiness();
+    expect(seen).toEqual(["http://x/v2/health/live", "http://x/v2/health/ready"]);
   });
 });

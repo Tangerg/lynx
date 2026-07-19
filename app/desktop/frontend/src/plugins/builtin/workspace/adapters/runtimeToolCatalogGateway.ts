@@ -4,7 +4,7 @@ import type { ToolCatalogGateway } from "../application/ports/toolCatalogGateway
 
 const gateway: ToolCatalogGateway = {
   async reconnectMCPServer(server) {
-    await getContainer().client().workspace.mcp.reconnect(server);
+    await getContainer().client().mcp.reconnect(server);
   },
 };
 

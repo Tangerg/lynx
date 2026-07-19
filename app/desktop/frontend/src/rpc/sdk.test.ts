@@ -15,8 +15,8 @@ describe("createLyraClient", () => {
       }),
     });
 
-    const promise = client.runtime.ping();
-    const req = await waitForRequest(transport, "runtime.ping");
+    const promise = client.runtime.discover();
+    const req = await waitForRequest(transport, "runtime.discover");
 
     expect(req.params).toMatchObject({
       _meta: {

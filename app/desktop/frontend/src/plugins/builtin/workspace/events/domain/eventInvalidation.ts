@@ -11,6 +11,7 @@ export type WorkspaceInvalidationTarget =
 
 export interface WorkspaceEventLike {
   type: string;
+  sequence: number;
 }
 
 export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalidationTarget[] {

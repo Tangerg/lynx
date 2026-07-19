@@ -4,7 +4,7 @@
 // connection — every server→client message rides the POST response it
 // belongs to.
 //
-// send():  POST /v2/rpc/{method}, then branch on the response Content-Type
+// send():  POST /v2/rpc, then branch on the response Content-Type
 //   - application/json   → one JSON-RPC message, pushed to the channel
 //   - text/event-stream  → the call's response (first frame) + its
 //                          notifications, drained frame-by-frame into the
@@ -32,10 +32,17 @@ import {
 } from "@opentelemetry/api";
 import { createParser } from "eventsource-parser";
 import { createPushPullChannel } from "../channel";
-import { RpcTransportError } from "../errors";
-import { STREAM_DOWN_METHOD, WORKSPACE_SUBSCRIBE_METHOD, type Transport } from "../transport";
+import { parseTransportProblem, RpcTransportError } from "../errors";
+import {
+  STREAM_DOWN_METHOD,
+  WORKSPACE_SUBSCRIBE_METHOD,
+  type Transport,
+  type TransportSendOptions,
+} from "../transport";
 import type { RpcId, RpcMessage } from "../types";
-import { JSONRPC_VERSION, parseRpcMessage } from "../types";
+import { JSONRPC_VERSION, isResponse, parseRpcMessage } from "../types";
+
+const RPC_PATH = "/v2/rpc";
 
 // Delegating tracer — resolves to the global provider once observability is
 // installed (no-op spans before then). One CLIENT span per RPC call; the
@@ -67,10 +74,11 @@ export interface HttpTransportConfig {
 }
 
 export function createHttpTransport(config: HttpTransportConfig): Transport {
-  const baseUrl = config.baseUrl.replace(/\/$/, "");
+  const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
   const channel = createPushPullChannel<RpcMessage>();
+  const closeController = new AbortController();
   // Active SSE body readers — close() cancels in-flight streams through these.
   const readers = new Set<ReadableStreamDefaultReader<Uint8Array>>();
 
@@ -105,6 +113,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     body: ReadableStream<Uint8Array>,
     requestId?: RpcId,
     method?: string,
+    signal?: AbortSignal,
   ): Promise<void> {
     let responseSeen = false;
     const runIds = new Set<string>();
@@ -121,7 +130,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
           params?: { runId?: string };
           result?: { runId?: string };
         };
-        if (requestId !== undefined && m.id === requestId) {
+        if (requestId !== undefined && isResponse(msg) && m.id === requestId) {
           responseSeen = true;
           // runs.start/resume/subscribe responses carry the stream's root
           // runId — record it so a death BEFORE the first run event still
@@ -144,15 +153,17 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
         if (done) break;
         parser.feed(decoder.decode(value, { stream: true }));
       }
+      parser.feed(decoder.decode());
     } catch (err) {
       // Aborts (stop / switch session / superseded run / transport close) are
       // expected teardown via the fetch signal — not failures, stay quiet.
-      aborted = err instanceof Error && err.name === "AbortError";
+      aborted = signal?.aborted === true || (err instanceof Error && err.name === "AbortError");
       if (!aborted && !channel.closed) {
         console.warn("[rpc] stream read error:", (err as Error).message);
       }
     } finally {
       readers.delete(reader);
+      reader.releaseLock();
     }
     if (aborted || channel.closed) return;
     if (requestId !== undefined && !responseSeen) {
@@ -171,19 +182,26 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
     }
   }
 
-  async function send(msg: RpcMessage, signal?: AbortSignal): Promise<void> {
+  async function send(
+    msg: RpcMessage,
+    signal?: AbortSignal,
+    options: TransportSendOptions = {},
+  ): Promise<void> {
     if (channel.closed) throw new RpcTransportError("transport closed");
 
-    // Single URL form: POST /v2/rpc/{method}. Response messages don't carry a
-    // method and HTTPTransport never sends them (the server issues responses
-    // as the first frame of the method's own stream).
+    // Response messages don't carry a method and HTTPTransport never sends them
+    // (the server issues responses as the first frame of the method's own stream).
     const method = "method" in msg ? msg.method : undefined;
     if (!method) {
       throw new RpcTransportError(
         "HTTP transport only sends Request / Notification messages (which carry a `method`)",
       );
     }
-    const url = `${baseUrl}/v2/rpc/${method}`;
+    const url = `${baseUrl}${RPC_PATH}`;
+    const requestId = "id" in msg ? msg.id : undefined;
+    const requestSignal = signal
+      ? AbortSignal.any([signal, closeController.signal])
+      : closeController.signal;
 
     // CLIENT span for this call. Created synchronously before the first await
     // so its parent is whatever context is active at the call site (the run
@@ -196,12 +214,18 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
       "Content-Type": "application/json",
       Accept: "application/json, text/event-stream",
     });
+    if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
     // Write `traceparent` (+ baggage) for THIS span into the request headers.
     propagation.inject(trace.setSpan(context.active(), span), headers);
 
     let res: Response;
     try {
-      res = await fetchImpl(url, { method: "POST", headers, body: JSON.stringify(msg), signal });
+      res = await fetchImpl(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(msg),
+        signal: requestSignal,
+      });
     } catch (err) {
       endSpan(span, err);
       throw new RpcTransportError(`fetch failed: ${(err as Error).message}`);
@@ -210,44 +234,82 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
 
     // 204/202 = notification accepted; no body (TRANSPORT.md §6.3).
     if (res.status === 204 || res.status === 202) {
+      if (requestId !== undefined) {
+        const err = new RpcTransportError(
+          `http ${res.status}: RPC call ended without a response`,
+          res.status,
+          res.headers.get("Request-Id") ?? undefined,
+        );
+        endSpan(span, err);
+        throw err;
+      }
       endSpan(span);
       return;
     }
 
-    // Any non-2xx is a transport-layer failure (flat text, not an envelope).
+    // Any non-2xx is a transport-layer failure represented as Problem Details.
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      const err = new RpcTransportError(`http ${res.status}: ${text}`, res.status);
+      const problem = parseTransportProblem(text);
+      const requestId = problem?.requestId ?? res.headers.get("Request-Id") ?? undefined;
+      const detail = problem?.detail || res.statusText || "transport request failed";
+      const err = new RpcTransportError(
+        `http ${res.status}: ${detail}${requestId ? ` (request ${requestId})` : ""}`,
+        res.status,
+        requestId,
+        problem?.type,
+      );
       endSpan(span, err);
       throw err;
     }
-
-    // The call succeeded. End the CLIENT span here — a streaming method's body
-    // may drain for minutes, but that wall-clock belongs to the run span, not
-    // to this request span.
-    endSpan(span);
 
     // Streaming method (TRANSPORT.md §6.4): the body is this call's event
     // stream (response frame + notifications). Drain it in the background so
     // send() returns once headers are in, not at stream end.
     if ((res.headers.get("Content-Type") ?? "").includes("text/event-stream")) {
-      if (!res.body) throw new RpcTransportError("event-stream response has no body");
-      void drainStream(res.body, "id" in msg ? msg.id : undefined, method);
+      if (!res.body) {
+        const err = new RpcTransportError("event-stream response has no body");
+        endSpan(span, err);
+        throw err;
+      }
+      // A stream may drain for minutes; that wall-clock belongs to the run,
+      // not the HTTP request span. The reader remains bound to requestSignal.
+      endSpan(span);
+      void drainStream(res.body, requestId, method, requestSignal);
       return;
     }
 
     // Non-streaming: a single JSON-RPC message in the body. A malformed
     // envelope fails THIS call (rejected via send()'s caller) rather than
     // pushing garbage that never correlates and hangs the pending promise.
-    const text = await res.text();
-    if (!text) return; // empty body is acceptable for some acks
+    let text: string;
+    try {
+      text = await res.text();
+    } catch (cause) {
+      const err = new RpcTransportError(`failed to read RPC response: ${(cause as Error).message}`);
+      endSpan(span, err);
+      throw err;
+    }
+    if (!text) {
+      const err = new RpcTransportError("RPC response body is empty");
+      endSpan(span, err);
+      throw err;
+    }
     const inbound = parseRpcMessage(text);
     if (!inbound) {
-      throw new RpcTransportError(
+      const err = new RpcTransportError(
         `invalid JSON-RPC envelope in response body: ${text.slice(0, 200)}`,
       );
+      endSpan(span, err);
+      throw err;
+    }
+    if (requestId === undefined || !isResponse(inbound) || inbound.id !== requestId) {
+      const err = new RpcTransportError("RPC response does not match the outbound request");
+      endSpan(span, err);
+      throw err;
     }
     channel.push(inbound);
+    endSpan(span);
   }
 
   function recv(): AsyncIterable<RpcMessage> {
@@ -258,6 +320,7 @@ export function createHttpTransport(config: HttpTransportConfig): Transport {
 
   async function close(): Promise<void> {
     channel.close();
+    closeController.abort();
     for (const reader of readers) void reader.cancel().catch(() => {});
     readers.clear();
   }

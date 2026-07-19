@@ -1,5 +1,5 @@
 // Built-in workspace view: "Recipes" — the prompt recipes discovered for the
-// active session's cwd (workspace.recipes.list). Read-only catalog of the
+// active session's cwd (recipes.list). Read-only catalog of the
 // /<name> slash commands the recipes-slash plugin registers; mirrors the
 // Skills view shape (recipes are skills' user-facing sibling).
 

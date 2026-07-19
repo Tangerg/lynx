@@ -4,24 +4,22 @@ import { useRuntimeStore, useServerFeature } from "./runtimeCapabilityStore";
 
 function makeCaps(overrides: Partial<ServerCapabilities> = {}): ServerCapabilities {
   return {
-    protocolVersion: "2026-07-19",
     events: ["segment.started", "segment.finished", "item.started", "item.delta", "item.completed"],
     features: {
-      multimodal: false,
-      reasoning: true,
-      checkpoints: false,
-      git: true,
-      fileWatch: false,
-      lsp: false,
-      subagents: false,
-      skills: false,
-      mcp: true,
-      sessionExport: false,
-      memory: false,
-      relocate: true,
-      clientTools: false,
+      multimodal: { enabled: false, stability: "stable" },
+      reasoning: { enabled: true, stability: "stable" },
+      checkpoints: { enabled: false, stability: "stable" },
+      git: { enabled: true, stability: "stable" },
+      fileWatch: { enabled: false, stability: "stable" },
+      lsp: { enabled: false, stability: "stable" },
+      subagents: { enabled: false, stability: "stable" },
+      skills: { enabled: false, stability: "stable" },
+      mcp: { enabled: true, stability: "stable" },
+      sessionExport: { enabled: false, stability: "stable" },
+      memory: { enabled: false, stability: "stable" },
+      relocate: { enabled: true, stability: "stable" },
+      clientTools: { enabled: false, stability: "stable" },
     },
-    providers: ["openai", "anthropic"],
     streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
     limits: {},
     ...overrides,
@@ -39,23 +37,21 @@ describe("runtime capability store", () => {
 
   it("replace stores capabilities", () => {
     useRuntimeStore.getState().replace(makeCaps());
-    expect(useRuntimeStore.getState().capabilities?.features.reasoning).toBe(true);
+    expect(useRuntimeStore.getState().capabilities?.features.reasoning.enabled).toBe(true);
   });
 
   it("replace makes feature flags readable", () => {
     useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
-    expect(caps.features.reasoning).toBe(true);
-    expect(caps.features.multimodal).toBe(false);
+    expect(caps.features.reasoning.enabled).toBe(true);
+    expect(caps.features.multimodal.enabled).toBe(false);
   });
 
-  it("events + providers are flat membership lists (§9)", () => {
+  it("events are a flat membership list (§9)", () => {
     useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
     expect(caps.events.includes("item.started")).toBe(true);
     expect(caps.events.includes("UNKNOWN")).toBe(false);
-    expect(caps.providers.includes("openai")).toBe(true);
-    expect(caps.providers.includes("nonsense")).toBe(false);
   });
 
   // Sanity: import the selector so knip doesn't flag it as unused

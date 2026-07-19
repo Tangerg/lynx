@@ -11,7 +11,7 @@
 // In tests, swap createHttpTransport with createMemoryTransport. The lower-
 // level building blocks (createRpcClient + createMethods) stay exported for
 // advanced use; `createLyraClient` just composes them. Sidecar metadata
-// (/v2/info, /v2/health) is HTTP-only — see createSidecarClient.
+// (/v2/info, /v2/health/{live,ready}) is HTTP-only — see createSidecarClient.
 
 export { createPushPullChannel } from "./channel";
 export type { PushPullChannel } from "./channel";
@@ -33,8 +33,6 @@ export type {
   InterruptType,
   RequestMeta,
   DiscoverResponse,
-  ShutdownRequest,
-  CanceledNotification,
   // Sessions / projects
   Session,
   SessionStatus,
@@ -171,7 +169,13 @@ export {
   WORKSPACE_EVENT_METHOD,
 } from "./stream";
 export { createSidecarClient } from "./sidecar";
-export type { HealthStatus, RuntimeInfo, SidecarClient, SidecarClientConfig } from "./sidecar";
+export type {
+  LivenessStatus,
+  ReadinessStatus,
+  RuntimeInfo,
+  SidecarClient,
+  SidecarClientConfig,
+} from "./sidecar";
 export { createShellClient } from "./shell";
 export type { ShellClient, ShellClientConfig, SideloadEntry } from "./shell";
 export { createHttpTransport } from "./transports/http";

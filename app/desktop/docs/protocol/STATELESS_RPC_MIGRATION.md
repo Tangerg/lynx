@@ -65,7 +65,7 @@ while allowing every transport to carry equivalent metadata.
 
 - `clientCapabilities.interruptTypes` gates HITL interrupts for the run being
   started / resumed.
-- `clientCapabilities.events` and `optOutNotificationMethods` gate outbound
+- `clientCapabilities.events` and `excludedEvents` gate outbound
   stream events for the subscription that carries them.
 - Absence of request metadata means "generic client": server must stay safe and
   avoid unanswerable interrupts.

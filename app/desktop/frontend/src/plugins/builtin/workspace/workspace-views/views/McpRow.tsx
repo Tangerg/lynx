@@ -26,7 +26,7 @@ const STATUS_CLASSES: Record<MCPServerConfig["status"], { key: string; classes: 
   needsAuth: { key: "tools.status.login", classes: "bg-warning/12 text-warning" },
 };
 
-// Expanded detail: the server's tool list (workspace.mcp.listTools), fetched
+// Expanded detail: the server's tool list (mcp.tools.list), fetched
 // lazily on first expand and kept fresh by mcp.serverChanged invalidation.
 function McpToolList({ server }: { server: string }) {
   const t = useT();
@@ -58,7 +58,7 @@ function McpToolList({ server }: { server: string }) {
 }
 
 // A needsAuth server needs a bearer token, which is part of its persisted
-// config now (set as `authorization` via workspace.mcp.configure) — not a
+// config now (set as `authorization` via mcp.configs.configure) — not a
 // separate one-shot handoff. So this row just routes the user to the MCP
 // settings pane, deep-linked, rather than holding its own token field.
 function McpAuthGuide({ server }: { server: string }) {

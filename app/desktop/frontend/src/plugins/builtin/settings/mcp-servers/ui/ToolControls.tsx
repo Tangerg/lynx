@@ -1,5 +1,5 @@
 // Per-tool gating for one connected MCP server. For each tool the server
-// advertises (workspace.mcp.listTools) it renders two switches:
+// advertises (mcp.tools.list) it renders two switches:
 //
 //   - Enabled    — off ⇒ the tool joins disabledTools, hidden from the model.
 //   - Auto-approve — on ⇒ the tool joins autoApproveTools, skipping the approval

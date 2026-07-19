@@ -10,6 +10,7 @@ export interface ScheduleConfig {
   createdAt?: string;
   nextRunAt?: string;
   lastRunAt?: string;
+  revision: number;
 }
 
 export interface ScheduleConfigInput {

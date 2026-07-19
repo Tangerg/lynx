@@ -23,7 +23,7 @@ export async function createSchedule(input: ScheduleConfigInput): Promise<Schedu
 }
 
 export async function updateSchedule(
-  input: ScheduleConfigInput & { id: string; enabled: boolean },
+  input: ScheduleConfigInput & { id: string; enabled: boolean; revision: number },
 ): Promise<ScheduleConfig> {
   const s = await scheduleGateway().update(input);
   await invalidate();

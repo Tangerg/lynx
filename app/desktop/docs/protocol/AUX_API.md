@@ -138,7 +138,8 @@ interface WatchSpec {
   path?: string;
 } // watchId 客户端起名、回显于 files.changed；cwd 缺省 serve 目录；path 当前未用（见下）
 
-type WorkspaceEvent =
+type WorkspaceEvent = { sequence: number } &
+  (
   | { type: "files.changed"; watchId?: string; paths: string[]; cwd?: string } // agent 文件工具的精确改动；paths 相对 cwd
   | { type: "skills.changed" } // 不区分 cwd：任何 skill 目录变化触发
   | {
@@ -148,7 +149,9 @@ type WorkspaceEvent =
       toolCount?: number;
       error?: ProblemData;
     } // 见 §5
-  | { type: "resync" }; // git 状态变更 / 事件丢失 → 全量失效一次
+  | { type: "schedules.fired"; scheduleId: string }
+  | { type: "resync" } // git 状态变更 / 事件丢失 → 全量失效一次
+  );
 ```
 
 **连接边界**（物理细节见 `TRANSPORT.md`）：
@@ -165,9 +168,10 @@ type WorkspaceEvent =
 2. **agent 自身的文件编辑**（write / edit 工具）由运行时从 run 流**精确推 `files.changed{ cwd, paths }`**——无需 watch、无竞态。
    `shell` 的文件改动不发（参数无法判定；若是 git 操作则走 `.git` 监视）；纯外部进程编辑不实时，降级到下次 git 操作 / 手动刷新。
 
-客户端常态按事件 `type` 局部失效（各域一个缓存 key）、`resync` 全量兜底；**无 seq**。`optOutNotificationMethods` 按事件 `type`
-抑制（如 `["mcp.serverChanged"]`）。**不变量**：事件 `type` 名在 run（`API.md §5`）/ workspace 两个事件联合内**全局唯一**，供
-optOut 跨域按名匹配。
+`sequence` 在 runtime 进程内严格单调。客户端常态按事件 `type` 局部失效（各域一个缓存 key）；若收到的 sequence 不是上一条
+`+1`，说明这条 lossy 流发生丢失，必须先全量失效再处理当前事件。重订本身也先全量失效，因此进程重启导致 sequence 重置
+不会误用旧缓存。`clientCapabilities.excludedEvents` 按事件 `type` 抑制（如 `["mcp.serverChanged"]`）。**不变量**：事件 `type`
+在 run（`API.md §5`）/ workspace 两个事件联合内全局唯一，供 excludedEvents 跨域按名匹配。
 
 ---
 
@@ -218,8 +222,8 @@ interface DroppedRun {
 
 ## 5. MCP 生命周期
 
-`workspace.mcp.*` 受 `features.mcp` 门控。条目富化（`toolCount` / `authStatus` / `error` 内联），免去 `listServers ⨝ listTools`
-的 join；`workspace.mcp.listTools` 留给详情面板（分页 + `inputSchema`）。
+`mcp.*` 受 `features.mcp` 门控。条目富化（`toolCount` / `authStatus` / `error` 内联），免去 `mcp.servers.list ⨝ mcp.tools.list`
+的 join；`mcp.tools.list` 留给详情面板（分页 + `inputSchema`）。
 
 ```ts
 type McpStatus =
@@ -235,7 +239,7 @@ interface McpServer {
 }
 ```
 
-#### `workspace.mcp.reconnect`
+#### `mcp.servers.reconnect`
 
 重连一个 MCP server。
 

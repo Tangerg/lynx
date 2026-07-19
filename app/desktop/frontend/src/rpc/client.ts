@@ -25,9 +25,14 @@ export interface RpcClientOptions {
   requestMeta?: () => RequestMeta | undefined;
 }
 
+export interface RpcCallOptions {
+  signal?: AbortSignal;
+  idempotencyKey?: string;
+}
+
 export interface RpcClient {
   /** Send a Request and resolve with its result, or reject with RpcError. */
-  call<R = unknown, P = unknown>(method: string, params?: P, signal?: AbortSignal): Promise<R>;
+  call<R = unknown, P = unknown>(method: string, params?: P, options?: RpcCallOptions): Promise<R>;
   /** Send a Notification (fire-and-forget). */
   notify<P = unknown>(method: string, params?: P): Promise<void>;
   /** Subscribe to inbound notifications matching `method`. Returns an unsubscribe fn. */
@@ -120,7 +125,11 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     return params as P;
   }
 
-  async function call<R, P>(method: string, params?: P, signal?: AbortSignal): Promise<R> {
+  async function call<R, P>(
+    method: string,
+    params?: P,
+    callOptions: RpcCallOptions = {},
+  ): Promise<R> {
     if (closed) throw new RpcTransportError("client closed");
     const id = String(nextId++);
     const req: RpcRequest = {
@@ -134,22 +143,12 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
     };
 
     return new Promise<R>((resolve, reject) => {
-      // AbortSignal hooks — cancel locally + send notifications.canceled
-      // so the runtime stops working on it (docs/protocol/API.md §3 / §7.1).
+      const { signal } = callOptions;
+      // Aborting the transport request propagates cancellation through the
+      // server request context; no second cancellation protocol is needed.
       const onAbort = () => {
         if (!pending.has(id)) return;
         pending.delete(id);
-        // Best-effort: fire-and-forget the cancel notification.
-        void transport
-          .send({
-            jsonrpc: JSONRPC_VERSION,
-            method: "notifications.canceled",
-            // cancel-in-flight params are `{ id, reason? }` where `id` is the
-            // envelope id of the Request being canceled — this cancels a slow
-            // JSON-RPC call, NOT a run (that's runs.cancel, §3).
-            params: paramsWithMeta({ id, reason: "client_aborted" }),
-          })
-          .catch(() => undefined);
         reject(new RpcTransportError("aborted"));
       };
       // Detach the abort listener once the request settles by any path —
@@ -175,7 +174,7 @@ export function createRpcClient(transport: Transport, options: RpcClientOptions 
         signal.addEventListener("abort", onAbort, { once: true });
       }
 
-      transport.send(req, signal).catch((err) => {
+      transport.send(req, signal, { idempotencyKey: callOptions.idempotencyKey }).catch((err) => {
         if (!pending.has(id)) return; // already aborted/settled
         pending.delete(id);
         detach();

@@ -131,7 +131,7 @@ describe("defaultData — providers over JSON-RPC", () => {
   it("mcp-servers: maps the enriched B3 entry (inline toolCount, 5-state, error detail)", async () => {
     const { value: rows } = await runProvider<McpServerStatusSummary[]>("mcp-servers", [
       [
-        "workspace.mcp.listServers",
+        "mcp.servers.list",
         {
           data: [
             { name: "Git", status: "connected", toolCount: 2, description: "Branches, commits" },

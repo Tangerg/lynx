@@ -42,7 +42,12 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
     try {
       const input = scheduleInputFromDraft(draft);
       if (schedule) {
-        await updateSchedule({ ...input, id: schedule.id, enabled: schedule.enabled });
+        await updateSchedule({
+          ...input,
+          id: schedule.id,
+          enabled: schedule.enabled,
+          revision: schedule.revision,
+        });
       } else {
         await createSchedule(input);
       }
