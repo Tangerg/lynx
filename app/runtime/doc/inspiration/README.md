@@ -2,7 +2,7 @@
 
 > **这是什么**：对桌面上 6 个同类生产级 coding agent 的源码级对比分析，用统一方法（源码级自析 → 过 lynx 四道筛子 → 只收可搬点子），产出"哪些能力值得吸纳进 lyra"。每个应用一份独立文档；本文件是**跨应用合并排序 backlog + 总索引 + 刻意不吸总表**。方法沿袭 [`../AGENTSCOPE_INSPIRED_BACKLOG.md`](../AGENTSCOPE_INSPIRED_BACKLOG.md)（第 7 份、更早的同类分析）。
 >
-> **状态**：全部 **proposed**（分析产物，未实现）。落地时每条按"破坏性公开 API 改动须先咨询"走。
+> **状态**：多数 **proposed**（分析产物，未实现）。**已落地**：T3 工具搜索（含 agent/toolloop mid-loop 提升 seam）· T13 doom_loop 守卫（no-progress 版）· T8 压缩后活状态 reminder；T6 结构化执行 TODO **发现原已实现**（`todo_write` + todo 域）。其余落地时每条按"破坏性公开 API 改动须先咨询"走。
 
 ## 0. 六道对照 + 索引
 
@@ -34,7 +34,8 @@
 - 真实密钥**永不进 agent env**——spawn 子进程时换 dummy，代理只朝绑定 host 注入；agent 即便被 prompt-injection 攻陷也读不到、传不走密钥。切断"密钥→env→shell 可读→外泄"整条链。**别家都没有、对编码 agent 威胁面高度吻合、lyra 完全缺失**。
 - 先做最小版（loopback 代理 + 密钥注入 + 域 allowlist），完整 MITM 栈 P2。详见 [Codex CX1](CODEX.md)。
 
-**T3 · 工具搜索 / 渐进式披露**　`收敛：Grok + Claude Code + opencode（3家，最强信号）`
+**T3 · 工具搜索 / 渐进式披露**　`✅ 已落地`　`收敛：Grok + Claude Code + opencode（3家，最强信号）`
+- **落地形态**：MCP 工具**类别性**移出常驻 manifest（第一方常驻），`search_tools`（keyword + `select:` 双模式 + 跨 server round-robin 公平）搜到即经 **agent/toolloop 的 mid-loop 工具提升 seam**（`PromoteTools`，加法非破坏）进入后续轮 manifest，resume-safe（promotion 随 checkpoint 的 request 走）。deferred 名字列进 `search_tools` 描述（"N of M" reminder）。
 - MCP 工具**不全塞 manifest**——内存索引 + `search_tools` meta-tool 返回 top-k（name+schema+server）。provider-agnostic（降级 `<functions>` 文本块）。opencode 的**跨 namespace round-robin 公平**（防单个大 MCP server 饿死别人）一并吸。
 - 纯上下文优化、零机制债、薄核。**三家独立收敛 → 最先做的确定项之一**。详见 [Grok G4](GROK.md)、[Claude Code CC1](CLAUDE_CODE.md)、[opencode OC4](OPENCODE.md)。
 
@@ -48,14 +49,16 @@
 **T5 · Goal mode —— 受监督的自主多轮执行循环**　`唯一：Kimi`
 - typed runtime state + 最小 4 态机（active/paused/blocked/complete）+ continuation-prompt 驱动 + **opt-in 预算硬顶** + 重启降级(active→paused) + **入口 HITL 门**。lyra 有 plan-mode/steer/scheduler/durable-resume，但**无自主自续执行循环**——用户现在得每轮敲 continue。保持为独立机制、别折进 steer/plan。详见 [Kimi K1](KIMI_CODE.md)。
 
-**T6 · 结构化执行 TODO 追踪**　`唯一：Claude Code`
+**T6 · 结构化执行 TODO 追踪**　`✅ 原已实现`　`唯一：Claude Code`
+- lyra 已有 `todo_write` 工具 + `todo` 域（`todo.Validate` 强制"恰好一个 in_progress / 完成即标 / 一次一个"、`todo.Render`、session-keyed、两个角色），字段比 CC V1 更全（blocked_reason / next_action）。无需再做。
 - 会话内、模型自管的执行进度清单（"恰好一个 in_progress"/"完成即标记"/"≥3 步才用"），既作模型 working-memory（实测提升长任务完成率）又给 UI 实时进度条。与 plan-mode 保持"计划 vs 执行"分层。极薄（session-state + 一工具）。详见 [Claude Code CC2](CLAUDE_CODE.md)。
 
 **T7 · 自进化 Skill —— B4 扩展**　`唯一：Hermes`
 - B4 的三个真实短板：**轨迹自动蒸馏**（post-turn 后台 review 挖轨迹）+ **反馈驱动精修现有 skill**（从用户纠正 patch）+ **自动闲置生命周期**（active→stale→archived、re-use 复活、never delete、provenance-gated）。**把 Hermes 的"自动挖掘脑"接到 B4 的"强制 HITL 身"**——自动提议落 `_drafts/` 走人审门。治理**不借**（Hermes 默认自由写弱于 B4）。详见 [Hermes skill](HERMES.md)。
 
-**T8 · 压缩后活状态 system-reminder**　`唯一：Grok`
+**T8 · 压缩后活状态 system-reminder**　`✅ 已落地`　`唯一：Grok`
 - LLM 摘要天然丢活的执行副作用——压缩重建末尾确定性拼一段 reminder（在跑后台 shell + TODO + 在跑 subagent + 各自 poll/cancel 工具名）。压缩正确性的独立维度、零 LLM。详见 [Grok G3](GROK.md)。
+- **落地形态**：LLM-summary rung 在 summary 后注入 `<system-reminder>`，列 session 的在跑后台 shell（`exec.Shells` 加 session-scoping + `RunningForSession`）+ in-progress todos；无活状态则整段省略。**subagent 段刻意不做**（task 工具同步跑子进程，post-turn 压缩时无在跑 subagent）。
 
 **T9 · models.dev 外部模型目录（build 时 vendor）**　`唯一：opencode`
 - 把模型 id/能力/定价/上限从二进制解耦成外部维护数据集，**build 时 vendor `models.dev/api.json`**，消除手维护 21-provider Go 表漂移。只取数据源、不取 Effect/TTL 机器。小、独立、收益明确。详见 [opencode OC3](OPENCODE.md)。
@@ -68,7 +71,8 @@
 
 **T12 · yolo LLM reviewer（自动第二意见）**　`收敛：Claude Code + Codex（2家）` —— yolo/auto 模式下每动作过便宜 LLM judge（Claude Code 两段式 fast→thinking + prompt-injection 硬化 + fail-closed；Codex guardian forked reviewer）。是 B5/C3 自否决的**智能治本版**。做成 approval Service 内一条可插 reviewer decision path、只挂 yolo、复用 per-role utility model、连 fail-closed + 只喂 tool 投影一起吸。[Claude Code CC3](CLAUDE_CODE.md)、[Codex CX5](CODEX.md)。
 
-**T13 · doom_loop 守卫**　`收敛：opencode + Codex + Grok` —— 同工具+同入参连续 3 次 → ask（opencode 的纯计数客户端版是 Grok provider-信号"观察项"的可落地形态）。几十行、小而实。[opencode OC6](OPENCODE.md)。
+**T13 · doom_loop 守卫**　`✅ 已落地`　`收敛：opencode + Codex + Grok` —— 同工具+同入参连续 3 次 → ask（opencode 的纯计数客户端版是 Grok provider-信号"观察项"的可落地形态）。几十行、小而实。[opencode OC6](OPENCODE.md)。
+- **落地形态**：治本用 **no-progress 信号**（同工具+同入参**且同输出**）而非纯计数，避免 `shell_output` 轮询长命令的假阳；只在 GatePass（yolo/auto 会放行）分支升级为审批中断（复用现成审批 UI/resume/headless-auto-deny），不碰 would-deny / would-prompt。
 
 **T14 · 一等 media 落地 + 工具输出三分**　`唯一：Grok` —— value/model_output/UI-render 三投影 + `media_id` 跨调用句柄，落地 lyra parked 的 Media。取显式形态、弃 JSON 魔法自动提升。[Grok G6](GROK.md)。
 
@@ -96,7 +100,8 @@
 
 | 优先级 | 条目 |
 |---|---|
-| **P1（先做）** | T1 沙箱(C7)、T2 凭证经纪人、T3 工具搜索、T4 记忆(C8)、T5 Goal mode、T6 执行 TODO、T7 自进化 skill、T8 活状态 reminder、T9 models.dev、T13 doom_loop |
+| **✅ 已落地** | **T3 工具搜索**、**T8 活状态 reminder**、**T13 doom_loop**（+ **T6 执行 TODO** 原已实现） |
+| **P1（先做）** | T1 沙箱(C7)、T2 凭证经纪人、T4 记忆(C8)、T5 Goal mode、T7 自进化 skill、T9 models.dev |
 | **P1~P2** | T10 system-context、T11 hunk curation、T12 yolo LLM reviewer、T14 media 落地 |
 | **P2** | T15 execpolicy、T16 压缩健壮性、T19 廉价快赢集、T23 事件 seq 核对 |
 | **P3 / 门控 / defer** | T17 subagent 组合、T18 KAOS(门控 C7)、T20 apply_patch、T21 bundle 安装、T22 ACP(defer)、T24 MCP OAuth(待决)、T25 CodeMode(先写 spec) |
