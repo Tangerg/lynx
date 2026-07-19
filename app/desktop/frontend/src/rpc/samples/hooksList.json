@@ -6,6 +6,7 @@
       "event": "PreToolUse",
       "matcher": "shell",
       "command": "./.lyra/hooks/guard.sh",
+      "timeoutMs": 5000,
       "scope": "project",
       "source": "/Users/dev/project/.lyra/hooks.json",
       "active": true

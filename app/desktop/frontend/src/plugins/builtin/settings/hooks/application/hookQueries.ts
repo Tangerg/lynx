@@ -5,6 +5,7 @@ export interface HookReadModel {
   matcher?: string;
   command?: string;
   inject?: string;
+  timeoutMs?: number;
   scope: "global" | "project";
   source: string;
   active: boolean;

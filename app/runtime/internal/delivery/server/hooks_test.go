@@ -78,6 +78,38 @@ func (i failingHookInspector) Inspect(context.Context, string) (domainhooks.Insp
 	return domainhooks.Inspection{}, i.err
 }
 
+type staticHookInspector struct{ inspection domainhooks.Inspection }
+
+func (i staticHookInspector) Inspect(context.Context, string) (domainhooks.Inspection, error) {
+	return i.inspection, nil
+}
+
+func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
+	root := t.TempDir()
+	s := &Server{
+		serverInfo: protocol.ServerInfo{Cwd: root},
+		workspace: workspaceapp.New(workspaceapp.Config{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
+			ProjectRoot: root,
+			Hooks: []domainhooks.Hook{{
+				Event: domainhooks.SubagentStart, Command: "audit", TimeoutMs: 2500,
+				Scope: domainhooks.ScopeGlobal, Source: "/home/user/.lyra/hooks.json",
+			}},
+		}}}),
+	}
+
+	result, err := s.WorkspaceListHooks(t.Context(), protocol.ListHooksRequest{})
+	if err != nil {
+		t.Fatalf("WorkspaceListHooks: %v", err)
+	}
+	if len(result.Hooks) != 1 {
+		t.Fatalf("hooks = %+v, want one", result.Hooks)
+	}
+	hook := result.Hooks[0]
+	if hook.Event != protocol.HookEventSubagentStart || hook.TimeoutMs != 2500 || !hook.Active {
+		t.Fatalf("hook = %+v, want complete active subagent hook", hook)
+	}
+}
+
 func TestWorkspaceListHooksPreservesInspectionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	root := t.TempDir()

@@ -22,6 +22,20 @@ func TestPipeRWCCloseJoinsBothPipeErrors(t *testing.T) {
 	}
 }
 
+func TestCloseUnstartedPipesClosesPartialSetupAndPreservesErrors(t *testing.T) {
+	cause := errors.New("start failed")
+	readErr := errors.New("close stdout")
+	stdout := &trackedReadCloser{err: readErr}
+
+	err := closeUnstartedPipes("test-lsp", &pipeRWC{out: stdout}, cause)
+	if !stdout.closed {
+		t.Fatal("stdout pipe was not closed")
+	}
+	if !errors.Is(err, cause) || !errors.Is(err, readErr) {
+		t.Fatalf("closeUnstartedPipes error = %v, want launch and cleanup errors", err)
+	}
+}
+
 func TestKillAndJoinProcessReapsWaiter(t *testing.T) {
 	cmd := exec.Command(os.Args[0], "-test.run=^TestLSPProcessHelper$")
 	cmd.Env = append(os.Environ(), "LYNX_LSP_PROCESS_HELPER=1")
@@ -61,3 +75,15 @@ type failingReadCloser struct{ err error }
 
 func (failingReadCloser) Read([]byte) (int, error) { return 0, io.EOF }
 func (f failingReadCloser) Close() error           { return f.err }
+
+type trackedReadCloser struct {
+	closed bool
+	err    error
+}
+
+func (*trackedReadCloser) Read([]byte) (int, error) { return 0, io.EOF }
+
+func (c *trackedReadCloser) Close() error {
+	c.closed = true
+	return c.err
+}

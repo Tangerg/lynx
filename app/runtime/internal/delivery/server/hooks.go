@@ -29,13 +29,14 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	}
 	for _, h := range insp.Hooks {
 		out.Hooks = append(out.Hooks, protocol.HookInfo{
-			Event:   string(h.Event),
-			Matcher: h.Matcher,
-			Command: h.Command,
-			Inject:  h.Inject,
-			Scope:   string(h.Scope),
-			Source:  h.Source,
-			Active:  h.Scope == hooks.ScopeGlobal || insp.ProjectTrusted,
+			Event:     protocol.HookEvent(h.Event),
+			Matcher:   h.Matcher,
+			Command:   h.Command,
+			Inject:    h.Inject,
+			TimeoutMs: h.TimeoutMs,
+			Scope:     string(h.Scope),
+			Source:    h.Source,
+			Active:    h.Scope == hooks.ScopeGlobal || insp.ProjectTrusted,
 		})
 	}
 	return out, nil
