@@ -8,14 +8,20 @@ import (
 func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err == nil {
-		state.markEventsOpened()
+		if !state.claimEvents() {
+			return nil, ErrTurnNotFound
+		}
 		return eventSequence(ctx, state), nil
 	}
+	// A fast turn may finish and leave the live registry after StartTurn returns
+	// but before its caller can open Events. The opaque handle retains that
+	// exact state, so the first subscriber can still drain its buffered terminal
+	// stream. A second subscriber is rejected by claimEvents (single-consumer).
 	state = handle.state
 	if state == nil ||
 		state.handle.SessionID != handle.SessionID ||
 		state.handle.TurnID != handle.TurnID ||
-		!state.claimLateCreateFailureEvents() {
+		!state.claimEvents() {
 		return nil, err
 	}
 	return eventSequence(ctx, state), nil

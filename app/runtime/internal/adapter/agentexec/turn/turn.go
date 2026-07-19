@@ -58,7 +58,6 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		st.enableLateCreateFailureEvents()
 		s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
 		s.finishTurn(st, execution.OutcomeError)
 		return

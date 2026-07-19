@@ -15,7 +15,8 @@ import (
 )
 
 // endTurn closes the turn's event channel and removes it from the live
-// registry — subsequent Events / Cancel / Resume return ErrTurnNotFound.
+// registry. The first Events call can still drain the handle-owned buffered
+// stream; subsequent Events and all Cancel / Resume calls return ErrTurnNotFound.
 // It also ends the turn span: the single teardown point, so the span
 // closes exactly once no matter which terminal path (drive / finishTurn)
 // reached it. finishTurnSpan has already stamped the outcome.
