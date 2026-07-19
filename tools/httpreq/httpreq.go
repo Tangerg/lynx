@@ -22,6 +22,8 @@ const (
 	// when [Config.MaxResponseBytes] is zero. 256 KiB is enough for
 	// most JSON / text payloads without flooding the context window.
 	DefaultMaxResponseBytes int64 = 256 * 1024
+
+	maxRedirects = 10
 )
 
 // safeMethods are the methods callers get by default — read-only ops
@@ -91,10 +93,15 @@ func NewClient(cfg Config) (*Client, error) {
 
 	var rc *resty.Client
 	if cfg.HTTPClient != nil {
-		rc = resty.NewWithClient(cfg.HTTPClient)
+		// Resty's redirect policy mutates the underlying http.Client. Keep the
+		// caller-owned client unchanged while retaining its transport, jar, and
+		// other settings.
+		httpClient := *cfg.HTTPClient
+		rc = resty.NewWithClient(&httpClient)
 	} else {
 		rc = resty.New()
 	}
+	rc.SetRedirectPolicy(resty.RedirectPolicyFunc(allow.CheckRedirect))
 	for k, v := range cfg.DefaultHeaders {
 		rc.SetHeader(k, v)
 	}
@@ -285,6 +292,20 @@ func (a Allowlist) Allows(host string) bool {
 		}
 	}
 	return false
+}
+
+// CheckRedirect applies the allowlist to every redirect target and limits a
+// request to the same number of redirects as net/http's default policy. It has
+// the signature expected by [http.Client.CheckRedirect].
+func (a Allowlist) CheckRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= maxRedirects {
+		return fmt.Errorf("httpreq: stopped after %d redirects", maxRedirects)
+	}
+	host := req.URL.Hostname()
+	if !a.Allows(host) {
+		return fmt.Errorf("%w: redirect target %q", ErrHostNotAllowed, host)
+	}
+	return nil
 }
 
 // hostPattern is either an exact host or a leading-wildcard suffix.

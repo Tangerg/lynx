@@ -3,9 +3,12 @@ package httpreq
 import (
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 )
 
@@ -41,6 +44,69 @@ func TestDo_HostAllowlist(t *testing.T) {
 	if _, err := client.Do(t.Context(), &Request{URL: "https://blocked.example.com/x"}); !errors.Is(err, ErrHostNotAllowed) {
 		t.Fatalf("want ErrHostNotAllowed, got %v", err)
 	}
+}
+
+func TestDo_RedirectHostAllowlist(t *testing.T) {
+	t.Run("allows redirect to permitted host", func(t *testing.T) {
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, "redirected")
+		}))
+		t.Cleanup(target.Close)
+		source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, target.URL, http.StatusFound)
+		}))
+		t.Cleanup(source.Close)
+
+		client, err := NewClient(Config{AllowedHosts: []string{testURLHostname(t, source.URL)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := client.Do(t.Context(), &Request{URL: source.URL})
+		if err != nil {
+			t.Fatalf("follow permitted redirect: %v", err)
+		}
+		if resp.Body != "redirected" {
+			t.Fatalf("body = %q, want redirected", resp.Body)
+		}
+	})
+
+	t.Run("rejects redirect to blocked host", func(t *testing.T) {
+		var targetHit atomic.Bool
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			targetHit.Store(true)
+			_, _ = io.WriteString(w, "secret")
+		}))
+		t.Cleanup(target.Close)
+		blockedTarget := testURLWithHostname(t, target.URL, "localhost")
+		source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, blockedTarget, http.StatusFound)
+		}))
+		t.Cleanup(source.Close)
+
+		callerPolicyErr := errors.New("caller redirect policy")
+		httpClient := &http.Client{
+			CheckRedirect: func(*http.Request, []*http.Request) error {
+				return callerPolicyErr
+			},
+		}
+		client, err := NewClient(Config{
+			AllowedHosts: []string{testURLHostname(t, source.URL)},
+			HTTPClient:   httpClient,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := httpClient.CheckRedirect(nil, nil); !errors.Is(err, callerPolicyErr) {
+			t.Fatalf("NewClient mutated caller-owned redirect policy: %v", err)
+		}
+		_, err = client.Do(t.Context(), &Request{URL: source.URL})
+		if !errors.Is(err, ErrHostNotAllowed) {
+			t.Fatalf("redirect error = %v, want ErrHostNotAllowed", err)
+		}
+		if targetHit.Load() {
+			t.Fatal("blocked redirect reached its target")
+		}
+	})
 }
 
 func TestDo_WildcardHost(t *testing.T) {
@@ -169,4 +235,23 @@ func TestDo_DefaultHeadersAndQuery(t *testing.T) {
 	if sawQuery != "hello" {
 		t.Errorf("Query not applied; got %q", sawQuery)
 	}
+}
+
+func testURLHostname(t *testing.T, rawURL string) string {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse test URL: %v", err)
+	}
+	return parsed.Hostname()
+}
+
+func testURLWithHostname(t *testing.T, rawURL, hostname string) string {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse test URL: %v", err)
+	}
+	parsed.Host = net.JoinHostPort(hostname, parsed.Port())
+	return parsed.String()
 }

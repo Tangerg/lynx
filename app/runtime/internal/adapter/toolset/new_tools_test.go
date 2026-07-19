@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -55,6 +57,46 @@ func TestDownloadTool_WritesAndRefusesBlindOverwrite(t *testing.T) {
 	}
 	if _, err := tool.Call(t.Context(), `{"url":"`+srv.URL+`","file_path":"out/hello.txt","overwrite":true}`); err != nil {
 		t.Fatalf("download with overwrite: %v", err)
+	}
+}
+
+func TestDownloadTool_RejectsRedirectToBlockedHost(t *testing.T) {
+	dir := t.TempDir()
+	var targetHit atomic.Bool
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		targetHit.Store(true)
+		_, _ = w.Write([]byte("secret"))
+	}))
+	t.Cleanup(target.Close)
+	targetURL, err := url.Parse(target.URL)
+	if err != nil {
+		t.Fatalf("parse target URL: %v", err)
+	}
+	targetURL.Host = net.JoinHostPort("localhost", targetURL.Port())
+
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, targetURL.String(), http.StatusFound)
+	}))
+	t.Cleanup(source.Close)
+	sourceURL, err := url.Parse(source.URL)
+	if err != nil {
+		t.Fatalf("parse source URL: %v", err)
+	}
+	allow, err := httpreq.NewAllowlist([]string{sourceURL.Hostname()})
+	if err != nil {
+		t.Fatalf("allowlist: %v", err)
+	}
+
+	tool := newDownloadTool(dir, allow)
+	_, err = tool.Call(t.Context(), `{"url":"`+source.URL+`","file_path":"secret.txt"}`)
+	if !errors.Is(err, httpreq.ErrHostNotAllowed) {
+		t.Fatalf("redirect error = %v, want ErrHostNotAllowed", err)
+	}
+	if targetHit.Load() {
+		t.Fatal("blocked redirect reached its target")
+	}
+	if _, statErr := os.Stat(filepath.Join(dir, "secret.txt")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("download target exists after blocked redirect: %v", statErr)
 	}
 }
 
