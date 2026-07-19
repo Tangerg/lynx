@@ -195,8 +195,8 @@ func TestToolObservationPublishesPreparedStartsInModelOrder(t *testing.T) {
 	observation.begin("process-1", 2, chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`})
 
 	observation.mu.Lock()
-	first := observation.model["call-1"]
-	second := observation.model["call-2"]
+	first := observation.model[processToolCallKey{processID: "process-1", callID: "call-1"}]
+	second := observation.model[processToolCallKey{processID: "process-1", callID: "call-2"}]
 	observation.mu.Unlock()
 
 	secondDone := make(chan struct{})
@@ -239,9 +239,9 @@ func TestToolObservationSerializesClaimedStartBatches(t *testing.T) {
 		})
 	}
 	observation.mu.Lock()
-	first := observation.model["call-1"]
-	second := observation.model["call-2"]
-	third := observation.model["call-3"]
+	first := observation.model[processToolCallKey{processID: "process-1", callID: "call-1"}]
+	second := observation.model[processToolCallKey{processID: "process-1", callID: "call-2"}]
+	third := observation.model[processToolCallKey{processID: "process-1", callID: "call-3"}]
 	observation.mu.Unlock()
 
 	secondDone := make(chan struct{})
@@ -299,6 +299,50 @@ func TestModelToolCallIDIncludesProcessAndRoundOwnership(t *testing.T) {
 	}
 	if resumed := modelToolCallID("process-1", 1, "call-1"); resumed != base {
 		t.Fatalf("resumed model call ID = %q, want stable %q", resumed, base)
+	}
+}
+
+func TestToolObservationSeparatesConcurrentProcessesReusingCallID(t *testing.T) {
+	observer := new(recordingObserver)
+	observation := newToolObservation(observer, nil, 0)
+	const sharedCallID = "call-1"
+
+	observation.begin("root", 1, chat.ToolCall{ID: sharedCallID, Name: "root-tool", Arguments: `{}`})
+	observation.begin("child", 1, chat.ToolCall{ID: sharedCallID, Name: "child-tool", Arguments: `{}`})
+
+	rootDone := make(chan struct{})
+	go func() {
+		observation.result("root", 1, chat.ToolResult{ID: sharedCallID, Name: "root-tool", Result: "root-result"})
+		close(rootDone)
+	}()
+	select {
+	case <-rootDone:
+	case <-time.After(time.Second):
+		t.Fatal("root result deadlocked behind the child call with the same provider call id")
+	}
+
+	childDone := make(chan struct{})
+	go func() {
+		observation.result("child", 1, chat.ToolResult{ID: sharedCallID, Name: "child-tool", Result: "child-result"})
+		close(childDone)
+	}()
+	select {
+	case <-childDone:
+	case <-time.After(time.Second):
+		t.Fatal("child result did not complete after the root result")
+	}
+
+	starts, ends := observer.starts(), observer.ends()
+	if len(starts) != 2 || len(ends) != 2 {
+		t.Fatalf("tool lifecycles = %d starts / %d ends, want 2 / 2", len(starts), len(ends))
+	}
+	if starts[0].callID == starts[1].callID {
+		t.Fatalf("process-scoped tool calls share wire id %q", starts[0].callID)
+	}
+	for i := range starts {
+		if starts[i].callID != ends[i].callID || starts[i].toolName != ends[i].toolName {
+			t.Fatalf("lifecycle %d is mismatched: start=%+v end=%+v", i, starts[i], ends[i])
+		}
 	}
 }
 

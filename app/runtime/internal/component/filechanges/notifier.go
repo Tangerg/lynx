@@ -3,7 +3,10 @@
 // wire workspace events.
 package filechanges
 
-import "sync"
+import (
+	"slices"
+	"sync"
+)
 
 // Notifier is the composition-root pipeline (§2.5) between the run segment's
 // file-change nudges (Publish, invoked by the runs.Effects adapter) and the one
@@ -29,7 +32,11 @@ func (n *Notifier) Publish(cwd string, paths []string) {
 	sink := n.sink
 	n.mu.RUnlock()
 	if sink != nil {
-		sink(cwd, paths)
+		// Publish transfers a stable value to the observer. Callers often build
+		// paths in a scratch slice and remain free to reuse it as soon as Publish
+		// returns; retaining that backing array would race the asynchronous
+		// workspace stream encoder.
+		sink(cwd, slices.Clone(paths))
 	}
 }
 

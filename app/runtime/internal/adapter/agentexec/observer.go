@@ -162,8 +162,12 @@ type toolObservation struct {
 	evictStore     toolResultOffloader
 	evictThreshold int
 
-	mu         sync.Mutex
-	model      map[string]*observedModelCall
+	mu sync.Mutex
+	// model is keyed by process ownership as well as the provider-defined call
+	// id. Root and child processes commonly reuse ids such as "call_1" while
+	// running concurrently; keying by call id alone lets one process overwrite
+	// another and can leave the displaced call waiting forever on started.
+	model      map[processToolCallKey]*observedModelCall
 	pending    []*observedModelCall
 	next       int
 	publishing bool
@@ -179,6 +183,11 @@ type observedModelCall struct {
 	started   chan struct{}
 }
 
+type processToolCallKey struct {
+	processID string
+	callID    string
+}
+
 func newToolObservation(target toolObserver, evictStore toolResultOffloader, evictThreshold int) *toolObservation {
 	if toolObserverIsNil(target) {
 		return nil
@@ -187,7 +196,7 @@ func newToolObservation(target toolObserver, evictStore toolResultOffloader, evi
 		target:         target,
 		evictStore:     evictStore,
 		evictThreshold: evictThreshold,
-		model:          make(map[string]*observedModelCall),
+		model:          make(map[processToolCallKey]*observedModelCall),
 		finished:       make(map[string]struct{}),
 	}
 }
@@ -217,7 +226,7 @@ func (o *toolObservation) begin(processID string, round int, call chat.ToolCall)
 		name: call.Name, arguments: call.Arguments, started: make(chan struct{}),
 	}
 	o.mu.Lock()
-	o.model[call.ID] = observed
+	o.model[processToolCallKey{processID: processID, callID: call.ID}] = observed
 	o.pending = append(o.pending, observed)
 	o.mu.Unlock()
 }
@@ -231,10 +240,11 @@ func (o *toolObservation) invocation(ctx context.Context, name, arguments string
 	if process == nil {
 		return nil, false
 	}
+	key := processToolCallKey{processID: process.ID(), callID: call.ID}
 	o.mu.Lock()
-	observed, ok := o.model[call.ID]
+	observed, ok := o.model[key]
 	o.mu.Unlock()
-	if !ok || observed.processID != process.ID() || observed.name != name || observed.arguments != arguments {
+	if !ok || observed.name != name || observed.arguments != arguments {
 		return nil, false
 	}
 	return observed, true
@@ -294,15 +304,18 @@ func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments,
 // matching model result only retires the deduplication marker.
 func (o *toolObservation) result(processID string, round int, result chat.ToolResult) {
 	id := modelToolCallID(processID, round, result.ID)
+	key := processToolCallKey{processID: processID, callID: result.ID}
 	o.mu.Lock()
 	if _, ok := o.finished[id]; ok {
 		delete(o.finished, id)
-		delete(o.model, result.ID)
+		if call := o.model[key]; call != nil && call.id == id {
+			delete(o.model, key)
+		}
 		o.mu.Unlock()
 		return
 	}
-	call := o.model[result.ID]
-	if call == nil {
+	call := o.model[key]
+	if call == nil || call.id != id {
 		// A restored checkpoint may publish a result for a sibling that
 		// completed before the process parked. Its lifecycle was durably
 		// committed with that park; no boundary was begun in this observer
@@ -312,7 +325,7 @@ func (o *toolObservation) result(processID string, round int, result chat.ToolRe
 	}
 	call.prepared = true
 	ready := o.readyStartsLocked()
-	delete(o.model, result.ID)
+	delete(o.model, key)
 	o.mu.Unlock()
 	o.publishStarts(ready)
 	<-call.started
