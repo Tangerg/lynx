@@ -191,7 +191,7 @@ type noopTurnServices struct{}
 
 func (noopTurnServices) InjectUser(context.Context, string, string) error { return nil }
 
-func (noopTurnServices) MaybeCompact(context.Context, string, func(context.Context) bool) (turn.CompactionResult, error) {
+func (noopTurnServices) MaybeCompact(context.Context, string, int, func(context.Context) bool) (turn.CompactionResult, error) {
 	return turn.CompactionResult{}, nil
 }
 

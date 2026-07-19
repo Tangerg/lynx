@@ -2,6 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -45,6 +48,17 @@ func mapRunEvents(ctx context.Context, in <-chan runs.Event) <-chan protocol.Run
 	out := make(chan protocol.RunEvent)
 	go func() {
 		defer close(out)
+		// This detached goroutine runs presentation logic (presentRunEvent asserts
+		// an exhaustive event switch and dereferences payloads). It is outside the
+		// request-scoped panic recovery, so an unrecovered panic here would abort the
+		// whole process — every other run and connection with it. Contain it to this
+		// one stream: record it and fall through to the deferred close(out), which
+		// ends this stream cleanly while the rest of the runtime keeps serving.
+		defer func() {
+			if r := recover(); r != nil {
+				trace.SpanFromContext(ctx).RecordError(fmt.Errorf("server: run-event presenter panicked, terminating stream: %v", r))
+			}
+		}()
 		for event := range in {
 			wire := protocol.RunEvent{
 				RunID: event.RunID, SegmentID: event.SegmentID,

@@ -184,15 +184,6 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 		// Prove the session is usable before publishing it as connected.
 		verifiedTools, err = sourceTools(attempt.ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session})
 	}
-	if err == nil {
-		c.mu.Lock()
-		err = validateToolCatalog(c.servers, attempt.target, cfg.Name, verifiedTools)
-		c.mu.Unlock()
-	}
-	if err != nil && session != nil {
-		err = errors.Join(err, session.Close())
-		session = nil
-	}
 
 	c.mu.Lock()
 	current := c.currentAttempt(attempt)
@@ -211,6 +202,16 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 		}
 		return errors.Join(errConnectionSuperseded, err, closeErr)
 	}
+	// The public-tool-name collision check must be atomic with the commit. A
+	// concurrently-dialing sibling still has session==nil until its own commit, so
+	// it is invisible to any check taken before this lock: two servers whose
+	// sanitized names collapse to one could each pass a separate pre-check and then
+	// both commit a duplicate — which breaks the next turn's tool-registry build.
+	// Validating here, under the same c.mu that serializes every commit, makes the
+	// second arrival see the first's committed session and fail closed.
+	if err == nil {
+		err = validateToolCatalog(c.servers, attempt.target, cfg.Name, verifiedTools)
+	}
 	if err != nil {
 		attempt.target.session, attempt.target.tools, attempt.target.state, attempt.target.lastErr = nil, nil, dialStatus(err), err
 	} else {
@@ -220,7 +221,18 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 		}
 	}
 	attempt.target.cancel = nil
+	// A session that dialed OK but then failed verification or lost the collision
+	// race is now detached (target.session was set nil above). Close it after
+	// releasing c.mu — never hold the lock across a session teardown.
+	staleSession := session
+	if err == nil {
+		staleSession = nil
+	}
 	c.mu.Unlock()
+
+	if staleSession != nil {
+		err = errors.Join(err, staleSession.Close())
+	}
 
 	// Publish only the snapshots proved above. Re-querying every other server
 	// here would let an unrelated transient tools/list failure or cancellation

@@ -65,6 +65,11 @@ type turnState struct {
 	// the span + metrics + logs. "default" when the turn didn't pick one.
 	model string
 
+	// provider pairs with model to resolve the run's model in the catalog (e.g.
+	// its context window for the compaction trigger). "" when the turn uses the
+	// default model.
+	provider string
+
 	// startedAt stamps the turn's wall-clock start so TurnEnd carries a
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time

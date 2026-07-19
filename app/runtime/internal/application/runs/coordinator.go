@@ -72,7 +72,11 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 // fixed width keeps lexical and numeric order in agreement so the Journal can
 // replay strictly-after a cursor without knowing its format.
 func (c *Coordinator) mintCursor() string {
-	return fmt.Sprintf("%011d", c.seq.Add(1))
+	// Pad to the full width of a uint64 (20 digits) so the width can never be
+	// exceeded: a shorter min-width (e.g. %011d) would let a value past 10^11 mint a
+	// wider string that sorts lexically before the narrower ones, breaking the
+	// lexical==numeric agreement the Journal replays on.
+	return fmt.Sprintf("%020d", c.seq.Add(1))
 }
 
 // openSegment attaches an already-prepared executor stream, atomically commits

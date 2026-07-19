@@ -49,6 +49,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 		}
 		client = c
 		state.model = request.Model
+		state.provider = request.Provider
 	} else {
 		state.model = "default"
 	}

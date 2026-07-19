@@ -16,6 +16,16 @@ import (
 // §7/§14) — e.g. while a turn waits on a slow LLM round.
 const heartbeatInterval = 15 * time.Second
 
+// streamWriteTimeout bounds a single SSE frame write. ctx cancellation cannot
+// interrupt an in-flight net/http Write (only the select between writes observes
+// it), so a connected-but-stalled client — a full TCP window from a wedged proxy
+// or paused reader — would otherwise park this goroutine (and its upstream event
+// mappers) inside Write until TCP keep-alive tears the socket down hours later,
+// also blocking graceful shutdown. A per-frame deadline (reset before every write,
+// so arbitrarily long idle streams still live) makes one blocked write fail and
+// detach instead.
+const streamWriteTimeout = 30 * time.Second
+
 // serveStream drives a streamable-HTTP response (TRANSPORT §6.4): the POST
 // response body IS this call's event stream. The first SSE frame is the
 // call's JSON-RPC response (carries the envelope id, NOT an SSE id: — a
@@ -40,8 +50,15 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 		return
 	}
 	ctx := r.Context()
+	// A fresh deadline per frame (see streamWriteTimeout) bounds each blocking Write
+	// on the underlying connection. recordingResponseWriter.Unwrap lets the
+	// controller reach it; if the platform can't set a deadline the write stays
+	// unbounded (best effort), so the error is intentionally ignored.
+	rc := http.NewResponseController(w)
+	setWriteDeadline := func() { _ = rc.SetWriteDeadline(time.Now().Add(streamWriteTimeout)) }
 
 	// First frame: this call's JSON-RPC response (the runId ack), no SSE id.
+	setWriteDeadline()
 	if err := writeSSEMessage(ctx, sw, "", resp); err != nil {
 		return
 	}
@@ -58,10 +75,12 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 			// The dispatch already encoded the frame (method + params) and set
 			// its SSE id (durable run events carry one; ephemeral workspace
 			// events don't). The transport just writes it.
+			setWriteDeadline()
 			if err := writeSSEMessage(ctx, sw, frame.SSEID, frame.Notif); err != nil {
 				return // write failed — client gone; the source continues server-side
 			}
 		case <-ticker.C:
+			setWriteDeadline()
 			if err := sw.Comment(ctx, "heartbeat"); err != nil {
 				return
 			}

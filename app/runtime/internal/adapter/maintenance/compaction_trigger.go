@@ -15,11 +15,11 @@ const (
 // raw message count or the estimated token footprint. The token estimate
 // (see [estimateTokens]) is what catches a short conversation bloated by
 // large tool results, which the message count alone misses.
-func (c *Compactor) shouldCompact(msgs []chat.Message) bool {
+func (c *Compactor) shouldCompact(msgs []chat.Message, maxTokens int) bool {
 	if len(msgs) >= c.maxMessages {
 		return true
 	}
-	return estimateTokens(msgs) >= c.maxTokens
+	return estimateTokens(msgs) >= maxTokens
 }
 
 // estimateTokens approximates the token footprint of msgs from the

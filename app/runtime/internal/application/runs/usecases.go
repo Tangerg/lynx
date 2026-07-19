@@ -193,22 +193,39 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 		if err := c.turns.Cancel(cleanupCtx, TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
 			return fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
 		}
-		return nil
+		// A park can commit durably in the window between BeginCancel observing the
+		// run as live and turns.Cancel tearing it down (the interrupt commit is a DB
+		// transaction). Tearing the turn down then leaves the run durably Interrupted
+		// — surfaced as resumable — while the caller was told cancel succeeded. If an
+		// open interrupt now exists, reconcile it through the durable cancel write-set.
+		return c.cancelParkedRun(ctx, cmd, false)
 	}
+	return c.cancelParkedRun(ctx, cmd, true)
+}
 
+// cancelParkedRun applies the durable cancel write-set to a run parked on an open
+// interrupt. requireOpen selects the entry contract: the parked-cancel path
+// requires an open interrupt (its absence means the run is unknown), while the
+// live-cancel path calls this to reconcile a park that may have committed under
+// the race — there, no open interrupt means the live cancel already fully handled
+// it, so the reconciliation is a clean success.
+func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, requireOpen bool) error {
 	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return err
 	}
 	if !found {
-		return ErrRunNotFound
+		if requireOpen {
+			return ErrRunNotFound
+		}
+		return nil
 	}
 	releaseSession, ok := c.AcquireSession(pending.SessionID)
 	if !ok {
 		return ErrSessionBusy
 	}
 	defer releaseSession()
-	cleanupCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	if err := c.sessions.ApplyRunCancel(cleanupCtx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
 		cancel()
 		return err

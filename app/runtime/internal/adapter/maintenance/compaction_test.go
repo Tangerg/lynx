@@ -31,7 +31,7 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewTextPart("b")),
 	)
 	c := NewCompactor(store, nil /* never called */, CompactionConfig{MaxMessages: 10})
-	res, err := c.MaybeCompact(context.Background(), sessID, nil)
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestCompactor_Compacts(t *testing.T) {
 	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID, nil)
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 6, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID, nil)
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestCompactor_PreservesToolPairsAcrossCutoffs(t *testing.T) {
 			// MaxMessages == len forces the count trigger every run so the cutoff
 			// logic actually executes for each keepRecent.
 			c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: len(template), KeepRecent: keepRecent})
-			if _, err := c.MaybeCompact(t.Context(), sessID, nil); err != nil {
+			if _, err := c.MaybeCompact(t.Context(), sessID, 0, nil); err != nil {
 				t.Fatal(err)
 			}
 			after, _ := store.Read(t.Context(), sessID)
@@ -252,7 +252,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	// Message bound far out of reach; token bound below the tool result —
 	// so only the token trigger can fire.
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
-	res, err := c.MaybeCompact(context.Background(), sessID, nil)
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -281,7 +281,7 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"))
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
-	res, err := c.MaybeCompact(context.Background(), sessID, nil) // must not panic
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil) // must not panic
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: total, KeepRecent: 4})
 
 	called := false
-	res, err := c.MaybeCompact(context.Background(), sessID, func(context.Context) bool {
+	res, err := c.MaybeCompact(context.Background(), sessID, 0, func(context.Context) bool {
 		called = true
 		return false // veto
 	})
@@ -346,7 +346,7 @@ func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
 	// only the token trigger fires, and the deterministic trim can clear it.
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 1000, MaxTokens: 4000, KeepRecent: 2})
 
-	res, err := c.MaybeCompact(t.Context(), sessID, nil)
+	res, err := c.MaybeCompact(t.Context(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -395,7 +395,7 @@ func TestCompactor_LadderStillOverGoesToLLM(t *testing.T) {
 	// Count trigger at the message count → a body trim can't clear it.
 	c := NewCompactor(store, constClient(client), CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
-	res, err := c.MaybeCompact(t.Context(), sessID, nil)
+	res, err := c.MaybeCompact(t.Context(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

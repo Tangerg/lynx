@@ -28,8 +28,11 @@ type CompactionResult struct {
 }
 
 // Compactor folds over-long conversation history at a turn boundary.
+// contextWindow is the running model's context window in tokens (0 = unknown),
+// so the token-footprint trigger tracks the model this run actually pinned rather
+// than a process-wide default.
 type Compactor interface {
-	MaybeCompact(ctx context.Context, sessionID string, preCompact func(context.Context) bool) (CompactionResult, error)
+	MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (CompactionResult, error)
 }
 
 // Extractor mines recent conversation facts after a successful compaction.

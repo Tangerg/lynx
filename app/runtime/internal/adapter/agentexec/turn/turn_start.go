@@ -40,6 +40,7 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnReq
 	state := newTurnState(ctx, handle)
 	handle.state = state
 	state.model = modelOr(request.Model)
+	state.provider = request.Provider
 	state.cwd = request.Cwd
 	state.setInterruptKinds(request.InterruptKinds)
 	state.prepareStart(request)

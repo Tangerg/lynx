@@ -86,6 +86,20 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 	if !c.mcpServerKnown(name) {
 		return mcpserver.ErrUnknownServer
 	}
+	return c.dispatchMCPConnection(ctx, name, dial)
+}
+
+// dispatchMCPConnection runs a live (re)dial on the component task group, detached
+// from the caller's cancellation. It enters the mutation order only for the
+// pre/post registry checks and status publication; the dial itself runs OUTSIDE
+// that global critical section, so a slow endpoint cannot freeze the control
+// plane, and the registry re-read lets a concurrent configure/remove supersede a
+// stale completion. A caller that already holds mcpMutationMu may invoke this: the
+// spawned task blocks on the lock until that caller releases it, then proceeds —
+// which is exactly how the registry-write methods dispatch their live dial without
+// holding the lock across the network handshake. Returns errClosed only when the
+// task group is shutting down.
+func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
 	if !c.tasks.Start(ctx, func(ctx context.Context) {
 		c.mcpMutationMu.Lock()
 		srv, ok, err := c.mcpRegistry.Get(ctx, name)
@@ -175,7 +189,13 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, srv mcpserver.Serv
 	}
 	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
 	defer cancel()
-	return c.applyMCPRegistryChange(reconcileCtx, srv)
+	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
+		return err
+	}
+	if srv.Enabled {
+		c.redialMCPServer(ownerCtx, srv)
+	}
+	return nil
 }
 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
@@ -220,7 +240,13 @@ func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enab
 	if !ok {
 		return mcpserver.ErrUnknownServer
 	}
-	return c.applyMCPRegistryChange(reconcileCtx, srv)
+	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
+		return err
+	}
+	if srv.Enabled {
+		c.redialMCPServer(ownerCtx, srv)
+	}
+	return nil
 }
 
 // beginMCPMutation gives a write both scopes it needs: requestCtx is canceled by
@@ -273,25 +299,44 @@ func (c *Coordinator) beginMCPWrite(ctx context.Context) (requestCtx, ownerCtx c
 	}, nil
 }
 
-// applyMCPRegistryChange reflects a persisted registry entry into the live tool
-// set and the policy snapshot. Publication order keeps disabled tools from
-// becoming momentarily visible:
-//   - enabling publishes policy before adding tools;
-//   - disabling removes tools before publishing policy.
+// applyMCPRegistryChange reflects a persisted registry entry into the policy
+// snapshot and, when disabling, the live tool set — all under the caller's
+// mutation lock. Publication order keeps disabled tools from becoming momentarily
+// visible:
+//   - enabling publishes policy here; the live (re)dial is NOT done here — the
+//     caller dispatches it detached, after releasing the lock, because a network
+//     handshake must never hold the control-plane lock (see ConfigureMCPServer);
+//   - disabling removes tools (bounded teardown) before publishing policy.
 //
 // Either reversal would leave a window where a disabled tool is live under the
 // wrong policy. The caller has already mutated the registry, so
 // refreshMCPToolPolicy reads the new policy inputs.
 func (c *Coordinator) applyMCPRegistryChange(ctx context.Context, srv mcpserver.Server) error {
 	if srv.Enabled {
-		if err := c.refreshMCPToolPolicy(ctx); err != nil {
-			return err
-		}
-		c.applyMCPServer(ctx, srv)
-		return nil
+		return c.refreshMCPToolPolicy(ctx)
 	}
-	c.applyMCPServer(ctx, srv)
+	if c.mcpRegistryCommands != nil {
+		c.mcpRegistryCommands.Remove(ctx, srv.Name)
+	}
 	return c.refreshMCPToolPolicy(ctx)
+}
+
+// redialMCPServer dispatches a detached live (re)dial for an enabled server whose
+// registry change already committed and whose policy already published under the
+// mutation lock. The dial runs OUTSIDE that lock (dispatchMCPConnection's task
+// blocks on it until the caller's deferred release fires, then dials), so one slow
+// endpoint cannot freeze the whole MCP control plane. It reuses the same live
+// collaborator the synchronous path used ([mcpRegistryCommands.Configure] with the
+// just-committed descriptor); a concurrent reconfigure supersedes a stale dial via
+// the adapter's per-server generation. A dial failure does not fail the originating
+// call — status surfaces it and it is reconnectable.
+func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server) {
+	if c.mcpRegistryCommands == nil {
+		return
+	}
+	_ = c.dispatchMCPConnection(ctx, srv.Name, func(dialCtx context.Context) error {
+		return c.mcpRegistryCommands.Configure(dialCtx, mcpserver.ConfigFromServer(srv))
+	})
 }
 
 // TestMCPServer dials srv with a throwaway client and proves its tools list — a
@@ -316,20 +361,6 @@ func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]mcpserver.
 		return nil, nil
 	}
 	return c.mcpToolCatalog.Tools(ctx, server)
-}
-
-// applyMCPServer reflects a registry entry into the live connections: enabled →
-// (re)dial, disabled → drop. The dial error is intentionally swallowed (status
-// surfaces it); see ConfigureMCPServer.
-func (c *Coordinator) applyMCPServer(ctx context.Context, srv mcpserver.Server) {
-	if c.mcpRegistryCommands == nil {
-		return
-	}
-	if srv.Enabled {
-		_ = c.mcpRegistryCommands.Configure(ctx, mcpserver.ConfigFromServer(srv))
-		return
-	}
-	c.mcpRegistryCommands.Remove(ctx, srv.Name)
 }
 
 // refreshMCPToolPolicy atomically publishes the policy derived from the
