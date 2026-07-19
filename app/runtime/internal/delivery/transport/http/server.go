@@ -59,7 +59,9 @@ type Server struct {
 
 	dispatcher messageHandler
 
-	httpServer *http.Server
+	httpServer   *http.Server
+	handlerCtx   context.Context
+	stopHandlers context.CancelFunc
 
 	mu      sync.Mutex
 	started bool
@@ -135,6 +137,7 @@ func NewServer(cfg Config) (*Server, error) {
 	if serverID == "" {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
+	handlerCtx, stopHandlers := context.WithCancel(context.Background())
 	s := &Server{
 		serverID:        serverID,
 		localToken:      cfg.LocalToken,
@@ -142,6 +145,8 @@ func NewServer(cfg Config) (*Server, error) {
 		healthProbes:    newHealthProbeRunners(cfg.HealthProbes),
 		agentDocsLister: cfg.AgentDocsLister,
 		dispatcher:      dispatch.New(cfg.Runtime),
+		handlerCtx:      handlerCtx,
+		stopHandlers:    stopHandlers,
 		info: protocol.DiscoverResponse{
 			ProtocolVersion: cfg.ProtocolVersion,
 			ServerInfo:      cfg.ServerInfo,
@@ -171,12 +176,13 @@ func cloneServerCapabilities(in protocol.ServerCapabilities) protocol.ServerCapa
 //
 // Middleware order (outer → inner):
 //
-//	observability → cors → authGate → mux
+//	server lifecycle → observability → cors → authGate → mux
 //
-// observability outermost so every request (including CORS preflight
-// and 401) is logged; cors before authGate so OPTIONS preflights
-// resolve without a token; authGate before mux so unauth requests
-// never touch handlers.
+// The lifecycle wrapper owns transport cancellation. Observability remains
+// outside the protocol middleware so every request (including CORS preflight
+// and 401) is logged; cors precedes authGate so OPTIONS preflights resolve
+// without a token; authGate precedes the mux so unauthenticated requests never
+// touch handlers.
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
 	r.Use(s.observability, corsMiddleware(s.corsOrigins), s.authGate)
@@ -192,7 +198,22 @@ func (s *Server) Handler() http.Handler {
 	// single segment); bare `/v2/rpc` has no matching route ⇒ chi 404.
 	r.Post("/v2/rpc/{method}", s.handleRPCWithMethod)
 
-	return r
+	return s.withServerLifecycle(r)
+}
+
+// withServerLifecycle cancels transport-owned request work when this server is
+// shutting down. Runtime-owned runs are deliberately not tied to this context:
+// canceling a streaming request only detaches that client from the run.
+func (s *Server) withServerLifecycle(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithCancel(r.Context())
+		stop := context.AfterFunc(s.handlerCtx, cancel)
+		defer func() {
+			stop()
+			cancel()
+		}()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // Start binds the listen address and serves until Shutdown is called.
@@ -209,11 +230,11 @@ func (s *Server) Start() error {
 	return srv.ListenAndServe()
 }
 
-// Shutdown gracefully drains the server. It is safe before Start and prevents
-// a later Start from binding. Active handlers keep their request contexts until
-// they return or the caller's shutdown deadline expires; run ownership remains
-// in the runtime rather than this transport.
+// Shutdown stops transport-owned request work, then gracefully drains the
+// server. It is safe before Start and prevents a later Start from binding.
+// Runtime-owned runs continue independently after their clients detach.
 func (s *Server) Shutdown(ctx context.Context) error {
+	s.stopHandlers()
 	return s.httpServer.Shutdown(ctx)
 }
 
@@ -221,5 +242,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // it only when graceful Shutdown exhausts its deadline, to cancel active
 // request contexts before application resources are released.
 func (s *Server) Close() error {
+	s.stopHandlers()
 	return s.httpServer.Close()
 }

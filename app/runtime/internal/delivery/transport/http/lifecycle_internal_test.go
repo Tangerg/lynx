@@ -1,9 +1,11 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	stdhttp "net/http"
+	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -12,6 +14,19 @@ import (
 )
 
 type lifecycleRuntime struct{ protocol.Runtime }
+
+type streamingLifecycleRuntime struct {
+	protocol.Runtime
+	subscribed chan struct{}
+}
+
+func (r *streamingLifecycleRuntime) WorkspaceSubscribe(
+	context.Context,
+	protocol.WorkspaceSubscribeRequest,
+) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+	close(r.subscribed)
+	return &protocol.WorkspaceSubscribeResponse{}, make(chan protocol.WorkspaceEvent), nil
+}
 
 func newLifecycleServer(t *testing.T, configure func(*Config)) *Server {
 	t.Helper()
@@ -41,6 +56,39 @@ func TestShutdownBeforeStartPreventsListen(t *testing.T) {
 	}
 	if err := srv.Start(); err == nil {
 		t.Fatal("second Start unexpectedly succeeded")
+	}
+}
+
+func TestShutdownCancelsLongLivedTransportHandler(t *testing.T) {
+	waitCtx, cancelWait := context.WithTimeout(t.Context(), time.Second)
+	defer cancelWait()
+	runtime := &streamingLifecycleRuntime{subscribed: make(chan struct{})}
+	srv := newLifecycleServer(t, func(cfg *Config) {
+		cfg.Runtime = runtime
+	})
+	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"workspace.subscribe","params":{}}`)
+	req := httptest.NewRequest(stdhttp.MethodPost, "/v2/rpc/workspace.subscribe", body)
+	req.Header.Set("Accept", "text/event-stream")
+	req.Header.Set("Content-Type", "application/json")
+
+	handled := make(chan struct{})
+	go func() {
+		defer close(handled)
+		srv.Handler().ServeHTTP(httptest.NewRecorder(), req)
+	}()
+
+	select {
+	case <-runtime.subscribed:
+	case <-waitCtx.Done():
+		t.Fatal("workspace subscription did not start")
+	}
+	if err := srv.Shutdown(t.Context()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
+	}
+	select {
+	case <-handled:
+	case <-waitCtx.Done():
+		t.Fatal("streaming handler survived server shutdown")
 	}
 }
 
@@ -152,6 +200,42 @@ func TestHealthProbeRunnerLimitsUncooperativeProbeToOneInvocation(t *testing.T) 
 	case <-started:
 	default:
 		t.Fatal("probe did not restart after its prior invocation finished")
+	}
+}
+
+type healthContextKey struct{}
+
+func TestHealthProbeInvocationOutlivesStartingRequest(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	runners := newHealthProbeRunners([]HealthProbe{{
+		Name: "detached",
+		Probe: func(ctx context.Context) HealthCheck {
+			close(started)
+			<-release
+			if ctx.Err() != nil || ctx.Value(healthContextKey{}) != "preserved" {
+				return HealthCheck{Status: HealthUnhealthy}
+			}
+			return HealthCheck{Status: HealthOK}
+		},
+	}})
+	requestCtx, cancelRequest := context.WithCancel(context.WithValue(t.Context(), healthContextKey{}, "preserved"))
+	invocation := runners[0].start(requestCtx, time.Second)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("health probe did not start")
+	}
+	cancelRequest()
+	close(release)
+	select {
+	case <-invocation.done:
+	case <-time.After(time.Second):
+		t.Fatal("health probe did not finish")
+	}
+
+	if invocation.check.Status != HealthOK {
+		t.Fatalf("probe status = %q, want ok after starting request was canceled", invocation.check.Status)
 	}
 }
 
