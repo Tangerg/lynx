@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// workspace.mcp.* — MCP is runtime-global, so these take no cwd (API.md §7.5).
+// mcp.* is runtime-global, so these methods take no cwd (API.md §7.5).
 // Reconnect's outcome rides the workspace event stream as mcp.serverChanged
 // (AUX_API §5).
 
@@ -49,7 +49,7 @@ func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error
 }
 
 // WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
-// server (workspace.mcp.authorize). Like reconnect it is fire-and-forget: the
+// server (mcp.servers.authorize). Like reconnect it is fire-and-forget: the
 // coordinator validates the name synchronously (unknown → invalid_params) then
 // runs the flow — open the browser, catch the loopback redirect, exchange the
 // code — publishing the connecting + settled frames as it settles.
@@ -82,7 +82,7 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 	})
 }
 
-// workspace.mcp registry CRUD — the editable configuration the settings pane
+// mcp.configs registry CRUD — the editable configuration the settings pane
 // drives. listConfigs returns the registry with bearer tokens masked;
 // configure/remove/setEnabled persist + apply to the live connections, then
 // publish mcp.serverChanged so the status view updates; test probes a
@@ -90,7 +90,7 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 
 // WorkspaceMCPListConfigs returns every registered MCP server's editable
 // configuration (token masked). Live connection state is not included — read it
-// from workspace.mcp.listServers (McpServer), keyed by name.
+// from mcp.servers.list (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
 	servers, err := s.integrations.ListMCPRegisteredServers(ctx)
 	if err != nil {
@@ -105,7 +105,7 @@ func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQue
 
 // WorkspaceMCPConfigure upserts a server in the registry and applies it to the
 // live connections, returning the stored configuration (token masked). A blank
-// Authorization preserves the existing server's token (see the request doc).
+// Authorization preserves the existing token only for the same HTTP origin.
 func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
@@ -158,7 +158,8 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 
 // WorkspaceMCPTest probes a candidate configuration (a throwaway dial + tools
 // list) without persisting — the connection-test button. A blank Authorization
-// reuses the stored token, so testing an edit needn't re-enter the secret.
+// reuses the stored token only for the same HTTP origin, so testing an ordinary
+// edit needn't re-enter the secret and testing a new endpoint cannot leak it.
 func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
 	srv, err := s.mcpServerFromRequest(ctx, in)
 	if err != nil {

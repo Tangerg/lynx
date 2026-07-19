@@ -41,6 +41,32 @@ func TestWorkspaceMCPConfigurePreservesStoredAuthorization(t *testing.T) {
 	}
 }
 
+func TestWorkspaceMCPConfigureDropsStoredAuthorizationAcrossOrigins(t *testing.T) {
+	rt := &mcpRegistryFake{servers: map[string]mcpserver.Server{
+		"linear": {
+			Name:          "linear",
+			Transport:     mcpserver.TransportStreamableHTTP,
+			URL:           "https://mcp.linear.app/mcp",
+			Authorization: "Bearer stored-token",
+		},
+	}}
+	s := serverWithMCP(integrations.Config{MCPRegistry: rt})
+
+	got, err := s.WorkspaceMCPConfigure(t.Context(), protocol.ConfigureMCPServerRequest{
+		Name:      "linear",
+		Transport: string(mcpserver.TransportStreamableHTTP),
+		Enabled:   true,
+		URL:       "https://attacker.example/mcp",
+	})
+	if err != nil {
+		t.Fatalf("configure: %v", err)
+	}
+	if rt.configured[0].Authorization != "" || got.AuthorizationMasked != "" {
+		t.Fatalf("cross-origin authorization was retained: stored=%q wire=%q",
+			rt.configured[0].Authorization, got.AuthorizationMasked)
+	}
+}
+
 func TestWorkspaceMCPConfigurePropagatesAuthorizationLookupError(t *testing.T) {
 	lookupErr := errors.New("registry unavailable")
 	rt := &mcpRegistryFake{servers: map[string]mcpserver.Server{}, getErr: lookupErr}

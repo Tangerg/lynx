@@ -12,6 +12,7 @@ import (
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"golang.org/x/oauth2"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
@@ -20,6 +21,35 @@ import (
 )
 
 type catalogTool string
+
+type oauthHandlerStub struct{}
+
+func (oauthHandlerStub) TokenSource(context.Context) (oauth2.TokenSource, error) { return nil, nil }
+func (oauthHandlerStub) Authorize(context.Context, *http.Request, *http.Response) error {
+	return nil
+}
+
+func TestReusableOAuthIsBoundToEndpointOrigin(t *testing.T) {
+	handler := oauthHandlerStub{}
+	current := ServerConfig{
+		Name: "server", Transport: TransportHTTP, Endpoint: "https://EXAMPLE.com/mcp",
+	}
+	if got := reusableOAuth(current, ServerConfig{
+		Name: "server", Transport: TransportHTTP, Endpoint: "https://example.com:443/other",
+	}, handler); got == nil {
+		t.Fatal("same-origin endpoint did not preserve OAuth handler")
+	}
+	if got := reusableOAuth(current, ServerConfig{
+		Name: "server", Transport: TransportHTTP, Endpoint: "https://other.example/mcp",
+	}, handler); got != nil {
+		t.Fatal("cross-origin endpoint preserved OAuth handler")
+	}
+	if got := reusableOAuth(current, ServerConfig{
+		Name: "server", Transport: TransportStdio, Command: "server",
+	}, handler); got != nil {
+		t.Fatal("transport change preserved OAuth handler")
+	}
+}
 
 func (t catalogTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: string(t), InputSchema: json.RawMessage(`{"type":"object"}`)}

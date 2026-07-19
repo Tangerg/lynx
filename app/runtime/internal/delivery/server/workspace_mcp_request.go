@@ -16,7 +16,10 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 		if err != nil {
 			return mcpserver.Server{}, fmt.Errorf("load existing MCP server %q: %w", in.Name, err)
 		}
-		if ok {
+		if ok &&
+			cur.Transport == mcpserver.TransportStreamableHTTP &&
+			mcpserver.Transport(in.Transport) == mcpserver.TransportStreamableHTTP &&
+			mcpserver.SameHTTPOrigin(cur.URL, in.URL) {
 			auth = cur.Authorization
 		}
 	}
