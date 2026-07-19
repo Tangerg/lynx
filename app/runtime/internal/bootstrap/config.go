@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -97,8 +98,9 @@ func runtimeA2AAgents(in []config.A2AAgentConfig) []A2AAgentConfig {
 	out := make([]A2AAgentConfig, len(in))
 	for i, agent := range in {
 		out[i] = A2AAgentConfig{
-			Name:    agent.Name,
-			CardURL: agent.CardURL,
+			Name:              agent.Name,
+			CardURL:           agent.CardURL,
+			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
 		}
 	}
 	return out

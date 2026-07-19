@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -62,8 +63,9 @@ func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {
 	out := make([]toolset.A2AAgentConfig, len(in))
 	for i, agent := range in {
 		out[i] = toolset.A2AAgentConfig{
-			Name:    agent.Name,
-			CardURL: agent.CardURL,
+			Name:              agent.Name,
+			CardURL:           agent.CardURL,
+			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
 		}
 	}
 	return out

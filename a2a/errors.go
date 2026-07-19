@@ -20,6 +20,16 @@ var (
 
 	// ErrEmptyCardURL is returned when no card URL is supplied.
 	ErrEmptyCardURL = errors.New("a2a: card URL must not be empty")
+	// ErrInvalidCardURL is returned when CardURL is not an absolute HTTP(S) URL.
+	ErrInvalidCardURL = errors.New("a2a: invalid card URL")
+	// ErrInvalidCardTimeout is returned when CardTimeout is negative.
+	ErrInvalidCardTimeout = errors.New("a2a: card timeout must not be negative")
+	// ErrInvalidRPCOrigin is returned when an explicitly allowed RPC origin is
+	// not an origin-only absolute HTTP(S) URL.
+	ErrInvalidRPCOrigin = errors.New("a2a: invalid allowed RPC origin")
+	// ErrOriginNotAllowed is returned when card resolution or an advertised RPC
+	// interface leaves the endpoint's configured trust boundary.
+	ErrOriginNotAllowed = errors.New("a2a: origin not allowed")
 
 	// ErrInvalidRPCPattern is returned when ServerConfig.RPCPattern is not a
 	// valid net/http ServeMux pattern or conflicts with the AgentCard endpoint.
