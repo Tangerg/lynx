@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 )
@@ -98,27 +98,14 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		return nil, nil, err
 	}
 
-	caps := server.Capabilities(stack.Models, stack.Workspace.HasMemory())
 	httpServer, err := lyrahttp.NewServer(lyrahttp.Config{
-		Runtime:         api,
-		Addr:            srv.Listen,
-		ServerInfo:      info,
-		ProtocolVersion: caps.ProtocolVersion,
-		Capabilities:    caps,
-		LocalToken:      tokenValue,
-		CORSOrigins:     srv.CORSOrigins,
-		HealthProbes: []lyrahttp.HealthProbe{
-			{
-				Name: "runtime",
-				Probe: func(ctx context.Context) lyrahttp.HealthCheck {
-					if err := api.Ping(ctx); err != nil {
-						return lyrahttp.HealthCheck{Status: lyrahttp.HealthUnhealthy, Detail: err.Error()}
-					}
-					return lyrahttp.HealthCheck{Status: lyrahttp.HealthOK}
-				},
-			},
-		},
-		AgentDocsLister: agentDocsLister(),
+		Runtime:          api,
+		Addr:             srv.Listen,
+		ServerInfo:       info,
+		ProtocolVersion:  protocol.ProtocolVersion,
+		LocalToken:       tokenValue,
+		CORSOrigins:      srv.CORSOrigins,
+		IdempotencyStore: stack.IdempotencyStore,
 	})
 	if err != nil {
 		api.Close()
@@ -134,31 +121,6 @@ func resolvedVersion() string {
 		return version
 	}
 	return lyrahttp.ServerInfoOrDefault().Version
-}
-
-// agentDocsLister returns an AgentDocsLister wired to the server's working
-// directory (process cwd at construction time, locked once so a later chdir
-// doesn't shift discovery to a different tree).
-func agentDocsLister() lyrahttp.AgentDocsLister {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil
-	}
-	home, _ := os.UserHomeDir()
-	return func(ctx context.Context) []lyrahttp.AgentDocInfo {
-		files, err := promptsource.DiscoverAgentDocs(ctx, cwd, home)
-		if err != nil {
-			return nil
-		}
-		out := make([]lyrahttp.AgentDocInfo, 0, len(files))
-		for _, f := range files {
-			out = append(out, lyrahttp.AgentDocInfo{
-				Path:  f.Path,
-				Bytes: len(f.Content),
-			})
-		}
-		return out
-	}
 }
 
 // runServer launches the server, blocks until it returns or a shutdown signal
@@ -181,9 +143,10 @@ func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server,
 	errs := make(chan error, 1)
 	go func() {
 		fmt.Fprintf(errw, "[lyra] http listening on %s\n", addr)
-		fmt.Fprintf(errw, "[lyra]   POST /v2/rpc/{method}     JSON-RPC (streaming methods -> text/event-stream)\n")
+		fmt.Fprintf(errw, "[lyra]   POST /v2/rpc              JSON-RPC (streaming methods -> text/event-stream)\n")
 		fmt.Fprintf(errw, "[lyra]   GET  /v2/info             metadata (no auth)\n")
-		fmt.Fprintf(errw, "[lyra]   GET  /v2/health           liveness\n")
+		fmt.Fprintf(errw, "[lyra]   GET  /v2/health/live      liveness\n")
+		fmt.Fprintf(errw, "[lyra]   GET  /v2/health/ready     dependency readiness\n")
 		if token != nil {
 			fmt.Fprintf(errw, "[lyra] local-token gate active; token at %s\n", token.Path)
 		} else {

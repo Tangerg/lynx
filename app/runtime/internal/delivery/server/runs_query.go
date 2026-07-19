@@ -8,8 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
 
-// ListRuns returns the currently running runs as a Page (API.md §7.3).
-// The set is in-process and bounded, so the page carries no cursor.
+// ListRuns returns the currently running runs as a cursor Page (API.md §7.3).
 func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 	records := s.coordinator.List()
 	out := make([]protocol.RunRef, 0, len(records))
@@ -25,7 +24,11 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 			Status:    protocol.RunStatusRunning,
 		})
 	}
-	return protocol.NewPage(out), nil
+	page, next, err := pageByCursor(out, func(run protocol.RunRef) string { return run.ID }, in.Cursor, in.Limit, 100)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.Page[protocol.RunRef]{Data: page, NextCursor: next}, nil
 }
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page
@@ -44,7 +47,11 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 			CreatedAt:  p.CreatedAt,
 		})
 	}
-	return protocol.NewPage(out), nil
+	page, next, err := pageByCursor(out, func(item protocol.OpenInterrupt) string { return item.RunID }, in.Cursor, in.Limit, 100)
+	if err != nil {
+		return nil, err
+	}
+	return &protocol.Page[protocol.OpenInterrupt]{Data: page, NextCursor: next}, nil
 }
 
 // SubscribeRun opens a fresh event stream onto an actively-streaming root

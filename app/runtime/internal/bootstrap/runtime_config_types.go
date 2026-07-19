@@ -41,6 +41,8 @@ type Config struct {
 	// memory without affecting user-editable LYRA.md.
 	AgentMemoryStore *sqlitestore.AgentMemoryStore
 
+	IdempotencyStore *sqlitestore.IdempotencyStore
+
 	// Resources are process adapters whose ownership transfers to Runtime only
 	// when [Assemble] succeeds. Close releases them after background tasks and the
 	// execution/tool capabilities have stopped; callers retain ownership when
@@ -64,7 +66,7 @@ type Config struct {
 	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime
-	// workspace.mcp.configure / remove / setEnabled. Required.
+	// mcp.configs.configure / remove / setEnabled. Required.
 	MCPRegistry mcpserver.Registry
 
 	// SessionStore persists Lyra sessions. Required; the composition root injects
@@ -135,13 +137,13 @@ type Config struct {
 	// builds the adapter-backed resolver from the storage home + trust store.
 	HooksResolver HookResolver
 
-	// HookTrustStore backs the workspace.hooks.* trust toggle (a GUI granting a
+	// HookTrustStore backs the hooks.* trust toggle (a GUI granting a
 	// project's hooks). nil means trust is read-only (CLI / file only); the
 	// resolver still reads trust through its own checker.
 	HookTrustStore HookTrustStore
 
 	// RecipesGlobalDir is the global recipes directory (<LYRA_HOME>/recipes) the
-	// workspace.recipes.list discovery layers under a project's .lyra/recipes.
+	// recipes.list discovery layers under a project's .lyra/recipes.
 	// Empty means only project recipes are listed. The composition root sets it.
 	RecipesGlobalDir string
 
@@ -213,7 +215,7 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
-// HookTrustStore mutates project hook trust for the workspace.hooks.setTrust
+// HookTrustStore mutates project hook trust for the hooks.setTrust
 // surface. The sqlite TrustStore implements it.
 type HookTrustStore interface {
 	Trust(ctx context.Context, projectRoot string) error

@@ -45,7 +45,10 @@ func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRe
 	if err != nil {
 		return nil, fmt.Errorf("list workspace files: %w", err)
 	}
-	page, next := pageFileEntries(entries, in.Cursor, in.Limit)
+	page, next, err := pageOrderedByCursor(entries, workspace.FileEntry.OrderKey, in.Cursor, in.Limit, defaultFileListPageLimit)
+	if err != nil {
+		return nil, err
+	}
 	data := make([]protocol.FileEntry, 0, len(page))
 	for _, entry := range page {
 		var sizeBytes *int64
@@ -64,20 +67,6 @@ func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRe
 }
 
 const defaultFileListPageLimit = 1000
-
-func pageFileEntries(entries []workspace.FileEntry, cursor string, limit int) ([]workspace.FileEntry, string) {
-	if cursor != "" {
-		start := len(entries)
-		for idx, entry := range entries {
-			if entry.OrderKey() > cursor {
-				start = idx
-				break
-			}
-		}
-		entries = entries[start:]
-	}
-	return pageByCursor(entries, workspace.FileEntry.OrderKey, "", limit, defaultFileListPageLimit)
-}
 
 // defaultFileHeadLines caps a workspace.getFileHead preview when the client
 // gives no (or a non-positive) line count.

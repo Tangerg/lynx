@@ -40,7 +40,7 @@ type HookInspector interface {
 	Inspect(ctx context.Context, cwd string) (hooks.Inspection, error)
 }
 
-// HookTrustStore mutates project hook trust (the workspace.hooks.setTrust
+// HookTrustStore mutates project hook trust (the hooks.setTrust
 // surface). nil leaves trust read-only (CLI / file only).
 type HookTrustStore interface {
 	Trust(ctx context.Context, projectRoot string) error
@@ -119,7 +119,7 @@ func (c *Coordinator) UpdateMemory(ctx context.Context, scope knowledge.Scope, c
 }
 
 // ListSkills enumerates the skills visible from cwd (project over global) for
-// workspace.listSkills.
+// skills.discovered.list.
 func (c *Coordinator) ListSkills(ctx context.Context, cwd string) ([]skills.Info, error) {
 	if c.skills == nil {
 		return nil, nil
@@ -128,7 +128,7 @@ func (c *Coordinator) ListSkills(ctx context.Context, cwd string) ([]skills.Info
 }
 
 // ListManagedSkills returns the global self-authored skill library — active and
-// archived skills, each tagged with its lifecycle (workspace.skills.list). Empty
+// archived skills, each tagged with its lifecycle (skills.library.list). Empty
 // when no authoring store is wired.
 func (c *Coordinator) ListManagedSkills(ctx context.Context) ([]skills.Entry, error) {
 	if c.curator == nil {
@@ -138,7 +138,7 @@ func (c *Coordinator) ListManagedSkills(ctx context.Context) ([]skills.Entry, er
 }
 
 // ArchiveSkill removes a skill from active use without deleting it
-// (workspace.skills.archive). No-op when no authoring store is wired.
+// (skills.library.archive). No-op when no authoring store is wired.
 func (c *Coordinator) ArchiveSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
@@ -147,7 +147,7 @@ func (c *Coordinator) ArchiveSkill(ctx context.Context, name string) error {
 }
 
 // RestoreSkill returns an archived skill to active use
-// (workspace.skills.restore). No-op when no authoring store is wired.
+// (skills.library.restore). No-op when no authoring store is wired.
 func (c *Coordinator) RestoreSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
@@ -157,7 +157,7 @@ func (c *Coordinator) RestoreSkill(ctx context.Context, name string) error {
 
 // ListRecipes enumerates the prompt recipes visible from cwd — project recipes
 // (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
-// name collision (workspace.recipes.list).
+// name collision (recipes.list).
 func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
 	if c.recipes == nil {
 		return nil, nil
@@ -166,7 +166,7 @@ func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Re
 }
 
 // InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
-// trust status (workspace.hooks.list). Empty when hooks are unconfigured.
+// trust status (hooks.list). Empty when hooks are unconfigured.
 func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error) {
 	if c.hooks == nil {
 		return hooks.Inspection{}, nil
@@ -174,7 +174,7 @@ func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) (hooks.Inspe
 	return c.hooks.Inspect(ctx, cwd)
 }
 
-// SetProjectHookTrust trusts (or revokes) a project's hooks (workspace.hooks.
+// SetProjectHookTrust trusts (or revokes) a project's hooks (hooks.
 // setTrust). No-op when no trust store is wired.
 func (c *Coordinator) SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error {
 	if c.trust == nil {

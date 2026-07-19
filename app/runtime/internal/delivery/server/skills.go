@@ -8,8 +8,8 @@ import (
 
 // WorkspaceListManagedSkills returns the global self-authored skill library —
 // active and archived skills, each tagged with its lifecycle
-// (workspace.skills.list). The library is small, so it comes back in one page
-// (same as workspace.listSkills). Empty when no authoring store is wired.
+// (skills.library.list). The library is small, so it comes back in one page
+// (same as skills.discovered.list). Empty when no authoring store is wired.
 func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
 	entries, err := s.workspace.ListManagedSkills(ctx)
 	if err != nil {
@@ -27,7 +27,7 @@ func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.Page
 }
 
 // WorkspaceArchiveSkill removes a skill from active use without deleting it
-// (workspace.skills.archive), then fans out skills.changed so open clients
+// (skills.library.archive), then fans out skills.changed so open clients
 // refresh.
 func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
@@ -41,7 +41,7 @@ func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNam
 }
 
 // WorkspaceRestoreSkill returns an archived skill to active use
-// (workspace.skills.restore), then fans out skills.changed.
+// (skills.library.restore), then fans out skills.changed.
 func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams

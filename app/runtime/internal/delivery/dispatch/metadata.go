@@ -38,11 +38,11 @@ func bindRequestMeta(ctx context.Context, req *transport.Request) (context.Conte
 	if err := json.Unmarshal(raw, &meta); err != nil {
 		return ctx, invalidParams(requestMetaField + ": " + err.Error())
 	}
-	if meta.ProtocolVersion != "" && meta.ProtocolVersion != protocol.ProtocolVersion {
+	if meta.ProtocolVersion != "" && !protocol.SupportsProtocolVersion(meta.ProtocolVersion) {
 		return ctx, problemError(
 			protocol.CodeInvalidProtocolVersion,
 			protocol.ErrInvalidProtocolVersion.Error(),
-			fmt.Sprintf("protocolVersion %q is unsupported; expected %q", meta.ProtocolVersion, protocol.ProtocolVersion),
+			fmt.Sprintf("protocolVersion %q is unsupported; supported range is %q through %q", meta.ProtocolVersion, protocol.MinProtocolVersion, protocol.ProtocolVersion),
 		)
 	}
 

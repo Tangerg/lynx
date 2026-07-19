@@ -84,7 +84,7 @@ func (d *Dispatcher) handleWorkspaceListProjects(ctx context.Context, msg *trans
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceListSkills(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleSkillsDiscoveredList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.WorkspaceListQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -93,7 +93,7 @@ func (d *Dispatcher) handleWorkspaceListSkills(ctx context.Context, msg *transpo
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceListManagedSkills(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleSkillsLibraryList(ctx context.Context, msg *transport.Request) HandleResult {
 	q, bad := decode[protocol.PageQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -102,7 +102,7 @@ func (d *Dispatcher) handleWorkspaceListManagedSkills(ctx context.Context, msg *
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceArchiveSkill(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleSkillsLibraryArchive(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.SkillNameRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -113,7 +113,7 @@ func (d *Dispatcher) handleWorkspaceArchiveSkill(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceArchiveSkill(ctx, in))
 }
 
-func (d *Dispatcher) handleWorkspaceRestoreSkill(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleSkillsLibraryRestore(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.SkillNameRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -124,7 +124,7 @@ func (d *Dispatcher) handleWorkspaceRestoreSkill(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceRestoreSkill(ctx, in))
 }
 
-func (d *Dispatcher) handleWorkspaceListRecipes(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleRecipesList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.WorkspaceListQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -133,7 +133,7 @@ func (d *Dispatcher) handleWorkspaceListRecipes(ctx context.Context, msg *transp
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceListAgentDocs(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleAgentDocsList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.WorkspaceListQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -142,7 +142,7 @@ func (d *Dispatcher) handleWorkspaceListAgentDocs(ctx context.Context, msg *tran
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceMCPListServers(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPServersList(ctx context.Context, msg *transport.Request) HandleResult {
 	q, bad := decode[protocol.PageQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -151,7 +151,7 @@ func (d *Dispatcher) handleWorkspaceMCPListServers(ctx context.Context, msg *tra
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceMCPListTools(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPToolsList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.MCPListToolsRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -160,7 +160,7 @@ func (d *Dispatcher) handleWorkspaceMCPListTools(ctx context.Context, msg *trans
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceMCPReconnect(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPServersReconnect(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.MCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -171,7 +171,7 @@ func (d *Dispatcher) handleWorkspaceMCPReconnect(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceMCPReconnect(ctx, in.Server))
 }
 
-func (d *Dispatcher) handleWorkspaceMCPAuthorize(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPServersAuthorize(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.MCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -182,7 +182,7 @@ func (d *Dispatcher) handleWorkspaceMCPAuthorize(ctx context.Context, msg *trans
 	return replyDone(msg, d.api.WorkspaceMCPAuthorize(ctx, in.Server))
 }
 
-func (d *Dispatcher) handleWorkspaceMCPListConfigs(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPConfigsList(ctx context.Context, msg *transport.Request) HandleResult {
 	q, bad := decode[protocol.PageQuery](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -191,7 +191,7 @@ func (d *Dispatcher) handleWorkspaceMCPListConfigs(ctx context.Context, msg *tra
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceMCPConfigure(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPConfigsConfigure(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.ConfigureMCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -203,7 +203,7 @@ func (d *Dispatcher) handleWorkspaceMCPConfigure(ctx context.Context, msg *trans
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceMCPRemove(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPConfigsRemove(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.RemoveMCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -214,7 +214,7 @@ func (d *Dispatcher) handleWorkspaceMCPRemove(ctx context.Context, msg *transpor
 	return replyDone(msg, d.api.WorkspaceMCPRemove(ctx, in.Name))
 }
 
-func (d *Dispatcher) handleWorkspaceMCPSetEnabled(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPConfigsSetEnabled(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.SetMCPEnabledRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -225,7 +225,7 @@ func (d *Dispatcher) handleWorkspaceMCPSetEnabled(ctx context.Context, msg *tran
 	return replyDone(msg, d.api.WorkspaceMCPSetEnabled(ctx, in))
 }
 
-func (d *Dispatcher) handleWorkspaceMCPTest(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleMCPConfigsTest(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.ConfigureMCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -234,7 +234,7 @@ func (d *Dispatcher) handleWorkspaceMCPTest(ctx context.Context, msg *transport.
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceListHooks(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleHooksList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.ListHooksRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
@@ -243,7 +243,7 @@ func (d *Dispatcher) handleWorkspaceListHooks(ctx context.Context, msg *transpor
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handleWorkspaceSetHookTrust(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Dispatcher) handleHooksSetTrust(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.SetHookTrustRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)

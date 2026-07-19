@@ -11,6 +11,8 @@ import "context"
 // full replay.
 type lastEventIDKey struct{}
 
+type idempotencyKey struct{}
+
 // WithLastEventID returns ctx carrying the streaming reconnect cursor.
 func WithLastEventID(ctx context.Context, id string) context.Context {
 	if id == "" {
@@ -23,4 +25,18 @@ func WithLastEventID(ctx context.Context, id string) context.Context {
 func LastEventIDFrom(ctx context.Context) string {
 	id, _ := ctx.Value(lastEventIDKey{}).(string)
 	return id
+}
+
+// WithIdempotencyKey carries the transport-level Idempotency-Key metadata to
+// the dispatcher without polluting business request DTOs.
+func WithIdempotencyKey(ctx context.Context, key string) context.Context {
+	if key == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, idempotencyKey{}, key)
+}
+
+func IdempotencyKeyFrom(ctx context.Context) string {
+	key, _ := ctx.Value(idempotencyKey{}).(string)
+	return key
 }

@@ -15,7 +15,7 @@ type Codebase interface {
 	CodebaseStatus(ctx context.Context, in CodebaseStatusRequest) (*CodebaseStatus, error)
 	// CodebaseReindex kicks a full rebuild of the cwd's index in the background
 	// (the status surface polls CodebaseStatus for progress). Returns immediately.
-	CodebaseReindex(ctx context.Context, in CodebaseReindexRequest) error
+	CodebaseReindex(ctx context.Context, in CodebaseReindexRequest) (*CodebaseReindexResponse, error)
 }
 
 // CodebaseSearchRequest — codebase.search body. Cwd scopes the project (empty =
@@ -61,11 +61,16 @@ const (
 // CodebaseStatus — the codebase.status reply. Truncated reports the project hit
 // the index caps (partial index). Error carries the last build failure.
 type CodebaseStatus struct {
-	State      CodebaseState `json:"state"`
-	ModelID    string        `json:"modelId,omitempty"`
-	FileCount  int           `json:"fileCount"`
-	ChunkCount int           `json:"chunkCount"`
-	IndexedAt  string        `json:"indexedAt,omitempty"`
-	Truncated  bool          `json:"truncated,omitempty"`
-	Error      string        `json:"error,omitempty"`
+	State       CodebaseState `json:"state"`
+	ModelID     string        `json:"modelId,omitempty"`
+	FileCount   int           `json:"fileCount"`
+	ChunkCount  int           `json:"chunkCount"`
+	IndexedAt   string        `json:"indexedAt,omitempty"`
+	Truncated   bool          `json:"truncated,omitempty"`
+	Error       string        `json:"error,omitempty"`
+	OperationID string        `json:"operationId,omitempty"`
+}
+
+type CodebaseReindexResponse struct {
+	OperationID string `json:"operationId"`
 }

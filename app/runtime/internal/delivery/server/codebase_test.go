@@ -127,7 +127,7 @@ func TestCodebaseReindexMapsToWire(t *testing.T) {
 	idx := &fakeCodebaseIndex{available: true, reindexed: make(chan string, 1)}
 	s := serverWithCodebase(root, idx)
 
-	if err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); err != nil {
+	if _, err := s.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); err != nil {
 		t.Fatalf("codebase reindex: %v", err)
 	}
 	select {
@@ -141,7 +141,7 @@ func TestCodebaseReindexMapsToWire(t *testing.T) {
 
 	// An unavailable index maps to invalid_params.
 	unavailable := serverWithCodebase(root, &fakeCodebaseIndex{available: false})
-	if err := unavailable.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
+	if _, err := unavailable.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reindex without embedding err = %v, want invalid_params", err)
 	}
 }

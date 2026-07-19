@@ -34,7 +34,8 @@ const (
 // tag-discriminated struct (single `type`, optional fields per tag, §2.1). The
 // tag values are the [WorkspaceEventType] constants above.
 type WorkspaceEvent struct {
-	Type WorkspaceEventType `json:"type"`
+	Type     WorkspaceEventType `json:"type"`
+	Sequence uint64             `json:"sequence"`
 	// files.changed
 	WatchID string   `json:"watchId,omitempty"`
 	Paths   []string `json:"paths,omitempty"`

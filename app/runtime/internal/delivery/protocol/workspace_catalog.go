@@ -9,14 +9,14 @@ const (
 	SkillSourceGlobal  SkillSource = "global"
 )
 
-// Skill is one entry in workspace.listSkills (API.md §4.10).
+// Skill is one entry in skills.discovered.list (API.md §4.10).
 type Skill struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
 	Source      SkillSource `json:"source,omitempty"` // see SkillSource
 }
 
-// SkillLifecycle is a managed skill's curator state (workspace.skills.list):
+// SkillLifecycle is a managed skill's curator state (skills.library.list):
 // active (loadable by the agent) or archived (preserved, not loaded).
 type SkillLifecycle string
 
@@ -26,7 +26,7 @@ const (
 )
 
 // ManagedSkill is one entry in the global self-authored skill library
-// (workspace.skills.list), tagged with its curator lifecycle. Distinct from
+// (skills.library.list), tagged with its curator lifecycle. Distinct from
 // [Skill] (the agent's project+global discovery view): this is the management
 // surface, which also lists archived skills.
 type ManagedSkill struct {
@@ -35,7 +35,7 @@ type ManagedSkill struct {
 	Lifecycle   SkillLifecycle `json:"lifecycle"`
 }
 
-// SkillNameRequest names the skill a workspace.skills.archive / restore call
+// SkillNameRequest names the skill a skills.library.archive / restore call
 // acts on.
 type SkillNameRequest struct {
 	Name string `json:"name"`

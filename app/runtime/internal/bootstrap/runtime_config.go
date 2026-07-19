@@ -30,6 +30,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 			CuratedMemory:         stores.AgentMemory,
 		},
 		AgentMemoryStore:       stores.AgentMemory,
+		IdempotencyStore:       stores.Idempotency,
 		UtilityRoleStore:       stores.UtilityRole,
 		Online:                 OnlineConfig(cfg.Online),
 		MCPRegistry:            stores.MCPServers,

@@ -47,6 +47,9 @@ func (d *Dispatcher) handleSessionsUpdate(ctx context.Context, msg *transport.Re
 	if in.SessionID == "" {
 		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
+	if in.ExpectedRevision == 0 {
+		return responseError(msg.ID, invalidParams("expectedRevision must be greater than zero"))
+	}
 	sess, err := d.api.UpdateSession(ctx, in)
 	return reply(msg, sess, err)
 }

@@ -95,6 +95,9 @@ const (
 	CodeInvalidProtocolVersion = -32016
 	CodeVcsUnavailable         = -32017
 	CodeSessionBusy            = -32018
+	CodeRevisionConflict       = -32019
+	CodeIdempotencyConflict    = -32020
+	CodeIdempotencyInProgress  = -32021
 )
 
 // Sentinel errors returned by Runtime implementations. The dispatch
@@ -123,4 +126,8 @@ var (
 	// ErrSessionBusy: a session has a run in flight, so an operation that would
 	// race the in-progress history append is refused (AUX_API §4.1 — rollback).
 	ErrSessionBusy = errors.New("session_busy")
+	// ErrRevisionConflict: a conditional mutation used a stale resource revision.
+	ErrRevisionConflict      = errors.New("revision_conflict")
+	ErrIdempotencyConflict   = errors.New("idempotency_conflict")
+	ErrIdempotencyInProgress = errors.New("idempotency_in_progress")
 )

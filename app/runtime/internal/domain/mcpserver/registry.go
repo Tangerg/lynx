@@ -4,7 +4,7 @@
 //
 // It mirrors the provider registry ([internal/domain/provider]): a persisted,
 // runtime-editable set seeded at startup (from the LYRA_MCP_SERVERS env) and
-// edited at runtime via workspace.mcp.configure / remove / setEnabled. Persisted
+// edited at runtime via mcp.configs.configure / remove / setEnabled. Persisted
 // backends (sqlite) keep runtime edits across restarts. Unlike providers there
 // is no "supported set" to seed — every entry is a user-defined server, so the
 // registry is a plain create/update/delete set, not a seeded catalog.
@@ -142,7 +142,7 @@ type Registry interface {
 	Get(ctx context.Context, name string) (Server, bool, error)
 
 	// Configure upserts a server by Name, persisting the change. Used both to
-	// seed at startup and to apply a runtime workspace.mcp.configure.
+	// seed at startup and to apply a runtime mcp.configs.configure.
 	Configure(ctx context.Context, s Server) error
 
 	// Remove deletes a server by name. Removing an unknown name is a no-op.

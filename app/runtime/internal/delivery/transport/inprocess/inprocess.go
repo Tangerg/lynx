@@ -34,7 +34,7 @@ var errTransportClosed = errors.New("inprocess: transport closed")
 // Defined here (consumer side) so the transport depends on the single
 // method it calls rather than the concrete *dispatch.Dispatcher.
 type messageHandler interface {
-	Handle(ctx context.Context, msg transport.Message, expectedMethod string) dispatch.HandleResult
+	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
 }
 
 // Transport is the in-process implementation of [transport.Transport].
@@ -112,7 +112,7 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 			release()
 		}
 	}()
-	res := t.dispatcher.Handle(callCtx, msg, "")
+	res := t.dispatcher.Handle(callCtx, msg)
 	if res.Response != nil {
 		if !t.reserve() {
 			return errTransportClosed

@@ -54,6 +54,7 @@ type Bundle struct {
 	EmbeddingRole *sqlitestore.EmbeddingRoleStore
 	Codebase      *sqlitestore.CodebaseIndexStore
 	ToolResults   *sqlitestore.ToolResultStore
+	Idempotency   *sqlitestore.IdempotencyStore
 }
 
 // Open wires the persistence backends. The returned bundle owns the shared
@@ -96,6 +97,7 @@ func Open() (*Bundle, error) {
 		EmbeddingRole: sqlitestore.NewEmbeddingRoleStore(db),
 		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
 		ToolResults:   sqlitestore.NewToolResultStore(db),
+		Idempotency:   sqlitestore.NewIdempotencyStore(db),
 	}, nil
 }
 

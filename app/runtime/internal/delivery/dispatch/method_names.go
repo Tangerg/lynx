@@ -11,8 +11,8 @@
 //
 // The dispatcher is stateless: request metadata travels inside params._meta and
 // is exposed on context for handlers that need client-scoped capabilities. The
-// /v2/info + /v2/health sidecars don't go through this dispatcher (flat REST
-// handled by delivery/transport/http).
+// /v2/info and /v2/health/{live,ready} sidecars don't go through this
+// dispatcher (flat REST handled by delivery/transport/http).
 package dispatch
 
 // JSON-RPC method names — single source for everywhere that needs to
@@ -22,8 +22,6 @@ package dispatch
 const (
 	// Lifecycle (API.md §7.1).
 	MethodDiscover = "runtime.discover"
-	MethodShutdown = "runtime.shutdown"
-	MethodPing     = "runtime.ping"
 
 	// Sessions (API.md §7.2).
 	MethodSessionsList     = "sessions.list"
@@ -50,31 +48,33 @@ const (
 	MethodItemsList = "items.list"
 
 	// Workspace (API.md §7.5).
-	MethodWorkspaceListFileChanges   = "workspace.listFileChanges"
-	MethodWorkspaceGetDiff           = "workspace.getDiff"
-	MethodWorkspaceGetFileHead       = "workspace.getFileHead"
-	MethodWorkspaceGrep              = "workspace.grep"
-	MethodWorkspaceListFiles         = "workspace.listFiles"
-	MethodWorkspaceReadFile          = "workspace.readFile"
-	MethodWorkspaceListProjects      = "workspace.listProjects"
-	MethodWorkspaceListSkills        = "workspace.listSkills"
-	MethodWorkspaceListManagedSkills = "workspace.skills.list"
-	MethodWorkspaceArchiveSkill      = "workspace.skills.archive"
-	MethodWorkspaceRestoreSkill      = "workspace.skills.restore"
-	MethodWorkspaceListRecipes       = "workspace.recipes.list"
-	MethodWorkspaceListAgentDocs     = "workspace.listAgentDocs"
-	MethodWorkspaceMCPListServers    = "workspace.mcp.listServers"
-	MethodWorkspaceMCPListTools      = "workspace.mcp.listTools"
-	MethodWorkspaceMCPReconnect      = "workspace.mcp.reconnect"
-	MethodWorkspaceMCPAuthorize      = "workspace.mcp.authorize"
-	MethodWorkspaceMCPListConfigs    = "workspace.mcp.listConfigs"
-	MethodWorkspaceMCPConfigure      = "workspace.mcp.configure"
-	MethodWorkspaceMCPRemove         = "workspace.mcp.remove"
-	MethodWorkspaceMCPSetEnabled     = "workspace.mcp.setEnabled"
-	MethodWorkspaceMCPTest           = "workspace.mcp.test"
-	MethodWorkspaceListHooks         = "workspace.hooks.list"
-	MethodWorkspaceSetHookTrust      = "workspace.hooks.setTrust"
-	MethodWorkspaceSubscribe         = "workspace.subscribe"
+	MethodWorkspaceListFileChanges = "workspace.listFileChanges"
+	MethodWorkspaceGetDiff         = "workspace.getDiff"
+	MethodWorkspaceGetFileHead     = "workspace.getFileHead"
+	MethodWorkspaceGrep            = "workspace.grep"
+	MethodWorkspaceListFiles       = "workspace.listFiles"
+	MethodWorkspaceReadFile        = "workspace.readFile"
+	MethodWorkspaceListProjects    = "workspace.listProjects"
+	MethodWorkspaceSubscribe       = "workspace.subscribe"
+
+	// Discovery and integration domains (API.md §7.5).
+	MethodSkillsDiscoveredList = "skills.discovered.list"
+	MethodSkillsLibraryList    = "skills.library.list"
+	MethodSkillsLibraryArchive = "skills.library.archive"
+	MethodSkillsLibraryRestore = "skills.library.restore"
+	MethodRecipesList          = "recipes.list"
+	MethodAgentDocsList        = "agentDocs.list"
+	MethodMCPServersList       = "mcp.servers.list"
+	MethodMCPServersReconnect  = "mcp.servers.reconnect"
+	MethodMCPServersAuthorize  = "mcp.servers.authorize"
+	MethodMCPToolsList         = "mcp.tools.list"
+	MethodMCPConfigsList       = "mcp.configs.list"
+	MethodMCPConfigsConfigure  = "mcp.configs.configure"
+	MethodMCPConfigsRemove     = "mcp.configs.remove"
+	MethodMCPConfigsSetEnabled = "mcp.configs.setEnabled"
+	MethodMCPConfigsTest       = "mcp.configs.test"
+	MethodHooksList            = "hooks.list"
+	MethodHooksSetTrust        = "hooks.setTrust"
 
 	// Approval (API.md §C.3) — runtime-global tool-permission stance + the
 	// persistent fine-grained "remember this decision" rules.
@@ -117,9 +117,7 @@ const (
 	MethodMemoryUpdate   = "memory.update"
 	MethodFeedbackCreate = "feedback.create"
 
-	// Notifications (API.md §7.8). notifications.canceled is
-	// client→server; the rest are server→client.
-	NotificationCanceled       = "notifications.canceled"
+	// Notifications (API.md §7.8) are server→client only.
 	NotificationRunEvent       = "notifications.run.event"
 	NotificationWorkspaceEvent = "notifications.workspace.event"
 )

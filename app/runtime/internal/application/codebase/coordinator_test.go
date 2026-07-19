@@ -14,6 +14,7 @@ type codebaseIndex struct {
 	availabilityErr error
 	availableCtxErr error
 	availability    func(context.Context) (bool, error)
+	reindex         func(context.Context, string) error
 	reindexed       chan codebaseReindexCall
 	hits            []codebaseindex.Hit
 	status          codebaseindex.Status
@@ -38,6 +39,9 @@ func (i *codebaseIndex) Available(ctx context.Context) (bool, error) {
 }
 
 func (i *codebaseIndex) Reindex(ctx context.Context, root string) error {
+	if i.reindex != nil {
+		return i.reindex(ctx, root)
+	}
 	i.reindexed <- codebaseReindexCall{root: root, err: ctx.Err()}
 	return nil
 }
@@ -102,12 +106,12 @@ func TestStatusUsesStatusPort(t *testing.T) {
 
 func TestStartReindexRequiresAvailableIndex(t *testing.T) {
 	c := New(nil)
-	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
+	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex without index err = %v, want ErrNoEmbeddingModel", err)
 	}
 
 	c = New(&codebaseIndex{})
-	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
+	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex unavailable err = %v, want ErrNoEmbeddingModel", err)
 	}
 }
@@ -116,7 +120,7 @@ func TestStartReindexPreservesAvailabilityFailure(t *testing.T) {
 	wantErr := errors.New("provider store unavailable")
 	c := New(&codebaseIndex{availabilityErr: wantErr})
 
-	err := c.StartReindex(context.Background(), "/repo")
+	_, err := c.StartReindex(context.Background(), "/repo")
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("StartReindex error = %v, want %v", err, wantErr)
 	}
@@ -128,7 +132,7 @@ func TestStartReindexDetachesFromRequestCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	if err := c.StartReindex(ctx, "/repo"); err != nil {
+	if _, err := c.StartReindex(ctx, "/repo"); err != nil {
 		t.Fatalf("start reindex: %v", err)
 	}
 	if idx.availableCtxErr != nil {
@@ -148,10 +152,43 @@ func TestStartReindexDetachesFromRequestCancel(t *testing.T) {
 	}
 }
 
+func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
+	started := make(chan struct{})
+	finish := make(chan struct{})
+	idx := &codebaseIndex{
+		available: true,
+		reindex: func(_ context.Context, _ string) error {
+			close(started)
+			<-finish
+			return nil
+		},
+	}
+	c := New(idx)
+
+	first, err := c.StartReindex(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("start first reindex: %v", err)
+	}
+	<-started
+	second, err := c.StartReindex(context.Background(), "/repo")
+	if err != nil {
+		t.Fatalf("start coalesced reindex: %v", err)
+	}
+	if second != first || c.ActiveOperation("/repo") != first {
+		t.Fatalf("coalesced operation = %q, active = %q, want %q", second, c.ActiveOperation("/repo"), first)
+	}
+
+	close(finish)
+	c.Close()
+	if active := c.ActiveOperation("/repo"); active != "" {
+		t.Fatalf("active operation after completion = %q, want empty", active)
+	}
+}
+
 func TestStartReindexRejectsClosedComponent(t *testing.T) {
 	c := New(&codebaseIndex{available: true})
 	c.Close()
-	if err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
+	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
 		t.Fatalf("StartReindex error = %v, want %v", err, errClosed)
 	}
 }
@@ -166,7 +203,8 @@ func TestCloseCancelsAndJoinsReindexAvailabilityCheck(t *testing.T) {
 	c := New(idx)
 	result := make(chan error, 1)
 	go func() {
-		result <- c.StartReindex(context.Background(), "/repo")
+		_, err := c.StartReindex(context.Background(), "/repo")
+		result <- err
 	}()
 	<-started
 

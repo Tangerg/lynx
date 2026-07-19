@@ -22,6 +22,9 @@ func wireSessionErr(err error) error {
 	if errors.Is(err, session.ErrCwdUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
 	}
+	if errors.Is(err, session.ErrRevisionConflict) {
+		return fmt.Errorf("%w: the session changed after it was read", protocol.ErrRevisionConflict)
+	}
 	return err
 }
 
@@ -38,7 +41,10 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	if err != nil {
 		return nil, err
 	}
-	page, next := pageByCursor(sessions, func(ses session.Session) string { return ses.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
+	page, next, err := pageByCursor(sessions, func(ses session.Session) string { return ses.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
+	if err != nil {
+		return nil, err
+	}
 	running := s.runningSessionSet()
 	waiting, err := s.waitingSessionSet(ctx)
 	if err != nil {
@@ -112,10 +118,11 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
 	ses, err := s.sessions.Update(ctx, s.coordinator, in.SessionID, session.Patch{
-		Title:    in.Title,
-		Model:    in.Model,
-		Cwd:      in.Cwd,
-		Favorite: in.Favorite,
+		Title:            in.Title,
+		Model:            in.Model,
+		Cwd:              in.Cwd,
+		Favorite:         in.Favorite,
+		ExpectedRevision: in.ExpectedRevision,
 	})
 	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
@@ -186,6 +193,7 @@ func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatu
 		CreatedAt:   ses.StartedAt,
 		UpdatedAt:   ses.UpdatedAt,
 		Favorite:    ses.Favorite,
+		Revision:    ses.Revision,
 	}, nil
 }
 

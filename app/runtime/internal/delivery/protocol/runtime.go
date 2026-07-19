@@ -19,6 +19,8 @@
 // {type, ...}, matching API.md.
 package protocol
 
+import "time"
+
 // Runtime is the runtime's public surface — the union of every method
 // group exposed over the wire. Construct via delivery/server.New(...) and
 // pass to any transport adapter.
@@ -41,7 +43,26 @@ type Runtime interface {
 
 // ProtocolVersion is the wire version this build implements (API.md
 // §12: date string).
-const ProtocolVersion = "2026-07-19"
+const (
+	ProtocolVersion    = "2026-07-19"
+	MinProtocolVersion = "2026-07-19"
+)
+
+type ProtocolRange struct {
+	Current      string `json:"current"`
+	MinSupported string `json:"minSupported"`
+}
+
+func SupportedProtocolRange() ProtocolRange {
+	return ProtocolRange{Current: ProtocolVersion, MinSupported: MinProtocolVersion}
+}
+
+func SupportsProtocolVersion(version string) bool {
+	if _, err := time.Parse(time.DateOnly, version); err != nil {
+		return false
+	}
+	return version >= MinProtocolVersion && version <= ProtocolVersion
+}
 
 // Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
 const (

@@ -38,5 +38,6 @@ func (d *Dispatcher) handleCodebaseReindex(ctx context.Context, msg *transport.R
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	return replyDone(msg, d.api.CodebaseReindex(ctx, in))
+	out, err := d.api.CodebaseReindex(ctx, in)
+	return reply(msg, out, err)
 }
