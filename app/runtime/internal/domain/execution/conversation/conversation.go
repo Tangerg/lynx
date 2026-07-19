@@ -118,6 +118,21 @@ func (m *Messages) Truncate(ctx context.Context, sessionID string, keepN int) er
 	return nil
 }
 
+// Clear removes every message for sessionID. Unlike Truncate it does not read the
+// history first, so it cannot be short-circuited into a no-op by a session whose
+// rows are unparseable (Read skips malformed rows) — those would otherwise survive
+// a "clear" as orphans keyed to a deleted session. Use this for a full wipe (delete
+// / full-history reset); Truncate stays for keeping a prefix.
+func (m *Messages) Clear(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return errSessionIDRequired
+	}
+	if err := m.store.Replace(ctx, sessionID); err != nil {
+		return fmt.Errorf("conversation: clear session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
 // InjectUser appends a synthetic user message to sessionID's history — it
 // becomes part of the conversation the chat history middleware loads at the
 // start of the next turn. The runtime uses this to deliver mid-turn steering

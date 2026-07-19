@@ -83,51 +83,42 @@ func (s *CodebaseIndexStore) FileHashes(ctx context.Context, cwd string) (map[st
 }
 
 func (s *CodebaseIndexStore) ReplaceFile(ctx context.Context, cwd, path, hash string, chunks []codebaseindex.Chunk) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: codebase replace begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	if _, err := tx.ExecContext(ctx, `DELETE FROM codebase_chunks WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
-		return fmt.Errorf("sqlite: codebase clear file chunks: %w", err)
-	}
-	for _, c := range chunks {
-		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO codebase_chunks (cwd, path, start_line, end_line, text, embedding)
-			 VALUES (?, ?, ?, ?, ?, ?)`,
-			cwd, path, c.StartLine, c.EndLine, c.Text, encodeVec(c.Embedding)); err != nil {
-			return fmt.Errorf("sqlite: codebase insert chunk: %w", err)
+	// Through the shared tx seam (not a bare BeginTx): the single-connection pool
+	// would deadlock if this opened its own transaction while a caller's was live.
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		db := conn(ctx, s.db)
+		if _, err := db.ExecContext(ctx, `DELETE FROM codebase_chunks WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
+			return fmt.Errorf("sqlite: codebase clear file chunks: %w", err)
 		}
-	}
-	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO codebase_files (cwd, path, hash) VALUES (?, ?, ?)
-		 ON CONFLICT(cwd, path) DO UPDATE SET hash = excluded.hash`,
-		cwd, path, hash); err != nil {
-		return fmt.Errorf("sqlite: codebase upsert file hash: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: codebase replace commit: %w", err)
-	}
-	return nil
+		for _, c := range chunks {
+			if _, err := db.ExecContext(ctx,
+				`INSERT INTO codebase_chunks (cwd, path, start_line, end_line, text, embedding)
+				 VALUES (?, ?, ?, ?, ?, ?)`,
+				cwd, path, c.StartLine, c.EndLine, c.Text, encodeVec(c.Embedding)); err != nil {
+				return fmt.Errorf("sqlite: codebase insert chunk: %w", err)
+			}
+		}
+		if _, err := db.ExecContext(ctx,
+			`INSERT INTO codebase_files (cwd, path, hash) VALUES (?, ?, ?)
+			 ON CONFLICT(cwd, path) DO UPDATE SET hash = excluded.hash`,
+			cwd, path, hash); err != nil {
+			return fmt.Errorf("sqlite: codebase upsert file hash: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *CodebaseIndexStore) DeleteFile(ctx context.Context, cwd, path string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: codebase delete begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	if _, err := tx.ExecContext(ctx, `DELETE FROM codebase_chunks WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
-		return fmt.Errorf("sqlite: codebase delete chunks: %w", err)
-	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM codebase_files WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
-		return fmt.Errorf("sqlite: codebase delete file: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: codebase delete commit: %w", err)
-	}
-	return nil
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		db := conn(ctx, s.db)
+		if _, err := db.ExecContext(ctx, `DELETE FROM codebase_chunks WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
+			return fmt.Errorf("sqlite: codebase delete chunks: %w", err)
+		}
+		if _, err := db.ExecContext(ctx, `DELETE FROM codebase_files WHERE cwd = ? AND path = ?`, cwd, path); err != nil {
+			return fmt.Errorf("sqlite: codebase delete file: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *CodebaseIndexStore) AllChunks(ctx context.Context, cwd string) ([]codebaseindex.Chunk, error) {
@@ -156,20 +147,15 @@ func (s *CodebaseIndexStore) AllChunks(ctx context.Context, cwd string) ([]codeb
 }
 
 func (s *CodebaseIndexStore) Clear(ctx context.Context, cwd string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("sqlite: codebase clear begin: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-	for _, table := range []string{"codebase_chunks", "codebase_files", "codebase_index"} {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM `+table+` WHERE cwd = ?`, cwd); err != nil {
-			return fmt.Errorf("sqlite: codebase clear %s: %w", table, err)
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		db := conn(ctx, s.db)
+		for _, table := range []string{"codebase_chunks", "codebase_files", "codebase_index"} {
+			if _, err := db.ExecContext(ctx, `DELETE FROM `+table+` WHERE cwd = ?`, cwd); err != nil {
+				return fmt.Errorf("sqlite: codebase clear %s: %w", table, err)
+			}
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("sqlite: codebase clear commit: %w", err)
-	}
-	return nil
+		return nil
+	})
 }
 
 // encodeVec serializes an embedding as little-endian float32 (4 bytes each).

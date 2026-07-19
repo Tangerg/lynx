@@ -57,19 +57,29 @@ func (r *workerRunner) StartScheduledRun(_ context.Context, sc schedule.Schedule
 	return RunHandle{SessionID: "ses_1", RunID: "run_1"}, nil
 }
 
-func TestWorkerFireDueMarksFiredAfterRunFailure(t *testing.T) {
+func TestWorkerFireDueRetriesFailedStartThenAbandons(t *testing.T) {
 	now := time.Date(2026, 6, 30, 10, 0, 0, 0, time.UTC)
 	prev := now.Add(-time.Minute)
 	store := &workerStore{due: []schedule.Schedule{{ID: "sch_1", Cron: "* * * * *", NextRunAt: prev}}}
 	runner := &workerRunner{err: errors.New("boom")}
+	w := NewWorker(store, runner)
 
-	NewWorker(store, runner).fireDue(context.Background(), now)
-
-	if len(runner.fired) != 1 || runner.fired[0].ID != "sch_1" {
-		t.Fatalf("fired = %+v, want sch_1", runner.fired)
+	// A failed start must NOT advance the cron cursor — the occurrence is retried on
+	// later ticks instead of being silently skipped (the pre-fix behavior).
+	for attempt := 1; attempt < maxFireRetries; attempt++ {
+		w.fireDue(context.Background(), now)
+		if len(store.markCalls) != 0 {
+			t.Fatalf("attempt %d: mark calls = %d, want 0 (retry pending)", attempt, len(store.markCalls))
+		}
+	}
+	// Once the retry budget is spent the occurrence is abandoned and the cursor
+	// advances, so a persistently-failing schedule can't re-fire every tick forever.
+	w.fireDue(context.Background(), now)
+	if len(runner.fired) != maxFireRetries {
+		t.Fatalf("fired = %d, want %d", len(runner.fired), maxFireRetries)
 	}
 	if len(store.markCalls) != 1 {
-		t.Fatalf("mark calls = %d, want 1", len(store.markCalls))
+		t.Fatalf("after %d attempts: mark calls = %d, want 1", maxFireRetries, len(store.markCalls))
 	}
 	call := store.markCalls[0]
 	if call.id != "sch_1" || !call.ranAt.Equal(now) || !call.prevNextRunAt.Equal(prev) {
