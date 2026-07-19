@@ -142,6 +142,47 @@ func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.
 	return accumulator.Response(), nil
 }
 
+// deferredToolProvider is implemented by a meta-tool (search_tools) that keeps
+// some resolvable tools out of the model's initial manifest and surfaces them on
+// demand. The turn withholds these names from the advertised toolset while the
+// registry keeps them executable, so the meta-tool can promote a chosen tool
+// mid-loop (agent/toolloop PromoteTools) and the model calls it directly next round.
+type deferredToolProvider interface {
+	DeferredToolNames() []string
+}
+
+// advertisedTools projects the executable registry into the model-facing tool
+// manifest, excluding every tool a deferred-tool provider withholds. The
+// withheld tools stay in the registry (resolvable) so a mid-loop promotion can
+// advertise them; they are simply absent from the initial round's schema.
+func advertisedTools(actionTools []tools.Tool, registry *tools.Registry) []chat.ToolDefinition {
+	definitions := registry.Definitions()
+	var deferred map[string]struct{}
+	for _, tool := range actionTools {
+		provider, ok := tool.(deferredToolProvider)
+		if !ok {
+			continue
+		}
+		for _, name := range provider.DeferredToolNames() {
+			if deferred == nil {
+				deferred = make(map[string]struct{})
+			}
+			deferred[name] = struct{}{}
+		}
+	}
+	if len(deferred) == 0 {
+		return definitions
+	}
+	advertised := definitions[:0]
+	for _, def := range definitions {
+		if _, hidden := deferred[def.Name]; hidden {
+			continue
+		}
+		advertised = append(advertised, def)
+	}
+	return advertised
+}
+
 // runTurn supplies app-specific streaming and pricing adapters to the
 // framework-managed interaction boundary. The Agent framework owns tool
 // iteration, checkpointing, suspension, usage recording, and budget/step
@@ -175,7 +216,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 			chat.NewSystemMessage(e.systemPrompt(ctx)),
 			chat.NewUserMessage(parts...),
 		},
-		Tools: registry.Definitions(),
+		Tools: advertisedTools(actionTools, registry),
 	}
 	if options != nil {
 		request.Options = options.Clone()
