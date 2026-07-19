@@ -17,9 +17,9 @@
       "custom"
     ],
     "features": {
-      "multimodal": true
+      "multimodal": { "enabled": true }
     },
     "interruptTypes": ["approval", "question"],
-    "optOutNotificationMethods": ["item.delta"]
+    "excludedEvents": ["item.delta"]
   }
 }

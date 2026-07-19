@@ -1,5 +1,6 @@
 {
   "type": "files.changed",
+  "sequence": 10,
   "watchId": "watch_01",
   "paths": ["src/main.go", "src/util.go"],
   "cwd": "/Users/me/project"
