@@ -54,6 +54,10 @@ var ErrInvalidSubtask = errors.New("session: invalid subtask")
 // different product session identity.
 var ErrSubtaskConflict = errors.New("session: subtask identity conflict")
 
+// ErrRevisionConflict reports an optimistic-concurrency precondition that no
+// longer matches the stored aggregate.
+var ErrRevisionConflict = errors.New("session: revision conflict")
+
 // Patch is the editable surface of a user-facing session. Nil fields are
 // ignored; non-nil fields replace the corresponding session value.
 type Patch struct {
@@ -61,6 +65,15 @@ type Patch struct {
 	Model    *string
 	Cwd      *string
 	Favorite *bool
+	// ExpectedRevision is the revision observed by the caller. Zero disables
+	// the guard for runtime-owned maintenance writes such as SetModel.
+	ExpectedRevision uint64
+}
+
+// Empty reports whether the patch carries no editable field. The revision is
+// a precondition, not a change, and therefore does not make a patch non-empty.
+func (p Patch) Empty() bool {
+	return p.Title == nil && p.Model == nil && p.Cwd == nil && p.Favorite == nil
 }
 
 // Normalize returns a copy with domain-level text invariants applied.
@@ -100,6 +113,7 @@ type Session struct {
 	// opaque to the product model and never appears on the public Session API.
 	AgentAnnotations AgentAnnotations
 	Favorite         bool // user-pinned: sorts ahead of the rest in the session list
+	Revision         uint64
 }
 
 // Subtask is the Agent runtime identity that must survive the product

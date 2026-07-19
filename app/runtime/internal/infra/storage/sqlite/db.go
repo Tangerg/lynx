@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -75,7 +75,8 @@ func installCurrentSchema(db *sql.DB) error {
 			agent_annotations TEXT NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT '',
-			favorite    INTEGER NOT NULL DEFAULT 0
+			favorite    INTEGER NOT NULL DEFAULT 0,
+			revision    INTEGER NOT NULL DEFAULT 1
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 			ON sessions(updated_at DESC)`,
@@ -176,7 +177,7 @@ func installCurrentSchema(db *sql.DB) error {
 			provider  TEXT NOT NULL DEFAULT '',
 			model     TEXT NOT NULL DEFAULT ''
 		)`,
-		// MCP-server registry (workspace.mcp.configure). One row per server
+		// MCP-server registry (mcp.configs.configure). One row per server
 		// name; the list columns (args/disabled_tools/auto_approve_tools) and the
 		// map columns (env/headers) are JSON; timeout is nanoseconds. transport is
 		// "stdio" | "streamableHttp".
@@ -245,10 +246,20 @@ func installCurrentSchema(db *sql.DB) error {
 			enabled     INTEGER NOT NULL DEFAULT 1,
 			last_run_at INTEGER NOT NULL DEFAULT 0,
 			next_run_at INTEGER NOT NULL DEFAULT 0,
-			created_at  INTEGER NOT NULL
+			created_at  INTEGER NOT NULL,
+			revision    INTEGER NOT NULL DEFAULT 1
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_schedules_due
 			ON schedules(enabled, next_run_at)`,
+		`CREATE TABLE IF NOT EXISTS idempotency_records (
+			key         TEXT PRIMARY KEY,
+			fingerprint TEXT NOT NULL,
+			payload     BLOB NOT NULL,
+			created_at  INTEGER NOT NULL,
+			expires_at  INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_idempotency_records_expires_at
+			ON idempotency_records(expires_at)`,
 		// Embedding-model role (models.setEmbeddingRole): the (provider, model)
 		// the @codebase semantic index embeds with. Single row, pinned by
 		// CHECK(id = 1); empty model = unset (the index feature is off). Mirrors
