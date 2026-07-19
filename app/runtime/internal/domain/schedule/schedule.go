@@ -30,6 +30,8 @@ var ErrUnavailable = errors.New("schedule: unavailable")
 // Validation sentinels returned by [Schedule.Validate]; the delivery adapter
 // maps them to the protocol's invalid_params.
 var (
+	// ErrIDRequired — an update target must identify a stored schedule.
+	ErrIDRequired = errors.New("schedule: id is required")
 	// ErrPromptRequired — a schedule with no prompt has nothing to fire.
 	ErrPromptRequired = errors.New("schedule: prompt is required")
 	// ErrCronRequired — a schedule with no cron has no trigger.
@@ -38,6 +40,10 @@ var (
 	// (both to pin a model, neither for the runtime default — the same rule
 	// runs.start applies; provider is never inferred from model).
 	ErrIncompleteModelSelection = errors.New("schedule: provider and model must be set together")
+	// ErrInvalidCron — the cron expression is not a supported five-field spec.
+	ErrInvalidCron = errors.New("schedule: invalid cron")
+	// ErrCwdUnavailable — the configured working directory cannot be admitted.
+	ErrCwdUnavailable = errors.New("schedule: cwd unavailable")
 )
 
 // Schedule is a saved prompt fired on a cron trigger. Cwd anchors the headless
@@ -135,7 +141,7 @@ func (s Schedule) ScheduledAfter(after time.Time) (Schedule, error) {
 // (the boundary check create/update run before persisting).
 func ValidateCron(spec string) error {
 	if _, err := cron.ParseStandard(spec); err != nil {
-		return fmt.Errorf("schedule: invalid cron %q: %w", spec, err)
+		return fmt.Errorf("%w %q: %w", ErrInvalidCron, spec, err)
 	}
 	return nil
 }
@@ -148,7 +154,7 @@ func ValidateCron(spec string) error {
 func NextRun(spec string, after time.Time) (time.Time, error) {
 	sched, err := cron.ParseStandard(spec)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("schedule: invalid cron %q: %w", spec, err)
+		return time.Time{}, fmt.Errorf("%w %q: %w", ErrInvalidCron, spec, err)
 	}
 	return sched.Next(after), nil
 }

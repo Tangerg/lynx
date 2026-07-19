@@ -28,11 +28,10 @@ func TestScheduleValidate(t *testing.T) {
 		})
 	}
 
-	// A malformed cron surfaces as a ValidateCron error, not a field sentinel.
 	bad := base
 	bad.Cron = "not a cron"
-	if err := bad.Validate(); err == nil {
-		t.Fatal("garbage cron accepted; want error")
+	if err := bad.Validate(); !errors.Is(err, ErrInvalidCron) {
+		t.Fatalf("garbage cron error = %v, want ErrInvalidCron", err)
 	}
 }
 
@@ -91,11 +90,11 @@ func TestValidateCron(t *testing.T) {
 	if err := ValidateCron("@daily"); err != nil {
 		t.Errorf("@daily descriptor rejected: %v", err)
 	}
-	if err := ValidateCron("not a cron"); err == nil {
-		t.Error("garbage cron accepted; want error")
+	if err := ValidateCron("not a cron"); !errors.Is(err, ErrInvalidCron) {
+		t.Errorf("garbage cron error = %v, want ErrInvalidCron", err)
 	}
-	if err := ValidateCron(""); err == nil {
-		t.Error("empty cron accepted; want error")
+	if err := ValidateCron(""); !errors.Is(err, ErrInvalidCron) {
+		t.Errorf("empty cron error = %v, want ErrInvalidCron", err)
 	}
 }
 
@@ -118,7 +117,7 @@ func TestNextRun(t *testing.T) {
 }
 
 func TestNextRunInvalid(t *testing.T) {
-	if _, err := NextRun("nonsense", time.Now()); err == nil {
-		t.Error("NextRun on invalid cron returned no error")
+	if _, err := NextRun("nonsense", time.Now()); !errors.Is(err, ErrInvalidCron) {
+		t.Errorf("NextRun error = %v, want ErrInvalidCron", err)
 	}
 }

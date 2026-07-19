@@ -217,7 +217,7 @@ func New(cfg Config) (*Server, error) {
 	}
 	scheduleCoord := cfg.Schedules
 	if scheduleCoord == nil {
-		scheduleCoord = schedules.NewCoordinator(nil, nil) // disabled: schedules.* report capability_not_negotiated
+		scheduleCoord = schedules.New(schedules.Dependencies{}) // disabled: schedules.* report capability_not_negotiated
 	}
 	workspaceCoord := cfg.Workspace
 	if workspaceCoord == nil {

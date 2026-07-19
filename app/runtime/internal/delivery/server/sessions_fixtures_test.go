@@ -116,7 +116,7 @@ func newTestServer(rt testRuntime) *Server {
 	s.models = models.New(models.Config{DefaultModel: defaultModel})
 	// Default to a disabled schedules coordinator (schedules.* report
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
-	s.schedules = schedules.NewCoordinator(nil, nil)
+	s.schedules = schedules.New(schedules.Dependencies{})
 	return s
 }
 

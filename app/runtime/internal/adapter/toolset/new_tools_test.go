@@ -19,6 +19,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -200,7 +202,7 @@ func TestFormatJSON_WritesIndentedFile(t *testing.T) {
 
 func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, err := newScheduleTool(reg)
+	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
 	if err != nil {
 		t.Fatalf("newScheduleTool: %v", err)
 	}
@@ -247,7 +249,7 @@ func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
 
 func TestScheduleTool_CreateValidatesEntityBeforeNextRun(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, err := newScheduleTool(reg)
+	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
 	if err != nil {
 		t.Fatalf("newScheduleTool: %v", err)
 	}
@@ -257,9 +259,25 @@ func TestScheduleTool_CreateValidatesEntityBeforeNextRun(t *testing.T) {
 	}
 }
 
+func TestScheduleTool_CreateRejectsUnavailableCwd(t *testing.T) {
+	reg := newMemoryScheduleRegistry()
+	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
+	if err != nil {
+		t.Fatalf("newScheduleTool: %v", err)
+	}
+	missing := filepath.Join(t.TempDir(), "missing")
+	_, err = tool.Call(t.Context(), `{"op":"create","prompt":"summarize","cron":"0 9 * * *","cwd":"`+missing+`"}`)
+	if !errors.Is(err, schedule.ErrCwdUnavailable) {
+		t.Fatalf("create cwd err = %v, want ErrCwdUnavailable", err)
+	}
+	if len(reg.items) != 0 {
+		t.Fatalf("created %d schedule(s), want none", len(reg.items))
+	}
+}
+
 func TestScheduleTool_UnknownOp(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, _ := newScheduleTool(reg)
+	tool, _ := newScheduleTool(newTestScheduleCoordinator(reg))
 	if _, err := tool.Call(t.Context(), `{"op":"nope"}`); err == nil {
 		t.Fatal("unknown op: want error")
 	}
@@ -319,6 +337,14 @@ type memoryScheduleRegistry struct {
 
 func newMemoryScheduleRegistry() *memoryScheduleRegistry {
 	return &memoryScheduleRegistry{items: map[string]schedule.Schedule{}}
+}
+
+func newTestScheduleCoordinator(reg schedule.Registry) *scheduleapp.Coordinator {
+	return scheduleapp.New(scheduleapp.Dependencies{
+		Registry: reg,
+		Worker:   reg,
+		Paths:    workspacepath.Resolver{},
+	})
 }
 
 func (m *memoryScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {

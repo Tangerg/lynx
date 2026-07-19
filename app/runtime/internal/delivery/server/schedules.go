@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -31,24 +30,15 @@ func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResu
 // CreateSchedule adds an enabled schedule (schedules.create), computing its
 // first due time from the cron.
 func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
-	sc := schedule.Schedule{
+	created, err := s.schedules.Create(ctx, scheduleapp.CreateCommand{
 		Title:    in.Title,
 		Prompt:   in.Prompt,
+		Cwd:      in.Cwd,
 		Provider: in.Provider,
 		Model:    in.Model,
 		Cron:     in.Cron,
 		Enabled:  true,
-	}
-	if err := sc.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	cwd, err := scheduleCwdFromWire(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	sc.Cwd = cwd
-	sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now()) // cron validated above
-	created, err := s.schedules.Create(ctx, sc)
+	})
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
 	}
@@ -60,33 +50,18 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 // due time from the (new) cron — cleared when disabled so the worker skips it
 // (schedules.update).
 func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
-	sc := schedule.Schedule{
-		ID:       in.ID,
-		Title:    in.Title,
-		Prompt:   in.Prompt,
-		Provider: in.Provider,
-		Model:    in.Model,
-		Cron:     in.Cron,
-		Enabled:  in.Enabled,
-	}
-	if err := sc.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	cwd, err := scheduleCwdFromWire(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	existing, err := s.schedules.Get(ctx, in.ID)
-	if err != nil {
-		return nil, mapScheduleErr(err, "schedules.update", in.ID)
-	}
-	sc.Cwd = cwd
-	if in.Enabled {
-		sc.NextRunAt, _ = schedule.NextRun(in.Cron, time.Now())
-	}
-	sc.LastRunAt = existing.LastRunAt
-	sc.CreatedAt = existing.CreatedAt
-	updated, err := s.schedules.Update(ctx, sc)
+	updated, err := s.schedules.Update(ctx, scheduleapp.UpdateCommand{
+		ID: in.ID,
+		Patch: schedule.Patch{
+			Title:    &in.Title,
+			Prompt:   &in.Prompt,
+			Cwd:      &in.Cwd,
+			Provider: &in.Provider,
+			Model:    &in.Model,
+			Cron:     &in.Cron,
+			Enabled:  &in.Enabled,
+		},
+	})
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.update", in.ID)
 	}
@@ -106,17 +81,6 @@ func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowR
 	return mapScheduleErr(s.schedules.RunNow(ctx, in.ID, s.scheduledRunLauncher()), "schedules.runNow", in.ID)
 }
 
-func scheduleCwdFromWire(cwd string) (string, error) {
-	if cwd == "" {
-		return "", nil
-	}
-	resolved, err := workspacepath.ResolveExistingDir(cwd)
-	if err != nil {
-		return "", fmt.Errorf("%w: %s: %w", protocol.ErrCwdUnavailable, cwd, err)
-	}
-	return resolved, nil
-}
-
 // mapScheduleErr surfaces an unknown-id as invalid_params (the supplied id
 // doesn't resolve), passing every other error through unchanged.
 func mapScheduleErr(err error, method, id string) error {
@@ -128,6 +92,16 @@ func mapScheduleErr(err error, method, id string) error {
 	}
 	if errors.Is(err, schedule.ErrNotFound) {
 		return fmt.Errorf("%w: schedule %q not found", protocol.ErrInvalidParams, id)
+	}
+	if errors.Is(err, schedule.ErrCwdUnavailable) {
+		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
+	}
+	if errors.Is(err, schedule.ErrIDRequired) ||
+		errors.Is(err, schedule.ErrPromptRequired) ||
+		errors.Is(err, schedule.ErrCronRequired) ||
+		errors.Is(err, schedule.ErrIncompleteModelSelection) ||
+		errors.Is(err, schedule.ErrInvalidCron) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return err
 }
