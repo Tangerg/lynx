@@ -76,7 +76,11 @@ type Built struct {
 	MCPToolCatalog        integrations.MCPToolCatalog
 	MCPConnectionCommands integrations.MCPConnectionCommands
 	MCPRegistryCommands   integrations.MCPRegistryCommands
-	Closers               []func() error
+	// Shells is the background-shell set the shell tools run over. Exposed so the
+	// composition root can report a session's still-running jobs (e.g. a
+	// post-compaction live-state reminder) without owning a second shell set.
+	Shells  *exec.Shells
+	Closers []func() error
 }
 
 // Build constructs every capability adapter, assembles the resolver, and
@@ -252,6 +256,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		MCPToolCatalog:        mcpControl,
 		MCPConnectionCommands: mcpControl,
 		MCPRegistryCommands:   mcpControl,
+		Shells:                shells,
 		Closers: []func() error{
 			codeIntel.Close,
 			shells.KillAll,

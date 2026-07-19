@@ -20,7 +20,7 @@ func TestShells_RunReadKill(t *testing.T) {
 	})
 
 	// A quick command: capture output + completion.
-	id, err := shells.Launch(context.Background(), "", "printf hello", 0)
+	id, err := shells.Launch(context.Background(), "", "", "printf hello", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestShells_RunReadKill(t *testing.T) {
 	}
 
 	// A long-running command: kill it.
-	longID, err := shells.Launch(context.Background(), "", "sleep 30", 0)
+	longID, err := shells.Launch(context.Background(), "", "", "sleep 30", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestShells_TimeoutKills(t *testing.T) {
 		}
 	})
 
-	id, err := shells.Launch(context.Background(), "", "sleep 30", 200*time.Millisecond)
+	id, err := shells.Launch(context.Background(), "", "", "sleep 30", 200*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestShells_TimeoutKills(t *testing.T) {
 
 func TestShellsKillAllJoinsProcesses(t *testing.T) {
 	shells := NewShells()
-	id, err := shells.Launch(context.Background(), "", "sleep 30", 0)
+	id, err := shells.Launch(context.Background(), "", "", "sleep 30", 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestShellsRejectLaunchAfterKillAll(t *testing.T) {
 	if err := shells.KillAll(); err != nil {
 		t.Fatalf("KillAll: %v", err)
 	}
-	if _, err := shells.Launch(context.Background(), "", "printf late", 0); !errors.Is(err, ErrShellsClosed) {
+	if _, err := shells.Launch(context.Background(), "", "", "printf late", 0); !errors.Is(err, ErrShellsClosed) {
 		t.Fatalf("Launch after KillAll = %v, want ErrShellsClosed", err)
 	}
 }
@@ -122,7 +122,7 @@ func TestShellsKillMissingHasStableIdentity(t *testing.T) {
 
 func TestShellsFailedLaunchCanBeShutDown(t *testing.T) {
 	shells := NewShells()
-	id, err := shells.Launch(t.Context(), t.TempDir()+"/missing", "printf unreachable", 0)
+	id, err := shells.Launch(t.Context(), "", t.TempDir()+"/missing", "printf unreachable", 0)
 	if err != nil {
 		t.Fatalf("Launch: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestShellsLaunchRacesKillAll(t *testing.T) {
 			err error
 		}, 1)
 		go func() {
-			id, err := shells.Launch(context.Background(), "", "sleep 30", 0)
+			id, err := shells.Launch(context.Background(), "", "", "sleep 30", 0)
 			result <- struct {
 				id  string
 				err error
@@ -184,4 +184,54 @@ func mustShell(t *testing.T, shells *Shells, id string) *Shell {
 		t.Fatalf("shell %s not found", id)
 	}
 	return sh
+}
+
+// TestShells_RunningForSession scopes the live-shell readout to one session and
+// drops shells that have finished.
+func TestShells_RunningForSession(t *testing.T) {
+	shells := NewShells()
+	t.Cleanup(func() { _ = shells.KillAll() })
+
+	if _, err := shells.Launch(context.Background(), "sess-a", "", "sleep 30", 0); err != nil {
+		t.Fatalf("launch a1: %v", err)
+	}
+	if _, err := shells.Launch(context.Background(), "sess-a", "", "sleep 30", 0); err != nil {
+		t.Fatalf("launch a2: %v", err)
+	}
+	bID, err := shells.Launch(context.Background(), "sess-b", "", "sleep 30", 0)
+	if err != nil {
+		t.Fatalf("launch b: %v", err)
+	}
+
+	if got := shells.RunningForSession("sess-a"); len(got) != 2 {
+		t.Fatalf("session a running = %d, want 2", len(got))
+	}
+	if got := shells.RunningForSession("sess-a")[0].Command; got != "sleep 30" {
+		t.Fatalf("running shell command = %q, want %q", got, "sleep 30")
+	}
+	if got := shells.RunningForSession("other"); len(got) != 0 {
+		t.Fatalf("unknown session running = %d, want 0", len(got))
+	}
+
+	// A killed shell drops out of its session's live set.
+	if _, err := shells.Kill(bID); err != nil {
+		t.Fatalf("kill b: %v", err)
+	}
+	waitForDone(t, shells, bID)
+	if got := shells.RunningForSession("sess-b"); len(got) != 0 {
+		t.Fatalf("session b after kill = %d, want 0", len(got))
+	}
+}
+
+func waitForDone(t *testing.T, shells *Shells, id string) {
+	t.Helper()
+	sh, ok := shells.Get(id)
+	if !ok {
+		return
+	}
+	select {
+	case <-sh.done:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("shell %q did not finish after kill", id)
+	}
 }

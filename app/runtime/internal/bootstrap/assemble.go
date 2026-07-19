@@ -218,8 +218,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		return Host{}, err
 	}
 
-	turnServices := buildTurnServices(cfg, messages, utilityEnv.resolve)
-
 	// Tool environment: assembled outside the core (constructs the code-intel /
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
 	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
@@ -254,6 +252,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		}
 	}()
 	attachToolEnvironment(&ecfg, built)
+
+	// Built after the tool environment so the compactor's live-state reminder can
+	// read the same background-shell set the shell tools run over (built.Shells);
+	// turnServices is not consumed until the dispatcher config below.
+	turnServices := buildTurnServices(cfg, messages, built.Shells, utilityEnv.resolve)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {

@@ -8,6 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 )
 
 type turnServices struct {
@@ -16,7 +18,7 @@ type turnServices struct {
 	extractor turn.Extractor
 }
 
-func buildTurnServices(cfg Config, messages messageEnvironment, resolveUtility func(context.Context) *chatclient.Client) turnServices {
+func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, resolveUtility func(context.Context) *chatclient.Client) turnServices {
 	services := turnServices{
 		steering:  cfg.Steering,
 		compactor: cfg.Compactor,
@@ -33,6 +35,7 @@ func buildTurnServices(cfg Config, messages messageEnvironment, resolveUtility f
 		services.compactor = maintenance.NewCompactor(
 			messages.store,
 			resolveUtility,
+			liveStateSnapshot(shells, cfg.TodoStore),
 			maintenance.CompactionConfig{ContextWindow: window},
 		)
 	}
@@ -40,4 +43,33 @@ func buildTurnServices(cfg Config, messages messageEnvironment, resolveUtility f
 		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, maintenance.CurationConfig{})
 	}
 	return services
+}
+
+// liveStateSnapshot adapts the background-shell set and the todo store into the
+// compactor's live-state source: a session's still-running shells and its
+// in-progress tasks. Returns nil (reminder disabled) when neither source exists.
+// Building the reminder is best-effort — a todo-store read error omits the tasks
+// section rather than failing the compaction it decorates.
+func liveStateSnapshot(shells *exec.Shells, todos todo.Store) maintenance.LiveStateFunc {
+	if shells == nil && todos == nil {
+		return nil
+	}
+	return func(ctx context.Context, sessionID string) maintenance.LiveStateSnapshot {
+		var snap maintenance.LiveStateSnapshot
+		if shells != nil {
+			for _, sh := range shells.RunningForSession(sessionID) {
+				snap.Shells = append(snap.Shells, maintenance.RunningShell{ID: sh.ID, Command: sh.Command})
+			}
+		}
+		if todos != nil {
+			if items, err := todos.List(ctx, sessionID); err == nil {
+				for _, item := range items {
+					if item.Status == todo.StatusInProgress {
+						snap.Todos = append(snap.Todos, item.Content)
+					}
+				}
+			}
+		}
+		return snap
+	}
 }
