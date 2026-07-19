@@ -2,6 +2,7 @@ package turn
 
 import (
 	"context"
+	"hash/fnv"
 	"sync"
 	"time"
 
@@ -124,6 +125,16 @@ type turnState struct {
 	// steer that races turn-end must bounce back to the client (which retries it
 	// as a fresh send) rather than be queued into a turn nothing will ever drain.
 	flushed bool
+
+	// doom-loop brake (T13): track the last completed tool call so a model stuck
+	// repeating the SAME call with NO new information can be halted. doomKey is
+	// the call's tool+arguments; doomResult its output hash; doomRepeat the count
+	// of consecutive identical calls whose output was also identical. A repeated
+	// call whose output changes (e.g. polling a background command that is making
+	// progress) resets the count, so only a genuine no-progress loop is braked.
+	doomKey    string
+	doomResult uint64
+	doomRepeat int
 }
 
 func (st *turnState) prepareStart(request StartTurnRequest) {
@@ -194,6 +205,48 @@ func (st *turnState) claimEvents() bool {
 
 func (st *turnState) canSurface(kind string) bool {
 	return st.interruptKinds[kind]
+}
+
+// recordToolOutcome folds one completed tool call into the doom-loop counter.
+// It is called from the tool-observer end callback (possibly concurrently for a
+// parallel round), so it takes mu. arguments are the effective post-approval
+// arguments — the same value the gate reads via repeatedNoProgress — so the two
+// sides key consistently.
+func (st *turnState) recordToolOutcome(toolName, arguments, output string) {
+	key := toolName + "\x00" + arguments
+	digest := hashOutput(output)
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if key == st.doomKey && digest == st.doomResult {
+		st.doomRepeat++
+		return
+	}
+	st.doomKey = key
+	st.doomResult = digest
+	st.doomRepeat = 1
+}
+
+// repeatedNoProgress reports how many times the last run of completed calls was
+// exactly this tool+arguments with an unchanging output. The gate reads it
+// BEFORE running the call, so a return >= the brake threshold means enough
+// identical no-progress calls have already completed to treat the next as a loop.
+func (st *turnState) repeatedNoProgress(toolName, arguments string) int {
+	key := toolName + "\x00" + arguments
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if key != st.doomKey {
+		return 0
+	}
+	return st.doomRepeat
+}
+
+// hashOutput is a cheap, allocation-free fingerprint of a tool result. Only
+// equality matters (did the output change between identical calls), so FNV-64a
+// is sufficient and collisions merely risk one missed brake, never corruption.
+func hashOutput(output string) uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(output))
+	return h.Sum64()
 }
 
 // setProcess records the agent process backing this turn. runTurn / Rehydrate
