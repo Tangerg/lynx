@@ -21,6 +21,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
+// doomLoopThreshold is how many consecutive identical, no-new-output calls must
+// complete before the next such call is braked (T13). Read-only tools re-run
+// with the same args and same result are pure waste; three in a row is a strong
+// loop signal while still tolerating a normal retry or two.
+const doomLoopThreshold = 3
+
 // turnObserver bridges the engine's tool observer to the turn's event
 // channel. Each Approve / Start / End notification is translated into a
 // ToolCallStart / ToolCallEnd event so transport adapters surface them
@@ -132,6 +138,13 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 
 	switch plan.Action {
 	case approval.GatePass:
+		// Doom-loop brake (T13): a call that would auto-pass but has already run
+		// identically with no new output enough times is escalated to a human
+		// prompt — a would-deny or would-prompt call is untouched (policy already
+		// gates it), so this only adds a brake where the model runs unchecked.
+		if t.st.repeatedNoProgress(toolName, plan.Arguments) >= doomLoopThreshold {
+			return t.doomLoopEscalation(ctx, callID, toolName, plan.Arguments, plan.SafetyClass)
+		}
 		return agentexec.ToolApprovalVerdict{Arguments: plan.ArgumentOverride}
 	case approval.GateDeny:
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: plan.DenyReason}
@@ -183,6 +196,43 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return agentexec.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
+}
+
+// doomLoopEscalation brakes a model repeating the same call to no effect. It
+// raises the ordinary approval interrupt (reusing its resume, UI card, and
+// auto-deny-when-unanswerable machinery — a headless client that cannot answer
+// approvals auto-denies, braking the loop automatically) with a reason naming
+// the loop. On approval the call runs and the fresh turn state resets the
+// counter, so the model gets room to continue; on denial it receives recoverable
+// feedback and must change approach. No standing rule is consulted or recorded —
+// this is a one-off brake, not a persistent permission.
+func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName, arguments string, safetyClass tool.SafetyClass) agentexec.ToolApprovalVerdict {
+	pending := runs.Interrupt{
+		Kind: runs.ApprovalInterruptKind,
+		Approval: &runs.ApprovalPrompt{
+			CallID:      callID,
+			ToolName:    toolName,
+			Arguments:   arguments,
+			SafetyClass: safetyClass,
+			Risk:        tool.RiskHigh,
+			Reason: fmt.Sprintf("%q has been called with the same arguments and no new result %d times in a row — it may be stuck in a loop. Approve to let it continue, or deny to make the agent try a different approach.",
+				toolName, doomLoopThreshold),
+		},
+	}
+	if err := pending.Validate(); err != nil {
+		return agentexec.ToolApprovalVerdict{Interrupt: fmt.Errorf("turn: build doom-loop interrupt: %w", err)}
+	}
+	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
+		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments),
+		pending,
+	)
+	if err != nil {
+		return agentexec.ToolApprovalVerdict{Interrupt: err, Arguments: arguments}
+	}
+	if !res.Approved {
+		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(res.Reason)}
+	}
+	return agentexec.ToolApprovalVerdict{Arguments: cmp.Or(res.Arguments, arguments)}
 }
 
 func fileMutationScope(reporter agentexec.FileMutationReporter, arguments, cwd string) tool.FileMutationScope {
@@ -311,6 +361,10 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 	if hitl.IsInterrupt(err) {
 		return
 	}
+	// Feed the doom-loop brake (T13): a completed call — success, error, or a
+	// recoverable denial — with the same args and same output as the previous run
+	// is a no-progress repeat. The gate reads this count before the next call.
+	t.st.recordToolOutcome(toolName, arguments, output)
 	result := decodeToolResult(output)
 	end := ToolCallEnd{
 		CallID:       callID,
