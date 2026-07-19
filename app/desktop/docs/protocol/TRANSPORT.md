@@ -113,9 +113,10 @@ HTTP 用于浏览器与未来 facade 部署。采用 **streamable HTTP**：**流
 
 | 端点                    | 用途                                                                                              |
 | ----------------------- | ------------------------------------------------------------------------------------------------- |
-| `POST /v2/rpc/{method}` | 所有 JSON-RPC 调用。响应是 `application/json`（非流式）或 `text/event-stream`（流式方法，§6.4）。 |
-| `GET /v2/info`          | sidecar runtime 信息。                                                                            |
-| `GET /v2/health`        | sidecar 健康检查。                                                                                |
+| `POST /v2/rpc`          | 所有 JSON-RPC 调用；method 只来自 envelope。响应为 JSON 或 SSE。                                  |
+| `GET /v2/info`          | 公开的协议、服务与端点信息。                                                                      |
+| `GET /v2/health/live`   | 只检查进程是否存活。                                                                              |
+| `GET /v2/health/ready`  | 并发执行依赖探针；不就绪时返回 503 和逐项检查结果。                                                |
 
 > **没有独立的通知流端点**：每个流式调用的事件走它自己那条 POST 响应流（§6.4）。若将来真出现"带外 /
 > 服务端主动推送"需求（多客户端同步、server→client request 等 —— 目前 API.md §13 明确不做），可**增量**加回
@@ -124,24 +125,17 @@ HTTP 用于浏览器与未来 facade 部署。采用 **streamable HTTP**：**流
 > **路径里的 `/v2/` 与 `protocolVersion`（日期串）是两个层级**：`/v2/` 是 wire major epoch（只有大破坏
 > 才换路径前缀）；日期 `protocolVersion` 是该 epoch 内随 request metadata 发送的版本。两者不重复。
 
-`{method}` 保留点。例如：
-
-```text
-POST /v2/rpc/runs.start
-POST /v2/rpc/workspace.getDiff
-POST /v2/rpc/workspace.mcp.listServers
-```
-
-无 method 后缀的 `POST /v2/rpc` 非法。
+URL 不再重复 method，避免 URL 与 body 出现两个真相来源。所有调用统一发送到 `POST /v2/rpc`。
 
 ### 6.2 POST 契约
 
 请求（流式与非流式同一形态；客户端声明它两种响应都能收）：
 
 ```http
-POST /v2/rpc/runs.start
+POST /v2/rpc
 Content-Type: application/json
 Accept: application/json, text/event-stream
+Idempotency-Key: 80bcab0c-77f5-4778-9934-fd8621683188
 traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
 Authorization: Bearer <local-token>
 ```
@@ -174,8 +168,12 @@ body：
 }
 ```
 
-URL 里的 method 与 body 里的 method 必须一致；不一致是**自相矛盾的畸形请求**（不是资源状态冲突），返
-`400 Bad Request`，与其它畸形请求同类。
+`Idempotency-Key` 是传输元数据，不进入 params。服务端先原子 claim key，再执行并持久化第一份响应；同 key + 同请求在完成后
+重放，首个执行未完成时返回 `idempotency_in_progress`，同 key + 不同请求返回 `idempotency_conflict`。因此并发请求不能越过
+缓存重复落业务写入。流式 run 的重放会订阅既有 run；run 已结束时返回缓存成功响应并立即结束流，由客户端按正常断流恢复
+路径重拉持久化状态。业务响应已生成但缓存 `Complete` 暂时失败时，服务端保留该响应并返回 `idempotency_in_progress`；后续
+同 key 重试先补写/重放它，绝不重跑业务 handler。记录保留 24 小时；过期后 key 可重新表示一次新操作，服务端会在后续 claim
+时清理过期记录。
 
 **响应按方法分两种形态**（content negotiation —— client 按响应 `Content-Type` 分支；**哪些方法流式由
 `ServerCapabilities.streamingMethods` 机器可读声明**，见 API.md §9，client 不硬编码方法名）：
@@ -219,6 +217,12 @@ HTTP status 只描述传输层失败。
 
 > 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
 > 处理未决"）；自相矛盾的请求（method 不一致）归 `400`，**不**用 `409`（409 专表与资源当前状态的冲突）。
+
+除 `404` / `405` 等由 HTTP 路由器直接产生的标准响应外，transport 失败使用
+`application/problem+json`，字段为 `{ type, title, status, detail, requestId? }`；`type` 是稳定的
+`urn:lyra:transport:*` 判别键，`requestId` 与响应头 `Request-Id` 相同。客户端不得把 transport problem
+误当作 JSON-RPC `error`。例如 JSON 无法解码为 JSON-RPC message 时返回 `400` +
+`urn:lyra:transport:invalid_request`，而已经解码成功后的 method / params 错误仍返回 `200` JSON-RPC error。
 
 **不要**把 `session_not_found` / `path_outside_root` 等业务错误映射成 HTTP status（业务错误走 JSON-RPC
 `error`，见 API.md §8）。
@@ -349,8 +353,7 @@ server **必须**通过 durable 的 `item.completed` / `state.snapshot` 以及 `
 
 ## 10. 创建请求重试
 
-`runs.start` 是非幂等资源创建。HTTP client 在响应结果未知时不得自动重放请求：先用 `runs.list{sessionId}` 对账，
-若目标 Run 已存在则通过 `runs.subscribe` 续流；只有确认创建未发生后才重新发送。普通只读调用可按其业务语义重试。
+有副作用的调用应携带稳定的 `Idempotency-Key`，直到取得确定结果后才生成新 key。只读调用可按其业务语义重试。
 
 ## 11. 本地门禁 token
 
@@ -360,8 +363,8 @@ loopback HTTP 必须防止任意本地网页 / 本地进程访问 runtime。
 
 - 运行时初始化时生成随机 token；
 - 存到 owner-only 权限的用户私有文件；
-- `/v2/rpc/*` 要求 `Authorization: Bearer <token>`；token 缺失/错误返 `401` + `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）；
-- `/v2/health` 免 token；
+- `/v2/rpc` 要求 `Authorization: Bearer <token>`；token 缺失/错误返 `401` + `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）；
+- `/v2/health/live`、`/v2/health/ready` 免 token；
 - `/v2/info` 仅在不含 secret 时免 token。
 
 token 是本地进程门禁，**不是用户鉴权**（协议层零 user 概念，见 API.md §15）。
@@ -372,66 +375,43 @@ sidecar 端点不走 JSON-RPC（扁平 JSON、无需 discovery、无鉴权）。
 
 **它们只在 HTTP transport 存在**，因为只有 HTTP 才有这种运维场景：`curl` / oncall 探活、k8s
 liveness/readiness、反代 upstream 健康检查 —— 这些要的是"不套 envelope、无鉴权"的端点。
-InProcess / IPC 没有这种场景（无网络探针、客户端直接持有 runtime 对象），**同样的需求由协议内方法覆盖**：
+InProcess / IPC 没有 HTTP 运维探针；宿主直接管理对象生命周期与依赖检查：
 
 | 需求                                            | HTTP                     | InProcess / IPC                                 |
 | ----------------------------------------------- | ------------------------ | ----------------------------------------------- |
 | 运行信息（serverInfo / version / capabilities） | sidecar `GET /v2/info`   | `runtime.discover` 响应（本就携带同样内容）     |
-| 存活探测                                        | sidecar `GET /v2/health` | `runtime.ping`（API.md §7.1：仅 InProcess/IPC） |
+| 存活探测                                        | `GET /v2/health/live`    | 宿主进程状态                                    |
+| 就绪探测                                        | `GET /v2/health/ready`   | 宿主依赖检查                                    |
 
-即：`/v2/info` 内容 = `runtime.discover` 响应的扁平子集；`/v2/health` 等价于 `runtime.ping`。
+`/v2/info` 只公开接入所需信息，不泄露 cwd、home、能力快照或内部依赖。
 
 > **规律：非 JSON-RPC 的旁路通道各 transport 用自己的原生形态实现；场景不适用的 transport 由协议内
 > 方法替代。**（图片输入不属于此类——它内联在 `runs.start.input` 的 image ContentBlock 里走常规 JSON-RPC，
 > 无独立二进制上传通道。）
 
-### 12.1 `GET /v2/health`
+### 12.1 `GET /v2/health/live` 与 `GET /v2/health/ready`
 
 ```json
-{ "ok": true }
+{ "status": "ok" }
 ```
 
-仅用于传输层 liveness。`200`=ok；`503`=degraded/unhealthy。
+live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ### 12.2 `GET /v2/info`
 
 ```json
 {
-  "protocolVersion": "2026-07-19",
-  "serverInfo": {
-    "name": "lyra-runtime",
-    "version": "0.0.0",
-    "cwd": "/path/to/serve/cwd",
-    "home": "/Users/example"
-  },
-  "capabilities": {
-    "protocolVersion": "2026-07-19",
-    "events": [
-      "segment.started",
-      "segment.progress",
-      "segment.finished",
-      "item.started",
-      "item.delta",
-      "item.completed",
-      "state.snapshot",
-      "state.delta"
-    ],
-    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe"],
-    "features": {
-      "reasoning": true,
-      "mcp": true,
-      "relocate": true,
-      "multimodal": true
-    },
-    "providers": [],
-    "limits": {}
+  "protocol": { "current": "2026-07-19", "minSupported": "2026-07-19" },
+  "server": { "name": "lyra-runtime", "version": "0.0.0" },
+  "transport": "http",
+  "endpoints": {
+    "rpc": "/v2/rpc",
+    "info": "/v2/info",
+    "liveness": "/v2/health/live",
+    "readiness": "/v2/health/ready"
   }
 }
 ```
-
-> `features` 是**开放 map**（API.md §9）：未声明的 key 视为关闭，故 server 只需 advertise 它真正开启的能力，
-> 新增能力加一个 key 即可、不 bump 契约。`/v2/info` 与 `runtime.discover` 必须由同一份 server 状态支撑。
-> `limits.maxConcurrentRuns` 只在 server 实际实施进程级硬上限时出现；省略表示未声明全局上限，不能把客户端连接预算伪装成 admission 规则。
 
 ## 13. CORS
 
@@ -442,7 +422,7 @@ loopback HTTP 应限制 origin。
 - 放行内置客户端 origin；
 - 放行显式配置的开发 origin；
 - 启用本地门禁 token 时拒绝通配 origin；
-- 允许 header：`Content-Type`、`Authorization`、`Last-Event-Id`、`traceparent`、`tracestate`、`baggage`；
+- 允许 header：`Content-Type`、`Authorization`、`Idempotency-Key`、`Last-Event-Id`、`traceparent`、`tracestate`、`baggage`；
 - expose header：`X-Method`、`X-Server`、`traceparent`。
 
 ## 14. 压缩与 buffering

@@ -3,21 +3,45 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/idempotency"
 )
 
-// Dispatcher routes inbound JSON-RPC messages to typed Runtime
-// methods. It is stateless; request-scoped metadata is carried on ctx.
+// Dispatcher routes inbound JSON-RPC messages to typed Runtime methods and
+// coordinates replay-protected mutations. Request-scoped metadata is carried
+// on ctx; durable replay records live in store.
 type Dispatcher struct {
-	api protocol.Runtime
+	api         protocol.Runtime
+	store       idempotency.Store
+	replayLocks [64]sync.Mutex
+	pendingMu   sync.Mutex
+	pending     map[string]idempotency.Record
+}
+
+type Option func(*Dispatcher)
+
+// WithIdempotencyStore replaces the default process-local replay store.
+func WithIdempotencyStore(store idempotency.Store) Option {
+	return func(dispatcher *Dispatcher) {
+		if store != nil {
+			dispatcher.store = store
+		}
+	}
 }
 
 // New builds a Dispatcher bound to the given Runtime. The returned
 // Dispatcher is safe for parallel Handle calls.
-func New(api protocol.Runtime) *Dispatcher {
-	return &Dispatcher{api: api}
+func New(api protocol.Runtime, options ...Option) *Dispatcher {
+	dispatcher := &Dispatcher{
+		api: api, store: newMemoryIdempotencyStore(), pending: make(map[string]idempotency.Record),
+	}
+	for _, option := range options {
+		option(dispatcher)
+	}
+	return dispatcher
 }
 
 // HandleResult holds what the dispatcher returns after processing one
@@ -36,20 +60,11 @@ type HandleResult struct {
 	EventStream <-chan StreamFrame
 }
 
-// Handle is the entry point — every inbound transport.Message goes
-// through here. ExpectedMethod, when non-empty, is the method the
-// transport extracted from the URL path (POST /v2/rpc/{method}); the
-// dispatcher cross-checks it against the body method.
-func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expectedMethod string) HandleResult {
+// Handle is the entry point — every inbound transport.Message goes through here.
+func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message) HandleResult {
 	req, ok := msg.(*transport.Request)
 	if !ok || req == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
-	}
-
-	if expectedMethod != "" && expectedMethod != req.Method {
-		return responseError(req.ID, badEnvelope(fmt.Sprintf(
-			"url method %q does not match body method %q", expectedMethod, req.Method,
-		)))
 	}
 
 	// API.md §2.2: all ids are strings. Reject non-string ids at the
@@ -82,5 +97,5 @@ func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message, expected
 		return HandleResult{}
 	}
 
-	return d.dispatchRequest(ctx, req)
+	return d.dispatchReplayProtected(ctx, req)
 }
