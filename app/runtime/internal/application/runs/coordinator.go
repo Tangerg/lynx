@@ -288,10 +288,12 @@ func (c *Coordinator) ActiveSessionWithCwd(cwd string) string {
 // ActiveSessions snapshots the session ids with a live run or admission claim.
 func (c *Coordinator) ActiveSessions() map[string]bool { return c.registry.ActiveSessions() }
 
-// ClaimSession and ReleaseSession are the single-writer admission slot; the
-// Coordinator satisfies the lifecycle session-claimer port the runtime consumes.
-func (c *Coordinator) ClaimSession(sessionID string) bool { return c.registry.ClaimSession(sessionID) }
-func (c *Coordinator) ReleaseSession(sessionID string)    { c.registry.ReleaseSession(sessionID) }
+// AcquireSession reserves the single-writer admission slot and returns its
+// ownership-bound release. The Coordinator satisfies the lifecycle
+// session-claimer port the runtime consumes.
+func (c *Coordinator) AcquireSession(sessionID string) (func(), bool) {
+	return c.registry.AcquireSession(sessionID)
+}
 
 // Close stops accepting new runs and cancels + joins the in-flight pumps.
 func (c *Coordinator) Close() { c.tasks.Close() }

@@ -266,7 +266,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if !coordinator.registry.ActiveSession("ses_1") {
 		t.Fatal("session admission was released before terminal maintenance completed")
 	}
-	if coordinator.registry.ClaimSession("ses_1") {
+	if _, ok := coordinator.registry.AcquireSession("ses_1"); ok {
 		t.Fatal("new run admission crossed the terminal-maintenance fence")
 	}
 

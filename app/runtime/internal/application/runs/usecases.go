@@ -39,10 +39,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := c.claimFreshRun(ctx, sess.ID); err != nil {
+	releaseSession, err := c.claimFreshRun(ctx, sess.ID)
+	if err != nil {
 		return StartResult{}, err
 	}
-	defer c.ReleaseSession(sess.ID)
+	defer releaseSession()
 
 	releaseTree, ok := c.sessions.AcquireWorkingTreeRun(sess.Cwd)
 	if !ok {
@@ -116,10 +117,11 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	if !c.ClaimSession(pending.SessionID) {
+	releaseSession, ok := c.AcquireSession(pending.SessionID)
+	if !ok {
 		return StartResult{}, fmt.Errorf("%w: session %q has a run in flight", ErrSessionBusy, pending.SessionID)
 	}
-	defer c.ReleaseSession(pending.SessionID)
+	defer releaseSession()
 
 	sess, err := c.sessions.Get(ctx, pending.SessionID)
 	if err != nil {
@@ -198,10 +200,11 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	if !found {
 		return ErrRunNotFound
 	}
-	if !c.ClaimSession(pending.SessionID) {
+	releaseSession, ok := c.AcquireSession(pending.SessionID)
+	if !ok {
 		return ErrSessionBusy
 	}
-	defer c.ReleaseSession(pending.SessionID)
+	defer releaseSession()
 	cleanupCtx, cancel = context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	if err := c.sessions.ApplyRunCancel(cleanupCtx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
 		cancel()
@@ -242,20 +245,21 @@ func (c *Coordinator) resolveSession(ctx context.Context, id, defaultCwd, title 
 	return c.sessions.Get(ctx, id)
 }
 
-func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) error {
-	if !c.ClaimSession(sessionID) {
-		return ErrSessionBusy
+func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) (func(), error) {
+	release, ok := c.AcquireSession(sessionID)
+	if !ok {
+		return nil, ErrSessionBusy
 	}
 	open, err := c.sessions.ListOpenInterrupts(ctx, sessionID)
 	if err != nil {
-		c.ReleaseSession(sessionID)
-		return err
+		release()
+		return nil, err
 	}
 	if len(open) > 0 {
-		c.ReleaseSession(sessionID)
-		return ErrSessionBusy
+		release()
+		return nil, ErrSessionBusy
 	}
-	return nil
+	return release, nil
 }
 
 func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (TurnRef, error) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -24,6 +25,7 @@ type fakeRunSessions struct {
 	lostAt        time.Time
 	treeOK        bool
 	treeReleases  int
+	treeRelease   func()
 	operations    *[]string
 }
 
@@ -83,7 +85,14 @@ func (f *fakeRunSessions) AcquireWorkingTreeRun(string) (func(), bool) {
 		return nil, false
 	}
 	var once sync.Once
-	return func() { once.Do(func() { f.treeReleases++ }) }, true
+	return func() {
+		once.Do(func() {
+			if f.treeRelease != nil {
+				f.treeRelease()
+			}
+			f.treeReleases++
+		})
+	}, true
 }
 
 type fakeTurnControl struct {
@@ -191,6 +200,64 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	}
 	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
+	}
+}
+
+func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
+	finishStarted := make(chan struct{}, 1)
+	releaseFinish := make(chan struct{})
+	allowStartReturn := make(chan struct{})
+	sessions := &fakeRunSessions{
+		sess:   session.Session{ID: "ses_1", Cwd: "/work"},
+		treeOK: true,
+		treeRelease: func() {
+			<-allowStartReturn
+		},
+	}
+	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
+	c := newUseCaseCoordinator(
+		&fakeExecutor{events: []EngineEvent{TurnEnd{Reason: execution.OutcomeCompleted}}},
+		&fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
+		sessions,
+		effects,
+	)
+
+	type startOutcome struct {
+		result StartResult
+		err    error
+	}
+	started := make(chan startOutcome, 1)
+	go func() {
+		result, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Message: "hello"})
+		started <- startOutcome{result: result, err: err}
+	}()
+
+	select {
+	case <-finishStarted:
+	case <-time.After(time.Second):
+		t.Fatal("fast run did not reach terminal maintenance")
+	}
+	// Let Start return only after maintenance has acquired its own claim. Its
+	// deferred opening release used to erase that newer claim by session id.
+	close(allowStartReturn)
+	outcome := <-started
+	if outcome.err != nil {
+		t.Fatalf("Start: %v", outcome.err)
+	}
+	if !c.ActiveSession("ses_1") {
+		t.Fatal("Start release erased the in-flight terminal-maintenance claim")
+	}
+	if release, ok := c.AcquireSession("ses_1"); ok {
+		release()
+		t.Fatal("new admission crossed terminal maintenance after Start returned")
+	}
+
+	close(releaseFinish)
+	for range outcome.result.Events {
+	}
+	c.Close()
+	if c.ActiveSession("ses_1") {
+		t.Fatal("terminal maintenance did not release its claim")
 	}
 }
 
