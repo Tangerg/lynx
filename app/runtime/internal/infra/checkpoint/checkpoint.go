@@ -9,11 +9,11 @@
 // to that tag. The only OS dependency is the git binary, which lyra already
 // requires for workspace diffs — so this is platform-agnostic.
 //
-// To avoid re-storing a project that git already has, a fresh shadow repo SEEDS
-// itself from the real repo at cwd (see [Store.seedFrom]): it shares the real
-// .git object store via objects/info/alternates and copies its index, so the
-// baseline snapshot references existing blobs and skips re-hashing unchanged
-// files — instead of duplicating the whole working tree on the first run.
+// To avoid re-hashing a project that git already has, a fresh shadow repo SEEDS
+// itself from the real repo at cwd (see [Store.seedFrom]): it temporarily shares
+// the real object store and copies its index. Once the first boundary commits,
+// the reachable borrowed objects are packed into the shadow repo and the link is
+// removed, so completed checkpoints remain self-contained.
 package checkpoint
 
 import (

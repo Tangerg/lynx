@@ -22,12 +22,19 @@ func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error
 	if _, err := s.git(ctx, gitDir, cwd, "rev-parse", "-q", "--verify", "refs/tags/"+tagFor(runID)); err != nil {
 		return ErrUnavailable
 	}
+	if err := s.materializeAlternates(ctx, gitDir); err != nil {
+		return err
+	}
 	// Reversibility: capture the pre-restore state as a commit before resetting,
 	// but only when there's something to capture (no empty commit otherwise).
 	if err := s.stageChanges(ctx, gitDir, cwd); err != nil {
 		return err
 	}
-	if s.shouldCommit(ctx, gitDir, cwd) {
+	shouldCommit, err := s.shouldCommit(ctx, gitDir, cwd)
+	if err != nil {
+		return err
+	}
+	if shouldCommit {
 		// The pre-restore commit is what makes the restore reversible (unrevert).
 		// If it fails, do NOT proceed to the destructive reset below — that would
 		// discard the working-tree state with no recovery point, turning a
