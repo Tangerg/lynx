@@ -27,7 +27,7 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("Delete err = %v, want ErrUnavailable", err)
 	}
-	if err := c.RunNow(ctx, "sch_1", nil); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := c.RunNow(ctx, "sch_1", nil); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("RunNow err = %v, want ErrUnavailable", err)
 	}
 }
@@ -40,7 +40,7 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
 
-	if err := c.RunNow(ctx, "sch_1", &runner); err != nil {
+	if _, err := c.RunNow(ctx, "sch_1", &runner); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
 	if registry.recordedID != "sch_1" || !registry.recordedAt.Equal(now) {
@@ -57,7 +57,7 @@ func TestRunNowDoesNotRecordCancellationAbortedRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
 
-	if err := c.RunNow(ctx, "sch_1", &runner); !errors.Is(err, context.Canceled) {
+	if _, err := c.RunNow(ctx, "sch_1", &runner); !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunNow error = %v, want context.Canceled", err)
 	}
 	if registry.recordedID != "" {
@@ -126,13 +126,10 @@ func TestUpdateOwnsPatchAndPreservesDurableState(t *testing.T) {
 	})
 	cwd, prompt, enabled := "after", "after", false
 
-	updated, err := c.Update(t.Context(), UpdateCommand{
-		ID: "sch_1",
-		Patch: schedule.Patch{
-			Prompt:  &prompt,
-			Cwd:     &cwd,
-			Enabled: &enabled,
-		},
+	updated, err := c.UpdateLatest(t.Context(), "sch_1", schedule.Patch{
+		Prompt:  &prompt,
+		Cwd:     &cwd,
+		Enabled: &enabled,
 	})
 	if err != nil {
 		t.Fatalf("Update: %v", err)
@@ -142,6 +139,14 @@ func TestUpdateOwnsPatchAndPreservesDurableState(t *testing.T) {
 	}
 	if !updated.LastRunAt.Equal(lastRun) || !updated.CreatedAt.Equal(createdAt) || !updated.NextRunAt.IsZero() {
 		t.Fatalf("updated durable state = %+v", updated)
+	}
+}
+
+func TestUpdateRequiresAnExplicitRevision(t *testing.T) {
+	c := New(Dependencies{Registry: &runNowRegistry{schedule: schedule.Schedule{ID: "sch_1"}}})
+	_, err := c.Update(t.Context(), UpdateCommand{ID: "sch_1"})
+	if !errors.Is(err, schedule.ErrRevisionRequired) {
+		t.Fatalf("Update error = %v, want ErrRevisionRequired", err)
 	}
 }
 
@@ -180,7 +185,7 @@ func (r *runNowRegistry) Create(_ context.Context, sc schedule.Schedule) (schedu
 	r.created = sc
 	return sc, nil
 }
-func (r *runNowRegistry) Update(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (r *runNowRegistry) Update(_ context.Context, sc schedule.Schedule, _ uint64) (schedule.Schedule, error) {
 	r.updated = sc
 	return sc, nil
 }

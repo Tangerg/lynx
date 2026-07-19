@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 func TestDownloadTool_WritesAndRefusesBlindOverwrite(t *testing.T) {
@@ -259,6 +260,38 @@ func TestScheduleTool_CreateValidatesEntityBeforeNextRun(t *testing.T) {
 	}
 }
 
+func TestScheduleTool_UpdateUsesCurrentSQLiteRevision(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "runtime.db"))
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewScheduleStore(db)
+	tool, err := newScheduleTool(newTestScheduleCoordinator(store))
+	if err != nil {
+		t.Fatalf("newScheduleTool: %v", err)
+	}
+
+	body, err := tool.Call(t.Context(), `{"op":"create","prompt":"review","cron":"0 9 * * *"}`)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	var created scheduleResponse
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		t.Fatalf("decode create: %v", err)
+	}
+	if _, err := tool.Call(t.Context(), `{"op":"update","id":"`+created.Schedule.ID+`","enabled":false}`); err != nil {
+		t.Fatalf("update through sqlite: %v", err)
+	}
+	stored, err := store.Get(t.Context(), created.Schedule.ID)
+	if err != nil {
+		t.Fatalf("get updated: %v", err)
+	}
+	if stored.Enabled || stored.Revision != 2 {
+		t.Fatalf("updated schedule = %+v, want disabled revision 2", stored)
+	}
+}
+
 func TestScheduleTool_CreateRejectsUnavailableCwd(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
 	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
@@ -371,7 +404,7 @@ func (m *memoryScheduleRegistry) Create(_ context.Context, sc schedule.Schedule)
 	return sc, nil
 }
 
-func (m *memoryScheduleRegistry) Update(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (m *memoryScheduleRegistry) Update(_ context.Context, sc schedule.Schedule, _ uint64) (schedule.Schedule, error) {
 	if _, ok := m.items[sc.ID]; !ok {
 		return schedule.Schedule{}, schedule.ErrNotFound
 	}

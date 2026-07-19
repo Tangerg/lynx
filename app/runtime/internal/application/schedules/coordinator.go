@@ -51,8 +51,9 @@ type CreateCommand struct {
 
 // UpdateCommand applies a partial edit to one stored schedule.
 type UpdateCommand struct {
-	ID    string
-	Patch schedule.Patch
+	ID               string
+	Patch            schedule.Patch
+	ExpectedRevision uint64
 }
 
 // New returns a Coordinator over deps. A nil registry yields a disabled
@@ -120,23 +121,52 @@ func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.S
 	if cmd.ID == "" {
 		return schedule.Schedule{}, schedule.ErrIDRequired
 	}
+	if cmd.ExpectedRevision == 0 {
+		return schedule.Schedule{}, schedule.ErrRevisionRequired
+	}
 	existing, err := c.registry.Get(ctx, cmd.ID)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", cmd.ID, err)
 	}
-	updated, err := existing.Apply(cmd.Patch).ScheduledAfter(c.now())
+	return c.updateExisting(ctx, existing, cmd.Patch, cmd.ExpectedRevision)
+}
+
+// UpdateLatest applies an internal automation patch to the latest durable
+// revision. Unlike the user-facing Update command, an Agent tool has no stale UI
+// snapshot to protect; the coordinator's own read is its OCC baseline.
+func (c *Coordinator) UpdateLatest(ctx context.Context, id string, patch schedule.Patch) (schedule.Schedule, error) {
+	if !c.enabled {
+		return schedule.Schedule{}, schedule.ErrUnavailable
+	}
+	if id == "" {
+		return schedule.Schedule{}, schedule.ErrIDRequired
+	}
+	existing, err := c.registry.Get(ctx, id)
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", id, err)
+	}
+	return c.updateExisting(ctx, existing, patch, existing.Revision)
+}
+
+func (c *Coordinator) updateExisting(
+	ctx context.Context,
+	existing schedule.Schedule,
+	patch schedule.Patch,
+	expectedRevision uint64,
+) (schedule.Schedule, error) {
+	updated, err := existing.Apply(patch).ScheduledAfter(c.now())
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	if cmd.Patch.Cwd != nil {
+	if patch.Cwd != nil {
 		updated.Cwd, err = c.resolveCwd(updated.Cwd)
 		if err != nil {
 			return schedule.Schedule{}, err
 		}
 	}
-	updated, err = c.registry.Update(ctx, updated)
+	updated, err = c.registry.Update(ctx, updated, expectedRevision)
 	if err != nil {
-		return schedule.Schedule{}, fmt.Errorf("schedules: update %q: %w", cmd.ID, err)
+		return schedule.Schedule{}, fmt.Errorf("schedules: update %q: %w", existing.ID, err)
 	}
 	return updated, nil
 }
@@ -173,21 +203,22 @@ func (c *Coordinator) resolveCwd(cwd string) (string, error) {
 // the cron cursor. Once the run is accepted, recording uses a bounded context
 // detached from the request: a client disconnect must not make the durable
 // LastRunAt claim that the accepted run never happened.
-func (c *Coordinator) RunNow(ctx context.Context, id string, runner Runner) error {
+func (c *Coordinator) RunNow(ctx context.Context, id string, runner Runner) (RunHandle, error) {
 	sc, err := c.registry.Get(ctx, id)
 	if err != nil {
-		return err
+		return RunHandle{}, err
 	}
-	if _, err := Fire(ctx, runner, sc); err != nil {
-		return err
+	handle, err := Fire(ctx, runner, sc)
+	if err != nil {
+		return RunHandle{}, err
 	}
 
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
 	defer cancel()
 	if err := c.registry.RecordRun(writeCtx, id, c.now().UTC()); err != nil {
-		return fmt.Errorf("schedules: record run-now for %q: %w", id, err)
+		return RunHandle{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
 	}
-	return nil
+	return handle, nil
 }
 
 // RunWorker starts the due-schedule scanner until ctx is canceled. No worker
@@ -215,7 +246,7 @@ func (disabledRegistry) Create(context.Context, schedule.Schedule) (schedule.Sch
 	return schedule.Schedule{}, schedule.ErrUnavailable
 }
 
-func (disabledRegistry) Update(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+func (disabledRegistry) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
 	return schedule.Schedule{}, schedule.ErrUnavailable
 }
 

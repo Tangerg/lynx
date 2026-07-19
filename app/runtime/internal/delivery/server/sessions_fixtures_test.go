@@ -190,8 +190,12 @@ func (s stubRuntime) ValidateStart(req runs.StartTurn) error {
 	return turn.NewExecutor(s.turnDispatcher()).ValidateStart(req)
 }
 
-func (s stubRuntime) Start(ctx context.Context, req runs.StartTurn) (runs.TurnRef, error) {
-	return turn.NewExecutor(s.turnDispatcher()).Start(ctx, req)
+func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartTurn) (runs.TurnRef, error) {
+	return turn.NewExecutor(s.turnDispatcher()).PrepareStart(ctx, req)
+}
+
+func (s stubRuntime) Activate(ctx context.Context, ref runs.TurnRef) error {
+	return turn.NewExecutor(s.turnDispatcher()).Activate(ctx, ref)
 }
 
 func (s stubRuntime) Prepare(ctx context.Context, ref runs.TurnRef) (runs.TurnRef, error) {
