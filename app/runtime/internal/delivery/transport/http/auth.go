@@ -18,7 +18,7 @@ import (
 //
 //	Authorization: Bearer <Value>
 //
-// on every POST /v2/rpc/{method}. The sidecars and the SSE stream
+// on every POST /v2/rpc. The sidecars and the SSE stream
 // stay open per the frontend's `httpTransport` contract.
 type LocalToken struct {
 	Value string
@@ -52,15 +52,15 @@ func IssueLocalToken(path string) (*LocalToken, error) {
 	return &LocalToken{Value: value, Path: path}, nil
 }
 
-// authGate enforces the local-token check on POST /v2/rpc/*. Two paths
-// bypass: the sidecars (/v2/info, /v2/health) and CORS preflights. Under
+// authGate enforces the local-token check on POST /v2/rpc. Two paths
+// bypass: the operational sidecars and CORS preflights. Under
 // streamable HTTP every stream is a POST, so the gate covers streaming
 // too — there is no header-less EventSource to special-case (TRANSPORT
 // §7/§11).
 //
-// On failure, the response is a flat-JSON 401 ({"error":
-// "missing_local_token"}) — NOT the JSON-RPC envelope, since this
-// fires below the protocol layer (TRANSPORT §6.3).
+// On failure, the response is an RFC 9457 application/problem+json 401,
+// not a JSON-RPC envelope, because authentication runs below the protocol
+// layer (TRANSPORT §6.3).
 func (s *Server) authGate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.localToken == "" {
@@ -75,7 +75,7 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 			// RFC 9110 §15.5.2 — a 401 MUST carry a challenge (TRANSPORT
 			// §6.3/§11). The gate is a single bare Bearer scheme.
 			w.Header().Set("WWW-Authenticate", "Bearer")
-			writeFlatError(w, http.StatusUnauthorized, "missing_local_token", true)
+			writeProblem(w, http.StatusUnauthorized, "unauthorized", "a valid local bearer token is required", true)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -83,11 +83,11 @@ func (s *Server) authGate(next http.Handler) http.Handler {
 }
 
 // isAuthBypassPath flags requests that intentionally skip the gate: the
-// two sidecars (no-auth ops endpoints). Everything under /v2/rpc/* —
+// operational sidecars (no-auth ops endpoints). The RPC endpoint —
 // including streaming POSTs — is gated.
 func isAuthBypassPath(p string) bool {
 	switch p {
-	case "/v2/info", "/v2/health":
+	case infoPath, livenessPath, readinessPath:
 		return true
 	}
 	return false

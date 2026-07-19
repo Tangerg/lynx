@@ -1,8 +1,11 @@
 package http
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"go.opentelemetry.io/otel"
@@ -31,6 +34,8 @@ import (
 func (s *Server) observability(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		w.Header().Set("Request-Id", newRequestID())
+		w.Header().Set("X-Server", s.serverID)
 
 		// Continue the client's trace when it sent one, else start fresh —
 		// this is where the request's trace_id comes into being.
@@ -63,13 +68,23 @@ func (s *Server) observability(next http.Handler) http.Handler {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
 				if !rec.wroteHeader {
-					writeFlatError(rec, http.StatusInternalServerError, "internal error", false)
+					writeProblem(rec, http.StatusInternalServerError, "internal_error", "the transport failed to process the request", false)
 				}
 			}
 		}()
 
 		next.ServeHTTP(rec, r)
 	})
+}
+
+var requestSequence atomic.Uint64
+
+func newRequestID() string {
+	var random [16]byte
+	if _, err := rand.Read(random[:]); err == nil {
+		return "req_" + hex.EncodeToString(random[:])
+	}
+	return fmt.Sprintf("req_%x_%x", time.Now().UnixNano(), requestSequence.Add(1))
 }
 
 // recordingResponseWriter is a tiny wrapper that captures status +

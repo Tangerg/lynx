@@ -22,10 +22,8 @@ type fakeRuntime struct {
 }
 
 func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
-	return &protocol.DiscoverResponse{ProtocolVersion: testProtocolVersion}, nil
+	return &protocol.DiscoverResponse{Protocol: protocol.SupportedProtocolRange()}, nil
 }
-
-func (f *fakeRuntime) Ping(_ context.Context) error { return nil }
 
 func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) error {
 	f.cancelledRuns = append(f.cancelledRuns, in.RunID)
@@ -40,7 +38,6 @@ func newTestServer(t *testing.T) (*httptest.Server, *fakeRuntime) {
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,
-		Capabilities:    protocol.ServerCapabilities{},
 	})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)

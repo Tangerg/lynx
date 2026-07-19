@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetContainer, setContainer } from "@/main/container";
 import type { LyraClient, Methods } from "@/rpc";
+import { asSessionId } from "@/rpc";
 import { agentRuntime } from "../application/ports/runtimeGateway";
 import { installAgentRuntimeGateway } from "./agentRuntimeGateway";
 
@@ -30,7 +31,7 @@ describe("agentRuntimeGateway", () => {
     ).resolves.toEqual({ revision: 12 });
 
     expect(update).toHaveBeenCalledWith({
-      sessionId: "ses_1",
+      sessionId: asSessionId("ses_1"),
       expectedRevision: 11,
       favorite: true,
     } satisfies Parameters<Methods["sessions"]["update"]>[0]);

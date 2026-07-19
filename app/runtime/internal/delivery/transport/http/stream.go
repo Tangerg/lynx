@@ -30,14 +30,13 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 	// stricter Cache-Control intact (it only fills no-cache when unset).
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("X-Accel-Buffering", "no")
-	w.Header().Set("X-Server", s.serverID)
 	if methodLabel != "" {
 		w.Header().Set("X-Method", methodLabel)
 	}
 
 	sw, err := sse.NewHTTPWriter(w)
 	if err != nil {
-		writeFlatError(w, http.StatusInternalServerError, "streaming unsupported", false)
+		writeProblem(w, http.StatusInternalServerError, "streaming_unsupported", "response streaming is unavailable", false)
 		return
 	}
 	ctx := r.Context()

@@ -1,16 +1,17 @@
 // Package http implements the Lyra Runtime Protocol's streamable-HTTP
 // transport. One endpoint carries JSON-RPC:
 //
-//	POST /v2/rpc/{method}   Request / Notification. A streaming method
+//	POST /v2/rpc            Request / Notification. A streaming method
 //	                        (runs.start/resume/subscribe)
 //	                        replies text/event-stream — the response body
 //	                        IS the call's event stream (TRANSPORT §6.4);
 //	                        everything else replies application/json.
 //
-// Two sidecars (flat JSON, no envelope, no auth):
+// Operational sidecars use typed JSON without an envelope or auth:
 //
-//	GET /v2/info              ServerInfo + protocolVersion + capabilities
-//	GET /v2/health            liveness probe
+//	GET /v2/info              Public server and protocol identity
+//	GET /v2/health/live       Process liveness
+//	GET /v2/health/ready      Dependency readiness
 //
 // See docs/{API,TRANSPORT}.md for the wire details. The middleware here wraps
 // each request in an OTel span and sets the X-Method header — the dispatcher
@@ -20,7 +21,6 @@ package http
 import (
 	"context"
 	"errors"
-	"maps"
 	"net/http"
 	"slices"
 	"sync"
@@ -31,6 +31,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/idempotency"
 )
 
 // messageHandler is the dispatch surface this transport needs: route
@@ -40,7 +41,7 @@ import (
 // dispatcher's per-conn state stays its own concern, and tests can
 // inject a fake without standing up a Runtime.
 type messageHandler interface {
-	Handle(ctx context.Context, msg transport.Message, expectedMethod string) dispatch.HandleResult
+	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
 }
 
 // Server is the HTTP transport. One instance per process — a thin
@@ -49,13 +50,12 @@ type messageHandler interface {
 // the call's event channel as text/event-stream (TRANSPORT §6.4). It
 // holds no per-run state — the event hubs + replay live in the runtime.
 type Server struct {
-	info     protocol.DiscoverResponse
+	info     infoResponse
 	serverID string
 
-	localToken      string
-	corsOrigins     []string
-	healthProbes    []*healthProbeRunner
-	agentDocsLister AgentDocsLister
+	localToken   string
+	corsOrigins  []string
+	healthProbes []*healthProbeRunner
 
 	dispatcher messageHandler
 
@@ -75,17 +75,16 @@ type Config struct {
 	// Addr is the listen address (":8080", "127.0.0.1:0", ...). Required.
 	Addr string
 
-	// ServerInfo + ProtocolVersion + Capabilities populate the
+	// ServerInfo + ProtocolVersion populate the
 	// /v2/info sidecar response. Required.
 	ServerInfo      protocol.ServerInfo
 	ProtocolVersion string
-	Capabilities    protocol.ServerCapabilities
 
 	// ServerID identifies this process in X-Server response
 	// header. Defaults to ServerInfo.Name + "/" + ServerInfo.Version.
 	ServerID string
 
-	// LocalToken, when non-empty, gates every POST /v2/rpc/* with
+	// LocalToken, when non-empty, gates POST /v2/rpc with
 	// `Authorization: Bearer <LocalToken>` — streaming POSTs included
 	// (no header-less EventSource to exempt under streamable HTTP). Only
 	// the sidecars bypass. Empty disables the gate — tests + same-origin
@@ -96,30 +95,14 @@ type Config struct {
 	// (without credentials). Empty disables CORS — same-origin only.
 	CORSOrigins []string
 
-	// HealthProbes are the labeled liveness checks invoked on every
-	// GET /v2/health. Empty list ⇒ the endpoint always returns ok.
+	// HealthProbes are the labeled readiness checks invoked on every
+	// GET /v2/health/ready. Empty list ⇒ the endpoint always returns ready.
 	// Probes run in parallel under a shared 2s budget.
 	HealthProbes []HealthProbe
 
-	// AgentDocsLister, when non-nil, is called on every GET /v2/info
-	// to surface the AGENTS.md files the engine would inject into
-	// the system prompt for the server's working directory. Listed
-	// under the `agentDocs` field (path + size only — content stays
-	// out of the response to keep oncall payloads small). Nil
-	// omits the field entirely.
-	AgentDocsLister AgentDocsLister
-}
-
-// AgentDocsLister returns the AGENTS.md files currently visible to
-// the runtime. Paths are absolute; Bytes is the on-disk size of
-// the file's trimmed content. Implementations should be cheap —
-// the function fires on every /v2/info hit.
-type AgentDocsLister func(ctx context.Context) []AgentDocInfo
-
-// AgentDocInfo is one entry in the /v2/info.agentDocs array.
-type AgentDocInfo struct {
-	Path  string `json:"path"`
-	Bytes int    `json:"bytes"`
+	// IdempotencyStore persists first responses for Idempotency-Key replay. nil
+	// uses the dispatcher's process-local store (appropriate for tests).
+	IdempotencyStore idempotency.Store
 }
 
 // NewServer assembles a Server.
@@ -133,25 +116,33 @@ func NewServer(cfg Config) (*Server, error) {
 	if cfg.ProtocolVersion == "" {
 		return nil, errors.New("http: ProtocolVersion is required")
 	}
+	seenProbes := make(map[string]struct{}, len(cfg.HealthProbes))
+	for _, probe := range cfg.HealthProbes {
+		if probe.Name == "" {
+			return nil, errors.New("http: health probe name is required")
+		}
+		if probe.Probe == nil {
+			return nil, errors.New("http: health probe " + probe.Name + " has no function")
+		}
+		if _, exists := seenProbes[probe.Name]; exists {
+			return nil, errors.New("http: duplicate health probe name: " + probe.Name)
+		}
+		seenProbes[probe.Name] = struct{}{}
+	}
 	serverID := cfg.ServerID
 	if serverID == "" {
 		serverID = cfg.ServerInfo.Name + "/" + cfg.ServerInfo.Version
 	}
 	handlerCtx, stopHandlers := context.WithCancel(context.Background())
 	s := &Server{
-		serverID:        serverID,
-		localToken:      cfg.LocalToken,
-		corsOrigins:     slices.Clone(cfg.CORSOrigins),
-		healthProbes:    newHealthProbeRunners(cfg.HealthProbes),
-		agentDocsLister: cfg.AgentDocsLister,
-		dispatcher:      dispatch.New(cfg.Runtime),
-		handlerCtx:      handlerCtx,
-		stopHandlers:    stopHandlers,
-		info: protocol.DiscoverResponse{
-			ProtocolVersion: cfg.ProtocolVersion,
-			ServerInfo:      cfg.ServerInfo,
-			Capabilities:    cloneServerCapabilities(cfg.Capabilities),
-		},
+		serverID:     serverID,
+		localToken:   cfg.LocalToken,
+		corsOrigins:  slices.Clone(cfg.CORSOrigins),
+		healthProbes: newHealthProbeRunners(cfg.HealthProbes),
+		dispatcher:   dispatch.New(cfg.Runtime, dispatch.WithIdempotencyStore(cfg.IdempotencyStore)),
+		handlerCtx:   handlerCtx,
+		stopHandlers: stopHandlers,
+		info:         newInfoResponse(cfg.ServerInfo, cfg.ProtocolVersion),
 	}
 	s.httpServer = &http.Server{
 		Addr:              cfg.Addr,
@@ -160,14 +151,6 @@ func NewServer(cfg Config) (*Server, error) {
 		// No WriteTimeout — SSE streams can be arbitrarily long.
 	}
 	return s, nil
-}
-
-func cloneServerCapabilities(in protocol.ServerCapabilities) protocol.ServerCapabilities {
-	in.Events = slices.Clone(in.Events)
-	in.StreamingMethods = slices.Clone(in.StreamingMethods)
-	in.Features = maps.Clone(in.Features)
-	in.Providers = slices.Clone(in.Providers)
-	return in
 }
 
 // Handler returns the routed handler — exposed so tests can drive it
@@ -188,15 +171,13 @@ func (s *Server) Handler() http.Handler {
 	r.Use(s.observability, corsMiddleware(s.corsOrigins), s.authGate)
 
 	// Sidecars — flat JSON, must NOT go through the JSON-RPC envelope.
-	r.Get("/v2/info", s.handleInfo)
-	r.Get("/v2/health", s.handleHealth)
+	r.Get(infoPath, s.handleInfo)
+	r.Get(livenessPath, s.handleLiveness)
+	r.Get(readinessPath, s.handleReadiness)
 
-	// JSON-RPC body endpoint — the only RPC entry (streamable HTTP,
-	// TRANSPORT §6.1): a streaming method's events ride its own POST
-	// response (text/event-stream), so there is no separate stream
-	// endpoint. Single form: method MUST appear in the URL path (dotted,
-	// single segment); bare `/v2/rpc` has no matching route ⇒ chi 404.
-	r.Post("/v2/rpc/{method}", s.handleRPCWithMethod)
+	// A streaming method's events ride its own POST response, so there is no
+	// separate stream endpoint. The envelope is the sole owner of method identity.
+	r.Post(rpcPath, s.serveRPC)
 
 	return s.withServerLifecycle(r)
 }

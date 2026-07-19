@@ -6,14 +6,11 @@ import (
 	netHTTP "net/http"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 const testProtocolVersion = "2026-07-19"
 
-// TestSidecarInfo confirms /v2/info returns a flat JSON snapshot (NOT a
-// JSON-RPC envelope) and surfaces serverInfo + protocolVersion.
+// TestSidecarInfo confirms /v2/info returns the minimal typed bootstrap shape.
 func TestSidecarInfo(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
@@ -27,27 +24,30 @@ func TestSidecarInfo(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
-		ServerInfo      protocol.ServerInfo `json:"serverInfo"`
-		ProtocolVersion string              `json:"protocolVersion"`
+		Protocol struct {
+			Current string `json:"current"`
+		} `json:"protocol"`
+		Server struct {
+			Name string `json:"name"`
+		} `json:"server"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if body.ProtocolVersion != testProtocolVersion {
-		t.Fatalf("protocolVersion = %q", body.ProtocolVersion)
+	if body.Protocol.Current != testProtocolVersion {
+		t.Fatalf("protocol.current = %q", body.Protocol.Current)
 	}
-	if body.ServerInfo.Name != "lyra-test" {
-		t.Fatalf("serverInfo.Name = %q", body.ServerInfo.Name)
+	if body.Server.Name != "lyra-test" {
+		t.Fatalf("server.name = %q", body.Server.Name)
 	}
 }
 
-// TestSidecarHealth confirms /v2/health returns 200 + the contract body
-// `{"ok":true}` (TRANSPORT §12.1) and never enforces auth.
+// TestSidecarHealth confirms liveness is a dependency-free process check.
 func TestSidecarHealth(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	resp, err := netHTTP.Get(ts.URL + "/v2/health")
+	resp, err := netHTTP.Get(ts.URL + "/v2/health/live")
 	if err != nil {
 		t.Fatalf("get health: %v", err)
 	}
@@ -56,28 +56,24 @@ func TestSidecarHealth(t *testing.T) {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
 	var body struct {
-		OK     bool   `json:"ok"`
 		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode: %v", err)
-	}
-	if !body.OK {
-		t.Fatalf("ok = false, want true")
 	}
 	if body.Status != "ok" {
 		t.Fatalf("status = %q", body.Status)
 	}
 }
 
-// TestDiscoverOverRPC confirms POST /v2/rpc/runtime.discover handles
+// TestDiscoverOverRPC confirms POST /v2/rpc handles
 // the request and wraps the result in a JSON-RPC envelope.
 func TestDiscoverOverRPC(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
 	reqBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(reqBody))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(reqBody))
 	if err != nil {
 		t.Fatalf("post rpc: %v", err)
 	}
@@ -104,14 +100,13 @@ func TestDiscoverOverRPC(t *testing.T) {
 	}
 }
 
-// TestURLPathMethodForm confirms POST /v2/rpc/{method} works and the
-// X-Method response header echoes the method.
-func TestURLPathMethodForm(t *testing.T) {
+// TestRPCMethodHeader confirms X-Method reflects the envelope method.
+func TestRPCMethodHeader(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
 	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	discoverResp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
+	discoverResp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(discoverBody))
 	if err != nil {
 		t.Fatalf("post discover: %v", err)
 	}
@@ -123,60 +118,54 @@ func TestURLPathMethodForm(t *testing.T) {
 		t.Fatalf("X-Method = %q, want runtime.discover", got)
 	}
 
-	pingBody := []byte(`{"jsonrpc":"2.0","id":"2","method":"runtime.ping"}`)
-	pingResp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.ping", "application/json", bytes.NewReader(pingBody))
+	unknownBody := []byte(`{"jsonrpc":"2.0","id":"2","method":"test.unknown"}`)
+	unknownResp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(unknownBody))
 	if err != nil {
-		t.Fatalf("post ping: %v", err)
+		t.Fatalf("post unknown method: %v", err)
 	}
-	defer pingResp.Body.Close()
-	if pingResp.StatusCode != 200 {
-		t.Fatalf("ping status = %d", pingResp.StatusCode)
+	defer unknownResp.Body.Close()
+	if unknownResp.StatusCode != 200 {
+		t.Fatalf("unknown method status = %d", unknownResp.StatusCode)
 	}
-	if got := pingResp.Header.Get("X-Method"); got != "runtime.ping" {
-		t.Fatalf("X-Method = %q, want runtime.ping", got)
+	if got := unknownResp.Header.Get("X-Method"); got != "test.unknown" {
+		t.Fatalf("X-Method = %q, want test.unknown", got)
 	}
 }
 
-// TestURLBodyMethodMismatch confirms the URL/body method-mismatch guard
-// returns 400 + invalid_request (-32600) — a self-contradictory malformed
-// request, NOT a 409 resource conflict (TRANSPORT §6.2/§6.3).
-func TestURLBodyMethodMismatch(t *testing.T) {
+// TestUnknownRPCEndpointReturns404 confirms 404 is reserved for HTTP routing.
+func TestUnknownRPCEndpointReturns404(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover"}`)
 	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 400 {
+	if resp.StatusCode != 404 {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, want 400; body = %s", resp.StatusCode, raw)
-	}
-	if code := decodeErrorCode(t, resp); code != -32600 {
-		t.Fatalf("expected -32600, got %d", code)
+		t.Fatalf("status = %d, want 404; body = %s", resp.StatusCode, raw)
 	}
 }
 
-// TestUnknownMethodReturns404 confirms a typo in the URL form surfaces
-// as 404 + method_not_found (-32601).
-func TestUnknownMethodReturns404(t *testing.T) {
+// TestUnknownMethodReturnsRPCError confirms method errors stay in a 200 envelope.
+func TestUnknownMethodReturnsRPCError(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
 	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
+	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(discoverBody))
 	r1.Body.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.unknownMethod"}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runs.unknownMethod", "application/json", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 404 {
-		t.Fatalf("status = %d", resp.StatusCode)
+	if resp.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	if code := decodeErrorCode(t, resp); code != -32601 {
 		t.Fatalf("expected -32601, got %d", code)
@@ -190,7 +179,7 @@ func TestBusinessMethodDoesNotRequireDiscover(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runs.cancel","params":{"runId":"run_before_discover"}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runs.cancel", "application/json", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -204,9 +193,45 @@ func TestBusinessMethodDoesNotRequireDiscover(t *testing.T) {
 	}
 }
 
-// TestRPCWithoutMethodReturns404 confirms POST to /v2/rpc without a
-// {method} suffix is unrouted — 404, no JSON-RPC envelope.
-func TestRPCWithoutMethodReturns404(t *testing.T) {
+func TestIdempotencyKeyReplaysMutationAndRejectsReuse(t *testing.T) {
+	ts, api := newTestServer(t)
+	defer ts.Close()
+
+	post := func(body string) *netHTTP.Response {
+		t.Helper()
+		req, err := netHTTP.NewRequest(netHTTP.MethodPost, ts.URL+"/v2/rpc", bytes.NewBufferString(body))
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", "cancel-once")
+		resp, err := netHTTP.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("post request: %v", err)
+		}
+		return resp
+	}
+
+	first := post(`{"jsonrpc":"2.0","id":"1","method":"runs.cancel","params":{"runId":"run_1"}}`)
+	first.Body.Close()
+	replay := post(`{"jsonrpc":"2.0","id":"2","method":"runs.cancel","params":{"runId":"run_1"}}`)
+	replay.Body.Close()
+	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_1" {
+		t.Fatalf("cancelled runs = %v, want one run_1", api.cancelledRuns)
+	}
+
+	conflict := post(`{"jsonrpc":"2.0","id":"3","method":"runs.cancel","params":{"runId":"run_2"}}`)
+	defer conflict.Body.Close()
+	if code := decodeErrorCode(t, conflict); code != -32020 {
+		t.Fatalf("conflict code = %d, want -32020", code)
+	}
+	if len(api.cancelledRuns) != 1 {
+		t.Fatalf("conflicting request executed: cancelled runs = %v", api.cancelledRuns)
+	}
+}
+
+// TestRPCUsesEnvelopeMethod confirms the endpoint needs no URL method segment.
+func TestRPCUsesEnvelopeMethod(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
@@ -216,9 +241,9 @@ func TestRPCWithoutMethodReturns404(t *testing.T) {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 404 {
+	if resp.StatusCode != 200 {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, want 404; body = %s", resp.StatusCode, raw)
+		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
 }
 
@@ -229,14 +254,14 @@ func TestNonStringIDRejected(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":42,"method":"runtime.discover","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 400 {
+	if resp.StatusCode != 200 {
 		raw := readBody(resp)
-		t.Fatalf("status = %d, want 400; body = %s", resp.StatusCode, raw)
+		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
 	if code := decodeErrorCode(t, resp); code != -32600 {
 		t.Fatalf("expected -32600, got %d", code)
@@ -250,14 +275,14 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	defer ts.Close()
 
 	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	r1, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
+	r1, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(discoverBody))
 	if err != nil {
 		t.Fatalf("discover: %v", err)
 	}
 	r1.Body.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"2","method":"runs.cancel","params":{"runId":"run_123"}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runs.cancel", "application/json", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
@@ -295,13 +320,13 @@ func TestNotificationReturns204(t *testing.T) {
 	defer ts.Close()
 
 	discoverBody := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(discoverBody))
+	r1, _ := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(discoverBody))
 	r1.Body.Close()
 
-	// notifications.canceled has no id ⇒ it's a Notification; JSON-RPC
+	// test.notification has no id ⇒ it's a Notification; JSON-RPC
 	// never sends a response for one, so the transport acks with 204.
-	body := []byte(`{"jsonrpc":"2.0","method":"notifications.canceled","params":{"id":"1"}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/notifications.canceled", "application/json", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","method":"test.notification","params":{"id":"1"}}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -320,7 +345,7 @@ func TestBodyTooLargeReturns413(t *testing.T) {
 	defer ts.Close()
 
 	big := bytes.Repeat([]byte("a"), (4<<20)+1)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "application/json", bytes.NewReader(big))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(big))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -337,13 +362,40 @@ func TestUnsupportedMediaTypeReturns415(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.discover", "text/plain", bytes.NewReader(body))
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "text/plain", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 415 {
 		t.Fatalf("status = %d, want 415", resp.StatusCode)
+	}
+}
+
+func TestMalformedRPCBodyReturnsTransportProblem(t *testing.T) {
+	ts, _ := newTestServer(t)
+	defer ts.Close()
+
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewBufferString(`{"jsonrpc":`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != netHTTP.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Content-Type"); got != "application/problem+json; charset=utf-8" {
+		t.Fatalf("content-type = %q, want application/problem+json", got)
+	}
+	var problem struct {
+		Type      string `json:"type"`
+		RequestID string `json:"requestId"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&problem); err != nil {
+		t.Fatalf("decode problem: %v", err)
+	}
+	if problem.Type != "urn:lyra:transport:invalid_request" || problem.RequestID == "" {
+		t.Fatalf("problem = %+v", problem)
 	}
 }
 
@@ -354,8 +406,8 @@ func TestMethodNotAllowedHasAllow(t *testing.T) {
 	ts, _ := newTestServer(t)
 	defer ts.Close()
 
-	// /v2/rpc/{method} is POST-only; a GET to it is 405, not 404.
-	req, _ := netHTTP.NewRequest("GET", ts.URL+"/v2/rpc/runtime.ping", nil)
+	// /v2/rpc is POST-only; a GET to it is 405, not 404.
+	req, _ := netHTTP.NewRequest("GET", ts.URL+"/v2/rpc", nil)
 	resp, err := netHTTP.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("do: %v", err)

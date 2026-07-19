@@ -22,7 +22,6 @@ func newGatedServer(t *testing.T) *httptest.Server {
 		Addr:            ":0",
 		ServerInfo:      protocol.ServerInfo{Name: "lyra-test", Version: "0.0.0"},
 		ProtocolVersion: testProtocolVersion,
-		Capabilities:    protocol.ServerCapabilities{},
 		LocalToken:      "test-token",
 		CORSOrigins:     []string{"http://app"},
 	})
@@ -33,14 +32,14 @@ func newGatedServer(t *testing.T) *httptest.Server {
 }
 
 // TestAuthGateMissingToken — gate-on POST without Authorization gets
-// 401 + flat-JSON `{"error":"missing_local_token"}`. Per API.md §7.3
+// 401 + a transport problem. Per API.md §7.3
 // this MUST NOT use the JSON-RPC envelope.
 func TestAuthGateMissingToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.ping", "application/json", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover"}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -49,8 +48,8 @@ func TestAuthGateMissingToken(t *testing.T) {
 		t.Fatalf("status = %d, want 401", resp.StatusCode)
 	}
 	raw := readBody(resp)
-	if !strings.Contains(raw, `"missing_local_token"`) {
-		t.Fatalf("body = %s, want missing_local_token", raw)
+	if !strings.Contains(raw, `"type":"urn:lyra:transport:unauthorized"`) {
+		t.Fatalf("body = %s, want unauthorized problem", raw)
 	}
 	if strings.Contains(raw, `"jsonrpc"`) {
 		t.Fatalf("401 must be flat JSON, got envelope: %s", raw)
@@ -63,8 +62,8 @@ func TestAuthGate401HasChallenge(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
-	resp, err := netHTTP.Post(ts.URL+"/v2/rpc/runtime.ping", "application/json", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover"}`)
+	resp, err := netHTTP.Post(ts.URL+"/v2/rpc", "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -82,8 +81,8 @@ func TestAuthGateWrongToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.ping"}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.ping", bytes.NewReader(body))
+	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover"}`)
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer wrong")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := netHTTP.DefaultClient.Do(req)
@@ -104,7 +103,7 @@ func TestAuthGateCorrectToken(t *testing.T) {
 
 	// discover is an ordinary authenticated RPC method.
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := netHTTP.DefaultClient.Do(req)
@@ -118,14 +117,14 @@ func TestAuthGateCorrectToken(t *testing.T) {
 	}
 }
 
-// TestAuthGateBypassesSidecars — /v2/info and /v2/health stay open
+// TestAuthGateBypassesSidecars confirms operational endpoints stay open
 // when the gate is on. Operations / oncall must always be able to
 // curl these. TRANSPORT.md §安全.
 func TestAuthGateBypassesSidecars(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	for _, path := range []string{"/v2/info", "/v2/health"} {
+	for _, path := range []string{"/v2/info", "/v2/health/live", "/v2/health/ready"} {
 		resp, err := netHTTP.Get(ts.URL + path)
 		if err != nil {
 			t.Fatalf("get %s: %v", path, err)
@@ -145,7 +144,7 @@ func TestCORSPreflight(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()
 
-	req, _ := netHTTP.NewRequest("OPTIONS", ts.URL+"/v2/rpc/runtime.discover", nil)
+	req, _ := netHTTP.NewRequest("OPTIONS", ts.URL+"/v2/rpc", nil)
 	req.Header.Set("Origin", "http://app")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type")
@@ -175,7 +174,7 @@ func TestCORSAllowedOriginOnPost(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "http://app")
@@ -206,7 +205,7 @@ func TestCORSDisallowedOrigin(t *testing.T) {
 	defer ts.Close()
 
 	body := []byte(`{"jsonrpc":"2.0","id":"1","method":"runtime.discover","params":{}}`)
-	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc/runtime.discover", bytes.NewReader(body))
+	req, _ := netHTTP.NewRequest("POST", ts.URL+"/v2/rpc", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Origin", "http://evil")

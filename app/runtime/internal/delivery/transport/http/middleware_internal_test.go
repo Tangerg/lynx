@@ -26,8 +26,11 @@ func TestObservabilityRecordsContainedPanicResponse(t *testing.T) {
 	if response.Code != nethttp.StatusInternalServerError {
 		t.Fatalf("response status = %d, want %d", response.Code, nethttp.StatusInternalServerError)
 	}
-	if !strings.Contains(response.Body.String(), `"error":"internal error"`) {
-		t.Fatalf("response body = %q, want flat internal error", response.Body.String())
+	if !strings.Contains(response.Body.String(), `"type":"urn:lyra:transport:internal_error"`) {
+		t.Fatalf("response body = %q, want problem detail", response.Body.String())
+	}
+	if response.Header().Get("Request-Id") == "" {
+		t.Fatal("response is missing Request-Id")
 	}
 
 	spans := exporter.GetSpans()
