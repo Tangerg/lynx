@@ -16,7 +16,7 @@ type fakeRunUseCases struct {
 func (f *fakeRunUseCases) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
 	f.cmd = cmd
 	context.AfterFunc(ctx, func() { close(f.canceled) })
-	return runs.StartResult{SessionID: "ses_scheduled"}, nil
+	return runs.StartResult{SessionID: "ses_scheduled", RunID: "run_scheduled"}, nil
 }
 
 func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
@@ -24,14 +24,14 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	var fired string
 	launcher := NewRunLauncher(useCases, "/default", func(id string) { fired = id })
 
-	sessionID, err := launcher.StartScheduledRun(context.Background(), schedule.Schedule{
+	handle, err := launcher.StartScheduledRun(context.Background(), schedule.Schedule{
 		ID: "sch_1", Prompt: "summarize", Provider: "p", Model: "m",
 	})
 	if err != nil {
 		t.Fatalf("StartScheduledRun: %v", err)
 	}
-	if sessionID != "ses_scheduled" || fired != "sch_1" {
-		t.Fatalf("session=%q fired=%q", sessionID, fired)
+	if handle.SessionID != "ses_scheduled" || handle.RunID != "run_scheduled" || fired != "sch_1" {
+		t.Fatalf("handle=%+v fired=%q", handle, fired)
 	}
 	if useCases.cmd.DefaultCwd != "/default" || useCases.cmd.NewSessionTitle != "Scheduled run" {
 		t.Fatalf("command defaults = %+v", useCases.cmd)

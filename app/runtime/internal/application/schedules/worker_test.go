@@ -30,7 +30,7 @@ func (s *workerStore) Get(context.Context, string) (schedule.Schedule, error) {
 func (s *workerStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
-func (s *workerStore) Update(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+func (s *workerStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
 func (s *workerStore) Delete(context.Context, string) error { return nil }
@@ -49,12 +49,12 @@ type workerRunner struct {
 	fired []schedule.Schedule
 }
 
-func (r *workerRunner) StartScheduledRun(_ context.Context, sc schedule.Schedule) (string, error) {
+func (r *workerRunner) StartScheduledRun(_ context.Context, sc schedule.Schedule) (RunHandle, error) {
 	r.fired = append(r.fired, sc)
 	if r.err != nil {
-		return "", r.err
+		return RunHandle{}, r.err
 	}
-	return "ses_1", nil
+	return RunHandle{SessionID: "ses_1", RunID: "run_1"}, nil
 }
 
 func TestWorkerFireDueMarksFiredAfterRunFailure(t *testing.T) {
@@ -153,11 +153,11 @@ type cancelingWorkerRunner struct {
 	fired   []string
 }
 
-func (r *cancelingWorkerRunner) StartScheduledRun(ctx context.Context, sc schedule.Schedule) (string, error) {
+func (r *cancelingWorkerRunner) StartScheduledRun(ctx context.Context, sc schedule.Schedule) (RunHandle, error) {
 	r.fired = append(r.fired, sc.ID)
 	r.cancel()
 	if !r.succeed {
-		return "", ctx.Err()
+		return RunHandle{}, ctx.Err()
 	}
-	return "ses_1", nil
+	return RunHandle{SessionID: "ses_1", RunID: "run_1"}, nil
 }

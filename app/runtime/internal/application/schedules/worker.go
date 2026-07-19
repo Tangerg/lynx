@@ -28,7 +28,12 @@ const firingStateWriteTimeout = 5 * time.Second
 // supplies it; it is the application-owned seam between a fired schedule and a
 // run start.
 type Runner interface {
-	StartScheduledRun(ctx context.Context, sc schedule.Schedule) (string, error)
+	StartScheduledRun(ctx context.Context, sc schedule.Schedule) (RunHandle, error)
+}
+
+type RunHandle struct {
+	SessionID string
+	RunID     string
 }
 
 // WorkerStore is the schedule persistence slice the worker owns. Management CRUD
@@ -71,20 +76,20 @@ func (w Worker) Run(ctx context.Context) {
 }
 
 // Fire starts one schedule through runner under the schedule firing span.
-func Fire(ctx context.Context, runner Runner, sc schedule.Schedule) (string, error) {
+func Fire(ctx context.Context, runner Runner, sc schedule.Schedule) (RunHandle, error) {
 	if runner == nil {
-		return "", errors.New("schedules: runner is nil")
+		return RunHandle{}, errors.New("schedules: runner is nil")
 	}
 	ctx, span := workerTracer.Start(ctx, "schedule.fire",
 		trace.WithAttributes(attribute.String("schedule.id", sc.ID)))
 	defer span.End()
-	sessionID, err := runner.StartScheduledRun(ctx, sc)
+	handle, err := runner.StartScheduledRun(ctx, sc)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
-		return "", err
+		return RunHandle{}, err
 	}
-	return sessionID, nil
+	return handle, nil
 }
 
 func (w Worker) fireDue(ctx context.Context, now time.Time) {
