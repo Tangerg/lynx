@@ -30,35 +30,43 @@ func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (sched
 	sc.ID = schedule.IDPrefix + uuid.NewString()
 	sc.CreatedAt = time.Now().UTC()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO schedules (id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO schedules (id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
 		sc.ID, sc.Title, sc.Prompt, sc.Cwd, sc.Provider, sc.Model, sc.Cron,
 		boolToInt(sc.Enabled), toMillis(sc.LastRunAt), toMillis(sc.NextRunAt), sc.CreatedAt.UnixMilli())
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("sqlite: create schedule: %w", err)
 	}
+	sc.Revision = 1
 	return sc, nil
 }
 
-func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error) {
 	res, err := s.db.ExecContext(ctx,
 		`UPDATE schedules
-		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?
-		 WHERE id = ?`,
+		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?, revision = revision + 1
+		 WHERE id = ? AND revision = ?`,
 		sc.Title, sc.Prompt, sc.Cwd, sc.Provider, sc.Model, sc.Cron,
-		boolToInt(sc.Enabled), toMillis(sc.NextRunAt), sc.ID)
+		boolToInt(sc.Enabled), toMillis(sc.NextRunAt), sc.ID, expectedRevision)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("sqlite: update schedule: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
-		return schedule.Schedule{}, schedule.ErrNotFound
+	changed, err := res.RowsAffected()
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: inspect schedule update: %w", err)
+	}
+	if changed == 0 {
+		if _, getErr := s.Get(ctx, sc.ID); getErr != nil {
+			return schedule.Schedule{}, getErr
+		}
+		return schedule.Schedule{}, schedule.ErrRevisionConflict
 	}
 	return s.Get(ctx, sc.ID)
 }
 
 func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, error) {
 	row := s.db.QueryRowContext(ctx,
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules WHERE id = ?`, id)
 	sc, err := scanSchedule(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -72,16 +80,16 @@ func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, 
 
 func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return s.query(ctx, "list schedules",
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
-		 FROM schedules ORDER BY created_at DESC`)
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
+		 FROM schedules ORDER BY created_at DESC, id DESC`)
 }
 
 func (s *ScheduleStore) Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error) {
 	return s.query(ctx, "list due schedules",
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
+		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules
 		 WHERE enabled = 1 AND next_run_at > 0 AND next_run_at <= ?
-		 ORDER BY next_run_at DESC`, now.UnixMilli())
+		 ORDER BY next_run_at DESC, id DESC`, now.UnixMilli())
 }
 
 func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
@@ -92,12 +100,16 @@ func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNex
 	// the row was deleted), the run still fired — record last_run_at without
 	// rewinding the cursor.
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE schedules SET last_run_at = ?, next_run_at = ? WHERE id = ? AND next_run_at = ?`,
+		`UPDATE schedules SET last_run_at = ?, next_run_at = ?, revision = revision + 1 WHERE id = ? AND next_run_at = ?`,
 		toMillis(ranAt), toMillis(nextRunAt), id, toMillis(prevNextRunAt))
 	if err != nil {
 		return fmt.Errorf("sqlite: mark schedule fired: %w", err)
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	changed, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect mark schedule fired: %w", err)
+	}
+	if changed == 0 {
 		return s.RecordRun(ctx, id, ranAt)
 	}
 	return nil
@@ -107,7 +119,7 @@ func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNex
 // run-now never rewinds the cron cursor (see [schedule.Registry.RecordRun]).
 func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Time) error {
 	if _, err := s.db.ExecContext(ctx,
-		`UPDATE schedules SET last_run_at = ? WHERE id = ?`,
+		`UPDATE schedules SET last_run_at = ?, revision = revision + 1 WHERE id = ?`,
 		toMillis(ranAt), id); err != nil {
 		return fmt.Errorf("sqlite: record schedule run: %w", err)
 	}
@@ -148,7 +160,7 @@ func scanSchedule(scan func(...any) error) (schedule.Schedule, error) {
 	var sc schedule.Schedule
 	var enabled, lastMs, nextMs, createdMs int64
 	if err := scan(&sc.ID, &sc.Title, &sc.Prompt, &sc.Cwd, &sc.Provider, &sc.Model, &sc.Cron,
-		&enabled, &lastMs, &nextMs, &createdMs); err != nil {
+		&enabled, &lastMs, &nextMs, &createdMs, &sc.Revision); err != nil {
 		return schedule.Schedule{}, err
 	}
 	sc.Enabled = enabled != 0
