@@ -19,6 +19,7 @@ import { isErrorType } from "@/rpc";
 export function toAgentSessionSummary(s: Session): AgentSessionSummary {
   return {
     id: s.id,
+    revision: s.revision,
     title: s.title,
     status: s.status,
     model: s.model,

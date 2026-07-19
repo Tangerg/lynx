@@ -28,6 +28,7 @@ function toWorkSessionAttention(session: AgentSessionSummary): WorkSession["atte
 function toWorkSession(session: AgentSessionSummary): WorkSession {
   return {
     id: session.id,
+    revision: session.revision,
     title: session.title,
     attention: toWorkSessionAttention(session),
     favorite: session.favorite,

@@ -8,8 +8,12 @@ import { reportSessionError } from "./reportSessionError";
 /** Pin / unpin a session (sessions.update favorite) and refresh session summaries.
  *  Optimistic: flips the star in the list right away so the row reorders
  *  without waiting for the RPC + refetch; rolls back on failure. */
-export function useToggleFavorite(): (id: string, favorite: boolean) => Promise<void> {
-  return useCallback(async (id, favorite) => {
+export function useToggleFavorite(): (
+  id: string,
+  expectedRevision: number,
+  favorite: boolean,
+) => Promise<void> {
+  return useCallback(async (id, expectedRevision, favorite) => {
     // Cancel any in-flight sessions refetch before the optimistic write so a
     // background invalidate (workspace resync / reconnect) started earlier
     // can't resolve with the old favorite flag and un-flip the star.
@@ -19,7 +23,14 @@ export function useToggleFavorite(): (id: string, favorite: boolean) => Promise<
       old?.map((s) => (s.id === id ? { ...s, favorite } : s)),
     );
     try {
-      await agentRuntime().updateSession({ sessionId: id, favorite });
+      const updated = await agentRuntime().updateSession({
+        sessionId: id,
+        expectedRevision,
+        favorite,
+      });
+      queryClient.setQueryData<AgentSessionSummary[]>([AGENT_SESSIONS_KEY], (old) =>
+        old?.map((s) => (s.id === id ? { ...s, revision: updated.revision } : s)),
+      );
       void invalidateAgentSessions();
     } catch (err) {
       if (prev) queryClient.setQueryData([AGENT_SESSIONS_KEY], prev);

@@ -16,10 +16,10 @@ export interface WorkIndexActions {
   createSession: () => void;
   startSessionInFolder: (cwd: string) => void;
   selectSession: (id: string) => void;
-  renameSession: (id: string, title: string) => void;
+  renameSession: (id: string, expectedRevision: number, title: string) => void;
   forkSession: (id: string) => void;
   deleteSession: (id: string) => void;
-  toggleFavorite: (id: string, favorite: boolean) => void;
+  toggleFavorite: (id: string, expectedRevision: number, favorite: boolean) => void;
   openContextDock: () => void;
   openSettings: () => void;
 }
@@ -40,8 +40,8 @@ export function useWorkIndexActions(): WorkIndexActions {
         void create({ cwd });
       },
       selectSession: selectAgentSession,
-      renameSession: (id, title) => {
-        void rename(id, title);
+      renameSession: (id, expectedRevision, title) => {
+        void rename(id, expectedRevision, title);
       },
       forkSession: (id) => {
         void fork(id);
@@ -49,8 +49,8 @@ export function useWorkIndexActions(): WorkIndexActions {
       deleteSession: (id) => {
         void remove(id);
       },
-      toggleFavorite: (id, favorite) => {
-        void toggleFavorite(id, favorite);
+      toggleFavorite: (id, expectedRevision, favorite) => {
+        void toggleFavorite(id, expectedRevision, favorite);
       },
       openContextDock: openContextDockLauncher,
       openSettings: () => {

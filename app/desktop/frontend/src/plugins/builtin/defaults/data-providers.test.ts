@@ -81,6 +81,7 @@ describe("defaultData — providers over JSON-RPC", () => {
           data: [
             {
               id: "ses_1",
+              revision: 7,
               title: "Refactor auth",
               status: "running",
               model: "claude",
@@ -95,6 +96,7 @@ describe("defaultData — providers over JSON-RPC", () => {
     expect(rows).toEqual([
       {
         id: "ses_1",
+        revision: 7,
         title: "Refactor auth",
         status: "running",
         model: "claude",

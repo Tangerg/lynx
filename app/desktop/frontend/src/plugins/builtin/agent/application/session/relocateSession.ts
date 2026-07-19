@@ -9,10 +9,14 @@ import { reportSessionError } from "./reportSessionError";
  *  watch: the workspace-events plugin follows the sessions cache, so the
  *  new cwd propagates without a tab switch. Returns whether it stuck —
  *  the banner keeps its input open on failure. */
-export function useRelocateSession(): (id: string, cwd: string) => Promise<boolean> {
-  return useCallback(async (id, cwd) => {
+export function useRelocateSession(): (
+  id: string,
+  expectedRevision: number,
+  cwd: string,
+) => Promise<boolean> {
+  return useCallback(async (id, expectedRevision, cwd) => {
     try {
-      await agentRuntime().updateSession({ sessionId: id, cwd });
+      await agentRuntime().updateSession({ sessionId: id, expectedRevision, cwd });
       // projects too: the list is derived from session cwds, and this
       // session just moved — its old project may retire, the new one mint.
       await invalidateAgentSessions({ projects: true });

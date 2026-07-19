@@ -36,10 +36,10 @@ function ProjectGroupNode({
   activeSessionId: string;
   onNewSession: (project: WorkProject) => void;
   onSelect: (id: string) => void;
-  onRename: (id: string, title: string) => void;
+  onRename: (id: string, expectedRevision: number, title: string) => void;
   onFork: (id: string) => void;
   onDelete: (id: string) => void;
-  onToggleFavorite: (id: string, favorite: boolean) => void;
+  onToggleFavorite: (id: string, expectedRevision: number, favorite: boolean) => void;
 }) {
   const t = useT();
   const [open, setOpen] = useState(true);
