@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -47,7 +48,7 @@ type turnObserver struct {
 // records from older runtimes and still identifies the same gated call when it
 // is re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
-func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, mutations agentexec.FileMutationReporter) agentexec.ToolApprovalVerdict {
+func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
 	// task is pure orchestration. Its child tools are independently observed and
 	// gated, while SubagentStart/SubagentStop own the task lifecycle hooks.
 	// Running tool hooks or approval for task itself would double-count the
@@ -97,7 +98,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		Mode:               mode,
 		ApprovalConfigured: approvalConfigured,
 		Hook:               hookDecision,
-		FileMutation:       fileMutationScope(mutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
+		FileMutation:       fileMutationScope(target.FileMutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	var rememberedArguments tool.Arguments
@@ -123,8 +124,8 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
 		// standing rules, so an explicit remembered deny is never overridden.
-		if t.dispatcher.mcpToolAutoApproved != nil {
-			autoApproved = t.dispatcher.mcpToolAutoApproved(toolName)
+		if t.dispatcher.mcpToolAutoApproved != nil && target.MCP != (mcpserver.ToolRef{}) {
+			autoApproved = t.dispatcher.mcpToolAutoApproved(target.MCP)
 		}
 		plan = plan.ResolvePromptShortcuts(approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}

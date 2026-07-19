@@ -77,6 +77,9 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 			continue
 		}
 		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
+		if terr == nil {
+			terr = validateToolCatalog(c.servers, nil, srv.Name, srcTools)
+		}
 		if terr != nil {
 			terr = errors.Join(terr, session.Close()) // half-open: drop an unusable session
 			ms.state, ms.lastErr = mcpserver.ConnectionFailed, terr

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
@@ -63,9 +64,9 @@ type Dependencies struct {
 	// todo_write. nil disables the projection.
 	Todos todoLister
 
-	// MCPToolAutoApproved reports whether a model-facing MCP tool may skip the
+	// MCPToolAutoApproved reports whether an identified MCP tool may skip the
 	// approval prompt. nil disables MCP-specific auto-approval.
-	MCPToolAutoApproved func(string) bool
+	MCPToolAutoApproved func(mcpserver.ToolRef) bool
 
 	// Hooks resolves lifecycle hooks for a turn's cwd. nil disables hooks.
 	Hooks hookResolver
@@ -127,12 +128,12 @@ type memoryDispatcher struct {
 	resolver  clientResolver  // optional — nil = always use the default model
 	todos     todoLister      // optional — nil = no state.snapshot{todos} projection
 
-	// mcpToolAutoApproved reports whether a model-facing MCP tool skips the
+	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every
 	// MCP registry change. Consulted on the GatePrompt path only, AFTER standing
 	// rules, so it never overrides a remembered deny or the read-only plan-mode
 	// deny; it only spares a prompt the user would otherwise see. nil = off.
-	mcpToolAutoApproved func(string) bool
+	mcpToolAutoApproved func(mcpserver.ToolRef) bool
 
 	// hooks resolves the lifecycle-hook set for a turn's cwd. nil = no hooks.
 	hooks hookResolver

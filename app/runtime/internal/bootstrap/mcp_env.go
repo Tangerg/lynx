@@ -20,8 +20,8 @@ type mcpServerList interface {
 // engine's tools are built from.
 type mcpEnvironment struct {
 	policy           *atomic.Pointer[mcpserver.ToolPolicy]
-	toolDisabled     func(string) bool
-	toolAutoApproved func(string) bool
+	toolDisabled     func(mcpserver.ToolRef) bool
+	toolAutoApproved func(mcpserver.ToolRef) bool
 	configs          []mcpserver.LiveConfig
 }
 
@@ -35,11 +35,11 @@ func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnviro
 	policyCell.Store(&policy)
 	return mcpEnvironment{
 		policy: policyCell,
-		toolDisabled: func(toolName string) bool {
-			return policyCell.Load().Disabled(toolName)
+		toolDisabled: func(ref mcpserver.ToolRef) bool {
+			return policyCell.Load().Disabled(ref)
 		},
-		toolAutoApproved: func(toolName string) bool {
-			return policyCell.Load().AutoApproved(toolName)
+		toolAutoApproved: func(ref mcpserver.ToolRef) bool {
+			return policyCell.Load().AutoApproved(ref)
 		},
 		configs: mcpserver.ConfigsForEnabledServers(servers),
 	}, nil

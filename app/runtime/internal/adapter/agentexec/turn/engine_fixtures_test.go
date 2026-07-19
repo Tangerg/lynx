@@ -173,7 +173,7 @@ func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request ag
 	s.restoreCalls.Add(1)
 	if request.Observer != nil && s.restoreGateTool != "" {
 		verdict := request.Observer.ApproveToolCall(
-			context.Background(), "restore-call", s.restoreGateTool, s.restoreGateArguments, nil,
+			context.Background(), "restore-call", s.restoreGateTool, s.restoreGateArguments, agentexec.ToolApprovalTarget{},
 		)
 		s.mu.Lock()
 		s.restoreGateVerdict = verdict

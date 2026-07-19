@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -21,7 +22,7 @@ import (
 // it, so every method is a no-op.
 type noopObserver struct{}
 
-func (noopObserver) ApproveToolCall(context.Context, string, string, string, FileMutationReporter) ToolApprovalVerdict {
+func (noopObserver) ApproveToolCall(context.Context, string, string, string, ToolApprovalTarget) ToolApprovalVerdict {
 	return ToolApprovalVerdict{}
 }
 func (noopObserver) OnToolCallStart(string, string, string) {}
@@ -63,6 +64,20 @@ func (plainTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: "plain", InputSchema: json.RawMessage(`{}`)}
 }
 func (plainTool) Call(context.Context, string) (string, error) { return "", nil }
+
+type identifiedMCPTool struct{ plainTool }
+
+func (identifiedMCPTool) MCPToolIdentity() (string, string) { return "files", "read" }
+
+type approvalTargetObserver struct {
+	noopObserver
+	target ToolApprovalTarget
+}
+
+func (o *approvalTargetObserver) ApproveToolCall(_ context.Context, _, _, _ string, target ToolApprovalTarget) ToolApprovalVerdict {
+	o.target = target
+	return ToolApprovalVerdict{}
+}
 
 type mutatingTool struct{ err error }
 
@@ -107,6 +122,21 @@ func TestObservedToolForwardsConcurrencyKey(t *testing.T) {
 	key, concurrent = plain.ConcurrencyKey(`{}`)
 	if key != "" || concurrent {
 		t.Fatalf("plain concurrency = %q, %v", key, concurrent)
+	}
+}
+
+func TestObservedToolBindsApprovalToExactMCPIdentity(t *testing.T) {
+	observer := new(approvalTargetObserver)
+	tool := &observedTool{
+		inner:       identifiedMCPTool{},
+		observation: newToolObservation(observer, nil, 0),
+	}
+	if _, err := tool.Call(t.Context(), `{}`); err != nil {
+		t.Fatalf("Call: %v", err)
+	}
+	want := mcpserver.ToolRef{Server: "files", Tool: "read"}
+	if observer.target.MCP != want {
+		t.Fatalf("approval MCP identity = %+v, want %+v", observer.target.MCP, want)
 	}
 }
 

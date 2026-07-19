@@ -6,7 +6,7 @@ func TestToolPolicy(t *testing.T) {
 	tests := []struct {
 		name    string
 		servers []Server
-		checks  map[string]struct {
+		checks  map[ToolRef]struct {
 			disabled     bool
 			autoApproved bool
 		}
@@ -17,15 +17,15 @@ func TestToolPolicy(t *testing.T) {
 				{Name: "files", Enabled: true, DisabledTools: []string{"write"}, AutoApproveTools: []string{"read"}},
 				{Name: "db", Enabled: true, DisabledTools: []string{"drop"}, AutoApproveTools: []string{"select"}},
 			},
-			checks: map[string]struct {
+			checks: map[ToolRef]struct {
 				disabled     bool
 				autoApproved bool
 			}{
-				"files_write": {disabled: true},
-				"files_read":  {autoApproved: true},
-				"db_drop":     {disabled: true},
-				"db_select":   {autoApproved: true},
-				"write":       {},
+				{Server: "files", Tool: "write"}: {disabled: true},
+				{Server: "files", Tool: "read"}:  {autoApproved: true},
+				{Server: "db", Tool: "drop"}:     {disabled: true},
+				{Server: "db", Tool: "select"}:   {autoApproved: true},
+				{Tool: "write"}:                  {},
 			},
 		},
 		{
@@ -33,12 +33,12 @@ func TestToolPolicy(t *testing.T) {
 			servers: []Server{
 				{Name: "files", Enabled: false, DisabledTools: []string{"write"}, AutoApproveTools: []string{"read"}},
 			},
-			checks: map[string]struct {
+			checks: map[ToolRef]struct {
 				disabled     bool
 				autoApproved bool
 			}{
-				"files_write": {},
-				"files_read":  {},
+				{Server: "files", Tool: "write"}: {},
+				{Server: "files", Tool: "read"}:  {},
 			},
 		},
 	}
@@ -46,12 +46,12 @@ func TestToolPolicy(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			policy := NewToolPolicy(tt.servers)
-			for tool, want := range tt.checks {
-				if got := policy.Disabled(tool); got != want.disabled {
-					t.Errorf("Disabled(%q) = %t, want %t", tool, got, want.disabled)
+			for ref, want := range tt.checks {
+				if got := policy.Disabled(ref); got != want.disabled {
+					t.Errorf("Disabled(%+v) = %t, want %t", ref, got, want.disabled)
 				}
-				if got := policy.AutoApproved(tool); got != want.autoApproved {
-					t.Errorf("AutoApproved(%q) = %t, want %t", tool, got, want.autoApproved)
+				if got := policy.AutoApproved(ref); got != want.autoApproved {
+					t.Errorf("AutoApproved(%+v) = %t, want %t", ref, got, want.autoApproved)
 				}
 			}
 		})
@@ -60,7 +60,8 @@ func TestToolPolicy(t *testing.T) {
 
 func TestZeroToolPolicyDeniesNoTools(t *testing.T) {
 	var policy ToolPolicy
-	if policy.Disabled("server_tool") || policy.AutoApproved("server_tool") {
+	ref := ToolRef{Server: "server", Tool: "tool"}
+	if policy.Disabled(ref) || policy.AutoApproved(ref) {
 		t.Fatal("zero policy must not disable or auto-approve tools")
 	}
 }
