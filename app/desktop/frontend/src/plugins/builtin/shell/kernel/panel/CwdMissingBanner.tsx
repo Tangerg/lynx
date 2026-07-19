@@ -34,7 +34,7 @@ export function CwdMissingBanner() {
     if (!next || submitting.current) return;
     submitting.current = true;
     setBusy(true);
-    const ok = await relocate(session.id, next);
+    const ok = await relocate(session.id, session.revision, next);
     submitting.current = false;
     setBusy(false);
     if (ok) {

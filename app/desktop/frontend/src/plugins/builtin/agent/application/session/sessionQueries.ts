@@ -3,6 +3,7 @@ import { queryClient } from "@/lib/data/queryClient";
 
 export interface AgentSessionSummary {
   id: string;
+  revision: number;
   title: string;
   status: "running" | "waiting" | "idle";
   model: string;

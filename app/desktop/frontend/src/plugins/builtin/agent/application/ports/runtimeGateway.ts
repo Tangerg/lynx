@@ -28,10 +28,11 @@ export interface AgentRuntimeGateway {
   deleteSession(sessionId: string): Promise<void>;
   updateSession(input: {
     sessionId: string;
+    expectedRevision: number;
     title?: string;
     favorite?: boolean;
     cwd?: string;
-  }): Promise<void>;
+  }): Promise<{ revision: number }>;
   forkSession(input: { sessionId: string; fromRunId?: string }): Promise<{ id: string }>;
   loadSessionHistory(sessionId: string): Promise<AgentSessionHistory>;
   loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;

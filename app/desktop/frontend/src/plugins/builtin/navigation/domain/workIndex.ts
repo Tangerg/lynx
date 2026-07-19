@@ -2,6 +2,7 @@ export type WorkSessionAttention = "running" | "waiting" | "none";
 
 export interface WorkSession {
   id: string;
+  revision: number;
   title: string;
   attention: WorkSessionAttention;
   favorite?: boolean;

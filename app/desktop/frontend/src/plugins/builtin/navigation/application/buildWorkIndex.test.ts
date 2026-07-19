@@ -7,6 +7,7 @@ function session(
   overrides: Partial<AgentSessionSummary> & Pick<AgentSessionSummary, "id">,
 ): AgentSessionSummary {
   return {
+    revision: 1,
     title: overrides.id,
     status: "idle",
     model: "gpt-test",
@@ -85,6 +86,7 @@ describe("buildWorkIndexGroups", () => {
         sessions: [
           {
             id: "chat-only",
+            revision: 1,
             title: "chat-only",
             attention: "none",
             favorite: undefined,

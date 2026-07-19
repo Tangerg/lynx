@@ -11,13 +11,13 @@ interface Props {
   active: boolean;
   onSelect: (id: string) => void;
   /** When set, right-click reveals a Rename action (inline title edit). */
-  onRename?: (id: string, title: string) => void;
+  onRename?: (id: string, expectedRevision: number, title: string) => void;
   /** When set, right-click reveals a Fork action (whole-session copy). */
   onFork?: (id: string) => void;
   /** When set, right-click reveals a Delete action. */
   onDelete?: (id: string) => void;
   /** When set, right-click reveals a Pin / Unpin action (favorite toggle). */
-  onToggleFavorite?: (id: string, favorite: boolean) => void;
+  onToggleFavorite?: (id: string, expectedRevision: number, favorite: boolean) => void;
 }
 
 // Session row — sidebar list item.
@@ -104,13 +104,17 @@ export function SessionRow({
               if (e.key === "Escape") setRenaming(false);
               if (e.key === "Enter") {
                 const next = e.currentTarget.value.trim();
-                if (next && next !== session.title) onRename?.(session.id, next);
+                if (next && next !== session.title) {
+                  onRename?.(session.id, session.revision, next);
+                }
                 setRenaming(false);
               }
             }}
             onBlur={(e) => {
               const next = e.currentTarget.value.trim();
-              if (next && next !== session.title) onRename?.(session.id, next);
+              if (next && next !== session.title) {
+                onRename?.(session.id, session.revision, next);
+              }
               setRenaming(false);
             }}
             className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-[13px] leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
@@ -130,7 +134,7 @@ export function SessionRow({
         {onToggleFavorite && (
           <ContextMenu.IconItem
             icon="star"
-            onSelect={() => onToggleFavorite(session.id, !session.favorite)}
+            onSelect={() => onToggleFavorite(session.id, session.revision, !session.favorite)}
           >
             {session.favorite ? "Unpin" : "Pin to top"}
           </ContextMenu.IconItem>

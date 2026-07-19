@@ -12,9 +12,13 @@ const gateway: AgentRuntimeGateway = {
     await getContainer().client().sessions.delete(asSessionId(sessionId));
   },
   async updateSession({ sessionId, ...patch }) {
-    await getContainer()
+    const updated = await getContainer()
       .client()
-      .sessions.update({ sessionId: asSessionId(sessionId), ...patch });
+      .sessions.update({
+        sessionId: asSessionId(sessionId),
+        ...patch,
+      });
+    return { revision: updated.revision };
   },
   async forkSession(input) {
     const fork = await getContainer()
