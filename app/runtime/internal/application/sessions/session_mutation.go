@@ -110,11 +110,12 @@ func claimMutationSlots(claims SessionClaimer, sessionIDs []string) ([]RunAdmiss
 	}
 	admissions := make([]RunAdmission, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		if !claims.ClaimSession(sessionID) {
+		release, ok := claims.AcquireSession(sessionID)
+		if !ok {
 			releaseAdmissions(admissions)
 			return nil, ErrSessionBusy
 		}
-		admissions = append(admissions, heldAdmission(claims, sessionID))
+		admissions = append(admissions, heldAdmission(sessionID, release))
 	}
 	return admissions, nil
 }

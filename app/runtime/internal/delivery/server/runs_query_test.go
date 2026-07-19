@@ -46,8 +46,8 @@ func TestSessionStatusPreservesInterruptReadFailure(t *testing.T) {
 func TestSessionStatusDoesNotQueryInterruptsForActiveRun(t *testing.T) {
 	reader := &fakeInterruptReader{err: errors.New("must not be read")}
 	coordinator := runs.NewCoordinator(runs.Dependencies{})
-	if !coordinator.ClaimSession("ses_1") {
-		t.Fatal("ClaimSession rejected an empty registry")
+	if _, ok := coordinator.AcquireSession("ses_1"); !ok {
+		t.Fatal("AcquireSession rejected an empty registry")
 	}
 	s := &Server{
 		coordinator: coordinator,

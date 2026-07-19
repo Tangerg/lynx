@@ -241,10 +241,11 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if !s.coordinator.ClaimSession(ses.ID) {
+	releaseSession, ok := s.coordinator.AcquireSession(ses.ID)
+	if !ok {
 		t.Fatal("claim session")
 	}
-	t.Cleanup(func() { s.coordinator.ReleaseSession(ses.ID) })
+	t.Cleanup(releaseSession)
 
 	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{
 		Artifact: protocol.SessionArtifact{
@@ -275,10 +276,11 @@ func TestSessionExportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if !s.coordinator.ClaimSession(ses.ID) {
+	releaseSession, ok := s.coordinator.AcquireSession(ses.ID)
+	if !ok {
 		t.Fatal("claim session")
 	}
-	t.Cleanup(func() { s.coordinator.ReleaseSession(ses.ID) })
+	t.Cleanup(releaseSession)
 
 	_, err = s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
 	if !errors.Is(err, protocol.ErrSessionBusy) {

@@ -39,28 +39,22 @@ type Entry[P any] struct {
 //
 // Its zero value is usable.
 type Registry[P any] struct {
-	mu       sync.Mutex
-	runs     map[string]Entry[P]
-	claiming map[string]struct{}
+	mu          sync.Mutex
+	runs        map[string]Entry[P]
+	claims      map[string]map[uint64]struct{}
+	nextClaimID uint64
 }
 
-// ClaimSession reserves a session's single-writer slot for run admission.
-func (r *Registry[P]) ClaimSession(sessionID string) bool {
+// AcquireSession reserves a session's single-writer slot for run admission.
+// The returned release owns one specific claim: releasing an older admission
+// can never erase a newer terminal-maintenance claim for the same session.
+func (r *Registry[P]) AcquireSession(sessionID string) (release func(), ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.activeSessionLocked(sessionID) {
-		return false
+		return nil, false
 	}
-	r.initLocked()
-	r.claiming[sessionID] = struct{}{}
-	return true
-}
-
-// ReleaseSession drops an admission claim.
-func (r *Registry[P]) ReleaseSession(sessionID string) {
-	r.mu.Lock()
-	delete(r.claiming, sessionID)
-	r.mu.Unlock()
+	return r.addClaimLocked(sessionID), true
 }
 
 // Open registers an active run segment.
@@ -71,20 +65,21 @@ func (r *Registry[P]) Open(record Record, payload P) {
 	r.mu.Unlock()
 }
 
-// BeginMaintenance atomically removes a completed segment and keeps its session's
-// single-writer slot claimed. The caller must [Registry.ReleaseSession] after
-// boundary maintenance completes. This closes the admission gap in which a new
-// run or destructive session mutation could otherwise race terminal cleanup.
-func (r *Registry[P]) BeginMaintenance(id string) (Entry[P], bool) {
+// BeginMaintenance atomically removes a completed segment and acquires a
+// separately-owned session claim. The caller must invoke release after boundary
+// maintenance completes. Keeping this claim distinct from the opening admission
+// prevents a fast run's delayed opening release from erasing the maintenance
+// fence. This closes the admission gap in which a new run or destructive session
+// mutation could otherwise race terminal cleanup.
+func (r *Registry[P]) BeginMaintenance(id string) (entry Entry[P], release func(), ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e, ok := r.runs[id]
 	if ok {
 		delete(r.runs, id)
-		r.initLocked()
-		r.claiming[e.Record.SessionID] = struct{}{}
+		release = r.addClaimLocked(e.Record.SessionID)
 	}
-	return e, ok
+	return e, release, ok
 }
 
 // Get returns an active run segment.
@@ -144,8 +139,8 @@ func (r *Registry[P]) ActiveSession(sessionID string) bool {
 func (r *Registry[P]) ActiveSessions() map[string]bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	set := make(map[string]bool, len(r.runs)+len(r.claiming))
-	for id := range r.claiming {
+	set := make(map[string]bool, len(r.runs)+len(r.claims))
+	for id := range r.claims {
 		set[id] = true
 	}
 	for _, e := range r.runs {
@@ -170,7 +165,7 @@ func (r *Registry[P]) ActiveSessionWithCwd(cwd string) string {
 }
 
 func (r *Registry[P]) activeSessionLocked(sessionID string) bool {
-	if _, ok := r.claiming[sessionID]; ok {
+	if len(r.claims[sessionID]) > 0 {
 		return true
 	}
 	for _, e := range r.runs {
@@ -185,7 +180,32 @@ func (r *Registry[P]) initLocked() {
 	if r.runs == nil {
 		r.runs = map[string]Entry[P]{}
 	}
-	if r.claiming == nil {
-		r.claiming = map[string]struct{}{}
+	if r.claims == nil {
+		r.claims = map[string]map[uint64]struct{}{}
+	}
+}
+
+func (r *Registry[P]) addClaimLocked(sessionID string) func() {
+	r.initLocked()
+	r.nextClaimID++
+	id := r.nextClaimID
+	owners := r.claims[sessionID]
+	if owners == nil {
+		owners = map[uint64]struct{}{}
+		r.claims[sessionID] = owners
+	}
+	owners[id] = struct{}{}
+
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			owners := r.claims[sessionID]
+			delete(owners, id)
+			if len(owners) == 0 {
+				delete(r.claims, sessionID)
+			}
+		})
 	}
 }

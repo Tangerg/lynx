@@ -11,8 +11,7 @@ import (
 // --hard` writes the tree a sibling session sharing the cwd would race, so the
 // mutation must see any in-flight run on that tree, not just this session.
 type SessionClaimer interface {
-	ClaimSession(sessionID string) bool
-	ReleaseSession(sessionID string)
+	AcquireSession(sessionID string) (release func(), ok bool)
 	ActiveSessionWithCwd(cwd string) string
 }
 
@@ -42,22 +41,23 @@ func (r *releaseOnce) run() {
 	r.once.Do(r.fn)
 }
 
-// heldAdmission builds a slot whose Release drops the session's single-writer
-// claim exactly once.
-func heldAdmission(claims SessionClaimer, sessionID string) RunAdmission {
+// heldAdmission builds a slot whose Release drops its owned single-writer claim
+// exactly once.
+func heldAdmission(sessionID string, release func()) RunAdmission {
 	return RunAdmission{
 		SessionID: sessionID,
-		release:   newReleaseOnce(func() { claims.ReleaseSession(sessionID) }),
+		release:   newReleaseOnce(release),
 	}
 }
 
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
 // rejects sessions already parked on an open interrupt.
 func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, sessionID string) (RunAdmission, error) {
-	if !claims.ClaimSession(sessionID) {
+	release, ok := claims.AcquireSession(sessionID)
+	if !ok {
 		return RunAdmission{}, ErrSessionBusy
 	}
-	admission := heldAdmission(claims, sessionID)
+	admission := heldAdmission(sessionID, release)
 	open, err := c.s.Interrupts().List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
@@ -75,8 +75,9 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, s
 // interrupts: rollback/delete/import decide what to do with parked runs inside
 // their own lifecycle write-set.
 func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string) (RunAdmission, error) {
-	if !claims.ClaimSession(sessionID) {
+	release, ok := claims.AcquireSession(sessionID)
+	if !ok {
 		return RunAdmission{}, ErrSessionBusy
 	}
-	return heldAdmission(claims, sessionID), nil
+	return heldAdmission(sessionID, release), nil
 }

@@ -110,20 +110,18 @@ type testClaimer struct {
 	released []string
 }
 
-func (c *testClaimer) ClaimSession(sessionID string) bool {
+func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
 	if c.claimed == nil {
 		c.claimed = map[string]bool{}
 	}
 	if c.claimed[sessionID] {
-		return false
+		return nil, false
 	}
 	c.claimed[sessionID] = true
-	return true
-}
-
-func (c *testClaimer) ReleaseSession(sessionID string) {
-	c.released = append(c.released, sessionID)
-	delete(c.claimed, sessionID)
+	return func() {
+		c.released = append(c.released, sessionID)
+		delete(c.claimed, sessionID)
+	}, true
 }
 
 // ActiveSessionWithCwd reports no cross-session working-tree contention by

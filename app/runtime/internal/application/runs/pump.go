@@ -123,9 +123,9 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			cancelTeardown()
 		}
 		hub.Close()
-		entry, maintenanceHeld := c.registry.BeginMaintenance(spec.RunID)
+		entry, releaseMaintenance, maintenanceHeld := c.registry.BeginMaintenance(spec.RunID)
 		if maintenanceHeld {
-			defer c.registry.ReleaseSession(entry.Record.SessionID)
+			defer releaseMaintenance()
 			// A parked run keeps its live turn alive for resume — only cancel +
 			// forget on a true terminal.
 			if !parked && entry.Payload != nil {

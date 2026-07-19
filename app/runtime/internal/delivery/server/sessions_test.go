@@ -67,14 +67,15 @@ func TestUpdateSession(t *testing.T) {
 	if out.Cwd != workspacepath.Canonical(newCwd) {
 		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
 	}
-	if !s.coordinator.ClaimSession(created.ID) {
+	releaseSession, ok := s.coordinator.AcquireSession(created.ID)
+	if !ok {
 		t.Fatal("claim active session")
 	}
 	busyCwd := t.TempDir()
 	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{SessionID: created.ID, Cwd: &busyCwd}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
 	}
-	s.coordinator.ReleaseSession(created.ID)
+	releaseSession()
 
 	if err := os.RemoveAll(newCwd); err != nil {
 		t.Fatalf("remove cwd: %v", err)
@@ -164,10 +165,11 @@ func TestDeleteSession_RejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	if !s.coordinator.ClaimSession(created.ID) {
+	releaseSession, ok := s.coordinator.AcquireSession(created.ID)
+	if !ok {
 		t.Fatal("claim session")
 	}
-	t.Cleanup(func() { s.coordinator.ReleaseSession(created.ID) })
+	t.Cleanup(releaseSession)
 
 	if err := s.DeleteSession(ctx, created.ID); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("delete under active claim = %v, want ErrSessionBusy", err)

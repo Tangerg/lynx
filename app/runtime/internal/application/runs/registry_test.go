@@ -6,25 +6,26 @@ import (
 	"time"
 )
 
-func TestRegistryClaimSession(t *testing.T) {
+func TestRegistryAcquireSession(t *testing.T) {
 	var r Registry[struct{}]
-	if !r.ClaimSession("s1") {
+	releaseS1, ok := r.AcquireSession("s1")
+	if !ok {
 		t.Fatal("first claim must succeed")
 	}
-	if r.ClaimSession("s1") {
+	if _, ok := r.AcquireSession("s1"); ok {
 		t.Fatal("second claim on the same session must fail")
 	}
-	if !r.ClaimSession("s2") {
+	if _, ok := r.AcquireSession("s2"); !ok {
 		t.Fatal("different session must claim independently")
 	}
 	if !r.ActiveSession("s1") {
 		t.Fatal("claimed session must read as active")
 	}
-	r.ReleaseSession("s1")
+	releaseS1()
 	if r.ActiveSession("s1") {
 		t.Fatal("released session must no longer read as active")
 	}
-	if !r.ClaimSession("s1") {
+	if _, ok := r.AcquireSession("s1"); !ok {
 		t.Fatal("claim must succeed again after release")
 	}
 }
@@ -62,19 +63,47 @@ func TestRegistryTracksActiveRuns(t *testing.T) {
 		t.Fatalf("entry = %+v, ok=%v", e, ok)
 	}
 
-	closed, ok := r.BeginMaintenance("run_1")
+	closed, releaseMaintenance, ok := r.BeginMaintenance("run_1")
 	if !ok || closed.Payload != 7 {
 		t.Fatalf("maintenance entry = %+v, ok=%v", closed, ok)
 	}
 	if r.Contains("run_1") || !r.ActiveSession("ses_1") {
 		t.Fatal("maintenance must remove the run while retaining its session claim")
 	}
-	if r.ClaimSession("ses_1") {
+	if _, ok := r.AcquireSession("ses_1"); ok {
 		t.Fatal("new admission crossed the terminal-maintenance boundary")
 	}
-	r.ReleaseSession("ses_1")
+	releaseMaintenance()
 	if r.ActiveSession("ses_1") {
 		t.Fatal("released maintenance claim must no longer be active")
+	}
+}
+
+func TestRegistryOpeningReleaseCannotEraseMaintenanceClaim(t *testing.T) {
+	var r Registry[struct{}]
+	releaseOpening, ok := r.AcquireSession("ses_1")
+	if !ok {
+		t.Fatal("opening admission was rejected")
+	}
+	r.Open(Record{ID: "run_1", SessionID: "ses_1"}, struct{}{})
+
+	_, releaseMaintenance, ok := r.BeginMaintenance("run_1")
+	if !ok {
+		t.Fatal("terminal maintenance did not acquire the run")
+	}
+	// A fast run can reach maintenance before Start returns and releases its
+	// opening admission. That stale release must affect only its own claim.
+	releaseOpening()
+	if !r.ActiveSession("ses_1") {
+		t.Fatal("opening release erased the newer maintenance claim")
+	}
+	if _, ok := r.AcquireSession("ses_1"); ok {
+		t.Fatal("new admission crossed maintenance after opening release")
+	}
+
+	releaseMaintenance()
+	if r.ActiveSession("ses_1") {
+		t.Fatal("maintenance release left the session active")
 	}
 }
 
