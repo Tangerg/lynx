@@ -31,12 +31,11 @@ type turnState struct {
 	// event delivery, and channel closure. No sender may touch events without
 	// it, so endTurn can close the stream without racing a late observer or a
 	// park/cancel hand-off.
-	eventMu                 sync.Mutex
-	eventsClosed            bool
-	eventsOpened            bool
-	lateCreateFailureEvents bool
-	seq                     uint64
-	terminalOnce            sync.Once
+	eventMu      sync.Mutex
+	eventsClosed bool
+	eventsOpened bool
+	seq          uint64
+	terminalOnce sync.Once
 
 	// cwd is the session working directory the turn ran in — threaded to
 	// post-turn maintenance so extracted facts land in that project's ledger.
@@ -94,6 +93,14 @@ type turnState struct {
 	// via process() from other goroutines.
 	agentProcess agentexec.TurnProcess
 
+	// startRequest is the immutable request owned by a prepared fresh turn.
+	// activated linearizes ActivateTurn against Cancel: exactly one side claims
+	// the pre-execution state, so a rejected application admission can tear the
+	// turn down without ever entering the model/tool engine.
+	startRequest StartTurnRequest
+	prepared     bool
+	activated    bool
+
 	// parked is true while the turn is suspended on a HITL interrupt
 	// (StatusWaiting) awaiting [Dispatcher.Resume]. A parked turn stays
 	// registered (events channel open) until claimPark drives it to a
@@ -112,6 +119,36 @@ type turnState struct {
 	// steer that races turn-end must bounce back to the client (which retries it
 	// as a fresh send) rather than be queued into a turn nothing will ever drain.
 	flushed bool
+}
+
+func (st *turnState) prepareStart(request StartTurnRequest) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.startRequest = request
+	st.prepared = true
+}
+
+func (st *turnState) claimStart() (StartTurnRequest, bool) {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.prepared || st.activated {
+		return StartTurnRequest{}, false
+	}
+	st.activated = true
+	request := st.startRequest
+	st.startRequest = StartTurnRequest{}
+	return request, true
+}
+
+func (st *turnState) cancelPrepared() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if !st.prepared || st.activated {
+		return false
+	}
+	st.activated = true
+	st.startRequest = StartTurnRequest{}
+	return true
 }
 
 // newTurnState builds a fresh per-turn state. Its lifetime ctx derives from the
@@ -140,22 +177,10 @@ func (st *turnState) setInterruptKinds(kinds []string) {
 	}
 }
 
-func (st *turnState) markEventsOpened() {
+func (st *turnState) claimEvents() bool {
 	st.eventMu.Lock()
 	defer st.eventMu.Unlock()
-	st.eventsOpened = true
-}
-
-func (st *turnState) enableLateCreateFailureEvents() {
-	st.eventMu.Lock()
-	defer st.eventMu.Unlock()
-	st.lateCreateFailureEvents = true
-}
-
-func (st *turnState) claimLateCreateFailureEvents() bool {
-	st.eventMu.Lock()
-	defer st.eventMu.Unlock()
-	if !st.lateCreateFailureEvents || st.eventsOpened {
+	if st.eventsOpened {
 		return false
 	}
 	st.eventsOpened = true

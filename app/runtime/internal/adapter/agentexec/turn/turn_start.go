@@ -7,6 +7,21 @@ import (
 )
 
 func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
+	handle, err := s.PrepareTurn(ctx, request)
+	if err != nil {
+		return TurnHandle{}, err
+	}
+	if err := s.ActivateTurn(ctx, handle); err != nil {
+		_ = s.Cancel(context.WithoutCancel(ctx), handle)
+		return TurnHandle{}, err
+	}
+	return handle, nil
+}
+
+// PrepareTurn establishes all reversible turn state but deliberately does not
+// launch the engine. The application can now durably admit its Run before
+// ActivateTurn crosses the model/tool side-effect boundary.
+func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
 	if request.SessionID == "" {
 		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
@@ -27,6 +42,7 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 	state.model = modelOr(request.Model)
 	state.cwd = request.Cwd
 	state.setInterruptKinds(request.InterruptKinds)
+	state.prepareStart(request)
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
@@ -64,9 +80,21 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 		return TurnHandle{}, ErrDispatcherClosed
 	}
 
-	go s.runTurn(request, state)
-
 	return handle, nil
+}
+
+// ActivateTurn launches a prepared turn exactly once.
+func (s *memoryDispatcher) ActivateTurn(_ context.Context, handle TurnHandle) error {
+	state, err := s.findTurn(handle.TurnID)
+	if err != nil {
+		return err
+	}
+	request, ok := state.claimStart()
+	if !ok {
+		return ErrTurnAlreadyActivated
+	}
+	go s.runTurn(request, state)
+	return nil
 }
 
 // modelOr returns the model name for display / observability, falling

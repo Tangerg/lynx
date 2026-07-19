@@ -63,7 +63,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	draft.SessionID = sess.ID
 	draft.Cwd = sess.Cwd
-	turn, err := c.turns.Start(ctx, draft)
+	turn, err := c.turns.PrepareStart(ctx, draft)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -84,6 +84,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		CreatedAt:       createdAt,
 		OpeningUserText: cmd.OpeningUserText,
 		Input:           cmd.Input,
+		Activate: func(activateCtx context.Context) error {
+			return c.turns.Activate(activateCtx, turn)
+		},
 	})
 	if err != nil {
 		if errors.Is(err, execution.ErrSessionBusy) {

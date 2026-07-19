@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // These fakes exercise the application-owned reducer and journal. Delivery
@@ -321,6 +322,7 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
 	spec.SegmentID = "seg_2"
+	spec.Pending = &interrupts.Pending{}
 	activatedAfterOpening := false
 	spec.Activate = func(context.Context) error {
 		activatedAfterOpening = effects.opening().Resume != nil
