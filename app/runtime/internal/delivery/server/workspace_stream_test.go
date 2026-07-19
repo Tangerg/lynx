@@ -13,7 +13,11 @@ import (
 // test, where the broadcast-only shape is all the tests need.
 func (h *workspaceHub) subscribe() (<-chan protocol.WorkspaceEvent, func()) {
 	ch := make(chan protocol.WorkspaceEvent, 64)
-	_, unregister := h.register(ch)
+	_, unregister, ok := h.register(ch)
+	if !ok {
+		close(ch)
+		return ch, func() {}
+	}
 	return ch, func() {
 		unregister()
 		close(ch)
@@ -24,8 +28,8 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 	hub := newWorkspaceHub()
 	first := make(chan protocol.WorkspaceEvent, 2)
 	second := make(chan protocol.WorkspaceEvent, 1)
-	firstSub, unregisterFirst := hub.register(first)
-	_, unregisterSecond := hub.register(second)
+	firstSub, unregisterFirst, _ := hub.register(first)
+	_, unregisterSecond, _ := hub.register(second)
 	defer unregisterFirst()
 	defer unregisterSecond()
 
@@ -47,7 +51,7 @@ func TestWorkspaceHubSequencesEventsPerSubscription(t *testing.T) {
 func TestWorkspaceHubSequenceExposesDroppedEvent(t *testing.T) {
 	hub := newWorkspaceHub()
 	events := make(chan protocol.WorkspaceEvent, 1)
-	_, unregister := hub.register(events)
+	_, unregister, _ := hub.register(events)
 	defer unregister()
 
 	hub.publish(protocol.WorkspaceEvent{Type: "first"})
@@ -65,8 +69,8 @@ func TestWorkspaceHubIsolatesMutableEventDataPerSubscription(t *testing.T) {
 	hub := newWorkspaceHub()
 	first := make(chan protocol.WorkspaceEvent, 1)
 	second := make(chan protocol.WorkspaceEvent, 1)
-	_, unregisterFirst := hub.register(first)
-	_, unregisterSecond := hub.register(second)
+	_, unregisterFirst, _ := hub.register(first)
+	_, unregisterSecond, _ := hub.register(second)
 	defer unregisterFirst()
 	defer unregisterSecond()
 
@@ -93,5 +97,26 @@ func TestWorkspaceHubIsolatesMutableEventDataPerSubscription(t *testing.T) {
 
 	if secondEvent.Paths[0] != "a.go" || *secondEvent.ToolCount != 2 || secondEvent.Error.Errors[0].Field != "path" {
 		t.Fatalf("second subscription observed shared mutable data: %+v", secondEvent)
+	}
+}
+
+func TestWorkspaceHubCloseLinearizesSubscriptionAdmission(t *testing.T) {
+	hub := newWorkspaceHub()
+	before := make(chan protocol.WorkspaceEvent, 1)
+	_, unregister, ok := hub.register(before)
+	if !ok {
+		t.Fatal("subscription before close was rejected")
+	}
+	defer unregister()
+
+	hub.closeAdmissions()
+	after := make(chan protocol.WorkspaceEvent, 1)
+	if _, _, ok := hub.register(after); ok {
+		t.Fatal("subscription admitted after close returned")
+	}
+
+	hub.publish(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventResync})
+	if got := <-before; got.Type != protocol.WorkspaceEventResync {
+		t.Fatalf("pre-close subscription event = %+v", got)
 	}
 }

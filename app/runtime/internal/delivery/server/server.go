@@ -12,7 +12,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
@@ -26,7 +25,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
 // Config bundles construction inputs.
@@ -150,11 +148,6 @@ type Server struct {
 	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
-
-	// closed gates new workspace subscriptions once the Server is shutting down.
-	// Each stream's own lifetime is its request ctx (canceled on client disconnect
-	// or the transport's forced shutdown); delivery owns no task group (§16 rule 5).
-	closed atomic.Bool
 }
 
 // FileChangeSource is the delivery-side view of the composition-root file-change
@@ -181,7 +174,9 @@ func (s *Server) Close() {
 	if s == nil {
 		return
 	}
-	s.closed.Store(true)
+	if s.wsHub != nil {
+		s.wsHub.closeAdmissions()
+	}
 }
 
 // New builds a Server. Returns an error when a required coordinator is nil. The
@@ -261,13 +256,7 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.models, s.workspace.HasMemory())
-}
-
-// capabilityAccess is the slice of the models coordinator the capability snapshot
-// needs; the coordinator (and any test fake of it) satisfies it.
-type capabilityAccess interface {
-	SupportedProviders() []providersvc.Metadata
+	return Capabilities(s.workspace.HasMemory())
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises
@@ -275,10 +264,9 @@ type capabilityAccess interface {
 // return capability_not_negotiated are advertised false, so the client never calls a
 // method this build silently rejects. hasMemory comes from the workspace
 // coordinator (the long-term knowledge store may be absent).
-func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabilities {
+func Capabilities(hasMemory bool) protocol.ServerCapabilities {
 	memory := hasMemory
 	return protocol.ServerCapabilities{
-		ProtocolVersion: protocol.ProtocolVersion,
 		Events: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,
 			protocol.StreamSegmentProgress,
@@ -293,40 +281,35 @@ func Capabilities(rt capabilityAccess, hasMemory bool) protocol.ServerCapabiliti
 		StreamingMethods: []string{"runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"},
 		// Open features map (§9): advertise a new capability by adding a key.
 		// Known keys absent here default to off on the client.
-		Features: map[string]protocol.FeatureFlag{
-			"reasoning": true,
-			"mcp":       true,
-			"memory":    memory,
-			"skills":    true,                     // workspace.listSkills (project + global enumeration)
-			"git":       workspace.GitAvailable(), // workspace.listFileChanges / getDiff (git binary on PATH)
-			"fileWatch": true,                     // workspace.subscribe watches → files.changed (fsnotify)
-			"lsp":       true,                     // code-intelligence tools (definition/refs/hover/symbols/diagnostics) + auto type-check on edit
+		Features: map[string]protocol.FeatureCapability{
+			"reasoning": capability(true),
+			"mcp":       capability(true),
+			"memory":    capability(memory),
+			"skills":    capability(true),
+			"git":       capability(workspace.GitAvailable()),
+			"fileWatch": capability(true),
+			"lsp":       capability(true),
 
-			"sessionExport": true, // sessions.export (inline json/md) + sessions.import (restore)
+			"sessionExport": capability(true),
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			"checkpoints": workspace.GitAvailable(),
-			"multimodal":  true, // image input: runs.start input image blocks (Mime + base64 Data)
-			"relocate":    true, // sessions.update cwd-relocate
-			"todos":       true, // state.snapshot{todos} from the todo_write tool
-			"compaction":  true, // compaction Item boundaries
+			"checkpoints": capability(workspace.GitAvailable()),
+			"multimodal":  capability(true),
+			"relocate":    capability(true),
+			"todos":       capability(true),
+			"compaction":  capability(true),
 			// Off until the corresponding engine support lands:
-			"subagents":   false,
-			"clientTools": false,
+			"subagents":   capability(false),
+			"clientTools": capability(false),
 		},
-		Providers: providerIDs(rt.SupportedProviders()),
 		// No process-wide run cap is enforced. Leave maxConcurrentRuns omitted
 		// rather than advertising a hard limit the admission layer does not own.
 		Limits: protocol.RuntimeLimits{},
 	}
 }
 
-func providerIDs(supported []providersvc.Metadata) []string {
-	out := make([]string, 0, len(supported))
-	for _, meta := range supported {
-		out = append(out, meta.ID)
-	}
-	return out
+func capability(enabled bool) protocol.FeatureCapability {
+	return protocol.FeatureCapability{Enabled: enabled, Stability: protocol.StabilityStable}
 }
 
 // ─── helpers ────────────────────────────────────────────────────────
