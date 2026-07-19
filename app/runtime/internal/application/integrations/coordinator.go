@@ -25,6 +25,9 @@ type MCPToolCatalog interface {
 }
 
 // MCPConnectionCommands reconnects and authorizes configured MCP servers.
+// Implementations must sequence operations per server: a newer configure,
+// remove, reconnect, or authorize supersedes an older in-flight operation, while
+// operations for different servers may proceed concurrently.
 type MCPConnectionCommands interface {
 	Reconnect(ctx context.Context, name string) error
 	Authorize(ctx context.Context, name string) error
@@ -42,11 +45,10 @@ type MCPRegistryCommands interface {
 type Coordinator struct {
 	// MCP: the durable registry (source of truth), the live connection pool
 	// (projection), and the atomically-published ToolPolicy the engine's tool gate
-	// + approval read. mcpMutationMu linearizes the multi-step registry -> live ->
-	// policy write, plus asynchronous reconnect/authorize. Locks inside the
-	// store/pool can't span that boundary, and relying on an adapter-local dial
-	// lock would still allow durable registry state and status notifications to
-	// become observably reordered.
+	// + approval read. mcpMutationMu linearizes durable registry -> policy/live
+	// reconciliation and the short pre/post boundaries of asynchronous connect
+	// operations. Network and interactive OAuth waits never hold it; the live
+	// adapter owns per-server latest-operation-wins sequencing.
 	mcpRegistry           mcpserver.Registry
 	mcpStatusReader       MCPStatusReader
 	mcpToolCatalog        MCPToolCatalog

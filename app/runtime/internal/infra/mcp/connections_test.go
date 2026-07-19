@@ -85,27 +85,62 @@ func TestConnectionsRejectMutationsAfterClose(t *testing.T) {
 	}
 }
 
-func TestConnectionsCloseSerializesWithMutations(t *testing.T) {
+func TestConnectionsCloseCancelsAndJoinsAttempts(t *testing.T) {
 	c := &Connections{}
-	c.reconnectMu.Lock()
+	target := &server{config: ServerConfig{Name: "server"}}
+	c.servers = []*server{target}
+	c.mu.Lock()
+	attempt := c.beginAttempt(t.Context(), target)
+	c.mu.Unlock()
 	done := make(chan error, 1)
 	go func() { done <- c.Close() }()
 
 	select {
+	case <-attempt.ctx.Done():
+	case <-time.After(time.Second):
+		t.Fatal("Close did not cancel the active attempt")
+	}
+	select {
 	case err := <-done:
-		t.Fatalf("Close returned before the active mutation released its lock: %v", err)
+		t.Fatalf("Close returned before the active attempt exited: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
 
-	c.reconnectMu.Unlock()
+	c.finishAttempt(attempt)
 	select {
 	case err := <-done:
 		if err != nil {
 			t.Fatalf("Close: %v", err)
 		}
 	case <-time.After(time.Second):
-		t.Fatal("Close did not finish after the mutation lock was released")
+		t.Fatal("Close did not finish after the attempt exited")
 	}
+}
+
+func TestConnectionAttemptsSupersedePerServer(t *testing.T) {
+	c := &Connections{}
+	first := &server{config: ServerConfig{Name: "first"}}
+	second := &server{config: ServerConfig{Name: "second"}}
+	c.servers = []*server{first, second}
+
+	c.mu.Lock()
+	oldFirst := c.beginAttempt(t.Context(), first)
+	secondAttempt := c.beginAttempt(t.Context(), second)
+	newFirst := c.beginAttempt(t.Context(), first)
+	if !c.currentAttempt(newFirst) || c.currentAttempt(oldFirst) == true {
+		t.Fatal("latest first-server attempt did not own its generation")
+	}
+	c.mu.Unlock()
+
+	if oldFirst.ctx.Err() == nil {
+		t.Fatal("new same-server attempt did not cancel its predecessor")
+	}
+	if secondAttempt.ctx.Err() != nil {
+		t.Fatal("first-server attempt canceled an unrelated server")
+	}
+	c.finishAttempt(oldFirst)
+	c.finishAttempt(secondAttempt)
+	c.finishAttempt(newFirst)
 }
 
 func TestCloneServerConfigOwnsMutableFields(t *testing.T) {

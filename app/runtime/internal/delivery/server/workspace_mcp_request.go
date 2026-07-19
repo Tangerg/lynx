@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -19,7 +20,7 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 		if ok &&
 			cur.Transport == mcpserver.TransportStreamableHTTP &&
 			mcpserver.Transport(in.Transport) == mcpserver.TransportStreamableHTTP &&
-			mcpserver.SameHTTPOrigin(cur.URL, in.URL) {
+			httporigin.Same(cur.URL, in.URL) {
 			auth = cur.Authorization
 		}
 	}

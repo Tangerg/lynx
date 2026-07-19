@@ -88,9 +88,6 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	if c == nil {
 		return
 	}
-	c.reconnectMu.Lock()
-	defer c.reconnectMu.Unlock()
-
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
@@ -98,7 +95,13 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	}
 	var old *sdkmcp.ClientSession
 	if index := slices.IndexFunc(c.servers, func(ms *server) bool { return ms.name() == name }); index >= 0 {
-		old = c.servers[index].session
+		target := c.servers[index]
+		old = target.session
+		if target.cancel != nil {
+			target.cancel()
+			target.cancel = nil
+		}
+		target.generation++
 		// slices.Delete clears the vacated pointer, so the long-lived backing
 		// array cannot retain the removed session and its verified tool wrappers.
 		c.servers = slices.Delete(c.servers, index, index+1)
@@ -119,6 +122,9 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 // server's session; publication itself is deterministic and cannot turn caller
 // cancellation or another server's transient failure into a false catalog.
 func (c *Connections) publishTools() {
+	c.publishMu.Lock()
+	defer c.publishMu.Unlock()
+
 	c.mu.Lock()
 	var catalog []tools.Tool
 	for _, ms := range c.servers {
@@ -139,17 +145,27 @@ func (c *Connections) Close() error {
 	if c == nil {
 		return nil
 	}
-	c.reconnectMu.Lock()
-	defer c.reconnectMu.Unlock()
-
 	c.mu.Lock()
 	if c.closed {
+		done := c.closeDone
 		c.mu.Unlock()
-		return nil
+		if done != nil {
+			<-done
+		}
+		c.mu.Lock()
+		err := c.closeErr
+		c.mu.Unlock()
+		return err
 	}
 	c.closed = true
+	c.closeDone = make(chan struct{})
+	done := c.closeDone
 	sessions := make([]*sdkmcp.ClientSession, 0, len(c.servers))
 	for _, ms := range c.servers {
+		if ms.cancel != nil {
+			ms.cancel()
+			ms.cancel = nil
+		}
 		if ms.session != nil {
 			sessions = append(sessions, ms.session)
 		}
@@ -163,5 +179,11 @@ func (c *Connections) Close() error {
 			errs = append(errs, err)
 		}
 	}
-	return errors.Join(errs...)
+	c.attempts.Wait()
+	err := errors.Join(errs...)
+	c.mu.Lock()
+	c.closeErr = err
+	close(done)
+	c.mu.Unlock()
+	return err
 }

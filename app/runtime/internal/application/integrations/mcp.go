@@ -34,7 +34,7 @@ func (c *Coordinator) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver
 }
 
 // MCPServerStatuses returns the per-server connection state of every configured
-// MCP server (connected and boot-failed alike) for workspace.mcp.listServers.
+// MCP server (connected and boot-failed alike) for mcp.servers.list.
 func (c *Coordinator) MCPServerStatuses() []mcpserver.ConnectionStatus {
 	if c.mcpStatusReader == nil {
 		return nil
@@ -48,7 +48,7 @@ func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcp
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live tool
-// set (workspace.mcp.reconnect). Fire-and-forget: the name is validated
+// set (mcp.servers.reconnect). Fire-and-forget: the name is validated
 // synchronously (unknown → [mcpserver.ErrUnknownServer]), then the dial runs on
 // the component task group with connecting → settled status published for the
 // workspace stream, so a returning RPC does not abort it while shutdown still can.
@@ -59,7 +59,7 @@ func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error
 }
 
 // AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
-// (workspace.mcp.authorize) — opens the system browser, catches the loopback
+// (mcp.servers.authorize) — opens the system browser, catches the loopback
 // redirect, and connects on success. Fire-and-forget like reconnect; the
 // credentials live for the process only (re-prompt after restart).
 func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
@@ -71,12 +71,11 @@ func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error
 // startMCPConnection validates the server exists, then runs dial on the
 // component task group — detached from the caller's cancellation (so a returning
 // RPC cannot abort it) but keeping its trace values and canceled + joined by
-// Close. The task enters the same mutation order as configure/remove/enable,
-// revalidates the durable registry after acquiring that order, and only then
-// publishes connecting, dials, and publishes settled. This prevents an older
-// reconnect from reviving a server that a concurrent remove or disable already
-// committed, and keeps concurrent status transitions ordered and non-interleaved.
-// The task's context scopes the registry read, dial, and settled status read.
+// Close. It enters the application mutation order only for the pre/post registry
+// checks and status publication; the dial itself runs outside that global
+// critical section. The live adapter's per-server generation makes a concurrent
+// configure/remove supersede stale dial completion, while unrelated servers can
+// connect in parallel. The task's context scopes both registry reads and dial.
 // Returns [errMCPConnectionUnavailable] when the coordinator lacks a required
 // connection dependency, [mcpserver.ErrUnknownServer] for an unknown name (the
 // delivery layer maps it to invalid_params), or [errClosed] during shutdown.
@@ -89,18 +88,41 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 	}
 	if !c.tasks.Start(ctx, func(ctx context.Context) {
 		c.mcpMutationMu.Lock()
-		defer c.mcpMutationMu.Unlock()
-
 		srv, ok, err := c.mcpRegistry.Get(ctx, name)
 		if err != nil {
+			c.mcpMutationMu.Unlock()
 			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q before connection: %w", name, err))
 			return
 		}
 		if !ok || !srv.Enabled {
+			c.mcpMutationMu.Unlock()
 			return
 		}
 		c.notifyMCPStatus(ctx, name, true)
+		c.mcpMutationMu.Unlock()
+
+		// Interactive OAuth may wait minutes for a human. The live connection
+		// adapter owns per-server generation/cancellation, so no application-wide
+		// mutation lock is held while dialing. A configure/remove can supersede it
+		// immediately; stale adapter completion cannot swap itself back in.
 		_ = dial(ctx)
+
+		c.mcpMutationMu.Lock()
+		defer c.mcpMutationMu.Unlock()
+		srv, ok, err = c.mcpRegistry.Get(ctx, name)
+		if err != nil {
+			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q after connection: %w", name, err))
+			return
+		}
+		if !ok || !srv.Enabled {
+			// Defensive projection cleanup for adapters that cannot cancel a stale
+			// operation themselves. The production adapter rejects stale generations,
+			// so this is normally an idempotent no-op.
+			if c.mcpRegistryCommands != nil {
+				c.mcpRegistryCommands.Remove(ctx, name)
+			}
+			return
+		}
 		c.notifyMCPStatus(ctx, name, false)
 	}) {
 		return errClosed
@@ -288,7 +310,7 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, srv mcpserver.Server) e
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server
-// when non-empty) for workspace.mcp.listTools.
+// when non-empty) for mcp.tools.list.
 func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if c.mcpToolCatalog == nil {
 		return nil, nil

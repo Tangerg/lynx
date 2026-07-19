@@ -1,4 +1,6 @@
-package mcpserver
+// Package httporigin provides fail-closed HTTP(S) origin comparison for
+// credential and redirect boundaries.
+package httporigin
 
 import (
 	"net"
@@ -6,19 +8,18 @@ import (
 	"strings"
 )
 
-// SameHTTPOrigin reports whether two valid HTTP(S) endpoints share the same
-// scheme, host, and effective port. Invalid or non-HTTP endpoints never match;
-// credential preservation must fail closed.
-func SameHTTPOrigin(left, right string) bool {
-	leftOrigin, ok := httpOrigin(left)
+// Same reports whether two valid HTTP(S) endpoints share the same scheme,
+// host, and effective port. Invalid or non-HTTP endpoints never match.
+func Same(left, right string) bool {
+	leftOrigin, ok := parse(left)
 	if !ok {
 		return false
 	}
-	rightOrigin, ok := httpOrigin(right)
+	rightOrigin, ok := parse(right)
 	return ok && leftOrigin == rightOrigin
 }
 
-func httpOrigin(raw string) (string, bool) {
+func parse(raw string) (string, bool) {
 	u, err := url.Parse(raw)
 	if err != nil {
 		return "", false
