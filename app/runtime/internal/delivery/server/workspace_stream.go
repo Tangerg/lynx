@@ -21,8 +21,9 @@ var errServerClosed = errors.New("server: closed")
 // so a drop self-heals on the next change or a resync), connection-scoped (no
 // durable replay), shared by the whole app.
 type workspaceHub struct {
-	mu   sync.Mutex
-	subs map[*workspaceSubscription]struct{}
+	mu     sync.Mutex
+	subs   map[*workspaceSubscription]struct{}
+	closed bool
 }
 
 func newWorkspaceHub() *workspaceHub {
@@ -38,16 +39,30 @@ type workspaceSubscription struct {
 // idempotent unregister. It does NOT close the channel — the owner does, after
 // it has stopped every other writer (the file watcher), so a late broadcast
 // can't send on a closed channel.
-func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) (*workspaceSubscription, func()) {
+func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) (*workspaceSubscription, func(), bool) {
 	sub := &workspaceSubscription{events: ch}
 	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return nil, nil, false
+	}
 	h.subs[sub] = struct{}{}
 	h.mu.Unlock()
 	return sub, func() {
 		h.mu.Lock()
 		delete(h.subs, sub)
 		h.mu.Unlock()
-	}
+	}, true
+}
+
+// closeAdmissions linearizes Server.Close with workspace subscription
+// registration. Existing request-owned streams keep running until their own
+// contexts end, but once this returns no racing check-then-register path can
+// create another subscription.
+func (h *workspaceHub) closeAdmissions() {
+	h.mu.Lock()
+	h.closed = true
+	h.mu.Unlock()
 }
 
 // observe wires the run pump's live file-change nudges (delivered through the
@@ -125,9 +140,6 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 // workspace.getDiff. (Working-tree file edits aren't watched directly — see
 // gitWatcher; the agent's own edits arrive as files.changed from its tools.)
 func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
-	if s.closed.Load() {
-		return nil, nil, errServerClosed
-	}
 	gitDirs, err := s.resolveWatchGitDirs(in.Watches)
 	if err != nil {
 		return nil, nil, err
@@ -137,7 +149,11 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 	// watches are present) the git watcher emits to it. Closing it only after
 	// the watcher has stopped keeps emit from racing the close.
 	out := make(chan protocol.WorkspaceEvent, 64)
-	subscription, unregister := s.wsHub.register(out)
+	subscription, unregister, registered := s.wsHub.register(out)
+	if !registered {
+		close(out)
+		return nil, nil, errServerClosed
+	}
 
 	var watcher *gitWatcher
 	if len(gitDirs) > 0 {
