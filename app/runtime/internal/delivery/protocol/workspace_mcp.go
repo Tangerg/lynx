@@ -10,7 +10,7 @@ type RemoveMCPServerRequest struct {
 	Name string `json:"name"`
 }
 
-// MCPListToolsRequest — workspace.mcp.listTools body.
+// MCPListToolsRequest — mcp.tools.list body.
 type MCPListToolsRequest struct {
 	Server string `json:"server,omitempty"`
 	PageQuery
@@ -60,10 +60,10 @@ type McpTool struct {
 }
 
 // McpServerConfig is one entry in the MCP-server registry — the editable
-// configuration (workspace.mcp.listConfigs / configure), distinct from McpServer
+// configuration (mcp.configs.list / configure), distinct from McpServer
 // (the live status from listServers). The bearer token is returned masked. Live
 // connection state (status / toolCount / error) is intentionally NOT carried
-// here — read it from workspace.mcp.listServers (McpServer), keyed by name, so
+// here — read it from mcp.servers.list (McpServer), keyed by name, so
 // the editable and observed shapes don't cross-contaminate.
 type McpServerConfig struct {
 	Name                string            `json:"name"`
@@ -82,11 +82,12 @@ type McpServerConfig struct {
 	AutoApproveTools    []string          `json:"autoApproveTools,omitempty"` // skip the approval gate
 }
 
-// ConfigureMCPServerRequest — workspace.mcp.configure / test body (the editable
+// ConfigureMCPServerRequest — mcp.configs.configure / test body (the editable
 // fields of McpServerConfig). Authorization is the RAW bearer token (http only);
 // an empty Authorization when (re)configuring or testing an EXISTING server
-// preserves its stored token, so editing other fields needn't re-enter the
-// secret — clear a token by removing the server, not by blanking it.
+// preserves its stored token only while the HTTP endpoint origin is unchanged,
+// so editing other fields needn't re-enter the secret without allowing a URL
+// change to transfer credentials to another origin.
 type ConfigureMCPServerRequest struct {
 	Name             string            `json:"name"`
 	Transport        string            `json:"type"`
@@ -104,13 +105,13 @@ type ConfigureMCPServerRequest struct {
 	AutoApproveTools []string          `json:"autoApproveTools,omitempty"`
 }
 
-// SetMCPEnabledRequest — workspace.mcp.setEnabled body.
+// SetMCPEnabledRequest — mcp.configs.setEnabled body.
 type SetMCPEnabledRequest struct {
 	Name    string `json:"name"`
 	Enabled bool   `json:"enabled"`
 }
 
-// McpTestResult — workspace.mcp.test result (a connection probe; mirrors
+// McpTestResult — mcp.configs.test result (a connection probe; mirrors
 // ProviderTestResult).
 type McpTestResult struct {
 	OK    bool         `json:"ok"`

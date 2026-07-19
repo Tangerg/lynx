@@ -11,7 +11,7 @@ import (
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 )
 
-// Probe tests cfg with a throwaway client (workspace.mcp.test). It reuses an
+// Probe tests cfg with a throwaway client (mcp.configs.test). It reuses an
 // active OAuth sign-in for the same-named server this session, because an
 // anonymous probe of an OAuth-protected server would always 401 even though the
 // live connection is authorized; the probe must carry the session's token to
@@ -21,7 +21,7 @@ func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
 	if cfg.OAuthHandler == nil && c != nil {
 		c.mu.Lock()
 		if ms := c.find(cfg.Name); ms != nil {
-			cfg.OAuthHandler = ms.oauth
+			cfg.OAuthHandler = reusableOAuth(ms.config, cfg, ms.oauth)
 		}
 		c.mu.Unlock()
 	}

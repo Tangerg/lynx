@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -57,7 +58,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 // Configure adds a new server or re-dials an existing one with the given
 // config, then refreshes the model-facing tool set so the model immediately
 // sees the (re)connected server. It is the runtime-mutable counterpart to the
-// boot-time [Dial]: workspace.mcp.configure / enabling a server routes here.
+// boot-time [Dial]: mcp.configs.configure / enabling a server routes here.
 // Serialized with [Reconnect] (both dial + swap a session). Nil-safe only on a
 // nil receiver is NOT supported — Configure mutates and a nil here is a wiring
 // bug, so callers hold a real *Connections.
@@ -79,13 +80,15 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 		ms = &server{config: cfg}
 		c.servers = append(c.servers, ms)
 	}
+	oauth := reusableOAuth(ms.config, cfg, ms.oauth)
+	ms.oauth = oauth
 	old := ms.session
 	ms.config = cfg
 	ms.session = nil
 	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
 	ms.lastErr = nil
-	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in across a reconfigure
+	cfg.OAuthHandler = oauth // only reusable while the configured origin is unchanged
 	c.mu.Unlock()
 
 	c.publishTools()
@@ -95,6 +98,16 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	}
 
 	return c.dialAndSwap(ctx, ms, cfg, false)
+}
+
+func reusableOAuth(current, candidate ServerConfig, handler auth.OAuthHandler) auth.OAuthHandler {
+	if handler == nil ||
+		current.Transport != TransportHTTP ||
+		candidate.Transport != TransportHTTP ||
+		!mcpserver.SameHTTPOrigin(current.Endpoint, candidate.Endpoint) {
+		return nil
+	}
+	return handler
 }
 
 // Authorize runs the interactive OAuth sign-in for an HTTP server: it opens the

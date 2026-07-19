@@ -289,7 +289,7 @@ export interface Methods {
     // status-only view; listConfigs carries the full persisted config.
     listConfigs: (query?: PageQuery) => Promise<Page<McpServerConfig>>;
     // Upsert by name. authorization is the RAW token; omitted = keep the
-    // stored one. Returns the entry with the token re-masked.
+    // stored one only when the HTTP origin is unchanged. Returns it re-masked.
     configure: (params: ConfigureMCPServerRequest) => Promise<McpServerConfig>;
     remove: (name: string) => Promise<void>;
     setEnabled: (name: string, enabled: boolean) => Promise<void>;
