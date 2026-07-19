@@ -79,10 +79,9 @@ describe("smoke: v2 end-to-end happy path", () => {
       },
     });
     respondSuccess(transport, discoverReq.id, {
-      protocolVersion: "2026-07-19",
+      protocol: { current: "2026-07-19", minSupported: "2026-07-19" },
       serverInfo: { name: "lyra-runtime", version: "0.0.0", cwd: "/work", home: "/home/u" },
       capabilities: {
-        protocolVersion: "2026-07-19",
         events: [
           "segment.started",
           "segment.finished",
@@ -90,15 +89,19 @@ describe("smoke: v2 end-to-end happy path", () => {
           "item.delta",
           "item.completed",
         ],
-        features: { reasoning: true, mcp: true, relocate: true, multimodal: true },
-        providers: ["anthropic"],
+        features: {
+          reasoning: { enabled: true, stability: "stable" },
+          mcp: { enabled: true, stability: "stable" },
+          relocate: { enabled: true, stability: "stable" },
+          multimodal: { enabled: true, stability: "stable" },
+        },
         streamingMethods: ["runs.start", "runs.resume", "runs.subscribe"],
         limits: { maxConcurrentRuns: 8 },
       },
     });
     const discovery = await discoverPromise;
     expect(discovery.serverInfo.cwd).toBe("/work");
-    expect(discovery.capabilities.providers).toEqual(["anthropic"]);
+    expect(discovery.capabilities.features.reasoning.enabled).toBe(true);
 
     // ---- Step 2: sessions.create ------------------------------------------
     const createPromise = methods.sessions.create({ title: "smoke" });

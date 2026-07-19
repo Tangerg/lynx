@@ -36,19 +36,19 @@ function configureRequest(input: MCPServerConfigInput): ConfigureMCPServerReques
 
 const gateway: MCPServerGateway = {
   async configure(input) {
-    await getContainer().client().workspace.mcp.configure(configureRequest(input));
+    await getContainer().client().mcp.configure(configureRequest(input));
   },
   async remove(name) {
-    await getContainer().client().workspace.mcp.remove(name);
+    await getContainer().client().mcp.remove(name);
   },
   async setEnabled(name, enabled) {
-    await getContainer().client().workspace.mcp.setEnabled(name, enabled);
+    await getContainer().client().mcp.setEnabled(name, enabled);
   },
   async authorize(name) {
-    await getContainer().client().workspace.mcp.authorize(name);
+    await getContainer().client().mcp.authorize(name);
   },
   async test(input) {
-    const result = await getContainer().client().workspace.mcp.test(configureRequest(input));
+    const result = await getContainer().client().mcp.test(configureRequest(input));
     return {
       ok: result.ok,
       error: result.ok ? undefined : (errorDetail(result.error) ?? t("mcp.error.test")),

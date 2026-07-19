@@ -13,7 +13,7 @@ export const CLIENT_CAPABILITIES: ClientCapabilities = {
     "state.delta",
     "custom",
   ],
-  features: { multimodal: true },
+  features: { multimodal: { enabled: true } },
   interruptTypes: ["approval", "question"],
 };
 

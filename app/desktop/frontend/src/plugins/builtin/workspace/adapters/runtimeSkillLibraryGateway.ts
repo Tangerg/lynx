@@ -4,10 +4,10 @@ import type { SkillLibraryGateway } from "../application/ports/skillLibraryGatew
 
 const gateway: SkillLibraryGateway = {
   async archive(name) {
-    await getContainer().client().workspace.skills.archive(name);
+    await getContainer().client().skills.archive(name);
   },
   async restore(name) {
-    await getContainer().client().workspace.skills.restore(name);
+    await getContainer().client().skills.restore(name);
   },
 };
 

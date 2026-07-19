@@ -1,5 +1,5 @@
 // Built-in workspace view: "Skills" — the agent skills discovered in the
-// session's cwd (workspace.listSkills). Read-only catalog; mirrors the
+// session's cwd (skills.discovered.list). Read-only catalog; mirrors the
 // Tools (MCP) view shape.
 
 import { DataView } from "@/ui";

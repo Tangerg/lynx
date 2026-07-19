@@ -29,7 +29,7 @@ export interface WorkspaceSkill {
   source: string;
 }
 
-// One entry in the global self-authored skill library (workspace.skills.list),
+// One entry in the global self-authored skill library (skills.library.list),
 // tagged with its curator lifecycle. Distinct from WorkspaceSkill (the agent's
 // project+global discovery view): this is the management surface, which also
 // lists archived skills.

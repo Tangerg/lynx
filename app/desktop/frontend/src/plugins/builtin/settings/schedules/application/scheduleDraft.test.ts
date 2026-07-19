@@ -26,6 +26,7 @@ describe("scheduleDraft", () => {
           cron: "0 9 * * 1",
           enabled: true,
           createdAt: "2026-01-01T00:00:00Z",
+          revision: 1,
         },
         "/ignored",
       ),

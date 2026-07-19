@@ -20,17 +20,17 @@ const gateway: ScheduleGateway = {
   async update(input) {
     return getContainer()
       .client()
-      .schedules.update({ ...scheduleInput(input), id: input.id, enabled: input.enabled });
+      .schedules.update({
+        ...scheduleInput(input),
+        id: input.id,
+        expectedRevision: input.revision,
+        enabled: input.enabled,
+      });
   },
   async setEnabled(schedule, enabled) {
     await getContainer().client().schedules.update({
       id: schedule.id,
-      title: schedule.title,
-      prompt: schedule.prompt,
-      cwd: schedule.cwd,
-      provider: schedule.provider,
-      model: schedule.model,
-      cron: schedule.cron,
+      expectedRevision: schedule.revision,
       enabled,
     });
   },

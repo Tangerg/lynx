@@ -28,7 +28,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   await replayHistory(options);
   if (stale(options)) return;
 
-  const open = await options.client.runs.listOpenInterrupts(sid);
+  const open = await options.client.runs.listOpenInterrupts({ sessionId: sid });
   if (stale(options)) return;
   for (const oi of open.data) {
     options.applyEvents([
@@ -47,7 +47,7 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
     ]);
   }
 
-  const running = await options.client.runs.list(sid);
+  const running = await options.client.runs.list({ sessionId: sid });
   if (stale(options)) return;
   const root = running.data.find((run) => !run.spawnedByItemId);
   if (root) await attachRootRun(options, root);

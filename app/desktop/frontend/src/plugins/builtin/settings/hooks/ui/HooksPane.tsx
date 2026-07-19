@@ -1,7 +1,7 @@
 // The "Hooks" settings pane. Reviews the lifecycle hooks the runtime
-// discovered for the active project (workspace.hooks.list) — global
+// discovered for the active project (hooks.list) — global
 // (~/.lyra) + project (<root>/.lyra) — and toggles whether the project's hooks
-// are trusted to run (workspace.hooks.setTrust).
+// are trusted to run (hooks.setTrust).
 //
 // Trust is the security seam: a cloned repo's hooks run shell commands, so they
 // stay inert (shown dimmed + "inactive") until the user explicitly trusts the

@@ -11,9 +11,9 @@ describe("RpcClient", () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
 
-    const promise = client.call<{ ok: boolean }>("runtime.ping");
-    const req = await waitForRequest(t, "runtime.ping");
-    expect(req.method).toBe("runtime.ping");
+    const promise = client.call<{ ok: boolean }>("test.echo");
+    const req = await waitForRequest(t, "test.echo");
+    expect(req.method).toBe("test.echo");
     expect(req.jsonrpc).toBe(JSONRPC_VERSION);
 
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { ok: true } } as RpcMessage);
@@ -43,11 +43,11 @@ describe("RpcClient", () => {
   it("notify() sends a Notification with no id", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    await client.notify("notifications.canceled", { id: "5" });
+    await client.notify("test.notification", { id: "5" });
     const sent = t.outbox()[0];
     expect(sent).toBeDefined();
     expect("id" in (sent as object)).toBe(false);
-    expect((sent as { method: string }).method).toBe("notifications.canceled");
+    expect((sent as { method: string }).method).toBe("test.notification");
     await client.close();
   });
 
@@ -80,12 +80,12 @@ describe("RpcClient", () => {
   it("close() rejects pending calls and prevents further use", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    const promise = client.call("runtime.ping");
-    await waitForRequest(t, "runtime.ping");
+    const promise = client.call("test.echo");
+    await waitForRequest(t, "test.echo");
 
     await client.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.call("runtime.ping")).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(client.call("test.echo")).rejects.toBeInstanceOf(RpcTransportError);
   });
 
   it("rejects in-flight calls when the transport stream ends cleanly", async () => {
@@ -94,31 +94,26 @@ describe("RpcClient", () => {
     // without throwing — the pump must still settle the pending call.
     const t = createMemoryTransport();
     const client = createRpcClient(t);
-    const promise = client.call("runtime.ping");
-    await waitForRequest(t, "runtime.ping");
+    const promise = client.call("test.echo");
+    await waitForRequest(t, "test.echo");
 
     await t.close();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.call("runtime.ping")).rejects.toBeInstanceOf(RpcTransportError);
-    await expect(client.notify("notifications.canceled", { id: "late" })).rejects.toBeInstanceOf(
+    await expect(client.call("test.echo")).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(client.notify("test.notification", { id: "late" })).rejects.toBeInstanceOf(
       RpcTransportError,
     );
   });
 
-  it("AbortSignal cancels in-flight call and emits notifications.canceled", async () => {
+  it("AbortSignal cancels an in-flight call without a second protocol message", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const ctrl = new AbortController();
-    const promise = client.call("runs.start", undefined, ctrl.signal);
+    const promise = client.call("runs.start", undefined, { signal: ctrl.signal });
     await waitForRequest(t, "runs.start");
     ctrl.abort();
     await expect(promise).rejects.toBeInstanceOf(RpcTransportError);
-    // Last sent message should be the cancel notification.
-    const sent = t.outbox();
-    const cancelMsg = sent[sent.length - 1] as { method: string; params: { id: string } };
-    expect(cancelMsg.method).toBe("notifications.canceled");
-    // Cancel targets the in-flight Request by its envelope `id` (a string).
-    expect(typeof cancelMsg.params.id).toBe("string");
+    expect(t.outbox()).toHaveLength(1);
     await client.close();
   });
 
@@ -133,8 +128,8 @@ describe("RpcClient", () => {
     });
     await new Promise((r) => setTimeout(r, 0));
     // Survives — call still works.
-    const promise = client.call<number>("runtime.ping");
-    const req = await waitForRequest(t, "runtime.ping");
+    const promise = client.call<number>("test.echo");
+    const req = await waitForRequest(t, "test.echo");
     t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: 1 });
     expect(await promise).toBe(1);
     await client.close();

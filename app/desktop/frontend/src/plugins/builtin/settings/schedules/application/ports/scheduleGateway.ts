@@ -4,6 +4,7 @@ import type { ScheduleConfig, ScheduleConfigInput } from "../scheduleConfig";
 export interface ScheduleUpdateInput extends ScheduleConfigInput {
   id: string;
   enabled: boolean;
+  revision: number;
 }
 
 export interface ScheduleGateway {

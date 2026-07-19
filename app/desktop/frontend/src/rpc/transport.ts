@@ -38,7 +38,7 @@ export interface StreamDownParams {
 
 export interface Transport {
   /** Queue an outbound message. */
-  send(msg: RpcMessage, signal?: AbortSignal): Promise<void>;
+  send(msg: RpcMessage, signal?: AbortSignal, options?: TransportSendOptions): Promise<void>;
   /**
    * Stream of inbound messages. Yields until the transport disconnects,
    * after which the iterator returns. Multiple readers are not supported
@@ -47,4 +47,8 @@ export interface Transport {
   recv(): AsyncIterable<RpcMessage>;
   /** Tear down the transport — abort any pending send, close recv stream. */
   close(): Promise<void>;
+}
+
+export interface TransportSendOptions {
+  idempotencyKey?: string;
 }

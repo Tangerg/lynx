@@ -38,14 +38,14 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
  * (don't show a button users can't actually use).
  */
 export function useServerFeature(feature: RuntimeCapability): boolean {
-  return useRuntimeStore((s) => s.capabilities?.features[feature] === true);
+  return useRuntimeStore((s) => s.capabilities?.features[feature]?.enabled === true);
 }
 
 /** Imperative twin of {@link useServerFeature} for non-React call sites
  *  (palette commands, context-menu handlers, module-level wiring). Same
  *  pre-discovery default: false. */
 export function serverFeature(feature: RuntimeCapability): boolean {
-  return useRuntimeStore.getState().capabilities?.features[feature] === true;
+  return useRuntimeStore.getState().capabilities?.features[feature]?.enabled === true;
 }
 
 export function runtimeSupportsStreamingMethod(method: string): boolean {

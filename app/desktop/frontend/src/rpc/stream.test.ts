@@ -70,7 +70,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("yields tree events and ends on the root-segment segment.finished, no leaked subscriber", async () => {
     const { client, emit, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
 
     const collected: string[] = [];
     const consume = (async () => {
@@ -106,7 +106,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("admits a subagent run spawned by an item seen on the tree", async () => {
     const { client, emit } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
     const collected: RunEvent[] = [];
     const consume = (async () => {
       for await (const ev of stream.events) collected.push(ev);
@@ -159,7 +159,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("drops a re-delivered eventId (replay/overlap dedupe, §9.2)", async () => {
     const { client, emit } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
       for await (const ev of stream.events) collected.push(ev.eventId);
@@ -186,7 +186,7 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("unsubscribes on early break", async () => {
     const { client, emit, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
       for await (const ev of stream.events) {
@@ -209,14 +209,14 @@ describe("streamRunEvents — tree membership (bound)", () => {
   it("a stream-down naming a tree run closes the stream (consumer unblocks)", async () => {
     const { client, emit, emitDown, activeCount } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
       for await (const ev of stream.events) collected.push(ev.event.type);
     })();
 
     await Promise.resolve();
-    emit(rootStarted()); // tree learns the root runId (for STREAM_DOWN matching)
+    emit(rootStarted());
     emit(
       evt("run_root", "seg_root", "evt_1", {
         type: "item.started",
@@ -232,10 +232,25 @@ describe("streamRunEvents — tree membership (bound)", () => {
     expect(activeCount()).toBe(0);
   });
 
+  it("remembers a stream-down that arrives before the call result is bound", async () => {
+    const { client, emitDown, activeCount } = fakeClient();
+    const stream = streamRunEvents(client);
+    const iterator = stream.events[Symbol.asyncIterator]();
+    const next = iterator.next();
+
+    // The HTTP reader can deliver response + immediate EOS before the
+    // Promise continuation binds the returned run and segment IDs.
+    emitDown(["run_root"]);
+    stream.bind("run_root", "seg_root");
+
+    await expect(next).resolves.toMatchObject({ done: true });
+    expect(activeCount()).toBe(0);
+  });
+
   it("a stream-down for an unrelated run leaves the stream open", async () => {
     const { client, emit, emitDown } = fakeClient();
     const stream = streamRunEvents(client);
-    stream.bind("seg_root");
+    stream.bind("run_root", "seg_root");
     const collected: string[] = [];
     const consume = (async () => {
       for await (const ev of stream.events) collected.push(ev.event.type);
@@ -304,7 +319,7 @@ describe("streamRunEvents — deferred bind lifecycle", () => {
         item: { id: "item_1", type: "agentMessage" } as never,
       }),
     );
-    bind("seg_root");
+    bind("run_root", "seg_root");
     emit(
       evt("run_root", "seg_root", "evt_3", {
         type: "segment.finished",

@@ -91,7 +91,12 @@ class RunTree {
   // comparable, so we track a per-stream seen-set (freed with the stream).
   private readonly seenEventIds = new Set<string>();
 
-  constructor(private readonly rootSegmentId: string) {}
+  constructor(
+    rootRunId: string,
+    private readonly rootSegmentId: string,
+  ) {
+    this.runs.add(rootRunId);
+  }
 
   /** True if this event id was already delivered on this stream (replay /
    *  overlapping-subscription duplicate). Marks it seen otherwise. */
@@ -102,8 +107,8 @@ class RunTree {
   }
 
   /** True if the given run belongs to this stream's tree (root or subagent) —
-   *  used by STREAM_DOWN, which is keyed on runId. The root runId is populated
-   *  once its root-segment segment.started is seen. */
+   *  used by STREAM_DOWN, which is keyed on runId. The root run is known from
+   *  the call response; descendant runs are learned from segment.started. */
   hasRun(runId: string): boolean {
     return this.runs.has(runId);
   }
@@ -222,22 +227,6 @@ function feedRunEvent(tree: RunTree, channel: PushPullChannel<RunEvent>, ev: Run
   if (tree.isRootFinish(ev)) channel.close();
 }
 
-/** Subscribe to the transport's stream-down synthetic: when the HTTP stream
- *  carrying this tree's events dies abnormally, close the channel so the
- *  consumer's for-await ends instead of hanging forever (see transport.ts). */
-function subscribeStreamDown(
-  client: RpcClient,
-  channel: PushPullChannel<RunEvent>,
-  treeOf: () => RunTree | null,
-): () => void {
-  return client.subscribe(STREAM_DOWN_METHOD, (msg) => {
-    if (channel.closed) return;
-    const tree = treeOf();
-    const runIds = (msg.params as StreamDownParams | undefined)?.runIds ?? [];
-    if (tree && runIds.some((id) => tree.hasRun(id))) channel.close();
-  });
-}
-
 /** A run-event stream plus its teardown. `dispose` exists for the case where
  *  the stream's owning call FAILS before anyone iterates `events` — without
  *  it the subscription (and, for the deferred variant, its grow-forever
@@ -248,13 +237,13 @@ export interface RunEventStream {
 }
 
 /**
- * Subscribe to run events BEFORE the root segment id is known, then bind once
+ * Subscribe to run events BEFORE the root run / segment ids are known, then bind once
  * `runs.start` / `runs.resume` / `runs.subscribe` returns. Under streamable
  * HTTP the call's response and its event frames arrive on one ordered stream
  * (TRANSPORT.md §6.4), so the head events land right after the response —
  * subscribing only after the response resolves races and drops them. So we
- * subscribe immediately, buffer raw events until `bind(rootSegmentId)` supplies
- * the runtime-assigned root segment id, then replay the buffer through the tree
+ * subscribe immediately, buffer raw events until `bind(runId, segmentId)` supplies
+ * the runtime-assigned root identity, then replay the buffer through the tree
  * filter. (Every stream-opening method returns its root segmentId, so this is
  * the single run-event stream builder — a Run's runId is stable, but the
  * segment being streamed is only known from the response.)
@@ -262,9 +251,10 @@ export interface RunEventStream {
 export function streamRunEvents(
   client: RpcClient,
   signal?: AbortSignal,
-): RunEventStream & { bind: (rootSegmentId: string) => void } {
+): RunEventStream & { bind: (rootRunId: string, rootSegmentId: string) => void } {
   const channel = createPushPullChannel<RunEvent>();
   const buffer: RunEvent[] = [];
+  const streamsEndedBeforeBind = new Set<string>();
   let tree: RunTree | null = null;
 
   const unsubEvents = client.subscribe(RUN_EVENT_METHOD, (msg) => {
@@ -275,16 +265,24 @@ export function streamRunEvents(
     if (tree === null) buffer.push(ev);
     else feedRunEvent(tree, channel, ev);
   });
-  // Pre-bind, tree is null and the handler no-ops — correct: if the stream
-  // died before our call's response arrived, the call itself rejects (the
-  // transport synthesizes an error Response) and methods.ts disposes us.
-  const unsubDown = subscribeStreamDown(client, channel, () => tree);
+  const unsubDown = client.subscribe(STREAM_DOWN_METHOD, (msg) => {
+    if (channel.closed) return;
+    const runIds = (msg.params as StreamDownParams | undefined)?.runIds ?? [];
+    if (tree === null) {
+      for (const runId of runIds) streamsEndedBeforeBind.add(runId);
+      return;
+    }
+    const activeTree = tree;
+    if (runIds.some((runId) => activeTree.hasRun(runId))) channel.close();
+  });
 
-  const bind = (rootSegmentId: string): void => {
+  const bind = (rootRunId: string, rootSegmentId: string): void => {
     if (tree !== null) return;
-    tree = new RunTree(rootSegmentId);
+    tree = new RunTree(rootRunId, rootSegmentId);
     for (const ev of buffer) feedRunEvent(tree, channel, ev);
     buffer.length = 0;
+    if (streamsEndedBeforeBind.has(rootRunId)) channel.close();
+    streamsEndedBeforeBind.clear();
   };
 
   const cleanup = bindLifecycle(

@@ -58,7 +58,14 @@ async function subscribeLoop(
       const events = await deps.subscribe({ cwd: watchCwd(), signal: iter.signal });
       attempt = 0;
       deps.invalidateAll();
-      for await (const ev of events) deps.handleEvent(ev);
+      let lastSequence: number | undefined;
+      for await (const ev of events) {
+        if (lastSequence !== undefined && ev.sequence !== lastSequence + 1) {
+          deps.invalidateAll();
+        }
+        lastSequence = ev.sequence;
+        deps.handleEvent(ev);
+      }
     } catch (error) {
       if (!signal.aborted && iter.signal.reason !== RETARGET) deps.reportError(error);
     } finally {

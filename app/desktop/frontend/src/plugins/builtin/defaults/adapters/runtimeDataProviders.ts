@@ -101,7 +101,7 @@ export function registerDefaultDataProviders(host: Host): void {
     // listServers entries already carry status/toolCount/error; listTools is
     // reserved for the detail pane's paginated inputSchema view.
     fetcher: async () =>
-      (await client().workspace.mcp.listServers().catch(emptyPageIfUngated)).data.map(
+      (await client().mcp.listServers().catch(emptyPageIfUngated)).data.map(
         toMcpServerStatusSummary,
       ),
   });
@@ -109,8 +109,8 @@ export function registerDefaultDataProviders(host: Host): void {
     key: MCP_CONFIGS_KEY,
     fetcher: async () => {
       const [cfgs, srvs] = await Promise.all([
-        client().workspace.mcp.listConfigs().catch(emptyPageIfUngated),
-        client().workspace.mcp.listServers().catch(emptyPageIfUngated),
+        client().mcp.listConfigs().catch(emptyPageIfUngated),
+        client().mcp.listServers().catch(emptyPageIfUngated),
       ]);
       const live = new Map<string, RpcMCPServer>(srvs.data.map((s) => [s.name, s]));
       return cfgs.data.map((c) => toMcpConfigInfo(c, live.get(c.name)));
@@ -121,7 +121,7 @@ export function registerDefaultDataProviders(host: Host): void {
     fetcher: async (params) =>
       (
         await client()
-          .workspace.mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server)
+          .mcp.listTools(requiredParams<McpToolsQuery>(MCP_TOOLS_KEY, params).server)
           .catch(emptyPageIfUngated)
       ).data.map((t) => ({ name: t.name, description: t.description ?? "" })),
   });
@@ -150,7 +150,7 @@ export function registerDefaultDataProviders(host: Host): void {
   contribute({
     key: WORKSPACE_SKILLS_KEY,
     fetcher: async () =>
-      (await client().workspace.listSkills().catch(emptyPageIfUngated)).data.map((s) => ({
+      (await client().skills.listDiscovered().catch(emptyPageIfUngated)).data.map((s) => ({
         name: s.name,
         description: s.description ?? "",
         source: s.source ?? "",
@@ -159,7 +159,7 @@ export function registerDefaultDataProviders(host: Host): void {
   contribute({
     key: WORKSPACE_MANAGED_SKILLS_KEY,
     fetcher: async () =>
-      (await client().workspace.skills.list().catch(emptyPageIfUngated)).data.map((s) => ({
+      (await client().skills.listLibrary().catch(emptyPageIfUngated)).data.map((s) => ({
         name: s.name,
         description: s.description ?? "",
         lifecycle: s.lifecycle,
@@ -191,7 +191,7 @@ export function registerDefaultDataProviders(host: Host): void {
   contribute({
     key: WORKSPACE_AGENT_DOCS_KEY,
     fetcher: async () =>
-      (await client().workspace.listAgentDocs().catch(emptyPageIfUngated)).data.map((d) => ({
+      (await client().agentDocs.list().catch(emptyPageIfUngated)).data.map((d) => ({
         path: d.path,
         title: d.title ?? "",
         scope: d.scope,
@@ -257,18 +257,18 @@ export function registerDefaultDataProviders(host: Host): void {
   });
   contribute({
     key: HOOKS_KEY,
-    fetcher: (params) => client().workspace.hooks.list(optionalParams<HooksQuery>(params)?.cwd),
+    fetcher: (params) => client().hooks.list(optionalParams<HooksQuery>(params)?.cwd),
   });
   contribute({
     key: SCHEDULES_KEY,
-    fetcher: async () => (await client().schedules.list()).schedules,
+    fetcher: async () => (await client().schedules.list()).data,
   });
   contribute({
     key: RECIPES_KEY,
     fetcher: async (params) =>
       (
         await client()
-          .workspace.recipes.list(optionalParams<RecipesQuery>(params)?.cwd)
+          .recipes.list(optionalParams<RecipesQuery>(params)?.cwd)
           .catch(emptyPageIfUngated)
       ).data,
   });

@@ -1,5 +1,5 @@
 // Built-in workspace view: "Skill Library" — the global self-authored skill
-// library (workspace.skills.list). Unlike the read-only "Skills" discovery view,
+// library (skills.library.list). Unlike the read-only "Skills" discovery view,
 // this is the curator surface: it lists active AND archived skills and lets the
 // user archive/restore one (never deleting). Skills reach it only after the
 // agent proposes one and the user approves the promotion (propose_skill).

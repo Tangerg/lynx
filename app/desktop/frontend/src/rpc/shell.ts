@@ -3,7 +3,7 @@
 // The Go shell (app.go) serves the sideloaded-plugin manifest + bundles at
 // `${baseUrl}/plugins`. That's host / packaging metadata, deliberately OUTSIDE
 // the JSON-RPC protocol AND the sidecar (TRANSPORT.md §12 caps the sidecar at
-// /v2/info + /v2/health, and §6.1 forbids RESTy protocol shadows). It lives in
+// /v2/info + /v2/health/{live,ready}, and §6.1 forbids RESTy protocol shadows). It lives in
 // rpc/ for one reason only: so EVERY outbound HTTP call goes through a single,
 // injectable layer (ARCHITECTURE §10 — "协议是唯一 outbound 边界"), testable via
 // the container's `setContainer()` seam. It is not, and must not become, a
@@ -34,7 +34,7 @@ export interface ShellClient {
 }
 
 export function createShellClient(config: ShellClientConfig): ShellClient {
-  const baseUrl = config.baseUrl.replace(/\/$/, "");
+  const baseUrl = config.baseUrl.replace(/\/+$/, "");
   const fetchImpl = config.fetch ?? globalThis.fetch.bind(globalThis);
 
   return {

@@ -35,10 +35,36 @@ export class RpcError extends Error {
 // here without a JSON-RPC error code.
 export class RpcTransportError extends Error {
   readonly status?: number;
+  readonly requestId?: string;
+  readonly problemType?: string;
 
-  constructor(message: string, status?: number) {
+  constructor(message: string, status?: number, requestId?: string, problemType?: string) {
     super(message);
     this.name = "RpcTransportError";
     this.status = status;
+    this.requestId = requestId;
+    this.problemType = problemType;
+  }
+}
+
+interface TransportProblem {
+  type?: string;
+  detail?: string;
+  requestId?: string;
+}
+
+/** Parse an RFC 9457-style transport problem without trusting its shape. */
+export function parseTransportProblem(text: string): TransportProblem | undefined {
+  try {
+    const value: unknown = JSON.parse(text);
+    if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+    const fields = value as Record<string, unknown>;
+    return {
+      type: typeof fields.type === "string" ? fields.type : undefined,
+      detail: typeof fields.detail === "string" ? fields.detail : undefined,
+      requestId: typeof fields.requestId === "string" ? fields.requestId : undefined,
+    };
+  } catch {
+    return undefined;
   }
 }

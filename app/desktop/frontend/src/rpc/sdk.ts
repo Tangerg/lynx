@@ -15,7 +15,7 @@
 // typed surface doesn't wrap yet) and `close()` for teardown.
 //
 // Transport construction (HTTP / in-memory / future IPC) stays separate —
-// see transports/*. Sidecar metadata (/v2/info, /v2/health) is an
+// see transports/*. Sidecar metadata (/v2/info, /v2/health/{live,ready}) is an
 // HTTP-transport-only concern and lives in sidecar.ts, not here.
 
 import { createRpcClient, type RpcClient } from "./client";

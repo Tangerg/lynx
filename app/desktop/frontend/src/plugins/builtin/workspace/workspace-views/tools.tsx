@@ -1,7 +1,7 @@
 // Built-in workspace view: "Tools" — what the agent can call. Two
 // catalogs with different lifecycles on one tab: the runtime's native
 // tools (tools.list — static per runtime build) and the connected MCP
-// servers (workspace.mcp.* — live 5-state lifecycle, expandable rows).
+// servers (mcp.* — live 5-state lifecycle, expandable rows).
 
 import { DataView, Icon } from "@/ui";
 import { McpRow } from "./views/McpRow";

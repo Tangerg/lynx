@@ -4,7 +4,7 @@ import type { HookTrustGateway } from "../application/ports/hookTrustGateway";
 
 const gateway: HookTrustGateway = {
   async setProjectTrust(projectRoot, trusted) {
-    await getContainer().client().workspace.hooks.setTrust(projectRoot, trusted);
+    await getContainer().client().hooks.setTrust(projectRoot, trusted);
   },
 };
 
