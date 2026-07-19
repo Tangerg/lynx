@@ -1,8 +1,11 @@
 package integrations
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -63,6 +66,18 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 
 	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
 		t.Fatalf("reconnect unknown = %v, want ErrUnknownServer", err)
+	}
+}
+
+func TestMCPConnectionRequiresCompleteDependencies(t *testing.T) {
+	ports := &fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}}}
+	c := New(Config{
+		MCPStatusReader:       ports,
+		MCPConnectionCommands: ports,
+	})
+
+	if err := c.ReconnectMCPServer(context.Background(), "fs"); !errors.Is(err, errMCPConnectionUnavailable) {
+		t.Fatalf("ReconnectMCPServer with incomplete dependencies = %v, want errMCPConnectionUnavailable", err)
 	}
 }
 
@@ -188,10 +203,83 @@ func configWithMCPPorts(ports interface {
 	MCPConnectionCommands
 	MCPRegistryCommands
 }) Config {
+	registry := &testMCPRegistry{servers: make(map[string]mcpserver.Server)}
+	for _, status := range ports.Statuses() {
+		registry.servers[status.Name] = mcpserver.Server{Name: status.Name, Enabled: true}
+	}
 	return Config{
+		MCPRegistry:           registry,
 		MCPStatusReader:       ports,
 		MCPToolCatalog:        ports,
 		MCPConnectionCommands: ports,
 		MCPRegistryCommands:   ports,
 	}
+}
+
+// testMCPRegistry is a concurrency-safe registry fake that preserves the
+// domain Registry's sorted-list contract. Optional mutation hooks let
+// concurrency tests stop a write after its durable commit.
+type testMCPRegistry struct {
+	mu                 sync.Mutex
+	servers            map[string]mcpserver.Server
+	configureCommitted chan struct{}
+	releaseConfigure   chan struct{}
+	removeCommitted    chan struct{}
+	releaseRemove      chan struct{}
+}
+
+func (r *testMCPRegistry) List(context.Context) ([]mcpserver.Server, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	servers := make([]mcpserver.Server, 0, len(r.servers))
+	for _, server := range r.servers {
+		servers = append(servers, server)
+	}
+	slices.SortFunc(servers, func(a, b mcpserver.Server) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	return servers, nil
+}
+
+func (r *testMCPRegistry) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	server, ok := r.servers[name]
+	return server, ok, nil
+}
+
+func (r *testMCPRegistry) Configure(_ context.Context, server mcpserver.Server) error {
+	r.mu.Lock()
+	r.servers[server.Name] = server
+	r.mu.Unlock()
+	if r.configureCommitted != nil {
+		close(r.configureCommitted)
+	}
+	if r.releaseConfigure != nil {
+		<-r.releaseConfigure
+	}
+	return nil
+}
+
+func (r *testMCPRegistry) Remove(_ context.Context, name string) error {
+	r.mu.Lock()
+	delete(r.servers, name)
+	r.mu.Unlock()
+	if r.removeCommitted != nil {
+		close(r.removeCommitted)
+	}
+	if r.releaseRemove != nil {
+		<-r.releaseRemove
+	}
+	return nil
+}
+
+func (r *testMCPRegistry) SetEnabled(_ context.Context, name string, enabled bool) error {
+	r.mu.Lock()
+	if server, ok := r.servers[name]; ok {
+		server.Enabled = enabled
+		r.servers[name] = server
+	}
+	r.mu.Unlock()
+	return nil
 }
