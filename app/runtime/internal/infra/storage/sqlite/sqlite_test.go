@@ -431,7 +431,7 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 // only the current shape is supported, including for an unversioned non-empty
 // database. No old version receives a compatibility path.
 func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
-	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 9} {
+	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 8} {
 		t.Run(fmt.Sprintf("version_%d", staleVersion), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "stale.db")
 			stale, err := sql.Open("sqlite", path)
@@ -457,8 +457,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 8 {
-				t.Fatalf("schema version = %d, err=%v, want 8", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 9 {
+				t.Fatalf("schema version = %d, err=%v, want 9", version, err)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {

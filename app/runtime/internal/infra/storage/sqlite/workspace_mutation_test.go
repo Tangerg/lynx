@@ -18,7 +18,9 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 	store := NewWorkspaceMutationStore(db)
 	ctx := context.Background()
 
-	if err := store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1"}); err != nil {
+	if err := store.Record(ctx, execution.WorkspaceMutation{
+		SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1", RestoreHistory: true,
+	}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
 	if err := store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_2", Cwd: "/repo2", ToRunID: "run_9"}); err != nil {
@@ -32,7 +34,9 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 	if len(pending) != 2 {
 		t.Fatalf("pending = %d, want 2", len(pending))
 	}
-	if pending[0] != (execution.WorkspaceMutation{SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1"}) {
+	if pending[0] != (execution.WorkspaceMutation{
+		SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1", RestoreHistory: true,
+	}) {
 		t.Fatalf("pending[0] = %+v, want the ses_1 intent verbatim", pending[0])
 	}
 

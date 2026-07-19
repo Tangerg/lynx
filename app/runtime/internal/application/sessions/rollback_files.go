@@ -15,15 +15,21 @@ import (
 // tree — the checkpoint store is disabled, the session has no cwd, or the target
 // run has no snapshot. The composition root maps the checkpoint adapter's own
 // sentinel onto this one so the coordinator stays free of the adapter package.
-var ErrCheckpointUnavailable = errors.New("sessions: checkpoint unavailable")
+var (
+	ErrCheckpointUnavailable = errors.New("sessions: checkpoint unavailable")
+	// ErrCheckpointRestoreIncomplete marks a restore that may already have
+	// changed part of the working tree. The durable mutation intent must remain
+	// pending so boot recovery can re-drive the operation.
+	ErrCheckpointRestoreIncomplete = errors.New("sessions: checkpoint restore may be incomplete")
+)
 
 const mutationCleanupTimeout = 5 * time.Second
 
 // RollbackSpec is the wire-decoded rollback intent: which run to keep to and
 // what the rollback rewinds. RestoreFiles restores the working tree to the run
-// snapshot; RestoreHistory truncates the chat log to the run boundary. Both set
-// is the atomic files+history rollback whose cross-resource recovery §8.5
-// covers.
+// snapshot; RestoreHistory truncates the chat log to the run boundary. Every
+// file restore is recoverable; setting both coordinates the two resources
+// through the durable operation log described in §8.5.
 type RollbackSpec struct {
 	SessionID      string
 	ToRunID        string
@@ -45,8 +51,8 @@ type RollbackResult struct {
 // the single-writer mutation slot (rejecting a rollback under an in-flight run
 // as [ErrSessionBusy]) and, for a file restore, the working-tree mutation slot
 // too, then resolves the boundary under those guards, restores the working tree
-// to the run snapshot (files first — the atomicity guarantee for a both-rollback,
-// AUX_API §4.1), and applies the durable history truncation. It returns the
+// to the run snapshot (files first, as required by AUX_API §4.1), and applies
+// the durable history truncation. It returns the
 // session so the delivery adapter can shape its response without re-reading it.
 //
 // The guards live here, not at the wire: a file restore's `git reset --hard`
@@ -106,26 +112,26 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	}
 	defer releaseAdmissions(childAdmissions)
 
-	// A both-rollback that drops runs mutates two resources that can't share one
-	// transaction — the working tree (git) and the durable history (SQLite) — so
-	// log the intent before either changes (§8.5); a crash mid-operation is then
-	// re-driven at boot. Single-resource rollbacks (files-only or history-only)
-	// commit in one resource and need no log.
-	recoverable := spec.RestoreFiles && spec.RestoreHistory && len(boundary.Dropped) > 0
-	if recoverable {
+	// Every file restore is logged before Git touches the working tree. A reset
+	// updates multiple paths and can fail after changing only some of them, so
+	// even files-only rollback needs boot recovery. RestoreHistory distinguishes
+	// that operation from the cross-resource files+history variant.
+	restoreLogged := spec.RestoreFiles && c.mutations != nil
+	if restoreLogged {
 		if err := c.recordMutation(ctx, execution.WorkspaceMutation{
 			SessionID: spec.SessionID, Cwd: cwd, ToRunID: spec.ToRunID,
+			RestoreHistory: spec.RestoreHistory,
 		}); err != nil {
 			return result, err
 		}
 	}
 
-	// Files first: git reset is atomic, so a restore error leaves the tree
-	// unchanged — clear the just-logged intent rather than let boot force-complete
-	// a rollback the caller saw fail (a missing snapshot would never recover).
+	// Errors before reset begins leave the tree unchanged, so their intent can be
+	// cleared. ErrCheckpointRestoreIncomplete is different: reset may have
+	// changed only part of the tree, and its intent must survive for recovery.
 	if spec.RestoreFiles {
 		if err := c.restore(ctx, spec.SessionID, cwd, spec.ToRunID); err != nil {
-			if recoverable {
+			if restoreLogged && !errors.Is(err, ErrCheckpointRestoreIncomplete) {
 				if cleanupErr := c.completeMutationDetached(ctx, spec.SessionID); cleanupErr != nil {
 					return result, errors.Join(err, fmt.Errorf("sessions: clear failed rollback intent: %w", cleanupErr))
 				}
@@ -143,7 +149,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 		}
 	}
 
-	if recoverable {
+	if restoreLogged {
 		if err := c.completeMutationDetached(ctx, spec.SessionID); err != nil {
 			return result, err
 		}
@@ -165,8 +171,8 @@ func droppedRuns(boundary transcript.Boundary, runs []transcript.Run, inputs map
 
 // RecoverWorkspaceMutations re-drives every file rollback a crash left
 // unfinished (§8.5): for each logged intent it re-restores the working tree
-// (reentrant) and re-applies the durable truncation (idempotent — a rollback
-// that already committed recomputes an empty boundary), then clears the intent.
+// (reentrant), conditionally re-applies the durable truncation (idempotent — an
+// already-committed cut recomputes an empty boundary), then clears the intent.
 // It runs at boot before the server serves, so no run contends for the session
 // and the admission guards the live path needs are unnecessary. A failed
 // recovery aborts startup (returned loud) rather than serving a session whose
@@ -188,25 +194,28 @@ func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context) error {
 }
 
 func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation) error {
-	_, runs, err := c.s.Transcript().List(ctx, m.SessionID)
-	if err != nil {
-		return err
-	}
-	boundary, err := transcript.TimelineFromRuns(runs).BoundaryAt(m.ToRunID, true)
-	if err != nil {
-		return err
-	}
+	var boundary transcript.Boundary
 	var dropSessionIDs []string
-	if len(boundary.Dropped) > 0 {
-		dropSessionIDs, err = c.subtaskSessionsAfter(ctx, m.SessionID, boundary.BoundaryTime)
+	if m.RestoreHistory {
+		_, runs, err := c.s.Transcript().List(ctx, m.SessionID)
 		if err != nil {
 			return err
+		}
+		boundary, err = transcript.TimelineFromRuns(runs).BoundaryAt(m.ToRunID, true)
+		if err != nil {
+			return err
+		}
+		if len(boundary.Dropped) > 0 {
+			dropSessionIDs, err = c.subtaskSessionsAfter(ctx, m.SessionID, boundary.BoundaryTime)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	if err := c.restore(ctx, m.SessionID, m.Cwd, m.ToRunID); err != nil {
 		return err
 	}
-	if len(boundary.Dropped) > 0 {
+	if m.RestoreHistory && len(boundary.Dropped) > 0 {
 		if err := c.applyRollback(ctx, m.SessionID, boundary, dropSessionIDs); err != nil {
 			return err
 		}
