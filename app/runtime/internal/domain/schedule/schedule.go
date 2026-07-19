@@ -27,11 +27,17 @@ var ErrNotFound = errors.New("schedule: not found")
 // ErrUnavailable is returned when scheduling is disabled for this runtime.
 var ErrUnavailable = errors.New("schedule: unavailable")
 
+// ErrRevisionConflict reports that a conditional update targeted a stale
+// version of the schedule.
+var ErrRevisionConflict = errors.New("schedule: revision conflict")
+
 // Validation sentinels returned by [Schedule.Validate]; the delivery adapter
 // maps them to the protocol's invalid_params.
 var (
 	// ErrIDRequired — an update target must identify a stored schedule.
 	ErrIDRequired = errors.New("schedule: id is required")
+	// ErrRevisionRequired — an external update must carry the version it read.
+	ErrRevisionRequired = errors.New("schedule: expected revision is required")
 	// ErrPromptRequired — a schedule with no prompt has nothing to fire.
 	ErrPromptRequired = errors.New("schedule: prompt is required")
 	// ErrCronRequired — a schedule with no cron has no trigger.
@@ -61,6 +67,7 @@ type Schedule struct {
 	LastRunAt time.Time // zero ⇒ never fired
 	NextRunAt time.Time // next due time, computed from Cron; zero ⇒ not scheduled (disabled)
 	CreatedAt time.Time
+	Revision  uint64
 }
 
 // Patch is a partial update to a Schedule. Nil fields keep the existing value;
@@ -171,7 +178,7 @@ type Registry interface {
 	Create(ctx context.Context, s Schedule) (Schedule, error)
 	// Update replaces the schedule with s.ID (full-replace of the editable
 	// fields + the recomputed NextRunAt). [ErrNotFound] for an unknown id.
-	Update(ctx context.Context, s Schedule) (Schedule, error)
+	Update(ctx context.Context, s Schedule, expectedRevision uint64) (Schedule, error)
 	// Delete drops a schedule by id. Idempotent (a missing id is not an error).
 	Delete(ctx context.Context, id string) error
 	// Due returns the enabled schedules whose NextRunAt has come (in (0, now]),

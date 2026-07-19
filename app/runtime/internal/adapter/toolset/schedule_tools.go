@@ -124,17 +124,14 @@ func scheduleCreate(ctx context.Context, coordinator *scheduleapp.Coordinator, i
 }
 
 func scheduleUpdate(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
-	updated, err := coordinator.Update(ctx, scheduleapp.UpdateCommand{
-		ID: in.ID,
-		Patch: schedule.Patch{
-			Title:    in.Title,
-			Prompt:   in.Prompt,
-			Cwd:      in.Cwd,
-			Provider: in.Provider,
-			Model:    in.Model,
-			Cron:     in.Cron,
-			Enabled:  in.Enabled,
-		},
+	updated, err := coordinator.UpdateLatest(ctx, in.ID, schedule.Patch{
+		Title:    in.Title,
+		Prompt:   in.Prompt,
+		Cwd:      in.Cwd,
+		Provider: in.Provider,
+		Model:    in.Model,
+		Cron:     in.Cron,
+		Enabled:  in.Enabled,
 	})
 	if err != nil {
 		return "", fmt.Errorf("schedule update: %w", err)

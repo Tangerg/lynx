@@ -50,10 +50,12 @@ func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.TurnRef) (iter
 
 func (*blockingRunRuntime) CancelTurn(context.Context, runs.TurnRef) error { return nil }
 
-func (*blockingRunRuntime) Start(_ context.Context, req runs.StartTurn) (runs.TurnRef, error) {
+func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (runs.TurnRef, error) {
 	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}
 	return runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
 }
+
+func (*blockingRunRuntime) Activate(context.Context, runs.TurnRef) error { return nil }
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{

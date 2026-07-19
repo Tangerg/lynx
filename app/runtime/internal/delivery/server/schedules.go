@@ -15,16 +15,20 @@ import (
 // text, so the runtime fires it without resolving a recipe.
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
-func (s *Server) ListSchedules(ctx context.Context) (*protocol.ListSchedulesResult, error) {
+func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
 	scheds, err := s.schedules.List(ctx)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.list", "")
 	}
-	out := make([]protocol.Schedule, 0, len(scheds))
-	for _, sc := range scheds {
+	page, next, err := pageByCursor(scheds, func(sc schedule.Schedule) string { return sc.ID }, query.Cursor, query.Limit, 100)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.Schedule, 0, len(page))
+	for _, sc := range page {
 		out = append(out, scheduleToWire(sc))
 	}
-	return &protocol.ListSchedulesResult{Schedules: out}, nil
+	return &protocol.Page[protocol.Schedule]{Data: out, NextCursor: next}, nil
 }
 
 // CreateSchedule adds an enabled schedule (schedules.create), computing its
@@ -46,20 +50,20 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	return &wire, nil
 }
 
-// UpdateSchedule full-replaces a schedule's editable fields and recomputes its
-// due time from the (new) cron — cleared when disabled so the worker skips it
-// (schedules.update).
+// UpdateSchedule applies a revision-guarded partial patch. The coordinator
+// recomputes due time when cron or enabled changes and clears it when disabled.
 func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
 	updated, err := s.schedules.Update(ctx, scheduleapp.UpdateCommand{
-		ID: in.ID,
+		ID:               in.ID,
+		ExpectedRevision: in.ExpectedRevision,
 		Patch: schedule.Patch{
-			Title:    &in.Title,
-			Prompt:   &in.Prompt,
-			Cwd:      &in.Cwd,
-			Provider: &in.Provider,
-			Model:    &in.Model,
-			Cron:     &in.Cron,
-			Enabled:  &in.Enabled,
+			Title:    in.Title,
+			Prompt:   in.Prompt,
+			Cwd:      in.Cwd,
+			Provider: in.Provider,
+			Model:    in.Model,
+			Cron:     in.Cron,
+			Enabled:  in.Enabled,
 		},
 	})
 	if err != nil {
@@ -77,8 +81,12 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // RunScheduleNow fires a schedule immediately (schedules.runNow) — a manual
 // extra run that records the firing without shifting the schedule's next due
 // time.
-func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) error {
-	return mapScheduleErr(s.schedules.RunNow(ctx, in.ID, s.scheduledRunLauncher()), "schedules.runNow", in.ID)
+func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
+	handle, err := s.schedules.RunNow(ctx, in.ID, s.scheduledRunLauncher())
+	if err != nil {
+		return nil, mapScheduleErr(err, "schedules.runNow", in.ID)
+	}
+	return &protocol.RunScheduleNowResponse{SessionID: handle.SessionID, RunID: handle.RunID}, nil
 }
 
 // mapScheduleErr surfaces an unknown-id as invalid_params (the supplied id
@@ -96,7 +104,11 @@ func mapScheduleErr(err error, method, id string) error {
 	if errors.Is(err, schedule.ErrCwdUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrCwdUnavailable, err)
 	}
+	if errors.Is(err, schedule.ErrRevisionConflict) {
+		return fmt.Errorf("%w: schedule %q changed after it was read", protocol.ErrRevisionConflict, id)
+	}
 	if errors.Is(err, schedule.ErrIDRequired) ||
+		errors.Is(err, schedule.ErrRevisionRequired) ||
 		errors.Is(err, schedule.ErrPromptRequired) ||
 		errors.Is(err, schedule.ErrCronRequired) ||
 		errors.Is(err, schedule.ErrIncompleteModelSelection) ||
@@ -119,6 +131,7 @@ func scheduleToWire(sc schedule.Schedule) protocol.Schedule {
 		Cron:      sc.Cron,
 		Enabled:   sc.Enabled,
 		CreatedAt: sc.CreatedAt,
+		Revision:  sc.Revision,
 	}
 	if !sc.LastRunAt.IsZero() {
 		t := sc.LastRunAt
