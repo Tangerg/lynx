@@ -14,6 +14,7 @@
 | **Kimi Code** | TS，自研引擎栈 | [`KIMI_CODE.md`](KIMI_CODE.md) | **Goal mode**（自主多轮循环）+ KAOS 环境 seam |
 | **opencode** | TS，headless server+多客户端 | [`OPENCODE.md`](OPENCODE.md) | 可刷新 system-context + models.dev 目录 + 工具搜索 |
 | **Hermes** | Python，learning loop | [`HERMES.md`](HERMES.md) | 记忆(C8 蓝本) + **自进化 skill**（B4 扩展） |
+| _其余 ~23 家_ | 轻量扫描 | [`MISC.md`](MISC.md) | 无格局级新能力；6 个 P3/design-note 小点（plandex 自主档位拨盘 / craft "add a source" 自助接入 / trpc 信号驱动学习触发…） |
 
 **方法论关键**：多家**独立殊途同归**到同一能力 = 最强采纳信号。下面每条主题标注"收敛度"。
 
