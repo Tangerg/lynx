@@ -3,6 +3,7 @@ package checkpoint
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,6 +36,14 @@ func (s *Store) git(ctx context.Context, gitDir, workTree string, args ...string
 	return strings.TrimSpace(out.String()), nil
 }
 
+func gitExitCode(err error) int {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return exitErr.ExitCode()
+	}
+	return -1
+}
+
 // gitIn runs a git query inside the real repo at cwd (no shadow GIT_DIR), used
 // to discover what a new shadow repo can seed from. Returns trimmed stdout.
 func gitIn(ctx context.Context, cwd string, args ...string) (string, error) {
@@ -46,11 +55,6 @@ func gitIn(ctx context.Context, cwd string, args ...string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out.String()), nil
-}
-
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }
 
 func copyFile(src, dst string) error {

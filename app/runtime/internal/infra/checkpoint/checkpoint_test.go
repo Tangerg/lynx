@@ -92,6 +92,31 @@ func TestStore_SkipsLargeFiles(t *testing.T) {
 	}
 }
 
+func TestStore_StopsTrackingFileThatGrowsPastLimit(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	write(t, cwd, "changing.bin", "small")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	write(t, cwd, "changing.bin", strings.Repeat("A", maxCheckpointFileSize+1))
+	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	if _, err := s.git(ctx, s.gitDir("ses1"), cwd, "cat-file", "-e", tagFor("run2")+":changing.bin"); err == nil {
+		t.Fatal("run2 still owns file after it crossed the size cap")
+	}
+
+	write(t, cwd, "changing.bin", strings.Repeat("B", maxCheckpointFileSize+1))
+	if err := s.Restore(ctx, "ses1", cwd, "run2"); err != nil {
+		t.Fatalf("restore run2: %v", err)
+	}
+	if got := read(t, cwd, "changing.bin"); !strings.HasPrefix(got, "B") {
+		t.Fatalf("oversized untracked file was changed by restore; got prefix %.1q", got)
+	}
+}
+
 // gitCmd runs a real git command in dir (the source repo a seed test builds),
 // independent of the user's global config.
 func gitCmd(t *testing.T, dir string, args ...string) {
@@ -142,11 +167,10 @@ func TestStore_NoChangeRunReusesHeadCommit(t *testing.T) {
 	}
 }
 
-// TestStore_SeedsFromSourceRepo: when cwd is a real git repo, a fresh shadow
-// repo shares its object store via objects/info/alternates (so the baseline
-// isn't duplicated) and a round-trip restore still works through the shared
-// objects.
-func TestStore_SeedsFromSourceRepo(t *testing.T) {
+// TestStore_MaterializesSourceRepoSeed: a source index avoids re-hashing the
+// baseline, but the completed checkpoint owns every reachable object and still
+// restores after the source object database disappears.
+func TestStore_MaterializesSourceRepoSeed(t *testing.T) {
 	s, cwd := newTestStore(t)
 	ctx := context.Background()
 
@@ -158,15 +182,16 @@ func TestStore_SeedsFromSourceRepo(t *testing.T) {
 	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
 		t.Fatalf("snapshot run1: %v", err)
 	}
-	alt, err := os.ReadFile(filepath.Join(s.gitDir("ses1"), "objects", "info", "alternates"))
-	if err != nil {
-		t.Fatalf("shadow repo should seed objects/info/alternates from the real repo: %v", err)
-	}
-	if !strings.Contains(string(alt), "objects") {
-		t.Errorf("alternates %q should point at an object store", alt)
+	if _, err := os.Stat(filepath.Join(s.gitDir("ses1"), "objects", "info", "alternates")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("completed checkpoint still depends on source alternates: %v", err)
 	}
 
-	// Round-trip through the shared object DB: edit, snapshot, restore the first.
+	// Take the real object DB offline before the round trip. A shadow repository
+	// that still borrowed any baseline tree or blob would now fail to restore.
+	sourceObjects := filepath.Join(cwd, ".git", "objects")
+	if err := os.Rename(sourceObjects, sourceObjects+".offline"); err != nil {
+		t.Fatalf("take source object store offline: %v", err)
+	}
 	write(t, cwd, "committed.txt", "world")
 	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err != nil {
 		t.Fatalf("snapshot run2: %v", err)
@@ -175,7 +200,145 @@ func TestStore_SeedsFromSourceRepo(t *testing.T) {
 		t.Fatalf("restore run1: %v", err)
 	}
 	if got := read(t, cwd, "committed.txt"); got != "hello" {
-		t.Errorf("committed.txt = %q, want hello (restored via shared object)", got)
+		t.Errorf("committed.txt = %q, want hello (restored from self-contained shadow)", got)
+	}
+}
+
+func TestStore_AppliesSizeLimitToSourceIndex(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	gitCmd(t, cwd, "init", "-q")
+	write(t, cwd, "small.txt", "small")
+	write(t, cwd, "tracked-large.bin", strings.Repeat("A", maxCheckpointFileSize+1))
+	gitCmd(t, cwd, "add", ".")
+	gitCmd(t, cwd, "commit", "-qm", "init")
+
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if _, err := s.git(ctx, s.gitDir("ses1"), cwd, "cat-file", "-e", tagFor("run1")+":tracked-large.bin"); err == nil {
+		t.Fatal("baseline snapshot retained oversized file copied from source index")
+	}
+	if _, err := s.git(ctx, s.gitDir("ses1"), cwd, "cat-file", "-e", tagFor("run1")+":small.txt"); err != nil {
+		t.Fatalf("baseline snapshot lost small source-index file: %v", err)
+	}
+
+	write(t, cwd, "tracked-large.bin", strings.Repeat("B", maxCheckpointFileSize+1))
+	if err := s.Restore(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if got := read(t, cwd, "tracked-large.bin"); !strings.HasPrefix(got, "B") {
+		t.Fatalf("oversized source-index file was changed by restore; got prefix %.1q", got)
+	}
+}
+
+// TestStore_FailedSeedDoesNotPublishRepository verifies that initialization is
+// transactional. A malformed source index fails after the staging repo has
+// already been initialized, but no HEAD or partial seed becomes visible at the
+// session's final path; fixing the source allows the next attempt to start
+// cleanly and complete.
+func TestStore_FailedSeedDoesNotPublishRepository(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	gitCmd(t, cwd, "init", "-q")
+	sourceIndex := filepath.Join(cwd, ".git", "index")
+	if err := os.Mkdir(sourceIndex, 0o755); err != nil {
+		t.Fatalf("create malformed source index: %v", err)
+	}
+	if _, err := s.ensureRepo(ctx, "ses1", cwd); err == nil || !strings.Contains(err.Error(), "source index") {
+		t.Fatalf("ensure repo error = %v, want source-index error", err)
+	}
+	if _, err := os.Stat(s.gitDir("ses1")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("failed initialization published repository: %v", err)
+	}
+	entries, err := os.ReadDir(s.root)
+	if err != nil {
+		t.Fatalf("read checkpoint root: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("failed initialization left staging entries: %v", entries)
+	}
+
+	if err := os.Remove(sourceIndex); err != nil {
+		t.Fatalf("remove malformed source index: %v", err)
+	}
+	write(t, cwd, "a.txt", "v1")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot after repairing source repo: %v", err)
+	}
+	if !repoExists(s.gitDir("ses1")) {
+		t.Fatal("successful retry did not publish repository")
+	}
+}
+
+func TestStore_ResolvesRelativeSourceAlternates(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	gitCmd(t, cwd, "init", "-q")
+	sourceObjects := filepath.Join(cwd, ".git", "objects")
+	borrowedObjects := filepath.Join(cwd, ".git", "borrowed-objects")
+	if err := os.MkdirAll(borrowedObjects, 0o755); err != nil {
+		t.Fatalf("create borrowed object store: %v", err)
+	}
+	write(t, filepath.Join(sourceObjects, "info"), "alternates", "../borrowed-objects\n")
+
+	gitDir, err := s.ensureRepo(ctx, "ses1", cwd)
+	if err != nil {
+		t.Fatalf("ensure repo: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(gitDir, "objects", "info", "alternates"))
+	if err != nil {
+		t.Fatalf("read shadow alternates: %v", err)
+	}
+	if !strings.Contains(string(data), borrowedObjects) {
+		t.Fatalf("shadow alternates %q do not contain resolved path %q", data, borrowedObjects)
+	}
+}
+
+func TestStore_SeedsFromLinkedWorktreeIndex(t *testing.T) {
+	s, mainWorktree := newTestStore(t)
+	ctx := context.Background()
+
+	gitCmd(t, mainWorktree, "init", "-q")
+	write(t, mainWorktree, "tracked.txt", "main")
+	gitCmd(t, mainWorktree, "add", ".")
+	gitCmd(t, mainWorktree, "commit", "-qm", "init")
+
+	linkedWorktree := filepath.Join(t.TempDir(), "linked")
+	gitCmd(t, mainWorktree, "worktree", "add", "-q", "-b", "linked", linkedWorktree)
+	write(t, linkedWorktree, "tracked.txt", "linked")
+	if err := s.Snapshot(ctx, "ses1", linkedWorktree, "run1"); err != nil {
+		t.Fatalf("snapshot linked worktree: %v", err)
+	}
+	write(t, linkedWorktree, "tracked.txt", "after")
+	if err := s.Restore(ctx, "ses1", linkedWorktree, "run1"); err != nil {
+		t.Fatalf("restore linked worktree: %v", err)
+	}
+	if got := read(t, linkedWorktree, "tracked.txt"); got != "linked" {
+		t.Fatalf("tracked.txt = %q, want linked-worktree snapshot", got)
+	}
+}
+
+func TestStore_DoesNotReplaceRepositoryOnInspectionFailure(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+
+	write(t, cwd, "tracked.txt", "v1")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	gitDir := s.gitDir("ses1")
+	if err := os.WriteFile(filepath.Join(gitDir, "HEAD"), []byte("invalid ref\n"), 0o644); err != nil {
+		t.Fatalf("corrupt HEAD: %v", err)
+	}
+	if err := s.Snapshot(ctx, "ses1", cwd, "run2"); err == nil {
+		t.Fatal("snapshot replaced a repository whose HEAD inspection failed")
+	}
+	if _, err := os.Stat(filepath.Join(gitDir, "refs", "tags", tagFor("run1"))); err != nil {
+		t.Fatalf("inspection failure destroyed existing snapshot refs: %v", err)
 	}
 }
 
