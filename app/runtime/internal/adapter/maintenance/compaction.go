@@ -23,6 +23,7 @@ type compactionStore interface {
 type Compactor struct {
 	store             compactionStore
 	client            ClientFunc
+	liveState         LiveStateFunc // nil = no post-compaction live-state reminder
 	maxMessages       int
 	explicitMaxTokens int // cfg.MaxTokens override; 0 = derive from the run's model window
 	fallbackWindow    int // default model's context window; used when the run's window is unknown
@@ -30,9 +31,11 @@ type Compactor struct {
 }
 
 // NewCompactor builds a Compactor over the chat history store and a
-// per-call chat-client resolver. Zero / out-of-range config fields fall back
-// to the package defaults.
-func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig) *Compactor {
+// per-call chat-client resolver. liveState (nil to disable) snapshots a
+// session's still-active execution state so an LLM summary rung can remind the
+// model of running shells / in-progress tasks the summary would otherwise drop.
+// Zero / out-of-range config fields fall back to the package defaults.
+func NewCompactor(store compactionStore, client ClientFunc, liveState LiveStateFunc, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
@@ -49,6 +52,7 @@ func NewCompactor(store compactionStore, client ClientFunc, cfg CompactionConfig
 	return &Compactor{
 		store:             store,
 		client:            client,
+		liveState:         liveState,
 		maxMessages:       maxMessages,
 		explicitMaxTokens: cfg.MaxTokens,
 		fallbackWindow:    cfg.ContextWindow,
@@ -173,8 +177,17 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 		return turn.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
-	rewritten := make([]chat.Message, 0, 1+len(recent))
+	rewritten := make([]chat.Message, 0, 2+len(recent))
 	rewritten = append(rewritten, summary)
+	// Right after the summary, carry over the live execution state the summary
+	// dropped (running background shells, in-progress tasks) so the model does not
+	// forget a job it started before the compacted turns. Deterministic, no model
+	// call; omitted entirely when nothing is active.
+	if c.liveState != nil {
+		if reminder, ok := liveStateReminder(c.liveState(ctx, sessionID)); ok {
+			rewritten = append(rewritten, reminder)
+		}
+	}
 	rewritten = append(rewritten, recent...)
 	// Atomically swap the history for [summary, ...recent]. The store rolls back
 	// a failed rewrite, so a crash cannot

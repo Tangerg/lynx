@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -61,10 +62,13 @@ func NewShells() *Shells {
 // [Shell.Read], wait for it with [Shell.Done], inspect its terminal state with
 // [Shell.Status] / [Shell.Outcome]; the [Shells] set owns its lifecycle.
 type Shell struct {
-	cancel  context.CancelFunc
-	cmd     *exec.Cmd
-	started time.Time
-	done    chan struct{} // closed once the process finishes
+	cancel    context.CancelFunc
+	cmd       *exec.Cmd
+	started   time.Time
+	id        string        // the owner-map key, mirrored here for RunningForSession
+	sessionID string        // session that launched it; scopes RunningForSession
+	command   string        // the shell command, for a session's live-state readout
+	done      chan struct{} // closed once the process finishes
 
 	mu       sync.Mutex
 	buf      []byte // tail of stdout+stderr, capped at maxBuffer
@@ -78,13 +82,18 @@ type Shell struct {
 }
 
 // Launch starts command under cwd in the background and returns its shell id.
+// sessionID scopes the shell to its owning session so [Shells.RunningForSession]
+// can report a session's still-running jobs (e.g. for a post-compaction
+// live-state reminder) without leaking another session's shells; "" is allowed
+// for callers with no session.
+//
 // It is detached from the tool-call's CANCELLATION so it outlives the turn —
 // via context.WithoutCancel(ctx), which drops cancellation but KEEPS ctx's
 // values, so the launching turn's trace span still propagates (full-link)
 // rather than being severed by a bare context.Background(). A positive timeout
 // hard-kills the command when it elapses (0 = no hard timeout; the command
 // runs until it exits or is killed).
-func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.Duration) (string, error) {
+func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, timeout time.Duration) (string, error) {
 	base := context.WithoutCancel(ctx)
 	runCtx, cancel := context.WithCancel(base)
 	if timeout > 0 {
@@ -96,7 +105,7 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	// (and thus Done) returns promptly even when a child the shell spawned still
 	// holds them — otherwise Wait blocks until that child exits.
 	cmd.WaitDelay = time.Second
-	sh := &Shell{cancel: cancel, cmd: cmd, started: time.Now(), done: make(chan struct{})}
+	sh := &Shell{cancel: cancel, cmd: cmd, started: time.Now(), sessionID: sessionID, command: command, done: make(chan struct{})}
 	cmd.Stdout = sh
 	cmd.Stderr = sh
 
@@ -108,6 +117,7 @@ func (s *Shells) Launch(ctx context.Context, cwd, command string, timeout time.D
 	}
 	s.nextID++
 	id := "bg_" + strconv.Itoa(s.nextID)
+	sh.id = id
 	// Start while holding the owner lock so shutdown cannot observe a Shell
 	// whose exec.Cmd is only partly initialized. Once the shell is published,
 	// cmd.Process is immutable and Kill/KillAll may safely use it.
@@ -145,6 +155,40 @@ func (s *Shells) Get(id string) (*Shell, bool) {
 	defer s.mu.Unlock()
 	sh, ok := s.shells[id]
 	return sh, ok
+}
+
+// RunningShell identifies one background shell still executing: its id (for
+// shell_output / shell_kill) and the command it runs.
+type RunningShell struct {
+	ID      string
+	Command string
+}
+
+// RunningForSession returns sessionID's background shells that have not yet
+// finished, in stable id order. Empty when the session has no live shells. Used
+// to remind the model of live jobs a history compaction would otherwise drop.
+func (s *Shells) RunningForSession(sessionID string) []RunningShell {
+	s.mu.Lock()
+	shells := make([]*Shell, 0, len(s.shells))
+	for _, sh := range s.shells {
+		if sh.sessionID == sessionID {
+			shells = append(shells, sh)
+		}
+	}
+	s.mu.Unlock()
+
+	var out []RunningShell
+	for _, sh := range shells {
+		sh.mu.Lock()
+		finished := sh.finished
+		sh.mu.Unlock()
+		if finished {
+			continue
+		}
+		out = append(out, RunningShell{ID: sh.id, Command: sh.command})
+	}
+	slices.SortFunc(out, func(a, b RunningShell) int { return strings.Compare(a.ID, b.ID) })
+	return out
 }
 
 // Kill stops a background shell and reports whether it was still running.
