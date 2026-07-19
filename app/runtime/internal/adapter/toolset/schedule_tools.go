@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -15,16 +16,25 @@ import (
 // the model's tool surface stays small (mirrors the lsp / skill op-tools).
 // Mutable fields are pointers so update patches only what's set; create requires
 // prompt + cron.
+type scheduleOperation string
+
+const (
+	scheduleListOperation   scheduleOperation = "list"
+	scheduleCreateOperation scheduleOperation = "create"
+	scheduleUpdateOperation scheduleOperation = "update"
+	scheduleDeleteOperation scheduleOperation = "delete"
+)
+
 type scheduleRequest struct {
-	Op       string  `json:"op" jsonschema:"required,enum=list,enum=create,enum=update,enum=delete" jsonschema_description:"list = return all schedules; create = add one (needs prompt + cron); update = patch by id (omitted fields unchanged); delete = remove by id."`
-	ID       string  `json:"id,omitempty" jsonschema_description:"Schedule id — required for update and delete."`
-	Title    *string `json:"title,omitempty" jsonschema_description:"Display title (create / update)."`
-	Prompt   *string `json:"prompt,omitempty" jsonschema_description:"Prompt to run when the schedule fires — required for create."`
-	Cwd      *string `json:"cwd,omitempty" jsonschema_description:"Working directory for the run. Empty uses the runtime default."`
-	Provider *string `json:"provider,omitempty" jsonschema_description:"Provider id. Must be paired with model."`
-	Model    *string `json:"model,omitempty" jsonschema_description:"Model id. Must be paired with provider."`
-	Cron     *string `json:"cron,omitempty" jsonschema_description:"Five-field cron expression (minute hour day-of-month month day-of-week) — required for create."`
-	Enabled  *bool   `json:"enabled,omitempty" jsonschema_description:"Whether the schedule fires. Default true on create."`
+	Op       scheduleOperation `json:"op" jsonschema:"required,enum=list,enum=create,enum=update,enum=delete" jsonschema_description:"list = return all schedules; create = add one (needs prompt + cron); update = patch by id (omitted fields unchanged); delete = remove by id."`
+	ID       string            `json:"id,omitempty" jsonschema_description:"Schedule id — required for update and delete."`
+	Title    *string           `json:"title,omitempty" jsonschema_description:"Display title (create / update)."`
+	Prompt   *string           `json:"prompt,omitempty" jsonschema_description:"Prompt to run when the schedule fires — required for create."`
+	Cwd      *string           `json:"cwd,omitempty" jsonschema_description:"Working directory for the run. Empty uses the runtime default."`
+	Provider *string           `json:"provider,omitempty" jsonschema_description:"Provider id. Must be paired with model."`
+	Model    *string           `json:"model,omitempty" jsonschema_description:"Model id. Must be paired with provider."`
+	Cron     *string           `json:"cron,omitempty" jsonschema_description:"Five-field cron expression (minute hour day-of-month month day-of-week) — required for create."`
+	Enabled  *bool             `json:"enabled,omitempty" jsonschema_description:"Whether the schedule fires. Default true on create."`
 }
 
 type scheduleListResponse struct {
@@ -53,10 +63,10 @@ type scheduleView struct {
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
-// newScheduleTool builds the single `schedule` management tool. nil reg → nil
+// newScheduleTool builds the single `schedule` management tool. nil coordinator → nil
 // tool (feature off, omitted). Coding role only.
-func newScheduleTool(reg schedule.Registry) (tools.Tool, error) {
-	if reg == nil {
+func newScheduleTool(coordinator *scheduleapp.Coordinator) (tools.Tool, error) {
+	if coordinator == nil {
 		return nil, nil
 	}
 	return tools.New[scheduleRequest, string](
@@ -66,14 +76,14 @@ func newScheduleTool(reg schedule.Registry) (tools.Tool, error) {
 		},
 		func(ctx context.Context, in scheduleRequest) (string, error) {
 			switch in.Op {
-			case "list":
-				return scheduleList(ctx, reg)
-			case "create":
-				return scheduleCreate(ctx, reg, in)
-			case "update":
-				return scheduleUpdate(ctx, reg, in)
-			case "delete":
-				return scheduleDelete(ctx, reg, in)
+			case scheduleListOperation:
+				return scheduleList(ctx, coordinator)
+			case scheduleCreateOperation:
+				return scheduleCreate(ctx, coordinator, in)
+			case scheduleUpdateOperation:
+				return scheduleUpdate(ctx, coordinator, in)
+			case scheduleDeleteOperation:
+				return scheduleDelete(ctx, coordinator, in)
 			default:
 				return "", fmt.Errorf("schedule: unknown op %q (want list | create | update | delete)", in.Op)
 			}
@@ -81,8 +91,8 @@ func newScheduleTool(reg schedule.Registry) (tools.Tool, error) {
 	)
 }
 
-func scheduleList(ctx context.Context, reg schedule.Registry) (string, error) {
-	items, err := reg.List(ctx)
+func scheduleList(ctx context.Context, coordinator *scheduleapp.Coordinator) (string, error) {
+	items, err := coordinator.List(ctx)
 	if err != nil {
 		return "", fmt.Errorf("schedule list: %w", err)
 	}
@@ -93,12 +103,12 @@ func scheduleList(ctx context.Context, reg schedule.Registry) (string, error) {
 	return encodeToolResult(scheduleListResponse{Schedules: views})
 }
 
-func scheduleCreate(ctx context.Context, reg schedule.Registry, in scheduleRequest) (string, error) {
+func scheduleCreate(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
 	enabled := true
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
-	sc := schedule.Schedule{
+	created, err := coordinator.Create(ctx, scheduleapp.CreateCommand{
 		Title:    derefString(in.Title),
 		Prompt:   derefString(in.Prompt),
 		Cwd:      derefString(in.Cwd),
@@ -106,47 +116,34 @@ func scheduleCreate(ctx context.Context, reg schedule.Registry, in scheduleReque
 		Model:    derefString(in.Model),
 		Cron:     derefString(in.Cron),
 		Enabled:  enabled,
-	}
-	// The domain entity validates prompt/cron (ErrPromptRequired /
-	// ErrCronRequired) while computing the next fire time.
-	sc, err := sc.ScheduledAfter(time.Now())
-	if err != nil {
-		return "", fmt.Errorf("schedule create: %w", err)
-	}
-	created, err := reg.Create(ctx, sc)
+	})
 	if err != nil {
 		return "", fmt.Errorf("schedule create: %w", err)
 	}
 	return encodeToolResult(scheduleResponse{Schedule: viewSchedule(created)})
 }
 
-func scheduleUpdate(ctx context.Context, reg schedule.Registry, in scheduleRequest) (string, error) {
-	sc, err := reg.Get(ctx, in.ID)
-	if err != nil {
-		return "", fmt.Errorf("schedule update: %w", err)
-	}
-	sc = sc.Apply(schedule.Patch{
-		Title:    in.Title,
-		Prompt:   in.Prompt,
-		Cwd:      in.Cwd,
-		Provider: in.Provider,
-		Model:    in.Model,
-		Cron:     in.Cron,
-		Enabled:  in.Enabled,
+func scheduleUpdate(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
+	updated, err := coordinator.Update(ctx, scheduleapp.UpdateCommand{
+		ID: in.ID,
+		Patch: schedule.Patch{
+			Title:    in.Title,
+			Prompt:   in.Prompt,
+			Cwd:      in.Cwd,
+			Provider: in.Provider,
+			Model:    in.Model,
+			Cron:     in.Cron,
+			Enabled:  in.Enabled,
+		},
 	})
-	sc, err = sc.ScheduledAfter(time.Now())
-	if err != nil {
-		return "", fmt.Errorf("schedule update: %w", err)
-	}
-	updated, err := reg.Update(ctx, sc)
 	if err != nil {
 		return "", fmt.Errorf("schedule update: %w", err)
 	}
 	return encodeToolResult(scheduleResponse{Schedule: viewSchedule(updated)})
 }
 
-func scheduleDelete(ctx context.Context, reg schedule.Registry, in scheduleRequest) (string, error) {
-	if err := reg.Delete(ctx, in.ID); err != nil {
+func scheduleDelete(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
+	if err := coordinator.Delete(ctx, in.ID); err != nil {
 		return "", fmt.Errorf("schedule delete: %w", err)
 	}
 	return encodeToolResult(scheduleDeleteResponse{Deleted: true})

@@ -7,6 +7,7 @@ package schedules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -18,18 +19,58 @@ import (
 type Coordinator struct {
 	registry schedule.Registry
 	worker   WorkerStore
+	paths    CwdResolver
 	now      func() time.Time
+	enabled  bool
 }
 
-// NewCoordinator returns a Coordinator over the schedule registry. A nil
-// registry yields a disabled coordinator (every CRUD op returns
-// [schedule.ErrUnavailable]); a nil worker disables the background scanner. The
-// same store is passed as both when scheduling is available.
-func NewCoordinator(registry schedule.Registry, worker WorkerStore) *Coordinator {
+// CwdResolver is the filesystem boundary used to admit a schedule's working
+// directory. Persisted schedules always hold either an empty cwd (the runtime
+// default) or a canonical existing directory.
+type CwdResolver interface {
+	ResolveExistingDir(path string) (string, error)
+}
+
+// Dependencies is the collaborator set [New] wires into a Coordinator.
+type Dependencies struct {
+	Registry schedule.Registry
+	Worker   WorkerStore
+	Paths    CwdResolver
+}
+
+// CreateCommand is the complete editable state of a new schedule.
+type CreateCommand struct {
+	Title    string
+	Prompt   string
+	Cwd      string
+	Provider string
+	Model    string
+	Cron     string
+	Enabled  bool
+}
+
+// UpdateCommand applies a partial edit to one stored schedule.
+type UpdateCommand struct {
+	ID    string
+	Patch schedule.Patch
+}
+
+// New returns a Coordinator over deps. A nil registry yields a disabled
+// coordinator (every CRUD operation returns [schedule.ErrUnavailable]); a nil
+// worker disables the background scanner.
+func New(deps Dependencies) *Coordinator {
+	registry := deps.Registry
+	enabled := registry != nil
 	if registry == nil {
 		registry = disabledRegistry{}
 	}
-	return &Coordinator{registry: registry, worker: worker, now: time.Now}
+	return &Coordinator{
+		registry: registry,
+		worker:   deps.Worker,
+		paths:    deps.Paths,
+		now:      time.Now,
+		enabled:  enabled,
+	}
 }
 
 // List returns every saved schedule, newest-created first.
@@ -42,19 +83,90 @@ func (c *Coordinator) Get(ctx context.Context, id string) (schedule.Schedule, er
 	return c.registry.Get(ctx, id)
 }
 
-// Create persists a new schedule.
-func (c *Coordinator) Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
-	return c.registry.Create(ctx, sc)
+// Create validates, normalizes, schedules, and persists a new schedule.
+func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.Schedule, error) {
+	if !c.enabled {
+		return schedule.Schedule{}, schedule.ErrUnavailable
+	}
+	sc, err := (schedule.Schedule{
+		Title:    cmd.Title,
+		Prompt:   cmd.Prompt,
+		Cwd:      cmd.Cwd,
+		Provider: cmd.Provider,
+		Model:    cmd.Model,
+		Cron:     cmd.Cron,
+		Enabled:  cmd.Enabled,
+	}).ScheduledAfter(c.now())
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	sc.Cwd, err = c.resolveCwd(sc.Cwd)
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	created, err := c.registry.Create(ctx, sc)
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("schedules: create: %w", err)
+	}
+	return created, nil
 }
 
-// Update full-replaces an existing schedule.
-func (c *Coordinator) Update(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
-	return c.registry.Update(ctx, sc)
+// Update applies a patch to an existing schedule, preserving durable identity
+// and timestamps while recomputing its next due time.
+func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.Schedule, error) {
+	if !c.enabled {
+		return schedule.Schedule{}, schedule.ErrUnavailable
+	}
+	if cmd.ID == "" {
+		return schedule.Schedule{}, schedule.ErrIDRequired
+	}
+	existing, err := c.registry.Get(ctx, cmd.ID)
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", cmd.ID, err)
+	}
+	updated, err := existing.Apply(cmd.Patch).ScheduledAfter(c.now())
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	if cmd.Patch.Cwd != nil {
+		updated.Cwd, err = c.resolveCwd(updated.Cwd)
+		if err != nil {
+			return schedule.Schedule{}, err
+		}
+	}
+	updated, err = c.registry.Update(ctx, updated)
+	if err != nil {
+		return schedule.Schedule{}, fmt.Errorf("schedules: update %q: %w", cmd.ID, err)
+	}
+	return updated, nil
 }
 
 // Delete removes a schedule by id.
 func (c *Coordinator) Delete(ctx context.Context, id string) error {
-	return c.registry.Delete(ctx, id)
+	if !c.enabled {
+		return schedule.ErrUnavailable
+	}
+	if id == "" {
+		return schedule.ErrIDRequired
+	}
+	if err := c.registry.Delete(ctx, id); err != nil {
+		return fmt.Errorf("schedules: delete %q: %w", id, err)
+	}
+	return nil
+}
+
+func (c *Coordinator) resolveCwd(cwd string) (string, error) {
+	if cwd == "" {
+		return "", nil
+	}
+	if c.paths == nil {
+		return "", errors.Join(schedule.ErrCwdUnavailable, errors.New("schedules: cwd resolver is unavailable"))
+	}
+	resolved, err := c.paths.ResolveExistingDir(cwd)
+	if err != nil {
+		return "", fmt.Errorf("%w: resolve %q: %w", schedule.ErrCwdUnavailable, cwd, err)
+	}
+	return resolved, nil
 }
 
 // RunNow starts one off-cycle schedule firing and records it without advancing

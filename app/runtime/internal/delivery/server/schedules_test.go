@@ -71,7 +71,11 @@ func (r *fakeScheduleRegistry) MarkFired(context.Context, string, time.Time, tim
 // by reg (used as both the CRUD registry and the worker store).
 func serverWithSchedules(reg schedule.Registry) *Server {
 	s := newTestServer(&stubRuntime{})
-	s.schedules = schedules.NewCoordinator(reg, reg)
+	s.schedules = schedules.New(schedules.Dependencies{
+		Registry: reg,
+		Worker:   reg,
+		Paths:    workspacepath.Resolver{},
+	})
 	return s
 }
 

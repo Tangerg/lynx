@@ -18,6 +18,7 @@ import (
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -148,9 +149,10 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		policy approval.Policy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
+		scheduleCoord *scheduleapp.Coordinator,
 		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, scheduleCoord, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}
@@ -182,9 +184,10 @@ func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
 		policy approval.Policy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
+		scheduleCoord *scheduleapp.Coordinator,
 		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, scheduleCoord, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}

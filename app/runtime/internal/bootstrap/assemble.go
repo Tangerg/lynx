@@ -151,6 +151,7 @@ type toolEnvironmentBuilder func(
 	approval.Policy,
 	mcpEnvironment,
 	toolset.CodebaseIndex,
+	*schedules.Coordinator,
 	*skillauthoring.Store,
 ) (toolset.Built, error)
 
@@ -234,8 +235,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		return Host{}, err
 	}
 
+	scheduleCoord := schedules.New(schedules.Dependencies{
+		Registry: cfg.ScheduleRegistry,
+		Worker:   cfg.ScheduleRegistry,
+		Paths:    workspacepath.Resolver{},
+	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, scheduleCoord, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -406,7 +412,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
 			}),
-			Schedules: schedules.NewCoordinator(cfg.ScheduleRegistry, cfg.ScheduleRegistry),
+			Schedules: scheduleCoord,
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,

@@ -8,12 +8,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
-func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config, approvalPolicy approval.Policy, mcpEnv mcpEnvironment, codebaseIdx toolset.CodebaseIndex, skillStore *skillauthoring.Store) (toolset.Built, error) {
+func buildToolEnvironment(
+	ctx context.Context,
+	cfg Config,
+	ecfg agentexec.Config,
+	approvalPolicy approval.Policy,
+	mcpEnv mcpEnvironment,
+	codebaseIdx toolset.CodebaseIndex,
+	scheduleCoord *schedules.Coordinator,
+	skillStore *skillauthoring.Store,
+) (toolset.Built, error) {
 	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.SkillsGlobalDir,
@@ -24,12 +34,14 @@ func buildToolEnvironment(ctx context.Context, cfg Config, ecfg agentexec.Config
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
 		Interrupt:       hitl.Interrupt[interrupts.Resolution],
-		Schedules:       cfg.ScheduleRegistry,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,
 		// propose_skill writes to the global skills dir; an empty dir yields a
 		// disabled store (Enabled() false), which omits the tool.
 		SkillAuthoring: skillStore,
+	}
+	if cfg.ScheduleRegistry != nil {
+		bc.Schedules = scheduleCoord
 	}
 	// Set the read-back store only when concretely present, so a nil store never
 	// reaches the tool builder as a non-nil interface holding a nil pointer.
