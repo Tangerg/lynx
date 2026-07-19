@@ -122,13 +122,28 @@ func scanMCPServer(scan func(...any) error) (mcpserver.Server, error) {
 		return mcpserver.Server{}, fmt.Errorf("sqlite: scan mcp server: %w", err)
 	}
 	srv.Transport = mcpserver.Transport(transport)
-	srv.Headers = decodeStringMap(headers)
-	srv.Args = decodeStrings(args)
-	srv.Env = decodeStringMap(env)
+	var err error
+	if srv.Headers, err = decodeStringMap(headers); err != nil {
+		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "headers", err)
+	}
+	if srv.Args, err = decodeStrings(args); err != nil {
+		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "args", err)
+	}
+	if srv.Env, err = decodeStringMap(env); err != nil {
+		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "env", err)
+	}
 	srv.Timeout = time.Duration(timeoutNS)
-	srv.DisabledTools = decodeStrings(disabled)
-	srv.AutoApproveTools = decodeStrings(autoA)
+	if srv.DisabledTools, err = decodeStrings(disabled); err != nil {
+		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "disabled_tools", err)
+	}
+	if srv.AutoApproveTools, err = decodeStrings(autoA); err != nil {
+		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "auto_approve_tools", err)
+	}
 	return srv, nil
+}
+
+func mcpJSONFieldError(server, field string, err error) error {
+	return fmt.Errorf("sqlite: scan mcp server %q: decode %s: %w", server, field, err)
 }
 
 // encodeStrings JSON-encodes a string slice for a TEXT column; a nil/empty
@@ -144,16 +159,17 @@ func encodeStrings(v []string) string {
 	return string(b)
 }
 
-// decodeStrings reverses encodeStrings; a blank or malformed column yields nil.
-func decodeStrings(s string) []string {
+// decodeStrings reverses encodeStrings. A blank column is the canonical empty
+// value; malformed persisted JSON is a storage error, never an empty list.
+func decodeStrings(s string) ([]string, error) {
 	if s == "" {
-		return nil
+		return nil, nil
 	}
 	var v []string
-	if json.Unmarshal([]byte(s), &v) != nil {
-		return nil
+	if err := json.Unmarshal([]byte(s), &v); err != nil {
+		return nil, err
 	}
-	return v
+	return v, nil
 }
 
 // encodeStringMap JSON-encodes a string map for a TEXT column; a nil/empty map
@@ -169,14 +185,15 @@ func encodeStringMap(m map[string]string) string {
 	return string(b)
 }
 
-// decodeStringMap reverses encodeStringMap; a blank or malformed column yields nil.
-func decodeStringMap(s string) map[string]string {
+// decodeStringMap reverses encodeStringMap. A blank column is the canonical
+// empty value; malformed persisted JSON is a storage error, never an empty map.
+func decodeStringMap(s string) (map[string]string, error) {
 	if s == "" {
-		return nil
+		return nil, nil
 	}
 	var m map[string]string
-	if json.Unmarshal([]byte(s), &m) != nil {
-		return nil
+	if err := json.Unmarshal([]byte(s), &m); err != nil {
+		return nil, err
 	}
-	return m
+	return m, nil
 }
