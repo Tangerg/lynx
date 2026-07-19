@@ -294,8 +294,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// surface consumed by application/runs.
 	fileChanges := &filechanges.Notifier{}
 	runExecutor := turn.NewExecutor(turnDispatcher)
-	// effectsTasks backs the run-segment terminal boundary maintenance (checkpoint
-	// snapshot + title) off the live pump; the Host joins it after the pumps.
+	// effectsTasks owns title generation after the synchronous checkpoint
+	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
 	runEffects := runsegment.New(runsegment.Config{
 		Stores: runSegmentStores{

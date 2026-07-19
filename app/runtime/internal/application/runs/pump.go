@@ -123,17 +123,20 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			cancelTeardown()
 		}
 		hub.Close()
-		if e, ok := c.registry.Close(spec.RunID); ok {
+		entry, maintenanceHeld := c.registry.BeginMaintenance(spec.RunID)
+		if maintenanceHeld {
+			defer c.registry.ReleaseSession(entry.Record.SessionID)
 			// A parked run keeps its live turn alive for resume — only cancel +
 			// forget on a true terminal.
-			if !parked && e.Payload != nil {
-				e.Payload.stop()
+			if !parked && entry.Payload != nil {
+				entry.Payload.stop()
 			}
 		}
 		// Maintenance may only observe a boundary the store actually committed.
 		// In particular, a failed terminal commit must not create a checkpoint or
-		// title that falsely implies the run completed. A parked commit sets
-		// finished too; Effects deliberately treats it as non-terminal.
+		// title that falsely implies the run completed. The session claim above is
+		// retained through the synchronous checkpoint fence; title work may detach.
+		// A parked commit sets finished too; Effects treats it as non-terminal.
 		if finished {
 			finishCtx, cancelFinish := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			if err := c.effects.Finish(finishCtx, Finish{

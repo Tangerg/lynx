@@ -124,7 +124,10 @@ func (h *handle) cleanupContext(fallback context.Context) (context.Context, cont
 	if h != nil {
 		h.mu.Lock()
 		if h.owner != nil {
-			base = h.owner
+			// The pump can release (and cancel) its task owner immediately after
+			// requestCancel stops runCtx. Durable cancel cleanup must retain the
+			// owner's trace values without inheriting that lifecycle cancellation.
+			base = context.WithoutCancel(h.owner)
 		}
 		h.mu.Unlock()
 	}

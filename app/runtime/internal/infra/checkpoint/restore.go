@@ -15,9 +15,12 @@ import (
 // is itself reversible (unrevert). Returns ErrUnavailable when runID has no
 // snapshot.
 func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error {
-	mu := s.lockFor(cwd)
+	mu := s.treeLockFor(cwd)
 	mu.Lock()
 	defer mu.Unlock()
+	repoMu := s.repoLockFor(sessionID)
+	repoMu.Lock()
+	defer repoMu.Unlock()
 	gitDir := s.gitDir(sessionID)
 	if !repoExists(gitDir) {
 		return ErrUnavailable

@@ -124,8 +124,9 @@ type Nudge struct {
 // one event's projections and its run-state transition (§8.3/§8.4) in a single
 // transaction before publishing the corresponding event, so subscribers never
 // observe state the durable stores cannot yet serve. Nudge is a non-durable live
-// workspace notification; Finish runs terminal boundary maintenance (checkpoint
-// snapshot, title) off the live path. The adapter/runsegment.Effects satisfies it.
+// workspace notification. Finish synchronously establishes the checkpoint
+// boundary while run admission is still held, then may generate the title off
+// the live path. The adapter/runsegment.Effects satisfies it.
 type Effects interface {
 	// CommitOpening atomically persists every durable projection that leads a
 	// segment. For a fresh Run it also admits the Run; for a continuation it
@@ -138,11 +139,10 @@ type Effects interface {
 	CommitEvent(ctx context.Context, commit EventCommit) error
 	// Nudge publishes a non-durable live workspace change to subscribers.
 	Nudge(cwd string, paths []string)
-	// Finish starts ordered terminal boundary maintenance off the live path. A
-	// parked run is resumable, not a boundary, so Finish no-ops for it
-	// (fin.Parked). It returns synchronous maintenance or task-admission failures;
-	// errors raised by accepted background work remain observable on a dedicated
-	// terminal-maintenance span.
+	// Finish establishes the terminal checkpoint before returning, then starts
+	// non-boundary title maintenance off the live path. A parked run is resumable,
+	// not a boundary, so Finish no-ops for it (fin.Parked). Accepted background
+	// title failures remain observable on a terminal-maintenance span.
 	Finish(ctx context.Context, fin Finish) error
 }
 

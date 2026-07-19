@@ -105,3 +105,22 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 		t.Fatalf("commit error = %v, want context.Canceled", err)
 	}
 }
+
+func TestHandleCleanupContextDetachesFinishedOwner(t *testing.T) {
+	type contextKey struct{}
+	owner, cancelOwner := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "trace"))
+	cancelOwner()
+	h := &handle{owner: owner}
+
+	cleanup, cancelCleanup := h.cleanupContext(context.Background())
+	defer cancelCleanup()
+	if cleanup.Err() != nil {
+		t.Fatalf("cleanup inherited finished owner cancellation: %v", cleanup.Err())
+	}
+	if got := cleanup.Value(contextKey{}); got != "trace" {
+		t.Fatalf("cleanup context value = %v, want trace", got)
+	}
+	if _, ok := cleanup.Deadline(); !ok {
+		t.Fatal("cleanup context is not bounded")
+	}
+}
