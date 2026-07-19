@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { createRpcClient } from "./client";
+import { describe, expect, it, vi } from "vitest";
+import { createRpcClient, type RpcCallOptions, type RpcClient } from "./client";
+import { RpcError, RpcTransportError } from "./errors";
 import { asRunId, asSessionId } from "./ids";
 import { createMethods } from "./methods";
 import type { RunEvent, StreamEvent } from "./shapes";
@@ -14,6 +15,53 @@ function runEvent(runId: string, segmentId: string, eventId: string, event: Stre
 }
 
 describe("methods factory", () => {
+  it("reuses a mutation key after an indeterminate failure and rotates after success", async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(new RpcTransportError("connection reset"))
+      .mockResolvedValueOnce({ sessionId: "ses_1", runId: "run_1" })
+      .mockResolvedValueOnce({ sessionId: "ses_2", runId: "run_2" });
+    const client = { call } as unknown as RpcClient;
+    const methods = createMethods(client);
+
+    await expect(methods.schedules.runNow("schedule_1")).rejects.toBeInstanceOf(RpcTransportError);
+    await expect(methods.schedules.runNow("schedule_1")).resolves.toMatchObject({
+      runId: "run_1",
+    });
+    await expect(methods.schedules.runNow("schedule_1")).resolves.toMatchObject({
+      runId: "run_2",
+    });
+
+    const keys = call.mock.calls.map((args) => args[2]?.idempotencyKey as string);
+    expect(keys[0]).toBeTruthy();
+    expect(keys[1]).toBe(keys[0]);
+    expect(keys[2]).not.toBe(keys[1]);
+  });
+
+  it("retains a mutation key while the original execution is in progress", async () => {
+    const call = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new RpcError({
+          code: -32021,
+          message: "idempotency_in_progress",
+          data: { type: "idempotency_in_progress", channel: "rpc", retryable: true },
+        }),
+      )
+      .mockResolvedValueOnce({ id: "session_1" });
+    const client = { call } as unknown as RpcClient;
+    const methods = createMethods(client);
+
+    await expect(methods.sessions.create({ title: "same", cwd: "/repo" })).rejects.toBeInstanceOf(
+      RpcError,
+    );
+    await methods.sessions.create({ cwd: "/repo", title: "same" });
+
+    const first = call.mock.calls[0]?.[2] as RpcCallOptions | undefined;
+    const second = call.mock.calls[1]?.[2] as RpcCallOptions | undefined;
+    expect(second?.idempotencyKey).toBe(first?.idempotencyKey);
+  });
+
   it("sessions.list sends sessions.list with optional query and returns a Page", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
@@ -29,14 +77,21 @@ describe("methods factory", () => {
     await client.close();
   });
 
-  it("runtime.shutdown is a notification (no response wait)", async () => {
+  it("runs.list forwards session filtering and pagination", async () => {
     const t = createMemoryTransport();
     const client = createRpcClient(t);
     const methods = createMethods(client);
-    await methods.runtime.shutdown({ reason: "test" });
-    const sent = t.outbox()[0] as { method: string; params: { reason: string } };
-    expect(sent.method).toBe("runtime.shutdown");
-    expect("id" in sent).toBe(false);
+
+    const promise = methods.runs.list({
+      sessionId: asSessionId("ses_1"),
+      cursor: "next",
+      limit: 25,
+    });
+    const req = await waitForRequest(t, "runs.list");
+    expect(req.params).toEqual({ sessionId: "ses_1", cursor: "next", limit: 25 });
+
+    t.inject({ jsonrpc: JSONRPC_VERSION, id: req.id, result: { data: [] } } as RpcMessage);
+    await expect(promise).resolves.toEqual({ data: [] });
     await client.close();
   });
 

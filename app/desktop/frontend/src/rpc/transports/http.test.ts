@@ -90,12 +90,13 @@ describe("HTTPTransport — streamable HTTP", () => {
   });
 
   it("non-streaming method: POST returns a single application/json message", async () => {
-    const fetchStub = (async () =>
+    const fetchStub = vi.fn(async () =>
       jsonResponse({
         jsonrpc: "2.0",
         id: "2",
         result: { id: "ses_1" },
-      })) as unknown as typeof fetch;
+      }),
+    );
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     const it = transport.recv()[Symbol.asyncIterator]();
 
@@ -104,22 +105,97 @@ describe("HTTPTransport — streamable HTTP", () => {
     await transport.close();
 
     expect(r.value).toMatchObject({ id: "2", result: { id: "ses_1" } });
+    expect(fetchStub).toHaveBeenCalledWith(
+      "http://x/v2/rpc",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("sends the logical mutation idempotency key as transport metadata", async () => {
+    const fetchStub = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+      jsonResponse({ jsonrpc: "2.0", id: "2", result: { id: "ses_1" } }),
+    );
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const it = transport.recv()[Symbol.asyncIterator]();
+
+    await transport.send(req("2", "sessions.create"), undefined, {
+      idempotencyKey: "operation-key-1",
+    });
+    await it.next();
+    await transport.close();
+
+    const headers = fetchStub.mock.calls[0]?.[1]?.headers as Record<string, string>;
+    expect(headers["Idempotency-Key"]).toBe("operation-key-1");
   });
 
   it("204 notification ack is a no-op", async () => {
     const fetchStub = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
     await expect(
-      transport.send({ jsonrpc: "2.0", method: "runtime.shutdown", params: {} } as RpcMessage),
+      transport.send({ jsonrpc: "2.0", method: "test.notification", params: {} } as RpcMessage),
     ).resolves.toBeUndefined();
     await transport.close();
   });
 
-  it("non-2xx surfaces a RpcTransportError", async () => {
-    const fetchStub = (async () =>
-      new Response("bad request", { status: 400 })) as unknown as typeof fetch;
+  it("rejects a no-content response for a call", async () => {
+    const fetchStub = (async () => new Response(null, { status: 204 })) as unknown as typeof fetch;
     const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
-    await expect(transport.send(req("3", "runs.start"))).rejects.toBeInstanceOf(RpcTransportError);
+
+    await expect(transport.send(req("2", "sessions.get"))).rejects.toThrow(
+      "RPC call ended without a response",
+    );
+    await transport.close();
+  });
+
+  it("rejects a response correlated to another request", async () => {
+    const fetchStub = (async () =>
+      jsonResponse({ jsonrpc: "2.0", id: "other", result: {} })) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+
+    await expect(transport.send(req("2", "sessions.get"))).rejects.toThrow(
+      "does not match the outbound request",
+    );
+    await transport.close();
+  });
+
+  it("close aborts an in-flight request owned by the transport", async () => {
+    let requestSignal: AbortSignal | undefined;
+    const fetchStub = ((_url: string, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("aborted", "AbortError")),
+          { once: true },
+        );
+      });
+    }) as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    const sending = transport.send(req("2", "sessions.get"));
+    await Promise.resolve();
+
+    await transport.close();
+    await expect(sending).rejects.toThrow("fetch failed: aborted");
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it("non-2xx surfaces structured transport diagnostics", async () => {
+    const fetchStub = (async () =>
+      new Response(
+        JSON.stringify({
+          type: "urn:lyra:transport:invalid_request",
+          detail: "bad request",
+          requestId: "req_123",
+        }),
+        { status: 400, headers: { "Content-Type": "application/problem+json" } },
+      )) as unknown as typeof fetch;
+    const transport = createHttpTransport({ baseUrl: "http://x", fetch: fetchStub });
+    await expect(transport.send(req("3", "runs.start"))).rejects.toMatchObject({
+      name: "RpcTransportError",
+      status: 400,
+      requestId: "req_123",
+      problemType: "urn:lyra:transport:invalid_request",
+    } satisfies Partial<RpcTransportError>);
     await transport.close();
   });
 
