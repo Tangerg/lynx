@@ -1,7 +1,10 @@
 package server
 
 import (
+	"cmp"
 	"context"
+	"slices"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
@@ -49,7 +52,12 @@ func (*fakeMCPPorts) Configure(context.Context, mcpserver.LiveConfig) error { re
 func (*fakeMCPPorts) Remove(context.Context, string)                        {}
 
 func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
+	servers := make(map[string]mcpserver.Server, len(ports.statuses))
+	for _, status := range ports.statuses {
+		servers[status.Name] = mcpserver.Server{Name: status.Name, Enabled: true}
+	}
 	return integrations.Config{
+		MCPRegistry:           &mcpRegistryFake{servers: servers},
 		MCPStatusReader:       ports,
 		MCPToolCatalog:        ports,
 		MCPConnectionCommands: ports,
@@ -59,20 +67,28 @@ func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 
 // mcpRegistryFake is the mcpserver.Registry the MCP config handlers drive.
 type mcpRegistryFake struct {
+	mu         sync.Mutex
 	servers    map[string]mcpserver.Server
 	getErr     error
 	configured []mcpserver.Server
 }
 
 func (r *mcpRegistryFake) List(context.Context) ([]mcpserver.Server, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	out := make([]mcpserver.Server, 0, len(r.servers))
 	for _, srv := range r.servers {
 		out = append(out, srv)
 	}
+	slices.SortFunc(out, func(a, b mcpserver.Server) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return out, nil
 }
 
 func (r *mcpRegistryFake) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.getErr != nil {
 		return mcpserver.Server{}, false, r.getErr
 	}
@@ -81,12 +97,32 @@ func (r *mcpRegistryFake) Get(_ context.Context, name string) (mcpserver.Server,
 }
 
 func (r *mcpRegistryFake) Configure(_ context.Context, srv mcpserver.Server) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.servers == nil {
+		r.servers = make(map[string]mcpserver.Server)
+	}
+	r.servers[srv.Name] = srv
 	r.configured = append(r.configured, srv)
 	return nil
 }
 
-func (*mcpRegistryFake) Remove(context.Context, string) error           { return nil }
-func (*mcpRegistryFake) SetEnabled(context.Context, string, bool) error { return nil }
+func (r *mcpRegistryFake) Remove(_ context.Context, name string) error {
+	r.mu.Lock()
+	delete(r.servers, name)
+	r.mu.Unlock()
+	return nil
+}
+
+func (r *mcpRegistryFake) SetEnabled(_ context.Context, name string, enabled bool) error {
+	r.mu.Lock()
+	if server, ok := r.servers[name]; ok {
+		server.Enabled = enabled
+		r.servers[name] = server
+	}
+	r.mu.Unlock()
+	return nil
+}
 
 // serverWithMCP builds a Server whose capabilities coordinator is wired for the
 // MCP handlers (live pool + registry + policy), plus the workspace event hub the

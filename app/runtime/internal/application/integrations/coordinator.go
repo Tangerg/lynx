@@ -43,7 +43,10 @@ type Coordinator struct {
 	// MCP: the durable registry (source of truth), the live connection pool
 	// (projection), and the atomically-published ToolPolicy the engine's tool gate
 	// + approval read. mcpMutationMu linearizes the multi-step registry -> live ->
-	// policy write; locks inside the store/pool can't span that boundary.
+	// policy write, plus asynchronous reconnect/authorize. Locks inside the
+	// store/pool can't span that boundary, and relying on an adapter-local dial
+	// lock would still allow durable registry state and status notifications to
+	// become observably reordered.
 	mcpRegistry           mcpserver.Registry
 	mcpStatusReader       MCPStatusReader
 	mcpToolCatalog        MCPToolCatalog

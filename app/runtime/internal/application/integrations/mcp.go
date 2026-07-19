@@ -3,7 +3,10 @@ package integrations
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
+
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -13,6 +16,10 @@ const mcpReconcileTimeout = 30 * time.Second
 // errClosed reports that a post-commit reconcile / background task could not be
 // launched because the component is shutting down.
 var errClosed = errors.New("integrations: closed")
+
+// errMCPConnectionUnavailable reports an incomplete coordinator assembly at the
+// use-case boundary instead of letting a detached task fail asynchronously.
+var errMCPConnectionUnavailable = errors.New("integrations: MCP connection service is unavailable")
 
 // MCP-server registry orchestration: the coordinator owns both the persisted
 // registry (mcpserver.Registry) and the live connection pool, so a
@@ -64,15 +71,34 @@ func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error
 // startMCPConnection validates the server exists, then runs dial on the
 // component task group — detached from the caller's cancellation (so a returning
 // RPC cannot abort it) but keeping its trace values and canceled + joined by
-// Close — publishing the connecting frame before and the settled frame after, in
-// that order. The task's context scopes the dial and the settled status read.
-// Returns [mcpserver.ErrUnknownServer] for an unknown name (the delivery layer
-// maps it to invalid_params) or [errClosed] when the component is shutting down.
+// Close. The task enters the same mutation order as configure/remove/enable,
+// revalidates the durable registry after acquiring that order, and only then
+// publishes connecting, dials, and publishes settled. This prevents an older
+// reconnect from reviving a server that a concurrent remove or disable already
+// committed, and keeps concurrent status transitions ordered and non-interleaved.
+// The task's context scopes the registry read, dial, and settled status read.
+// Returns [errMCPConnectionUnavailable] when the coordinator lacks a required
+// connection dependency, [mcpserver.ErrUnknownServer] for an unknown name (the
+// delivery layer maps it to invalid_params), or [errClosed] during shutdown.
 func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
-	if c.mcpConnectionCommands == nil || !c.mcpServerKnown(name) {
+	if c.mcpRegistry == nil || c.mcpStatusReader == nil || c.mcpConnectionCommands == nil {
+		return errMCPConnectionUnavailable
+	}
+	if !c.mcpServerKnown(name) {
 		return mcpserver.ErrUnknownServer
 	}
 	if !c.tasks.Start(ctx, func(ctx context.Context) {
+		c.mcpMutationMu.Lock()
+		defer c.mcpMutationMu.Unlock()
+
+		srv, ok, err := c.mcpRegistry.Get(ctx, name)
+		if err != nil {
+			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q before connection: %w", name, err))
+			return
+		}
+		if !ok || !srv.Enabled {
+			return
+		}
 		c.notifyMCPStatus(ctx, name, true)
 		_ = dial(ctx)
 		c.notifyMCPStatus(ctx, name, false)
@@ -80,6 +106,12 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 		return errClosed
 	}
 	return nil
+}
+
+func recordMCPConnectionError(ctx context.Context, err error) {
+	if err != nil {
+		trace.SpanFromContext(ctx).RecordError(err)
+	}
 }
 
 // mcpServerKnown reports whether name is a tracked MCP server (a configured

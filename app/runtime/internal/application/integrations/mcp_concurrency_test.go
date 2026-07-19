@@ -10,55 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-type blockingMCPRegistry struct {
-	mu                 sync.Mutex
-	servers            map[string]mcpserver.Server
-	configureCommitted chan struct{}
-	releaseConfigure   chan struct{}
-}
-
-func (r *blockingMCPRegistry) List(context.Context) ([]mcpserver.Server, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]mcpserver.Server, 0, len(r.servers))
-	for _, server := range r.servers {
-		out = append(out, server)
-	}
-	return out, nil
-}
-
-func (r *blockingMCPRegistry) Get(_ context.Context, name string) (mcpserver.Server, bool, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	server, ok := r.servers[name]
-	return server, ok, nil
-}
-
-func (r *blockingMCPRegistry) Configure(_ context.Context, server mcpserver.Server) error {
-	r.mu.Lock()
-	r.servers[server.Name] = server
-	r.mu.Unlock()
-	close(r.configureCommitted)
-	<-r.releaseConfigure
-	return nil
-}
-
-func (r *blockingMCPRegistry) Remove(_ context.Context, name string) error {
-	r.mu.Lock()
-	delete(r.servers, name)
-	r.mu.Unlock()
-	return nil
-}
-
-func (r *blockingMCPRegistry) SetEnabled(_ context.Context, name string, enabled bool) error {
-	r.mu.Lock()
-	server := r.servers[name]
-	server.Enabled = enabled
-	r.servers[name] = server
-	r.mu.Unlock()
-	return nil
-}
-
 // mcpLiveSet is the registry-command projection the mutation tests observe.
 type mcpLiveSet struct {
 	mu      sync.Mutex
@@ -82,8 +33,39 @@ func (s *mcpLiveSet) Remove(_ context.Context, name string) {
 	s.mu.Unlock()
 }
 
+// blockingMCPProjection deliberately has no adapter-local mutation lock. It
+// proves the application coordinator, rather than a particular infrastructure
+// implementation, owns reconnect/remove ordering.
+type blockingMCPProjection struct {
+	mcpLiveSet
+	name             string
+	reconnectStarted chan struct{}
+	releaseReconnect chan struct{}
+}
+
+func (p *blockingMCPProjection) Statuses() []mcpserver.ConnectionStatus {
+	return []mcpserver.ConnectionStatus{{Name: p.name}}
+}
+
+func (p *blockingMCPProjection) Reconnect(ctx context.Context, name string) error {
+	close(p.reconnectStarted)
+	select {
+	case <-p.releaseReconnect:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	p.mu.Lock()
+	p.servers[name] = true
+	p.mu.Unlock()
+	return nil
+}
+
+func (p *blockingMCPProjection) Authorize(ctx context.Context, name string) error {
+	return p.Reconnect(ctx, name)
+}
+
 func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
-	registry := &blockingMCPRegistry{
+	registry := &testMCPRegistry{
 		servers:            map[string]mcpserver.Server{},
 		configureCommitted: make(chan struct{}),
 		releaseConfigure:   make(chan struct{}),
@@ -125,7 +107,7 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 }
 
 func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
-	registry := &blockingMCPRegistry{
+	registry := &testMCPRegistry{
 		servers:            map[string]mcpserver.Server{},
 		configureCommitted: make(chan struct{}),
 		releaseConfigure:   make(chan struct{}),
@@ -151,5 +133,117 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	live.mu.Unlock()
 	if !livePresent {
 		t.Fatal("request cancellation abandoned post-commit live reconciliation")
+	}
+}
+
+func TestMCPReconnectAndRemoveShareApplicationMutationOrder(t *testing.T) {
+	const name = "files"
+	server := mcpserver.Server{Name: name, Enabled: true}
+	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{name: server}}
+	live := &blockingMCPProjection{
+		mcpLiveSet:       mcpLiveSet{servers: map[string]bool{name: true}},
+		name:             name,
+		reconnectStarted: make(chan struct{}),
+		releaseReconnect: make(chan struct{}),
+	}
+	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
+	policy := mcpserver.NewToolPolicy([]mcpserver.Server{server})
+	policyCell.Store(&policy)
+	c := New(Config{
+		MCPRegistry:           registry,
+		MCPStatusReader:       live,
+		MCPConnectionCommands: live,
+		MCPRegistryCommands:   live,
+		MCPPolicy:             policyCell,
+	})
+	defer c.Close()
+
+	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
+		t.Fatalf("ReconnectMCPServer: %v", err)
+	}
+	<-live.reconnectStarted
+
+	removed := make(chan error, 1)
+	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
+	select {
+	case err := <-removed:
+		close(live.releaseReconnect)
+		t.Fatalf("remove crossed an incomplete reconnect: %v", err)
+	case <-time.After(20 * time.Millisecond):
+		close(live.releaseReconnect)
+	}
+	if err := <-removed; err != nil {
+		t.Fatalf("RemoveMCPServer: %v", err)
+	}
+
+	if _, ok, err := registry.Get(context.Background(), name); err != nil || ok {
+		t.Fatalf("registry final state: present=%v err=%v", ok, err)
+	}
+	live.mu.Lock()
+	livePresent := live.servers[name]
+	live.mu.Unlock()
+	if livePresent {
+		t.Fatal("completed reconnect revived a durably removed MCP server")
+	}
+}
+
+func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
+	const name = "files"
+	server := mcpserver.Server{Name: name, Enabled: true}
+	registry := &testMCPRegistry{
+		servers:         map[string]mcpserver.Server{name: server},
+		removeCommitted: make(chan struct{}),
+		releaseRemove:   make(chan struct{}),
+	}
+	live := &blockingMCPProjection{
+		mcpLiveSet:       mcpLiveSet{servers: map[string]bool{name: true}},
+		name:             name,
+		reconnectStarted: make(chan struct{}),
+		releaseReconnect: make(chan struct{}),
+	}
+	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
+	policy := mcpserver.NewToolPolicy([]mcpserver.Server{server})
+	policyCell.Store(&policy)
+	c := New(Config{
+		MCPRegistry:           registry,
+		MCPStatusReader:       live,
+		MCPConnectionCommands: live,
+		MCPRegistryCommands:   live,
+		MCPPolicy:             policyCell,
+	})
+
+	removed := make(chan error, 1)
+	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
+	<-registry.removeCommitted
+	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
+		close(registry.releaseRemove)
+		close(live.releaseReconnect)
+		c.Close()
+		t.Fatalf("ReconnectMCPServer: %v", err)
+	}
+
+	reconnectStarted := false
+	select {
+	case <-live.reconnectStarted:
+		reconnectStarted = true
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(registry.releaseRemove)
+	if err := <-removed; err != nil {
+		close(live.releaseReconnect)
+		c.Close()
+		t.Fatalf("RemoveMCPServer: %v", err)
+	}
+	close(live.releaseReconnect)
+	c.Close()
+
+	if reconnectStarted {
+		t.Fatal("reconnect crossed a committed removal instead of revalidating the registry")
+	}
+	live.mu.Lock()
+	livePresent := live.servers[name]
+	live.mu.Unlock()
+	if livePresent {
+		t.Fatal("queued reconnect revived a durably removed MCP server")
 	}
 }
