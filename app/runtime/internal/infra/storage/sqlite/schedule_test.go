@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -83,7 +84,7 @@ func TestScheduleCRUD(t *testing.T) {
 	got.Enabled = false
 	got.NextRunAt = time.Time{}
 	got.Title = "renamed"
-	if _, err := s.Update(ctx, got); err != nil {
+	if _, err := s.Update(ctx, got, got.Revision); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 	reread, _ := s.Get(ctx, created.ID)
@@ -161,7 +162,7 @@ func TestScheduleMarkFiredCASLosesToReschedule(t *testing.T) {
 	rescheduled := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Millisecond)
 	got, _ := s.Get(ctx, created.ID)
 	got.NextRunAt = rescheduled
-	if _, err := s.Update(ctx, got); err != nil {
+	if _, err := s.Update(ctx, got, got.Revision); err != nil {
 		t.Fatalf("update: %v", err)
 	}
 
@@ -185,7 +186,7 @@ func TestScheduleMarkFiredCASLosesToReschedule(t *testing.T) {
 // TestScheduleUpdateNotFound: updating an unknown id reports ErrNotFound.
 func TestScheduleUpdateNotFound(t *testing.T) {
 	s := newScheduleStore(t)
-	_, err := s.Update(context.Background(), schedule.Schedule{ID: "sch_nope", Prompt: "x", Cron: "@daily"})
+	_, err := s.Update(context.Background(), schedule.Schedule{ID: "sch_nope", Prompt: "x", Cron: "@daily"}, 1)
 	if err != schedule.ErrNotFound {
 		t.Errorf("update unknown id err = %v, want ErrNotFound", err)
 	}
@@ -206,5 +207,49 @@ func TestScheduleDueSkipsDisabled(t *testing.T) {
 	}
 	if len(due) != 0 {
 		t.Errorf("due = %+v, want none (disabled)", due)
+	}
+}
+
+func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewScheduleStore(db)
+	createdAt := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC).UnixMilli()
+	nextRunAt := time.Date(2026, 7, 19, 11, 0, 0, 0, time.UTC).UnixMilli()
+	for _, id := range []string{"sch_a", "sch_c", "sch_b"} {
+		_, err := db.ExecContext(t.Context(), `INSERT INTO schedules(
+			id, title, prompt, cwd, provider, model, cron, enabled,
+			last_run_at, next_run_at, created_at, revision
+		) VALUES (?, '', 'review', '', '', '', '0 9 * * *', 1, 0, ?, ?, 1)`,
+			id, nextRunAt, createdAt)
+		if err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+
+	listed, err := store.List(t.Context())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	due, err := store.Due(t.Context(), time.UnixMilli(nextRunAt))
+	if err != nil {
+		t.Fatalf("Due: %v", err)
+	}
+	ids := func(items []schedule.Schedule) []string {
+		out := make([]string, len(items))
+		for i := range items {
+			out[i] = items[i].ID
+		}
+		return out
+	}
+	want := []string{"sch_c", "sch_b", "sch_a"}
+	if got := ids(listed); !slices.Equal(got, want) {
+		t.Fatalf("List IDs = %v, want %v", got, want)
+	}
+	if got := ids(due); !slices.Equal(got, want) {
+		t.Fatalf("Due IDs = %v, want %v", got, want)
 	}
 }
