@@ -114,6 +114,11 @@ type runnerState struct {
 	callStates []CallCheckpoint
 	nextResult int
 	resume     *Resume
+	// promotions collects tools promoted mid-loop (see PromoteTools). It is
+	// drained into request.Tools before every checkpoint or continuation, so a
+	// promoted tool is advertised on the next model round and rides through a
+	// pause/resume inside the checkpoint's request.
+	promotions toolPromotions
 }
 
 func (r *Runner) startState(ctx context.Context, request *chat.Request, resolver ToolResolver) (*runnerState, error) {
@@ -193,6 +198,9 @@ func (r *Runner) validateContext(ctx context.Context) error {
 }
 
 func (r *Runner) execute(ctx context.Context, state *runnerState, yield func(Event, error) bool) {
+	// Bind the promotion sink for the whole interaction so a tool can advertise
+	// resolvable-but-withheld tools (PromoteTools) for subsequent rounds.
+	ctx = withPromotions(ctx, &state.promotions)
 	for {
 		if len(state.calls) == 0 {
 			if state.round >= r.maxRounds {
@@ -395,6 +403,12 @@ func (r *Runner) publishSettled(
 	allDirect bool,
 	yield func(Event, error) bool,
 ) (published, paused bool) {
+	// Fold any tools promoted by the segment just run into the advertised
+	// toolset before this call can build a pause checkpoint or the loop can
+	// build the continuation request: every runSegment is followed by a
+	// publishSettled, so this covers both the checkpoint and continuation paths
+	// with one merge point. request.Tools grows monotonically within a turn.
+	r.mergePromotions(state)
 	for state.nextResult < len(state.callStates) {
 		callState := state.callStates[state.nextResult]
 		switch callState.Status {
@@ -433,6 +447,37 @@ func (r *Runner) publishSettled(
 		}
 	}
 	return true, false
+}
+
+// mergePromotions drains the promotion sink and advertises each definition that
+// (a) is valid, (b) is not already advertised, and (c) resolves to a matching
+// tool — the same advertised⊆resolvable invariant validateInput enforces at
+// start/resume, applied here so a mid-loop growth of request.Tools can never
+// advertise a name the runner cannot execute (which would fail a later resume).
+func (r *Runner) mergePromotions(state *runnerState) {
+	promoted := state.promotions.drain()
+	if len(promoted) == 0 {
+		return
+	}
+	advertised := make(map[string]struct{}, len(state.request.Tools))
+	for _, def := range state.request.Tools {
+		advertised[def.Name] = struct{}{}
+	}
+	for _, def := range promoted {
+		def = def.Clone()
+		if def.Validate() != nil {
+			continue
+		}
+		if _, ok := advertised[def.Name]; ok {
+			continue
+		}
+		tool, ok := state.resolver.Resolve(def.Name)
+		if !ok || valueIsNil(tool) || !sameToolDefinition(def, tool.Definition()) {
+			continue
+		}
+		advertised[def.Name] = struct{}{}
+		state.request.Tools = append(state.request.Tools, def)
+	}
 }
 
 func (s *runnerState) startedCalls() int {

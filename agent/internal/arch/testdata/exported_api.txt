@@ -605,6 +605,7 @@ toolloop: func (r Resume) Validate() error
 toolloop: func (s CallStatus) Valid() bool
 toolloop: func Direct(tool tools.Tool) tools.Tool
 toolloop: func NewRunner(model chat.Model, config Config) (*Runner, error)
+toolloop: func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition)
 toolloop: func ResumeFromContext(ctx context.Context) (Resume, bool)
 toolloop: type AbortError struct { Err error }
 toolloop: type CallCheckpoint struct { Status CallStatus `json:"status"` Result *chat.ToolResult `json:"result,omitempty"` Pending *PendingCall `json:"pending,omitempty"` }
