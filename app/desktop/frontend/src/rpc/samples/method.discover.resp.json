@@ -1,5 +1,5 @@
 {
-  "protocolVersion": "2026-07-19",
+  "protocol": { "current": "2026-07-19", "minSupported": "2026-07-19" },
   "serverInfo": {
     "name": "lyra",
     "version": "0.1.0",
@@ -7,7 +7,6 @@
     "home": "/Users/dev/.lyra"
   },
   "capabilities": {
-    "protocolVersion": "2026-07-19",
     "events": [
       "segment.started",
       "segment.progress",
@@ -18,23 +17,22 @@
       "state.snapshot"
     ],
     "features": {
-      "reasoning": true,
-      "mcp": true,
-      "multimodal": true,
-      "git": true,
-      "fileWatch": true,
-      "checkpoints": true,
-      "lsp": true,
-      "subagents": false,
-      "skills": true,
-      "sessionExport": true,
-      "memory": true,
-      "relocate": true,
-      "todos": true,
-      "compaction": true,
-      "clientTools": false
+      "reasoning": { "enabled": true, "stability": "stable" },
+      "mcp": { "enabled": true, "stability": "stable" },
+      "multimodal": { "enabled": true, "stability": "stable" },
+      "git": { "enabled": true, "stability": "stable" },
+      "fileWatch": { "enabled": true, "stability": "stable" },
+      "checkpoints": { "enabled": true, "stability": "stable" },
+      "lsp": { "enabled": true, "stability": "stable" },
+      "subagents": { "enabled": false, "stability": "stable" },
+      "skills": { "enabled": true, "stability": "stable" },
+      "sessionExport": { "enabled": true, "stability": "stable" },
+      "memory": { "enabled": true, "stability": "stable" },
+      "relocate": { "enabled": true, "stability": "stable" },
+      "todos": { "enabled": true, "stability": "stable" },
+      "compaction": { "enabled": true, "stability": "stable" },
+      "clientTools": { "enabled": false, "stability": "stable" }
     },
-    "providers": ["anthropic", "openai", "moonshot", "deepseek"],
     "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "workspace.subscribe"],
     "limits": {}
   }
