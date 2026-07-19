@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -21,24 +22,30 @@ var errServerClosed = errors.New("server: closed")
 // durable replay), shared by the whole app.
 type workspaceHub struct {
 	mu   sync.Mutex
-	subs map[chan protocol.WorkspaceEvent]struct{}
+	subs map[*workspaceSubscription]struct{}
 }
 
 func newWorkspaceHub() *workspaceHub {
-	return &workspaceHub{subs: map[chan protocol.WorkspaceEvent]struct{}{}}
+	return &workspaceHub{subs: make(map[*workspaceSubscription]struct{})}
+}
+
+type workspaceSubscription struct {
+	events   chan protocol.WorkspaceEvent
+	sequence uint64
 }
 
 // register adds a caller-owned channel to the broadcast fan-out and returns an
 // idempotent unregister. It does NOT close the channel — the owner does, after
 // it has stopped every other writer (the file watcher), so a late broadcast
 // can't send on a closed channel.
-func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) func() {
+func (h *workspaceHub) register(ch chan protocol.WorkspaceEvent) (*workspaceSubscription, func()) {
+	sub := &workspaceSubscription{events: ch}
 	h.mu.Lock()
-	h.subs[ch] = struct{}{}
+	h.subs[sub] = struct{}{}
 	h.mu.Unlock()
-	return func() {
+	return sub, func() {
 		h.mu.Lock()
-		delete(h.subs, ch)
+		delete(h.subs, sub)
 		h.mu.Unlock()
 	}
 }
@@ -62,12 +69,49 @@ func (h *workspaceHub) observe(src FileChangeSource) {
 func (h *workspaceHub) publish(ev protocol.WorkspaceEvent) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	for ch := range h.subs {
-		select {
-		case ch <- ev:
-		default: // full subscriber: drop (it re-fetches on the next change / resync)
-		}
+	for sub := range h.subs {
+		h.sendLocked(sub, ev)
 	}
+}
+
+// publishTo sends a subscription-local event through the same serialization
+// point as broadcasts. This keeps each subscriber's sequence strictly ordered
+// even when its git watcher races a global workspace event.
+func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.WorkspaceEvent) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if _, registered := h.subs[sub]; registered {
+		h.sendLocked(sub, ev)
+	}
+}
+
+func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.WorkspaceEvent) {
+	sub.sequence++
+	ev = cloneWorkspaceEvent(ev)
+	ev.Sequence = sub.sequence
+	select {
+	case sub.events <- ev:
+	default: // full subscriber: drop; the sequence gap tells it to re-fetch
+	}
+}
+
+// cloneWorkspaceEvent gives each subscription sole ownership of every mutable
+// field. The hub sends asynchronously-consumed values; sharing the producer's
+// slices or pointers would let a caller reuse them while a transport is still
+// encoding the event, and sharing between subscriptions would let one
+// in-process consumer corrupt another's frame.
+func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
+	ev.Paths = slices.Clone(ev.Paths)
+	if ev.ToolCount != nil {
+		toolCount := *ev.ToolCount
+		ev.ToolCount = &toolCount
+	}
+	if ev.Error != nil {
+		problem := *ev.Error
+		problem.Errors = slices.Clone(problem.Errors)
+		ev.Error = &problem
+	}
+	return ev
 }
 
 // WorkspaceSubscribe opens the workspace event stream (AUX_API §3.1). The
@@ -93,15 +137,12 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 	// watches are present) the git watcher emits to it. Closing it only after
 	// the watcher has stopped keeps emit from racing the close.
 	out := make(chan protocol.WorkspaceEvent, 64)
-	unregister := s.wsHub.register(out)
+	subscription, unregister := s.wsHub.register(out)
 
 	var watcher *gitWatcher
 	if len(gitDirs) > 0 {
 		watcher, err = startGitWatcher(gitDirs, func(ev protocol.WorkspaceEvent) {
-			select {
-			case out <- ev: // lossy: a slow subscriber drops the event (re-fetch on next change)
-			default:
-			}
+			s.wsHub.publishTo(subscription, ev)
 		})
 		if err != nil {
 			unregister()
