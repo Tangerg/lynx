@@ -1,8 +1,8 @@
-package mcpserver
+package httporigin
 
 import "testing"
 
-func TestSameHTTPOrigin(t *testing.T) {
+func TestSame(t *testing.T) {
 	tests := []struct {
 		name        string
 		left, right string
@@ -17,8 +17,8 @@ func TestSameHTTPOrigin(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := SameHTTPOrigin(test.left, test.right); got != test.want {
-				t.Fatalf("SameHTTPOrigin(%q, %q) = %v, want %v", test.left, test.right, got, test.want)
+			if got := Same(test.left, test.right); got != test.want {
+				t.Fatalf("Same(%q, %q) = %v, want %v", test.left, test.right, got, test.want)
 			}
 		})
 	}

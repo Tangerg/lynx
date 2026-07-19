@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"context"
 	"maps"
 	"slices"
 	"sync"
@@ -12,8 +13,9 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// server is the live state of one configured MCP server. Runtime mutations are
-// serialized by Connections.reconnectMu; access is guarded by Connections.mu.
+// server is the live state of one configured MCP server. Access is guarded by
+// Connections.mu; generation/cancel give each server latest-operation-wins
+// semantics without serializing unrelated servers or waiting OAuth flows.
 type server struct {
 	config  ServerConfig
 	session *sdkmcp.ClientSession // nil when not connected
@@ -27,6 +29,9 @@ type server struct {
 	// reconfigure so a signed-in session stays authorized without re-prompting;
 	// not persisted, so a restart clears it.
 	oauth auth.OAuthHandler
+
+	generation uint64
+	cancel     context.CancelFunc
 }
 
 func (s *server) name() string { return s.config.Name }
@@ -35,18 +40,23 @@ func (s *server) name() string { return s.config.Name }
 // sink is invoked with the rebuilt model-facing tool set after a reconnect, so
 // the engine can hot-swap the live set into its resolver.
 type Connections struct {
-	mu      sync.Mutex
-	servers []*server
-	client  *sdkmcp.Client
-	onTools func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
-	closed  bool               // terminal state set by Close
+	mu        sync.Mutex
+	servers   []*server
+	client    *sdkmcp.Client
+	onTools   func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
+	closed    bool               // terminal state set by Close
+	closeDone chan struct{}
+	closeErr  error
 
-	// reconnectMu serializes Reconnect so two concurrent calls can't both dial
-	// and leak the loser's freshly-dialed session (the winner overwrites
-	// ms.session). Separate from mu — held across the dial I/O, which mu (the
-	// hot-path registry lock) must not be. Reconnect is a rare admin op, so
-	// serializing across servers is fine.
-	reconnectMu sync.Mutex
+	// publishMu serializes snapshot+sink publication. Mutations themselves run
+	// concurrently per server; taking this lock before snapshotting guarantees a
+	// delayed publisher can only publish the latest state, never overwrite a
+	// newer catalog with an older snapshot.
+	publishMu sync.Mutex
+
+	// attempts joins every in-flight dial/OAuth operation during Close. Add is
+	// performed under mu before closed can be set, so no Add races the Wait.
+	attempts sync.WaitGroup
 }
 
 // SetToolSink registers the callback connection mutations invoke with the

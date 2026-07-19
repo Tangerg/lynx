@@ -136,7 +136,7 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	}
 }
 
-func TestMCPReconnectAndRemoveShareApplicationMutationOrder(t *testing.T) {
+func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 	const name = "files"
 	server := mcpserver.Server{Name: name, Enabled: true}
 	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{name: server}}
@@ -167,14 +167,16 @@ func TestMCPReconnectAndRemoveShareApplicationMutationOrder(t *testing.T) {
 	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
 	select {
 	case err := <-removed:
+		if err != nil {
+			close(live.releaseReconnect)
+			t.Fatalf("RemoveMCPServer: %v", err)
+		}
+	case <-time.After(time.Second):
 		close(live.releaseReconnect)
-		t.Fatalf("remove crossed an incomplete reconnect: %v", err)
-	case <-time.After(20 * time.Millisecond):
-		close(live.releaseReconnect)
+		t.Fatal("remove waited for the interactive connection")
 	}
-	if err := <-removed; err != nil {
-		t.Fatalf("RemoveMCPServer: %v", err)
-	}
+	close(live.releaseReconnect)
+	c.Close() // joins the detached reconnect and its stale-projection cleanup
 
 	if _, ok, err := registry.Get(context.Background(), name); err != nil || ok {
 		t.Fatalf("registry final state: present=%v err=%v", ok, err)
