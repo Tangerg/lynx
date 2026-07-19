@@ -24,7 +24,7 @@ type HealthCheck struct {
 	Detail string
 }
 
-// HealthProbe lets the runtime contribute a labeled liveness check.
+// HealthProbe lets the runtime contribute a labeled readiness check.
 // Name is the key under `checks` in the response and should be short
 // + stable ("runtime", "storage", "providers").
 //
@@ -97,14 +97,14 @@ func (r *healthProbeRunner) invoke(
 	result = r.probe(ctx)
 }
 
-// healthBudget caps how long /v2/health waits for probes. Probes
+// healthBudget caps how long readiness waits for probes. Probes
 // share the budget — a slow downstream doesn't penalize the others.
-// 2s matches the typical k8s liveness probe timeout default.
+// 2s matches the typical Kubernetes probe timeout budget.
 const healthBudget = 2 * time.Second
 
 // runHealthProbes runs every probe in parallel under a shared
 // timeout and aggregates worst-of. Panics inside a probe map to
-// unhealthy so a misbehaving probe can't crash /v2/health.
+// unhealthy so a misbehaving probe can't crash the readiness endpoint.
 func runHealthProbes(ctx context.Context, probes []*healthProbeRunner) (HealthStatus, map[string]HealthStatus) {
 	return runHealthProbesWithBudget(ctx, probes, healthBudget)
 }

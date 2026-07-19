@@ -7,8 +7,9 @@
 //   Response:     { jsonrpc, id, result? | error? }    (mutually exclusive)
 //   Notification: { jsonrpc, method, params? }         (no id)
 //
-// Notifications carry both client→runtime (notifications/canceled,
-// runtime.shutdown) and runtime→client (notifications/run/event, …) traffic.
+// Lyra currently uses notifications only for runtime→client event delivery
+// (`notifications.run.event` and `notifications.workspace.event`). Mutations
+// such as `sessions.update` are ordinary requests with correlated responses.
 
 import { z } from "zod";
 

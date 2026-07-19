@@ -67,7 +67,7 @@ func TestShutdownCancelsLongLivedTransportHandler(t *testing.T) {
 		cfg.Runtime = runtime
 	})
 	body := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"1","method":"workspace.subscribe","params":{}}`)
-	req := httptest.NewRequest(stdhttp.MethodPost, "/v2/rpc/workspace.subscribe", body)
+	req := httptest.NewRequest(stdhttp.MethodPost, "/v2/rpc", body)
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Content-Type", "application/json")
 
@@ -94,32 +94,19 @@ func TestShutdownCancelsLongLivedTransportHandler(t *testing.T) {
 
 func TestNewServerSnapshotsConfig(t *testing.T) {
 	origins := []string{"https://before.example"}
-	probes := []HealthProbe{{Name: "before"}}
-	capabilities := protocol.ServerCapabilities{
-		Events:           []protocol.StreamEventType{"before"},
-		StreamingMethods: []string{"before"},
-		Features:         map[string]protocol.FeatureFlag{"before": true},
-		Providers:        []string{"before"},
-	}
+	probes := []HealthProbe{{Name: "before", Probe: func(context.Context) HealthCheck {
+		return HealthCheck{Status: HealthOK}
+	}}}
 	srv := newLifecycleServer(t, func(cfg *Config) {
 		cfg.CORSOrigins = origins
 		cfg.HealthProbes = probes
-		cfg.Capabilities = capabilities
 	})
 
 	origins[0] = "https://after.example"
 	probes[0].Name = "after"
-	capabilities.Events[0] = "after"
-	capabilities.StreamingMethods[0] = "after"
-	capabilities.Features["before"] = false
-	capabilities.Providers[0] = "after"
 
 	if srv.corsOrigins[0] != "https://before.example" || srv.healthProbes[0].name != "before" {
 		t.Fatal("server retained caller-owned transport configuration")
-	}
-	got := srv.info.Capabilities
-	if got.Events[0] != "before" || got.StreamingMethods[0] != "before" || got.Features["before"] != true || got.Providers[0] != "before" {
-		t.Fatalf("server retained caller-owned capabilities: %+v", got)
 	}
 }
 

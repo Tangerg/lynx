@@ -3,52 +3,75 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// infoEndpoints is the operational route table surfaced under
-// /v2/info.endpoints. Pure server-level metadata — no business data
-// here (TRANSPORT §16 反向不变量).
-var infoEndpoints = map[string]string{
-	"rpc":    "/v2/rpc/{method}",
-	"info":   "/v2/info",
-	"health": "/v2/health",
+const (
+	rpcPath       = "/v2/rpc"
+	infoPath      = "/v2/info"
+	livenessPath  = "/v2/health/live"
+	readinessPath = "/v2/health/ready"
+)
+
+type publicServerInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
 }
 
-// handleInfo serves GET /v2/info — a no-auth flat-JSON snapshot of
-// server identity + protocol version + advertised capabilities, plus
-// operational metadata (serverID / transport / endpoints / discovered
-// AGENTS.md files) so oncall has a single place to look during
-// integration.
-//
-// TRANSPORT §12.2: this endpoint deliberately does NOT use the JSON-RPC
-// envelope so oncall can curl it and read the result.
-func (s *Server) handleInfo(w http.ResponseWriter, r *http.Request) {
+type infoEndpoints struct {
+	RPC       string `json:"rpc"`
+	Info      string `json:"info"`
+	Liveness  string `json:"liveness"`
+	Readiness string `json:"readiness"`
+}
+
+type infoResponse struct {
+	Protocol  protocol.ProtocolRange `json:"protocol"`
+	Server    publicServerInfo       `json:"server"`
+	Transport string                 `json:"transport"`
+	Endpoints infoEndpoints          `json:"endpoints"`
+}
+
+func newInfoResponse(server protocol.ServerInfo, currentVersion string) infoResponse {
+	return infoResponse{
+		Protocol:  protocol.ProtocolRange{Current: currentVersion, MinSupported: protocol.MinProtocolVersion},
+		Server:    publicServerInfo{Name: server.Name, Version: server.Version},
+		Transport: "http",
+		Endpoints: infoEndpoints{
+			RPC:       rpcPath,
+			Info:      infoPath,
+			Liveness:  livenessPath,
+			Readiness: readinessPath,
+		},
+	}
+}
+
+func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Server", s.serverID)
 	w.WriteHeader(http.StatusOK)
 
-	body := map[string]any{
-		"serverInfo":      s.info.ServerInfo,
-		"protocolVersion": s.info.ProtocolVersion,
-		"capabilities":    s.info.Capabilities,
-		"serverID":        s.serverID,
-		"transport":       "http",
-		"endpoints":       infoEndpoints,
-	}
-	if s.agentDocsLister != nil {
-		body["agentDocs"] = s.agentDocsLister(r.Context())
-	}
-	_ = json.NewEncoder(w).Encode(body)
+	_ = json.NewEncoder(w).Encode(s.info)
 }
 
-// handleHealth serves GET /v2/health — k8s/nginx liveness probe.
-// Runs configured HealthProbes in parallel under a shared timeout
-// (TRANSPORT §12.1). Status mapping: "ok" → 200, "degraded" /
-// "unhealthy" → 503. The contract body is `{ "ok": true }`; `status`
-// (worst-of keyword) and `checks` (per-probe detail) are additive ops
-// fields the FE ignores.
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+type livenessResponse struct {
+	Status string `json:"status"`
+}
+
+func (s *Server) handleLiveness(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(livenessResponse{Status: "ok"})
+}
+
+type readinessResponse struct {
+	Status string                  `json:"status"`
+	Checks map[string]HealthStatus `json:"checks,omitempty"`
+}
+
+func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	overall, checks := runHealthProbes(r.Context(), s.healthProbes)
 
 	status := http.StatusOK
@@ -58,17 +81,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("X-Server", s.serverID)
 	w.WriteHeader(status)
 
-	body := struct {
-		OK     bool                    `json:"ok"`
-		Status string                  `json:"status"`
-		Checks map[string]HealthStatus `json:"checks,omitempty"`
-	}{
-		OK:     overall == HealthOK,
-		Status: string(overall),
-		Checks: checks,
-	}
-	_ = json.NewEncoder(w).Encode(body)
+	_ = json.NewEncoder(w).Encode(readinessResponse{Status: string(overall), Checks: checks})
 }
