@@ -10,7 +10,7 @@
 // no disadvantage (Go orchestrates processes well), and users write hooks in
 // whatever they like. A declarative `inject`
 // covers the common "add this context" case with zero process spawn; the matcher
-// gates exec so an unrelated tool never forks a hook. There is deliberately NO
+// gates an action so an unrelated tool never runs it. There is deliberately NO
 // embedded interpreter (Goja/Starlark/…): that's weight + a security surface the
 // subprocess contract doesn't need.
 //
@@ -19,6 +19,8 @@
 package hooks
 
 import (
+	"errors"
+	"fmt"
 	"path"
 	"strings"
 )
@@ -67,7 +69,7 @@ const (
 // Hook is one configured hook entry. Command and Inject are alternatives: a
 // Command is exec'd (real logic); an Inject is a literal context string added
 // with no process spawn (the declarative fast path). A Matcher (tool-name glob)
-// applies to the tool events; it's ignored for the others.
+// applies only to tool events; configuration rejects it for other events.
 type Hook struct {
 	Event     Event  `json:"event"`
 	Matcher   string `json:"matcher,omitempty"`
@@ -79,6 +81,43 @@ type Hook struct {
 	// parsed from the file.
 	Scope  Scope  `json:"-"`
 	Source string `json:"-"`
+}
+
+// ErrInvalidHook reports a malformed hook configuration. Invalid policy hooks
+// must fail discovery instead of silently becoming no-ops.
+var ErrInvalidHook = errors.New("hooks: invalid hook")
+
+// Validate checks the declarative hook contract before a resolved set can be
+// installed. A hook has one known lifecycle event and exactly one action;
+// malformed matchers and negative timeouts are configuration errors rather
+// than policies that quietly never run.
+func (h Hook) Validate() error {
+	switch h.Event {
+	case PreToolUse, PostToolUse, UserPromptSubmit, SessionStart,
+		SubagentStart, SubagentStop, PreCompact, Stop, Notification:
+	default:
+		return fmt.Errorf("%w: unsupported event %q", ErrInvalidHook, h.Event)
+	}
+	hasCommand := strings.TrimSpace(h.Command) != ""
+	hasInject := strings.TrimSpace(h.Inject) != ""
+	if hasCommand == hasInject {
+		return fmt.Errorf("%w: exactly one of command or inject is required", ErrInvalidHook)
+	}
+	if h.TimeoutMs < 0 {
+		return fmt.Errorf("%w: timeoutMs must be non-negative", ErrInvalidHook)
+	}
+	if hasInject && h.TimeoutMs != 0 {
+		return fmt.Errorf("%w: timeoutMs is only valid for command hooks", ErrInvalidHook)
+	}
+	if h.Matcher != "" {
+		if h.Event != PreToolUse && h.Event != PostToolUse {
+			return fmt.Errorf("%w: matcher is only valid for tool events", ErrInvalidHook)
+		}
+		if _, err := path.Match(h.Matcher, ""); err != nil {
+			return fmt.Errorf("%w: invalid matcher %q: %w", ErrInvalidHook, h.Matcher, err)
+		}
+	}
+	return nil
 }
 
 // Input is the event payload handed to a hook on stdin (JSON).
@@ -130,8 +169,8 @@ type Decision struct {
 
 // matches reports whether hook h should fire for input in: the events must
 // match, and for the tool events the hook's matcher (a glob) must match the
-// tool name. An empty matcher matches every tool. A malformed glob never
-// matches (it's the hook author's bug, not a reason to fire on everything).
+// tool name. An empty matcher matches every tool. Discovery rejects malformed
+// globs; matches still treats one defensively as non-matching.
 func (h Hook) matches(in Input) bool {
 	if h.Event != in.Event {
 		return false

@@ -58,6 +58,31 @@ func TestLoad_MalformedReturnsError(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsInvalidHookConfiguration(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "unknown event", body: `{"hooks":[{"event":"PreTool","command":"check"}]}`},
+		{name: "missing action", body: `{"hooks":[{"event":"Stop"}]}`},
+		{name: "ambiguous action", body: `{"hooks":[{"event":"Stop","command":"notify","inject":"context"}]}`},
+		{name: "negative timeout", body: `{"hooks":[{"event":"Stop","command":"notify","timeoutMs":-1}]}`},
+		{name: "timeout on inject", body: `{"hooks":[{"event":"SessionStart","inject":"context","timeoutMs":100}]}`},
+		{name: "matcher on non-tool event", body: `{"hooks":[{"event":"Stop","command":"notify","matcher":"shell"}]}`},
+		{name: "malformed matcher", body: `{"hooks":[{"event":"PreToolUse","command":"check","matcher":"["}]}`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cwd := t.TempDir()
+			writeHooks(t, cwd, test.body)
+			if _, err := Load(t.Context(), cwd, ""); !errors.Is(err, domainhooks.ErrInvalidHook) {
+				t.Fatalf("Load error = %v, want ErrInvalidHook", err)
+			}
+		})
+	}
+}
+
 func TestLoad_MissingFilesAreFine(t *testing.T) {
 	hooks, err := Load(context.Background(), t.TempDir(), t.TempDir())
 	if err != nil {

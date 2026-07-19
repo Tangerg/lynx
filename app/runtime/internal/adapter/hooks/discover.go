@@ -102,6 +102,11 @@ func readConfig(path string) (config, bool, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return config{}, false, err
 	}
+	for index, hook := range cfg.Hooks {
+		if err := hook.Validate(); err != nil {
+			return config{}, false, fmt.Errorf("hook %d: %w", index, err)
+		}
+	}
 	return cfg, true, nil
 }
 

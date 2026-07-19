@@ -39,12 +39,14 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 	if err != nil {
 		return nil, fmt.Errorf("lsp: stdout pipe: %w", err)
 	}
+	pipes := &pipeRWC{out: stdout}
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, fmt.Errorf("lsp: stdin pipe: %w", err)
+		return nil, closeUnstartedPipes(spec.Command, pipes, fmt.Errorf("lsp: stdin pipe: %w", err))
 	}
+	pipes.in = stdin
 	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("lsp: start %s: %w", spec.Command, err)
+		return nil, closeUnstartedPipes(spec.Command, pipes, fmt.Errorf("lsp: start %s: %w", spec.Command, err))
 	}
 	wait := make(chan error, 1)
 	go func() {
@@ -66,7 +68,7 @@ func startClient(ctx context.Context, spec ServerSpec, root string) (*client, er
 		diags:   map[string]diagSet{},
 		updated: make(chan struct{}),
 	}
-	stream := jsonrpc2.NewBufferedStream(&pipeRWC{out: stdout, in: stdin}, jsonrpc2.VSCodeObjectCodec{})
+	stream := jsonrpc2.NewBufferedStream(pipes, jsonrpc2.VSCodeObjectCodec{})
 	c.conn = jsonrpc2.NewConn(connCtx, stream, jsonrpc2.AsyncHandler(c))
 
 	// The handshake is synchronous within this call, so it rides ctx directly —
@@ -166,5 +168,19 @@ func (p *pipeRWC) Read(b []byte) (int, error)  { return p.out.Read(b) }
 func (p *pipeRWC) Write(b []byte) (int, error) { return p.in.Write(b) }
 
 func (p *pipeRWC) Close() error {
-	return errors.Join(p.in.Close(), p.out.Close())
+	return errors.Join(closePipe(p.in), closePipe(p.out))
+}
+
+func closePipe(pipe io.Closer) error {
+	if pipe == nil {
+		return nil
+	}
+	return pipe.Close()
+}
+
+func closeUnstartedPipes(command string, pipes *pipeRWC, cause error) error {
+	if err := pipes.Close(); err != nil {
+		return errors.Join(cause, fmt.Errorf("lsp: close %s pipes after launch failure: %w", command, err))
+	}
+	return cause
 }

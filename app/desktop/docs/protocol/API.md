@@ -1337,12 +1337,15 @@ interface HookInfo {
     | "PostToolUse"
     | "UserPromptSubmit"
     | "SessionStart"
+    | "SubagentStart"
+    | "SubagentStop"
     | "PreCompact"
     | "Stop"
     | "Notification";
   matcher?: string; // tool-name glob（仅 PreToolUse/PostToolUse 用），缺省 = 全匹配
   command?: string; // 要跑的 shell 命令（展示出来供用户审阅项目 hook）
   inject?: string; // 声明式无-exec 上下文注入（与 command 二选一）
+  timeoutMs?: number; // command 超时；缺省使用 runtime 默认值
   scope: "global" | "project";
   source: string; // 来源 hooks.json 的绝对路径
   active: boolean; // 当前是否会跑：全局恒真；项目仅在已信任时真

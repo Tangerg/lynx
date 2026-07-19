@@ -85,6 +85,10 @@ func newReducer(cfg reducerConfig) *reducer {
 		now = time.Now
 	}
 	cfg.Now = now
+	// The reducer outlives the Start request and publishes UserInput through the
+	// journal after admission. Own the slice before it becomes durable/live
+	// state so a caller reusing its command buffer cannot rewrite emitted facts.
+	cfg.UserInput = slices.Clone(cfg.UserInput)
 	var resume *resumeBinding
 	if cfg.Pending != nil {
 		resume = resumeBindingFrom(*cfg.Pending)

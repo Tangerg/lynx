@@ -831,6 +831,8 @@ export type HookEvent =
   | "PostToolUse"
   | "UserPromptSubmit"
   | "SessionStart"
+  | "SubagentStart"
+  | "SubagentStop"
   | "PreCompact"
   | "Stop"
   | "Notification";
@@ -845,6 +847,7 @@ export interface HookInfo {
   matcher?: string;
   command?: string;
   inject?: string;
+  timeoutMs?: number;
   scope: "global" | "project";
   source: string; // absolute path of the hooks.json it came from
   active: boolean;

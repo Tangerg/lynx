@@ -79,6 +79,19 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	}
 }
 
+func TestReducerOwnsOpeningUserInput(t *testing.T) {
+	config := testReducerConfig()
+	config.UserInput = []ContentBlock{{Kind: TextContent, Text: "original"}}
+	reducer := newReducer(config)
+
+	config.UserInput[0].Text = "reused by caller"
+	opening := mustOpen(t, reducer)
+	completed, ok := opening[2].Event.(ItemCompleted)
+	if !ok || len(completed.Item.Content) != 1 || completed.Item.Content[0].Text != "original" {
+		t.Fatalf("opening user item = %#v, want owned original input", opening[2].Event)
+	}
+}
+
 func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	mustReduce(t, reducer, ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})

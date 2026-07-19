@@ -12,16 +12,31 @@ type ListHooksRequest struct {
 	Cwd string `json:"cwd,omitempty"`
 }
 
+type HookEvent string
+
+const (
+	HookEventPreToolUse       HookEvent = "PreToolUse"
+	HookEventPostToolUse      HookEvent = "PostToolUse"
+	HookEventUserPromptSubmit HookEvent = "UserPromptSubmit"
+	HookEventSessionStart     HookEvent = "SessionStart"
+	HookEventSubagentStart    HookEvent = "SubagentStart"
+	HookEventSubagentStop     HookEvent = "SubagentStop"
+	HookEventPreCompact       HookEvent = "PreCompact"
+	HookEventStop             HookEvent = "Stop"
+	HookEventNotification     HookEvent = "Notification"
+)
+
 // HookInfo is one discovered hook (global or project), for review. Command is
 // the shell command a hook runs (shown so the user can audit a project's hooks
 // before trusting); inject is the declarative no-exec context alternative.
 type HookInfo struct {
-	Event   string `json:"event"`
-	Matcher string `json:"matcher,omitempty"`
-	Command string `json:"command,omitempty"`
-	Inject  string `json:"inject,omitempty"`
-	Scope   string `json:"scope"`  // "global" | "project"
-	Source  string `json:"source"` // absolute path of the hooks.json it came from
+	Event     HookEvent `json:"event"`
+	Matcher   string    `json:"matcher,omitempty"`
+	Command   string    `json:"command,omitempty"`
+	Inject    string    `json:"inject,omitempty"`
+	TimeoutMs int       `json:"timeoutMs,omitempty"`
+	Scope     string    `json:"scope"`  // "global" | "project"
+	Source    string    `json:"source"` // absolute path of the hooks.json it came from
 	// Active reports whether this hook currently runs: global hooks always do;
 	// project hooks only when the project is trusted.
 	Active bool `json:"active"`

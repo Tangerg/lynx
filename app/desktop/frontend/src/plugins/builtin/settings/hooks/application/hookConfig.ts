@@ -1,14 +1,6 @@
-import { useHooks } from "./hookQueries";
+import { useHooks, type HookReadModel } from "./hookQueries";
 
-export interface HookConfig {
-  event: string;
-  matcher?: string;
-  command?: string;
-  inject?: string;
-  scope: "global" | "project";
-  source: string;
-  active: boolean;
-}
+export type HookConfig = HookReadModel;
 
 export interface HookConfigList {
   hooks: HookConfig[];
@@ -27,6 +19,7 @@ export function useHookConfigs(cwd?: string) {
           matcher: hook.matcher,
           command: hook.command,
           inject: hook.inject,
+          timeoutMs: hook.timeoutMs,
           scope: hook.scope,
           source: hook.source,
           active: hook.active,
