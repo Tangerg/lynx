@@ -54,7 +54,9 @@ type downloadTool struct {
 // disk, so it carries the identical SSRF surface); the caller only registers
 // the tool when the allowlist is non-empty.
 func newDownloadTool(workdir string, allow httpreq.Allowlist) tools.Tool {
-	client := resty.New().SetTimeout(downloadTimeout)
+	client := resty.New().
+		SetTimeout(downloadTimeout).
+		SetRedirectPolicy(resty.RedirectPolicyFunc(allow.CheckRedirect))
 	return &downloadTool{workdir: workdir, allow: allow, client: client}
 }
 
