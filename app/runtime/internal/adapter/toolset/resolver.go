@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -284,7 +285,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	tools := g.resolver.workdirTools(workdir)
 	tools = append(tools, g.resolver.online...)
-	tools = append(tools, g.resolver.mcpTools()...)
+	// MCP tools stay in the resolved set so they remain resolvable/executable,
+	// but the turn manifest projection withholds them from the model's initial
+	// toolset (see search_tools below): the model loads them on demand instead
+	// of the prompt carrying every server's full schema each round.
+	mcpTools := g.resolver.mcpTools()
+	tools = append(tools, mcpTools...)
 	tools = append(tools, g.resolver.a2a...)
 	tools = append(tools, g.resolver.lsp...)
 	tools = append(tools, g.resolver.shell...)
@@ -347,6 +353,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 		if g.resolver.skillPropose != nil {
 			tools = append(tools, g.resolver.skillPropose)
 		}
+	}
+	// search_tools (both roles): the progressive-disclosure surface over the
+	// withheld MCP tools. nil when no MCP servers are connected — then nothing
+	// is deferred and the manifest is unchanged.
+	if search := toolsearch.New(mcpTools); search != nil {
+		tools = append(tools, search)
 	}
 	return tools, nil
 }
