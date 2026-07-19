@@ -362,8 +362,36 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 	}
 }
 
+func TestFinishWaitsForCheckpointBeforeReturning(t *testing.T) {
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	effects := New(Config{
+		Checkpoints: fakeCheckpoints{started: started, release: release},
+		Tasks:       inlineTaskLauncher{},
+	})
+	done := make(chan error, 1)
+	go func() {
+		done <- effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/repo"})
+	}()
+
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("checkpoint did not start")
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("Finish returned before checkpoint completed: %v", err)
+	default:
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatalf("Finish: %v", err)
+	}
+}
+
 func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
-	snapshotErr := errors.New("background snapshot failed")
+	titleErr := errors.New("background title failed")
 	exporter := tracetest.NewInMemoryExporter()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
 	previous := otel.GetTracerProvider()
@@ -376,11 +404,14 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	})
 	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
 	effects := New(Config{
-		Checkpoints: fakeCheckpoints{err: snapshotErr},
-		Tasks:       inlineTaskLauncher{},
+		Stores: &fakeStores{
+			session:  &fakeSession{sess: session.Session{ID: "ses_1"}},
+			titleErr: titleErr,
+		},
+		Tasks: inlineTaskLauncher{},
 	})
 
-	if err := effects.Finish(ctx, runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/repo"}); err != nil {
+	if err := effects.Finish(ctx, runs.Finish{SessionID: "ses_1", RunID: "run_1", OpeningUserText: "hello"}); err != nil {
 		t.Fatalf("Finish: %v", err)
 	}
 	span.End()
@@ -388,7 +419,7 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	for _, recorded := range exporter.GetSpans() {
 		for _, event := range recorded.Events {
 			for _, attr := range event.Attributes {
-				if recorded.Name == "run terminal maintenance" && event.Name == "exception" && string(attr.Key) == "exception.message" && strings.Contains(attr.Value.AsString(), snapshotErr.Error()) {
+				if recorded.Name == "run terminal maintenance" && event.Name == "exception" && string(attr.Key) == "exception.message" && strings.Contains(attr.Value.AsString(), titleErr.Error()) {
 					return
 				}
 			}
@@ -576,6 +607,8 @@ type fakeCheckpoints struct {
 	snapshotted chan<- string
 	operations  *[]string
 	err         error
+	started     chan<- struct{}
+	release     <-chan struct{}
 }
 
 func (c fakeCheckpoints) Snapshot(_ context.Context, sessionID, cwd, runID string) error {
@@ -584,6 +617,12 @@ func (c fakeCheckpoints) Snapshot(_ context.Context, sessionID, cwd, runID strin
 	}
 	if c.snapshotted != nil {
 		c.snapshotted <- sessionID + ":" + cwd + ":" + runID
+	}
+	if c.started != nil {
+		c.started <- struct{}{}
+	}
+	if c.release != nil {
+		<-c.release
 	}
 	return c.err
 }

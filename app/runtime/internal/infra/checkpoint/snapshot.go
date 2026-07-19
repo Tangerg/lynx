@@ -23,9 +23,12 @@ const maxCheckpointFileSize = 2 << 20
 // re-tags the existing HEAD instead of minting an empty commit, so a no-change
 // turn costs one ref and zero objects. Idempotent per run (the tag is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
-	mu := s.lockFor(cwd)
+	mu := s.treeLockFor(cwd)
 	mu.Lock()
 	defer mu.Unlock()
+	repoMu := s.repoLockFor(sessionID)
+	repoMu.Lock()
+	defer repoMu.Unlock()
 	gitDir, err := s.ensureRepo(ctx, sessionID, cwd)
 	if err != nil {
 		return err

@@ -71,13 +71,18 @@ func (r *Registry[P]) Open(record Record, payload P) {
 	r.mu.Unlock()
 }
 
-// Close removes an active run segment.
-func (r *Registry[P]) Close(id string) (Entry[P], bool) {
+// BeginMaintenance atomically removes a completed segment and keeps its session's
+// single-writer slot claimed. The caller must [Registry.ReleaseSession] after
+// boundary maintenance completes. This closes the admission gap in which a new
+// run or destructive session mutation could otherwise race terminal cleanup.
+func (r *Registry[P]) BeginMaintenance(id string) (Entry[P], bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	e, ok := r.runs[id]
 	if ok {
 		delete(r.runs, id)
+		r.initLocked()
+		r.claiming[e.Record.SessionID] = struct{}{}
 	}
 	return e, ok
 }

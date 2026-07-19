@@ -70,6 +70,8 @@ type fakeEffects struct {
 	openingErr     error
 	commitErr      error
 	rejectCanceled bool
+	finishStarted  chan<- struct{}
+	finishRelease  <-chan struct{}
 }
 
 func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
@@ -104,8 +106,14 @@ func (e *fakeEffects) Nudge(string, []string) {
 
 func (e *fakeEffects) Finish(_ context.Context, finish Finish) error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	e.finishes = append(e.finishes, finish)
+	e.mu.Unlock()
+	if e.finishStarted != nil {
+		e.finishStarted <- struct{}{}
+	}
+	if e.finishRelease != nil {
+		<-e.finishRelease
+	}
 	return nil
 }
 
@@ -232,6 +240,40 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 		if events[index-1].Seq >= events[index].Seq {
 			t.Fatalf("event cursors are not monotonic: %q then %q", events[index-1].Seq, events[index].Seq)
 		}
+	}
+}
+
+func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T) {
+	executor := &fakeExecutor{events: []EngineEvent{TurnEnd{Reason: execution.OutcomeCompleted}}}
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	effects := &fakeEffects{finishStarted: started, finishRelease: release}
+	coordinator := testCoordinator(executor, effects)
+
+	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	_ = collectEvents(stream)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("terminal maintenance did not start")
+	}
+	if coordinator.registry.Contains("run_1") {
+		t.Fatal("terminal run remained in the live registry during maintenance")
+	}
+	if !coordinator.registry.ActiveSession("ses_1") {
+		t.Fatal("session admission was released before terminal maintenance completed")
+	}
+	if coordinator.registry.ClaimSession("ses_1") {
+		t.Fatal("new run admission crossed the terminal-maintenance fence")
+	}
+
+	close(release)
+	coordinator.Close()
+	if coordinator.registry.ActiveSession("ses_1") {
+		t.Fatal("terminal-maintenance claim was not released")
 	}
 }
 

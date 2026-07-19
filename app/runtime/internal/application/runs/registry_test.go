@@ -62,12 +62,19 @@ func TestRegistryTracksActiveRuns(t *testing.T) {
 		t.Fatalf("entry = %+v, ok=%v", e, ok)
 	}
 
-	closed, ok := r.Close("run_1")
+	closed, ok := r.BeginMaintenance("run_1")
 	if !ok || closed.Payload != 7 {
-		t.Fatalf("closed = %+v, ok=%v", closed, ok)
+		t.Fatalf("maintenance entry = %+v, ok=%v", closed, ok)
 	}
-	if r.Contains("run_1") || r.ActiveSession("ses_1") {
-		t.Fatal("closed run must no longer be active")
+	if r.Contains("run_1") || !r.ActiveSession("ses_1") {
+		t.Fatal("maintenance must remove the run while retaining its session claim")
+	}
+	if r.ClaimSession("ses_1") {
+		t.Fatal("new admission crossed the terminal-maintenance boundary")
+	}
+	r.ReleaseSession("ses_1")
+	if r.ActiveSession("ses_1") {
+		t.Fatal("released maintenance claim must no longer be active")
 	}
 }
 

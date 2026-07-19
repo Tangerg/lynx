@@ -294,10 +294,12 @@ func (e *Effects) Nudge(cwd string, paths []string) {
 	}
 }
 
-// Finish starts terminal maintenance off the live stream path. Checkpointing
-// always precedes title generation: both are allowed to fail independently,
-// but their observable order is stable and a title never races the boundary
-// snapshot. A parked run is resumable, not a boundary, so it does neither.
+// Finish establishes the terminal file boundary before returning, then starts
+// title generation off the live path. The checkpoint is a sequencing fence: the
+// run admission remains held by the caller until it completes, so a following
+// run cannot write into the preceding run's snapshot. Title generation does not
+// define the boundary and may continue asynchronously. A parked run is
+// resumable, not a boundary, so it does neither.
 func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 	if fin.Parked {
 		return nil
@@ -307,41 +309,39 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 	if !needsSnapshot && !needsTitle {
 		return nil
 	}
-	maintenance := func(ctx context.Context) error {
-		var errs []error
-		if needsSnapshot {
-			if err := e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID); err != nil {
-				errs = append(errs, err)
-			}
+	var errs []error
+	if needsSnapshot {
+		if err := observeTerminalMaintenance(ctx, fin, "checkpoint", func(ctx context.Context) error {
+			return e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID)
+		}); err != nil {
+			errs = append(errs, err)
 		}
-		if needsTitle {
-			if err := e.title(ctx, fin.SessionID, fin.OpeningUserText); err != nil {
-				errs = append(errs, err)
-			}
-		}
+	}
+	if !needsTitle {
 		return errors.Join(errs...)
 	}
-	observed := func(ctx context.Context) error {
-		return observeTerminalMaintenance(ctx, fin, maintenance)
+	title := func(ctx context.Context) error {
+		return observeTerminalMaintenance(ctx, fin, "title", func(ctx context.Context) error {
+			return e.title(ctx, fin.SessionID, fin.OpeningUserText)
+		})
 	}
 	if e.tasks == nil {
-		return observed(ctx)
+		return errors.Join(append(errs, title(ctx))...)
 	}
-	if !e.tasks.Start(ctx, func(ctx context.Context) {
-		_ = observed(ctx)
-	}) {
+	if !e.tasks.Start(ctx, func(ctx context.Context) { _ = title(ctx) }) {
 		rejected := fmt.Errorf("runsegment: terminal maintenance for run %q was rejected during shutdown", fin.RunID)
-		return observeTerminalMaintenance(ctx, fin, func(context.Context) error { return rejected })
+		errs = append(errs, observeTerminalMaintenance(ctx, fin, "title", func(context.Context) error { return rejected }))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
-func observeTerminalMaintenance(ctx context.Context, fin runs.Finish, maintenance func(context.Context) error) error {
+func observeTerminalMaintenance(ctx context.Context, fin runs.Finish, operation string, maintenance func(context.Context) error) error {
 	ctx, span := otel.Tracer(runsegmentTracerName).Start(ctx, "run terminal maintenance",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String("run.id", fin.RunID),
 			attribute.String("gen_ai.conversation.id", fin.SessionID),
+			attribute.String("maintenance.operation", operation),
 		),
 	)
 	defer span.End()

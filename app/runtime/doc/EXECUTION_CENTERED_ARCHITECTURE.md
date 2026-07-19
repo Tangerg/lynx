@@ -70,6 +70,8 @@ Start/Resume request
 - `EngineEvent` 是 Application 接收 executor 的唯一事件族；
 - `EventCommit` 描述需要原子持久化的 projection；
 - `RunEvent` 是 application journal 向 delivery 发布的唯一事件族；
+- terminal checkpoint 是释放 Session admission 前的顺序栅栏，下一轮不能越过上一轮的
+  文件边界；title generation 不定义边界，可以在 checkpoint 后异步执行；
 - pump、cancel、活跃 handle 和 terminal ordering 归 runs，而非 transport/server。
 
 Delivery 不自行创建 goroutine 驱动 run，也不持有 executor 生命周期。HTTP/SSE 和
