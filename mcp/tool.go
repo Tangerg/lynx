@@ -119,6 +119,13 @@ func snapshotDescriptor(descriptor *sdkmcp.Tool) (*sdkmcp.Tool, error) {
 
 func (t *tool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
+// MCPToolIdentity returns the unsanitized source and remote tool names bound to
+// this wrapper. Consumers use the pair for policy decisions; Definition.Name is
+// a provider-constrained presentation label and is not an injective identity.
+func (t *tool) MCPToolIdentity() (sourceName, remoteName string) {
+	return t.sourceName, t.remoteName
+}
+
 // ConcurrencyKey structurally satisfies schedulers that support conflict-aware
 // parallel calls without coupling this protocol adapter to a particular agent
 // runtime. Unknown remote tools remain exclusive unless the caller supplied a

@@ -62,9 +62,9 @@ type BuildConfig struct {
 	// index with no embedding model configured — omits the tool.
 	CodebaseIndex CodebaseIndex
 
-	// MCPToolDisabled reports whether a model-facing MCP tool is hidden. The
+	// MCPToolDisabled reports whether an identified MCP tool is hidden. The
 	// runtime updates the underlying policy after every registry change.
-	MCPToolDisabled func(string) bool
+	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
 
 // Built is the assembled tool environment handed to the composition root: the

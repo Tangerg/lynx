@@ -4,8 +4,8 @@ package mcpserver
 // registrations. It is immutable after construction and safe for concurrent
 // readers.
 type ToolPolicy struct {
-	disabled     map[string]struct{}
-	autoApproved map[string]struct{}
+	disabled     map[ToolRef]struct{}
+	autoApproved map[ToolRef]struct{}
 }
 
 // NewToolPolicy derives the effective tool policy from enabled servers.
@@ -17,29 +17,29 @@ func NewToolPolicy(servers []Server) ToolPolicy {
 		}
 		for _, tool := range server.DisabledTools {
 			if policy.disabled == nil {
-				policy.disabled = map[string]struct{}{}
+				policy.disabled = map[ToolRef]struct{}{}
 			}
-			policy.disabled[ToolName(server.Name, tool)] = struct{}{}
+			policy.disabled[ToolRef{Server: server.Name, Tool: tool}] = struct{}{}
 		}
 		for _, tool := range server.AutoApproveTools {
 			if policy.autoApproved == nil {
-				policy.autoApproved = map[string]struct{}{}
+				policy.autoApproved = map[ToolRef]struct{}{}
 			}
-			policy.autoApproved[ToolName(server.Name, tool)] = struct{}{}
+			policy.autoApproved[ToolRef{Server: server.Name, Tool: tool}] = struct{}{}
 		}
 	}
 	return policy
 }
 
-// Disabled reports whether the model-facing tool is hidden from resolution.
-func (p ToolPolicy) Disabled(toolName string) bool {
-	_, ok := p.disabled[toolName]
+// Disabled reports whether ref is hidden from resolution.
+func (p ToolPolicy) Disabled(ref ToolRef) bool {
+	_, ok := p.disabled[ref]
 	return ok
 }
 
-// AutoApproved reports whether the model-facing tool may skip the interactive
+// AutoApproved reports whether ref may skip the interactive
 // approval prompt after standing approval rules have been evaluated.
-func (p ToolPolicy) AutoApproved(toolName string) bool {
-	_, ok := p.autoApproved[toolName]
+func (p ToolPolicy) AutoApproved(ref ToolRef) bool {
+	_, ok := p.autoApproved[ref]
 	return ok
 }

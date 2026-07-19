@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -53,7 +54,7 @@ type toolObserver interface {
 	//
 	// Receives the same callID it will later get on Start / End so the
 	// implementation can pair the gate with the lifecycle.
-	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, mutations FileMutationReporter) ToolApprovalVerdict
+	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target ToolApprovalTarget) ToolApprovalVerdict
 
 	OnToolCallStart(callID, toolName, arguments string)
 	OnToolCallEnd(callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
@@ -90,6 +91,19 @@ type toolObserver interface {
 // satisfy it structurally without coupling this package to their type.
 type FileMutationReporter interface {
 	MutationPaths(arguments string) ([]string, error)
+}
+
+// ToolApprovalTarget carries the capabilities of the exact tool wrapper being
+// gated. MCP identifies the immutable upstream bound to that wrapper, avoiding
+// a second lookup through a live catalog that may have changed since the turn
+// resolved its tools. Its zero value denotes a non-MCP tool.
+type ToolApprovalTarget struct {
+	FileMutations FileMutationReporter
+	MCP           mcpserver.ToolRef
+}
+
+type mcpToolIdentity interface {
+	MCPToolIdentity() (sourceName, remoteName string)
 }
 
 var toolObservationKey = core.MustDependencyKey[*toolObservation]("lyra.tool_observation")
@@ -382,7 +396,14 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	}
 
 	mutations, _ := o.inner.(FileMutationReporter)
-	v := o.observation.target.ApproveToolCall(ctx, call.id, name, arguments, mutations)
+	target := ToolApprovalTarget{FileMutations: mutations}
+	if identity, ok := o.inner.(mcpToolIdentity); ok {
+		server, remote := identity.MCPToolIdentity()
+		if server != "" && remote != "" {
+			target.MCP = mcpserver.ToolRef{Server: server, Tool: remote}
+		}
+	}
+	v := o.observation.target.ApproveToolCall(ctx, call.id, name, arguments, target)
 	if v.Arguments != "" {
 		arguments = v.Arguments
 	}

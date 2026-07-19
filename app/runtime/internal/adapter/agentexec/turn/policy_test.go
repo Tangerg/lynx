@@ -8,10 +8,12 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -35,7 +37,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("remember shell allow: %v", err)
 	}
-	if v := obs.ApproveToolCall(ctx, "c1", "shell", shellArguments, nil); v.Interrupt != nil || v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c1", "shell", shellArguments, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || v.Denied {
 		t.Fatalf("remembered allow = %+v, want a clean run verdict", v)
 	}
 
@@ -47,7 +49,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("remember write deny: %v", err)
 	}
-	if v := obs.ApproveToolCall(ctx, "c2", "write", writeArguments, nil); v.Interrupt != nil || !v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c2", "write", writeArguments, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }
@@ -60,17 +62,29 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	ctx := context.Background()
 	appr := newTestApprovalPolicy(t, approval.ModeSafe)
+	autoApproved := mcpserver.ToolRef{Server: "a_b", Tool: "c"}
+	colliding := mcpserver.ToolRef{Server: "a", Tool: "b_c"}
+	if autoApproved.PublicName() != colliding.PublicName() {
+		t.Fatalf("fixture public names do not collide: %q != %q", autoApproved.PublicName(), colliding.PublicName())
+	}
 	obs := &turnObserver{
 		dispatcher: &memoryDispatcher{
 			approval:            appr,
-			mcpToolAutoApproved: func(name string) bool { return name == "srv_read" },
+			mcpToolAutoApproved: func(ref mcpserver.ToolRef) bool { return ref == autoApproved },
 		},
 		st: &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 
 	// Whitelisted MCP tool → passes without an interrupt (no standing rule).
-	if v := obs.ApproveToolCall(ctx, "c1", "srv_read", "{}", nil); v.Interrupt != nil || v.Denied {
+	target := agentexec.ToolApprovalTarget{MCP: autoApproved}
+	if v := obs.ApproveToolCall(ctx, "c1", autoApproved.PublicName(), "{}", target); v.Interrupt != nil || v.Denied {
 		t.Fatalf("auto-approved tool = %+v, want a clean run verdict", v)
+	}
+	// The same public name bound to a different wrapper identity must still
+	// prompt. This remains true if the live MCP catalog changes after a turn
+	// resolved its tools because the identity rides with the actual wrapper.
+	if v := obs.ApproveToolCall(ctx, "c-collision", colliding.PublicName(), "{}", agentexec.ToolApprovalTarget{MCP: colliding}); v.Interrupt == nil {
+		t.Fatalf("colliding MCP identity unexpectedly auto-approved: %+v", v)
 	}
 
 	// A remembered DENY on the same tool wins — the whitelist is consulted only
@@ -79,12 +93,12 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	// plumbing and is covered by the TestDispatcher_ApprovalGate_* integration
 	// tests, not this bare-construction unit test.)
 	if err := appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "srv_read",
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: autoApproved.PublicName(),
 		Arguments: mustToolArguments(t, `{}`), Decision: approval.Deny,
 	}); err != nil {
 		t.Fatalf("remember MCP deny: %v", err)
 	}
-	if v := obs.ApproveToolCall(ctx, "c2", "srv_read", "{}", nil); v.Interrupt != nil || !v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c2", autoApproved.PublicName(), "{}", target); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny over auto-approve = %+v, want a denied verdict", v)
 	}
 }
@@ -94,7 +108,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		want := errors.New("rule store unavailable")
 		observer := approvalObserver(&errorApprovalPolicy{decideErr: want})
 		verdict := observer.ApproveToolCall(
-			t.Context(), "call_1", "shell", `{"command":"go test"}`, nil,
+			t.Context(), "call_1", "shell", `{"command":"go test"}`, agentexec.ToolApprovalTarget{},
 		)
 		if !errors.Is(verdict.Interrupt, want) {
 			t.Fatalf("approval verdict = %+v, want decision error", verdict)
@@ -126,7 +140,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 			ID: key, Prompt: prompt, Response: response,
 		}})
 		verdict := approvalObserver(&errorApprovalPolicy{rememberErr: want}).ApproveToolCall(
-			ctx, "call_1", "shell", arguments, nil,
+			ctx, "call_1", "shell", arguments, agentexec.ToolApprovalTarget{},
 		)
 		if !errors.Is(verdict.Interrupt, want) {
 			t.Fatalf("approval verdict = %+v, want remember error", verdict)
@@ -136,7 +150,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 
 func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
 	verdict := approvalObserver(newTestApprovalPolicy(t, approval.ModeSafe)).ApproveToolCall(
-		t.Context(), "call_1", "shell", `{"command":`, nil,
+		t.Context(), "call_1", "shell", `{"command":`, agentexec.ToolApprovalTarget{},
 	)
 	if !errors.Is(verdict.Interrupt, tool.ErrInvalidArguments) {
 		t.Fatalf("approval verdict = %+v, want invalid tool arguments", verdict)

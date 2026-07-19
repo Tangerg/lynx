@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
@@ -73,7 +74,7 @@ type Resolver struct {
 
 	// mcpToolDisabled reads the current domain policy per resolution so registry
 	// changes and live-tool reconnects remain independent hot swaps.
-	mcpToolDisabled func(string) bool
+	mcpToolDisabled func(mcpserver.ToolRef) bool
 }
 
 // Deps bundles the working-directory-independent inputs the resolver captures
@@ -98,8 +99,12 @@ type Deps struct {
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
 	DownloadAllow   httpreq.Allowlist   // host allowlist gating/guarding download; empty → omitted
 
-	// MCPToolDisabled reports whether a model-facing MCP tool is hidden.
-	MCPToolDisabled func(string) bool
+	// MCPToolDisabled reports whether an identified MCP tool is hidden.
+	MCPToolDisabled func(mcpserver.ToolRef) bool
+}
+
+type mcpToolIdentity interface {
+	MCPToolIdentity() (sourceName, remoteName string)
 }
 
 // NewResolver builds the engine-scoped tool resolver from its
@@ -207,7 +212,8 @@ func (r *Resolver) mcpTools() []tools.Tool {
 	}
 	var out []tools.Tool
 	for i, tool := range values {
-		if r.mcpToolDisabled(tool.Definition().Name) {
+		ref, ok := mcpToolRef(tool)
+		if !ok || r.mcpToolDisabled(ref) {
 			if out == nil {
 				out = append(make([]tools.Tool, 0, len(values)-1), values[:i]...)
 			}
@@ -227,6 +233,18 @@ func (r *Resolver) mcpTools() []tools.Tool {
 func (r *Resolver) SetMCPTools(tools []tools.Tool) {
 	snapshot := slices.Clone(tools)
 	r.mcp.Store(&snapshot)
+}
+
+func mcpToolRef(tool tools.Tool) (mcpserver.ToolRef, bool) {
+	identity, ok := tool.(mcpToolIdentity)
+	if !ok {
+		return mcpserver.ToolRef{}, false
+	}
+	server, remote := identity.MCPToolIdentity()
+	if server == "" || remote == "" {
+		return mcpserver.ToolRef{}, false
+	}
+	return mcpserver.ToolRef{Server: server, Tool: remote}, true
 }
 
 func (*Resolver) Name() string { return "coding-tools" }

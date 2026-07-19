@@ -4,12 +4,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
 type mcpToolStub struct {
-	name string
+	name   string
+	server string
+	remote string
 }
 
 func (t mcpToolStub) Definition() chat.ToolDefinition {
@@ -20,19 +23,28 @@ func (mcpToolStub) Call(context.Context, string) (string, error) {
 	return "", nil
 }
 
+func (t mcpToolStub) MCPToolIdentity() (string, string) { return t.server, t.remote }
+
 func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
-	disabled := map[string]bool{}
-	resolver := &Resolver{mcpToolDisabled: func(name string) bool { return disabled[name] }}
-	resolver.SetMCPTools([]tools.Tool{mcpToolStub{name: "files_read"}, mcpToolStub{name: "files_write"}})
+	disabled := map[mcpserver.ToolRef]bool{}
+	resolver := &Resolver{mcpToolDisabled: func(ref mcpserver.ToolRef) bool { return disabled[ref] }}
+	resolver.SetMCPTools([]tools.Tool{
+		mcpToolStub{name: "files_read", server: "files", remote: "read"},
+		mcpToolStub{name: "files_write", server: "files", remote: "write"},
+	})
 
 	tests := []struct {
 		name     string
-		disabled map[string]bool
+		disabled map[mcpserver.ToolRef]bool
 		want     []string
 	}{
-		{name: "no disabled tools", disabled: map[string]bool{}, want: []string{"files_read", "files_write"}},
-		{name: "policy update hides tool", disabled: map[string]bool{"files_write": true}, want: []string{"files_read"}},
-		{name: "later policy restores tool", disabled: map[string]bool{}, want: []string{"files_read", "files_write"}},
+		{name: "no disabled tools", disabled: map[mcpserver.ToolRef]bool{}, want: []string{"files_read", "files_write"}},
+		{
+			name:     "policy update hides tool",
+			disabled: map[mcpserver.ToolRef]bool{{Server: "files", Tool: "write"}: true},
+			want:     []string{"files_read"},
+		},
+		{name: "later policy restores tool", disabled: map[mcpserver.ToolRef]bool{}, want: []string{"files_read", "files_write"}},
 	}
 
 	for _, tt := range tests {
@@ -52,6 +64,33 @@ func TestResolverMCPToolsReadsCurrentPolicy(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestResolverMCPPolicyUsesSourceIdentityNotPublicName(t *testing.T) {
+	disabledRef := mcpserver.ToolRef{Server: "a_b", Tool: "c"}
+	liveRef := mcpserver.ToolRef{Server: "a", Tool: "b_c"}
+	if disabledRef.PublicName() != liveRef.PublicName() {
+		t.Fatalf("fixture names do not collide: %q != %q", disabledRef.PublicName(), liveRef.PublicName())
+	}
+
+	resolver := &Resolver{mcpToolDisabled: func(ref mcpserver.ToolRef) bool { return ref == disabledRef }}
+	resolver.SetMCPTools([]tools.Tool{mcpToolStub{
+		name: liveRef.PublicName(), server: liveRef.Server, remote: liveRef.Tool,
+	}})
+
+	got := resolver.mcpTools()
+	if len(got) != 1 || got[0].Definition().Name != liveRef.PublicName() {
+		t.Fatalf("policy for %+v hid colliding live tool %+v", disabledRef, liveRef)
+	}
+}
+
+func TestResolverMCPPolicyFailsClosedWithoutSourceIdentity(t *testing.T) {
+	resolver := &Resolver{mcpToolDisabled: func(mcpserver.ToolRef) bool { return false }}
+	resolver.SetMCPTools([]tools.Tool{mcpToolStub{name: "missing_identity"}})
+
+	if got := resolver.mcpTools(); len(got) != 0 {
+		t.Fatalf("MCP tool without source identity remained visible: %v", got)
 	}
 }
 

@@ -172,10 +172,15 @@ func (c *Connections) dialAndSwap(ctx context.Context, ms *server, cfg ServerCon
 	if err == nil {
 		// Prove the session is usable before publishing it as connected.
 		verifiedTools, err = sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session})
-		if err != nil {
-			err = errors.Join(err, session.Close())
-			session = nil
-		}
+	}
+	if err == nil {
+		c.mu.Lock()
+		err = validateToolCatalog(c.servers, ms, cfg.Name, verifiedTools)
+		c.mu.Unlock()
+	}
+	if err != nil && session != nil {
+		err = errors.Join(err, session.Close())
+		session = nil
 	}
 
 	c.mu.Lock()

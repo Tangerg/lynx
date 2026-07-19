@@ -7,11 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
@@ -182,6 +184,133 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	slices.Sort(settled)
 	if want := []string{"remote_first", "remote_second"}; !slices.Equal(settled, want) {
 		t.Fatalf("settled publication = %v, want %v", settled, want)
+	}
+}
+
+func TestDialQuarantinesCrossServerPublicToolNameCollision(t *testing.T) {
+	remote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v1"}, nil)
+	addRemoteTool(t, remote, "read")
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return remote },
+		nil,
+	))
+	t.Cleanup(httpServer.Close)
+
+	c, initial, err := Dial(t.Context(), []ServerConfig{
+		{Name: "a.b", Transport: TransportHTTP, Endpoint: httpServer.URL},
+		{Name: "a_b", Transport: TransportHTTP, Endpoint: httpServer.URL},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_read"}) {
+		t.Fatalf("initial tools = %v, want only the first server's tool", names)
+	}
+	statuses := c.Statuses()
+	if len(statuses) != 2 || statuses[0].State != mcpserver.ConnectionConnected ||
+		statuses[1].State != mcpserver.ConnectionFailed || statuses[1].Err == nil ||
+		!strings.Contains(statuses[1].Err.Error(), `public tool name collision "a_b_read"`) {
+		t.Fatalf("statuses = %+v, want connected then explicit collision failure", statuses)
+	}
+}
+
+func TestConfigureRejectsCrossServerPublicToolNameCollision(t *testing.T) {
+	firstRemote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "first", Version: "v1"}, nil)
+	addRemoteTool(t, firstRemote, "c")
+	firstHTTP := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return firstRemote },
+		nil,
+	))
+	t.Cleanup(firstHTTP.Close)
+
+	c, initial, err := Dial(t.Context(), []ServerConfig{{
+		Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL,
+	}})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c"}) {
+		t.Fatalf("initial tools = %v, want [a_b_c]", names)
+	}
+
+	secondRemote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "second", Version: "v1"}, nil)
+	addRemoteTool(t, secondRemote, "b_c")
+	secondHTTP := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return secondRemote },
+		nil,
+	))
+	t.Cleanup(secondHTTP.Close)
+
+	err = c.Configure(t.Context(), ServerConfig{Name: "a", Transport: TransportHTTP, Endpoint: secondHTTP.URL})
+	if err == nil || !strings.Contains(err.Error(), `public tool name collision "a_b_c"`) {
+		t.Fatalf("Configure collision error = %v", err)
+	}
+	statuses := c.Statuses()
+	if len(statuses) != 2 || statuses[0].State != mcpserver.ConnectionConnected ||
+		statuses[1].State != mcpserver.ConnectionFailed {
+		t.Fatalf("statuses = %+v, want original connected and candidate failed", statuses)
+	}
+}
+
+func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T) {
+	firstRemote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "first", Version: "v1"}, nil)
+	addRemoteTool(t, firstRemote, "c")
+	firstHTTP := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return firstRemote },
+		nil,
+	))
+	t.Cleanup(firstHTTP.Close)
+
+	secondRemote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "second", Version: "v1"}, nil)
+	addRemoteTool(t, secondRemote, "safe")
+	secondHTTP := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return secondRemote },
+		nil,
+	))
+	t.Cleanup(secondHTTP.Close)
+
+	c, initial, err := Dial(t.Context(), []ServerConfig{
+		{Name: "a_b", Transport: TransportHTTP, Endpoint: firstHTTP.URL},
+		{Name: "a", Transport: TransportHTTP, Endpoint: secondHTTP.URL},
+	})
+	if err != nil {
+		t.Fatalf("Dial: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := c.Close(); err != nil {
+			t.Errorf("Close: %v", err)
+		}
+	})
+	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c", "a_safe"}) {
+		t.Fatalf("initial tools = %v, want [a_b_c a_safe]", names)
+	}
+
+	publications := make(chan []string, 2)
+	c.SetToolSink(func(catalog []tools.Tool) { publications <- toolNames(catalog) })
+	addRemoteTool(t, secondRemote, "b_c")
+	err = c.Reconnect(t.Context(), "a")
+	if err == nil || !strings.Contains(err.Error(), `public tool name collision "a_b_c"`) {
+		t.Fatalf("Reconnect collision error = %v", err)
+	}
+	for phase := range 2 {
+		if names := <-publications; !slices.Equal(names, []string{"a_b_c"}) {
+			t.Fatalf("publication %d = %v, want only unaffected server", phase, names)
+		}
+	}
+	statuses := c.Statuses()
+	if len(statuses) != 2 || statuses[0].State != mcpserver.ConnectionConnected ||
+		statuses[1].State != mcpserver.ConnectionFailed || statuses[1].Err == nil {
+		t.Fatalf("statuses = %+v, want unaffected server connected and reconnected server failed", statuses)
 	}
 }
 
