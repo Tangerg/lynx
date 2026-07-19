@@ -9,12 +9,12 @@
 // (see ./stream).
 
 import type { RpcClient } from "./client";
+import { isErrorType, RpcError } from "./errors";
 import type { RunId, SegmentId, SessionId } from "./ids";
 import type {
   AgentDoc,
   ApprovalMode,
   ApprovalRule,
-  CanceledNotification,
   ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
@@ -58,7 +58,6 @@ import type {
   ScheduleInput,
   Session,
   SessionArtifact,
-  ShutdownRequest,
   Skill,
   ManagedSkill,
   StartRunRequest,
@@ -98,13 +97,74 @@ async function callOrDispose<R>(
   }
 }
 
+const IDEMPOTENCY_RETENTION_MS = 24 * 60 * 60 * 1_000;
+
+interface PendingMutation {
+  key: string;
+  createdAt: number;
+}
+
+// Idempotency belongs to the logical mutation, not an individual HTTP call.
+// An indeterminate attempt remains keyed by canonical method+params so a UI or
+// reconnect retry reuses the same key until a definite RPC result arrives.
+class MutationAttempts {
+  private readonly pending = new Map<string, PendingMutation>();
+
+  async call<R, P>(client: RpcClient, method: string, params: P, signal?: AbortSignal): Promise<R> {
+    const identity = mutationIdentity(method, params);
+    const now = Date.now();
+    this.prune(now);
+    let attempt = this.pending.get(identity);
+    if (!attempt) {
+      attempt = { key: crypto.randomUUID(), createdAt: now };
+      this.pending.set(identity, attempt);
+    }
+    try {
+      const result = await client.call<R, P>(method, params, {
+        signal,
+        idempotencyKey: attempt.key,
+      });
+      this.release(identity, attempt.key);
+      return result;
+    } catch (error) {
+      // A JSON-RPC response is authoritative, except in-progress: that outcome
+      // explicitly asks the caller to retry this same logical operation/key.
+      if (error instanceof RpcError && !isErrorType(error, "idempotency_in_progress")) {
+        this.release(identity, attempt.key);
+      }
+      throw error;
+    }
+  }
+
+  private release(identity: string, key: string): void {
+    if (this.pending.get(identity)?.key === key) this.pending.delete(identity);
+  }
+
+  private prune(now: number): void {
+    for (const [identity, attempt] of this.pending) {
+      if (now - attempt.createdAt >= IDEMPOTENCY_RETENTION_MS) this.pending.delete(identity);
+    }
+  }
+}
+
+function mutationIdentity(method: string, params: unknown): string {
+  return `${method}\0${canonicalJSON(params)}`;
+}
+
+function canonicalJSON(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJSON).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return `{${entries
+    .map(([key, item]) => `${JSON.stringify(key)}:${canonicalJSON(item)}`)
+    .join(",")}}`;
+}
+
 export interface Methods {
   runtime: {
     discover: () => Promise<DiscoverResponse>;
-    shutdown: (params?: ShutdownRequest) => Promise<void>;
-    ping: () => Promise<void>;
-    // Cancel an in-flight JSON-RPC Request by envelope id (NOT runs.cancel).
-    cancel: (params: CanceledNotification) => Promise<void>;
   };
   sessions: {
     list: (query?: PageQuery) => Promise<Page<Session>>;
@@ -139,9 +199,11 @@ export interface Methods {
     // model reads it next tool round. run_not_found if no longer actively running.
     steer: (runId: RunId, message: string) => Promise<void>;
     // Running runs only (§7.3); finished/interrupted via listOpenInterrupts or items history.
-    list: (sessionId?: SessionId) => Promise<Page<RunRef>>;
+    list: (query?: PageQuery & { sessionId?: SessionId }) => Promise<Page<RunRef>>;
     // Durable HITL discovery — resumable interrupted runs (§7.3 / §10.2).
-    listOpenInterrupts: (sessionId?: SessionId) => Promise<Page<OpenInterrupt>>;
+    listOpenInterrupts: (
+      query?: PageQuery & { sessionId?: SessionId },
+    ) => Promise<Page<OpenInterrupt>>;
   };
   items: {
     list: (params: {
@@ -186,8 +248,6 @@ export interface Methods {
       maxBytes?: number;
     }) => Promise<FileContent>;
     listProjects: () => Promise<Page<Project>>;
-    listSkills: (cwd?: string) => Promise<Page<Skill>>;
-    listAgentDocs: (cwd?: string) => Promise<Page<AgentDoc>>;
     // The app-wide workspace notification channel (AUX_API §3): lossy
     // "changed → refetch" events, connection-scoped, no replay. One stream
     // per app; resubscribe (= implicit resync) when it ends.
@@ -195,49 +255,53 @@ export interface Methods {
       params?: SubscribeWorkspaceRequest,
       signal?: AbortSignal,
     ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
-    // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
-    // cwd (project over global). The client expands a chosen recipe's body and
-    // sends it as a turn — read-only discovery.
-    recipes: {
-      list: (cwd?: string) => Promise<Page<Recipe>>;
-    };
-    // Lifecycle hooks (§7.5): list the hooks discovered for a cwd (global +
-    // project, each marked active = does-it-currently-run) and toggle whether a
-    // project's hooks are trusted to run. A cloned repo's project hooks stay
-    // inert until trusted; the toggle takes effect on the next turn.
-    hooks: {
-      list: (cwd?: string) => Promise<HooksListResult>;
-      setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
-    };
-    // Self-authored skill-library management (§7.5): the global library with each
-    // skill's lifecycle, plus archive/restore (never deleting). Distinct from
-    // listSkills — that is the agent's project+global discovery view; this is the
-    // curator surface and also lists archived skills.
-    skills: {
-      list: () => Promise<Page<ManagedSkill>>;
-      archive: (name: string) => Promise<void>;
-      restore: (name: string) => Promise<void>;
-    };
-    mcp: {
-      // The editable registry (configure/remove/setEnabled) PLUS a best-effort
-      // live status folded into each entry. listServers is the lighter
-      // status-only view; listConfigs carries the full persisted config.
-      listConfigs: (query?: PageQuery) => Promise<Page<McpServerConfig>>;
-      // Upsert by name. authorization is the RAW token; omitted = keep the
-      // stored one. Returns the entry with the token re-masked.
-      configure: (params: ConfigureMCPServerRequest) => Promise<McpServerConfig>;
-      remove: (name: string) => Promise<void>;
-      setEnabled: (name: string, enabled: boolean) => Promise<void>;
-      // Dry-run connection probe (NOT persisted). A failed probe is
-      // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
-      test: (params: ConfigureMCPServerRequest) => Promise<McpTestResult>;
-      listServers: () => Promise<Page<McpServer>>;
-      listTools: (server?: string) => Promise<Page<McpTool>>;
-      reconnect: (server: string) => Promise<void>;
-      // Interactive OAuth sign-in (opens the browser; the outcome rides
-      // mcp.serverChanged, same as reconnect). For servers that auth via OAuth.
-      authorize: (server: string) => Promise<void>;
-    };
+  };
+  // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
+  // cwd (project over global). The client expands a chosen recipe's body and
+  // sends it as a turn — read-only discovery.
+  recipes: {
+    list: (cwd?: string) => Promise<Page<Recipe>>;
+  };
+  // Lifecycle hooks (§7.5): list the hooks discovered for a cwd (global +
+  // project, each marked active = does-it-currently-run) and toggle whether a
+  // project's hooks are trusted to run. A cloned repo's project hooks stay
+  // inert until trusted; the toggle takes effect on the next turn.
+  hooks: {
+    list: (cwd?: string) => Promise<HooksListResult>;
+    setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
+  };
+  // Self-authored skill-library management (§7.5): the global library with each
+  // skill's lifecycle, plus archive/restore (never deleting). Distinct from
+  // listSkills — that is the agent's project+global discovery view; this is the
+  // curator surface and also lists archived skills.
+  skills: {
+    listDiscovered: (cwd?: string) => Promise<Page<Skill>>;
+    listLibrary: () => Promise<Page<ManagedSkill>>;
+    archive: (name: string) => Promise<void>;
+    restore: (name: string) => Promise<void>;
+  };
+  agentDocs: {
+    list: (cwd?: string) => Promise<Page<AgentDoc>>;
+  };
+  mcp: {
+    // The editable registry (configure/remove/setEnabled) PLUS a best-effort
+    // live status folded into each entry. listServers is the lighter
+    // status-only view; listConfigs carries the full persisted config.
+    listConfigs: (query?: PageQuery) => Promise<Page<McpServerConfig>>;
+    // Upsert by name. authorization is the RAW token; omitted = keep the
+    // stored one. Returns the entry with the token re-masked.
+    configure: (params: ConfigureMCPServerRequest) => Promise<McpServerConfig>;
+    remove: (name: string) => Promise<void>;
+    setEnabled: (name: string, enabled: boolean) => Promise<void>;
+    // Dry-run connection probe (NOT persisted). A failed probe is
+    // `{ ok:false, error }`, never an RPC error (mirrors providers.test).
+    test: (params: ConfigureMCPServerRequest) => Promise<McpTestResult>;
+    listServers: () => Promise<Page<McpServer>>;
+    listTools: (server?: string) => Promise<Page<McpTool>>;
+    reconnect: (server: string) => Promise<void>;
+    // Interactive OAuth sign-in (opens the browser; the outcome rides
+    // mcp.serverChanged, same as reconnect). For servers that auth via OAuth.
+    authorize: (server: string) => Promise<void>;
   };
   providers: {
     list: () => Promise<Page<Provider>>;
@@ -264,7 +328,7 @@ export interface Methods {
       hits: CodebaseHit[];
     }>;
     status: (cwd?: string) => Promise<CodebaseStatus>;
-    reindex: (cwd?: string) => Promise<void>;
+    reindex: (cwd?: string) => Promise<{ operationId: string }>;
   };
   tools: {
     list: () => Promise<Page<ToolSpec>>;
@@ -296,33 +360,42 @@ export interface Methods {
   // Scheduled runs (§7.9): cron-triggered headless runs of a saved prompt,
   // fired by the runtime's scheduler worker while serving.
   schedules: {
-    list: () => Promise<{ schedules: Schedule[] }>;
+    list: (query?: PageQuery) => Promise<Page<Schedule>>;
     create: (params: ScheduleInput) => Promise<Schedule>;
-    update: (params: ScheduleInput & { id: string; enabled: boolean }) => Promise<Schedule>;
+    update: (
+      params: Partial<ScheduleInput> & { id: string; expectedRevision: number; enabled?: boolean },
+    ) => Promise<Schedule>;
     delete: (id: string) => Promise<void>;
-    runNow: (id: string) => Promise<void>;
+    runNow: (id: string) => Promise<{ sessionId: SessionId; runId: RunId }>;
   };
 }
 
 export function createMethods(client: RpcClient): Methods {
+  const mutations = new MutationAttempts();
+  const mutate = <R, P>(method: string, params: P, signal?: AbortSignal) =>
+    mutations.call<R, P>(client, method, params, signal);
+
   return {
     runtime: {
       discover: () => client.call<DiscoverResponse>("runtime.discover", {}),
-      shutdown: (params) => client.notify("runtime.shutdown", params ?? {}),
-      ping: () => client.call<void>("runtime.ping"),
-      cancel: (params) => client.notify("notifications.canceled", params),
     },
     sessions: {
       list: (query) => client.call<Page<Session>>("sessions.list", query ?? {}),
       get: (sessionId) => client.call<Session>("sessions.get", { sessionId }),
-      create: (params, signal) => client.call<Session>("sessions.create", params ?? {}, signal),
-      update: (params) => client.call<Session>("sessions.update", params),
-      delete: (sessionId) => client.call<void>("sessions.delete", { sessionId }),
-      fork: (params) => client.call<Session>("sessions.fork", params),
-      rollback: (params) => client.call<RollbackSessionResponse>("sessions.rollback", params),
+      create: (params, signal) =>
+        mutate<Session, CreateSessionRequest>("sessions.create", params ?? {}, signal),
+      update: (params) => mutate<Session, UpdateSessionRequest>("sessions.update", params),
+      delete: (sessionId) =>
+        mutate<void, { sessionId: SessionId }>("sessions.delete", { sessionId }),
+      fork: (params) => mutate<Session, ForkSessionRequest>("sessions.fork", params),
+      rollback: (params) =>
+        mutate<RollbackSessionResponse, RollbackSessionRequest>("sessions.rollback", params),
       export: (sessionId, format) =>
         client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
-      import: (artifact) => client.call<ImportSessionResponse>("sessions.import", { artifact }),
+      import: (artifact) =>
+        mutate<ImportSessionResponse, { artifact: SessionArtifact }>("sessions.import", {
+          artifact,
+        }),
     },
     runs: {
       start: async (params, signal) => {
@@ -333,18 +406,18 @@ export function createMethods(client: RpcClient): Methods {
         // the head (see streamRunEvents).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<StartRunResponse>("runs.start", params, signal),
+          mutate<StartRunResponse, StartRunRequest>("runs.start", params, signal),
         );
-        stream.bind(result.segmentId);
+        stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
         // A resume opens a NEW segment of the SAME run — bind the tree to it.
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<ResumeRunResponse>("runs.resume", params, signal),
+          mutate<ResumeRunResponse, ResumeRunRequest>("runs.resume", params, signal),
         );
-        stream.bind(result.segmentId);
+        stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
       subscribe: async (runId, signal) => {
@@ -352,16 +425,22 @@ export function createMethods(client: RpcClient): Methods {
         // bind the tree to that segmentId (same deferred-bind head-drop guard).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<{ runId: RunId; segmentId: SegmentId }>("runs.subscribe", { runId }, signal),
+          client.call<{ runId: RunId; segmentId: SegmentId }>(
+            "runs.subscribe",
+            { runId },
+            { signal },
+          ),
         );
-        stream.bind(result.segmentId);
+        stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
-      cancel: (runId, reason) => client.call<void>("runs.cancel", { runId, reason }),
-      steer: (runId, message) => client.call<void>("runs.steer", { runId, message }),
-      list: (sessionId) => client.call<Page<RunRef>>("runs.list", sessionId ? { sessionId } : {}),
-      listOpenInterrupts: (sessionId) =>
-        client.call<Page<OpenInterrupt>>("runs.listOpenInterrupts", sessionId ? { sessionId } : {}),
+      cancel: (runId, reason) =>
+        mutate<void, { runId: RunId; reason?: string }>("runs.cancel", { runId, reason }),
+      steer: (runId, message) =>
+        mutate<void, { runId: RunId; message: string }>("runs.steer", { runId, message }),
+      list: (query) => client.call<Page<RunRef>>("runs.list", query ?? {}),
+      listOpenInterrupts: (query) =>
+        client.call<Page<OpenInterrupt>>("runs.listOpenInterrupts", query ?? {}),
     },
     items: {
       list: (params) => client.call<ListItemsResponse>("items.list", params),
@@ -375,63 +454,73 @@ export function createMethods(client: RpcClient): Methods {
       listFiles: (params) => client.call<Page<FileEntry>>("workspace.listFiles", params),
       readFile: (params) => client.call<FileContent>("workspace.readFile", params),
       listProjects: () => client.call<Page<Project>>("workspace.listProjects"),
-      listSkills: (cwd) => client.call<Page<Skill>>("workspace.listSkills", { cwd }),
-      listAgentDocs: (cwd) => client.call<Page<AgentDoc>>("workspace.listAgentDocs", { cwd }),
       subscribe: async (params, signal) => {
         const stream = streamWorkspaceEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, signal),
+          client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, { signal }),
         );
         return { result, events: stream.events };
       },
-      recipes: {
-        list: (cwd) => client.call<Page<Recipe>>("workspace.recipes.list", { cwd }),
-      },
-      hooks: {
-        list: (cwd) => client.call<HooksListResult>("workspace.hooks.list", { cwd }),
-        setTrust: (projectRoot, trusted) =>
-          client.call<void>("workspace.hooks.setTrust", { projectRoot, trusted }),
-      },
-      skills: {
-        list: () => client.call<Page<ManagedSkill>>("workspace.skills.list"),
-        archive: (name) => client.call<void>("workspace.skills.archive", { name }),
-        restore: (name) => client.call<void>("workspace.skills.restore", { name }),
-      },
-      mcp: {
-        listConfigs: (query) =>
-          client.call<Page<McpServerConfig>>("workspace.mcp.listConfigs", query ?? {}),
-        configure: (params) => client.call<McpServerConfig>("workspace.mcp.configure", params),
-        remove: (name) => client.call<void>("workspace.mcp.remove", { name }),
-        setEnabled: (name, enabled) =>
-          client.call<void>("workspace.mcp.setEnabled", { name, enabled }),
-        test: (params) => client.call<McpTestResult>("workspace.mcp.test", params),
-        listServers: () => client.call<Page<McpServer>>("workspace.mcp.listServers"),
-        listTools: (server) =>
-          client.call<Page<McpTool>>("workspace.mcp.listTools", server ? { server } : {}),
-        reconnect: (server) => client.call<void>("workspace.mcp.reconnect", { server }),
-        authorize: (server) => client.call<void>("workspace.mcp.authorize", { server }),
-      },
+    },
+    recipes: {
+      list: (cwd) => client.call<Page<Recipe>>("recipes.list", { cwd }),
+    },
+    hooks: {
+      list: (cwd) => client.call<HooksListResult>("hooks.list", { cwd }),
+      setTrust: (projectRoot, trusted) =>
+        mutate<void, { projectRoot: string; trusted: boolean }>("hooks.setTrust", {
+          projectRoot,
+          trusted,
+        }),
+    },
+    skills: {
+      listDiscovered: (cwd) => client.call<Page<Skill>>("skills.discovered.list", { cwd }),
+      listLibrary: () => client.call<Page<ManagedSkill>>("skills.library.list"),
+      archive: (name) => mutate<void, { name: string }>("skills.library.archive", { name }),
+      restore: (name) => mutate<void, { name: string }>("skills.library.restore", { name }),
+    },
+    agentDocs: {
+      list: (cwd) => client.call<Page<AgentDoc>>("agentDocs.list", { cwd }),
+    },
+    mcp: {
+      listConfigs: (query) => client.call<Page<McpServerConfig>>("mcp.configs.list", query ?? {}),
+      configure: (params) =>
+        mutate<McpServerConfig, ConfigureMCPServerRequest>("mcp.configs.configure", params),
+      remove: (name) => mutate<void, { name: string }>("mcp.configs.remove", { name }),
+      setEnabled: (name, enabled) =>
+        mutate<void, { name: string; enabled: boolean }>("mcp.configs.setEnabled", {
+          name,
+          enabled,
+        }),
+      test: (params) => client.call<McpTestResult>("mcp.configs.test", params),
+      listServers: () => client.call<Page<McpServer>>("mcp.servers.list"),
+      listTools: (server) => client.call<Page<McpTool>>("mcp.tools.list", server ? { server } : {}),
+      reconnect: (server) => mutate<void, { server: string }>("mcp.servers.reconnect", { server }),
+      authorize: (server) => mutate<void, { server: string }>("mcp.servers.authorize", { server }),
     },
     providers: {
       list: () => client.call<Page<Provider>>("providers.list"),
-      configure: (params) => client.call<Provider>("providers.configure", params),
+      configure: (params) =>
+        mutate<Provider, ConfigureProviderRequest>("providers.configure", params),
       test: (provider) => client.call<ProviderTestResult>("providers.test", { provider }),
     },
     models: {
       list: (provider) => client.call<Page<Model>>("models.list", provider ? { provider } : {}),
       getUtilityRole: () => client.call<UtilityRole>("models.getUtilityRole"),
-      setUtilityRole: (params) => client.call<UtilityRole>("models.setUtilityRole", params),
+      setUtilityRole: (params) => mutate<UtilityRole, UtilityRole>("models.setUtilityRole", params),
       getEmbeddingRole: () => client.call<EmbeddingRole>("models.getEmbeddingRole"),
-      setEmbeddingRole: (params) => client.call<EmbeddingRole>("models.setEmbeddingRole", params),
+      setEmbeddingRole: (params) =>
+        mutate<EmbeddingRole, EmbeddingRole>("models.setEmbeddingRole", params),
     },
     codebase: {
       search: (params) => client.call<{ hits: CodebaseHit[] }>("codebase.search", params),
       status: (cwd) => client.call<CodebaseStatus>("codebase.status", { cwd }),
-      reindex: (cwd) => client.call<void>("codebase.reindex", { cwd }),
+      reindex: (cwd) =>
+        mutate<{ operationId: string }, { cwd?: string }>("codebase.reindex", { cwd }),
     },
     tools: {
       list: () => client.call<Page<ToolSpec>>("tools.list"),
-      invoke: (params) => client.call<unknown>("tools.invoke", params),
+      invoke: (params) => mutate<unknown, InvokeToolRequest>("tools.invoke", params),
     },
     usage: {
       session: (sessionId) => client.call<Usage>("usage.session", { sessionId }),
@@ -440,24 +529,26 @@ export function createMethods(client: RpcClient): Methods {
     memory: {
       list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),
       get: (scope, cwd) => client.call<MemoryEntry>("memory.get", { scope, cwd }),
-      update: (params) => client.call<void>("memory.update", params),
+      update: (params) => mutate<void, typeof params>("memory.update", params),
     },
     feedback: {
-      create: (params) => client.call<void>("feedback.create", params),
+      create: (params) => mutate<void, FeedbackRequest>("feedback.create", params),
     },
     approval: {
       getMode: () => client.call<{ mode: ApprovalMode }>("approval.getMode"),
-      setMode: (mode) => client.call<{ mode: ApprovalMode }>("approval.setMode", { mode }),
+      setMode: (mode) =>
+        mutate<{ mode: ApprovalMode }, { mode: ApprovalMode }>("approval.setMode", { mode }),
       listRules: (sessionId) =>
         client.call<{ rules: ApprovalRule[] }>("approval.listRules", { sessionId }),
-      forgetRule: (id) => client.call<void>("approval.forgetRule", { id }),
+      forgetRule: (id) => mutate<void, { id: string }>("approval.forgetRule", { id }),
     },
     schedules: {
-      list: () => client.call<{ schedules: Schedule[] }>("schedules.list"),
-      create: (params) => client.call<Schedule>("schedules.create", params),
-      update: (params) => client.call<Schedule>("schedules.update", params),
-      delete: (id) => client.call<void>("schedules.delete", { id }),
-      runNow: (id) => client.call<void>("schedules.runNow", { id }),
+      list: (query) => client.call<Page<Schedule>>("schedules.list", query ?? {}),
+      create: (params) => mutate<Schedule, ScheduleInput>("schedules.create", params),
+      update: (params) => mutate<Schedule, typeof params>("schedules.update", params),
+      delete: (id) => mutate<void, { id: string }>("schedules.delete", { id }),
+      runNow: (id) =>
+        mutate<{ sessionId: SessionId; runId: RunId }, { id: string }>("schedules.runNow", { id }),
     },
   };
 }
