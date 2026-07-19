@@ -18,6 +18,7 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 		Cwd:       cwd,
 		StartedAt: now,
 		UpdatedAt: now,
+		Revision:  1,
 	}
 	if err := s.insert(ctx, sess); err != nil {
 		return session.Session{}, err
@@ -31,10 +32,10 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite,
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -59,29 +60,40 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 // patching an unknown session is [session.ErrNotFound]. The caller normalizes +
 // resolves the patch (title/cwd) before calling; this only commits it.
 func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
+	if patch.Empty() {
+		current, err := s.Get(ctx, id)
+		if err != nil {
+			return session.Session{}, err
+		}
+		if patch.ExpectedRevision != 0 && current.Revision != patch.ExpectedRevision {
+			return session.Session{}, session.ErrRevisionConflict
+		}
+		return current, nil
+	}
+
 	var updated session.Session
 	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
-		if patch.Title != nil {
-			if err := s.Rename(ctx, id, *patch.Title); err != nil {
+		res, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
+			title = COALESCE(?, title), model = COALESCE(?, model),
+			cwd = COALESCE(?, cwd), favorite = COALESCE(?, favorite),
+			updated_at = ?, revision = revision + 1
+			WHERE id = ? AND (? = 0 OR revision = ?)`,
+			nullableString(patch.Title), nullableString(patch.Model),
+			nullableString(patch.Cwd), nullableBool(patch.Favorite),
+			time.Now().UTC().UnixNano(), id, patch.ExpectedRevision, patch.ExpectedRevision)
+		if err != nil {
+			return fmt.Errorf("sqlite: patch session: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("sqlite: patch session: %w", err)
+		}
+		if n == 0 {
+			if _, err := s.Get(ctx, id); err != nil {
 				return err
 			}
+			return session.ErrRevisionConflict
 		}
-		if patch.Model != nil {
-			if err := s.SetModel(ctx, id, *patch.Model); err != nil {
-				return err
-			}
-		}
-		if patch.Cwd != nil {
-			if err := s.SetCwd(ctx, id, *patch.Cwd); err != nil {
-				return err
-			}
-		}
-		if patch.Favorite != nil {
-			if err := s.SetFavorite(ctx, id, *patch.Favorite); err != nil {
-				return err
-			}
-		}
-		var err error
 		updated, err = s.Get(ctx, id)
 		return err
 	})
@@ -95,7 +107,7 @@ func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch
 // single UPDATE. ErrNotFound for unknown id.
 func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
 	return s.updateByID(ctx, "set session model",
-		`UPDATE sessions SET model = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE sessions SET model = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
 		model, time.Now().UTC().UnixNano(), id)
 }
 
@@ -103,7 +115,7 @@ func (s *SessionStore) SetModel(ctx context.Context, id, model string) error {
 // ErrNotFound for unknown id.
 func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 	return s.updateByID(ctx, "rename session",
-		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE sessions SET title = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
 		title, time.Now().UTC().UnixNano(), id)
 }
 
@@ -114,7 +126,7 @@ func (s *SessionStore) Rename(ctx context.Context, id, title string) error {
 // ErrNotFound — so it can't use updateByID.
 func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) error {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE sessions SET title = ?, updated_at = ? WHERE id = ? AND title = ''`,
+		`UPDATE sessions SET title = ?, updated_at = ?, revision = revision + 1 WHERE id = ? AND title = ''`,
 		title, time.Now().UTC().UnixNano(), id)
 	if err != nil {
 		return fmt.Errorf("sqlite: rename-if-untitled session: %w", err)
@@ -126,7 +138,7 @@ func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) e
 // ErrNotFound for unknown id.
 func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 	return s.updateByID(ctx, "relocate session",
-		`UPDATE sessions SET cwd = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE sessions SET cwd = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
 		cwd, time.Now().UTC().UnixNano(), id)
 }
 
@@ -134,7 +146,7 @@ func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
 // unknown id.
 func (s *SessionStore) SetFavorite(ctx context.Context, id string, favorite bool) error {
 	return s.updateByID(ctx, "set session favorite",
-		`UPDATE sessions SET favorite = ?, updated_at = ? WHERE id = ?`,
+		`UPDATE sessions SET favorite = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
 		favorite, time.Now().UTC().UnixNano(), id)
 }
 
@@ -168,13 +180,27 @@ func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
 func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
 	_, err := ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite,
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)
 	}
 	return nil
+}
+
+func nullableString(value *string) any {
+	if value == nil {
+		return nil
+	}
+	return *value
+}
+
+func nullableBool(value *bool) any {
+	if value == nil {
+		return nil
+	}
+	return boolToInt(*value)
 }

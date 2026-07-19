@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-const sessionColumns = `id, user_id, agent_name, title, cwd, parent_id, started_at, updated_at, agent_annotations, model, kind, favorite`
+const sessionColumns = `id, user_id, agent_name, title, cwd, parent_id, started_at, updated_at, agent_annotations, model, kind, favorite, revision`
 
 // rowToSession decodes one DB row into a session.Session. Agent annotations are
 // an internal, opaque JSON object used only for delegated sessions.
@@ -24,7 +24,7 @@ func rowToSession(scanner interface {
 	)
 	if err := scanner.Scan(
 		&s.ID, &s.UserID, &s.AgentName, &s.Title, &s.Cwd, &s.ParentID,
-		&startedAtNanos, &updatedAtNanos, &annotationsJSON, &s.Model, &kind, &favoriteInt,
+		&startedAtNanos, &updatedAtNanos, &annotationsJSON, &s.Model, &kind, &favoriteInt, &s.Revision,
 	); err != nil {
 		return session.Session{}, err
 	}
