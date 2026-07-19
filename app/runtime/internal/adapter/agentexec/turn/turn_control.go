@@ -25,6 +25,10 @@ func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
 		return err
 	}
 	state.cancel()
+	if state.cancelPrepared() {
+		s.finishTurn(state, execution.OutcomeCanceled)
+		return nil
+	}
 	// Claim the parked flag so a racing Resume can't also act on the same
 	// suspended turn (whoever flips it false wins).
 	process := state.process()

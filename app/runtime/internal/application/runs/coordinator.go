@@ -87,7 +87,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	if c.effects == nil {
 		return nil, errors.New("runs: effects are required")
 	}
-	resume := spec.Activate != nil
+	resume := spec.Pending != nil
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
 		if !resume {
@@ -139,7 +139,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
-			reducer.abort(fmt.Errorf("runs: activate continuation: %w", err))
+			reducer.abort(fmt.Errorf("runs: activate segment: %w", err))
 			cancel()
 		}
 	}
@@ -159,7 +159,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 		return nil, errors.New("runs: reducer produced no opening events")
 	}
 	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected))}
-	if spec.Activate != nil {
+	if spec.Pending != nil {
 		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID}
 	} else {
 		opening.Admit = &execution.RunDraft{

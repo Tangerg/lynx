@@ -58,9 +58,10 @@ func (e *Executor) ValidateStart(request runs.StartTurn) error {
 	return nil
 }
 
-// Start launches a fresh executor turn and returns its neutral durable identity.
-func (e *Executor) Start(ctx context.Context, request runs.StartTurn) (runs.TurnRef, error) {
-	handle, err := e.dispatcher.StartTurn(ctx, StartTurnRequest{
+// PrepareStart creates a fresh executor turn without entering the model/tool
+// engine. The application activates it only after durable run admission.
+func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (runs.TurnRef, error) {
+	handle, err := e.dispatcher.PrepareTurn(ctx, StartTurnRequest{
 		SessionID:      request.SessionID,
 		Message:        request.Message,
 		Media:          request.Media,
@@ -77,6 +78,11 @@ func (e *Executor) Start(ctx context.Context, request runs.StartTurn) (runs.Turn
 		return runs.TurnRef{}, err
 	}
 	return neutralTurn(handle), nil
+}
+
+// Activate crosses the fresh turn's model/tool side-effect boundary.
+func (e *Executor) Activate(ctx context.Context, ref runs.TurnRef) error {
+	return mapControlError(e.dispatcher.ActivateTurn(ctx, concreteHandle(ref)))
 }
 
 // Prepare claims a process-local parked turn without delivering its decision.

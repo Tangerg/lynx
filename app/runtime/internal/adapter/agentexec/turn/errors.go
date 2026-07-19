@@ -10,6 +10,10 @@ var ErrTurnNotFound = errors.New("turn: turn not found")
 // has begun shutdown.
 var ErrDispatcherClosed = errors.New("turn: dispatcher closed")
 
+// ErrTurnAlreadyActivated reports a duplicate attempt to activate a prepared
+// turn. Activation is an ownership transfer and may happen exactly once.
+var ErrTurnAlreadyActivated = errors.New("turn: turn already activated")
+
 // ErrCloseTimeout reports that dispatcher shutdown canceled every turn but at
 // least one turn did not finish its terminal teardown within the close budget.
 var ErrCloseTimeout = errors.New("turn: close timeout")

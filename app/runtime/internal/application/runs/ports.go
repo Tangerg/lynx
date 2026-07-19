@@ -104,7 +104,8 @@ type RehydrateTurn struct {
 // into its concrete turn identity.
 type TurnControl interface {
 	ValidateStart(StartTurn) error
-	Start(ctx context.Context, req StartTurn) (TurnRef, error)
+	PrepareStart(ctx context.Context, req StartTurn) (TurnRef, error)
+	Activate(ctx context.Context, ref TurnRef) error
 	Prepare(ctx context.Context, ref TurnRef) (TurnRef, error)
 	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []string) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (TurnRef, error)
@@ -190,10 +191,10 @@ type segmentSpec struct {
 	OpeningUserText string
 	Input           []ContentBlock
 	Pending         *interrupts.Pending
-	// Activate distinguishes a continuation from a fresh Run and delivers its
-	// already-durably-accepted decision to the executor. It is nil for a fresh
-	// Run. Start establishes the event owner before calling it; an activation
-	// error becomes the segment's streamed error terminal.
+	// Activate crosses the executor's side-effect boundary after this segment's
+	// opening write-set commits. For a fresh run it starts model/tool execution;
+	// for a continuation it delivers the already-accepted user decision. Tests
+	// may leave it nil when exercising an already-active synthetic executor.
 	Activate func(context.Context) error
 }
 
