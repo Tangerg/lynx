@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"net"
 	"net/http"
+	"net/url"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -77,6 +81,9 @@ func (c ServerConfig) Validate() error {
 		if c.Endpoint == "" {
 			return fmt.Errorf("mcp server %q: Endpoint is required for HTTP transport", c.Name)
 		}
+		if _, err := parseHTTPOrigin(c.Endpoint); err != nil {
+			return fmt.Errorf("mcp server %q: invalid Endpoint: %w", c.Name, err)
+		}
 		if c.Command != "" {
 			return fmt.Errorf("mcp server %q: Command must be empty for HTTP transport", c.Name)
 		}
@@ -116,9 +123,13 @@ func dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 	}
 	switch cfg.Transport {
 	case TransportHTTP:
+		httpClient, err := endpointHTTPClient(cfg.Endpoint, cfg.Authorization, cfg.Headers)
+		if err != nil {
+			return nil, fmt.Errorf("mcp server %q: build HTTP client: %w", cfg.Name, err)
+		}
 		transport := &sdkmcp.StreamableClientTransport{
 			Endpoint:     cfg.Endpoint,
-			HTTPClient:   headerHTTPClient(cfg.Authorization, cfg.Headers),
+			HTTPClient:   httpClient,
 			OAuthHandler: cfg.OAuthHandler,
 		}
 		return client.Connect(ctx, transport, nil)
@@ -136,24 +147,79 @@ func dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 	}
 }
 
-func headerHTTPClient(authorization string, headers map[string]string) *http.Client {
-	if authorization == "" && len(headers) == 0 {
-		return nil
+const maxRedirects = 10
+
+var errCrossOrigin = errors.New("mcp: cross-origin request blocked")
+
+type httpOrigin struct {
+	scheme string
+	host   string
+}
+
+func parseHTTPOrigin(rawURL string) (httpOrigin, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return httpOrigin{}, fmt.Errorf("parse URL: %w", err)
 	}
-	return &http.Client{Transport: &headerRoundTripper{
+	return originFromURL(u)
+}
+
+func originFromURL(u *url.URL) (httpOrigin, error) {
+	if u == nil {
+		return httpOrigin{}, errors.New("URL is nil")
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return httpOrigin{}, fmt.Errorf("scheme %q is not HTTP or HTTPS", u.Scheme)
+	}
+	hostname := strings.ToLower(u.Hostname())
+	if hostname == "" {
+		return httpOrigin{}, errors.New("host is required")
+	}
+	port := u.Port()
+	if port == "" {
+		if scheme == "https" {
+			port = "443"
+		} else {
+			port = "80"
+		}
+	}
+	return httpOrigin{scheme: scheme, host: net.JoinHostPort(hostname, port)}, nil
+}
+
+func endpointHTTPClient(endpoint, authorization string, headers map[string]string) (*http.Client, error) {
+	origin, err := parseHTTPOrigin(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	transport := &headerRoundTripper{
+		origin:        origin,
 		authorization: authorization,
-		headers:       headers,
+		headers:       maps.Clone(headers),
 		base:          http.DefaultTransport,
-	}}
+	}
+	return &http.Client{
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= maxRedirects {
+				return fmt.Errorf("mcp: stopped after %d redirects", maxRedirects)
+			}
+			return transport.validateTarget(req.URL)
+		},
+	}, nil
 }
 
 type headerRoundTripper struct {
+	origin        httpOrigin
 	authorization string
 	headers       map[string]string
 	base          http.RoundTripper
 }
 
 func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.validateTarget(req.URL); err != nil {
+		return nil, err
+	}
 	r := req.Clone(req.Context())
 	for k, v := range t.headers {
 		r.Header.Set(k, v)
@@ -162,4 +228,16 @@ func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		r.Header.Set("Authorization", t.authorization)
 	}
 	return t.base.RoundTrip(r)
+}
+
+func (t *headerRoundTripper) validateTarget(target *url.URL) error {
+	origin, err := originFromURL(target)
+	if err != nil {
+		return fmt.Errorf("%w: %v", errCrossOrigin, err)
+	}
+	if origin != t.origin {
+		return fmt.Errorf("%w: target origin %s://%s differs from configured origin %s://%s",
+			errCrossOrigin, origin.scheme, origin.host, t.origin.scheme, t.origin.host)
+	}
+	return nil
 }
