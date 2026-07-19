@@ -193,7 +193,7 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 		} else if len(plan.ToolResults) > 0 {
 			return errors.New("bootstrap: cannot restore tool results without blob persistence")
 		}
-		if err := s.history.Truncate(ctx, id, 0); err != nil {
+		if err := s.history.Clear(ctx, id); err != nil {
 			return err
 		}
 		if s.todos != nil {
@@ -249,7 +249,7 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
-	if err := s.history.Truncate(ctx, sessionID, 0); err != nil {
+	if err := s.history.Clear(ctx, sessionID); err != nil {
 		return err
 	}
 	if err := s.deleteInterrupts(ctx, sessionID); err != nil {

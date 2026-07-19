@@ -10,7 +10,15 @@ import (
 	"maps"
 	"slices"
 	"sync"
+	"time"
 )
+
+// closeGraceTimeout bounds how long Close waits for canceled tasks to return.
+// Every task is canceled before the join and is expected to observe it promptly;
+// the budget only stops a task that ignored its context from hanging shutdown
+// forever. No current task reaches it — it is a safety net, mirroring the turn
+// dispatcher's bounded close.
+const closeGraceTimeout = 10 * time.Second
 
 // Group starts request-detached tasks and cancels and joins them at Close.
 // The zero value is ready to use. Start and Close are safe to call
@@ -99,5 +107,16 @@ func (g *Group) Close() {
 	for _, cancel := range cancels {
 		cancel()
 	}
-	g.wg.Wait()
+	// Bounded join: proceed (leaking the misbehaving task) rather than block the
+	// whole process's shutdown if a canceled task fails to return within the grace
+	// window — a permanent hang is the worse failure.
+	done := make(chan struct{})
+	go func() {
+		g.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(closeGraceTimeout):
+	}
 }
