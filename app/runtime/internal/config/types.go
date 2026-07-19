@@ -48,8 +48,9 @@ type LSPServerConfig struct {
 
 // A2AAgentConfig is one remote Agent-to-Agent endpoint loaded from config.
 type A2AAgentConfig struct {
-	Name    string
-	CardURL string
+	Name              string
+	CardURL           string
+	AllowedRPCOrigins []string
 }
 
 // Config is the loaded runtime configuration.
@@ -82,8 +83,8 @@ type Config struct {
 	MCPServers []MCPServerConfig
 
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
-	// Sourced from LYRA_A2A_AGENTS env (same name=value shape as
-	// LYRA_MCP_SERVERS).
+	// Sourced from LYRA_A2A_AGENTS; optional cross-origin RPC trust is supplied
+	// separately by LYRA_A2A_RPC_ORIGINS.
 	A2AAgents []A2AAgentConfig
 
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.

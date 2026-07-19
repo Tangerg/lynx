@@ -7,6 +7,7 @@ package a2a
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -22,8 +23,9 @@ import (
 // it local instead of re-exporting lynxa2a.Endpoint so protocol-library types
 // do not escape this package's boundary.
 type ClientConfig struct {
-	Name    string
-	CardURL string
+	Name              string
+	CardURL           string
+	AllowedRPCOrigins []string
 }
 
 var tracer = otel.Tracer("lynx/lyra/infra/a2a")
@@ -63,6 +65,11 @@ func Dial(ctx context.Context, agents []ClientConfig) (*Connections, []tools.Too
 		endpoints[i] = lynxa2a.Endpoint{
 			Name:    agent.Name,
 			CardURL: agent.CardURL,
+		}
+		if len(agent.AllowedRPCOrigins) > 0 {
+			endpoints[i].Policy = &lynxa2a.EndpointPolicy{
+				AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
+			}
 		}
 	}
 	tools, closeTools, derr := lynxa2a.Tools(ctx, endpoints...)

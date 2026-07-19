@@ -71,6 +71,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
 	}
+	a2aAgents, err = addA2ARPCOrigins(a2aAgents, os.Getenv("LYRA_A2A_RPC_ORIGINS"))
+	if err != nil {
+		return Config{}, fmt.Errorf("config: LYRA_A2A_RPC_ORIGINS: %w", err)
+	}
 
 	lspServers, err := loadLSPServers(v)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/a2aproject/a2a-go/v2/a2aclient"
 
@@ -16,6 +17,24 @@ type Endpoint struct {
 	Name       string
 	CardURL    string
 	HTTPClient *http.Client
+
+	// Policy optionally customizes bounded card resolution and explicitly
+	// trusted cross-origin RPC interfaces. Nil selects secure defaults.
+	Policy *EndpointPolicy
+}
+
+// EndpointPolicy customizes an endpoint's discovery lifecycle and trust
+// boundary. It is referenced by pointer from [Endpoint] so Endpoint remains
+// comparable for existing callers that use it as a map key.
+type EndpointPolicy struct {
+	// CardTimeout bounds Agent Card resolution only. Zero selects 30 seconds;
+	// it does not impose a timeout on long-running agent RPC calls.
+	CardTimeout time.Duration
+
+	// AllowedRPCOrigins adds trusted RPC origins beyond CardURL's own origin.
+	// Entries use the exact "scheme://host[:port]" form. Empty keeps discovery
+	// same-origin, preventing an Agent Card from redirecting calls elsewhere.
+	AllowedRPCOrigins []string
 }
 
 // Tools resolves every endpoint and wraps each remote agent as a chat tool.
@@ -26,7 +45,12 @@ func Tools(ctx context.Context, endpoints ...Endpoint) ([]toolcontract.Tool, fun
 	tools := make([]toolcontract.Tool, 0, len(endpoints))
 	seen := make(map[string]struct{}, len(endpoints))
 	for _, endpoint := range endpoints {
-		client, card, err := dial(ctx, endpoint.CardURL, dialOptions{HTTPClient: endpoint.HTTPClient})
+		opts := dialOptions{HTTPClient: endpoint.HTTPClient}
+		if endpoint.Policy != nil {
+			opts.CardTimeout = endpoint.Policy.CardTimeout
+			opts.AllowedRPCOrigins = endpoint.Policy.AllowedRPCOrigins
+		}
+		client, card, err := dial(ctx, endpoint.CardURL, opts)
 		if err != nil {
 			return nil, nil, errors.Join(err, closeClients(clients))
 		}

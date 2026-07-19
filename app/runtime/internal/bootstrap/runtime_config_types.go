@@ -197,8 +197,9 @@ type OnlineConfig struct {
 // A2AAgentConfig identifies one remote Agent-to-Agent endpoint the runtime
 // should expose as a delegation tool.
 type A2AAgentConfig struct {
-	Name    string
-	CardURL string
+	Name              string
+	CardURL           string
+	AllowedRPCOrigins []string
 }
 
 // LSPServerConfig is one optional language-server table entry. Empty
