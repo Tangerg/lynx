@@ -48,7 +48,10 @@ func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
 		}
 		out = append(out, srv)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list mcp servers: %w", err)
+	}
+	return out, nil
 }
 
 func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {

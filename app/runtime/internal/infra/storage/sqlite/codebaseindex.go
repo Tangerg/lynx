@@ -76,7 +76,10 @@ func (s *CodebaseIndexStore) FileHashes(ctx context.Context, cwd string) (map[st
 		}
 		out[path] = hash
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: codebase file hashes: %w", err)
+	}
+	return out, nil
 }
 
 func (s *CodebaseIndexStore) ReplaceFile(ctx context.Context, cwd, path, hash string, chunks []codebaseindex.Chunk) error {
@@ -146,7 +149,10 @@ func (s *CodebaseIndexStore) AllChunks(ctx context.Context, cwd string) ([]codeb
 		c.Embedding = decodeVec(blob)
 		out = append(out, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: codebase chunks: %w", err)
+	}
+	return out, nil
 }
 
 func (s *CodebaseIndexStore) Clear(ctx context.Context, cwd string) error {

@@ -71,13 +71,13 @@ func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, 
 }
 
 func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
-	return s.query(ctx,
+	return s.query(ctx, "list schedules",
 		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
 		 FROM schedules ORDER BY created_at DESC`)
 }
 
 func (s *ScheduleStore) Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error) {
-	return s.query(ctx,
+	return s.query(ctx, "list due schedules",
 		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at
 		 FROM schedules
 		 WHERE enabled = 1 AND next_run_at > 0 AND next_run_at <= ?
@@ -121,10 +121,10 @@ func (s *ScheduleStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *ScheduleStore) query(ctx context.Context, q string, args ...any) ([]schedule.Schedule, error) {
+func (s *ScheduleStore) query(ctx context.Context, operation, q string, args ...any) ([]schedule.Schedule, error) {
 	rows, err := s.db.QueryContext(ctx, q, args...)
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: list schedules: %w", err)
+		return nil, fmt.Errorf("sqlite: %s: %w", operation, err)
 	}
 	defer rows.Close()
 	var out []schedule.Schedule
@@ -135,7 +135,10 @@ func (s *ScheduleStore) query(ctx context.Context, q string, args ...any) ([]sch
 		}
 		out = append(out, sc)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: %s: %w", operation, err)
+	}
+	return out, nil
 }
 
 // scanSchedule decodes one row via the given Scan func (sql.Row or sql.Rows

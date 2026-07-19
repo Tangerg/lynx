@@ -39,7 +39,10 @@ func (s *ProviderStore) List(ctx context.Context) ([]provider.Provider, error) {
 		}
 		out = append(out, p)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list providers: %w", err)
+	}
+	return out, nil
 }
 
 func (s *ProviderStore) Get(ctx context.Context, id string) (provider.Provider, bool, error) {
