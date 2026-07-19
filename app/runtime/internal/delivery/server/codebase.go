@@ -54,18 +54,24 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 	if err != nil {
 		return nil, err
 	}
-	return codebaseStatusToWire(st), nil
+	out := codebaseStatusToWire(st)
+	out.OperationID = s.codebase.ActiveOperation(root)
+	return out, nil
 }
 
 // CodebaseReindex kicks a full rebuild in the background and returns immediately
 // (codebase.reindex) — a big reindex can take seconds, so the status surface
 // polls codebase.status for progress rather than blocking the call.
-func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) error {
+func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
 	root, err := s.workspaceRoot(in.Cwd)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return mapCodebaseErr(s.codebase.StartReindex(ctx, root))
+	operationID, err := s.codebase.StartReindex(ctx, root)
+	if err != nil {
+		return nil, mapCodebaseErr(err)
+	}
+	return &protocol.CodebaseReindexResponse{OperationID: operationID}, nil
 }
 
 // mapCodebaseErr surfaces "no embedding model" as invalid_params with a fix-it

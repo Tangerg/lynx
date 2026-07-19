@@ -28,25 +28,9 @@ func EncodeWorkspaceEvent(ev protocol.WorkspaceEvent) (transport.Message, error)
 	}{Event: ev})
 }
 
-// handleNotification dispatches the no-response methods. Errors are not
-// surfaced over the wire (JSON-RPC notifications are fire-and-forget).
-//
-// notifications.canceled aborts an in-flight JSON-RPC request (matched
-// by the carried envelope id); the transport layer owns request
-// lifecycle and intercepts it upstream of Handle. We accept it here for
-// protocol completeness.
-func (d *Dispatcher) handleNotification(ctx context.Context, msg *transport.Request) {
-	switch msg.Method {
-	case MethodShutdown:
-		in, bad := decode[protocol.ShutdownRequest](msg)
-		if bad != nil {
-			return
-		}
-		_ = d.api.Shutdown(ctx, in)
-	case NotificationCanceled:
-		// no-op at this layer (see method doc)
-	}
-}
+// Client notifications currently have no public methods. Unknown
+// notifications are intentionally ignored as required by JSON-RPC.
+func (d *Dispatcher) handleNotification(context.Context, *transport.Request) {}
 
 // runEventToFrameFor returns the per-request encoder for RunEvent stream
 // notifications. Client capabilities gate which event types this stream may
@@ -92,7 +76,7 @@ func streamFilterFrom(ctx context.Context) streamFilter {
 	}
 	return streamFilter{
 		declared: eventSet(caps.Events),
-		optOut:   eventSet(caps.OptOutNotificationMethods),
+		optOut:   eventSet(caps.ExcludedEvents),
 	}
 }
 

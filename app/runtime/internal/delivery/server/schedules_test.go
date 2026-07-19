@@ -47,7 +47,7 @@ func (r *fakeScheduleRegistry) Create(_ context.Context, sc schedule.Schedule) (
 	return sc, nil
 }
 
-func (r *fakeScheduleRegistry) Update(_ context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+func (r *fakeScheduleRegistry) Update(_ context.Context, sc schedule.Schedule, _ uint64) (schedule.Schedule, error) {
 	r.updated = append(r.updated, sc)
 	return sc, nil
 }
@@ -135,12 +135,13 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	cwd := t.TempDir()
 
 	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
-		ID:      "sch_1",
-		Title:   "Disabled",
-		Prompt:  "Stand down",
-		Cwd:     cwd,
-		Cron:    "@daily",
-		Enabled: false,
+		ID:               "sch_1",
+		ExpectedRevision: 1,
+		Title:            valuePtr("Disabled"),
+		Prompt:           valuePtr("Stand down"),
+		Cwd:              valuePtr(cwd),
+		Cron:             valuePtr("@daily"),
+		Enabled:          valuePtr(false),
 	})
 	if err != nil {
 		t.Fatalf("update schedule: %v", err)
@@ -167,21 +168,24 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 	s := serverWithSchedules(&fakeScheduleRegistry{})
 
 	_, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
-		ID:      "missing",
-		Prompt:  "hello",
-		Cron:    "@daily",
-		Enabled: true,
+		ID:               "missing",
+		ExpectedRevision: 1,
+		Prompt:           valuePtr("hello"),
+		Cron:             valuePtr("@daily"),
+		Enabled:          valuePtr(true),
 	})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("update missing err = %v, want ErrInvalidParams", err)
 	}
 }
 
+func valuePtr[T any](value T) *T { return &value }
+
 func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
 	reg := &fakeScheduleRegistry{listErr: schedule.ErrUnavailable}
 	s := serverWithSchedules(reg)
 
-	_, err := s.ListSchedules(context.Background())
+	_, err := s.ListSchedules(context.Background(), protocol.PageQuery{})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list unavailable err = %v, want capability_not_negotiated", err)
 	}

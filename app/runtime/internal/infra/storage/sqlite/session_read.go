@@ -14,7 +14,7 @@ import (
 // they never clutter the session list — query the lineage via [Children].
 func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY updated_at DESC`,
+		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY favorite DESC, updated_at DESC, id DESC`,
 		session.KindSubtask)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list sessions: %w", err)

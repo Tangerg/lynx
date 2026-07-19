@@ -13,7 +13,7 @@ BIN    := lyra
 PKG    := ./cmd/lyra
 PID    := lyra.pid
 LOG    := lyra.log
-HEALTH := http://127.0.0.1:$(PORT)/v2/health
+HEALTH := http://127.0.0.1:$(PORT)/v2/health/ready
 
 # LYRA_HOME holds the runtime's persistent state; DB is the single SQLite store
 # `make reset-db` / `make fresh` drop (dev stage = drop + rebuild, never
@@ -67,7 +67,7 @@ status: ## Report whether the server is running
 		echo "[make] running (pid $$(cat $(PID))) on $(PORT)"; \
 	else echo "[make] not running"; fi
 
-health: ## Poll /v2/health until it answers (5s)
+health: ## Poll /v2/health/ready until dependencies are ready (5s)
 	@for i in 1 2 3 4 5; do \
 		if out=$$(curl -fsS -m 2 $(HEALTH) 2>/dev/null); then \
 			echo "[make] healthy: $$out"; exit 0; \

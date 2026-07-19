@@ -14,7 +14,7 @@ type Workspace interface {
 	WorkspaceReadFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	WorkspaceListProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	WorkspaceListSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
-	// Self-authored skill-library management (workspace.skills.*): list the
+	// Self-authored skill-library management (skills.library.*): list the
 	// global library with each skill's lifecycle, and archive/restore one
 	// (never deleting).
 	WorkspaceListManagedSkills(ctx context.Context, q PageQuery) (*Page[ManagedSkill], error)
@@ -33,7 +33,7 @@ type Workspace interface {
 	WorkspaceMCPRemove(ctx context.Context, name string) error
 	WorkspaceMCPSetEnabled(ctx context.Context, in SetMCPEnabledRequest) error
 	WorkspaceMCPTest(ctx context.Context, in ConfigureMCPServerRequest) (*McpTestResult, error)
-	// Lifecycle-hooks management (workspace.hooks.*): list the discovered hooks
+	// Lifecycle-hooks management (hooks.*): list the discovered hooks
 	// for a cwd (global + project, with trust status) and toggle project trust.
 	WorkspaceListHooks(ctx context.Context, in ListHooksRequest) (*HooksListResult, error)
 	WorkspaceSetHookTrust(ctx context.Context, in SetHookTrustRequest) error

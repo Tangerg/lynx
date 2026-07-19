@@ -17,13 +17,6 @@ func (d *Dispatcher) handleDiscover(ctx context.Context, msg *transport.Request)
 	return reply(msg, out, err)
 }
 
-func (d *Dispatcher) handlePing(ctx context.Context, msg *transport.Request) HandleResult {
-	if bad := decodeEmpty(msg); bad != nil {
-		return responseError(msg.ID, bad)
-	}
-	return replyDone(msg, d.api.Ping(ctx))
-}
-
 // ─── Runs (API.md §7.3) ─────────────────────────────────────────────
 
 func (d *Dispatcher) handleRunsStart(ctx context.Context, msg *transport.Request) HandleResult {

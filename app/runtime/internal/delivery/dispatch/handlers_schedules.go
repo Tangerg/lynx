@@ -13,10 +13,11 @@ import (
 // them while the server process is up; these methods manage the set.
 
 func (d *Dispatcher) handleSchedulesList(ctx context.Context, msg *transport.Request) HandleResult {
-	if bad := decodeEmpty(msg); bad != nil {
+	query, bad := decode[protocol.PageQuery](msg)
+	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.ListSchedules(ctx)
+	out, err := d.api.ListSchedules(ctx, query)
 	return reply(msg, out, err)
 }
 
@@ -36,6 +37,9 @@ func (d *Dispatcher) handleSchedulesUpdate(ctx context.Context, msg *transport.R
 	}
 	if in.ID == "" {
 		return responseError(msg.ID, invalidParams("id is required"))
+	}
+	if in.ExpectedRevision == 0 {
+		return responseError(msg.ID, invalidParams("expectedRevision must be greater than zero"))
 	}
 	out, err := d.api.UpdateSchedule(ctx, in)
 	return reply(msg, out, err)
@@ -60,5 +64,6 @@ func (d *Dispatcher) handleSchedulesRunNow(ctx context.Context, msg *transport.R
 	if in.ID == "" {
 		return responseError(msg.ID, invalidParams("id is required"))
 	}
-	return replyDone(msg, d.api.RunScheduleNow(ctx, in))
+	out, err := d.api.RunScheduleNow(ctx, in)
+	return reply(msg, out, err)
 }

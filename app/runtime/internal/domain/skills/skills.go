@@ -13,7 +13,7 @@ import "path/filepath"
 const ProjectSubdir = ".lyra/skills"
 
 // Info is one discovered skill, tagged with the scope it came from — the
-// client-facing projection (workspace.listSkills) of what the merged source
+// client-facing projection (skills.discovered.list) of what the merged source
 // exposes to the model (same sources, same precedence).
 type Info struct {
 	Name        string

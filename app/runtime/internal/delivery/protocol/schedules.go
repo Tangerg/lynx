@@ -12,7 +12,7 @@ import (
 // a recipe reference.
 type Schedules interface {
 	// ListSchedules returns every schedule, newest-created first.
-	ListSchedules(ctx context.Context) (*ListSchedulesResult, error)
+	ListSchedules(ctx context.Context, query PageQuery) (*Page[Schedule], error)
 	// CreateSchedule adds an (enabled) schedule. prompt + cron are required;
 	// provider/model are paired (both or neither). Returns the stored schedule
 	// (with its id + computed nextRunAt).
@@ -24,7 +24,7 @@ type Schedules interface {
 	DeleteSchedule(ctx context.Context, in DeleteScheduleRequest) error
 	// RunScheduleNow fires a schedule immediately (a manual extra run); it
 	// records the firing without shifting the schedule's next due time.
-	RunScheduleNow(ctx context.Context, in RunScheduleNowRequest) error
+	RunScheduleNow(ctx context.Context, in RunScheduleNowRequest) (*RunScheduleNowResponse, error)
 }
 
 // Schedule is one scheduled run (API.md §4.12). Prompt is the final text
@@ -43,11 +43,7 @@ type Schedule struct {
 	LastRunAt *time.Time `json:"lastRunAt,omitempty"`
 	NextRunAt *time.Time `json:"nextRunAt,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
-}
-
-// ListSchedulesResult — the schedules.list reply.
-type ListSchedulesResult struct {
-	Schedules []Schedule `json:"schedules"`
+	Revision  uint64     `json:"revision"`
 }
 
 // CreateScheduleRequest — schedules.create body. A new schedule is enabled.
@@ -63,14 +59,15 @@ type CreateScheduleRequest struct {
 // UpdateScheduleRequest — schedules.update body (full-replace of the editable
 // fields by id).
 type UpdateScheduleRequest struct {
-	ID       string `json:"id"`
-	Title    string `json:"title,omitempty"`
-	Prompt   string `json:"prompt"`
-	Cwd      string `json:"cwd,omitempty"`
-	Provider string `json:"provider,omitempty"`
-	Model    string `json:"model,omitempty"`
-	Cron     string `json:"cron"`
-	Enabled  bool   `json:"enabled"`
+	ID               string  `json:"id"`
+	ExpectedRevision uint64  `json:"expectedRevision"`
+	Title            *string `json:"title,omitempty"`
+	Prompt           *string `json:"prompt,omitempty"`
+	Cwd              *string `json:"cwd,omitempty"`
+	Provider         *string `json:"provider,omitempty"`
+	Model            *string `json:"model,omitempty"`
+	Cron             *string `json:"cron,omitempty"`
+	Enabled          *bool   `json:"enabled,omitempty"`
 }
 
 // DeleteScheduleRequest — schedules.delete body.
@@ -81,4 +78,9 @@ type DeleteScheduleRequest struct {
 // RunScheduleNowRequest — schedules.runNow body.
 type RunScheduleNowRequest struct {
 	ID string `json:"id"`
+}
+
+type RunScheduleNowResponse struct {
+	SessionID string `json:"sessionId"`
+	RunID     string `json:"runId"`
 }

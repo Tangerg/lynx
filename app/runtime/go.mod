@@ -3,18 +3,18 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.26.5
 
 require (
-	github.com/Tangerg/lynx/a2a v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/agent v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/core v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/mcp v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/models v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/otel v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/pkg v0.0.0-20260716134603-cc8be60da95e
-	github.com/Tangerg/lynx/skills v0.0.0-20260718160633-cefbfc124534
-	github.com/Tangerg/lynx/tools v0.0.0-20260718160633-cefbfc124534
+	github.com/Tangerg/lynx/a2a v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/agent v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/core v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/embeddingclient v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/mcp v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/models v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/otel v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/pkg v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/skills v0.0.0-20260719031314-1e49c2a0f145
+	github.com/Tangerg/lynx/tools v0.0.0-20260719031314-1e49c2a0f145
 	github.com/Tangerg/sse v0.0.1
 	github.com/anthropics/anthropic-sdk-go v1.52.0
 	github.com/fsnotify/fsnotify v1.10.1
@@ -48,7 +48,7 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx/tokenizer v0.0.0-20260716134603-cc8be60da95e // indirect
+	github.com/Tangerg/lynx/tokenizer v0.0.0-20260719031314-1e49c2a0f145 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.3.1 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.24.5 // indirect

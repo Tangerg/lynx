@@ -34,6 +34,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
+	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 // Stack is the assembled application: the coordinators + adapters the delivery
@@ -60,7 +61,8 @@ type Stack struct {
 	FileChanges *filechanges.Notifier
 	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatus *mcpstatus.Notifier
+	MCPStatus        *mcpstatus.Notifier
+	IdempotencyStore *sqlitestore.IdempotencyStore
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -390,15 +392,16 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	host := Host{
 		Stack: Stack{
-			Sessions:     sessionCoord,
-			Integrations: integrationsCoord,
-			Approvals:    approvalsCoord,
-			Models:       modelsCoord,
-			Tools:        toolsCoord,
-			Codebase:     codebaseCoord,
-			Coordinator:  runCoord,
-			FileChanges:  fileChanges,
-			MCPStatus:    mcpStatus,
+			Sessions:         sessionCoord,
+			Integrations:     integrationsCoord,
+			Approvals:        approvalsCoord,
+			Models:           modelsCoord,
+			Tools:            toolsCoord,
+			Codebase:         codebaseCoord,
+			Coordinator:      runCoord,
+			FileChanges:      fileChanges,
+			MCPStatus:        mcpStatus,
+			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
 				History:    messages.conversation,

@@ -27,6 +27,7 @@ type Session struct {
 	CreatedAt   time.Time     `json:"createdAt"`
 	UpdatedAt   time.Time     `json:"updatedAt"`
 	Favorite    bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
+	Revision    uint64        `json:"revision"`
 }
 
 // Project is the distinct-Session.cwd derived view (API.md §4.1). No
@@ -85,11 +86,12 @@ type CreateSessionRequest struct {
 // UpdateSessionRequest — sessions.update body. Nil pointers mean
 // "leave alone". Setting Cwd is a relocate (gated on features.relocate).
 type UpdateSessionRequest struct {
-	SessionID string  `json:"sessionId"`
-	Title     *string `json:"title,omitempty"`
-	Cwd       *string `json:"cwd,omitempty"`
-	Model     *string `json:"model,omitempty"`
-	Favorite  *bool   `json:"favorite,omitempty"`
+	SessionID        string  `json:"sessionId"`
+	ExpectedRevision uint64  `json:"expectedRevision"`
+	Title            *string `json:"title,omitempty"`
+	Cwd              *string `json:"cwd,omitempty"`
+	Model            *string `json:"model,omitempty"`
+	Favorite         *bool   `json:"favorite,omitempty"`
 }
 
 // ForkSessionRequest — sessions.fork body (AUX_API §4.2). Omit fromRunId for a

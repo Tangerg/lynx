@@ -47,31 +47,9 @@ func cloneRequestMeta(meta RequestMeta) RequestMeta {
 		caps := *meta.ClientCapabilities
 		caps.Events = slices.Clone(caps.Events)
 		caps.InterruptTypes = slices.Clone(caps.InterruptTypes)
-		caps.OptOutNotificationMethods = slices.Clone(caps.OptOutNotificationMethods)
+		caps.ExcludedEvents = slices.Clone(caps.ExcludedEvents)
 		caps.Features = maps.Clone(caps.Features)
-		for key, value := range caps.Features {
-			caps.Features[key] = cloneJSONValue(value)
-		}
 		meta.ClientCapabilities = &caps
 	}
 	return meta
-}
-
-func cloneJSONValue(value any) any {
-	switch value := value.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(value))
-		for key, item := range value {
-			out[key] = cloneJSONValue(item)
-		}
-		return out
-	case []any:
-		out := make([]any, len(value))
-		for i, item := range value {
-			out[i] = cloneJSONValue(item)
-		}
-		return out
-	default:
-		return value
-	}
 }

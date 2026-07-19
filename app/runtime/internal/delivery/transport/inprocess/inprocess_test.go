@@ -18,10 +18,8 @@ import (
 type fakeRuntime struct{ protocol.Runtime }
 
 func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error) {
-	return &protocol.DiscoverResponse{ProtocolVersion: "2026-07-19"}, nil
+	return &protocol.DiscoverResponse{Protocol: protocol.SupportedProtocolRange()}, nil
 }
-
-func (fakeRuntime) Ping(_ context.Context) error { return nil }
 
 // TestInProcessRoundtrip confirms a Request sent to the InProcess
 // transport surfaces as a Response on the Recv channel — proves the
@@ -99,11 +97,11 @@ type blockingRuntime struct {
 	stopped chan struct{}
 }
 
-func (r *blockingRuntime) Ping(ctx context.Context) error {
+func (r *blockingRuntime) Discover(ctx context.Context) (*protocol.DiscoverResponse, error) {
 	close(r.started)
 	<-ctx.Done()
 	close(r.stopped)
-	return ctx.Err()
+	return nil, ctx.Err()
 }
 
 func TestInProcessCloseCancelsAndJoinsActiveCall(t *testing.T) {
@@ -112,7 +110,7 @@ func TestInProcessCloseCancelsAndJoinsActiveCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
-	req, err := transport.NewCall("1", "runtime.ping", nil)
+	req, err := transport.NewCall("1", "runtime.discover", nil)
 	if err != nil {
 		t.Fatalf("NewCall: %v", err)
 	}

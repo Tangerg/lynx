@@ -1,12 +1,12 @@
 package protocol
 
-// Lifecycle-hooks management wire types (workspace.hooks.*, API.md §7.5). The
+// Lifecycle-hooks management wire types (hooks.*, API.md §7.5). The
 // runtime runs user-authored hooks at fixed turn lifecycle points; these
 // methods let a client review what's configured for a cwd and toggle whether a
 // project's hooks are trusted to run (a cloned repo's hooks stay inert until
 // trusted).
 
-// ListHooksRequest — workspace.hooks.list body. Cwd scopes project discovery
+// ListHooksRequest — hooks.list body. Cwd scopes project discovery
 // (empty = the runtime server cwd); global ~/.lyra hooks are always included.
 type ListHooksRequest struct {
 	Cwd string `json:"cwd,omitempty"`
@@ -42,7 +42,7 @@ type HookInfo struct {
 	Active bool `json:"active"`
 }
 
-// HooksListResult — workspace.hooks.list result. ProjectRoot is the trust key
+// HooksListResult — hooks.list result. ProjectRoot is the trust key
 // (the nearest .git ancestor of the cwd); ProjectTrusted reports whether its
 // project-scope hooks are enabled.
 type HooksListResult struct {
@@ -51,7 +51,7 @@ type HooksListResult struct {
 	Hooks          []HookInfo `json:"hooks"`
 }
 
-// SetHookTrustRequest — workspace.hooks.setTrust body: trust (or revoke) a
+// SetHookTrustRequest — hooks.setTrust body: trust (or revoke) a
 // project's hooks. ProjectRoot is the value HooksListResult reported.
 type SetHookTrustRequest struct {
 	ProjectRoot string `json:"projectRoot"`

@@ -12,7 +12,7 @@ import (
 // WorkspaceListHooks reports the lifecycle hooks discovered for a cwd — global
 // (~/.lyra) + the project's (.lyra) — each marked active iff it currently runs
 // (global always; project only when the project is trusted). The client renders
-// this for review + a trust toggle (workspace.hooks.list, API.md §7.5).
+// this for review + a trust toggle (hooks.list, API.md §7.5).
 func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
 	root, err := s.workspaceRoot(in.Cwd)
 	if err != nil {
@@ -42,7 +42,7 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	return out, nil
 }
 
-// WorkspaceSetHookTrust trusts (or revokes) a project's hooks (workspace.hooks.
+// WorkspaceSetHookTrust trusts (or revokes) a project's hooks (hooks.
 // setTrust). The change takes effect on the next turn — the resolver re-reads
 // trust per turn.
 func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookTrustRequest) error {

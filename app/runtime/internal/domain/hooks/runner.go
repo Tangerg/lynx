@@ -191,7 +191,7 @@ func (b *Bound) Run(ctx context.Context, in Input) Decision {
 func (b *Bound) Empty() bool { return b == nil || len(b.hooks) == 0 }
 
 // Inspection is the read-only view of a cwd's hooks for a management surface
-// (workspace.hooks.list): every discovered hook (trusted or not), the project
+// (hooks.list): every discovered hook (trusted or not), the project
 // root that gates the project-scope ones, and whether it's currently trusted.
 type Inspection struct {
 	ProjectRoot    string

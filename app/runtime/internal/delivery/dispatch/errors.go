@@ -9,29 +9,39 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
 
-// sentinelToCode maps each protocol sentinel error to its numeric wire
-// code (API.md §8.2). errors.Is checks identity, so at most one entry
-// matches per call — iteration order is irrelevant. Adding a sentinel =
-// one line here. The symbolic type carried in ProblemData.type is the
-// sentinel's Error() string (clients judge by type, not by code).
-var sentinelToCode = map[error]int{
-	protocol.ErrMethodNotFound:         protocol.CodeMethodNotFound,
-	protocol.ErrInvalidParams:          protocol.CodeInvalidParams,
-	protocol.ErrProviderError:          protocol.CodeProviderError,
-	protocol.ErrSessionNotFound:        protocol.CodeSessionNotFound,
-	protocol.ErrRunNotFound:            protocol.CodeRunNotFound,
-	protocol.ErrItemNotFound:           protocol.CodeItemNotFound,
-	protocol.ErrCwdUnavailable:         protocol.CodeCwdUnavailable,
-	protocol.ErrCapabilityNotNeg:       protocol.CodeCapabilityNotNeg,
-	protocol.ErrRunAlreadyDone:         protocol.CodeRunAlreadyDone,
-	protocol.ErrCheckpointUnavailable:  protocol.CodeCheckpointUnavail,
-	protocol.ErrUnsupportedMime:        protocol.CodeUnsupportedMime,
-	protocol.ErrToolDenied:             protocol.CodeToolDenied,
-	protocol.ErrPathOutsideRoot:        protocol.CodePathOutsideRoot,
-	protocol.ErrInterruptNotOpen:       protocol.CodeInterruptNotOpen,
-	protocol.ErrInvalidProtocolVersion: protocol.CodeInvalidProtocolVersion,
-	protocol.ErrVcsUnavailable:         protocol.CodeVcsUnavailable,
-	protocol.ErrSessionBusy:            protocol.CodeSessionBusy,
+// sentinelSpecs maps each protocol sentinel to its wire behavior (API.md §8.2).
+// errors.Is checks identity, so iteration order is irrelevant. The symbolic
+// ProblemData.type is the sentinel's Error string; clients branch on it, not
+// on the numeric code.
+type rpcErrorSpec struct {
+	code              int
+	retryable         bool
+	retryAfterSeconds int
+}
+
+var sentinelSpecs = map[error]rpcErrorSpec{
+	protocol.ErrMethodNotFound:         {code: protocol.CodeMethodNotFound},
+	protocol.ErrInvalidParams:          {code: protocol.CodeInvalidParams},
+	protocol.ErrProviderError:          {code: protocol.CodeProviderError},
+	protocol.ErrSessionNotFound:        {code: protocol.CodeSessionNotFound},
+	protocol.ErrRunNotFound:            {code: protocol.CodeRunNotFound},
+	protocol.ErrItemNotFound:           {code: protocol.CodeItemNotFound},
+	protocol.ErrCwdUnavailable:         {code: protocol.CodeCwdUnavailable},
+	protocol.ErrCapabilityNotNeg:       {code: protocol.CodeCapabilityNotNeg},
+	protocol.ErrRunAlreadyDone:         {code: protocol.CodeRunAlreadyDone},
+	protocol.ErrCheckpointUnavailable:  {code: protocol.CodeCheckpointUnavail},
+	protocol.ErrUnsupportedMime:        {code: protocol.CodeUnsupportedMime},
+	protocol.ErrToolDenied:             {code: protocol.CodeToolDenied},
+	protocol.ErrPathOutsideRoot:        {code: protocol.CodePathOutsideRoot},
+	protocol.ErrInterruptNotOpen:       {code: protocol.CodeInterruptNotOpen},
+	protocol.ErrInvalidProtocolVersion: {code: protocol.CodeInvalidProtocolVersion},
+	protocol.ErrVcsUnavailable:         {code: protocol.CodeVcsUnavailable},
+	protocol.ErrSessionBusy:            {code: protocol.CodeSessionBusy},
+	protocol.ErrRevisionConflict:       {code: protocol.CodeRevisionConflict},
+	protocol.ErrIdempotencyConflict:    {code: protocol.CodeIdempotencyConflict},
+	protocol.ErrIdempotencyInProgress: {
+		code: protocol.CodeIdempotencyInProgress, retryable: true, retryAfterSeconds: 1,
+	},
 }
 
 // errorToRPC maps a Go error returned from Runtime into a JSON-RPC
@@ -50,21 +60,28 @@ func errorToRPC(err error) *transport.Error {
 	if rpcErr, ok := errors.AsType[*transport.Error](err); ok {
 		return rpcErr
 	}
-	for sentinel, code := range sentinelToCode {
+	for sentinel, spec := range sentinelSpecs {
 		if errors.Is(err, sentinel) {
-			return problemError(code, sentinel.Error(), err.Error())
+			return problemErrorWithSpec(spec, sentinel.Error(), err.Error())
 		}
 	}
-	return problemError(protocol.CodeInternalError, protocol.ProblemInternalError, err.Error())
+	return problemError(protocol.CodeInternalError, protocol.ProblemInternalError, "the runtime could not complete the request")
 }
 
 // problemError builds an Error carrying a ProblemData{type, detail}.
 // typ is the symbolic name (API.md §8.2); detail is the human string.
 func problemError(code int, typ, detail string) *transport.Error {
+	return problemErrorWithSpec(rpcErrorSpec{code: code}, typ, detail)
+}
+
+func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string) *transport.Error {
 	// channel "rpc": every numeric-coded error is a synchronous JSON-RPC
 	// error response (API.md §8.1 channel a).
-	data, _ := json.Marshal(protocol.ProblemData{Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail})
-	return transport.NewErrorWithMessage(code, typ, data)
+	data, _ := json.Marshal(protocol.ProblemData{
+		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail,
+		Retryable: spec.retryable, RetryAfterSeconds: spec.retryAfterSeconds,
+	})
+	return transport.NewErrorWithMessage(spec.code, typ, data)
 }
 
 // invalidParams wraps a params-validation failure as invalid_params.

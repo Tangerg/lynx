@@ -92,7 +92,7 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 // recipes (<cwd>/.lyra/recipes) layered over the global directory, project
 // winning on a name collision. Each entry carries its full Body so the client
 // can expand ($ARGUMENTS / $1..$9) and send it. cwd defaults to the serve
-// directory (workspace.recipes.list, API.md §7.5).
+// directory (recipes.list, API.md §7.5).
 func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
 	root, err := s.workspaceRoot(in.Cwd)
 	if err != nil {

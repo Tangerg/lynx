@@ -5,17 +5,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
-
-type capabilityAccessStub struct{}
-
-func (capabilityAccessStub) SupportedProviders() []providersvc.Metadata { return nil }
 
 func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	t.Parallel()
 
-	caps := Capabilities(capabilityAccessStub{}, true)
+	caps := Capabilities(true)
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -28,7 +23,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if !slices.Equal(caps.Events, want) {
 		t.Fatalf("events = %v, want %v", caps.Events, want)
 	}
-	if caps.Features["subagents"] != false || caps.Features["clientTools"] != false {
+	if caps.Features["subagents"].Enabled || caps.Features["clientTools"].Enabled {
 		t.Fatalf("unsupported features advertised: %+v", caps.Features)
 	}
 	if caps.Limits.MaxConcurrentRuns != 0 {

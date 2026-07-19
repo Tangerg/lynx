@@ -12,11 +12,11 @@ import (
 func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
 	d := &Dispatcher{}
 	msg := &transport.Request{
-		Method: NotificationCanceled,
+		Method: "client.unknown",
 		Params: json.RawMessage(`{"_meta":null}`),
 	}
 
-	if got := d.Handle(context.Background(), msg, ""); got.Response != nil {
+	if got := d.Handle(context.Background(), msg); got.Response != nil {
 		t.Fatalf("notification returned a response: %+v", got.Response)
 	}
 }
@@ -36,8 +36,8 @@ func TestStreamFilterEventDeclarations(t *testing.T) {
 	}
 
 	declared := protocol.ClientCapabilities{
-		Events:                    []protocol.StreamEventType{protocol.StreamSegmentStarted, protocol.StreamItemDelta},
-		OptOutNotificationMethods: []protocol.StreamEventType{protocol.StreamItemDelta},
+		Events:         []protocol.StreamEventType{protocol.StreamSegmentStarted, protocol.StreamItemDelta},
+		ExcludedEvents: []protocol.StreamEventType{protocol.StreamItemDelta},
 	}
 	ctx = protocol.WithRequestMeta(context.Background(), protocol.RequestMeta{ClientCapabilities: &declared})
 	filter := streamFilterFrom(ctx)
