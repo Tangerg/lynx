@@ -34,10 +34,15 @@ var (
 	ErrNoBase      = git.ErrNoBase
 )
 
-// ErrCheckpointUnavailable means the file-checkpoint store is disabled (git
-// absent) or holds no snapshot for the target run. Delivery maps it onto the
-// wire checkpoint_unavailable.
-var ErrCheckpointUnavailable = checkpoint.ErrUnavailable
+var (
+	// ErrCheckpointUnavailable means the file-checkpoint store is disabled (git
+	// absent) or holds no snapshot for the target run. Delivery maps it onto the
+	// wire checkpoint_unavailable.
+	ErrCheckpointUnavailable = checkpoint.ErrUnavailable
+	// ErrCheckpointRestoreIncomplete means Git started a work-tree reset but did
+	// not finish; orchestration must keep its durable recovery intent.
+	ErrCheckpointRestoreIncomplete = checkpoint.ErrRestoreIncomplete
+)
 
 // GitAvailable reports whether the git binary is on PATH — gates the
 // workspace VCS + checkpoint features.
@@ -113,8 +118,9 @@ func (c *Checkpoints) Snapshot(ctx context.Context, sessionID, cwd, runID string
 }
 
 // Restore resets sessionID's working tree (at cwd) to the runID snapshot. A
-// disabled store or missing snapshot surfaces as [ErrCheckpointUnavailable].
-// Nil-safe.
+// disabled store or missing snapshot surfaces as [ErrCheckpointUnavailable]; a
+// failed reset that may have changed part of the tree surfaces as
+// [ErrCheckpointRestoreIncomplete]. Nil-safe.
 func (c *Checkpoints) Restore(ctx context.Context, sessionID, cwd, runID string) error {
 	if !c.CheckpointsEnabled() {
 		return ErrCheckpointUnavailable

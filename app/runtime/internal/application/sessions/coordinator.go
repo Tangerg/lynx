@@ -123,9 +123,9 @@ type RunRef struct {
 // discards a deleted session's snapshots as the last step of the delete cascade.
 // Restore is reentrant (a git reset to an already-restored tree is a no-op), so
 // the recoverable operation can re-drive it at boot. A disabled store or missing
-// snapshot surfaces as [ErrCheckpointUnavailable]; the composition root maps the
-// checkpoint adapter's own sentinel onto it so the coordinator stays free of the
-// adapter package.
+// snapshot surfaces as [ErrCheckpointUnavailable]; a reset that may have changed
+// only part of the tree surfaces as [ErrCheckpointRestoreIncomplete]. The
+// composition root maps adapter sentinels so this port stays adapter-free.
 type WorkspaceCheckpoints interface {
 	Restore(ctx context.Context, sessionID, cwd, runID string) error
 	// DropSession removes a session's checkpoint history after the durable
@@ -135,10 +135,10 @@ type WorkspaceCheckpoints interface {
 }
 
 // WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):
-// the working tree and the durable history can't commit in one ACID
-// transaction, so Record logs the intent before either is touched, Complete
-// clears it once both commit, and ListPending returns the operations a crash
-// left unfinished for boot recovery to re-drive. The composition root injects a
+// a Git reset is not atomic across paths, and the optional durable-history cut
+// cannot share its transaction. Record logs the intent before the tree is
+// touched, Complete clears it once all requested effects commit, and ListPending
+// returns interrupted operations for boot recovery. The composition root injects a
 // store whose writes commit independently (not joined to any rollback
 // transaction) — the log is precisely the marker that the two resources change
 // out of transaction. nil disables the log (rollback runs without a recovery

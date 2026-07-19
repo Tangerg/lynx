@@ -1,6 +1,9 @@
 package checkpoint
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 // Restore resets cwd's work tree to the runID snapshot: tracked files revert,
 // and files created-and-staged since (small enough to be tracked) are removed
@@ -47,7 +50,7 @@ func (s *Store) Restore(ctx context.Context, sessionID, cwd, runID string) error
 	// target. No `git clean`: untracked files (ignored, or oversize and so never
 	// staged) are not the checkpoint's to delete.
 	if _, err := s.git(ctx, gitDir, cwd, "reset", "-q", "--hard", tagFor(runID)); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", ErrRestoreIncomplete, err)
 	}
 	return nil
 }

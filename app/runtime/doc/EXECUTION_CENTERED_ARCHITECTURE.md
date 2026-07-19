@@ -195,6 +195,8 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - fresh start 的 admission 与 opening projections 在同一事务提交；
 - resume 的 interrupt consume、run resume state 与 opening projections 同批提交；
 - 数据库与 filesystem/Git 不能伪装成一个原子事务，跨资源操作使用显式 intent 和补偿；
+  Git work-tree reset 本身也不是跨文件原子操作，因此 files-only rollback 同样先记录
+  intent；intent 明确携带是否还需截断 history，启动恢复只重驱已请求的效果；
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 

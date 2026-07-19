@@ -3,6 +3,7 @@ package checkpoint
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -352,6 +353,36 @@ func TestStore_RestoreUnknownRun(t *testing.T) {
 	}
 	if err := s.Restore(ctx, "ses1", cwd, "ghost"); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("restore ghost = %v, want ErrUnavailable", err)
+	}
+}
+
+func TestStore_ResetFailureReportsPossiblyIncompleteRestore(t *testing.T) {
+	s, cwd := newTestStore(t)
+	ctx := context.Background()
+	write(t, cwd, "a.txt", "v1")
+	if err := s.Snapshot(ctx, "ses1", cwd, "run1"); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	write(t, cwd, "a.txt", "v2")
+
+	realGit, err := exec.LookPath("git")
+	if err != nil {
+		t.Fatalf("find real git: %v", err)
+	}
+	binDir := t.TempDir()
+	fakeGit := filepath.Join(binDir, "git")
+	script := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = reset ]; then echo forced-reset-failure >&2; exit 1; fi\nexec %q \"$@\"\n", realGit)
+	if err := os.WriteFile(fakeGit, []byte(script), 0o755); err != nil {
+		t.Fatalf("write fake git: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	err = s.Restore(ctx, "ses1", cwd, "run1")
+	if !errors.Is(err, ErrRestoreIncomplete) {
+		t.Fatalf("restore error = %v, want ErrRestoreIncomplete", err)
+	}
+	if !strings.Contains(err.Error(), "forced-reset-failure") {
+		t.Fatalf("restore error lost git detail: %v", err)
 	}
 }
 

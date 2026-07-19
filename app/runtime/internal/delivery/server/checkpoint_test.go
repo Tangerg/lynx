@@ -21,8 +21,11 @@ type testCheckpointRestorer struct{ cp *workspace.Checkpoints }
 
 func (r testCheckpointRestorer) Restore(ctx context.Context, sessionID, cwd, runID string) error {
 	if err := r.cp.Restore(ctx, sessionID, cwd, runID); err != nil {
-		if errors.Is(err, workspace.ErrCheckpointUnavailable) {
+		switch {
+		case errors.Is(err, workspace.ErrCheckpointUnavailable):
 			return sessions.ErrCheckpointUnavailable
+		case errors.Is(err, workspace.ErrCheckpointRestoreIncomplete):
+			return sessions.ErrCheckpointRestoreIncomplete
 		}
 		return err
 	}
@@ -127,6 +130,9 @@ func TestRollback_RestoreFilesKeepsHistory(t *testing.T) {
 	if len(resp.DroppedRuns) != 0 {
 		t.Errorf("droppedRuns = %+v, want none (history kept)", resp.DroppedRuns)
 	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Fatalf("pending intents after files-only success = %+v, want none", pending)
+	}
 }
 
 // TestRollback_RestoreBoth_ClearsIntent: a successful files+history rollback
@@ -178,7 +184,9 @@ func TestRecoverRollbacks(t *testing.T) {
 
 	// Simulate the crash: the intent is logged but neither resource is rolled back
 	// yet (tree still v2, run2 still in history).
-	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{SessionID: sid, Cwd: cwd, ToRunID: "run1"}); err != nil {
+	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
+		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: true,
+	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}
 
@@ -212,7 +220,9 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	putRun(t, rt, sid, "run1", 1, 1)
 	// Only run1 in history (run2 already dropped by the pre-crash rollback), tree
 	// already at v1 — the "crashed after durable, before complete" state.
-	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{SessionID: sid, Cwd: cwd, ToRunID: "run1"}); err != nil {
+	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
+		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: true,
+	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}
 
@@ -225,6 +235,43 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	}
 	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
 		t.Errorf("pending after recovery = %+v, want cleared", pending)
+	}
+}
+
+// TestRecoverRollbacks_FilesOnly restores an interrupted work-tree mutation but
+// deliberately leaves the conversation timeline intact.
+func TestRecoverRollbacks_FilesOnly(t *testing.T) {
+	s, rt, cp, sid, cwd := checkpointHarness(t)
+	ctx := context.Background()
+
+	writeFile(t, cwd, "a.txt", "v1")
+	if err := cp.Snapshot(ctx, sid, cwd, "run1"); err != nil {
+		t.Fatalf("snapshot run1: %v", err)
+	}
+	putRun(t, rt, sid, "run1", 1, 1)
+	writeFile(t, cwd, "a.txt", "v2")
+	if err := cp.Snapshot(ctx, sid, cwd, "run2"); err != nil {
+		t.Fatalf("snapshot run2: %v", err)
+	}
+	putRun(t, rt, sid, "run2", 2, 2)
+
+	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
+		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: false,
+	}); err != nil {
+		t.Fatalf("record intent: %v", err)
+	}
+	if err := s.RecoverRollbacks(ctx); err != nil {
+		t.Fatalf("RecoverRollbacks: %v", err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(got) != "v1" {
+		t.Fatalf("a.txt = %q, want v1", got)
+	}
+	_, runs, _ := rt.hist.List(ctx, sid)
+	if len(runs) != 2 {
+		t.Fatalf("files-only recovery dropped history: %+v", runs)
+	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Fatalf("pending after files-only recovery = %+v, want none", pending)
 	}
 }
 
@@ -271,5 +318,46 @@ func TestRollback_NoCheckpointStore(t *testing.T) {
 	_, runs, _ := rt.hist.List(ctx, ses.ID)
 	if len(runs) != 2 {
 		t.Errorf("runs = %d, want 2 (history untouched after files failure)", len(runs))
+	}
+	if pending, _ := rt.muts.ListPending(ctx); len(pending) != 0 {
+		t.Fatalf("unavailable checkpoint left unrecoverable intent: %+v", pending)
+	}
+}
+
+type incompleteCheckpointRestorer struct{}
+
+func (incompleteCheckpointRestorer) Restore(context.Context, string, string, string) error {
+	return sessions.ErrCheckpointRestoreIncomplete
+}
+
+func (incompleteCheckpointRestorer) DropSession(string) error { return nil }
+
+func TestRollback_IncompleteRestoreKeepsRecoveryIntent(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := context.Background()
+	ses, err := rt.sess.Create(ctx, "restore failure", t.TempDir())
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	putRun(t, rt, ses.ID, "run1", 1, 1)
+	putRun(t, rt, ses.ID, "run2", 2, 2)
+	s.sessions = rt.sessionsCoordinatorWithRestorer(incompleteCheckpointRestorer{})
+
+	_, err = s.RollbackSession(ctx, protocol.RollbackSessionRequest{
+		SessionID: ses.ID, ToRunID: "run1", RestoreType: protocol.RestoreBoth,
+	})
+	if !errors.Is(err, sessions.ErrCheckpointRestoreIncomplete) {
+		t.Fatalf("rollback error = %v, want incomplete-restore sentinel", err)
+	}
+	pending, listErr := rt.muts.ListPending(ctx)
+	if listErr != nil {
+		t.Fatalf("list pending: %v", listErr)
+	}
+	if len(pending) != 1 || pending[0].SessionID != ses.ID || !pending[0].RestoreHistory {
+		t.Fatalf("pending = %+v, want recoverable files+history intent", pending)
+	}
+	_, runs, _ := rt.hist.List(ctx, ses.ID)
+	if len(runs) != 2 {
+		t.Fatalf("incomplete file restore mutated history: %+v", runs)
 	}
 }

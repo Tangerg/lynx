@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -125,17 +125,17 @@ func installCurrentSchema(db *sql.DB) error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_process
 			ON interrupts(process_id) WHERE process_id != ''`,
 		// pending_workspace_mutations is the recoverable operation log for file
-		// rollbacks (§8.5): the working tree (git) and the durable history (SQLite)
-		// can't commit in one ACID transaction, so the intent is logged before
-		// either is touched and cleared once both commit. A row surviving a crash is
-		// re-driven at boot. session_id keys it — the mutation slot admits at most
-		// one in-flight rollback per session. created_at is stamped by the DB for
-		// operational visibility (recovery is timestamp-free).
+		// rollbacks (§8.5). Git reset is non-atomic across paths; files+history also
+		// spans Git and SQLite. The intent is logged before the tree is touched and
+		// cleared after every requested effect commits. A surviving row is re-driven
+		// at boot. session_id keys it — the mutation slot admits at most one
+		// in-flight rollback per session. created_at is operational metadata only.
 		`CREATE TABLE IF NOT EXISTS pending_workspace_mutations (
-			session_id TEXT    PRIMARY KEY,
-			cwd        TEXT    NOT NULL,
-			to_run_id  TEXT    NOT NULL,
-			created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+			session_id     TEXT    PRIMARY KEY,
+			cwd            TEXT    NOT NULL,
+			to_run_id      TEXT    NOT NULL,
+			restore_history INTEGER NOT NULL,
+			created_at     INTEGER NOT NULL DEFAULT (strftime('%s','now'))
 		)`,
 		`CREATE TABLE IF NOT EXISTS history_items (
 			seq         INTEGER PRIMARY KEY AUTOINCREMENT,
