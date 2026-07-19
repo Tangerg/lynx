@@ -72,5 +72,8 @@ func (s *TrustStore) List(ctx context.Context) ([]string, error) {
 		}
 		out = append(out, root)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list trusted projects: %w", err)
+	}
+	return out, nil
 }
