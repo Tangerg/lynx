@@ -202,11 +202,13 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 // raises the ordinary approval interrupt (reusing its resume, UI card, and
 // auto-deny-when-unanswerable machinery — a headless client that cannot answer
 // approvals auto-denies, braking the loop automatically) with a reason naming
-// the loop. On approval the call runs and the fresh turn state resets the
-// counter, so the model gets room to continue; on denial it receives recoverable
-// feedback and must change approach. No standing rule is consulted or recorded —
-// this is a one-off brake, not a persistent permission.
+// the loop. The no-progress streak is reset as the brake fires, so after the
+// human's decision the model gets a fresh run of calls before it can trip again;
+// on denial it also receives recoverable feedback and must change approach. No
+// standing rule is consulted or recorded — this is a one-off brake, not a
+// persistent permission.
 func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName, arguments string, safetyClass tool.SafetyClass) agentexec.ToolApprovalVerdict {
+	t.st.resetDoomLoop()
 	pending := runs.Interrupt{
 		Kind: runs.ApprovalInterruptKind,
 		Approval: &runs.ApprovalPrompt{

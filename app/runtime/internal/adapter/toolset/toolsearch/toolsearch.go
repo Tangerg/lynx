@@ -12,11 +12,11 @@
 package toolsearch
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
-	"sort"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
@@ -47,10 +47,11 @@ type entry struct {
 	definition chat.ToolDefinition
 	server     string   // MCP server name, for round-robin fairness; "" if unknown
 	nameTerms  []string // tokenized qualified name
+	nameLower  string
 	descLower  string
 }
 
-type mcpIdentity interface {
+type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
@@ -80,6 +81,7 @@ func New(withheld []tools.Tool) *Tool {
 			definition: def,
 			server:     serverOf(tool),
 			nameTerms:  tokenize(def.Name),
+			nameLower:  strings.ToLower(def.Name),
 			descLower:  strings.ToLower(def.Description),
 		}
 		t.entries = append(t.entries, e)
@@ -128,9 +130,11 @@ func (t *Tool) buildDescription() string {
 	fmt.Fprintf(&b, "Load additional tools on demand. %d tool(s) from your connected integrations are available but not loaded into your context to keep it small. ",
 		len(t.entries))
 	b.WriteString("Search by capability (query=\"...\") or load exact tools (query=\"select:name1,name2\"); matches become directly callable on your next step.\n\nNot loaded:")
-	lastServer := "\x00"
+	lastServer := ""
+	first := true
 	for _, e := range t.entries {
-		if e.server != lastServer {
+		if first || e.server != lastServer {
+			first = false
 			lastServer = e.server
 			if e.server != "" {
 				fmt.Fprintf(&b, "\n  [%s] ", e.server)
@@ -221,11 +225,11 @@ func (t *Tool) searchByKeyword(query string, limit int) []entry {
 		}
 	}
 	// Highest score first; stable by name so ties are deterministic.
-	sort.SliceStable(hits, func(i, j int) bool {
-		if hits[i].score != hits[j].score {
-			return hits[i].score > hits[j].score
+	slices.SortStableFunc(hits, func(a, b scored) int {
+		if a.score != b.score {
+			return cmp.Compare(b.score, a.score)
 		}
-		return hits[i].entry.definition.Name < hits[j].entry.definition.Name
+		return strings.Compare(a.entry.definition.Name, b.entry.definition.Name)
 	})
 	return roundRobinByServer(hits, limit)
 }
@@ -244,7 +248,7 @@ func scoreEntry(terms []string, e entry) (int, bool) {
 		switch {
 		case slices.Contains(e.nameTerms, term):
 			s = 3
-		case strings.Contains(strings.ToLower(e.definition.Name), term):
+		case strings.Contains(e.nameLower, term):
 			s = 2
 		case strings.Contains(e.descLower, term):
 			s = 1
@@ -317,7 +321,7 @@ func (t *Tool) renderNoMatch(query string) string {
 }
 
 func serverOf(tool tools.Tool) string {
-	if id, ok := tool.(mcpIdentity); ok {
+	if id, ok := tool.(mcpToolIdentity); ok {
 		server, _ := id.MCPToolIdentity()
 		return server
 	}

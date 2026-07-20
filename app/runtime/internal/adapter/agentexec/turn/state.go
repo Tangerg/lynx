@@ -240,6 +240,17 @@ func (st *turnState) repeatedNoProgress(toolName, arguments string) int {
 	return st.doomRepeat
 }
 
+// resetDoomLoop clears the no-progress streak once the brake has escalated a
+// call to a human. The escalation parks the turn, and an in-memory resume reuses
+// this same turnState, so without an explicit reset the very next identical call
+// would re-trip the brake — the model would never get room to continue after the
+// human's decision. Zeroing the count here gives it a fresh run of calls.
+func (st *turnState) resetDoomLoop() {
+	st.mu.Lock()
+	st.doomRepeat = 0
+	st.mu.Unlock()
+}
+
 // hashOutput is a cheap, allocation-free fingerprint of a tool result. Only
 // equality matters (did the output change between identical calls), so FNV-64a
 // is sufficient and collisions merely risk one missed brake, never corruption.
