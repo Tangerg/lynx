@@ -298,27 +298,19 @@ type SnapshotReader interface {
 	Load(context.Context, string) (ProcessSnapshot, error)
 }
 
-// SnapshotWriter atomically writes snapshot only when expectedRevision is the
-// currently stored revision. A new process uses expectedRevision 0 and commits
-// revision 1; every successful write returns expectedRevision+1.
+// SnapshotWriter atomically writes snapshot only when Snapshot.Revision is the
+// currently stored revision. A new process uses revision 0; every successful
+// write commits revision Snapshot.Revision+1.
 type SnapshotWriter interface {
-	Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+	Save(context.Context, ProcessSnapshot) error
 }
 
-// SnapshotWrite is one compare-and-swap operation in an atomic snapshot batch.
-// Snapshot.Revision must equal ExpectedRevision.
-type SnapshotWrite struct {
-	Snapshot         ProcessSnapshot
-	ExpectedRevision uint64
-}
-
-// SnapshotBatchWriter atomically applies an ordered set of snapshot writes.
-// Implementations must validate every write and every expected revision before
-// mutating durable state. Returned revisions correspond to writes by index and
-// equal each ExpectedRevision+1. An error leaves every snapshot in the batch
-// unchanged.
+// SnapshotBatchWriter atomically applies a set of snapshot writes.
+// Each snapshot's Revision is its compare-and-swap expectation. Implementations
+// must validate every snapshot and expected revision before mutating durable
+// state. An error leaves every snapshot in the batch unchanged.
 type SnapshotBatchWriter interface {
-	SaveBatch(context.Context, []SnapshotWrite) ([]uint64, error)
+	SaveBatch(context.Context, []ProcessSnapshot) error
 }
 
 // ProcessStore is the minimum persistence capability required by Engine.
@@ -366,50 +358,39 @@ func NewMemoryProcessStore() *MemoryProcessStore {
 	return &MemoryProcessStore{snapshots: map[string]ProcessSnapshot{}}
 }
 
-func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot, expectedRevision uint64) (uint64, error) {
-	revisions, err := s.SaveBatch(ctx, []SnapshotWrite{{
-		Snapshot:         snapshot,
-		ExpectedRevision: expectedRevision,
-	}})
-	if err != nil {
-		return 0, err
-	}
-	return revisions[0], nil
+func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot) error {
+	return s.SaveBatch(ctx, []ProcessSnapshot{snapshot})
 }
 
 // SaveBatch validates, clones, and CAS-checks every write before committing the
 // batch under one lock.
-func (s *MemoryProcessStore) SaveBatch(ctx context.Context, writes []SnapshotWrite) ([]uint64, error) {
+func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []ProcessSnapshot) error {
 	if s == nil {
-		return nil, errors.New("memory process store: nil receiver")
+		return errors.New("memory process store: nil receiver")
 	}
 	if err := contextError(ctx); err != nil {
-		return nil, fmt.Errorf("memory process store: %w", err)
+		return fmt.Errorf("memory process store: %w", err)
 	}
-	if len(writes) == 0 {
-		return nil, nil
+	if len(snapshots) == 0 {
+		return nil
 	}
 
-	candidates := make([]ProcessSnapshot, len(writes))
-	seen := make(map[string]struct{}, len(writes))
-	for index, write := range writes {
-		if write.Snapshot.Revision != write.ExpectedRevision {
-			return nil, fmt.Errorf("memory process store: write[%d]: %w: snapshot revision %d does not match expected revision %d",
-				index, ErrInvalidSnapshot, write.Snapshot.Revision, write.ExpectedRevision)
+	candidates := make([]ProcessSnapshot, len(snapshots))
+	seen := make(map[string]struct{}, len(snapshots))
+	for index, snapshot := range snapshots {
+		if snapshot.Revision == math.MaxUint64 {
+			return fmt.Errorf("memory process store: snapshot[%d]: %w: revision is exhausted", index, ErrInvalidSnapshot)
 		}
-		if write.ExpectedRevision == math.MaxUint64 {
-			return nil, fmt.Errorf("memory process store: write[%d]: %w: revision is exhausted", index, ErrInvalidSnapshot)
+		if err := snapshot.Validate(); err != nil {
+			return fmt.Errorf("memory process store: snapshot[%d]: %w", index, err)
 		}
-		if err := write.Snapshot.Validate(); err != nil {
-			return nil, fmt.Errorf("memory process store: write[%d]: %w", index, err)
+		if _, duplicate := seen[snapshot.ID]; duplicate {
+			return fmt.Errorf("memory process store: snapshot[%d]: %w: duplicate process ID %q", index, ErrInvalidSnapshot, snapshot.ID)
 		}
-		if _, duplicate := seen[write.Snapshot.ID]; duplicate {
-			return nil, fmt.Errorf("memory process store: write[%d]: %w: duplicate process ID %q", index, ErrInvalidSnapshot, write.Snapshot.ID)
-		}
-		seen[write.Snapshot.ID] = struct{}{}
-		cloned, err := write.Snapshot.clone()
+		seen[snapshot.ID] = struct{}{}
+		cloned, err := snapshot.clone()
 		if err != nil {
-			return nil, fmt.Errorf("memory process store: write[%d]: clone snapshot: %w", index, err)
+			return fmt.Errorf("memory process store: snapshot[%d]: clone: %w", index, err)
 		}
 		candidates[index] = cloned
 	}
@@ -417,30 +398,27 @@ func (s *MemoryProcessStore) SaveBatch(ctx context.Context, writes []SnapshotWri
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := contextError(ctx); err != nil {
-		return nil, fmt.Errorf("memory process store: %w", err)
+		return fmt.Errorf("memory process store: %w", err)
 	}
-	for _, write := range writes {
+	for _, snapshot := range snapshots {
 		actualRevision := uint64(0)
-		if current, ok := s.snapshots[write.Snapshot.ID]; ok {
+		if current, ok := s.snapshots[snapshot.ID]; ok {
 			actualRevision = current.Revision
 		}
-		if actualRevision != write.ExpectedRevision {
-			return nil, &RevisionConflictError{
-				ProcessID: write.Snapshot.ID,
-				Expected:  write.ExpectedRevision,
+		if actualRevision != snapshot.Revision {
+			return &RevisionConflictError{
+				ProcessID: snapshot.ID,
+				Expected:  snapshot.Revision,
 				Actual:    actualRevision,
 			}
 		}
 	}
 
-	revisions := make([]uint64, len(writes))
-	for index, write := range writes {
-		revision := write.ExpectedRevision + 1
-		candidates[index].Revision = revision
-		s.snapshots[write.Snapshot.ID] = candidates[index]
-		revisions[index] = revision
+	for index, snapshot := range snapshots {
+		candidates[index].Revision++
+		s.snapshots[snapshot.ID] = candidates[index]
 	}
-	return revisions, nil
+	return nil
 }
 
 func contextError(ctx context.Context) error {

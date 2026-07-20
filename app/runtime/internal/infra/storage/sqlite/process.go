@@ -31,25 +31,18 @@ func NewProcessStore(db *sql.DB) *ProcessStore {
 }
 
 // Save commits one compare-and-swap revision.
-func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot, expectedRevision uint64) (uint64, error) {
-	revisions, err := s.SaveBatch(ctx, []core.SnapshotWrite{{
-		Snapshot:         snapshot,
-		ExpectedRevision: expectedRevision,
-	}})
-	if err != nil {
-		return 0, err
-	}
-	return revisions[0], nil
+func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
+	return s.SaveBatch(ctx, []core.ProcessSnapshot{snapshot})
 }
 
 // SaveBatch commits every compare-and-swap revision in one transaction.
-func (s *ProcessStore) SaveBatch(ctx context.Context, writes []core.SnapshotWrite) ([]uint64, error) {
-	prepared, err := prepareSnapshotWrites(writes)
+func (s *ProcessStore) SaveBatch(ctx context.Context, snapshots []core.ProcessSnapshot) error {
+	prepared, err := prepareSnapshotWrites(snapshots)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if len(prepared) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
@@ -61,14 +54,9 @@ func (s *ProcessStore) SaveBatch(ctx context.Context, writes []core.SnapshotWrit
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	revisions := make([]uint64, len(prepared))
-	for index, write := range prepared {
-		revisions[index] = write.expectedRevision + 1
-	}
-	return revisions, nil
+	return nil
 }
 
 type preparedSnapshotWrite struct {
@@ -77,34 +65,30 @@ type preparedSnapshotWrite struct {
 	data             []byte
 }
 
-func prepareSnapshotWrites(writes []core.SnapshotWrite) ([]preparedSnapshotWrite, error) {
-	prepared := make([]preparedSnapshotWrite, len(writes))
-	seen := make(map[string]struct{}, len(writes))
-	for index, write := range writes {
-		if write.Snapshot.Revision != write.ExpectedRevision {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: snapshot revision %d does not match expected %d",
-				index, core.ErrInvalidSnapshot, write.Snapshot.Revision, write.ExpectedRevision)
-		}
-		if write.ExpectedRevision == math.MaxUint64 {
+func prepareSnapshotWrites(snapshots []core.ProcessSnapshot) ([]preparedSnapshotWrite, error) {
+	prepared := make([]preparedSnapshotWrite, len(snapshots))
+	seen := make(map[string]struct{}, len(snapshots))
+	for index, snapshot := range snapshots {
+		if snapshot.Revision == math.MaxUint64 {
 			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: revision is exhausted", index, core.ErrInvalidSnapshot)
 		}
-		if err := write.Snapshot.Validate(); err != nil {
+		if err := snapshot.Validate(); err != nil {
 			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w", index, err)
 		}
-		if _, duplicate := seen[write.Snapshot.ID]; duplicate {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: duplicate process ID %q", index, core.ErrInvalidSnapshot, write.Snapshot.ID)
+		if _, duplicate := seen[snapshot.ID]; duplicate {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: duplicate process ID %q", index, core.ErrInvalidSnapshot, snapshot.ID)
 		}
-		seen[write.Snapshot.ID] = struct{}{}
+		seen[snapshot.ID] = struct{}{}
 
-		candidate := write.Snapshot
-		candidate.Revision = write.ExpectedRevision + 1
+		candidate := snapshot
+		candidate.Revision++
 		data, err := json.Marshal(candidate)
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: marshal: %w", index, err)
 		}
 		prepared[index] = preparedSnapshotWrite{
 			snapshot:         candidate,
-			expectedRevision: write.ExpectedRevision,
+			expectedRevision: snapshot.Revision,
 			data:             data,
 		}
 	}

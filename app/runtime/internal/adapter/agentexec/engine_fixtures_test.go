@@ -205,21 +205,21 @@ func newJSONProcessStore() *jsonProcessStore {
 	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}, revisions: map[string]uint64{}}
 }
 
-func (s *jsonProcessStore) Save(_ context.Context, snapshot core.ProcessSnapshot, expected uint64) (uint64, error) {
+func (s *jsonProcessStore) Save(_ context.Context, snapshot core.ProcessSnapshot) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	actual := s.revisions[snapshot.ID]
-	if actual != expected {
-		return 0, &core.RevisionConflictError{ProcessID: snapshot.ID, Expected: expected, Actual: actual}
+	if actual != snapshot.Revision {
+		return &core.RevisionConflictError{ProcessID: snapshot.ID, Expected: snapshot.Revision, Actual: actual}
 	}
 	snapshot.Revision = actual + 1
 	raw, err := json.Marshal(snapshot)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	s.snapshots[snapshot.ID] = raw
 	s.revisions[snapshot.ID] = snapshot.Revision
-	return snapshot.Revision, nil
+	return nil
 }
 
 func (s *jsonProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error) {

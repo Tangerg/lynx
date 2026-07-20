@@ -125,7 +125,8 @@
 - durable Host 使用 `Engine.Resumable` 判断 stored continuation，并通过
   `Engine.RestoreResumable` 获得统一的 `ErrResumableSnapshotLost` 分类；Host
   不再读取或解释 `ProcessSnapshot`。
-- ProcessStore 使用 expected revision CAS。
+- ProcessStore 直接使用 `ProcessSnapshot.Revision` 作为 expected revision CAS；成功提交固定
+  持久化为下一 revision，不再传递或返回重复版本值。
 - Engine/Process 在构造边界把公开 Config/ProcessOptions 投影为私有快照，调用方后续修改
   Session identity、Extensions slice 或 Guardrails 不再改变运行中语义；typed-nil capability
   和负数工具轮数在边界返回归因错误，而不是执行期 panic/延迟失败。

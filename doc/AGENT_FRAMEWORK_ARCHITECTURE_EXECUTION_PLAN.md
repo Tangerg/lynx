@@ -603,11 +603,12 @@ type SnapshotReader interface {
 }
 
 type SnapshotWriter interface {
-    Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+    Save(context.Context, ProcessSnapshot) error
 }
 ```
 
-其中最后一个参数表示 expected revision，返回新 revision。Delete、List、Claim/Lease 只在有真实消费者时作为独立能力加入，不强迫所有 store 实现管理面功能。
+`ProcessSnapshot.Revision` 表示 expected revision；成功提交持久化为下一 revision。Delete、
+List、Claim/Lease 只在有真实消费者时作为独立能力加入，不强迫所有 store 实现管理面功能。
 
 跨节点恢复需要额外满足：
 
@@ -944,7 +945,7 @@ type SnapshotReader interface {
 }
 
 type SnapshotWriter interface {
-    Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+    Save(context.Context, ProcessSnapshot) error
 }
 
 type ProcessStore interface {
@@ -961,7 +962,8 @@ type SnapshotLister interface {
 }
 ```
 
-- `Save` 的第三个参数是 expected revision；新记录从 expected=0 写入 revision=1。冲突返回可 `errors.Is(err, ErrRevisionConflict)` 且可 `errors.As` 取得 expected/actual 的 typed error。
+- `ProcessSnapshot.Revision` 是 `Save` 的 expected revision；新记录从 revision=0 写入 revision=1。
+  冲突返回可 `errors.Is(err, ErrRevisionConflict)` 且可 `errors.As` 取得 expected/actual 的 typed error。
 - `Process.Snapshot()` 改为 `(core.ProcessSnapshot, error)`；无法编码 durable Blackboard、未知 tagged type、无效 Suspension 或不一致 DeploymentRef 时直接失败。
 - `Engine.Save` 返回新 revision；Process 在成功 CAS 后原子更新本地 revision。AutoSnapshot 不能吞掉持久化错误并继续宣称 durable。
 - `Delete/List` 不再强迫所有 runtime store 实现；Engine 只依赖 reader/writer，管理面按需断言窄能力。

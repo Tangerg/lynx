@@ -161,7 +161,9 @@ sibling 继续完成，任一插件 goroutine 都不能击穿 Host。
 
 ## 8. 持久化边界
 
-`ProcessSnapshot` 是唯一 durable Process 事实，`ProcessStore.Save` 使用 expected revision CAS 防止 lost update。CAS 不负责跨节点执行所有权；分布式 handoff 仍需 Host lease/fencing。
+`ProcessSnapshot` 是唯一 durable Process 事实，其 `Revision` 直接作为 `ProcessStore.Save` 的
+CAS 前置版本，避免参数与 snapshot 携带两份版本事实。CAS 不负责跨节点执行所有权；分布式
+handoff 仍需 Host lease/fencing。
 
 Snapshot schema v2 的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
 `OwnEmbeddingCalls` 只保存当前 Process 的直接 ledger。Child 各自保存自己的 snapshot；

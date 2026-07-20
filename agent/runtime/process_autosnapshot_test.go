@@ -24,11 +24,11 @@ func newFlakyProcessStore(err error) *flakyProcessStore {
 	return store
 }
 
-func (s *flakyProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot, expected uint64) (uint64, error) {
+func (s *flakyProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
 	if s.fail.Load() {
-		return 0, s.err
+		return s.err
 	}
-	return s.inner.Save(ctx, snapshot, expected)
+	return s.inner.Save(ctx, snapshot)
 }
 
 func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {

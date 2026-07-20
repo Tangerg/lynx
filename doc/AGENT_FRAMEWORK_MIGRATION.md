@@ -404,9 +404,13 @@ if err := storetest.TestSessionStore(t.Context(), store); err != nil {
 ```go
 type ProcessStore interface {
     Load(context.Context, string) (ProcessSnapshot, error)
-    Save(context.Context, ProcessSnapshot, uint64) (uint64, error)
+    Save(context.Context, ProcessSnapshot) error
 }
 ```
+
+`ProcessSnapshot.Revision` 是 CAS 的唯一 expected revision；新 Process 使用 0，成功提交
+持久化为 `Revision+1`。包含嵌套子进程的原子树快照额外要求实现
+`SaveBatch(context.Context, []ProcessSnapshot) error`。
 
 自定义实现运行公共契约：
 

@@ -34,8 +34,8 @@ type singleWriteProcessStore struct {
 	inner *core.MemoryProcessStore
 }
 
-func (s singleWriteProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot, expected uint64) (uint64, error) {
-	return s.inner.Save(ctx, snapshot, expected)
+func (s singleWriteProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
+	return s.inner.Save(ctx, snapshot)
 }
 
 func (s singleWriteProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
@@ -715,7 +715,7 @@ func TestAgentToolNestedSuspensionBatchConflictDoesNotPartiallySaveChild(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Save(t.Context(), parentSnapshot, 0); err != nil {
+	if err := store.Save(t.Context(), parentSnapshot); err != nil {
 		t.Fatalf("seed conflicting parent revision: %v", err)
 	}
 	if _, err := engine.Save(t.Context(), process.ID()); !errors.Is(err, core.ErrRevisionConflict) {

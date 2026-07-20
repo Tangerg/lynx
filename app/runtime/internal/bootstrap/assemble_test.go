@@ -284,7 +284,7 @@ func TestAssembleRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
-	if _, err := cfg.ProcessStore.Save(ctx, core.ProcessSnapshot{
+	if err := cfg.ProcessStore.Save(ctx, core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            processID,
 		Deployment:    core.DeploymentRef{Name: "chat-agent", Digest: "different-build"},
@@ -299,7 +299,7 @@ func TestAssembleRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     parkedAt,
 		},
-	}, 0); err != nil {
+	}); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 
