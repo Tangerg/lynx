@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"errors"
@@ -21,7 +20,10 @@ type AgentMemoryStore struct {
 	db *sql.DB
 }
 
-var _ agentmemory.Store = (*AgentMemoryStore)(nil)
+var (
+	_ agentmemory.Store      = (*AgentMemoryStore)(nil)
+	_ agentmemory.Management = (*AgentMemoryStore)(nil)
+)
 
 // NewAgentMemoryStore binds a database opened by Open.
 func NewAgentMemoryStore(db *sql.DB) *AgentMemoryStore {
@@ -29,13 +31,6 @@ func NewAgentMemoryStore(db *sql.DB) *AgentMemoryStore {
 }
 
 var errAgentMemoryProject = errors.New("sqlite: agent memory project is required")
-
-// digestOf is the content-identity used both to deduplicate ledger facts and to
-// match items across a reconcile so unchanged content keeps its stable id.
-func digestOf(content string) string {
-	sum := sha256.Sum256([]byte(content))
-	return hex.EncodeToString(sum[:])
-}
 
 func newMemoryID() (string, error) {
 	var buf [16]byte
@@ -67,7 +62,7 @@ func (s *AgentMemoryStore) AppendLedger(ctx context.Context, batch agentmemory.F
 				normalized.Day,
 				normalized.SessionID,
 				fact,
-				digestOf(fact),
+				agentmemory.Digest(fact),
 				normalized.CapturedAt.UTC().UnixNano(),
 			)
 			if err != nil {
@@ -220,85 +215,74 @@ func (s *AgentMemoryStore) Reconcile(
 	return published, err
 }
 
-// reconcileItems folds the curated contents into the project's auto-origin
-// items as PENDING proposals for human review. A curated fact not yet
-// represented (in any status) becomes a new pending item; a pending proposal the
-// curator no longer produces is pruned. Approved (active) and declined
-// (rejected) items are sticky: active memory the user accepted is never
-// auto-removed, and a rejected tombstone blocks the same fact from being
-// re-proposed. Pinned and user-authored items are never touched.
+// reconcileItems applies the domain fold ([agentmemory.Fold]) to the project's
+// auto-origin items: prune the stale pending proposals it flags, insert the new
+// curated facts as pending proposals. The review invariants (tombstone,
+// active-sticky, pending-default, digest identity) live in the domain; this is
+// the persistence that carries the plan out.
 func (s *AgentMemoryStore) reconcileItems(ctx context.Context, project string, contents []string, now time.Time) error {
-	desired := make(map[string]string, len(contents))
-	order := make([]string, 0, len(contents))
-	for _, content := range contents {
-		content = strings.TrimSpace(content)
-		if content == "" {
-			continue
-		}
-		digest := digestOf(content)
-		if _, dup := desired[digest]; dup {
-			continue
-		}
-		desired[digest] = content
-		order = append(order, digest)
-	}
-
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT id, digest, status FROM agent_memory_items
-		 WHERE scope = 'project' AND project = ? AND origin = 'auto' AND pinned = 0`, project)
+	existing, err := s.autoItems(ctx, project)
 	if err != nil {
-		return fmt.Errorf("sqlite: list agent memory items: %w", err)
+		return err
 	}
-	type existing struct{ id, digest, status string }
-	var have []existing
-	for rows.Next() {
-		var e existing
-		if err := rows.Scan(&e.id, &e.digest, &e.status); err != nil {
-			rows.Close()
-			return fmt.Errorf("sqlite: scan agent memory item: %w", err)
-		}
-		have = append(have, e)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("sqlite: close agent memory items: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("sqlite: iterate agent memory items: %w", err)
-	}
-
-	present := make(map[string]struct{}, len(have))
-	for _, e := range have {
-		present[e.digest] = struct{}{}
-		// Prune only stale PENDING proposals; active/rejected are sticky.
-		if e.status == "pending" {
-			if _, keep := desired[e.digest]; !keep {
-				if _, err := conn(ctx, s.db).ExecContext(ctx,
-					`DELETE FROM agent_memory_items WHERE id = ?`, e.id); err != nil {
-					return fmt.Errorf("sqlite: prune agent memory item: %w", err)
-				}
-			}
+	plan := agentmemory.Fold(existing, contents)
+	for _, id := range plan.PruneIDs {
+		if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM agent_memory_items WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("sqlite: prune agent memory item: %w", err)
 		}
 	}
-
-	nano := now.UTC().UnixNano()
-	day := now.UTC().Format(time.DateOnly)
-	for _, digest := range order {
-		if _, exists := present[digest]; exists {
-			continue
-		}
+	for _, content := range plan.InsertContents {
 		id, err := newMemoryID()
 		if err != nil {
 			return err
 		}
-		// OR IGNORE: a pinned or user item may already hold this content under
-		// the unique (scope, project, digest) index — keep it, don't duplicate.
-		if _, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT OR IGNORE INTO agent_memory_items(
-				id, scope, project, content, digest, origin, status, pinned, session_id, day, created_at, updated_at
-			) VALUES (?, 'project', ?, ?, ?, 'auto', 'pending', 0, '', ?, ?, ?)`,
-			id, project, desired[digest], digest, day, nano, nano); err != nil {
-			return fmt.Errorf("sqlite: insert agent memory item: %w", err)
+		if err := s.insertItem(ctx, agentmemory.NewProposal(id, project, content, now)); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// autoItems fetches the project's auto-origin, unpinned items (id + content +
+// status) the fold reconciles over.
+func (s *AgentMemoryStore) autoItems(ctx context.Context, project string) ([]agentmemory.Item, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
+		`SELECT id, content, status FROM agent_memory_items
+		 WHERE scope = 'project' AND project = ? AND origin = 'auto' AND pinned = 0`, project)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list agent memory items: %w", err)
+	}
+	defer rows.Close()
+	var items []agentmemory.Item
+	for rows.Next() {
+		var (
+			item       agentmemory.Item
+			statusText string
+		)
+		if err := rows.Scan(&item.ID, &item.Content, &statusText); err != nil {
+			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", err)
+		}
+		item.Status = agentmemory.ParseStatus(statusText)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
+	}
+	return items, nil
+}
+
+// insertItem writes a constructed item. OR IGNORE: a pinned or user item may
+// already hold this content under the unique (scope, project, digest) index —
+// keep it, don't duplicate.
+func (s *AgentMemoryStore) insertItem(ctx context.Context, item agentmemory.Item) error {
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
+		`INSERT OR IGNORE INTO agent_memory_items(
+			id, scope, project, content, digest, origin, status, pinned, session_id, day, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		item.ID, item.Scope.String(), item.Project, item.Content, agentmemory.Digest(item.Content),
+		item.Origin.String(), item.Status.String(), boolToInt(item.Pinned), item.SessionID, item.Day,
+		item.CreatedAt.UTC().UnixNano(), item.UpdatedAt.UTC().UnixNano()); err != nil {
+		return fmt.Errorf("sqlite: insert agent memory item: %w", err)
 	}
 	return nil
 }
@@ -496,7 +480,7 @@ func (s *AgentMemoryStore) UpdateContent(ctx context.Context, id, content string
 	}
 	result, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE agent_memory_items SET content = ?, digest = ?, embedding = x'', updated_at = ? WHERE id = ?`,
-		content, digestOf(content), now.UTC().UnixNano(), id)
+		content, agentmemory.Digest(content), now.UTC().UnixNano(), id)
 	if err != nil {
 		return fmt.Errorf("sqlite: edit agent memory: %w", err)
 	}
@@ -516,25 +500,19 @@ func (s *AgentMemoryStore) Delete(ctx context.Context, id string) error {
 // Add stores a user-authored active item. A digest collision with an existing
 // item returns that item unchanged rather than creating a duplicate.
 func (s *AgentMemoryStore) Add(ctx context.Context, scope agentmemory.Scope, project, content string, now time.Time) (agentmemory.Item, error) {
-	content = strings.TrimSpace(content)
-	if content == "" {
+	if strings.TrimSpace(content) == "" {
 		return agentmemory.Item{}, errors.New("sqlite: agent memory content is required")
 	}
-	digest := digestOf(content)
 	id, err := newMemoryID()
 	if err != nil {
 		return agentmemory.Item{}, err
 	}
-	nano := now.UTC().UnixNano()
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT OR IGNORE INTO agent_memory_items(
-			id, scope, project, content, digest, origin, status, pinned, session_id, day, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, 'user', 'active', 0, '', ?, ?, ?)`,
-		id, scope.String(), project, content, digest, now.UTC().Format(time.DateOnly), nano, nano); err != nil {
-		return agentmemory.Item{}, fmt.Errorf("sqlite: add agent memory: %w", err)
+	item := agentmemory.NewUserItem(id, scope, project, content, now)
+	if err := s.insertItem(ctx, item); err != nil {
+		return agentmemory.Item{}, err
 	}
-	item, _, err := s.itemByDigest(ctx, scope, project, digest)
-	return item, err
+	stored, _, err := s.itemByDigest(ctx, scope, project, agentmemory.Digest(item.Content))
+	return stored, err
 }
 
 func (s *AgentMemoryStore) itemByDigest(ctx context.Context, scope agentmemory.Scope, project, digest string) (agentmemory.Item, bool, error) {

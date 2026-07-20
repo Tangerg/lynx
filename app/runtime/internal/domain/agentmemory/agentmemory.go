@@ -12,12 +12,23 @@ package agentmemory
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 )
+
+// Digest is a memory item's content identity: the same fact always hashes the
+// same, so the fold deduplicates across statuses and a reconcile keeps an
+// unchanged item's id and provenance. It is a domain concept — the persistence
+// layer stores it, but the meaning (content identity) lives here.
+func Digest(content string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(content)))
+	return hex.EncodeToString(sum[:])
+}
 
 // ErrNotFound is returned by the management operations when no item has the
 // given id.
@@ -143,6 +154,33 @@ type Item struct {
 	Embedding []float32
 }
 
+// NewProposal builds a mined memory item awaiting review: project-scoped, auto
+// origin, pending status. The caller supplies the id and the clock.
+func NewProposal(id, project, content string, now time.Time) Item {
+	return newItem(id, ScopeProject, project, content, OriginAuto, StatusPending, now)
+}
+
+// NewUserItem builds a user-authored memory item: active immediately (the user
+// is the author, so there is nothing to review).
+func NewUserItem(id string, scope Scope, project, content string, now time.Time) Item {
+	return newItem(id, scope, project, content, OriginUser, StatusActive, now)
+}
+
+func newItem(id string, scope Scope, project, content string, origin Origin, status Status, now time.Time) Item {
+	now = now.UTC()
+	return Item{
+		ID:        id,
+		Scope:     scope,
+		Project:   project,
+		Content:   strings.TrimSpace(content),
+		Origin:    origin,
+		Status:    status,
+		Day:       now.Format(time.DateOnly),
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+}
+
 // FactBatch is one extraction boundary's project-scoped ledger append.
 type FactBatch struct {
 	Project    string
@@ -190,9 +228,10 @@ type State struct {
 	UpdatedAt time.Time
 }
 
-// Store is the agent-memory persistence contract, implemented by the SQLite
-// backend. The fact ledger is project-scoped raw capture; the item set is the
-// curated projection reconciled from it.
+// Store is the extraction + search face of agent-memory persistence: the fact
+// ledger (project-scoped raw capture), the item set reconciled from it, and the
+// embedding backfill the searcher ranks over. The human review operations are a
+// separate port, [Management], so each consumer depends only on its slice.
 type Store interface {
 	// AppendLedger inserts facts not already present in the project (dedup by
 	// content digest) and returns the newly inserted facts in sequence order.
@@ -219,8 +258,6 @@ type Store interface {
 	// Items lists the active items for (scope, project): pinned first, then most
 	// recently updated. Empty scope/project is valid (returns no items).
 	Items(ctx context.Context, scope Scope, project string) ([]Item, error)
-
-	Management
 
 	// ItemsForSearch lists the (scope, project) items with their Embedding
 	// populated, for the [Searcher] to rank. The corpus is small (a project's
