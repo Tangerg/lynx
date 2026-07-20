@@ -96,6 +96,11 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	if err != nil || latest.Revision != 2 {
 		return fmt.Errorf("storetest: latest revision = %d: %w", latest.Revision, err)
 	}
+	if batchWriter, ok := store.(core.SnapshotBatchWriter); ok {
+		if err := testSnapshotBatchWriter(ctx, store, batchWriter, id); err != nil {
+			return err
+		}
+	}
 
 	if lister, ok := store.(core.SnapshotLister); ok {
 		ids, err := lister.List(ctx)
@@ -120,6 +125,76 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 		if _, err := store.Load(ctx, id); !errors.Is(err, core.ErrSnapshotNotFound) {
 			return fmt.Errorf("storetest: Load after Delete: %w", err)
 		}
+	}
+	return nil
+}
+
+func testSnapshotBatchWriter(
+	ctx context.Context,
+	store core.ProcessStore,
+	writer core.SnapshotBatchWriter,
+	prefix string,
+) error {
+	firstID := prefix + "-batch-first"
+	secondID := prefix + "-batch-second"
+	if deleter, ok := store.(core.SnapshotDeleter); ok {
+		defer func() {
+			_ = deleter.Delete(context.WithoutCancel(ctx), firstID)
+			_ = deleter.Delete(context.WithoutCancel(ctx), secondID)
+		}()
+	}
+	started := time.Now().UTC().Add(-time.Second)
+	newSnapshot := func(id string, tokens int) core.ProcessSnapshot {
+		return core.ProcessSnapshot{
+			SchemaVersion: core.ProcessSnapshotSchemaVersion,
+			ID:            id,
+			Deployment:    core.DeploymentRef{Name: "storetest", Digest: "storetest-digest"},
+			StartedAt:     started,
+			CapturedAt:    started.Add(time.Millisecond),
+			Status:        core.StatusRunning,
+			OwnTokens:     tokens,
+		}
+	}
+	first := newSnapshot(firstID, 1)
+	second := newSnapshot(secondID, 2)
+	revisions, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
+		{Snapshot: first, ExpectedRevision: 0},
+		{Snapshot: second, ExpectedRevision: 0},
+	})
+	if err != nil || len(revisions) != 2 || revisions[0] != 1 || revisions[1] != 1 {
+		return fmt.Errorf("storetest: SaveBatch create revisions = %v: %w", revisions, err)
+	}
+
+	first.Revision = 1
+	first.OwnTokens = 10
+	second.OwnTokens = 20 // Deliberately stale: its durable revision is 1.
+	if _, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
+		{Snapshot: first, ExpectedRevision: 1},
+		{Snapshot: second, ExpectedRevision: 0},
+	}); !errors.Is(err, core.ErrRevisionConflict) {
+		return fmt.Errorf("storetest: stale SaveBatch error = %w", err)
+	}
+	storedFirst, err := store.Load(ctx, firstID)
+	if err != nil {
+		return fmt.Errorf("storetest: load first batch snapshot: %w", err)
+	}
+	storedSecond, err := store.Load(ctx, secondID)
+	if err != nil {
+		return fmt.Errorf("storetest: load second batch snapshot: %w", err)
+	}
+	if storedFirst.Revision != 1 || storedFirst.OwnTokens != 1 || storedSecond.Revision != 1 || storedSecond.OwnTokens != 2 {
+		return fmt.Errorf("storetest: rejected SaveBatch mutated snapshots: first=%#v second=%#v", storedFirst, storedSecond)
+	}
+
+	duplicate := newSnapshot(prefix+"-batch-duplicate", 3)
+	if _, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
+		{Snapshot: duplicate, ExpectedRevision: 0},
+		{Snapshot: duplicate, ExpectedRevision: 0},
+	}); !errors.Is(err, core.ErrInvalidSnapshot) {
+		return fmt.Errorf("storetest: duplicate SaveBatch error = %w", err)
+	}
+	if _, err := store.Load(ctx, duplicate.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		return fmt.Errorf("storetest: duplicate SaveBatch mutated store: %w", err)
 	}
 	return nil
 }

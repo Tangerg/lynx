@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -21,6 +22,7 @@ type ProcessStore struct {
 }
 
 var _ core.ProcessStore = (*ProcessStore)(nil)
+var _ core.SnapshotBatchWriter = (*ProcessStore)(nil)
 
 // NewProcessStore binds the SQLite process-store to a database opened via
 // [Open].
@@ -30,49 +32,130 @@ func NewProcessStore(db *sql.DB) *ProcessStore {
 
 // Save commits one compare-and-swap revision.
 func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot, expectedRevision uint64) (uint64, error) {
-	if snapshot.Revision != expectedRevision {
-		return 0, fmt.Errorf("sqlite: %w: snapshot revision %d does not match expected %d", core.ErrInvalidSnapshot, snapshot.Revision, expectedRevision)
-	}
-	if err := snapshot.Validate(); err != nil {
-		return 0, fmt.Errorf("sqlite: %w", err)
-	}
-	snapshot.Revision = expectedRevision + 1
-	data, err := json.Marshal(snapshot)
+	revisions, err := s.SaveBatch(ctx, []core.SnapshotWrite{{
+		Snapshot:         snapshot,
+		ExpectedRevision: expectedRevision,
+	}})
 	if err != nil {
-		return 0, fmt.Errorf("sqlite: marshal snapshot: %w", err)
+		return 0, err
 	}
-	var revision uint64
-	if expectedRevision == 0 {
-		err = conn(ctx, s.db).QueryRowContext(ctx,
+	return revisions[0], nil
+}
+
+// SaveBatch commits every compare-and-swap revision in one transaction.
+func (s *ProcessStore) SaveBatch(ctx context.Context, writes []core.SnapshotWrite) ([]uint64, error) {
+	prepared, err := prepareSnapshotWrites(writes)
+	if err != nil {
+		return nil, err
+	}
+	if len(prepared) == 0 {
+		return nil, nil
+	}
+
+	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
+		for index := range prepared {
+			if err := s.savePreparedSnapshot(ctx, prepared[index]); err != nil {
+				return fmt.Errorf("sqlite: save snapshot batch write[%d]: %w", index, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	revisions := make([]uint64, len(prepared))
+	for index, write := range prepared {
+		revisions[index] = write.expectedRevision + 1
+	}
+	return revisions, nil
+}
+
+type preparedSnapshotWrite struct {
+	snapshot         core.ProcessSnapshot
+	expectedRevision uint64
+	data             []byte
+}
+
+func prepareSnapshotWrites(writes []core.SnapshotWrite) ([]preparedSnapshotWrite, error) {
+	prepared := make([]preparedSnapshotWrite, len(writes))
+	seen := make(map[string]struct{}, len(writes))
+	for index, write := range writes {
+		if write.Snapshot.Revision != write.ExpectedRevision {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: snapshot revision %d does not match expected %d",
+				index, core.ErrInvalidSnapshot, write.Snapshot.Revision, write.ExpectedRevision)
+		}
+		if write.ExpectedRevision == math.MaxUint64 {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: revision is exhausted", index, core.ErrInvalidSnapshot)
+		}
+		if err := write.Snapshot.Validate(); err != nil {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w", index, err)
+		}
+		if _, duplicate := seen[write.Snapshot.ID]; duplicate {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: duplicate process ID %q", index, core.ErrInvalidSnapshot, write.Snapshot.ID)
+		}
+		seen[write.Snapshot.ID] = struct{}{}
+
+		candidate := write.Snapshot
+		candidate.Revision = write.ExpectedRevision + 1
+		data, err := json.Marshal(candidate)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: marshal: %w", index, err)
+		}
+		prepared[index] = preparedSnapshotWrite{
+			snapshot:         candidate,
+			expectedRevision: write.ExpectedRevision,
+			data:             data,
+		}
+	}
+	return prepared, nil
+}
+
+func (s *ProcessStore) savePreparedSnapshot(ctx context.Context, write preparedSnapshotWrite) error {
+	var result sql.Result
+	var err error
+	if write.expectedRevision == 0 {
+		result, err = conn(ctx, s.db).ExecContext(ctx,
 			`INSERT INTO process_snapshots(id, revision, snapshot, captured_at)
 			 VALUES (?, 1, ?, ?)
-			 ON CONFLICT(id) DO NOTHING
-			 RETURNING revision`,
-			snapshot.ID, string(data), snapshot.CapturedAt.UnixNano(),
-		).Scan(&revision)
+			 ON CONFLICT(id) DO NOTHING`,
+			write.snapshot.ID, string(write.data), write.snapshot.CapturedAt.UnixNano(),
+		)
 	} else {
-		err = conn(ctx, s.db).QueryRowContext(ctx,
+		result, err = conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE process_snapshots
 			 SET revision = ?, snapshot = ?, captured_at = ?
-			 WHERE id = ? AND revision = ?
-			 RETURNING revision`,
-			snapshot.Revision, string(data), snapshot.CapturedAt.UnixNano(), snapshot.ID, expectedRevision,
-		).Scan(&revision)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		actual := uint64(0)
-		loadErr := conn(ctx, s.db).QueryRowContext(ctx,
-			`SELECT revision FROM process_snapshots WHERE id = ?`, snapshot.ID,
-		).Scan(&actual)
-		if loadErr != nil && !errors.Is(loadErr, sql.ErrNoRows) {
-			return 0, fmt.Errorf("sqlite: read conflicting snapshot revision: %w", loadErr)
-		}
-		return 0, &core.RevisionConflictError{ProcessID: snapshot.ID, Expected: expectedRevision, Actual: actual}
+			 WHERE id = ? AND revision = ?`,
+			write.snapshot.Revision, string(write.data), write.snapshot.CapturedAt.UnixNano(),
+			write.snapshot.ID, write.expectedRevision,
+		)
 	}
 	if err != nil {
-		return 0, fmt.Errorf("sqlite: save snapshot: %w", err)
+		return fmt.Errorf("write process %q: %w", write.snapshot.ID, err)
 	}
-	return revision, nil
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read affected rows for process %q: %w", write.snapshot.ID, err)
+	}
+	if changed == 1 {
+		return nil
+	}
+	if changed != 0 {
+		return fmt.Errorf("write process %q affected %d rows", write.snapshot.ID, changed)
+	}
+
+	actual := uint64(0)
+	err = conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT revision FROM process_snapshots WHERE id = ?`, write.snapshot.ID,
+	).Scan(&actual)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf("read conflicting revision for process %q: %w", write.snapshot.ID, err)
+	}
+	return &core.RevisionConflictError{
+		ProcessID: write.snapshot.ID,
+		Expected:  write.expectedRevision,
+		Actual:    actual,
+	}
 }
 
 // Load returns the snapshot for id, or an error wrapping

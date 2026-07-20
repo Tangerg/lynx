@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -103,6 +104,12 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 	}
 	if successes != 1 || conflicts != 1 {
 		t.Fatalf("concurrent CAS successes=%d conflicts=%d", successes, conflicts)
+	}
+}
+
+func TestProcessStoreContract(t *testing.T) {
+	if err := storetest.TestProcessStore(t.Context(), newProcessStore(t)); err != nil {
+		t.Fatal(err)
 	}
 }
 
