@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,101 @@ import (
 
 // ErrInvalidSession reports a structurally invalid conversation identity.
 var ErrInvalidSession = errors.New("session: invalid")
+
+// ErrInvalidSessionMetadata reports a value that cannot be represented by the
+// session metadata JSON-object contract.
+var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
+
+// SessionMetadata is an owned JSON object associated with a session. Values
+// are validated and encoded when set, so persistence cannot fail later because
+// a caller stored a function, channel, cycle, or other non-JSON value. Its zero
+// value is an empty object ready for use.
+type SessionMetadata struct {
+	fields map[string]json.RawMessage
+}
+
+// ParseSessionMetadata validates and owns one JSON object.
+func ParseSessionMetadata(data []byte) (SessionMetadata, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return SessionMetadata{}, fmt.Errorf("%w: decode object: %w", ErrInvalidSessionMetadata, err)
+	}
+	if fields == nil {
+		return SessionMetadata{}, fmt.Errorf("%w: expected object", ErrInvalidSessionMetadata)
+	}
+	metadata := SessionMetadata{fields: make(map[string]json.RawMessage, len(fields))}
+	for name, value := range fields {
+		metadata.fields[name] = bytes.Clone(value)
+	}
+	return metadata, nil
+}
+
+// Set validates and stores value under name.
+func (m *SessionMetadata) Set(name string, value any) error {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("%w: encode field %q: %w", ErrInvalidSessionMetadata, name, err)
+	}
+	if m.fields == nil {
+		m.fields = make(map[string]json.RawMessage)
+	}
+	m.fields[name] = encoded
+	return nil
+}
+
+// Decode unmarshals the value associated with name into dst. It reports false
+// without modifying dst when name is absent.
+func (m SessionMetadata) Decode(name string, dst any) (bool, error) {
+	value, ok := m.fields[name]
+	if !ok {
+		return false, nil
+	}
+	if err := json.Unmarshal(value, dst); err != nil {
+		return true, fmt.Errorf("decode session metadata field %q: %w", name, err)
+	}
+	return true, nil
+}
+
+// Delete removes name from m.
+func (m *SessionMetadata) Delete(name string) { delete(m.fields, name) }
+
+// Len returns the number of metadata fields.
+func (m SessionMetadata) Len() int { return len(m.fields) }
+
+// IsZero reports whether m is empty.
+func (m SessionMetadata) IsZero() bool { return len(m.fields) == 0 }
+
+// Clone returns a recursively ownership-isolated metadata value. Each field is
+// already encoded JSON, so copying the raw messages also detaches nested data.
+func (m SessionMetadata) Clone() SessionMetadata {
+	if len(m.fields) == 0 {
+		return SessionMetadata{}
+	}
+	clone := SessionMetadata{fields: make(map[string]json.RawMessage, len(m.fields))}
+	for name, value := range m.fields {
+		clone.fields[name] = bytes.Clone(value)
+	}
+	return clone
+}
+
+// MarshalJSON implements json.Marshaler. Empty metadata is encoded as an
+// object rather than null.
+func (m SessionMetadata) MarshalJSON() ([]byte, error) {
+	if len(m.fields) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(m.fields)
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (m *SessionMetadata) UnmarshalJSON(data []byte) error {
+	metadata, err := ParseSessionMetadata(data)
+	if err != nil {
+		return err
+	}
+	*m = metadata
+	return nil
+}
 
 // Session models a multi-turn conversation against an agent. The
 // session id doubles as the chat history conversation id so the
@@ -57,12 +153,8 @@ type Session struct {
 	// ([Engine.RunInSession] refreshes this on every turn).
 	UpdatedAt time.Time `json:"updated_at"`
 
-	// Metadata carries free-form annotations the application
-	// wants to associate with the session (channel name, locale,
-	// preference flags, etc.). The runtime treats this as
-	// opaque — backends marshal it via [encoding/json], so only
-	// JSON-friendly values round-trip.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	// Metadata carries opaque, JSON-safe application annotations.
+	Metadata SessionMetadata `json:"metadata,omitzero"`
 }
 
 // SessionInfo is the immutable identity/audit subset actions may inspect.
@@ -93,8 +185,7 @@ func (s *Session) info() (SessionInfo, bool) {
 
 // NewSession builds a session with sensible defaults — the caller's id
 // is stored verbatim (callers are expected to seed a stable id) and
-// timestamps are set to now. The Metadata map is allocated so callers
-// can write without nil-checking.
+// timestamps are set to now. Metadata's zero value is ready for use.
 func NewSession(id, userID, agentName string) Session {
 	now := time.Now()
 	return Session{
@@ -103,7 +194,6 @@ func NewSession(id, userID, agentName string) Session {
 		AgentName: agentName,
 		StartedAt: now,
 		UpdatedAt: now,
-		Metadata:  map[string]any{},
 	}
 }
 
@@ -156,27 +246,12 @@ func (s *Session) Touch() {
 	s.UpdatedAt = time.Now()
 }
 
-// storageSnapshot returns an ownership-isolated representation of s matching
-// the documented JSON persistence contract for Metadata. The JSON round trip
-// both rejects values a durable SessionStore could not encode and recursively
-// detaches nested maps and slices; a shallow map clone would still let callers
-// mutate a saved session through one of its metadata values.
+// storageSnapshot returns an ownership-isolated representation of s.
 func (s Session) storageSnapshot() (Session, error) {
 	if err := s.Validate(); err != nil {
 		return Session{}, err
 	}
-	if s.Metadata == nil {
-		return s, nil
-	}
-	encoded, err := json.Marshal(s.Metadata)
-	if err != nil {
-		return Session{}, fmt.Errorf("session metadata: %w", err)
-	}
-	var metadata map[string]any
-	if err := json.Unmarshal(encoded, &metadata); err != nil {
-		return Session{}, fmt.Errorf("session metadata: %w", err)
-	}
-	s.Metadata = metadata
+	s.Metadata = s.Metadata.Clone()
 	return s, nil
 }
 

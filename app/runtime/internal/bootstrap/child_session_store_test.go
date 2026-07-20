@@ -24,6 +24,10 @@ func TestChildSessionStorePreservesRuntimeIdentity(t *testing.T) {
 	}
 	store := newChildSessionStore(productSessions)
 	now := time.Unix(1_700_000_000, 123).UTC()
+	metadata, err := core.ParseSessionMetadata([]byte(`{"source":"runtime"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	session := core.Session{
 		ID:        "child-process",
 		ParentID:  parent.ID,
@@ -31,7 +35,7 @@ func TestChildSessionStorePreservesRuntimeIdentity(t *testing.T) {
 		AgentName: "research-agent",
 		StartedAt: now,
 		UpdatedAt: now.Add(time.Second),
-		Metadata:  map[string]any{"source": "runtime"},
+		Metadata:  metadata,
 	}
 
 	if err := store.Save(t.Context(), session); err != nil {
@@ -41,10 +45,12 @@ func TestChildSessionStorePreservesRuntimeIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
+	var source string
+	found, metadataErr := loaded.Metadata.Decode("source", &source)
 	if loaded.ID != session.ID || loaded.ParentID != session.ParentID ||
 		loaded.UserID != session.UserID || loaded.AgentName != session.AgentName ||
 		!loaded.StartedAt.Equal(session.StartedAt) || !loaded.UpdatedAt.Equal(session.UpdatedAt) ||
-		loaded.Metadata["source"] != "runtime" {
+		metadataErr != nil || !found || source != "runtime" {
 		t.Fatalf("loaded session = %#v, want runtime identity %#v", loaded, session)
 	}
 	product, err := productSessions.Get(t.Context(), session.ID)

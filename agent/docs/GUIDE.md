@@ -270,6 +270,10 @@ if err := storetest.TestSessionStore(t.Context(), sessionStore); err != nil {
 lineage 的 adapter 不能冒充 root store。SessionStore 的最小合同只有 Save/Load；管理面按需
 实现 `SessionDeleter` 与 `SessionLister`。
 
+`Session.Metadata` 是零值可用的 `core.SessionMetadata`，不是运行时绑定 map。调用 `Set` 时值会
+立即验证并编码为自有 JSON；读取使用 `Decode`。因此函数、channel、循环引用等非法值在领域
+边界直接返回 `core.ErrInvalidSessionMetadata`，不会延迟到 SessionStore 提交时才失败。
+
 ## 8. Extension 与 Dependencies
 
 所有行为扩展先实现：

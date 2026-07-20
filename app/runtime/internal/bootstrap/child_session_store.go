@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -42,9 +43,13 @@ func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
 	if err := sess.Validate(); err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
 	}
-	annotations, err := sessionsvc.AgentAnnotationsFromMap(sess.Metadata)
+	metadata, err := json.Marshal(sess.Metadata)
 	if err != nil {
 		return fmt.Errorf("child session store: encode annotations for %q: %w", sess.ID, err)
+	}
+	annotations, err := sessionsvc.ParseAgentAnnotations(metadata)
+	if err != nil {
+		return fmt.Errorf("child session store: validate annotations for %q: %w", sess.ID, err)
 	}
 	_, err = s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
 		ID:               sess.ID,
@@ -79,6 +84,10 @@ func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, 
 			ls.Kind,
 		)
 	}
+	metadata, err := core.ParseSessionMetadata(ls.AgentAnnotations.JSON())
+	if err != nil {
+		return core.Session{}, fmt.Errorf("child session store: decode annotations for %q: %w", id, err)
+	}
 	loaded := core.Session{
 		ID:        ls.ID,
 		ParentID:  ls.ParentID,
@@ -86,7 +95,7 @@ func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, 
 		AgentName: ls.AgentName,
 		StartedAt: ls.StartedAt,
 		UpdatedAt: ls.UpdatedAt,
-		Metadata:  ls.AgentAnnotations.Map(),
+		Metadata:  metadata,
 	}
 	if err := loaded.Validate(); err != nil {
 		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)

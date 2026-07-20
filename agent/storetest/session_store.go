@@ -36,7 +36,9 @@ func TestSessionStore(ctx context.Context, store core.SessionStore) error {
 	session := core.NewSession(id, "user-1", "storetest")
 	session.ParentID = id + "-parent"
 	labels := []any{"saved"}
-	session.Metadata["labels"] = labels
+	if err := session.Metadata.Set("labels", labels); err != nil {
+		return fmt.Errorf("storetest: set labels: %w", err)
+	}
 	if err := store.Save(ctx, session); err != nil {
 		return fmt.Errorf("storetest: create session: %w", err)
 	}
@@ -46,26 +48,44 @@ func TestSessionStore(ctx context.Context, store core.SessionStore) error {
 	if err != nil {
 		return fmt.Errorf("storetest: load session: %w", err)
 	}
-	if got := loaded.Metadata["labels"].([]any)[0]; got != "saved" {
+	loadedLabels, err := metadataValue[[]any](loaded.Metadata, "labels")
+	if err != nil {
+		return fmt.Errorf("storetest: decode saved labels: %w", err)
+	}
+	if got := loadedLabels[0]; got != "saved" {
 		return fmt.Errorf("storetest: Save retained caller metadata: %v", got)
 	}
-	loaded.Metadata["labels"].([]any)[0] = "load-mutated"
+	loadedLabels[0] = "load-mutated"
 	again, err := store.Load(ctx, id)
 	if err != nil {
 		return fmt.Errorf("storetest: reload session: %w", err)
 	}
-	if got := again.Metadata["labels"].([]any)[0]; got != "saved" {
+	againLabels, err := metadataValue[[]any](again.Metadata, "labels")
+	if err != nil {
+		return fmt.Errorf("storetest: decode reloaded labels: %w", err)
+	}
+	if got := againLabels[0]; got != "saved" {
 		return fmt.Errorf("storetest: Load returned mutable stored metadata: %v", got)
 	}
 
 	again.UpdatedAt = again.UpdatedAt.Add(time.Second)
-	again.Metadata = map[string]any{"replacement": true}
+	again.Metadata = core.SessionMetadata{}
+	if err := again.Metadata.Set("replacement", true); err != nil {
+		return fmt.Errorf("storetest: set replacement metadata: %w", err)
+	}
 	if err := store.Save(ctx, again); err != nil {
 		return fmt.Errorf("storetest: replace session: %w", err)
 	}
 	replaced, err := store.Load(ctx, id)
-	if err != nil || !replaced.UpdatedAt.Equal(again.UpdatedAt) || replaced.Metadata["replacement"] != true {
-		return fmt.Errorf("storetest: replaced session = %#v: %w", replaced, err)
+	if err != nil {
+		return fmt.Errorf("storetest: load replaced session: %w", err)
+	}
+	replacement, err := metadataValue[bool](replaced.Metadata, "replacement")
+	if err != nil {
+		return fmt.Errorf("storetest: decode replacement metadata: %w", err)
+	}
+	if !replaced.UpdatedAt.Equal(again.UpdatedAt) || !replacement {
+		return fmt.Errorf("storetest: replaced session = %#v, want updated timestamp and replacement marker", replaced)
 	}
 
 	start := make(chan struct{})
@@ -73,7 +93,10 @@ func TestSessionStore(ctx context.Context, store core.SessionStore) error {
 	var wait sync.WaitGroup
 	for index := range 4 {
 		candidate := replaced
-		candidate.Metadata = map[string]any{"writer": index}
+		candidate.Metadata = core.SessionMetadata{}
+		if err := candidate.Metadata.Set("writer", index); err != nil {
+			return fmt.Errorf("storetest: set writer metadata: %w", err)
+		}
 		wait.Go(func() {
 			<-start
 			results <- store.Save(ctx, candidate)
@@ -116,4 +139,16 @@ func TestSessionStore(ctx context.Context, store core.SessionStore) error {
 		}
 	}
 	return nil
+}
+
+func metadataValue[T any](metadata core.SessionMetadata, name string) (T, error) {
+	var value T
+	found, err := metadata.Decode(name, &value)
+	if err != nil {
+		return value, err
+	}
+	if !found {
+		return value, fmt.Errorf("metadata field %q is missing", name)
+	}
+	return value, nil
 }
