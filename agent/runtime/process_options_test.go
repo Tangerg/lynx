@@ -178,7 +178,10 @@ func TestChildExtensionsDoesNotReuseCallerSlice(t *testing.T) {
 	caller := make([]core.Extension, 1, 2)
 	caller[0] = first
 
-	child := (&Process{}).childExtensions(caller)
+	child, err := (&Process{}).childExtensions(caller)
+	if err != nil {
+		t.Fatalf("childExtensions: %v", err)
+	}
 	child[0] = second
 	if caller[0] != first {
 		t.Fatal("child extension merge mutated caller-owned slice")
@@ -187,9 +190,12 @@ func TestChildExtensionsDoesNotReuseCallerSlice(t *testing.T) {
 
 func TestChildExtensionsLeavesTypedNilForConstructionValidation(t *testing.T) {
 	var nilExtension *constructorExtension
-	merged := (&Process{}).childExtensions([]core.Extension{nilExtension})
+	merged, err := (&Process{}).childExtensions([]core.Extension{nilExtension})
+	if err != nil {
+		t.Fatalf("childExtensions: %v", err)
+	}
 
-	_, err := snapshotProcessOptions(core.ProcessOptions{Extensions: merged})
+	_, err = snapshotProcessOptions(core.ProcessOptions{Extensions: merged})
 	if err == nil || !strings.Contains(err.Error(), "Extensions[0] is nil") {
 		t.Fatalf("snapshotProcessOptions error = %v, want typed-nil extension error", err)
 	}

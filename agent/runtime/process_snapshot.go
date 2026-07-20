@@ -507,7 +507,11 @@ func restoredChildOptions(
 	if err != nil {
 		return core.ProcessOptions{}, err
 	}
-	options.Extensions = parent.childExtensions(options.Extensions)
+	extensions, err := parent.childExtensions(options.Extensions)
+	if err != nil {
+		return core.ProcessOptions{}, fmt.Errorf("restore child extensions: %w", err)
+	}
+	options.Extensions = extensions
 	return options, nil
 }
 

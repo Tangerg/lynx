@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
@@ -46,40 +45,53 @@ func (e *Engine) createProcessFromDeployment(
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
+	process, eventBindings, err := e.registerProcessFromDeployment(deployment, bindings, options)
+	if err != nil {
+		return nil, err
+	}
+	process.publishCreated(ctx, eventBindings)
+	return process, nil
+}
+
+func (e *Engine) registerProcessFromDeployment(
+	deployment *Deployment,
+	bindings core.Bindings,
+	options core.ProcessOptions,
+) (*Process, core.Bindings, error) {
 	if deployment == nil || deployment.agent == nil {
-		return nil, errors.New("runtime.Engine.createProcessFromDeployment: deployment is nil")
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createProcessFromDeployment: deployment is nil")
 	}
 	agent := deployment.agent
 	processOptions, err := snapshotProcessOptions(options)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
 	bindings = bindings.Clone()
 
 	blackboard, err := e.resolveBlackboard(options.Blackboard)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
 	if err := bindBlackboardSeed(blackboard, bindings); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
 
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
-		return nil, err
+		return nil, core.Bindings{}, err
 	}
 
 	domain, err := planning.DomainForAgent(agent)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: domain: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: domain: %w", err)
 	}
 	processID, err := nextProcessID(e.idGenerator())
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 
@@ -88,13 +100,9 @@ func (e *Engine) createProcessFromDeployment(
 	process.wireRuntimeDeps(processOptions.extensions)
 
 	if !e.processes.insert(process) {
-		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, processID)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, processID)
 	}
-	process.publishEvent(normalizeContext(ctx), event.ProcessCreated{
-		Header:   event.NewHeader(processID),
-		Bindings: bindings,
-	})
-	return process, nil
+	return process, bindings, nil
 }
 
 func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*Deployment, error) {
@@ -109,20 +117,19 @@ func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*
 }
 
 func (e *Engine) createChild(
-	ctx context.Context,
 	deployment *Deployment,
 	parent *Process,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, error) {
+) (*Process, core.Bindings, error) {
 	if deployment == nil || deployment.agent == nil {
-		return nil, errors.New("runtime.Engine.createChild: deployment is nil")
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: deployment is nil")
 	}
 	if parent == nil {
-		return nil, errors.New("runtime.Engine.createChild: parent process is nil")
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: parent process is nil")
 	}
 	if options.Blackboard == nil {
-		return nil, errors.New("runtime.Engine.createChild: child blackboard is nil")
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
 	// A child shares its parent's event stream: process-scope
 	// EventListener extensions propagate down so the whole delegation
@@ -133,16 +140,20 @@ func (e *Engine) createChild(
 	// when the parent registered no listeners, so the historical "child
 	// events reach only the engine multicast" behavior is unchanged for
 	// callers that don't observe per-process.
-	options.Extensions = parent.childExtensions(options.Extensions)
-
-	child, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
+	extensions, err := parent.childExtensions(options.Extensions)
 	if err != nil {
-		return nil, err
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createChild: extensions: %w", err)
+	}
+	options.Extensions = extensions
+
+	child, eventBindings, err := e.registerProcessFromDeployment(deployment, bindings, options)
+	if err != nil {
+		return nil, core.Bindings{}, err
 	}
 	child.parentID = parent.id
 	child.depth = parent.depth + 1
 	parent.budget.addChild(child)
-	return child, nil
+	return child, eventBindings, nil
 }
 
 // resolvePlanner finds the [planning.Planner] for agent by matching
