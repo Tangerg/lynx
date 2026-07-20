@@ -93,6 +93,22 @@ func (m ActionMetadata) Applicable(state ConditionSet) bool {
 
 func (m ActionMetadata) validate() error {
 	var problems []error
+	for index, binding := range m.Inputs {
+		if err := binding.Validate(); err != nil {
+			problems = append(problems, fmt.Errorf("input binding %d: %w", index, err))
+		}
+	}
+	for index, binding := range m.Outputs {
+		if err := binding.Validate(); err != nil {
+			problems = append(problems, fmt.Errorf("output binding %d: %w", index, err))
+		}
+	}
+	if err := m.Preconditions.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("preconditions: %w", err))
+	}
+	if err := m.Effects.Validate(); err != nil {
+		problems = append(problems, fmt.Errorf("effects: %w", err))
+	}
 	if err := m.Retry.validate(); err != nil {
 		problems = append(problems, fmt.Errorf("retry policy: %w", err))
 	}
@@ -178,37 +194,6 @@ func (p RetryPolicy) validate() error {
 		return fmt.Errorf("max attempts %d requires idempotent or compensated retry safety", p.MaxAttempts)
 	}
 	return nil
-}
-
-// ConditionSet maps condition keys to their required or produced truth values.
-// It is used by action preconditions, action effects, goals, and world-state
-// transitions. A nil set is valid and means no conditions.
-type ConditionSet map[string]Truth
-
-// Satisfies reports whether state contains every required truth value.
-func (state ConditionSet) Satisfies(required ConditionSet) bool {
-	for key, truth := range required {
-		if state[key] != truth {
-			return false
-		}
-	}
-	return true
-}
-
-// Unsatisfied returns the requirements not currently satisfied by state.
-// A nil result means every requirement is satisfied.
-func (state ConditionSet) Unsatisfied(required ConditionSet) ConditionSet {
-	var missing ConditionSet
-	for key, truth := range required {
-		if state[key] == truth {
-			continue
-		}
-		if missing == nil {
-			missing = make(ConditionSet)
-		}
-		missing[key] = truth
-	}
-	return missing
 }
 
 // ActionConfig is the optional configuration bundle for [NewAction].

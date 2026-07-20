@@ -56,3 +56,25 @@ func TestTruthZeroValueIsUnknown(t *testing.T) {
 		t.Fatalf("zero-value Truth should be Unknown, got %s", truth)
 	}
 }
+
+func TestTruthRejectsValuesOutsideThreeValuedLogic(t *testing.T) {
+	invalid := core.Truth(9)
+	if invalid.Valid() {
+		t.Fatal("invalid truth reported valid")
+	}
+	if got := invalid.String(); got != "invalid_truth(9)" {
+		t.Fatalf("String() = %q", got)
+	}
+	if got := invalid.And(core.True); got != core.Unknown {
+		t.Fatalf("invalid.And(true) = %v, want unknown", got)
+	}
+	if err := (core.ConditionSet{"ready": invalid}).Validate(); err == nil {
+		t.Fatal("ConditionSet accepted invalid truth")
+	}
+}
+
+func TestConditionSetValidateRejectsMalformedKeys(t *testing.T) {
+	if err := (core.ConditionSet{"": core.True, " ready ": core.False}).Validate(); err == nil {
+		t.Fatal("ConditionSet accepted malformed keys")
+	}
+}

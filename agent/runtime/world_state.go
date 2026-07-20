@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -37,45 +38,53 @@ func newWorldStateReader(domain *planning.Domain, blackboard core.Blackboard, pr
 	}
 }
 
-func (r *worldStateReader) read(ctx context.Context) core.WorldState {
+func (r *worldStateReader) read(ctx context.Context) (core.WorldState, error) {
 	state := core.ConditionSet{}
 	env := &core.ConditionEnv{Process: r.process, Blackboard: r.blackboard}
 
 	for condition := range r.domain.KnownConditions() {
-		state[condition.Key] = r.evaluateCondition(ctx, condition, env)
+		truth, err := r.evaluateCondition(ctx, condition, env)
+		if err != nil {
+			return nil, err
+		}
+		state[condition.Key] = truth
 	}
-	return planning.NewState(state)
+	return planning.NewState(state), nil
 }
 
 // User-supplied Conditions run inside [safeEvaluateCondition] so a
 // panicking implementation degrades to Unknown rather than tearing down
 // the whole tick — mirrors the runtime action executor's panic guard
 // for action bodies.
-func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.ConditionRef, env *core.ConditionEnv) core.Truth {
+func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.ConditionRef, env *core.ConditionEnv) (core.Truth, error) {
 	switch ref.Kind {
 	case planning.ConditionBinding:
-		return core.TruthOf(r.blackboard.HasValue(ref.Binding.Name, ref.Binding.Type))
+		return core.TruthOf(r.blackboard.HasValue(ref.Binding.Name, ref.Binding.Type)), nil
 	case planning.ConditionEvaluator:
 		condition, ok := r.namedConditions[ref.Key]
 		if !ok {
-			return core.Unknown
+			return core.Unknown, fmt.Errorf("runtime: condition %q has no evaluator", ref.Key)
 		}
 		conditionEnv := *env
 		conditionEnv.RunInteraction = func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
 			return r.process.runInteraction(ctx, core.ConditionInteractionID(ref.Key), input)
 		}
-		return safeEvaluateCondition(ctx, condition, &conditionEnv)
+		truth := safeEvaluateCondition(ctx, condition, &conditionEnv)
+		if !truth.Valid() {
+			return core.Unknown, fmt.Errorf("runtime: condition %q returned invalid truth value %d", ref.Key, truth)
+		}
+		return truth, nil
 	case planning.ConditionActionRun:
 		value, _ := r.blackboard.Condition(ref.Key)
-		return core.TruthOf(value)
+		return core.TruthOf(value), nil
 	case planning.ConditionFact:
 		value, ok := r.blackboard.Condition(ref.Key)
 		if !ok {
-			return core.Unknown
+			return core.Unknown, nil
 		}
-		return core.TruthOf(value)
+		return core.TruthOf(value), nil
 	default:
-		return core.Unknown
+		return core.Unknown, fmt.Errorf("runtime: condition %q has invalid source kind %d", ref.Key, ref.Kind)
 	}
 }
 

@@ -86,6 +86,7 @@ core: func (b *Bindings) Set(name string, value any)
 core: func (b Binding) Canonical() Binding
 core: func (b Binding) IsDefault() bool
 core: func (b Binding) String() string
+core: func (b Binding) Validate() error
 core: func (b Bindings) All() iter.Seq2[string, any]
 core: func (b Bindings) Clone() Bindings
 core: func (b Bindings) Get(name string) (any, bool)
@@ -96,6 +97,7 @@ core: func (c *FuncCondition) Name() string
 core: func (c *PromptCondition) Cost() float64
 core: func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 core: func (c *PromptCondition) Name() string
+core: func (conditions ConditionSet) Validate() error
 core: func (d *Dependencies) Child() *Dependencies
 core: func (d *Dependencies) Freeze()
 core: func (d *Dependencies) Frozen() bool
@@ -192,6 +194,7 @@ core: func (t Truth) And(other Truth) Truth
 core: func (t Truth) Not() Truth
 core: func (t Truth) Or(other Truth) Truth
 core: func (t Truth) String() string
+core: func (t Truth) Valid() bool
 core: func (tv TaggedValue) Validate() error
 core: func And(left, right Condition) Condition
 core: func ConditionInteractionID(name string) string
@@ -225,7 +228,6 @@ core: func NewUUIDGenerator(name string) *UUIDGenerator
 core: func Not(inner Condition) Condition
 core: func Objects[T any](blackboard BlackboardReader) []T
 core: func Or(left, right Condition) Condition
-core: func ParseBinding(text string) Binding
 core: func ParseSessionMetadata(data []byte) (SessionMetadata, error)
 core: func ParseYesNo(text string) Truth
 core: func ProcessViewFrom(ctx context.Context) ProcessView

@@ -106,6 +106,35 @@ func TestValidateRejectsInvalidToolGroupRequirement(t *testing.T) {
 	}
 }
 
+func TestValidateRejectsMalformedDefinitionIdentity(t *testing.T) {
+	action := fakeAction{meta: core.ActionMetadata{
+		Name: "act",
+		Inputs: []core.Binding{{
+			Name: "request:raw",
+			Type: "example.Request",
+		}},
+		Preconditions: core.ConditionSet{" ready ": core.True},
+		Effects:       core.ConditionSet{"done": core.Truth(9)},
+	}}
+	agent := core.NewAgent(core.AgentConfig{
+		Name:    " malformed ",
+		Actions: []core.Action{action},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{
+			Name:          "done",
+			Preconditions: []string{" done "},
+		})},
+	})
+	err := agent.Validate()
+	if err == nil {
+		t.Fatal("Validate accepted malformed identities")
+	}
+	for _, want := range []string{"name \" malformed \"", "contains ':'", "condition key \" ready \"", "invalid truth value 9", "condition key \" done \""} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("Validate error %q does not contain %q", err, want)
+		}
+	}
+}
+
 func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	action := fakeAction{meta: core.ActionMetadata{Name: "act"}}
 	goal := core.NewGoal(core.GoalConfig{Name: "goal"})

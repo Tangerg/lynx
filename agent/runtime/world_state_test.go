@@ -35,7 +35,10 @@ func TestWorldStateReadsNamespacedActionRunCondition(t *testing.T) {
 	blackboard := newInMemoryBlackboard()
 	blackboard.StoreCondition(action.metadata.RunCondition(), true)
 
-	state := newWorldStateReader(domain, blackboard, nil).read(t.Context())
+	state, err := newWorldStateReader(domain, blackboard, nil).read(t.Context())
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
 	if got := state.Conditions()[action.metadata.RunCondition()]; got != core.True {
 		t.Fatalf("run condition = %v, want true", got)
 	}

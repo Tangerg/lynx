@@ -5,6 +5,7 @@ import (
 	"iter"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -173,7 +174,19 @@ func (d *Domain) computeConditionRefs() ([]ConditionRef, error) {
 			continue
 		}
 		metadata := action.Metadata()
+		if strings.TrimSpace(metadata.Name) == "" || strings.TrimSpace(metadata.Name) != metadata.Name {
+			return nil, fmt.Errorf("planning.NewDomain: action name %q must be non-empty without surrounding whitespace", metadata.Name)
+		}
+		if err := metadata.Preconditions.Validate(); err != nil {
+			return nil, fmt.Errorf("planning.NewDomain: action %q preconditions: %w", metadata.Name, err)
+		}
+		if err := metadata.Effects.Validate(); err != nil {
+			return nil, fmt.Errorf("planning.NewDomain: action %q effects: %w", metadata.Name, err)
+		}
 		for _, binding := range slices.Concat(metadata.Inputs, metadata.Outputs) {
+			if err := binding.Validate(); err != nil {
+				return nil, fmt.Errorf("planning.NewDomain: action %q binding: %w", metadata.Name, err)
+			}
 			binding = binding.Canonical()
 			if err := register(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, "action "+metadata.Name); err != nil {
 				return nil, err
@@ -187,7 +200,16 @@ func (d *Domain) computeConditionRefs() ([]ConditionRef, error) {
 		if goal == nil {
 			continue
 		}
+		if strings.TrimSpace(goal.Name()) == "" || strings.TrimSpace(goal.Name()) != goal.Name() {
+			return nil, fmt.Errorf("planning.NewDomain: goal name %q must be non-empty without surrounding whitespace", goal.Name())
+		}
+		if err := goal.Preconditions().Validate(); err != nil {
+			return nil, fmt.Errorf("planning.NewDomain: goal %q preconditions: %w", goal.Name(), err)
+		}
 		for _, binding := range goal.Inputs() {
+			if err := binding.Validate(); err != nil {
+				return nil, fmt.Errorf("planning.NewDomain: goal %q binding: %w", goal.Name(), err)
+			}
 			binding = binding.Canonical()
 			if err := register(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, "goal "+goal.Name()); err != nil {
 				return nil, err
@@ -197,6 +219,9 @@ func (d *Domain) computeConditionRefs() ([]ConditionRef, error) {
 	for _, condition := range d.conditions {
 		if condition == nil {
 			continue
+		}
+		if strings.TrimSpace(condition.Name()) == "" || strings.TrimSpace(condition.Name()) != condition.Name() {
+			return nil, fmt.Errorf("planning.NewDomain: condition name %q must be non-empty without surrounding whitespace", condition.Name())
 		}
 		if err := register(ConditionRef{Key: condition.Name(), Kind: ConditionEvaluator}, "condition "+condition.Name()); err != nil {
 			return nil, err

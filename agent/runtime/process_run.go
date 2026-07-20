@@ -103,14 +103,21 @@ func (p *Process) tick(ctx context.Context) error {
 	defer span.End()
 	p.recordTickMetric(ctx)
 
-	worldState := p.observe(ctx, span)
+	worldState, err := p.observe(ctx, span)
+	if err != nil {
+		p.failProcess(err)
+		return nil
+	}
 
 	return p.tickSimple(ctx, worldState)
 }
 
 // observe runs the state reader and publishes the PlanningStarted event.
-func (p *Process) observe(ctx context.Context, span trace.Span) core.WorldState {
-	worldState := p.stateReader.read(ctx)
+func (p *Process) observe(ctx context.Context, span trace.Span) (core.WorldState, error) {
+	worldState, err := p.stateReader.read(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Process.observe: %w", err)
+	}
 	p.state.observe(worldState)
 
 	p.publishEvent(ctx, event.PlanningStarted{
@@ -118,7 +125,7 @@ func (p *Process) observe(ctx context.Context, span trace.Span) core.WorldState 
 		State:  worldState,
 	})
 	span.SetAttributes(attribute.Int(attrWorldStateSize, len(worldState.Conditions())))
-	return worldState
+	return worldState, nil
 }
 
 // handleTerminationSignal processes a queued termination request. AGENT-

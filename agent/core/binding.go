@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"iter"
 	"maps"
 	"reflect"
@@ -71,8 +73,8 @@ type Binding struct {
 	// goType is the concrete reflect.Type the binding was declared with,
 	// retained so a snapshot round-trip can reconstruct the original Go type
 	// rather than the generic map JSON decodes into (see snapshotTypeTable).
-	// Set only by NewBinding[T]; nil for bindings parsed from their string
-	// form (ParseBinding) — those carry no recoverable type information.
+	// Set only by NewBinding[T]; literal bindings carry no recoverable type
+	// information.
 	goType reflect.Type
 }
 
@@ -89,6 +91,24 @@ func (b Binding) Canonical() Binding {
 		b.Name = DefaultBindingName
 	}
 	return b
+}
+
+// Validate verifies that b has an unambiguous stable string representation.
+func (b Binding) Validate() error {
+	b = b.Canonical()
+	var problems []error
+	if strings.TrimSpace(b.Name) != b.Name {
+		problems = append(problems, fmt.Errorf("binding name %q has surrounding whitespace", b.Name))
+	}
+	if strings.Contains(b.Name, ":") {
+		problems = append(problems, fmt.Errorf("binding name %q contains ':'", b.Name))
+	}
+	if b.Type == "" {
+		problems = append(problems, errors.New("binding type is empty"))
+	} else if strings.TrimSpace(b.Type) != b.Type {
+		problems = append(problems, fmt.Errorf("binding type %q has surrounding whitespace", b.Type))
+	}
+	return errors.Join(problems...)
 }
 
 // IsDefault reports whether the binding uses the conventional "it" name.
@@ -114,16 +134,6 @@ func NewBinding[T any](name string) Binding {
 		Type:   typeFullName(typ),
 		goType: element, // unwrapped to match Type's pointer-normalized name
 	}
-}
-
-// ParseBinding restores a Binding from its canonical "name:Type" form.
-// An input without a colon is treated as type-only and uses the default name.
-func ParseBinding(text string) Binding {
-	name, typ, ok := strings.Cut(text, ":")
-	if !ok {
-		return Binding{Name: DefaultBindingName, Type: text}
-	}
-	return Binding{Name: name, Type: typ}
 }
 
 // typeFullName produces a stable identifier for a Go type. Pointers unwrap;

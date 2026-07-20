@@ -31,10 +31,20 @@ func TestBindingDefaultName(t *testing.T) {
 	}
 }
 
-func TestParseBinding(t *testing.T) {
-	parsed := core.ParseBinding("topic:foo.Topic")
-	if parsed.Name != "topic" || parsed.Type != "foo.Topic" {
-		t.Fatalf("parsed: %+v", parsed)
+func TestBindingValidateRejectsAmbiguousIdentity(t *testing.T) {
+	tests := []core.Binding{
+		{Name: "topic:raw", Type: "example.Topic"},
+		{Name: " topic", Type: "example.Topic"},
+		{Name: "topic", Type: ""},
+		{Name: "topic", Type: " example.Topic"},
+	}
+	for _, binding := range tests {
+		if err := binding.Validate(); err == nil {
+			t.Errorf("Binding%+v validated successfully", binding)
+		}
+	}
+	if err := (core.Binding{Type: "example.Topic"}).Validate(); err != nil {
+		t.Fatalf("default binding: %v", err)
 	}
 }
 
