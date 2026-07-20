@@ -31,6 +31,11 @@ func (s mismatchedProcessStore) Load(ctx context.Context, id string) (core.Proce
 
 type durablePauseAction struct{}
 
+type blockingResumeAction struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
 func (durablePauseAction) Metadata() core.ActionMetadata {
 	input := core.NewBinding[ssWord](core.DefaultBindingName)
 	output := core.NewBinding[ssWordCount](core.DefaultBindingName)
@@ -51,6 +56,33 @@ func (durablePauseAction) Execute(_ context.Context, pc *core.ProcessContext) (c
 	}
 	pc.Blackboard().Bind(ssWordCount{Count: 42})
 	return core.ActionSucceeded, nil
+}
+
+func (*blockingResumeAction) Metadata() core.ActionMetadata {
+	input := core.NewBinding[ssWord](core.DefaultBindingName)
+	output := core.NewBinding[ssWordCount](core.DefaultBindingName)
+	metadata := core.ActionMetadata{
+		Name: "blocking-resume", Inputs: []core.Binding{input}, Outputs: []core.Binding{output},
+		Cost: core.FixedScore(1), Value: core.FixedScore(0),
+	}
+	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.RunCondition(): core.False}
+	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.RunCondition(): core.True}
+	return metadata
+}
+
+func (a *blockingResumeAction) Execute(ctx context.Context, pc *core.ProcessContext) (core.ActionStatus, error) {
+	if _, resumed := pc.Blackboard().Condition("blocking-resume-ready"); !resumed {
+		pc.Blackboard().StoreCondition("blocking-resume-ready", true)
+		return core.ActionPaused, nil
+	}
+	close(a.entered)
+	select {
+	case <-a.release:
+		pc.Blackboard().Bind(ssWordCount{Count: 1})
+		return core.ActionSucceeded, nil
+	case <-ctx.Done():
+		return core.ActionFailed, ctx.Err()
+	}
 }
 
 // buildSnapshotAgent constructs a single-action agent suitable for
@@ -507,5 +539,58 @@ func TestEngineRestorePausedProcessFromDurableBlackboardState(t *testing.T) {
 	output, ok := core.Result[ssWordCount](restored)
 	if restored.Status() != core.StatusCompleted || !ok || output.Count != 42 {
 		t.Fatalf("restored status=%s output=%#v ok=%v failure=%v", restored.Status(), output, ok, restored.Failure())
+	}
+}
+
+func TestEngineRestoreRunningProcessCanContinue(t *testing.T) {
+	a := agent.New(agent.AgentConfig{Name: "running-restore", Actions: []agent.Action{durablePauseAction{}}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "restored output"})}})
+	const buildID = "running-restore-build"
+	engine1 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
+	mustDeploy(t, engine1, a)
+	process, err := engine1.Run(t.Context(), a, core.Input(ssWord{Text: "input"}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusPaused {
+		t.Fatalf("first run status=%s err=%v", process.Status(), err)
+	}
+	snapshot, err := process.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A crash between ticks persists the durable lifecycle as Running but
+	// carries no live goroutine ownership into the new Engine.
+	snapshot.Status = core.StatusRunning
+
+	engine2 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
+	mustDeploy(t, engine2, a)
+	restored, err := engine2.RestoreSnapshot(snapshot, core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if restored.Status() != core.StatusCompleted {
+		t.Fatalf("restored status = %s, want completed; failure=%v", restored.Status(), restored.Failure())
+	}
+}
+
+func TestEngineContinueReportsOverlappingRun(t *testing.T) {
+	action := &blockingResumeAction{entered: make(chan struct{}), release: make(chan struct{})}
+	a := agent.New(agent.AgentConfig{Name: "continue-owner", Actions: []agent.Action{action}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "continued output"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	process, err := engine.Run(t.Context(), a, core.Input(ssWord{Text: "input"}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusPaused {
+		t.Fatalf("first run status=%s err=%v", process.Status(), err)
+	}
+
+	done := make(chan error, 1)
+	go func() { done <- engine.Continue(t.Context(), process.ID()) }()
+	<-action.entered
+	if err := engine.Continue(t.Context(), process.ID()); !errors.Is(err, runtime.ErrProcessRunning) {
+		t.Fatalf("overlapping Continue error = %v, want ErrProcessRunning", err)
+	}
+	close(action.release)
+	if err := <-done; err != nil {
+		t.Fatalf("owning Continue: %v", err)
 	}
 }

@@ -15,10 +15,17 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 )
 
-// ErrProcessNotFound is the stable identity for an operation that addressed a
-// process no longer present in the engine registry. Callers performing
-// idempotent teardown can match it with [errors.Is] without parsing text.
-var ErrProcessNotFound = errors.New("runtime: process not found")
+var (
+	// ErrProcessNotFound is the stable identity for an operation that addressed a
+	// process no longer present in the engine registry. Callers performing
+	// idempotent teardown can match it with [errors.Is] without parsing text.
+	ErrProcessNotFound = errors.New("runtime: process not found")
+
+	// ErrProcessRunning reports that another caller currently owns the process
+	// run loop. The lifecycle may also be StatusRunning after durable restore;
+	// only transient run ownership makes this error true.
+	ErrProcessRunning = errors.New("runtime: process is already running")
+)
 
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
 // the resulting process (whether completed or terminal-failed). The first run
@@ -198,9 +205,8 @@ func (e *Engine) Start(
 // Continue drives the OODA loop until the process exits
 // Running again (terminal, waiting, or paused).
 //
-// Concurrent Continue calls on the same id are safe — the
-// underlying beginRun rejects when the process is already running
-// so only one call drives the loop.
+// Concurrent Continue calls on the same id are safe. Exactly one caller drives
+// the loop; overlapping callers receive [ErrProcessRunning].
 func (e *Engine) Continue(ctx context.Context, id string) error {
 	process, ok := e.Process(id)
 	if !ok {

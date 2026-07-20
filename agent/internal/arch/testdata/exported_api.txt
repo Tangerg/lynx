@@ -628,11 +628,11 @@ runtime: type EventListener interface { core.Extension OnEvent(ctx context.Conte
 runtime: type Process struct { }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }
+runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") )
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
 runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
-runtime: var ErrProcessNotFound = errors.New("runtime: process not found")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
 storetest: func TestSessionStore(ctx context.Context, store core.SessionStore) error

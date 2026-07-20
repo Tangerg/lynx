@@ -32,6 +32,7 @@ type processState struct {
 	stuckReplanPending bool
 	pendingSuspension  *interaction.Suspension
 	revision           uint64
+	runOwned           bool
 }
 
 func (s *processState) snapshotRevision() uint64 {
@@ -295,23 +296,30 @@ func (s *processState) snapshotExclusions() planning.Exclusions {
 	return s.excludedActions
 }
 
-// beginRun attempts to transition into StatusRunning.
-// NotStarted / Waiting / Paused all advance into Running, terminal states refuse, and an
-// already-running process refuses too so concurrent Continue
-// calls don't spawn parallel run loops over the same process. Returns
-// true when the caller now owns the run loop.
-func (s *processState) beginRun() bool {
+// beginRun acquires transient ownership of the run loop and advances a
+// resumable lifecycle to StatusRunning. A durable Running snapshot has no live
+// owner after restore and is therefore resumable; a live owner is rejected.
+func (s *processState) beginRun() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	switch s.currentStatus {
-	case core.StatusRunning,
-		core.StatusCompleted, core.StatusFailed, core.StatusStuck,
-		core.StatusKilled, core.StatusTerminated:
-		return false
+	if s.runOwned {
+		return false, ErrProcessRunning
 	}
+	switch s.currentStatus {
+	case core.StatusCompleted, core.StatusFailed, core.StatusStuck,
+		core.StatusKilled, core.StatusTerminated:
+		return false, nil
+	}
+	s.runOwned = true
 	s.currentStatus = core.StatusRunning
-	return true
+	return true, nil
+}
+
+func (s *processState) endRun() {
+	s.mu.Lock()
+	s.runOwned = false
+	s.mu.Unlock()
 }
 
 // markKilled transitions to StatusKilled unless the process is already
