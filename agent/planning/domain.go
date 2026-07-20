@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"fmt"
 	"iter"
 	"maps"
 	"slices"
@@ -11,23 +12,69 @@ import (
 // Domain is an immutable capability set passed to a planner, detached from
 // agent identity so a planner can reason over any subset.
 type Domain struct {
-	actions         []core.Action
-	goals           []*core.Goal
-	conditions      []core.Condition
-	knownConditions []string
+	actions       []core.Action
+	goals         []*core.Goal
+	conditions    []core.Condition
+	conditionRefs []ConditionRef
 }
 
-// NewDomain constructs a domain from explicit slices. Pass nil for
-// any unused dimension; the planner tolerates empty inputs and returns nil
-// plans gracefully.
-func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) *Domain {
+// ConditionKind identifies how the runtime obtains a condition's current value.
+type ConditionKind uint8
+
+const (
+	ConditionFact ConditionKind = iota
+	ConditionBinding
+	ConditionActionRun
+	ConditionEvaluator
+)
+
+// Valid reports whether k identifies a framework-defined condition source.
+func (k ConditionKind) Valid() bool {
+	return k >= ConditionFact && k <= ConditionEvaluator
+}
+
+func (k ConditionKind) String() string {
+	switch k {
+	case ConditionFact:
+		return "fact"
+	case ConditionBinding:
+		return "binding"
+	case ConditionActionRun:
+		return "action run"
+	case ConditionEvaluator:
+		return "evaluator"
+	default:
+		return fmt.Sprintf("unknown condition kind %d", k)
+	}
+}
+
+// ConditionRef identifies one planner-visible condition and its value source.
+// Binding is populated only when Kind is [ConditionBinding].
+type ConditionRef struct {
+	Key     string
+	Kind    ConditionKind
+	Binding core.Binding
+}
+
+type conditionSource struct {
+	ref    ConditionRef
+	origin string
+}
+
+// NewDomain constructs a domain from explicit slices. Pass nil for any unused
+// dimension. It rejects condition keys claimed by incompatible value sources.
+func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) (*Domain, error) {
 	domain := &Domain{
 		actions:    slices.Clone(actions),
 		goals:      slices.Clone(goals),
 		conditions: slices.Clone(conditions),
 	}
-	domain.knownConditions = domain.computeKnownConditions()
-	return domain
+	refs, err := domain.computeConditionRefs()
+	if err != nil {
+		return nil, err
+	}
+	domain.conditionRefs = refs
+	return domain, nil
 }
 
 // Actions returns a snapshot of the available actions.
@@ -56,7 +103,7 @@ func (d *Domain) Conditions() []core.Condition {
 
 // DomainForAgent builds a planning domain out of an agent's capability set —
 // convenience for the runtime which wires planner ↔ agent.
-func DomainForAgent(agent *core.Agent) *Domain {
+func DomainForAgent(agent *core.Agent) (*Domain, error) {
 	if agent == nil {
 		return NewDomain(nil, nil, nil)
 	}
@@ -72,7 +119,7 @@ func DomainForAgent(agent *core.Agent) *Domain {
 // responsibility — the planner does not deduplicate. Nil entries are
 // skipped so callers can pass partially-populated slices without
 // guarding.
-func DomainForAgents(agents []*core.Agent) *Domain {
+func DomainForAgents(agents []*core.Agent) (*Domain, error) {
 	var (
 		actions    []core.Action
 		goals      []*core.Goal
@@ -89,25 +136,85 @@ func DomainForAgents(agents []*core.Agent) *Domain {
 	return NewDomain(actions, goals, conditions)
 }
 
-// KnownConditions enumerates all condition keys reachable through the domain.
+// KnownConditions enumerates all conditions reachable through the domain.
 // Iteration is deterministic: action and goal declaration order first, with
 // map-backed keys sorted within each declaration, followed by named conditions.
-func (d *Domain) KnownConditions() iter.Seq[string] {
+func (d *Domain) KnownConditions() iter.Seq[ConditionRef] {
 	if d == nil {
-		return slices.Values([]string(nil))
+		return slices.Values([]ConditionRef(nil))
 	}
-	return slices.Values(d.knownConditions)
+	return slices.Values(d.conditionRefs)
 }
 
-func (d *Domain) computeKnownConditions() []string {
+func (d *Domain) computeConditionRefs() ([]ConditionRef, error) {
+	sources := make(map[string]conditionSource)
+	var sourceOrder []string
+	register := func(ref ConditionRef, origin string) error {
+		if existing, ok := sources[ref.Key]; ok {
+			if existing.ref.Kind == ref.Kind && ref.Kind == ConditionBinding {
+				return nil
+			}
+			return fmt.Errorf(
+				"planning.NewDomain: condition %q has conflicting %s (%s) and %s (%s) sources",
+				ref.Key,
+				existing.ref.Kind,
+				existing.origin,
+				ref.Kind,
+				origin,
+			)
+		}
+		sources[ref.Key] = conditionSource{ref: ref, origin: origin}
+		sourceOrder = append(sourceOrder, ref.Key)
+		return nil
+	}
+
+	for _, action := range d.actions {
+		if action == nil {
+			continue
+		}
+		metadata := action.Metadata()
+		for _, binding := range slices.Concat(metadata.Inputs, metadata.Outputs) {
+			binding = binding.Canonical()
+			if err := register(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, "action "+metadata.Name); err != nil {
+				return nil, err
+			}
+		}
+		if err := register(ConditionRef{Key: metadata.RunCondition(), Kind: ConditionActionRun}, "action "+metadata.Name); err != nil {
+			return nil, err
+		}
+	}
+	for _, goal := range d.goals {
+		if goal == nil {
+			continue
+		}
+		for _, binding := range goal.Inputs() {
+			binding = binding.Canonical()
+			if err := register(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, "goal "+goal.Name()); err != nil {
+				return nil, err
+			}
+		}
+	}
+	for _, condition := range d.conditions {
+		if condition == nil {
+			continue
+		}
+		if err := register(ConditionRef{Key: condition.Name(), Kind: ConditionEvaluator}, "condition "+condition.Name()); err != nil {
+			return nil, err
+		}
+	}
+
 	seen := map[string]struct{}{}
-	var conditions []string
-	appendCondition := func(name string) {
-		if _, exists := seen[name]; exists {
+	var refs []ConditionRef
+	appendCondition := func(key string) {
+		if _, exists := seen[key]; exists {
 			return
 		}
-		seen[name] = struct{}{}
-		conditions = append(conditions, name)
+		seen[key] = struct{}{}
+		if source, ok := sources[key]; ok {
+			refs = append(refs, source.ref)
+			return
+		}
+		refs = append(refs, ConditionRef{Key: key, Kind: ConditionFact})
 	}
 	for _, action := range d.actions {
 		if action == nil {
@@ -134,5 +241,8 @@ func (d *Domain) computeKnownConditions() []string {
 			appendCondition(condition.Name())
 		}
 	}
-	return conditions
+	for _, key := range sourceOrder {
+		appendCondition(key)
+	}
+	return refs, nil
 }

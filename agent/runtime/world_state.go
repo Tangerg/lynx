@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -10,14 +9,8 @@ import (
 )
 
 // worldStateReader projects blackboard contents into planner state.
-// It walks the agent's planning.Domain.KnownConditions(), classifies
-// each condition into one of four buckets, and resolves
-// accordingly:
-//
-//  1. type-binding key ("name:Type") — true iff the blackboard has that value
-//  2. action_ran_<action>             — true iff the blackboard's condition map says so
-//  3. named Condition                — call .Evaluate
-//  4. plain boolean key              — read from the blackboard's condition map
+// It walks the agent's planning.Domain.KnownConditions() and resolves each
+// condition from the source fixed when the domain was constructed.
 type worldStateReader struct {
 	domain     *planning.Domain
 	blackboard core.Blackboard
@@ -49,41 +42,41 @@ func (r *worldStateReader) read(ctx context.Context) core.WorldState {
 	env := &core.ConditionEnv{Process: r.process, Blackboard: r.blackboard}
 
 	for condition := range r.domain.KnownConditions() {
-		state[condition] = r.evaluateCondition(ctx, condition, env)
+		state[condition.Key] = r.evaluateCondition(ctx, condition, env)
 	}
 	return planning.NewState(state)
 }
 
-// evaluateCondition dispatches to the right resolution strategy based on
-// the condition key's shape. Returns Unknown for anything that doesn't
-// match a known pattern — GOAP treats Unknown as "doesn't satisfy" so missing
-// state safely defers planning rather than producing a wrong plan.
-//
 // User-supplied Conditions run inside [safeEvaluateCondition] so a
 // panicking implementation degrades to Unknown rather than tearing down
 // the whole tick — mirrors the runtime action executor's panic guard
 // for action bodies.
-func (r *worldStateReader) evaluateCondition(ctx context.Context, key string, env *core.ConditionEnv) core.Truth {
-	if strings.Contains(key, ":") {
-		return r.evaluateTypeBinding(key)
-	}
-
-	if strings.HasPrefix(key, core.ActionRunConditionPrefix) {
-		return r.evaluateHasRun(key)
-	}
-
-	if condition, ok := r.namedConditions[key]; ok {
+func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.ConditionRef, env *core.ConditionEnv) core.Truth {
+	switch ref.Kind {
+	case planning.ConditionBinding:
+		return core.TruthOf(r.blackboard.HasValue(ref.Binding.Name, ref.Binding.Type))
+	case planning.ConditionEvaluator:
+		condition, ok := r.namedConditions[ref.Key]
+		if !ok {
+			return core.Unknown
+		}
 		conditionEnv := *env
 		conditionEnv.RunInteraction = func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
-			return r.process.runInteraction(ctx, core.ConditionInteractionID(key), input)
+			return r.process.runInteraction(ctx, core.ConditionInteractionID(ref.Key), input)
 		}
 		return safeEvaluateCondition(ctx, condition, &conditionEnv)
-	}
-
-	if value, ok := r.blackboard.Condition(key); ok {
+	case planning.ConditionActionRun:
+		value, _ := r.blackboard.Condition(ref.Key)
 		return core.TruthOf(value)
+	case planning.ConditionFact:
+		value, ok := r.blackboard.Condition(ref.Key)
+		if !ok {
+			return core.Unknown
+		}
+		return core.TruthOf(value)
+	default:
+		return core.Unknown
 	}
-	return core.Unknown
 }
 
 // safeEvaluateCondition runs cond.Evaluate under a panic guard. A
@@ -97,14 +90,4 @@ func safeEvaluateCondition(ctx context.Context, condition core.Condition, env *c
 		}
 	}()
 	return condition.Evaluate(ctx, env)
-}
-
-func (r *worldStateReader) evaluateTypeBinding(key string) core.Truth {
-	binding := core.ParseBinding(key)
-	return core.TruthOf(r.blackboard.HasValue(binding.Name, binding.Type))
-}
-
-func (r *worldStateReader) evaluateHasRun(key string) core.Truth {
-	value, _ := r.blackboard.Condition(key)
-	return core.TruthOf(value)
 }

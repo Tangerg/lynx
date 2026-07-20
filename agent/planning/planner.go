@@ -222,5 +222,5 @@ func (d *Domain) Prune(
 			kept = append(kept, action)
 		}
 	}
-	return NewDomain(kept, d.Goals(), d.Conditions()), nil
+	return NewDomain(kept, d.Goals(), d.Conditions())
 }

@@ -9,6 +9,15 @@ import (
 	"github.com/Tangerg/lynx/agent/planning/utility"
 )
 
+func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
+	t.Helper()
+	domain, err := planning.NewDomain(actions, goals, conditions)
+	if err != nil {
+		t.Fatalf("NewDomain: %v", err)
+	}
+	return domain
+}
+
 // fakeAction satisfies core.Action for planner-only tests.
 type fakeAction struct{ meta core.ActionMetadata }
 
@@ -37,7 +46,7 @@ func TestUtility_NirvanaPicksHighestNetValue(t *testing.T) {
 	low := newAction("low", nil, core.ConditionSet{"a": core.True}, 1, 2)    // net = 1
 	high := newAction("high", nil, core.ConditionSet{"a": core.True}, 1, 10) // net = 9
 
-	domain := planning.NewDomain([]core.Action{low, high}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{low, high}, []*core.Goal{g}, nil)
 	pl, err := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +58,7 @@ func TestUtility_NirvanaPicksHighestNetValue(t *testing.T) {
 
 func TestUtility_NirvanaWithNoActionsReturnsNil(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := utility.NewPlanner().PlanToGoal(context.Background(), planning.NewState(nil), domain, g, planning.Options{})
 	if err != nil {
@@ -63,7 +72,7 @@ func TestUtility_NirvanaWithNoActionsReturnsNil(t *testing.T) {
 func TestUtility_AlreadySatisfiedNoActions(t *testing.T) {
 	start := planning.NewState(map[string]core.Truth{"goalKey": core.True})
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"goalKey"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 0 {
@@ -76,7 +85,7 @@ func TestUtility_OneStepLookaheadEmitsPlan(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
 
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
-	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "a" {
@@ -89,7 +98,7 @@ func TestUtility_OneStepLookaheadInsufficientReturnsNil(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"step1", "step2"}})
 
 	a := newAction("a", nil, core.ConditionSet{"step1": core.True}, 1, 5)
-	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if pl != nil {
@@ -101,7 +110,7 @@ func TestUtility_ExcludedActionsSkipped(t *testing.T) {
 	start := planning.NewState(nil)
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
-	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g,
 		planning.Options{ExcludedActions: planning.NewExclusions("a")})
@@ -120,7 +129,7 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"goalKey"}})
 
 	stillRunnable := newAction("nop", nil, core.ConditionSet{"other": core.True}, 1, 99)
-	domain := planning.NewDomain([]core.Action{stillRunnable}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{stillRunnable}, []*core.Goal{g}, nil)
 
 	// Hybrid: empty planning.
 	plH, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
@@ -140,7 +149,7 @@ func TestHybridUtility_NirvanaSemanticsMatchClassic(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
 
 	a := newAction("a", nil, core.ConditionSet{"x": core.True}, 1, 5)
-	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 1 {
@@ -153,7 +162,7 @@ func TestHybridUtility_OneStepReachesGoal(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
 
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
-	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "a" {

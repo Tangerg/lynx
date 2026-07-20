@@ -39,7 +39,7 @@ func TestPrune_DropsUnreachableActions(t *testing.T) {
 	)
 
 	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
-	domain := planning.NewDomain(
+	domain := mustDomain(t,
 		[]core.Action{reachable, dead},
 		[]*core.Goal{goal},
 		nil,
@@ -70,7 +70,7 @@ func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
 	b := newPruneAction("b", core.ConditionSet{"step1": core.True}, core.ConditionSet{"done": core.True})
 
 	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
-	domain := planning.NewDomain(
+	domain := mustDomain(t,
 		[]core.Action{a, b},
 		[]*core.Goal{goal},
 		nil,
@@ -99,7 +99,7 @@ func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 		core.ConditionSet{"done": core.True},
 	)
 	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
-	domain := planning.NewDomain([]core.Action{dead}, []*core.Goal{goal}, nil)
+	domain := mustDomain(t, []core.Action{dead}, []*core.Goal{goal}, nil)
 
 	pruned, err := domain.Prune(
 		context.Background(),
@@ -127,7 +127,7 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 		core.ConditionSet{"done": core.True},
 	)
 	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
-	domain := planning.NewDomain(
+	domain := mustDomain(t,
 		[]core.Action{live, dead},
 		[]*core.Goal{goal},
 		nil,

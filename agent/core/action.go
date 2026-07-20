@@ -72,11 +72,8 @@ func cloneToolGroupRequirements(requirements []ToolGroupRequirement) []ToolGroup
 	return cloned
 }
 
-// ActionRunConditionPrefix prefixes the conventional "this action has run" condition
-// keys ([ActionMetadata.RunCondition] mints them; the runtime's world-
-// state determiner routes any key with this prefix to the blackboard's
-// condition map). One constant on the protocol type so the producer and
-// the classifier can't drift.
+// ActionRunConditionPrefix prefixes the conventional "this action has run"
+// condition keys minted by [ActionMetadata.RunCondition].
 const ActionRunConditionPrefix = "action_ran_"
 
 // RunCondition is the conventional condition key recording that this

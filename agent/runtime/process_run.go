@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -228,7 +229,11 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 			}
 		}
 		if len(approved) != len(domain.Goals()) {
-			domain = planning.NewDomain(domain.Actions(), approved, domain.Conditions())
+			var err error
+			domain, err = planning.NewDomain(domain.Actions(), approved, domain.Conditions())
+			if err != nil {
+				return nil, fmt.Errorf("runtime.Process.formulatePlan: approved domain: %w", err)
+			}
 		}
 	}
 
