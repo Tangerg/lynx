@@ -798,7 +798,9 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load original middle session: %v", err)
 	}
-	storedMiddleSession.Metadata["restore_marker"] = "preserved"
+	if err := storedMiddleSession.Metadata.Set("restore_marker", "preserved"); err != nil {
+		t.Fatalf("set middle session marker: %v", err)
+	}
 	if err := sessionStore.Save(t.Context(), storedMiddleSession); err != nil {
 		t.Fatalf("save marked middle session: %v", err)
 	}
@@ -834,8 +836,10 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	if middleSession.ParentID != rootSession.ID {
 		t.Fatalf("restored middle session parent = %q, want %q", middleSession.ParentID, rootSession.ID)
 	}
-	if middleSession.Metadata["restore_marker"] != "preserved" {
-		t.Fatalf("restored middle session metadata = %v, want preserved marker", middleSession.Metadata)
+	var restoreMarker string
+	found, err := middleSession.Metadata.Decode("restore_marker", &restoreMarker)
+	if err != nil || !found || restoreMarker != "preserved" {
+		t.Fatalf("restored middle session metadata = %q, %t, %v; want preserved marker", restoreMarker, found, err)
 	}
 	leafSession, err := sessionStore.Load(t.Context(), restoredLeaf.ID())
 	if err != nil {

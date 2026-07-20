@@ -153,6 +153,14 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 		}},
 	}
 
+	metadata, err := agentcore.ParseSessionMetadata([]byte(`{
+		"channel":"fixture",
+		"locale":"zh-CN",
+		"nested":{"durable":true}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	session := agentcore.Session{
 		ID:        "session-1",
 		ParentID:  "session-root",
@@ -160,11 +168,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 		AgentName: "researcher",
 		StartedAt: startedAt,
 		UpdatedAt: capturedAt,
-		Metadata: map[string]any{
-			"channel": "fixture",
-			"locale":  "zh-CN",
-			"nested":  map[string]any{"durable": true},
-		},
+		Metadata:  metadata,
 	}
 	interactionEvents := []interaction.Event{
 		{Kind: interaction.EventModelRequest, Round: 2, Request: request},

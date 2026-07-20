@@ -112,8 +112,16 @@ core: func (i ToolGroupInfo) Validate() error
 core: func (k DependencyKey[T]) Name() string
 core: func (l *LazyToolGroup) Info() ToolGroupInfo
 core: func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error)
+core: func (m *SessionMetadata) Delete(name string)
+core: func (m *SessionMetadata) Set(name string, value any) error
+core: func (m *SessionMetadata) UnmarshalJSON(data []byte) error
 core: func (m ActionMetadata) Applicable(state map[string]Truth) bool
 core: func (m ActionMetadata) RunCondition() string
+core: func (m SessionMetadata) Clone() SessionMetadata
+core: func (m SessionMetadata) Decode(name string, dst any) (bool, error)
+core: func (m SessionMetadata) IsZero() bool
+core: func (m SessionMetadata) Len() int
+core: func (m SessionMetadata) MarshalJSON() ([]byte, error)
 core: func (p BudgetPolicy) Check(process ProcessView) (bool, string)
 core: func (p BudgetPolicy) Name() string
 core: func (p ToolGroupPermission) String() string
@@ -204,6 +212,7 @@ core: func Not(inner Condition) Condition
 core: func Objects[T any](blackboard BlackboardReader) []T
 core: func Or(left, right Condition) Condition
 core: func ParseBinding(text string) Binding
+core: func ParseSessionMetadata(data []byte) (SessionMetadata, error)
 core: func ParseYesNo(text string) Truth
 core: func ProcessViewFrom(ctx context.Context) ProcessView
 core: func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error)
@@ -279,10 +288,11 @@ core: type RetryPolicy struct { MaxAttempts int BaseDelay time.Duration MaxDelay
 core: type RetrySafety uint8
 core: type RevisionConflictError struct { ProcessID string Expected uint64 Actual uint64 }
 core: type ScoreFunc func(WorldState) float64
-core: type Session struct { ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` UserID string `json:"user_id,omitempty"` AgentName string `json:"agent_name"` StartedAt time.Time `json:"started_at"` UpdatedAt time.Time `json:"updated_at"` Metadata map[string]any `json:"metadata,omitempty"` }
+core: type Session struct { ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` UserID string `json:"user_id,omitempty"` AgentName string `json:"agent_name"` StartedAt time.Time `json:"started_at"` UpdatedAt time.Time `json:"updated_at"` Metadata SessionMetadata `json:"metadata,omitzero"` }
 core: type SessionDeleter interface { Delete(ctx context.Context, id string) error }
 core: type SessionInfo struct { ID string ParentID string UserID string AgentName string StartedAt time.Time UpdatedAt time.Time }
 core: type SessionLister interface { List(ctx context.Context) ([]string, error) }
+core: type SessionMetadata struct { }
 core: type SessionReader interface { Load(ctx context.Context, id string) (Session, error) }
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
@@ -312,6 +322,7 @@ core: type WorldState interface { Conditions() ConditionSet Timestamp() time.Tim
 core: var ( ErrInvalidDependencyKey = errors.New("agent: invalid dependency key") ErrDependencyNotFound = errors.New("agent: dependency not found") ErrDependencyTypeMismatch = errors.New("agent: dependency type mismatch") ErrDependencyExists = errors.New("agent: dependency already registered") ErrDependenciesFrozen = errors.New("agent: dependencies are frozen") ErrNilDependency = errors.New("agent: nil dependency") )
 core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found") ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") ErrRevisionConflict = errors.New("process store: revision conflict") )
 core: var ErrInvalidSession = errors.New("session: invalid")
+core: var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrSessionNotFound = errSessionNotFound{}
 event: func (ActionFinished) Kind() string

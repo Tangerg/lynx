@@ -14,7 +14,9 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	secondExtension := &constructorExtension{name: "second"}
 	extensions := []core.Extension{firstExtension}
 	session := core.NewSession("session-1", "user-1", "agent-1")
-	session.Metadata["host"] = map[string]any{"mutable": true}
+	if err := session.Metadata.Set("host", map[string]any{"mutable": true}); err != nil {
+		t.Fatal(err)
+	}
 	callMiddleware := func(next chat.Model) chat.Model { return next }
 	streamMiddleware := func(next chat.Streamer) chat.Streamer { return next }
 	guardrails := &core.ChatGuardrails{
@@ -34,7 +36,9 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 
 	extensions[0] = secondExtension
 	session.ID = "mutated"
-	session.Metadata["later"] = true
+	if err := session.Metadata.Set("later", true); err != nil {
+		t.Fatal(err)
+	}
 	guardrails.CallMiddlewares[0] = nil
 	guardrails.StreamMiddlewares[0] = nil
 	guardrails.MaxToolRounds = 99
@@ -45,7 +49,7 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	if snapshot.session == nil || snapshot.session.ID != "session-1" {
 		t.Fatalf("session = %#v, want session-1 snapshot", snapshot.session)
 	}
-	if snapshot.session.Metadata != nil {
+	if !snapshot.session.Metadata.IsZero() {
 		t.Fatalf("process retained host-owned session metadata: %#v", snapshot.session.Metadata)
 	}
 	if snapshot.guardrails == nil || snapshot.guardrails.MaxToolRounds != 4 {

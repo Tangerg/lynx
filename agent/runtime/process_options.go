@@ -46,7 +46,7 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 		sessionSnapshot := *options.Session
 		// ProcessContext exposes only SessionInfo. Opaque host metadata belongs
 		// to SessionStore and must not become mutable execution-aggregate state.
-		sessionSnapshot.Metadata = nil
+		sessionSnapshot.Metadata = core.SessionMetadata{}
 		session = &sessionSnapshot
 	}
 

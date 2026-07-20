@@ -22,19 +22,6 @@ type AgentAnnotations struct {
 	object string
 }
 
-// AgentAnnotationsFromMap converts the agent SPI's metadata object into an
-// owned domain value. A nil map is the empty annotation object.
-func AgentAnnotationsFromMap(object map[string]any) (AgentAnnotations, error) {
-	if object == nil {
-		return AgentAnnotations{}, nil
-	}
-	data, err := json.Marshal(object)
-	if err != nil {
-		return AgentAnnotations{}, fmt.Errorf("%w: encode object: %w", ErrInvalidAgentAnnotations, err)
-	}
-	return ParseAgentAnnotations(data)
-}
-
 // ParseAgentAnnotations validates and owns a JSON object. Null, arrays, scalar
 // values, and malformed JSON are rejected because core.Session.Metadata is
 // documented as an object.
@@ -75,16 +62,4 @@ func (a AgentAnnotations) String() string {
 		return "{}"
 	}
 	return a.object
-}
-
-// Map projects the immutable annotations to the agent SPI. Each call returns a
-// fresh object graph and preserves JSON numbers exactly.
-func (a AgentAnnotations) Map() map[string]any {
-	decoder := json.NewDecoder(bytes.NewBufferString(a.String()))
-	decoder.UseNumber()
-	var object map[string]any
-	if err := decoder.Decode(&object); err != nil {
-		panic(fmt.Sprintf("session: corrupt agent annotations invariant: %v", err))
-	}
-	return object
 }

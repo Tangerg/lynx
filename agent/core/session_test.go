@@ -2,8 +2,8 @@ package core_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -25,8 +25,8 @@ func TestNewSessionDefaultsTimestamps(t *testing.T) {
 		t.Errorf("StartedAt should equal UpdatedAt at creation; got %v vs %v",
 			session.StartedAt, session.UpdatedAt)
 	}
-	if session.Metadata == nil {
-		t.Error("Metadata should be allocated, not nil")
+	if !session.Metadata.IsZero() {
+		t.Errorf("Metadata = %#v, want empty", session.Metadata)
 	}
 }
 
@@ -91,7 +91,7 @@ func TestMemorySessionStoreSaveLoad(t *testing.T) {
 	ctx := context.Background()
 
 	session := core.NewSession("s-1", "user-1", "demo")
-	session.Metadata["channel"] = "web"
+	setSessionMetadata(t, &session, "channel", "web")
 
 	if err := store.Save(ctx, session); err != nil {
 		t.Fatalf("save: %v", err)
@@ -100,7 +100,7 @@ func TestMemorySessionStoreSaveLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if got.ID != "s-1" || got.Metadata["channel"] != "web" {
+	if got.ID != "s-1" || decodeSessionMetadata[string](t, got.Metadata, "channel") != "web" {
 		t.Errorf("round-trip: %#v", got)
 	}
 }
@@ -109,23 +109,24 @@ func TestMemorySessionStoreOwnsNestedMetadataSnapshots(t *testing.T) {
 	store := core.NewMemorySessionStore()
 	session := core.NewSession("s-1", "user-1", "demo")
 	nested := map[string]any{"labels": []any{"saved"}}
-	session.Metadata["nested"] = nested
+	setSessionMetadata(t, &session, "nested", nested)
 
 	if err := store.Save(t.Context(), session); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	nested["labels"].([]any)[0] = "caller-mutated"
-	session.Metadata["new"] = true
+	setSessionMetadata(t, &session, "new", true)
 
 	first, err := store.Load(t.Context(), session.ID)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	firstNested := first.Metadata["nested"].(map[string]any)
+	firstNested := decodeSessionMetadata[map[string]any](t, first.Metadata, "nested")
 	if got := firstNested["labels"].([]any)[0]; got != "saved" {
 		t.Fatalf("stored nested metadata = %v, want saved", got)
 	}
-	if _, leaked := first.Metadata["new"]; leaked {
+	var added bool
+	if leaked, err := first.Metadata.Decode("new", &added); err != nil || leaked {
 		t.Fatal("stored metadata retained caller map mutation")
 	}
 
@@ -134,19 +135,52 @@ func TestMemorySessionStoreOwnsNestedMetadataSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second Load: %v", err)
 	}
-	secondNested := second.Metadata["nested"].(map[string]any)
+	secondNested := decodeSessionMetadata[map[string]any](t, second.Metadata, "nested")
 	if got := secondNested["labels"].([]any)[0]; got != "saved" {
 		t.Fatalf("load result aliased stored metadata: got %v", got)
 	}
 }
 
-func TestMemorySessionStoreRejectsNonJSONMetadata(t *testing.T) {
-	store := core.NewMemorySessionStore()
-	session := core.NewSession("s-1", "user-1", "demo")
-	session.Metadata["callback"] = func() {}
+func TestSessionMetadataRejectsNonJSONValueAtWriteBoundary(t *testing.T) {
+	var metadata core.SessionMetadata
+	if err := metadata.Set("callback", func() {}); !errors.Is(err, core.ErrInvalidSessionMetadata) {
+		t.Fatalf("Set error = %v, want ErrInvalidSessionMetadata", err)
+	}
+}
 
-	if err := store.Save(t.Context(), session); err == nil || !strings.Contains(err.Error(), "session metadata") {
-		t.Fatalf("Save error = %v, want metadata encoding error", err)
+func TestSessionMetadataOwnsCanonicalJSONObject(t *testing.T) {
+	source := []byte(`{"z":[1,true],"a":{"name":"agent"}}`)
+	metadata, err := core.ParseSessionMetadata(source)
+	if err != nil {
+		t.Fatalf("ParseSessionMetadata: %v", err)
+	}
+	source[2] = 'x'
+
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if got, want := string(encoded), `{"a":{"name":"agent"},"z":[1,true]}`; got != want {
+		t.Fatalf("JSON = %s, want %s", got, want)
+	}
+
+	clone := metadata.Clone()
+	if err := clone.Set("new", true); err != nil {
+		t.Fatal(err)
+	}
+	var added bool
+	if found, err := metadata.Decode("new", &added); err != nil || found {
+		t.Fatalf("clone mutation leaked into source: found=%t err=%v", found, err)
+	}
+}
+
+func TestSessionMetadataRejectsNonObjects(t *testing.T) {
+	for _, input := range []string{"null", "[]", `"value"`, "42", "{"} {
+		t.Run(input, func(t *testing.T) {
+			if _, err := core.ParseSessionMetadata([]byte(input)); !errors.Is(err, core.ErrInvalidSessionMetadata) {
+				t.Fatalf("ParseSessionMetadata(%q) error = %v, want ErrInvalidSessionMetadata", input, err)
+			}
+		})
 	}
 }
 
@@ -154,7 +188,7 @@ func TestMemorySessionStoreSeparatesConcurrentCallerMutation(t *testing.T) {
 	store := core.NewMemorySessionStore()
 	session := core.NewSession("s-1", "user-1", "demo")
 	labels := []any{"stored"}
-	session.Metadata["labels"] = labels
+	setSessionMetadata(t, &session, "labels", labels)
 	if err := store.Save(t.Context(), session); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -171,11 +205,31 @@ func TestMemorySessionStoreSeparatesConcurrentCallerMutation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Load: %v", err)
 		}
-		if got := loaded.Metadata["labels"].([]any)[0]; got != "stored" {
+		if got := decodeSessionMetadata[[]any](t, loaded.Metadata, "labels")[0]; got != "stored" {
 			t.Fatalf("stored metadata changed with caller mutation: %v", got)
 		}
 	}
 	<-done
+}
+
+func setSessionMetadata(t *testing.T, session *core.Session, name string, value any) {
+	t.Helper()
+	if err := session.Metadata.Set(name, value); err != nil {
+		t.Fatalf("Metadata.Set(%q): %v", name, err)
+	}
+}
+
+func decodeSessionMetadata[T any](t *testing.T, metadata core.SessionMetadata, name string) T {
+	t.Helper()
+	var value T
+	found, err := metadata.Decode(name, &value)
+	if err != nil {
+		t.Fatalf("Metadata.Decode(%q): %v", name, err)
+	}
+	if !found {
+		t.Fatalf("Metadata.Decode(%q): field not found", name)
+	}
+	return value
 }
 
 func TestMemorySessionStoreNotFound(t *testing.T) {
