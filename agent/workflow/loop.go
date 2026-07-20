@@ -100,6 +100,8 @@ func Loop[In, Out any](
 	// Condition keys must not contain ':' — the determiner reserves
 	// that for type-binding keys. Use '_' as the separator.
 	doneKey := config.Name + "_done"
+	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
+	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
 
 	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*History[Out]](env.Blackboard)
@@ -117,7 +119,7 @@ func Loop[In, Out any](
 		// In==Out the per-iteration outputs would shadow the input.
 		var input In
 		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			input = original.value
+			input = original.Value
 		}
 		if config.Until(ctx, input, last) {
 			return core.True
@@ -133,13 +135,13 @@ func Loop[In, Out any](
 			history, ok := core.Last[*History[Out]](process.Blackboard())
 			if !ok {
 				history = &History[Out]{}
-				process.Blackboard().Bind(history)
+				process.Blackboard().Store(historyState.Name, history)
 				// First iteration: `in` is the original input — stash it so later
 				// iterations feed the SAME input to Body even when In==Out (else the
 				// framework binds `in` from the latest Out).
-				process.Blackboard().Bind(loopInput[In]{value: input})
+				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
 			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
-				input = original.value
+				input = original.Value
 			}
 
 			child, err := engine.RunChildIsolated(ctx, bodyDeployment, input)
@@ -165,10 +167,11 @@ func Loop[In, Out any](
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        config.Name,
-		Description: config.Description,
-		Actions:     []core.Action{iter},
-		Conditions:  []core.Condition{doneCondition},
-		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{doneKey}})},
+		Name:         config.Name,
+		Description:  config.Description,
+		Actions:      []core.Action{iter},
+		Conditions:   []core.Condition{doneCondition},
+		DurableState: []core.Binding{historyState, inputState},
+		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{doneKey}})},
 	}), nil
 }

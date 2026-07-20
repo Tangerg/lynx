@@ -18,6 +18,8 @@ type fakeCondition struct {
 	cost float64
 }
 
+type durableStateSample struct{ Value string }
+
 func (c fakeCondition) Name() string                                          { return c.name }
 func (c fakeCondition) Cost() float64                                         { return c.cost }
 func (fakeCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth { return core.Unknown }
@@ -73,6 +75,23 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 	base.Conditions = []core.Condition{core.NewCondition("ready", nil), core.NewCondition("ready", nil)}
 	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
 		t.Fatalf("duplicate condition error = %v", err)
+	}
+}
+
+func TestValidateRejectsInvalidDurableState(t *testing.T) {
+	base := core.AgentConfig{
+		Name:    "durable-state",
+		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	}
+	base.DurableState = []core.Binding{{Name: "state", Type: "example.State"}}
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "must be constructed with NewBinding") {
+		t.Fatalf("literal durable state error = %v", err)
+	}
+	binding := core.NewBinding[durableStateSample]("state")
+	base.DurableState = []core.Binding{binding, binding}
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate durable state") {
+		t.Fatalf("duplicate durable state error = %v", err)
 	}
 }
 
@@ -180,13 +199,15 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
+	durableState := []core.Binding{core.NewBinding[durableStateSample]("state")}
 	config := core.AgentConfig{
-		Name:        "owned",
-		Description: "original",
-		Version:     "1.2.3",
-		Actions:     actions,
-		Goals:       goals,
-		Conditions:  conditions,
+		Name:         "owned",
+		Description:  "original",
+		Version:      "1.2.3",
+		Actions:      actions,
+		Goals:        goals,
+		Conditions:   conditions,
+		DurableState: durableState,
 	}
 
 	agent := core.NewAgent(config)
@@ -195,18 +216,24 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
+	durableState[0].Name = "mutated"
 
 	returnedActions := agent.Actions()
 	returnedGoals := agent.Goals()
 	returnedConditions := agent.Conditions()
+	returnedState := agent.DurableState()
 	returnedActions[0] = nil
 	returnedGoals[0] = nil
 	returnedConditions[0] = nil
+	returnedState[0].Name = "mutated-again"
 
 	if agent.Description() != "original" || agent.Version() != "1.2.3" {
 		t.Fatalf("scalar config leaked: description=%q version=%q", agent.Description(), agent.Version())
 	}
 	if agent.Actions()[0] == nil || agent.Goals()[0] != goal || agent.Conditions()[0] != condition {
 		t.Fatal("Agent leaked caller or accessor slice storage")
+	}
+	if state := agent.DurableState(); len(state) != 1 || state[0].Name != "state" {
+		t.Fatalf("Agent leaked durable state storage: %#v", state)
 	}
 }

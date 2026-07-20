@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"math"
 	"sync/atomic"
 	"testing"
 
@@ -99,6 +100,70 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	}
 }
 
+func TestRepeatUntilAcceptable_AutoSnapshotPreservesState(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "acceptable-snapshot", ProcessStore: store, AutoSnapshot: true,
+	})
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+		Name: "durable-acceptable", MaxIterations: 2, AcceptableScore: 0.9,
+		Task: func(_ context.Context, _ *core.ProcessContext, input ruaIn, history *workflow.History[ruaOut]) (ruaOut, error) {
+			return ruaOut{Draft: input.Topic + string(rune('1'+history.Count()))}, nil
+		},
+		Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+			return workflow.Feedback{Score: 0.5, Text: "revise"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustDeploy(t, engine, a)
+	process, err := engine.Run(t.Context(), a, core.Input(ruaIn{Topic: "original-"}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	}
+	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	history, ok := core.Result[*workflow.AttemptHistory[ruaOut]](restored)
+	if !ok || history.Count() != 2 {
+		t.Fatalf("restored attempt history count=%d ok=%v, want 2", history.Count(), ok)
+	}
+	feedback, ok := core.Result[workflow.Feedback](restored)
+	if !ok || feedback.Score != 0.5 {
+		t.Fatalf("restored feedback=%#v ok=%v", feedback, ok)
+	}
+}
+
+func TestRepeatUntilAcceptable_InEqualsOutKeepsOriginalInput(t *testing.T) {
+	var seen []string
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[refine, refine]{
+		Name: "acceptable-refine", MaxIterations: 3, AcceptableScore: 1,
+		Task: func(_ context.Context, _ *core.ProcessContext, input refine, history *workflow.History[refine]) (refine, error) {
+			seen = append(seen, input.Tag)
+			return refine{Tag: "attempt", N: history.Count() + 1}, nil
+		},
+		Evaluator: func(context.Context, *core.ProcessContext, refine, refine) (workflow.Feedback, error) {
+			return workflow.Feedback{Score: 0}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	process, err := engine.Run(t.Context(), a, core.Input(refine{Tag: "original"}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s err=%v", process.Status(), err)
+	}
+	for index, input := range seen {
+		if input != "original" {
+			t.Fatalf("Task iteration %d input=%q, want original", index, input)
+		}
+	}
+}
+
 // TestRepeatUntilAcceptable_ReturnsBestNotLast confirms best-of-N: when no
 // attempt clears the threshold, the highest-scoring attempt is returned even
 // if a later attempt scored worse.
@@ -176,6 +241,15 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 			Name: "x",
 			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
+			},
+		}},
+		{"invalid threshold", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+			Name: "x", AcceptableScore: math.NaN(),
+			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
 			},
 		}},
 	}

@@ -70,9 +70,9 @@ type Binding struct {
 	Name string
 	Type string
 
-	// goType is the concrete reflect.Type the binding was declared with,
-	// retained so a snapshot round-trip can reconstruct the original Go type
-	// rather than the generic map JSON decodes into (see snapshotTypeTable).
+	// goType is the exact concrete reflect.Type the binding was declared with,
+	// retained so a snapshot round-trip preserves pointer depth and reconstructs
+	// the original Go type rather than a generic JSON value.
 	// Set only by NewBinding[T]; literal bindings carry no recoverable type
 	// information.
 	goType reflect.Type
@@ -125,14 +125,10 @@ func NewBinding[T any](name string) Binding {
 	}
 
 	typ := reflect.TypeFor[T]()
-	element := typ
-	for element.Kind() == reflect.Pointer {
-		element = element.Elem()
-	}
 	return Binding{
 		Name:   name,
 		Type:   typeFullName(typ),
-		goType: element, // unwrapped to match Type's pointer-normalized name
+		goType: typ,
 	}
 }
 

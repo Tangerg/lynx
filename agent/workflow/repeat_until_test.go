@@ -149,6 +149,40 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	}
 }
 
+func TestRepeatUntil_AutoSnapshotRoundTrip(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "repeat-until-snapshot", ProcessStore: store, AutoSnapshot: true,
+	})
+	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
+		Name: "durable-repeat", MaxIterations: 3,
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, history *workflow.History[ruOut]) (ruOut, error) {
+			return ruOut{Value: history.Count() + 1}, nil
+		},
+		Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return false },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustDeploy(t, engine, a)
+	process, err := engine.Run(t.Context(), a, core.Input(ruIn{Target: 9}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	}
+	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	result, ok := core.Result[ruOut](restored)
+	if !ok || result.Value != 3 {
+		t.Fatalf("restored result=%#v ok=%v, want value 3", result, ok)
+	}
+	history, ok := core.Result[*workflow.History[ruOut]](restored)
+	if !ok || history.Count() != 3 {
+		t.Fatalf("restored history count=%d ok=%v, want 3", history.Count(), ok)
+	}
+}
+
 func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	var seenInTask []int
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
@@ -156,7 +190,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 		MaxIterations: 5,
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
 			snapshot := make([]int, 0, h.Count())
-			for _, a := range h.Attempts {
+			for _, a := range h.Attempts() {
 				snapshot = append(snapshot, a.Value)
 			}
 			seenInTask = snapshot // overwrite each iteration

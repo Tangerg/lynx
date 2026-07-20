@@ -44,6 +44,12 @@ type AgentConfig struct {
 	// determiner can evaluate alongside the auto-derived ones.
 	Conditions []Condition
 
+	// DurableState declares additional typed blackboard values owned by the
+	// agent but not represented by action inputs or outputs. Generated workflows
+	// use it for loop checkpoints and history. Every entry must be constructed
+	// with NewBinding so snapshots can reconstruct its exact Go type.
+	DurableState []Binding
+
 	// PlannerName selects which planner the runtime uses for this
 	// agent. It must match the [Extension.Name] of a planner
 	// registered on the engine (or via process-scope
@@ -73,6 +79,7 @@ func (c AgentConfig) clone() AgentConfig {
 	c.Actions = slices.Clone(c.Actions)
 	c.Goals = slices.Clone(c.Goals)
 	c.Conditions = slices.Clone(c.Conditions)
+	c.DurableState = slices.Clone(c.DurableState)
 	return c
 }
 
@@ -130,6 +137,15 @@ func (a *Agent) Conditions() []Condition {
 		return nil
 	}
 	return slices.Clone(a.config.Conditions)
+}
+
+// DurableState returns a snapshot of the agent-owned blackboard schema that is
+// independent of action inputs and outputs.
+func (a *Agent) DurableState() []Binding {
+	if a == nil {
+		return nil
+	}
+	return slices.Clone(a.config.DurableState)
 }
 
 // PlannerName returns the requested planner extension name. Empty means the
@@ -225,6 +241,23 @@ func (a *Agent) Validate() error {
 		if math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), condition.Name(), cost))
 		}
+	}
+	seenState := make(map[string]struct{}, len(a.config.DurableState))
+	for index, binding := range a.config.DurableState {
+		if err := binding.Validate(); err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: durable state[%d]: %w", a.Name(), index, err))
+			continue
+		}
+		if binding.goType == nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: durable state[%d] %s must be constructed with NewBinding", a.Name(), index, binding))
+			continue
+		}
+		key := binding.String()
+		if _, duplicate := seenState[key]; duplicate {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate durable state %s", a.Name(), binding))
+			continue
+		}
+		seenState[key] = struct{}{}
 	}
 	problems = append(problems, a.goalReachabilityErrors()...)
 	return errors.Join(problems...)
