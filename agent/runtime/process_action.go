@@ -208,8 +208,8 @@ func (p *Process) runWithRetry(
 			return haltSignal{status: status}
 		}
 
-		// ActionFailed or any other non-terminal status — produce an
-		// error so [pkg/retry] knows this attempt didn't succeed.
+		// ActionFailed produces an error so [pkg/retry] knows this attempt
+		// didn't succeed.
 		if lastErr != nil {
 			return lastErr
 		}

@@ -19,15 +19,10 @@ func (namespacedAction) Execute(context.Context, *core.ProcessContext) (core.Act
 }
 
 func TestWorldStateReadsNamespacedActionRunCondition(t *testing.T) {
-	action := namespacedAction{metadata: core.ActionMetadata{
-		Name: "checkout:authorize",
-		Preconditions: core.ConditionSet{
-			core.ActionRunConditionPrefix + "checkout:authorize": core.False,
-		},
-		Effects: core.ConditionSet{
-			core.ActionRunConditionPrefix + "checkout:authorize": core.True,
-		},
-	}}
+	metadata := core.ActionMetadata{Name: "checkout:authorize"}
+	metadata.Preconditions = core.ConditionSet{metadata.RunCondition(): core.False}
+	metadata.Effects = core.ConditionSet{metadata.RunCondition(): core.True}
+	action := namespacedAction{metadata: metadata}
 	domain, err := planning.NewDomain([]core.Action{action}, nil, nil)
 	if err != nil {
 		t.Fatalf("NewDomain: %v", err)
