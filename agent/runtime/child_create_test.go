@@ -61,7 +61,7 @@ func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
 	parentDef := agent.New(agent.AgentConfig{Name: "parent", Actions: []agent.Action{agent.NewAction("noop", func(_ context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
 		return parentOutput{Final: in.Value}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
-	if _, err := engine.Deploy(parentDef); err != nil {
+	if _, err := engine.Deploy(t.Context(), parentDef); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 	parent, err := engine.Run(t.Context(), parentDef,
@@ -72,7 +72,7 @@ func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
 
 	before := len(engine.Processes())
 	createdBefore := created.value()
-	childDeployment, err := engine.Deploy(childAgent())
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
 
 func TestRunChildReturnsExtensionNamePanic(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	childDeployment, err := engine.Deploy(childAgent())
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestRunChildReturnsExtensionNamePanic(t *testing.T) {
 	parentDef := agent.New(agent.AgentConfig{Name: "parent-extension-check", Actions: []agent.Action{agent.NewAction("noop", func(_ context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
 		return parentOutput{Final: in.Value}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
-	if _, err := engine.Deploy(parentDef); err != nil {
+	if _, err := engine.Deploy(t.Context(), parentDef); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 	cause := errors.New("child extension identity unavailable")

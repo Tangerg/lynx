@@ -214,37 +214,32 @@ func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session)
 func (e *Engine) SessionStore() core.SessionStore { return e.sessionStore }
 
 // Start deploys/resolves the Agent definition and runs it in the background,
-// returning the process and a channel that delivers the final error (or nil on
-// success). It has the same catalog and conflict semantics as [Engine.Run].
+// returning the process and a channel that delivers the final run error (or nil
+// on success). Definition resolution and process construction errors are
+// returned synchronously with a nil process and channel. It has the same
+// catalog and conflict semantics as [Engine.Run].
 func (e *Engine) Start(
 	ctx context.Context,
 	agent *core.Agent,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, <-chan error) {
-	done := make(chan error, 1)
-
+) (*Process, <-chan error, error) {
 	if agent == nil {
-		done <- errors.New("runtime.Engine.Start: agent definition is nil")
-		close(done)
-		return nil, done
+		return nil, nil, errors.New("runtime.Engine.Start: agent definition is nil")
 	}
 	deployment, err := e.deploymentForProcess(ctx, agent)
 	if err != nil {
-		done <- fmt.Errorf("runtime.Engine.Start: %w", err)
-		close(done)
-		return nil, done
+		return nil, nil, fmt.Errorf("runtime.Engine.Start: %w", err)
 	}
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
 	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		span.End()
-		done <- err
-		close(done)
-		return nil, done
+		return nil, nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
+	done := make(chan error, 1)
 	go func() {
 		err := process.run(ctx)
 		finishAgentRunSpan(span, process, err)
@@ -252,7 +247,7 @@ func (e *Engine) Start(
 		done <- err
 		close(done)
 	}()
-	return process, done
+	return process, done, nil
 }
 
 // Continue re-enters the run loop on an already-created
@@ -275,28 +270,32 @@ func (e *Engine) Continue(ctx context.Context, id string) error {
 }
 
 // ContinueAsync is the background variant of
-// [Engine.Continue]. The returned buffered channel
-// receives the run's final error (nil on clean exit) so callers can
-// fire-and-forget while still being able to wait on completion.
-func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error {
-	done := make(chan error, 1)
-
+// [Engine.Continue]. Admission errors are returned synchronously; after a run
+// starts, the returned buffered channel receives its final error (nil on clean
+// exit).
+func (e *Engine) ContinueAsync(ctx context.Context, id string) (<-chan error, error) {
 	process, ok := e.Process(id)
 	if !ok {
-		done <- processNotFoundError("continue process asynchronously", id)
-		close(done)
-		return done
+		return nil, processNotFoundError("continue process asynchronously", id)
 	}
 	if err := process.ensureContinuable(); err != nil {
-		done <- err
+		return nil, err
+	}
+	started, err := process.beginRun()
+	if err != nil {
+		return nil, err
+	}
+	done := make(chan error, 1)
+	if !started {
+		done <- nil
 		close(done)
-		return done
+		return done, nil
 	}
 	go func() {
-		done <- process.run(normalizeContext(ctx))
+		done <- process.runOwned(ctx)
 		close(done)
 	}()
-	return done
+	return done, nil
 }
 
 func (p *Process) ensureContinuable() error {
@@ -381,14 +380,7 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 // children. Idempotent and safe on any process — an already-terminal one is
 // left untouched, so a kill racing natural completion cannot clobber a clean
 // terminal state or publish a duplicate event.
-func (e *Engine) Kill(id string) error {
-	return e.KillContext(context.Background(), id)
-}
-
-// KillContext is [Engine.Kill] with a context for lifecycle-event propagation.
-// Killing is a local state transition and is not canceled when ctx is done;
-// listeners and tracing still receive the caller's context.
-func (e *Engine) KillContext(ctx context.Context, id string) error {
+func (e *Engine) Kill(ctx context.Context, id string) error {
 	process, ok := e.Process(id)
 	if !ok {
 		return processNotFoundError("kill process", id)
@@ -409,13 +401,7 @@ func (e *Engine) KillContext(ctx context.Context, id string) error {
 // KillChildren terminates every non-terminal direct child whose ParentID
 // matches parentID and returns those direct child ids (order unspecified).
 // Each child Kill recursively terminates its own descendants.
-func (e *Engine) KillChildren(parentID string) []string {
-	return e.KillChildrenContext(context.Background(), parentID)
-}
-
-// KillChildrenContext is [Engine.KillChildren] with a context for each
-// descendant's lifecycle-event propagation.
-func (e *Engine) KillChildrenContext(ctx context.Context, parentID string) []string {
+func (e *Engine) KillChildren(ctx context.Context, parentID string) []string {
 	return e.killChildren(normalizeContext(ctx), parentID)
 }
 
@@ -425,7 +411,7 @@ func (e *Engine) killChildren(ctx context.Context, parentID string) []string {
 		if process.ParentID() != parentID || process.Status().IsTerminal() {
 			continue
 		}
-		if err := e.KillContext(ctx, process.ID()); err == nil {
+		if err := e.Kill(ctx, process.ID()); err == nil {
 			killed = append(killed, process.ID())
 		}
 	}

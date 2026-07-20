@@ -39,7 +39,7 @@ func (m *stubModel) Call(_ context.Context, req *chat.Request) (*chat.Response, 
 func TestModelRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	for _, name := range []string{"alpha", "beta"} {
-		if _, err := engine.Deploy(newAgent(name)); err != nil {
+		if _, err := engine.Deploy(t.Context(), newAgent(name)); err != nil {
 			t.Fatalf("deploy %s: %v", name, err)
 		}
 	}
@@ -183,7 +183,7 @@ func TestModelRanker_PromptIncludesGoalTagsAndExamples(t *testing.T) {
 	taggedAgent := agent.New(agent.AgentConfig{Name: "tagged", Description: "an agent for testing goal hints", Actions: []agent.Action{agent.NewAction("act", func(_ context.Context, _ *core.ProcessContext, in chooseIn) (chooseOut, error) {
 		return chooseOut{Done: true}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[chooseOut](core.GoalConfig{Description: "categorize sentiment", Tags: []string{"sentiment", "classifier"}, Examples: []string{"how do I feel about this?", "rate this review"}})}})
-	if _, err := engine.Deploy(taggedAgent); err != nil {
+	if _, err := engine.Deploy(t.Context(), taggedAgent); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 

@@ -45,15 +45,6 @@ func (p *Process) publishCreated(ctx context.Context, bindings core.Bindings) {
 	})
 }
 
-// publishAny accepts the type-erased event surface exposed by ProcessContext.
-func (p *Process) publishAny(ctx context.Context, value any) {
-	eventValue, ok := value.(event.Event)
-	if !ok {
-		return
-	}
-	p.publishEvent(ctx, eventValue)
-}
-
 func (p *Process) startTickSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	return agentTracer.Start(ctx, name,
 		trace.WithAttributes(

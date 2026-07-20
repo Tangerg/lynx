@@ -36,11 +36,11 @@ func makeIncrementingBody() (*core.Agent, *int32) {
 func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	body, iterCount := makeIncrementingBody()
-	if _, err := engine.Deploy(body); err != nil {
+	if _, err := engine.Deploy(t.Context(), body); err != nil {
 		t.Fatalf("deploy body: %v", err)
 	}
 
-	wf, err := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
 		engine,
 		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "incr-loop",
@@ -54,7 +54,7 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Loop: %v", err)
 	}
-	if _, err := engine.Deploy(wf); err != nil {
+	if _, err := engine.Deploy(t.Context(), wf); err != nil {
 		t.Fatalf("deploy wf: %v", err)
 	}
 
@@ -85,7 +85,7 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	body, iterCount := makeIncrementingBody()
 	mustDeploy(t, engine, body)
 
-	wf, err := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
 		engine,
 		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "capped-loop",
@@ -124,7 +124,7 @@ func TestLoop_AutoSnapshotPreservesWorkflowState(t *testing.T) {
 	})
 	body, _ := makeIncrementingBody()
 	mustDeploy(t, engine, body)
-	wf, err := workflow.Loop[loopIn, loopOut](engine, workflow.LoopConfig[loopIn, loopOut]{
+	wf, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
 		Name: "durable-loop", MaxIterations: 2, Body: body,
 		Until: func(context.Context, loopIn, loopOut) bool { return false },
 	})
@@ -162,7 +162,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[loopOut](core.GoalConfig{Description: "loopOut"})}})
 	mustDeploy(t, engine, body)
 
-	wf, err := workflow.Loop[loopIn, loopOut](
+	wf, err := workflow.Loop[loopIn, loopOut](t.Context(),
 		engine,
 		workflow.LoopConfig[loopIn, loopOut]{
 			Name:          "isolation-loop",
@@ -187,7 +187,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 
 func TestLoop_RejectsNilBody(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := workflow.Loop[loopIn, loopOut](engine, workflow.LoopConfig[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
 		Name:  "no-body",
 		Until: func(_ context.Context, _ loopIn, _ loopOut) bool { return true },
 	}); err == nil {
@@ -198,7 +198,7 @@ func TestLoop_RejectsNilBody(t *testing.T) {
 func TestLoop_RejectsNilUntil(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	body, _ := makeIncrementingBody()
-	if _, err := workflow.Loop[loopIn, loopOut](engine, workflow.LoopConfig[loopIn, loopOut]{
+	if _, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
 		Name: "no-until",
 		Body: body,
 	}); err == nil {

@@ -72,6 +72,7 @@ type LoopConfig[In, Out any] struct {
 //
 // Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
+	ctx context.Context,
 	engine *runtime.Engine,
 	config LoopConfig[In, Out],
 ) (*core.Agent, error) {
@@ -87,7 +88,7 @@ func Loop[In, Out any](
 	if config.Until == nil {
 		return nil, errors.New("workflow.Loop: Until must not be nil")
 	}
-	bodyDeployment, err := engine.Deploy(config.Body)
+	bodyDeployment, err := engine.Deploy(ctx, config.Body)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
 	}

@@ -39,7 +39,7 @@ type ActionMiddleware interface {
 }
 
 // ToolMiddleware wraps every [tools.Tool] resolved by
-// [ProcessContext.ActionTools] / [ProcessContext.ResolveTools].
+// [ProcessContext.ActionTools].
 // Composition is wrap-style: first registered is innermost.
 // A panic or nil result makes tool resolution fail with an error attributed to
 // the middleware; it cannot leak into the host or silently remove a tool.

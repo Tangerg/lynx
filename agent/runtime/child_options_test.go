@@ -31,7 +31,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "leaf done"})},
 	})
-	leafDeployment, err := engine.Deploy(leaf)
+	leafDeployment, err := engine.Deploy(t.Context(), leaf)
 	if err != nil {
 		t.Fatalf("deploy leaf: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "middle done"})},
 	})
-	middleDeployment, err := engine.Deploy(middle)
+	middleDeployment, err := engine.Deploy(t.Context(), middle)
 	if err != nil {
 		t.Fatalf("deploy middle: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "root done"})},
 	})
-	if _, err := engine.Deploy(root); err != nil {
+	if _, err := engine.Deploy(t.Context(), root); err != nil {
 		t.Fatalf("deploy root: %v", err)
 	}
 
@@ -124,7 +124,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "leaf done"})},
 	})
-	leafDeployment, err := engine.Deploy(leaf)
+	leafDeployment, err := engine.Deploy(t.Context(), leaf)
 	if err != nil {
 		t.Fatalf("deploy leaf: %v", err)
 	}
@@ -141,11 +141,14 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "root done"})},
 	})
-	if _, err := engine.Deploy(root); err != nil {
+	if _, err := engine.Deploy(t.Context(), root); err != nil {
 		t.Fatalf("deploy root: %v", err)
 	}
 
-	process, done := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
+	process, done, err := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start root: %v", err)
+	}
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -162,7 +165,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 	if child == nil {
 		t.Fatal("running child was not registered")
 	}
-	if err := engine.Kill(process.ID()); err != nil {
+	if err := engine.Kill(t.Context(), process.ID()); err != nil {
 		t.Fatalf("Kill root: %v", err)
 	}
 

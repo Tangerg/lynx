@@ -348,7 +348,7 @@ func buildLineageParentAgent(engine *runtime.Engine, childDeployment *runtime.De
 func TestRunChildLinksSessionToParent(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	child := buildSessionAgent()
-	childDeployment, err := engine.Deploy(child)
+	childDeployment, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestRunChildPersistsSession(t *testing.T) {
 	store := storetest.NewMemorySessionStore()
 	engine := agent.MustNewEngine(runtime.Config{ChildSessionStore: store})
 	child := buildSessionAgent()
-	childDeployment, err := engine.Deploy(child)
+	childDeployment, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}

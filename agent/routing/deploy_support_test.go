@@ -11,7 +11,7 @@ import (
 func mustDeploy(t *testing.T, p *runtime.Engine, agents ...*core.Agent) {
 	t.Helper()
 	for _, a := range agents {
-		if _, err := p.Deploy(a); err != nil {
+		if _, err := p.Deploy(t.Context(), a); err != nil {
 			t.Fatalf("deploy %q: %v", a.Name(), err)
 		}
 	}

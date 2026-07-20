@@ -41,7 +41,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err = engine.Deploy(a)
+	_, err = engine.Deploy(t.Context(), a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}

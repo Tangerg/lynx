@@ -116,6 +116,7 @@ func TestNewActionDefaultsToOneAttempt(t *testing.T) {
 type fakeBlackboard struct {
 	value any
 	ok    bool
+	clone func() core.Blackboard
 }
 
 func (f fakeBlackboard) Name() string { return "fake-blackboard" }
@@ -145,5 +146,10 @@ func (f fakeBlackboard) StoreAll(core.Bindings)        {}
 func (f fakeBlackboard) StoreProtected(string, any)    {}
 func (f fakeBlackboard) Hide(any)                      {}
 func (f fakeBlackboard) StoreCondition(string, bool)   {}
-func (f fakeBlackboard) Clone() core.Blackboard        { return f }
-func (f fakeBlackboard) ClearWorkingState()            {}
+func (f fakeBlackboard) Clone() core.Blackboard {
+	if f.clone != nil {
+		return f.clone()
+	}
+	return f
+}
+func (f fakeBlackboard) ClearWorkingState() {}

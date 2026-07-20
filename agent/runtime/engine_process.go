@@ -113,7 +113,7 @@ func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*
 	// must never bind an uncataloged deployment: its snapshot would carry an
 	// DeploymentRef that Restore cannot resolve. Deploy is idempotent for the
 	// same ref and preserves the explicit conflict/replace semantics.
-	return e.DeployContext(ctx, agent)
+	return e.Deploy(ctx, agent)
 }
 
 func (e *Engine) createChild(

@@ -47,19 +47,6 @@ func (l *readyPanicListener) OnEvent(_ context.Context, e event.Event) {
 	}
 }
 
-type customPanicListener struct {
-	done atomic.Bool
-}
-
-func (*customPanicListener) Name() string { return "custom-panic-listener" }
-
-func (l *customPanicListener) OnEvent(_ context.Context, e event.Event) {
-	ev, ok := e.(event.ReplanRequested)
-	if ok && ev.Reason == "custom" && l.done.CompareAndSwap(false, true) {
-		panic("custom listener failed")
-	}
-}
-
 type modelCallPanicListener struct {
 	done atomic.Bool
 }
@@ -155,8 +142,8 @@ func TestProcessKilledEventKeepsCallerTrace(t *testing.T) {
 
 	ctx, parent := otel.Tracer("test/runtime").Start(t.Context(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	if err := engine.KillContext(ctx, process.ID()); err != nil {
-		t.Fatalf("KillContext: %v", err)
+	if err := engine.Kill(ctx, process.ID()); err != nil {
+		t.Fatalf("Kill: %v", err)
 	}
 	parent.End()
 
@@ -241,39 +228,6 @@ func TestProcessContextRecordModelCallKeepsActionTrace(t *testing.T) {
 
 	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{&modelCallPanicListener{}},
-	})
-	mustDeploy(t, engine, a)
-
-	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
-	parentTrace := parent.SpanContext().TraceID()
-	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
-	parent.End()
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-
-	for _, span := range exp.GetSpans() {
-		if span.Name != "agent.listener.panic" {
-			continue
-		}
-		if span.SpanContext.TraceID() != parentTrace {
-			t.Fatalf("panic span trace = %s, want run trace %s", span.SpanContext.TraceID(), parentTrace)
-		}
-		return
-	}
-	t.Fatal("missing agent.listener.panic span")
-}
-
-func TestProcessContextPublishKeepsActionTrace(t *testing.T) {
-	exp := installRuntimeTraceCapture(t)
-
-	a := agent.New(agent.AgentConfig{Name: "action-event-trace", Actions: []agent.Action{agent.NewAction("publish", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-		pc.Emit(ctx, event.ReplanRequested{Header: event.NewHeader("manual"), Reason: "custom"})
-		return wordCount{Count: len(in.Text)}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
-
-	engine := agent.MustNewEngine(runtime.Config{
-		Extensions: []core.Extension{&customPanicListener{}},
 	})
 	mustDeploy(t, engine, a)
 

@@ -229,6 +229,53 @@ func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
 	}
 }
 
+func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
+	forbiddenPrefixes := []string{
+		"database/sql",
+		"github.com/Tangerg/lynx/vectorstores",
+		"github.com/jackc/pgx",
+		"github.com/mattn/go-sqlite3",
+		"github.com/redis/go-redis",
+		"go.mongodb.org/mongo-driver",
+		"gorm.io",
+		"modernc.org/sqlite",
+	}
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == "vendor" || name == "examples" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			importPath := strings.Trim(imported.Path.Value, `"`)
+			for _, prefix := range forbiddenPrefixes {
+				if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
+					relativePath, _ := filepath.Rel(root, path)
+					t.Errorf("Agent Framework production package imports storage backend %q: %s", importPath, relativePath)
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent Framework: %v", walkErr)
+	}
+}
+
 func TestStoretestIsOnlyImportedByTests(t *testing.T) {
 	const storetestPath = "github.com/Tangerg/lynx/agent/storetest"
 	root := moduleRoot(t)

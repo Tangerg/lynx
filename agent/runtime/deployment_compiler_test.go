@@ -278,7 +278,7 @@ func TestDurableEngineRequiresAgentVersionOrBuildID(t *testing.T) {
 		ProcessStore: store,
 		Extensions:   []core.Extension{goap.NewPlanner()},
 	})
-	if _, err := withoutIdentity.Deploy(source); !errors.Is(err, ErrDurableIdentityRequired) {
+	if _, err := withoutIdentity.Deploy(t.Context(), source); !errors.Is(err, ErrDurableIdentityRequired) {
 		t.Fatalf("Deploy error = %v, want ErrDurableIdentityRequired", err)
 	}
 
@@ -287,7 +287,7 @@ func TestDurableEngineRequiresAgentVersionOrBuildID(t *testing.T) {
 		ProcessStore: store,
 		Extensions:   []core.Extension{goap.NewPlanner()},
 	})
-	deployment, err := withBuild.Deploy(source)
+	deployment, err := withBuild.Deploy(t.Context(), source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestDurableEngineRequiresAgentVersionOrBuildID(t *testing.T) {
 		ProcessStore: store,
 		Extensions:   []core.Extension{goap.NewPlanner()},
 	})
-	if _, err := withVersion.Deploy(versioned); err != nil {
+	if _, err := withVersion.Deploy(t.Context(), versioned); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -496,11 +496,11 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 		config.Description = "replacement"
 	})
 
-	firstDeployment, err := engine.Deploy(first)
+	firstDeployment, err := engine.Deploy(t.Context(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	idempotent, err := engine.Deploy(first)
+	idempotent, err := engine.Deploy(t.Context(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -508,7 +508,7 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 		t.Fatal("idempotent deploy returned a different handle")
 	}
 
-	_, err = engine.Deploy(second)
+	_, err = engine.Deploy(t.Context(), second)
 	if !errors.Is(err, ErrDeploymentConflict) {
 		t.Fatalf("Deploy error = %v, want ErrDeploymentConflict", err)
 	}
@@ -523,7 +523,7 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 		t.Fatalf("active deployment = %#v, %v; want first", active, ok)
 	}
 
-	secondDeployment, err := engine.Replace(second)
+	secondDeployment, err := engine.Replace(t.Context(), second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -534,7 +534,7 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 		t.Fatalf("historical first deployment = %#v, %v", historical, ok)
 	}
 
-	if err := engine.Undeploy("writer"); err != nil {
+	if err := engine.Undeploy(t.Context(), "writer"); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := engine.ActiveDeployment("writer"); ok {
@@ -543,7 +543,7 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 	if historical, ok := engine.Deployment(secondDeployment.Ref()); !ok || historical != secondDeployment {
 		t.Fatalf("historical replacement = %#v, %v", historical, ok)
 	}
-	if _, err := engine.Replace(second); !errors.Is(err, ErrDeploymentNotFound) {
+	if _, err := engine.Replace(t.Context(), second); !errors.Is(err, ErrDeploymentNotFound) {
 		t.Fatalf("Replace after undeploy error = %v, want ErrDeploymentNotFound", err)
 	}
 
@@ -640,7 +640,7 @@ func TestDeployedDefinitionAccessorMutationDoesNotChangeRun(t *testing.T) {
 		Goals:       []*core.Goal{core.NewOutputGoal[deploymentRunOutput](core.GoalConfig{Name: "complete"})},
 	})
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
-	if _, err := engine.Deploy(source); err != nil {
+	if _, err := engine.Deploy(t.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 
@@ -719,7 +719,7 @@ func TestRunCatalogsDefinitionForExactRestore(t *testing.T) {
 func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	foreignEngine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
-	foreign, err := foreignEngine.Deploy(deploymentRun("foreign", 1))
+	foreign, err := foreignEngine.Deploy(t.Context(), deploymentRun("foreign", 1))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -769,7 +769,7 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	parentDef := deploymentFixture("parent", core.ConditionSet{"finish": core.True}, nil)
 	childDef := deploymentFixture("child", core.ConditionSet{"finish": core.True}, nil)
 	for _, agentDef := range []*core.Agent{parentDef, childDef} {
-		if _, err := engine.Deploy(agentDef); err != nil {
+		if _, err := engine.Deploy(t.Context(), agentDef); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -817,7 +817,7 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	source := deploymentRun("session-deployment", 1)
-	if _, err := engine.Deploy(source); err != nil {
+	if _, err := engine.Deploy(t.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	deployment := existingDeployment(t, engine, source)
@@ -849,7 +849,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	second := deploymentRun("tool-version-two", 2)
 	parentDef := deploymentFixture("tool-parent", core.ConditionSet{"finish": core.True}, nil)
 	for _, agentDef := range []*core.Agent{first, parentDef} {
-		if _, err := engine.Deploy(agentDef); err != nil {
+		if _, err := engine.Deploy(t.Context(), agentDef); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -867,7 +867,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		t.Fatal("tool did not bind the active deployment at construction")
 	}
 
-	if _, err := engine.Replace(second); err != nil {
+	if _, err := engine.Replace(t.Context(), second); err != nil {
 		t.Fatal(err)
 	}
 	parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
@@ -901,7 +901,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	source := deploymentRun("tool-deployment", 3)
-	if _, err := engine.Deploy(source); err != nil {
+	if _, err := engine.Deploy(t.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 
@@ -975,12 +975,12 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	source := deploymentRun("restore-deployment", 1)
-	if _, err := engine.Deploy(source); err != nil {
+	if _, err := engine.Deploy(t.Context(), source); err != nil {
 		t.Fatal(err)
 	}
 	deployment := existingDeployment(t, engine, source)
 	replacement := deploymentRun("replacement-deployment", 2)
-	if _, err := engine.Replace(replacement); err != nil {
+	if _, err := engine.Replace(t.Context(), replacement); err != nil {
 		t.Fatal(err)
 	}
 	started := time.Now().Add(-time.Second)
@@ -1019,7 +1019,7 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	first := deploymentRun("version-one", 1)
 	second := deploymentRun("version-two", 2)
-	if _, err := engine.Deploy(first); err != nil {
+	if _, err := engine.Deploy(t.Context(), first); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1034,7 +1034,7 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 	}
 	firstDigest := existingDeployment(t, engine, first).Ref().Digest
 
-	if _, err := engine.Replace(second); err != nil {
+	if _, err := engine.Replace(t.Context(), second); err != nil {
 		t.Fatal(err)
 	}
 	active, ok := engine.catalog.forSource(second)

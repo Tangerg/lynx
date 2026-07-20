@@ -48,7 +48,7 @@ func main() {
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Extensions: []agent.Extension{stubLogger{}},
 	})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(context.Background(), a); err != nil {
 		log.Fatal(err)
 	}
 

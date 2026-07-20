@@ -103,7 +103,7 @@ func main() {
 		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
 		Extensions: []agent.Extension{resolver},
 	})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(context.Background(), a); err != nil {
 		log.Fatal(err)
 	}
 

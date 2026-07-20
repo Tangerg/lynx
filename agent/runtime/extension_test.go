@@ -321,7 +321,7 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	}
 	restoreBoard.clone = func() core.Blackboard { return restoreBoard }
 	restoreEngine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{restoreBoard}})
-	if _, err := restoreEngine.Deploy(definition); err != nil {
+	if _, err := restoreEngine.Deploy(t.Context(), definition); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 	if _, err := restoreEngine.RestoreSnapshot(snapshot, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
@@ -347,7 +347,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 			orderedInterceptor{name: "engine-B", recorder: rec},
 		},
 	})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -519,7 +519,7 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 			failingValidator{name: "policy", err: errors.New("missing SLA tag")},
 		},
 	})
-	_, err := engine.Deploy(a)
+	_, err := engine.Deploy(t.Context(), a)
 	if err == nil {
 		t.Fatal("expected validator to reject Deploy")
 	}
@@ -532,7 +532,7 @@ func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
 	definition := newExtensionTestAgent()
 	validator := new(capturingValidator)
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{validator}})
-	deployment, err := engine.Deploy(definition)
+	deployment, err := engine.Deploy(t.Context(), definition)
 	if err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
 func TestAgentValidatorPanicRejectsDeploy(t *testing.T) {
 	cause := errors.New("validator sentinel")
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{panickingValidator{cause: cause}}})
-	_, err := engine.Deploy(newExtensionTestAgent())
+	_, err := engine.Deploy(t.Context(), newExtensionTestAgent())
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "agent validator panicked") {
 		t.Fatalf("Deploy error = %v, want wrapped validator panic", err)
 	}
@@ -578,7 +578,7 @@ func TestDeploy_ReportsAllProblems(t *testing.T) {
 		},
 	})
 
-	_, err := engine.Deploy(a)
+	_, err := engine.Deploy(t.Context(), a)
 	if err == nil {
 		t.Fatal("expected deploy to fail")
 	}
@@ -622,7 +622,7 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{vetoApprover{name: "veto"}},
 	})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
@@ -692,7 +692,7 @@ func TestProcessExtensionDedupErrors(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[dOut](core.GoalConfig{Description: "done"})}})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatal(err)
 	}
 	rec := &orderRecorder{}
@@ -735,7 +735,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "done"})}})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatal(err)
 	}
 	count := 0

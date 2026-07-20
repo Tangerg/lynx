@@ -10,7 +10,7 @@ import (
 func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 	var calls int
 	pc := &ProcessContext{
-		resolveTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error) {
+		actionTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error) {
 			if ctx == nil {
 				t.Fatal("resolver received nil context")
 			}
@@ -20,14 +20,11 @@ func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 		actionToolGroups: []ToolGroupRequirement{{Role: "action-tools"}},
 	}
 
-	if _, err := pc.ResolveTools(nil, "manual-tools"); err != nil { //nolint:staticcheck // Intentionally exercises nil context normalization.
-		t.Fatalf("ResolveTools: %v", err)
-	}
 	if _, err := pc.ActionTools(nil); err != nil { //nolint:staticcheck // Intentionally exercises nil context normalization.
 		t.Fatalf("ActionTools: %v", err)
 	}
-	if calls != 2 {
-		t.Fatalf("resolver calls = %d, want 2", calls)
+	if calls != 1 {
+		t.Fatalf("resolver calls = %d, want 1", calls)
 	}
 }
 

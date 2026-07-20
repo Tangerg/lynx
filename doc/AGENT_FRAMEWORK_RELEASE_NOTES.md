@@ -50,6 +50,10 @@
 ### Go API ergonomics
 
 - 根入口为 `NewEngine`、`MustNewEngine`、`Engine.Run`、`Engine.Start`。
+- Engine 生命周期方法统一为 context-first 单入口；删除所有无 context / `FooContext` 双轨 API。
+- `Start` 与 `ContinueAsync` 立即返回 admission error，完成 channel 只表示已启动的后台执行。
+- 自定义事件不再通过 `ProcessContext.Emit(any)` 注入；Action 只能消费声明过的 `ActionTools`。
+- Team 从 Runtime 特例收敛为 `workflow.Team` 定义组合器，结果仍是普通 Agent。
 - `runtime.Config.Chat` 接受 `core.ChatCapability`，不要求具体 chat client。
 - `hitl.Interrupt[R]` 返回 `(R, error)`，不返回冗余 resumed bool。
 - `toolloop.Runner.Run(ctx, request, resolver)` 直接接收输入；删除 `Invocation` 中间 DTO、`NewInvocation` 和其序列化错误。

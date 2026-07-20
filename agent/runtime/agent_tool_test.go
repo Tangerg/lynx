@@ -27,7 +27,7 @@ func childAgent() *core.Agent {
 // runs, output marshals back as JSON.
 func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
@@ -45,7 +45,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 		return parentOutput{Final: decoded.Doubled}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "final produced"})}})
 
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 // callers without core.WithProcess in ctx.
 func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
@@ -89,7 +89,7 @@ func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 // a fresh process per call, returns the JSON-encoded result.
 func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
 // a JSON schema derived from In.
 func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	tool, _ := runtime.NewStandaloneAgentTool[subInput, subOutput](engine, "child-agent")
@@ -156,7 +156,7 @@ func TestAsChatTool_RejectsUnknownAgent(t *testing.T) {
 // derived from In.
 func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")

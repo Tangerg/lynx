@@ -45,7 +45,7 @@ engine, err := agent.NewEngine(agent.EngineConfig{})
 if err != nil {
     return err
 }
-deployment, err := engine.Deploy(writer)
+deployment, err := engine.Deploy(ctx, writer)
 if err != nil {
     return err
 }
@@ -61,6 +61,11 @@ _ = deployment.Ref()
 | 按名称回查定义 | `ActiveDeployment(name)` / `Deployment(ref)` |
 | 同名部署隐式覆盖 | `Deploy` 幂等，`Replace` 显式切换 |
 | 从 Agent 指针运行 child | 传同一 Engine 的 exact `*Deployment` |
+
+所有会传播生命周期事件的 Engine 操作都把 `context.Context` 作为首参数；没有无 context
+重载或 `FooContext` 兼容入口。`Start` 返回 `(*Process, <-chan error, error)`，
+`ContinueAsync` 返回 `(<-chan error, error)`：构造/admission 错误同步返回，channel 只承载已经
+启动的后台执行结果。
 
 已运行 Process 永久绑定 `DeploymentRef{Name, Version, Digest}`。不要只持久化 Agent 名称，也不要接受其他 Engine 的 Deployment handle。
 `AgentConfig.Version` 和 `DeploymentRef.Version` 的非空值必须使用规范

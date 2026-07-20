@@ -18,7 +18,7 @@ func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
 		name string
 		run  func() error
 	}{
-		{name: "kill", run: func() error { return engine.Kill("proc_missing") }},
+		{name: "kill", run: func() error { return engine.Kill(t.Context(), "proc_missing") }},
 		{name: "remove", run: func() error { return engine.Remove("proc_missing") }},
 		{name: "resume", run: func() error { return engine.Resume("proc_missing", "susp_1", true) }},
 	}
@@ -28,6 +28,21 @@ func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
 				t.Fatalf("error = %v, want ErrProcessNotFound", err)
 			}
 		})
+	}
+}
+
+func TestAsyncEntryPointsReturnAdmissionErrorsSynchronously(t *testing.T) {
+	engine, err := New(Config{})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	process, done, err := engine.Start(t.Context(), nil, core.Bindings{}, core.ProcessOptions{})
+	if process != nil || done != nil || err == nil {
+		t.Fatalf("Start = %#v, %#v, %v; want nil process, nil channel, error", process, done, err)
+	}
+	done, err = engine.ContinueAsync(t.Context(), "proc_missing")
+	if done != nil || !errors.Is(err, ErrProcessNotFound) {
+		t.Fatalf("ContinueAsync = %#v, %v; want nil channel and ErrProcessNotFound", done, err)
 	}
 }
 

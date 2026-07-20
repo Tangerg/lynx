@@ -53,7 +53,10 @@ func startChildDeployment(
 	if err != nil {
 		return nil, nil, err
 	}
-	done := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
+	done, err := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
+	if err != nil {
+		return child, nil, fmt.Errorf("start child %q: %w", child.ID(), err)
+	}
 	return child, done, nil
 }
 

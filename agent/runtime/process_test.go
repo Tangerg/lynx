@@ -82,7 +82,7 @@ func TestRunSingleAction(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})}})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatal(err)
 	}
 
@@ -116,7 +116,7 @@ func TestRunPreservesPanickedActionCause(t *testing.T) {
 		Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})},
 	})
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -265,7 +265,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[stage3](core.GoalConfig{Description: "stage3 produced"})}})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatal(err)
 	}
 

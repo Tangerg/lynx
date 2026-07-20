@@ -33,7 +33,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, runErr := engine.Run(t.Context(), a,

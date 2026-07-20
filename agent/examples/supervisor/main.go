@@ -44,10 +44,10 @@ func main() {
 		return Summary{Text: fmt.Sprintf("Synthesized findings from %d sources: %s", len(in.URLs), strings.Join(in.URLs, ", "))}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Summary](agent.GoalConfig{Description: "summary produced"})}})
 
-	if _, err := engine.Deploy(research); err != nil {
+	if _, err := engine.Deploy(context.Background(), research); err != nil {
 		log.Fatal(err)
 	}
-	if _, err := engine.Deploy(summarize); err != nil {
+	if _, err := engine.Deploy(context.Background(), summarize); err != nil {
 		log.Fatal(err)
 	}
 
@@ -73,7 +73,7 @@ func main() {
 		return Brief{Topic: in.Title, Sources: parsed.Sources, Text: parsed.Summary}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "brief produced"})}})
 
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(context.Background(), parent); err != nil {
 		log.Fatal(err)
 	}
 

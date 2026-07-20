@@ -45,7 +45,7 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a,
@@ -95,7 +95,7 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err = engine.Deploy(a)
+	_, err = engine.Deploy(t.Context(), a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err = engine.Deploy(a)
+	_, err = engine.Deploy(t.Context(), a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -205,7 +205,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 		t.Fatalf("RepeatUntil: %v", err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err = engine.Deploy(a)
+	_, err = engine.Deploy(t.Context(), a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}

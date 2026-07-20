@@ -40,8 +40,7 @@ func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequireme
 		Dependencies:  p.dependencies.Child(),
 		Chat:          p.effectiveChat,
 		MaxToolRounds: maxToolRounds,
-		Emit:          p.publishAny,
-		ResolveTools:  p.toolResolverFor(action),
+		ActionTools:   p.toolResolverFor(action),
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
 			return p.runInteraction(ctx, action.Metadata().Name, input)
 		},
