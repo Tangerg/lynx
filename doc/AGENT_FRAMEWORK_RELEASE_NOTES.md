@@ -136,6 +136,8 @@
   未绑定→精确 Agent 或幂等重绑；冲突通过 `ErrInvalidSession` 分类。
 - 相同 Session 的并发 turn 由进程内 FIFO 协调器稳定排序，取消 waiter 会从队列移除；无效
   Session 不再进入协调器，Host 实现的 acquire/release panic 会转为可归因错误。
+- ScatterGather 的并发槽位获取现在可被首个分支错误立即取消，不再继续提交排队分支；快照
+  保存、自动保存和恢复实现收拢到同一文件，零散 schema helper 归入其直接调用方。
 - `SessionStore` 从 Save/Load/Delete/List 收窄为 Runtime 真正消费的 Save/Load；删除与列表
   分别由可选 `SessionDeleter` / `SessionLister` 表达。
 - `runtime.Config.SessionStore` 与 `ChildSessionStore` 分别拥有 root multi-turn 和 delegated

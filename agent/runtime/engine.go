@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -15,10 +14,6 @@ import (
 // DefaultSessionFinalizeTimeout bounds the durable session write performed
 // after a turn finishes. It is independent of request cancellation.
 const DefaultSessionFinalizeTimeout = 10 * time.Second
-
-// ErrAtomicSnapshotUnsupported reports that a ProcessStore can save individual
-// snapshots but cannot atomically commit a nested process tree.
-var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 
 // Engine is the agent runtime's top-level container — registers
 // agents, builds processes, dispatches events, and exposes the
@@ -40,6 +35,7 @@ var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not s
 //   - engine_run.go     — Run / Start / Continue / Resume / Kill /
 //     Remove / Prune
 //   - engine_process.go — process construction + dependency wiring
+//   - process_snapshot.go — snapshot capture, persistence, and restoration
 type Engine struct {
 	catalog   deploymentRegistry // immutable deployments and active routes
 	processes processRegistry    // created and restored processes
@@ -266,225 +262,6 @@ func (e *Engine) Processes() []*Process { return e.processes.list() }
 // ProcessStore returns the configured snapshot backend, or nil when
 // the engine was constructed without one.
 func (e *Engine) ProcessStore() core.ProcessStore { return e.processStore }
-
-// Save captures the named process into the configured
-// [core.ProcessStore] under its current id. Errors when no store is
-// configured, the process id is unknown, or the store rejects the write. A
-// process with durable nested children additionally requires the store to
-// implement [core.SnapshotBatchWriter].
-func (e *Engine) Save(ctx context.Context, processID string) (uint64, error) {
-	if e.processStore == nil {
-		return 0, errors.New("runtime.Engine.Save: no ProcessStore configured")
-	}
-	process, ok := e.processes.get(processID)
-	if !ok {
-		return 0, fmt.Errorf("runtime.Engine.Save: id %q not registered", processID)
-	}
-	return e.saveProcess(ctx, process)
-}
-
-func (e *Engine) saveProcess(ctx context.Context, process *Process) (uint64, error) {
-	if e.processStore == nil {
-		return 0, errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
-	}
-	ctx = normalizeContext(ctx)
-	tree, err := e.lockProcessTree(process, map[string]struct{}{})
-	if err != nil {
-		return 0, err
-	}
-
-	if err := captureLockedProcessTree(tree); err != nil {
-		unlockProcessTree(tree)
-		return 0, err
-	}
-	revision, err := e.saveLockedProcessTree(ctx, tree)
-	if err != nil {
-		unlockProcessTree(tree)
-		return 0, err
-	}
-	var cleanup []string
-	collectNestedChildCleanup(tree, &cleanup)
-	unlockProcessTree(tree)
-	for _, childID := range cleanup {
-		e.discardProcessTree(ctx, childID)
-	}
-	return revision, nil
-}
-
-type lockedProcessTree struct {
-	process   *Process
-	relations []*nestedChildRelation
-	children  []*lockedProcessTree
-	snapshot  core.ProcessSnapshot
-}
-
-func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) (*lockedProcessTree, error) {
-	if process == nil {
-		return nil, errors.New("runtime.Engine.saveProcess: process is nil")
-	}
-	if _, duplicate := visited[process.ID()]; duplicate {
-		return nil, fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, process.ID())
-	}
-	visited[process.ID()] = struct{}{}
-	process.checkpointMu.Lock()
-	checkpoint, err := nestedChildrenFromSuspension(process.Suspension())
-	if err != nil {
-		process.checkpointMu.Unlock()
-		return nil, err
-	}
-
-	tree := &lockedProcessTree{
-		process:   process,
-		relations: checkpoint.relations,
-		children:  make([]*lockedProcessTree, 0, len(checkpoint.relations)),
-	}
-	for _, relation := range checkpoint.relations {
-		child, ok := e.Process(relation.ChildID)
-		if !ok {
-			unlockProcessTree(tree)
-			return nil, fmt.Errorf("%w: nested child process %q is missing", core.ErrInvalidSnapshot, relation.ChildID)
-		}
-		childTree, lockErr := e.lockProcessTree(child, visited)
-		if lockErr != nil {
-			unlockProcessTree(tree)
-			return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), lockErr)
-		}
-		tree.children = append(tree.children, childTree)
-		if err := relation.validateProcess(process, child); err != nil {
-			unlockProcessTree(tree)
-			return nil, err
-		}
-	}
-	return tree, nil
-}
-
-func captureLockedProcessTree(tree *lockedProcessTree) error {
-	if tree == nil || tree.process == nil {
-		return errors.New("runtime.Engine.saveProcess: locked process tree is incomplete")
-	}
-	snapshot, err := tree.process.snapshot()
-	if err != nil {
-		return err
-	}
-	tree.snapshot = snapshot
-	for index, child := range tree.children {
-		if err := captureLockedProcessTree(child); err != nil {
-			return err
-		}
-		if err := tree.relations[index].validateSnapshot(tree.snapshot, child.snapshot); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-type lockedSnapshotWrite struct {
-	tree     *lockedProcessTree
-	snapshot core.ProcessSnapshot
-}
-
-func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree) (uint64, error) {
-	var writes []lockedSnapshotWrite
-	collectLockedSnapshotWrites(tree, &writes)
-	if len(writes) == 0 {
-		return 0, errors.New("runtime.Engine.saveProcess: captured process tree is empty")
-	}
-	for _, pending := range writes {
-		actual := pending.tree.process.state.snapshotRevision()
-		if actual != pending.snapshot.Revision {
-			return 0, &core.RevisionConflictError{
-				ProcessID: pending.snapshot.ID,
-				Expected:  pending.snapshot.Revision,
-				Actual:    actual,
-			}
-		}
-		if pending.snapshot.Revision == math.MaxUint64 {
-			return 0, fmt.Errorf("runtime.Engine.saveProcess: %w: process %q revision is exhausted",
-				core.ErrInvalidSnapshot, pending.snapshot.ID)
-		}
-	}
-
-	if err := e.commitSnapshotWrites(ctx, writes); err != nil {
-		return 0, err
-	}
-	for _, pending := range writes {
-		pending.tree.process.state.commitRevision(pending.snapshot.Revision + 1)
-	}
-	return tree.snapshot.Revision + 1, nil
-}
-
-func collectLockedSnapshotWrites(tree *lockedProcessTree, writes *[]lockedSnapshotWrite) {
-	if tree == nil {
-		return
-	}
-	for _, child := range tree.children {
-		collectLockedSnapshotWrites(child, writes)
-	}
-	*writes = append(*writes, lockedSnapshotWrite{
-		tree:     tree,
-		snapshot: tree.snapshot,
-	})
-}
-
-func (e *Engine) commitSnapshotWrites(ctx context.Context, writes []lockedSnapshotWrite) error {
-	if len(writes) == 1 {
-		return e.processStore.Save(ctx, writes[0].snapshot)
-	}
-	batchWriter, ok := e.processStore.(core.SnapshotBatchWriter)
-	if !ok {
-		return fmt.Errorf("%w: store %T cannot commit %d snapshots", ErrAtomicSnapshotUnsupported, e.processStore, len(writes))
-	}
-	batch := make([]core.ProcessSnapshot, len(writes))
-	for index, pending := range writes {
-		batch[index] = pending.snapshot
-	}
-	return batchWriter.SaveBatch(ctx, batch)
-}
-
-func collectNestedChildCleanup(tree *lockedProcessTree, cleanup *[]string) {
-	if tree == nil {
-		return
-	}
-	*cleanup = append(*cleanup, tree.process.takeNestedChildCleanup()...)
-	for _, child := range tree.children {
-		collectNestedChildCleanup(child, cleanup)
-	}
-}
-
-func unlockProcessTree(tree *lockedProcessTree) {
-	if tree == nil {
-		return
-	}
-	for index := len(tree.children) - 1; index >= 0; index-- {
-		unlockProcessTree(tree.children[index])
-	}
-	tree.process.checkpointMu.Unlock()
-}
-
-// Restore loads a snapshot from the configured store and
-// rebuilds an [Process] bound to a currently-deployed agent
-// definition. The restored process is registered in the engine's
-// process map and ready for inspection or (when the snapshot status
-// is resumable) re-entry into the tick loop via the standard run
-// surface.
-//
-// Errors propagate from the store and from agent re-binding (the
-// agent must be deployed under the same name as recorded in the
-// snapshot).
-//
-// options re-attaches the per-process wiring (Extensions + Session) the
-// continuation needs — see [Engine.RestoreSnapshot]. Pass the zero
-// value for a read-only restore.
-func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error) {
-	if e.processStore == nil {
-		return nil, errors.New("runtime.Engine.Restore: no ProcessStore configured")
-	}
-	snapshot, err := e.processStore.Load(ctx, processID)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.Restore: %w", err)
-	}
-	return e.RestoreSnapshot(snapshot, options)
-}
 
 // publish is the runtime's event entry point. Used by Process
 // and executeAction.

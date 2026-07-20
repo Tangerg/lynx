@@ -9,8 +9,20 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/chat"
+	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/tools"
 )
+
+func schemaFor(sample any) (string, error) {
+	if sample == nil {
+		return "", errors.New("input sample must not be nil")
+	}
+	schema, err := pkgjson.StringDefSchemaOf(sample)
+	if err != nil {
+		return "", fmt.Errorf("derive input schema: %w", err)
+	}
+	return schema, nil
+}
 
 // GoalTools walks every deployed agent and returns a
 // [tools.Tool] for each goal whose [core.Goal.Tool] is

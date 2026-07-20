@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -93,11 +94,29 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 				branches[index] = process.ForParallelBranch()
 			}
 			group, groupContext := errgroup.WithContext(ctx)
+			var slots *semaphore.Weighted
 			if maxConcurrency > 0 {
-				group.SetLimit(maxConcurrency)
+				slots = semaphore.NewWeighted(int64(maxConcurrency))
 			}
+			var schedulingErr error
 			for index, generator := range generators {
+				if slots != nil {
+					if err := slots.Acquire(groupContext, 1); err != nil {
+						schedulingErr = err
+						break
+					}
+				}
+				if err := groupContext.Err(); err != nil {
+					if slots != nil {
+						slots.Release(1)
+					}
+					schedulingErr = err
+					break
+				}
 				group.Go(func() error {
+					if slots != nil {
+						defer slots.Release(1)
+					}
 					if err := groupContext.Err(); err != nil {
 						return err
 					}
@@ -115,6 +134,9 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 			}
 			if err := group.Wait(); err != nil {
 				return scatterOutput[Element]{}, err
+			}
+			if schedulingErr != nil {
+				return scatterOutput[Element]{}, schedulingErr
 			}
 			return scatterOutput[Element]{Items: items}, nil
 		},
