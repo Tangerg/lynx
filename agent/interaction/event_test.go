@@ -38,3 +38,14 @@ func TestEventUnmarshalRejectsUnknownFields(t *testing.T) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}
 }
+
+func TestStopReasonValid(t *testing.T) {
+	for _, reason := range []interaction.StopReason{interaction.StopNone, interaction.StopBudget, interaction.StopSteps} {
+		if !reason.Valid() {
+			t.Errorf("StopReason(%q) is invalid", reason)
+		}
+	}
+	if interaction.StopReason("budget+steps").Valid() {
+		t.Fatal("unknown stop reason is valid")
+	}
+}

@@ -301,9 +301,9 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	}
 	switch result.StopReason {
 	case agent.InteractionStopBudget:
-		return turnOutput(pc, partial.String(), StopReasonBudget), nil
+		return turnOutput(pc, partial.String(), result.StopReason), nil
 	case agent.InteractionStopSteps:
-		return turnOutput(pc, partial.String(), StopReasonSteps), nil
+		return turnOutput(pc, partial.String(), result.StopReason), nil
 	case agent.InteractionStopNone:
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)

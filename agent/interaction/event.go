@@ -249,6 +249,16 @@ const (
 	StopSteps  StopReason = "steps"
 )
 
+// Valid reports whether r is a framework-defined interaction stop reason.
+func (r StopReason) Valid() bool {
+	switch r {
+	case StopNone, StopBudget, StopSteps:
+		return true
+	default:
+		return false
+	}
+}
+
 // Result preserves the complete terminal boundary. Convenience helpers may
 // project it to text, but the managed runtime never compresses it internally.
 type Result struct {
