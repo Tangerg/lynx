@@ -119,6 +119,15 @@ func (g *Goal) AddTurn(costUSD float64, steps int, now time.Time) {
 	g.UpdatedAt = now
 }
 
+// Complete marks the objective done. It is a transient state: the driver
+// observes it once, announces, and clears the goal — a completed goal is never a
+// durable resting state (see [Status]).
+func (g *Goal) Complete(now time.Time) {
+	g.Status = StatusComplete
+	g.Reason = ""
+	g.UpdatedAt = now
+}
+
 // Pause stops the loop with a reason (user stop, restart degrade, a run that
 // parked for HITL, or a transient run error). A paused goal can be resumed.
 func (g *Goal) Pause(reason string, now time.Time) {
