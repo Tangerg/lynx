@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -57,14 +58,35 @@ func (d *Deployment) Agent() *core.Agent {
 }
 
 func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
+	agent, err := c.snapshot(source)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateAgentDefinition(agent); err != nil {
+		return nil, fmt.Errorf("compile deployment %q: %w", agent.Name(), err)
+	}
+	return c.compileSnapshot(source, agent)
+}
+
+func (c deploymentCompiler) snapshot(source *core.Agent) (agent *core.Agent, err error) {
 	if source == nil {
 		return nil, errors.New("compile deployment: agent is nil")
 	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			agent = nil
+			err = panicerr.New("compile deployment: snapshot agent definition panicked", recovered)
+		}
+	}()
+	return c.cloneAgent(source), nil
+}
 
-	agent := c.cloneAgent(source)
+// compileSnapshot encodes a frozen definition that has already crossed the
+// complete deployment validation boundary.
+func (c deploymentCompiler) compileSnapshot(source, agent *core.Agent) (*Deployment, error) {
 	definition, err := c.canonicalDefinition(agent)
 	if err != nil {
-		return nil, fmt.Errorf("compile deployment %q: %w", source.Name(), err)
+		return nil, fmt.Errorf("compile deployment %q: %w", agent.Name(), err)
 	}
 	sum := sha256.Sum256(definition)
 	ref := core.DeploymentRef{
@@ -72,6 +94,9 @@ func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 		Digest: hex.EncodeToString(sum[:]),
 	}
 	ref.Version = agent.Version()
+	if err := ref.Validate(); err != nil {
+		return nil, fmt.Errorf("compile deployment %q: %w", agent.Name(), err)
+	}
 	return &Deployment{
 		source:     source,
 		agent:      agent,
@@ -81,13 +106,29 @@ func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 }
 
 func (e *Engine) compileAgent(source *core.Agent) (*Deployment, error) {
-	if source == nil {
-		return nil, errors.New("compile deployment: agent is nil")
+	compiler := deploymentCompiler{buildID: e.buildID}
+	agent, err := compiler.snapshot(source)
+	if err != nil {
+		return nil, err
 	}
-	if e.processStore != nil && source.Version() == "" && e.buildID == "" {
-		return nil, fmt.Errorf("%w: agent %q is unversioned", ErrDurableIdentityRequired, source.Name())
+	if e.processStore != nil && agent.Version() == "" && e.buildID == "" {
+		return nil, fmt.Errorf("%w: agent %q is unversioned", ErrDurableIdentityRequired, agent.Name())
 	}
-	return (deploymentCompiler{buildID: e.buildID}).compile(source)
+	if err := e.validateForDeploy(agent); err != nil {
+		return nil, err
+	}
+	return compiler.compileSnapshot(source, agent)
+}
+
+func validateAgentDefinition(agent *core.Agent) error {
+	var problems []error
+	if err := agent.Validate(); err != nil {
+		problems = append(problems, err)
+	}
+	if _, err := planning.DomainForAgent(agent); err != nil {
+		problems = append(problems, err)
+	}
+	return errors.Join(problems...)
 }
 
 func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {

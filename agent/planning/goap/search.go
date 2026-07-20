@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 type searchNode struct {
@@ -146,7 +147,11 @@ func (s *search) expand(current *searchNode) error {
 
 		edgeCost := 0.0
 		if metadata.Cost != nil {
-			edgeCost = metadata.Cost(current.state)
+			var err error
+			edgeCost, err = evaluateCost(metadata.Cost, current.state)
+			if err != nil {
+				return fmt.Errorf("%w: action %q at state %q: %w", ErrInvalidActionCost, metadata.Name, currentKey, err)
+			}
 		}
 		if math.IsNaN(edgeCost) || math.IsInf(edgeCost, 0) || edgeCost < 0 {
 			return fmt.Errorf(
@@ -167,6 +172,15 @@ func (s *search) expand(current *searchNode) error {
 		s.push(nextState, cost)
 	}
 	return nil
+}
+
+func evaluateCost(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("cost function panicked", recovered)
+		}
+	}()
+	return score(state), nil
 }
 
 func (s *search) reconstructPath(goalKey string) ([]core.Action, error) {

@@ -2,6 +2,8 @@ package planning_test
 
 import (
 	"context"
+	"errors"
+	"math"
 	"slices"
 	"strings"
 	"testing"
@@ -239,5 +241,40 @@ func TestDomainCanonicalizesPlannerActions(t *testing.T) {
 	}
 	if got := plans[0].Actions()[0]; got != canonical {
 		t.Fatalf("accepted action = %p, want canonical %p", got, canonical)
+	}
+}
+
+func TestDomainRejectsInvalidPlanScores(t *testing.T) {
+	panicCause := errors.New("score sentinel")
+	tests := []struct {
+		name      string
+		cost      core.ScoreFunc
+		value     core.ScoreFunc
+		goalValue core.ScoreFunc
+		contains  string
+		cause     error
+	}{
+		{name: "negative cost", cost: core.FixedScore(-1), contains: "cost must be finite and non-negative"},
+		{name: "infinite action value", value: core.FixedScore(math.Inf(1)), contains: `action "work" value returned +Inf`},
+		{name: "nan goal value", goalValue: core.FixedScore(math.NaN()), contains: `goal "goal" value returned NaN`},
+		{name: "panicked cost", cost: func(core.WorldState) float64 { panic(panicCause) }, contains: "score function panicked", cause: panicCause},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			action := &planAction{metadata: core.ActionMetadata{
+				Name: "work", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost, Value: test.value,
+			}}
+			goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}, Value: test.goalValue})
+			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+			_, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
+				return planning.NewPlan([]core.Action{action}, goal)
+			}), planning.NewState(nil), planning.Options{})
+			if err == nil || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("Plans error = %v, want %q", err, test.contains)
+			}
+			if test.cause != nil && !errors.Is(err, test.cause) {
+				t.Fatalf("Plans error = %v, want cause %v", err, test.cause)
+			}
+		})
 	}
 }

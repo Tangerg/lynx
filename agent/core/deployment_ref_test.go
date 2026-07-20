@@ -17,6 +17,9 @@ func TestDeploymentRefValidateAndString(t *testing.T) {
 		{name: "versioned", ref: core.DeploymentRef{Name: "writer", Version: "1.2.3", Digest: "digest"}, want: "writer@1.2.3+digest"},
 		{name: "empty name", ref: core.DeploymentRef{Digest: "digest"}, invalid: true},
 		{name: "empty digest", ref: core.DeploymentRef{Name: "writer"}, invalid: true},
+		{name: "name whitespace", ref: core.DeploymentRef{Name: " writer", Digest: "digest"}, invalid: true},
+		{name: "digest whitespace", ref: core.DeploymentRef{Name: "writer", Digest: " digest"}, invalid: true},
+		{name: "noncanonical version", ref: core.DeploymentRef{Name: "writer", Version: "v1.2.3", Digest: "digest"}, invalid: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.ref.Validate()

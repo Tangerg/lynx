@@ -257,6 +257,21 @@ type failingValidator struct {
 	err  error
 }
 
+type capturingValidator struct {
+	seen *core.Agent
+}
+
+func (*capturingValidator) Name() string { return "capture" }
+func (v *capturingValidator) Validate(agent *core.Agent) error {
+	v.seen = agent
+	return nil
+}
+
+type panickingValidator struct{ cause error }
+
+func (panickingValidator) Name() string                 { return "panicking-validator" }
+func (v panickingValidator) Validate(*core.Agent) error { panic(v.cause) }
+
 func (v failingValidator) Name() string                 { return v.name }
 func (v failingValidator) Validate(_ *core.Agent) error { return v.err }
 
@@ -281,6 +296,40 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	if !strings.Contains(err.Error(), `validator "policy"`) || !strings.Contains(err.Error(), "missing SLA tag") {
 		t.Fatalf("error = %v, want validator name and message", err)
 	}
+}
+
+func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
+	definition := newExtensionTestAgent()
+	validator := new(capturingValidator)
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{validator}})
+	deployment, err := engine.Deploy(definition)
+	if err != nil {
+		t.Fatalf("Deploy: %v", err)
+	}
+	if validator.seen == nil || validator.seen == definition || validator.seen != deployment.Agent() {
+		t.Fatalf("validator agent = %p, source = %p, deployment = %p", validator.seen, definition, deployment.Agent())
+	}
+}
+
+func TestAgentValidatorPanicRejectsDeploy(t *testing.T) {
+	cause := errors.New("validator sentinel")
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{panickingValidator{cause: cause}}})
+	_, err := engine.Deploy(newExtensionTestAgent())
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "agent validator panicked") {
+		t.Fatalf("Deploy error = %v, want wrapped validator panic", err)
+	}
+}
+
+func newExtensionTestAgent() *core.Agent {
+	type input struct{}
+	type output struct{}
+	return agent.New(agent.AgentConfig{
+		Name: "validated-snapshot",
+		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, input) (output, error) {
+			return output{}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+	})
 }
 
 // TestDeploy_ReportsAllProblems confirms the multi-layer validation

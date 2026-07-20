@@ -63,6 +63,10 @@ _ = deployment.Ref()
 | 从 Agent 指针运行 child | 传同一 Engine 的 exact `*Deployment` |
 
 已运行 Process 永久绑定 `DeploymentRef{Name, Version, Digest}`。不要只持久化 Agent 名称，也不要接受其他 Engine 的 Deployment handle。
+`AgentConfig.Version` 和 `DeploymentRef.Version` 的非空值必须使用规范
+`MAJOR.MINOR.PATCH` SemVer（例如 `1.2.3`）；不要传 `v1.2.3`、`1.2` 或首尾带空白的值。
+DeploymentRef 的 Name/Digest 同样拒绝首尾空白。runtime 会先冻结 Action/Condition metadata，
+再让内建规则和 `AgentValidator` 校验该冻结快照，因此 validator 不应依赖 source Agent 指针身份。
 
 ## 3. Action 与 Binding
 
@@ -113,6 +117,11 @@ core.RetryPolicy{
 
 并发提交 `TerminateAction` 与 `TerminateAgent` 时，Agent scope 始终胜出；同 scope 的首个
 原因被保留。调用方不应依赖 goroutine 调度决定最终终止边界。
+
+所有 `ScoreFunc` 必须返回有限值；作为 Cost 使用时还必须非负。NaN、Inf、负 cost 或 panic
+都会使 planning 明确失败，不再被 Utility 当作 0 或被排序器静默保留。Routing 的
+`Choice.Confidence` 必须是 `[0,1]` 内的有限值；`ModelRanker` 对越界值、重复 ID 和未知 ID
+返回错误，不再自动 clamp。自定义 Ranker 也受 Router 的同一结果合同约束。
 
 删除 process-wide candidate-action 并发。Process tick 仍按计划稳定执行一个 Action；
 需要业务级 fan-out 时使用：

@@ -74,12 +74,22 @@ func (r *ModelRanker) Rank(ctx context.Context, userInput string, candidates []C
 		return nil, fmt.Errorf("routing: parse ranking response: %w (raw=%q)", err, text)
 	}
 
+	known := make(map[string]struct{}, len(candidates))
+	for _, candidate := range candidates {
+		known[candidate.String()] = struct{}{}
+	}
+	for id := range scored {
+		if _, ok := known[id]; !ok {
+			return nil, fmt.Errorf("routing: ranking response contains unknown candidate %q", id)
+		}
+	}
+
 	choices := make([]Choice, len(candidates))
 	for index, candidate := range candidates {
 		choices[index] = Choice{Candidate: candidate}
 		key := candidate.String()
 		if entry, ok := scored[key]; ok {
-			choices[index].Confidence = max(minimumConfidence, min(maximumConfidence, entry.Confidence))
+			choices[index].Confidence = entry.Confidence
 			choices[index].Rationale = entry.Rationale
 		}
 	}
@@ -174,9 +184,15 @@ func parseRankResponse(text string) (map[string]rankedCandidate, error) {
 		return nil, err
 	}
 	choices := make(map[string]rankedCandidate, len(response.Choices))
-	for _, choice := range response.Choices {
+	for index, choice := range response.Choices {
 		if choice.ID == "" {
-			continue
+			return nil, fmt.Errorf("choice at index %d has an empty id", index)
+		}
+		if !validConfidence(choice.Confidence) {
+			return nil, fmt.Errorf("choice %q has invalid confidence %v; confidence must be finite and between 0 and 1", choice.ID, choice.Confidence)
+		}
+		if _, duplicate := choices[choice.ID]; duplicate {
+			return nil, fmt.Errorf("candidate %q appears more than once", choice.ID)
 		}
 		choices[choice.ID] = choice
 	}

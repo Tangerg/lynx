@@ -3,6 +3,9 @@ package routing_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -134,6 +137,25 @@ func TestRouterRejectsRankerCandidateDrift(t *testing.T) {
 	}
 	if _, err := router.Choose(t.Context(), "anything"); err == nil {
 		t.Fatal("Choose accepted a ranker that dropped the deployment-bound candidate")
+	}
+}
+
+func TestRouterRejectsInvalidRankerConfidence(t *testing.T) {
+	for _, confidence := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		t.Run(fmt.Sprint(confidence), func(t *testing.T) {
+			engine := agent.MustNewEngine(runtime.Config{})
+			mustDeploy(t, engine, newAgent("alpha"))
+			router, err := routing.New(engine, &stubRanker{scores: map[string]float64{
+				"alpha:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": confidence,
+			}}, routing.Config{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = router.Choose(t.Context(), "anything")
+			if err == nil || !strings.Contains(err.Error(), "confidence must be finite and between 0 and 1") {
+				t.Fatalf("Choose confidence %v error = %v", confidence, err)
+			}
+		})
 	}
 }
 

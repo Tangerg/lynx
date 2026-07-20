@@ -100,7 +100,7 @@ func TestModelRanker_ParsesScoresAndRoutesToTopAgent(t *testing.T) {
 	}
 }
 
-func TestModelRanker_ClampsConfidence(t *testing.T) {
+func TestModelRanker_RejectsOutOfRangeConfidence(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, newAgent("alpha"))
 
@@ -110,11 +110,11 @@ func TestModelRanker_ClampsConfidence(t *testing.T) {
 	model := newStubModel(reply)
 	ranker, _ := routing.NewModelRanker(model, routing.ModelConfig{})
 	choices, err := ranker.Rank(t.Context(), "x", candidates)
-	if err != nil {
-		t.Fatalf("Rank: %v", err)
+	if err == nil {
+		t.Fatalf("Rank = %#v, nil; want invalid-confidence error", choices)
 	}
-	if choices[0].Confidence != 1.0 {
-		t.Fatalf("expected clamped 1.0, got %f", choices[0].Confidence)
+	if !strings.Contains(err.Error(), "confidence must be finite and between 0 and 1") {
+		t.Fatalf("Rank error = %v, want confidence range detail", err)
 	}
 }
 
@@ -148,6 +148,31 @@ func TestModelRanker_RejectsNonJSONReply(t *testing.T) {
 	_, err := ranker.Rank(t.Context(), "x", candidates)
 	if err == nil {
 		t.Fatal("expected error on non-JSON reply")
+	}
+}
+
+func TestModelRankerRejectsAmbiguousCandidateIdentity(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, newAgent("alpha"))
+	router, _ := routing.New(engine, &stubRanker{}, routing.Config{})
+	candidates := router.Candidates()
+	id := candidates[0].String()
+
+	for _, test := range []struct {
+		name  string
+		reply string
+		want  string
+	}{
+		{name: "duplicate", reply: `{"choices":[{"id":"` + id + `","confidence":0.5},{"id":"` + id + `","confidence":0.7}]}`, want: "appears more than once"},
+		{name: "unknown", reply: `{"choices":[{"id":"unknown:goal","confidence":0.5}]}`, want: "unknown candidate"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ranker, _ := routing.NewModelRanker(newStubModel(test.reply), routing.ModelConfig{})
+			_, err := ranker.Rank(t.Context(), "x", candidates)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Rank error = %v, want %q", err, test.want)
+			}
+		})
 	}
 }
 

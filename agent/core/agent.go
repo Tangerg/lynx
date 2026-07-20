@@ -3,10 +3,13 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
+
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // AgentConfig is the construction input for [NewAgent]. It is ordinary Go
@@ -21,9 +24,10 @@ type AgentConfig struct {
 	// and (when the agent is exposed externally) the LLM prompt.
 	Description string
 
-	// Version is an optional semantic version. Empty means the definition is
-	// unversioned; durable runtimes then require a Host BuildID. Validation is
-	// owned by Agent so callers do not need semver types in configuration.
+	// Version is an optional canonical MAJOR.MINOR.PATCH semantic version.
+	// Empty means the definition is unversioned; durable runtimes then require
+	// a Host BuildID. Validation is owned by Agent so callers do not need semver
+	// types in configuration.
 	Version string
 
 	// StuckPolicy is the recovery hook fired when the planner
@@ -157,7 +161,7 @@ func (a *Agent) Validate() error {
 		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent: name %q has surrounding whitespace", a.Name()))
 	}
 	if a.Version() != "" {
-		if _, err := semver.NewVersion(a.Version()); err != nil {
+		if _, err := semver.StrictNewVersion(a.Version()); err != nil {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: version %q: %w", a.Name(), a.Version(), err))
 		}
 	}
@@ -209,8 +213,30 @@ func (a *Agent) Validate() error {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: goal %q: %w", a.Name(), goal.Name(), err))
 		}
 	}
+	for _, condition := range a.config.Conditions {
+		if condition == nil {
+			continue
+		}
+		cost, err := evaluateConditionCost(condition)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost: %w", a.Name(), condition.Name(), err))
+			continue
+		}
+		if math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), condition.Name(), cost))
+		}
+	}
 	problems = append(problems, a.goalReachabilityErrors()...)
 	return errors.Join(problems...)
+}
+
+func evaluateConditionCost(condition Condition) (cost float64, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("cost function panicked", recovered)
+		}
+	}()
+	return condition.Cost(), nil
 }
 
 // goalReachabilityErrors does a conservative one-step producer scan: for

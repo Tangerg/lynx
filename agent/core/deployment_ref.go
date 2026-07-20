@@ -3,6 +3,9 @@ package core
 import (
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/Masterminds/semver/v3"
 )
 
 // DeploymentRef is the durable identity of one compiled agent definition. Name is
@@ -19,13 +22,26 @@ type DeploymentRef struct {
 	Digest  string `json:"digest"`
 }
 
-// Validate reports whether ref can identify a compiled deployment.
+// Validate reports whether ref can identify a compiled deployment. Name and
+// Digest must not contain surrounding whitespace; a non-empty Version must be
+// canonical SemVer in MAJOR.MINOR.PATCH form.
 func (r DeploymentRef) Validate() error {
 	if r.Name == "" {
 		return errors.New("deployment ref: name is empty")
 	}
+	if strings.TrimSpace(r.Name) != r.Name {
+		return fmt.Errorf("deployment ref: name %q has surrounding whitespace", r.Name)
+	}
+	if r.Version != "" {
+		if _, err := semver.StrictNewVersion(r.Version); err != nil {
+			return fmt.Errorf("deployment ref %q: invalid version %q: %w", r.Name, r.Version, err)
+		}
+	}
 	if r.Digest == "" {
 		return fmt.Errorf("deployment ref %q: digest is empty", r.Name)
+	}
+	if strings.TrimSpace(r.Digest) != r.Digest {
+		return fmt.Errorf("deployment ref %q: digest has surrounding whitespace", r.Name)
 	}
 	return nil
 }
