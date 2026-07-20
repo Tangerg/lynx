@@ -38,12 +38,6 @@ func (p *Process) run(ctx context.Context) error {
 	}
 	ctx = runCtx
 
-	if err := p.validateAgentForRun(); err != nil {
-		p.failProcess(err)
-		p.publishTerminalEvent(ctx)
-		return err
-	}
-
 	for {
 		if err := ctx.Err(); err != nil {
 			p.markCancelled(ctx, err)

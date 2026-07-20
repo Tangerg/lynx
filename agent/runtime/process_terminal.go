@@ -26,19 +26,6 @@ func (p *Process) TerminalError() error {
 	return fmt.Errorf("ended in %s", status)
 }
 
-// validateAgentForRun checks the agent definition against the configured
-// planner. The goap planner needs at least one goal to plan toward;
-// with no goal the planner would loop forever returning empty plans.
-// (htn, reactive) may have stricter rules of their own — those are
-// reported by PlanToGoal at tick time.
-func (p *Process) validateAgentForRun() error {
-	agent := p.agent()
-	if p.planner.Name() == "goap" && len(agent.Goals()) == 0 {
-		return fmt.Errorf("runtime.Process.validateAgentForRun: run agent %q: goap planner requires at least one goal", agent.Name())
-	}
-	return nil
-}
-
 // failProcess transitions to StatusFailed and records the failure.
 // It deliberately does NOT publish [event.ProcessFailed] — every run
 // exit funnels through [publishTerminalEvent], which is the single

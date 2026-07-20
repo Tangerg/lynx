@@ -27,7 +27,9 @@ func IsOpenEnded(goal *core.Goal) bool {
 	return goal != nil && goal.Name() == OpenEndedGoalName
 }
 
-var plannerTracer = otel.Tracer("lynx/agent/planner")
+const attrAnyApplicable = "agent.actions.any_applicable"
+
+var plannerTracer = otel.Tracer(planning.TracerName)
 
 // Planner is the classic Utility AI planner: pick the highest-
 // net-value applicable action, return it as a one-step plan when
@@ -43,7 +45,7 @@ func NewPlanner() *Planner { return &Planner{} }
 
 // Name is the planner's extension identifier — agents select this
 // planner by setting [core.AgentConfig.PlannerName] to "utility".
-func (p *Planner) Name() string { return "utility" }
+func (p *Planner) Name() string { return planning.UtilityPlannerName }
 
 // PlanToGoal implements the classic shape: pick the top-net-value
 // applicable action and emit a one-step plan when it reaches the
@@ -71,7 +73,7 @@ type GoalFirst struct{}
 func NewGoalFirst() *GoalFirst { return &GoalFirst{} }
 
 // Name identifies this planner: "goal-first-utility".
-func (p *GoalFirst) Name() string { return "goal-first-utility" }
+func (p *GoalFirst) Name() string { return planning.GoalFirstUtilityPlannerName }
 
 // PlanToGoal differs from [Planner.PlanToGoal] only on the
 // satisfied-goal short-circuit: when goal.SatisfiedBy(start) the
@@ -108,19 +110,19 @@ func planUtility(
 	}
 	_, span := plannerTracer.Start(ctx, name+".plan",
 		trace.WithAttributes(
-			attribute.String("agent.planner", name),
-			attribute.String("agent.goal.name", goal.Name()),
+			attribute.String(planning.PlannerNameKey, name),
+			attribute.String(planning.GoalNameKey, goal.Name()),
 		),
 	)
 	defer func() {
 		if result != nil {
-			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions())))
+			span.SetAttributes(attribute.Int(planning.PlanLengthKey, len(result.Actions())))
 		}
 		span.End()
 	}()
 
 	firstAction := topApplicable(start, domain.Actions(), options.ExcludedActions)
-	span.SetAttributes(attribute.Bool("agent.actions.any_applicable", firstAction != nil))
+	span.SetAttributes(attribute.Bool(attrAnyApplicable, firstAction != nil))
 
 	if IsOpenEnded(goal) {
 		if firstAction == nil {

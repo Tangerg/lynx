@@ -60,8 +60,8 @@ func (e *Engine) runDeployment(
 	ctx, span := agentTracer.Start(normalizeContext(ctx), "agent.run",
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
-			attribute.String("gen_ai.agent.name", process.agent().Name()),
-			attribute.String("agent.process.id", process.id),
+			attribute.String(attrAgentName, process.agent().Name()),
+			attribute.String(attrProcessID, process.id),
 		),
 	)
 	defer span.End()
@@ -71,7 +71,7 @@ func (e *Engine) runDeployment(
 		span.SetStatus(codes.Error, err.Error())
 		return process, err
 	}
-	span.SetAttributes(attribute.String("agent.status", process.Status().String()))
+	span.SetAttributes(attribute.String(attrProcessStatus, process.Status().String()))
 	return process, nil
 }
 

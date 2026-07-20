@@ -33,7 +33,7 @@ type TeamConfig struct {
 	Agents []*core.Agent
 
 	// PlannerName picks the joint planner. Empty → framework default
-	// ("goap"). Built-in names: "goap", "reactive". Custom planners
+	// ("goap"). Built-in names include goap and reactive. Custom planners
 	// must be registered as [core.Extension]s.
 	PlannerName string
 }

@@ -24,13 +24,7 @@ var ErrInvalidActionCost = errors.New("goap: invalid action cost")
 // typo at one call site is impossible and listeners have one schema to
 // key off; treat as stable across releases.
 const (
-	spanGOAP = "goap.plan"
-
-	// Cross-planner schema shared by htn/utility/reactive — keep the keys and
-	// the "<algorithm>.plan" span name aligned so a backend keys off one schema.
-	attrPlannerName = "agent.planner"
-	attrGoalName    = "agent.goal.name"
-	attrPlanLength  = "agent.plan.length"
+	spanGOAP = planning.GOAPPlannerName + ".plan"
 
 	// GOAP-specific search diagnostics — no cross-planner equivalent, so they
 	// stay namespaced under the algorithm.
@@ -41,7 +35,7 @@ const (
 	attrGOAPFound        = "agent.goap.found"
 )
 
-var plannerTracer = otel.Tracer("lynx/agent/planner")
+var plannerTracer = otel.Tracer(planning.TracerName)
 
 // Planner is the concrete planner. It's stateless across PlanToGoal
 // calls; safe to share across goroutines.
@@ -58,7 +52,7 @@ func NewPlanner() *Planner {
 
 // Name is the planner's extension identifier — the value an agent's
 // [core.AgentConfig.PlannerName] must match to select this planner.
-func (p *Planner) Name() string { return "goap" }
+func (p *Planner) Name() string { return planning.GOAPPlannerName }
 
 // PlanToGoal runs a forward uniform-cost search over world states. Uniform
 // cost is A* with h=0: less aggressive than a domain-specific heuristic, but
@@ -76,8 +70,8 @@ func (p *Planner) PlanToGoal(
 
 	ctx, span := plannerTracer.Start(ctx, spanGOAP,
 		trace.WithAttributes(
-			attribute.String(attrPlannerName, "goap"),
-			attribute.String(attrGoalName, goal.Name()),
+			attribute.String(planning.PlannerNameKey, p.Name()),
+			attribute.String(planning.GoalNameKey, goal.Name()),
 			attribute.Int(attrActionsCount, len(domain.Actions())),
 		),
 	)
@@ -131,7 +125,7 @@ func (p *Planner) PlanToGoal(
 
 	span.SetAttributes(
 		attribute.Bool(attrGOAPFound, true),
-		attribute.Int(attrPlanLength, len(path)),
+		attribute.Int(planning.PlanLengthKey, len(path)),
 	)
 	return planning.NewPlan(path, goal), nil
 }
