@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"golang.org/x/sync/errgroup"
 
@@ -71,21 +72,35 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 	if config.Joiner == nil {
 		return nil, errors.New("workflow.ScatterGather: Joiner must not be nil")
 	}
+	for index, generator := range config.Generators {
+		if generator == nil {
+			return nil, fmt.Errorf("workflow.ScatterGather: Generators[%d] must not be nil", index)
+		}
+	}
+
+	name := config.Name
+	description := config.Description
+	maxConcurrency := config.MaxConcurrency
+	generators := slices.Clone(config.Generators)
+	joiner := config.Joiner
 
 	scatter := core.NewAction[In, scatterOutput[Element]](
-		config.Name+"-scatter",
+		name+"-scatter",
 		func(ctx context.Context, process *core.ProcessContext, input In) (scatterOutput[Element], error) {
-			items := make([]Element, len(config.Generators))
-			branches := make([]*core.ProcessContext, len(config.Generators))
+			items := make([]Element, len(generators))
+			branches := make([]*core.ProcessContext, len(generators))
 			for index := range branches {
 				branches[index] = process.ForParallelBranch()
 			}
 			group, groupContext := errgroup.WithContext(ctx)
-			if config.MaxConcurrency > 0 {
-				group.SetLimit(config.MaxConcurrency)
+			if maxConcurrency > 0 {
+				group.SetLimit(maxConcurrency)
 			}
-			for index, generator := range config.Generators {
+			for index, generator := range generators {
 				group.Go(func() error {
+					if err := groupContext.Err(); err != nil {
+						return err
+					}
 					// Each generator runs in its own goroutine, so hand it a
 					// sibling-safe branch created before fan-out: scratch and
 					// Blackboard writes are isolated; only the returned item is
@@ -109,9 +124,9 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 	)
 
 	gather := core.NewAction[scatterOutput[Element], Result](
-		config.Name+"-gather",
+		name+"-gather",
 		func(ctx context.Context, process *core.ProcessContext, input scatterOutput[Element]) (Result, error) {
-			return config.Joiner(ctx, process, input.Items)
+			return joiner(ctx, process, input.Items)
 		},
 		core.ActionConfig{
 			Description: "consolidate parallel results",
@@ -119,9 +134,9 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        config.Name,
-		Description: config.Description,
+		Name:        name,
+		Description: description,
 		Actions:     []core.Action{scatter, gather},
-		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: config.Name, Description: "produce " + core.TypeName[Result]()})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: name, Description: "produce " + core.TypeName[Result]()})},
 	}), nil
 }

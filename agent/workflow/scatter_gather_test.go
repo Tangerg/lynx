@@ -239,6 +239,80 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	}
 }
 
+func TestScatterGather_CancelledQueuedGeneratorsDoNotStart(t *testing.T) {
+	cause := errors.New("first generator failed")
+	var laterCalls atomic.Int32
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name:           "fanout-cancel-queue",
+		MaxConcurrency: 1,
+		Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+				return sgElement{}, cause
+			},
+			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+				laterCalls.Add(1)
+				return sgElement{}, nil
+			},
+			func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+				laterCalls.Add(1)
+				return sgElement{}, nil
+			},
+		},
+		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+			return sgResult{}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(sgIn{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want first generator failure", process.Status(), process.Failure())
+	}
+	if calls := laterCalls.Load(); calls != 0 {
+		t.Fatalf("queued generator calls = %d, want none after cancellation", calls)
+	}
+}
+
+func TestScatterGather_OwnsGeneratorSlice(t *testing.T) {
+	originalCalls := 0
+	replacementCalls := 0
+	generators := []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+		func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+			originalCalls++
+			return sgElement{Score: 1}, nil
+		},
+	}
+	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+		Name:       "fanout-owned-config",
+		Generators: generators,
+		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+			return sgResult{Total: items[0].Score}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	generators[0] = func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) {
+		replacementCalls++
+		return sgElement{Score: 99}, nil
+	}
+
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(sgIn{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	result, ok := core.Result[sgResult](process)
+	if !ok || result.Total != 1 || originalCalls != 1 || replacementCalls != 0 {
+		t.Fatalf("result/original/replacement = %#v/%d/%d, want score 1 from owned generator", result, originalCalls, replacementCalls)
+	}
+}
+
 func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
@@ -259,6 +333,13 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
 				func(context.Context, *core.ProcessContext, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
+		}},
+		{"nil generator", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+			Name: "x",
+			Generators: []func(context.Context, *core.ProcessContext, sgIn) (sgElement, error){
+				nil,
+			},
+			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 	}
 	for _, tc := range cases {
