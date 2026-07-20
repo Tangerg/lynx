@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 )
@@ -118,10 +117,8 @@ func (m *SessionMetadata) UnmarshalJSON(data []byte) error {
 // Sessions carry identity + audit metadata; message history stays behind
 // the chat history Store abstraction, keeping the session struct thin.
 //
-// Sessions are persisted via [SessionStore]; the in-memory reference
-// implementation ([NewMemorySessionStore]) ships in this package.
-// Production deployments wire a persistent backend (postgres / redis
-// / mongo / ...) under the same interface.
+// Sessions are persisted through [SessionStore]. The core package defines the
+// contract only; hosts own concrete storage adapters.
 type Session struct {
 	// ID uniquely identifies the conversation. Doubles as the
 	// chat history conversation id so message
@@ -246,15 +243,6 @@ func (s *Session) Touch() {
 	s.UpdatedAt = time.Now()
 }
 
-// storageSnapshot returns an ownership-isolated representation of s.
-func (s Session) storageSnapshot() (Session, error) {
-	if err := s.Validate(); err != nil {
-		return Session{}, err
-	}
-	s.Metadata = s.Metadata.Clone()
-	return s, nil
-}
-
 // SessionReader loads durable conversation identity.
 type SessionReader interface {
 	// Load returns the session keyed by id, or a wrapped
@@ -298,50 +286,3 @@ var ErrSessionNotFound = errSessionNotFound{}
 type errSessionNotFound struct{}
 
 func (errSessionNotFound) Error() string { return "session store: session not found" }
-
-// MemorySessionStore is the reference [SessionStore] backend — sessions live
-// in a goroutine-safe map. It is suitable for tests and single-node
-// development. Production deployments supply a persistent implementation.
-type MemorySessionStore struct {
-	store *memoryStore[Session]
-}
-
-// NewMemorySessionStore returns an empty session store.
-func NewMemorySessionStore() *MemorySessionStore {
-	return &MemorySessionStore{
-		store: newMemoryStore[Session]("memory session store", ErrSessionNotFound),
-	}
-}
-
-func (s *MemorySessionStore) Save(_ context.Context, session Session) error {
-	snapshot, err := session.storageSnapshot()
-	if err != nil {
-		return fmt.Errorf("memory session store: snapshot %q: %w", session.ID, err)
-	}
-	return s.store.save(snapshot.ID, snapshot)
-}
-
-func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error) {
-	stored, err := s.store.load(id)
-	if err != nil {
-		return Session{}, err
-	}
-	snapshot, err := stored.storageSnapshot()
-	if err != nil {
-		return Session{}, fmt.Errorf("memory session store: snapshot loaded session %q: %w", id, err)
-	}
-	return snapshot, nil
-}
-
-// Delete is idempotent.
-func (s *MemorySessionStore) Delete(_ context.Context, id string) error {
-	s.store.delete(id)
-	return nil
-}
-
-// List returns every known session id in lexical order.
-func (s *MemorySessionStore) List(_ context.Context) ([]string, error) {
-	ids := s.store.list()
-	slices.Sort(ids)
-	return ids, nil
-}

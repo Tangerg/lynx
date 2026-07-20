@@ -259,7 +259,8 @@ Snapshot schema v2 的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
 Restore 通过父子关系重建聚合；读取完整委派树用量时使用 `Process.Usage()`、
 `Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
 
-Framework 自带 `MemoryProcessStore` 和 `MemorySessionStore` 作为 reference implementation。
+`core` 只定义 `ProcessStore` 和 `SessionStore` 能力接口，具体持久化由 Host 适配器实现。
+测试可使用 `storetest.NewMemoryProcessStore` 和 `storetest.NewMemorySessionStore`。
 外部 store 应运行对应的公开 contract suite：
 
 ```go

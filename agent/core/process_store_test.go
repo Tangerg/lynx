@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 func validSnapshot(id string) core.ProcessSnapshot {
@@ -23,7 +24,7 @@ func validSnapshot(id string) core.ProcessSnapshot {
 }
 
 func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	snapshot := validSnapshot("p-1")
 	snapshot.OwnTokens = 1500
@@ -60,7 +61,7 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 }
 
 func TestMemoryProcessStoreSaveBatchIsAtomic(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	first := validSnapshot("first")
 	first.OwnTokens = 1
 	second := validSnapshot("second")
@@ -93,7 +94,7 @@ func TestMemoryProcessStoreSaveBatchIsAtomic(t *testing.T) {
 }
 
 func TestMemoryProcessStoreSaveBatchRejectsDuplicateIdentity(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	snapshot := validSnapshot("duplicate")
 	err := store.SaveBatch(t.Context(), []core.ProcessSnapshot{snapshot, snapshot})
 	if !errors.Is(err, core.ErrInvalidSnapshot) {
@@ -105,7 +106,7 @@ func TestMemoryProcessStoreSaveBatchRejectsDuplicateIdentity(t *testing.T) {
 }
 
 func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	for _, id := range []string{"c", "a", "b"} {
 		if err := store.Save(ctx, validSnapshot(id)); err != nil {
@@ -182,7 +183,7 @@ func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
 }
 
 func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
 	invalid.Status = core.StatusWaiting
 	if err := store.Save(t.Context(), invalid); !errors.Is(err, core.ErrInvalidSnapshot) {

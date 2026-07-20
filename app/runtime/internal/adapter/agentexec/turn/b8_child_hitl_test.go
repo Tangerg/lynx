@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -246,7 +247,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const buildID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	cwd := t.TempDir()
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-restart"},
@@ -365,7 +366,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 
 func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	const buildID = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-cancel"},
 		childTool:      "shell",
@@ -418,7 +419,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 
 func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-missing"},

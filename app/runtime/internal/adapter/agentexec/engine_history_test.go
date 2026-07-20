@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -16,7 +17,7 @@ import (
 func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
 	client, _ := chatclient.New(stub)
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store, BuildID: testBuildID})
 	if err != nil {
 		t.Fatal(err)

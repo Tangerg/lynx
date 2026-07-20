@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 type ssWord struct{ Text string }
@@ -113,7 +114,7 @@ func TestEngine_SaveProcess_NoStore(t *testing.T) {
 }
 
 func TestEngine_SaveAndRestore_RoundTrip(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		BuildID:      "snapshot-round-trip-test",
 		ProcessStore: store,
@@ -202,7 +203,7 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 		}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "gated output"})}})
 	}
 
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-waiting-test", ProcessStore: store})
 	mustDeploy(t, engine, buildGate())
 
@@ -265,7 +266,7 @@ func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *test
 		}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "gated output"})}})
 	}
 
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	first := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: store})
 	mustDeploy(t, first, buildGate())
 	process, done := first.Start(t.Context(), buildGate(),
@@ -368,7 +369,7 @@ func TestSnapshot_JSONRoundTrip_PreservesConcreteType(t *testing.T) {
 }
 
 func TestEngine_RestoreProcess_AgentNotDeployed(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-missing-agent-test", ProcessStore: store})
 
 	started := time.Now().Add(-time.Second)
@@ -436,7 +437,7 @@ func TestSnapshotRejectsDeclaredButUnencodableDurableValue(t *testing.T) {
 }
 
 func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "concurrent-save", ProcessStore: store})
 	a := buildSnapshotAgent()
 	mustDeploy(t, engine, a)

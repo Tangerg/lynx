@@ -130,7 +130,7 @@
 - Engine/Process 在构造边界把公开 Config/ProcessOptions 投影为私有快照，调用方后续修改
   Session identity、Extensions slice 或 Guardrails 不再改变运行中语义；typed-nil capability
   和负数工具轮数在边界返回归因错误，而不是执行期 panic/延迟失败。
-- `MemoryProcessStore`、`MemorySessionStore` 提供 reference implementation；后者在 Save/Load
+- `storetest.MemoryProcessStore`、`storetest.MemorySessionStore` 提供测试实现；`core` 仅保留持久化端口。后者在 Save/Load
   两侧递归快照 JSON metadata，拒绝不可持久化值且不泄漏嵌套 map/slice 别名。
 - Session 成为自校验 identity：`Validate` 固定 ID/lineage/audit 不变量，`BindAgent` 只允许
   未绑定→精确 Agent 或幂等重绑；冲突通过 `ErrInvalidSession` 分类。

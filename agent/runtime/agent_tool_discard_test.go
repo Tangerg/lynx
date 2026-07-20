@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 // A completed sub-agent's auto-snapshot is dead weight; the agent-as-tool must
@@ -16,7 +17,7 @@ import (
 // snapshot remains — the child's was discarded. (subInput/subOutput/
 // parentOutput/childAgent live in agent_tool_test.go, same package.)
 func TestAgentTool_DiscardsCompletedChildSnapshot(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "agent-tool-discard-test", ProcessStore: store, AutoSnapshot: true})
 	if _, err := engine.Deploy(childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)

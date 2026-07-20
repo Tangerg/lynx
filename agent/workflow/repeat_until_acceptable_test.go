@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
@@ -101,7 +102,7 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 }
 
 func TestRepeatUntilAcceptable_AutoSnapshotPreservesState(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		BuildID: "acceptable-snapshot", ProcessStore: store, AutoSnapshot: true,
 	})

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 func TestNewSessionDefaultsTimestamps(t *testing.T) {
@@ -87,7 +88,7 @@ func TestSessionValidate(t *testing.T) {
 }
 
 func TestMemorySessionStoreSaveLoad(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	ctx := context.Background()
 
 	session := core.NewSession("s-1", "user-1", "demo")
@@ -106,7 +107,7 @@ func TestMemorySessionStoreSaveLoad(t *testing.T) {
 }
 
 func TestMemorySessionStoreOwnsNestedMetadataSnapshots(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	session := core.NewSession("s-1", "user-1", "demo")
 	nested := map[string]any{"labels": []any{"saved"}}
 	setSessionMetadata(t, &session, "nested", nested)
@@ -185,7 +186,7 @@ func TestSessionMetadataRejectsNonObjects(t *testing.T) {
 }
 
 func TestMemorySessionStoreSeparatesConcurrentCallerMutation(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	session := core.NewSession("s-1", "user-1", "demo")
 	labels := []any{"stored"}
 	setSessionMetadata(t, &session, "labels", labels)
@@ -233,7 +234,7 @@ func decodeSessionMetadata[T any](t *testing.T, metadata core.SessionMetadata, n
 }
 
 func TestMemorySessionStoreNotFound(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	_, err := store.Load(context.Background(), "ghost")
 	if !errors.Is(err, core.ErrSessionNotFound) {
 		t.Errorf("want ErrSessionNotFound, got %v", err)
@@ -241,7 +242,7 @@ func TestMemorySessionStoreNotFound(t *testing.T) {
 }
 
 func TestMemorySessionStoreDeleteIdempotent(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	ctx := context.Background()
 
 	_ = store.Save(ctx, core.NewSession("s-1", "u", "x"))
@@ -257,7 +258,7 @@ func TestMemorySessionStoreDeleteIdempotent(t *testing.T) {
 }
 
 func TestMemorySessionStoreRejectsEmptyID(t *testing.T) {
-	if err := core.NewMemorySessionStore().Save(t.Context(), core.Session{}); !errors.Is(err, core.ErrInvalidSession) {
+	if err := storetest.NewMemorySessionStore().Save(t.Context(), core.Session{}); !errors.Is(err, core.ErrInvalidSession) {
 		t.Fatalf("Save error = %v, want ErrInvalidSession", err)
 	}
 }

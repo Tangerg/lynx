@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/agent/planning/goap"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 type mutableDeploymentAction struct {
@@ -271,7 +272,7 @@ func TestDurableEngineRequiresAgentVersionOrBuildID(t *testing.T) {
 	source := reconfigureAgent(deploymentFixture("durable", core.ConditionSet{"finish": core.True}, nil), func(config *core.AgentConfig) {
 		config.Version = ""
 	})
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 
 	withoutIdentity := MustNew(Config{
 		ProcessStore: store,
