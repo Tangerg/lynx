@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -41,6 +42,10 @@ type scriptedModel struct {
 	calls int
 	call  func(int, *chat.Request) (*chat.Response, error)
 }
+
+type panickingToolResolver struct{ cause error }
+
+func (r panickingToolResolver) Resolve(string) (tools.Tool, bool) { panic(r.cause) }
 
 func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	m.calls++
@@ -120,6 +125,36 @@ func TestRunnerMultiRoundAndDefensiveEvents(t *testing.T) {
 	if len(request.Messages) != 1 || request.Messages[0].Text() != "hello" {
 		t.Fatalf("Run mutated original request: %#v", request.Messages)
 	}
+}
+
+func TestRunnerContainsSchedulingPanics(t *testing.T) {
+	t.Run("resolver", func(t *testing.T) {
+		cause := errors.New("resolver sentinel")
+		tool := newRunnerTool("lookup", nil)
+		registry := newRunnerRegistry(t, tool)
+		runner := newRunner(t, &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) {
+			t.Fatal("model called after resolver panic")
+			return nil, nil
+		}}, toolloop.Config{})
+		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), panickingToolResolver{cause: cause}))
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), "Resolve") {
+			t.Fatalf("Run error = %v, want resolver panic", err)
+		}
+	})
+
+	t.Run("concurrency key", func(t *testing.T) {
+		cause := errors.New("concurrency sentinel")
+		tool := newRunnerTool("lookup", nil)
+		tool.concurrent = func(string) (string, bool) { panic(cause) }
+		registry := newRunnerRegistry(t, tool)
+		runner := newRunner(t, &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) {
+			return runnerToolResponse(chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}), nil
+		}}, toolloop.Config{})
+		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), `tool "lookup" ConcurrencyKey panicked`) {
+			t.Fatalf("Run error = %v, want concurrency-key panic", err)
+		}
+	})
 }
 
 func TestRunnerTurnsOrdinaryAndUnknownToolErrorsIntoFeedback(t *testing.T) {

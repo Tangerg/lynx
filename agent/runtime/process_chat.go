@@ -6,6 +6,7 @@ import (
 	"iter"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
@@ -22,10 +23,17 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 	providers := collectExtensions[core.ChatProvider](p.combinedExtensionsResolverFirst())
 	capability := core.ChatCapability{}
 	for _, provider := range providers {
-		candidate := provider.Chat(p)
+		name, err := extensionName(provider)
+		if err != nil {
+			return core.ChatCapability{}, err
+		}
+		candidate, err := chatFromProvider(provider, p, name)
+		if err != nil {
+			return core.ChatCapability{}, err
+		}
 		if valueIsNil(candidate.Model) {
 			if !valueIsNil(candidate.Streamer) {
-				return core.ChatCapability{}, fmt.Errorf("runtime: ChatProvider %q returned a Streamer without a Model", provider.Name())
+				return core.ChatCapability{}, fmt.Errorf("runtime: ChatProvider %q returned a Streamer without a Model", name)
 			}
 			continue
 		}
@@ -36,6 +44,15 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 		capability = p.engineChat()
 	}
 	return p.scopeChat(capability)
+}
+
+func chatFromProvider(provider core.ChatProvider, process core.ProcessView, name string) (capability core.ChatCapability, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("chat provider %q panicked", name), recovered)
+		}
+	}()
+	return provider.Chat(process), nil
 }
 
 func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability, error) {

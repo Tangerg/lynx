@@ -57,6 +57,18 @@ func TestEffectivePlannerName(t *testing.T) {
 	}
 }
 
+func TestDomainPlansContainsPlannerPanic(t *testing.T) {
+	cause := errors.New("planner sentinel")
+	definition := domainAgent("panic-domain", "step")
+	domain := mustDomain(t, definition.Actions(), definition.Goals(), nil)
+	planner := plannerFunc(func(*core.Goal) *planning.Plan { panic(cause) })
+
+	_, err := domain.Plans(t.Context(), planner, planning.NewState(nil), planning.Options{})
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), `planner "test-planner"`) {
+		t.Fatalf("Plans error = %v, want attributed planner panic", err)
+	}
+}
+
 func TestExclusionsAreZeroValueUsableAndImmutable(t *testing.T) {
 	var empty planning.Exclusions
 	withA := empty.With("a")

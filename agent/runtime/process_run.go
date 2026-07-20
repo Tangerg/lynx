@@ -48,12 +48,18 @@ func (p *Process) run(ctx context.Context) error {
 			return err
 		}
 
-		if p.checkStopPolicies(ctx) {
+		stopped, stopErr := p.checkStopPolicies(ctx)
+		if stopErr != nil {
+			p.failProcess(fmt.Errorf("runtime.Process.run: check stop policies: %w", stopErr))
+			stopped = true
+		}
+		if stopped {
 			if err := p.maybeAutoSnapshot(ctx); err != nil {
 				p.publishTerminalEvent(ctx)
 				p.recordRunExitMetric(ctx)
 				return err
 			}
+			p.publishTerminalEvent(ctx)
 			p.recordRunExitMetric(ctx)
 			return nil
 		}
@@ -235,7 +241,11 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 	if len(approvers) > 0 {
 		var approved []*core.Goal
 		for _, goal := range domain.Goals() {
-			if p.approvesGoal(approvers, goal) {
+			ok, err := p.approvesGoal(approvers, goal)
+			if err != nil {
+				return nil, fmt.Errorf("runtime.Process.formulatePlan: approve goal %q: %w", goal.Name(), err)
+			}
+			if ok {
 				approved = append(approved, goal)
 			}
 		}

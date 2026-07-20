@@ -41,6 +41,8 @@ type ActionMiddleware interface {
 // ToolMiddleware wraps every [tools.Tool] resolved by
 // [ProcessContext.ActionTools] / [ProcessContext.ResolveTools].
 // Composition is wrap-style: first registered is innermost.
+// A panic or nil result makes tool resolution fail with an error attributed to
+// the middleware; it cannot leak into the host or silently remove a tool.
 //
 // Typical uses: per-call tracing, auth / scope checks, redaction,
 // transient-error retry. Transparent decorators should structurally forward
@@ -69,6 +71,7 @@ type AgentValidator interface {
 // GoalApprover gates the planner's goal-selection: every approver
 // must return true for the goal to survive (any false vetoes). Used
 // for multi-tenant scoping, A/B experiments, kill-switch.
+// A panic is an extension failure, not a veto, and fails the process.
 type GoalApprover interface {
 	Extension
 
@@ -88,6 +91,7 @@ type GoalApprover interface {
 // choice on the process (read a binding / blackboard value), or simply
 // carry fixed model protocols when registered per-process via
 // [ProcessOptions.Extensions].
+// A panic fails capability resolution and is attributed to the provider.
 type ChatProvider interface {
 	Extension
 

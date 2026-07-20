@@ -40,7 +40,10 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 	if valueIsNil(extension) {
 		return fmt.Errorf("runtime: nil extension in %s", scope)
 	}
-	name := extension.Name()
+	name, err := extensionName(extension)
+	if err != nil {
+		return fmt.Errorf("runtime: extension in %s: %w", scope, err)
+	}
 	if name == "" {
 		return fmt.Errorf("runtime: extension %T returned empty Name() in %s", extension, scope)
 	}
@@ -50,6 +53,15 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 	r.byName[name] = extension
 	r.list = append(r.list, extension)
 	return nil
+}
+
+func extensionName(extension core.Extension) (name string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("extension %T Name panicked", extension), recovered)
+		}
+	}()
+	return extension.Name(), nil
 }
 
 func valueIsNil(value any) bool {
@@ -114,9 +126,29 @@ func (p *Process) runActionChain(
 		next := sync.OnceValues(func() (core.ActionStatus, error) {
 			return run(index + 1)
 		})
-		return actionMiddleware[index].RunAction(ctx, p, action, next)
+		return runActionMiddleware(ctx, actionMiddleware[index], p, action, next)
 	}
 	return run(0)
+}
+
+func runActionMiddleware(
+	ctx context.Context,
+	middleware core.ActionMiddleware,
+	process core.ProcessView,
+	action core.Action,
+	next func() (core.ActionStatus, error),
+) (status core.ActionStatus, err error) {
+	name, err := extensionName(middleware)
+	if err != nil {
+		return core.ActionFailed, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			status = core.ActionFailed
+			err = panicerr.New(fmt.Sprintf("action middleware %q panicked", name), recovered)
+		}
+	}()
+	return middleware.RunAction(ctx, process, action, next)
 }
 
 // wrapTool wraps tool through every supplied decorator in
@@ -126,11 +158,40 @@ func (p *Process) wrapTool(
 	toolMiddleware []core.ToolMiddleware,
 	action core.Action,
 	tool tools.Tool,
-) tools.Tool {
+) (tools.Tool, error) {
 	for _, middleware := range toolMiddleware {
-		tool = middleware.WrapTool(p, action, tool)
+		wrapped, err := wrapToolWith(middleware, p, action, tool)
+		if err != nil {
+			return nil, err
+		}
+		if valueIsNil(wrapped) {
+			name, nameErr := extensionName(middleware)
+			if nameErr != nil {
+				return nil, nameErr
+			}
+			return nil, fmt.Errorf("tool middleware %q returned nil", name)
+		}
+		tool = wrapped
 	}
-	return tool
+	return tool, nil
+}
+
+func wrapToolWith(
+	middleware core.ToolMiddleware,
+	process core.ProcessView,
+	action core.Action,
+	tool tools.Tool,
+) (wrapped tools.Tool, err error) {
+	name, err := extensionName(middleware)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool middleware %q panicked", name), recovered)
+		}
+	}()
+	return middleware.WrapTool(process, action, tool), nil
 }
 
 // agentValidationErrors runs every engine validator and collects all errors
@@ -141,7 +202,12 @@ func (e *Engine) agentValidationErrors(agent *core.Agent) []error {
 	var problems []error
 	for _, validator := range validators {
 		if err := validateAgentWith(validator, agent); err != nil {
-			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", validator.Name(), err))
+			name, nameErr := extensionName(validator)
+			if nameErr != nil {
+				problems = append(problems, nameErr)
+				continue
+			}
+			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", name, err))
 		}
 	}
 	return problems
@@ -159,13 +225,30 @@ func validateAgentWith(validator core.AgentValidator, agent *core.Agent) (err er
 // approvesGoal returns true only when every approver returns
 // true (conjunction — any false vetoes). Empty approver list
 // trivially approves.
-func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) bool {
+func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) (bool, error) {
 	for _, approver := range approvers {
-		if !approver.Approve(p, goal) {
-			return false
+		approved, err := approveGoalWith(approver, p, goal)
+		if err != nil {
+			return false, err
+		}
+		if !approved {
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
+}
+
+func approveGoalWith(approver core.GoalApprover, process core.ProcessView, goal *core.Goal) (approved bool, err error) {
+	name, err := extensionName(approver)
+	if err != nil {
+		return false, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("goal approver %q panicked", name), recovered)
+		}
+	}()
+	return approver.Approve(process, goal), nil
 }
 
 // runToolGroupResolvers walks resolvers in order; the first resolver
@@ -184,33 +267,63 @@ func runToolGroupResolvers(
 		return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: invalid requirement: %w", err)
 	}
 	for _, resolver := range resolvers {
-		group, ok, err := resolver.Resolve(ctx, requirement)
+		name, err := extensionName(resolver)
 		if err != nil {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", resolver.Name(), err)
+			return nil, false, err
+		}
+		group, ok, err := resolveToolGroupWith(ctx, resolver, requirement, name)
+		if err != nil {
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", name, err)
 		}
 		if !ok {
 			if !valueIsNil(group) {
-				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned a group for a miss", resolver.Name())
+				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned a group for a miss", name)
 			}
 			continue
 		}
 		if valueIsNil(group) {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.Name(), requirement.Role)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", name, requirement.Role)
 		}
-		info := group.Info()
+		info, err := toolGroupInfo(group, name)
+		if err != nil {
+			return nil, false, err
+		}
 		if err := info.Validate(); err != nil {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", resolver.Name(), err)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", name, err)
 		}
 		if info.Role != requirement.Role {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", resolver.Name(), requirement.Role, info.Role)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", name, requirement.Role, info.Role)
 		}
 		if !requirement.Allows(info.Permissions) {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q requires permissions %v, allowed %v",
-				resolver.Name(), info.Role, info.Permissions, requirement.AllowedPermissions)
+				name, info.Role, info.Permissions, requirement.AllowedPermissions)
 		}
 		return group, true, nil
 	}
 	return nil, false, nil
+}
+
+func resolveToolGroupWith(
+	ctx context.Context,
+	resolver core.ToolGroupResolver,
+	requirement core.ToolGroupRequirement,
+	name string,
+) (group core.ToolGroup, ok bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool group resolver %q panicked", name), recovered)
+		}
+	}()
+	return resolver.Resolve(ctx, requirement)
+}
+
+func toolGroupInfo(group core.ToolGroup, resolverName string) (info core.ToolGroupInfo, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool group from resolver %q Info panicked", resolverName), recovered)
+		}
+	}()
+	return group.Info(), nil
 }
 
 // addEventListenerExtensions adds every extension implementing

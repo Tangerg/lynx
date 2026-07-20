@@ -7,6 +7,7 @@ import (
 	"maps"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 var errInvalidPlan = errors.New("planning: invalid plan")
@@ -99,7 +100,8 @@ type Planner interface {
 
 	// PlanToGoal targets one specific goal. Returns (nil, nil) when
 	// no plan exists (genuinely unreachable); error only on internal
-	// failure.
+	// failure. Domain planning contains implementation panics and returns them as
+	// errors attributed to the planner and goal.
 	PlanToGoal(
 		ctx context.Context,
 		state core.WorldState,
@@ -139,22 +141,26 @@ func (d *Domain) Plans(
 	case state == nil:
 		return nil, errors.New("planning.Domain.Plans: world state is nil")
 	}
+	plannerName, err := safePlannerName(planner)
+	if err != nil {
+		return nil, fmt.Errorf("planning.Domain.Plans: %w", err)
+	}
 	goals := d.Goals()
 	plans := make([]*Plan, 0, len(goals))
 	for _, goal := range goals {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		plan, err := planner.PlanToGoal(ctx, state, d, goal, options)
+		plan, err := planToGoal(ctx, planner, plannerName, state, d, goal, options)
 		if err != nil {
-			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", planner.Name(), goal.Name(), err)
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", plannerName, goal.Name(), err)
 		}
 		if plan == nil {
 			continue
 		}
 		accepted, err := d.acceptPlan(plan, goal, state, options)
 		if err != nil {
-			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", planner.Name(), goal.Name(), err)
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", plannerName, goal.Name(), err)
 		}
 		plans = append(plans, accepted)
 	}
@@ -162,6 +168,32 @@ func (d *Domain) Plans(
 		return nil, fmt.Errorf("planning.Domain.Plans: rank plans: %w", err)
 	}
 	return plans, nil
+}
+
+func safePlannerName(planner Planner) (name string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("planner %T Name panicked", planner), recovered)
+		}
+	}()
+	return planner.Name(), nil
+}
+
+func planToGoal(
+	ctx context.Context,
+	planner Planner,
+	plannerName string,
+	state core.WorldState,
+	domain *Domain,
+	goal *core.Goal,
+	options Options,
+) (plan *Plan, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("planner %q PlanToGoal panicked", plannerName), recovered)
+		}
+	}()
+	return planner.PlanToGoal(ctx, state, domain, goal, options)
 }
 
 func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, options Options) (*Plan, error) {
