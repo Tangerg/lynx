@@ -34,13 +34,14 @@ type durablePauseAction struct{}
 func (durablePauseAction) Metadata() core.ActionMetadata {
 	input := core.NewBinding[ssWord](core.DefaultBindingName)
 	output := core.NewBinding[ssWordCount](core.DefaultBindingName)
-	return core.ActionMetadata{
+	metadata := core.ActionMetadata{
 		Name:   "durable-pause",
 		Inputs: []core.Binding{input}, Outputs: []core.Binding{output},
-		Preconditions: core.ConditionSet{input.String(): core.True, core.ActionRunConditionPrefix + "durable-pause": core.False},
-		Effects:       core.ConditionSet{output.String(): core.True, core.ActionRunConditionPrefix + "durable-pause": core.True},
-		Cost:          core.FixedScore(1), Value: core.FixedScore(0),
+		Cost: core.FixedScore(1), Value: core.FixedScore(0),
 	}
+	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.RunCondition(): core.False}
+	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.RunCondition(): core.True}
+	return metadata
 }
 
 func (durablePauseAction) Execute(_ context.Context, pc *core.ProcessContext) (core.ActionStatus, error) {
