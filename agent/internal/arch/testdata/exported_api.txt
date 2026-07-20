@@ -552,6 +552,7 @@ routing: type Ranker interface { Rank(ctx context.Context, input string, candida
 routing: type Router struct { }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 runtime: const ( SnapshotFailureFailProcess = core.SnapshotFailureFailProcess SnapshotFailurePauseProcess = core.SnapshotFailurePauseProcess SnapshotFailureReportOnly = core.SnapshotFailureReportOnly )
+runtime: const DefaultSessionFinalizeTimeout = 10 * time.Second
 runtime: func (d *Deployment) Agent() *core.Agent
 runtime: func (d *Deployment) Ref() core.DeploymentRef
 runtime: func (e *DeploymentConflictError) Error() string
@@ -621,12 +622,13 @@ runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
 runtime: type ChatGuardrailsConfig struct { HistoryStore chathistory.Store MaxToolRounds int }
-runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore ChildSessionStore core.SessionStore Extensions []core.Extension }
+runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionTurnSequencer SessionTurnSequencer SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }
+runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sessionID string) (release func(), err error) }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") )

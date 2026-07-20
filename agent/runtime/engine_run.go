@@ -107,6 +107,15 @@ func (e *Engine) RunInSession(
 	if session == nil {
 		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
 	}
+	ctx = normalizeContext(ctx)
+	release, err := e.sessionTurnSequencer.Acquire(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: acquire session turn %q: %w", session.ID, err)
+	}
+	if release == nil {
+		return nil, errors.New("runtime.Engine.RunInSession: SessionTurnSequencer returned a nil release function")
+	}
+	defer release()
 
 	deployment, err := e.sessionDeployment(agent, session)
 	if err != nil {
@@ -131,7 +140,8 @@ func (e *Engine) RunInSession(
 	// Finalization must survive request cancellation so durable audit time still
 	// reflects a failed or canceled dispatch. Preserve context values and spans,
 	// but detach cancellation from the store write.
-	postContext := context.WithoutCancel(normalizeContext(ctx))
+	postContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.sessionFinalizeTimeout)
+	defer cancel()
 	if saveErr := e.touchAndSaveSession(postContext, session); saveErr != nil {
 		saveErr = fmt.Errorf("runtime.Engine.RunInSession: save after dispatch: %w", saveErr)
 		return process, errors.Join(runErr, saveErr)
