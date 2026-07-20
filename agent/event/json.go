@@ -72,12 +72,20 @@ func (e ProcessFailed) MarshalJSON() ([]byte, error) {
 	return emit(e, errorPayload{Error: errString(e.Err)})
 }
 
+type processStuckPayload struct {
+	State  *worldStateSummary `json:"state"`
+	Reason string             `json:"reason,omitempty"`
+}
+
 type worldStatePayload struct {
 	State *worldStateSummary `json:"state"`
 }
 
 func (e ProcessStuck) MarshalJSON() ([]byte, error) {
-	return emit(e, worldStatePayload{State: summarizeWorldState(e.State)})
+	return emit(e, processStuckPayload{
+		State:  summarizeWorldState(e.State),
+		Reason: e.Reason,
+	})
 }
 
 type processWaitingPayload struct {

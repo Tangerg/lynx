@@ -33,6 +33,21 @@ func (a *fixedResultAction) Execute(context.Context, *core.ProcessContext) (core
 
 type actionFinishedCapture struct{ event *event.ActionFinished }
 
+type stuckPolicyFunc func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult
+
+func (f stuckPolicyFunc) Recover(ctx context.Context, process core.ProcessView, blackboard core.BlackboardWriter) core.StuckResult {
+	return f(ctx, process, blackboard)
+}
+
+type stuckEventCapture struct{ event *event.ProcessStuck }
+
+func (*stuckEventCapture) Name() string { return "stuck-event-capture" }
+func (c *stuckEventCapture) OnEvent(_ context.Context, value event.Event) {
+	if stuck, ok := value.(event.ProcessStuck); ok {
+		c.event = &stuck
+	}
+}
+
 func (*actionFinishedCapture) Name() string { return "action-finished-capture" }
 func (c *actionFinishedCapture) OnEvent(_ context.Context, value event.Event) {
 	if finished, ok := value.(event.ActionFinished); ok {
@@ -356,6 +371,87 @@ func TestRunPublishesSingleStuckEvent(t *testing.T) {
 	if stuckEvents != 1 {
 		t.Fatalf("stuck events = %d, want 1", stuckEvents)
 	}
+}
+
+func TestRunPropagatesStuckPolicyReason(t *testing.T) {
+	capture := new(stuckEventCapture)
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+		return core.StuckResult{Decision: core.StuckStop, Reason: "operator input is required"}
+	}), capture)
+
+	if process.Status() != core.StatusStuck {
+		t.Fatalf("status = %s, want stuck", process.Status())
+	}
+	if capture.event == nil || capture.event.Reason != "operator input is required" {
+		t.Fatalf("stuck event = %#v, want policy reason", capture.event)
+	}
+}
+
+func TestRunStopsNoProgressStuckReplan(t *testing.T) {
+	recoveries := 0
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+		recoveries++
+		return core.StuckResult{Decision: core.StuckReplan}
+	}), nil)
+
+	if process.Status() != core.StatusStuck {
+		t.Fatalf("status = %s, want stuck", process.Status())
+	}
+	if recoveries != 2 {
+		t.Fatalf("recoveries = %d, want one retry followed by no-progress detection", recoveries)
+	}
+}
+
+func TestRunRejectsInvalidStuckDecision(t *testing.T) {
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+		return core.StuckResult{Decision: core.StuckDecision(9)}
+	}), nil)
+
+	if process.Status() != core.StatusFailed {
+		t.Fatalf("status = %s, want failed", process.Status())
+	}
+	if failure := process.Failure(); failure == nil || !strings.Contains(failure.Error(), "invalid decision StuckDecision(9)") {
+		t.Fatalf("failure = %v, want invalid-decision detail", failure)
+	}
+}
+
+func TestRunContainsStuckPolicyPanic(t *testing.T) {
+	cause := errors.New("stuck policy sentinel")
+	process := runUnplannableAgent(t, stuckPolicyFunc(func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult {
+		panic(cause)
+	}), nil)
+
+	if process.Status() != core.StatusFailed {
+		t.Fatalf("status = %s, want failed", process.Status())
+	}
+	if !errors.Is(process.Failure(), cause) {
+		t.Fatalf("failure = %v, want wrapped panic cause", process.Failure())
+	}
+}
+
+func runUnplannableAgent(t *testing.T, policy core.StuckPolicy, extension core.Extension) *runtime.Process {
+	t.Helper()
+	type unavailableInput struct{}
+	type unusedOutput struct{}
+
+	definition := core.NewAgent(core.AgentConfig{
+		Name:        "unplannable",
+		StuckPolicy: policy,
+		Actions: []core.Action{core.NewAction("unavailable", func(context.Context, *core.ProcessContext, unavailableInput) (unusedOutput, error) {
+			return unusedOutput{}, nil
+		}, core.ActionConfig{Effects: []string{"ready"}})},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "ready", Preconditions: []string{"ready"}})},
+	})
+	config := runtime.Config{}
+	if extension != nil {
+		config.Extensions = []core.Extension{extension}
+	}
+	engine := agent.MustNewEngine(config)
+	process, err := engine.Run(t.Context(), definition, core.Bindings{}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	return process
 }
 
 func TestRunMarksCancelledDuringActionAsKilled(t *testing.T) {

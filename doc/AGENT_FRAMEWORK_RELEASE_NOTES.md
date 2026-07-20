@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 654 |
-| root façade | 48 / 50 |
-| exported JSON struct | 16 |
+| exported declaration | 713 |
+| root façade | 50 / 50 |
+| exported JSON struct | 15 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`73e4a8f603443fcaea7006ad9b9c22561d2d241cb7444432ec7e6a6b3adc96e6`
+- API baseline SHA-256：`c10883927005a9fbf77aee7829a4f718fbd9e16a92a23780cb2345617b7d2a86`
 - wire fixture SHA-256：`6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -73,6 +73,11 @@
 - Action 与 ActionMiddleware 显式传递 `(ActionStatus, error)`。
 - `RetryPolicy{}` 只尝试一次；多次 retry 必须声明安全性。
 - `StuckDecision` 的零值是停止，显式值 `StuckReplan` 才重新规划。
+- `StuckDecision` 补齐 `Valid` / `String`，runtime 拒绝未知决策并将策略 panic
+  收敛为 Process failure。`StuckReplan` 对同一 WorldState 只允许一次恢复尝试，策略未产生
+  可观察进展时确定性进入 Stuck，避免无界空转；`ProcessStuck` 事件新增可选 `reason`。
+- 同一 tick 边界前到达的终止请求按 scope 合并：Agent 终止稳定高于 Action 重规划，
+  同级保留首个原因，消除并发到达顺序造成的控制语义漂移。
 - Action 运行条件统一为 `ActionRunConditionPrefix` 与 `RunCondition()`。
 - process-wide candidate-action 并发删除；Process tick 始终稳定执行计划首步。业务 fan-out
   通过隔离 workflow branch 或 child Process。

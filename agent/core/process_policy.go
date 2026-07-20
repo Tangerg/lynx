@@ -1,6 +1,9 @@
 package core
 
-import "context"
+import (
+	"context"
+	"strconv"
+)
 
 // BudgetPolicyName is the built-in budget policy's extension identifier.
 const BudgetPolicyName = "budget-policy"
@@ -49,6 +52,22 @@ const (
 	// StuckReplan asks the runtime to plan again after policy mutations.
 	StuckReplan
 )
+
+// Valid reports whether d is a framework-defined stuck decision.
+func (d StuckDecision) Valid() bool {
+	return d >= StuckStop && d <= StuckReplan
+}
+
+func (d StuckDecision) String() string {
+	switch d {
+	case StuckStop:
+		return "stop"
+	case StuckReplan:
+		return "replan"
+	default:
+		return "StuckDecision(" + strconv.FormatUint(uint64(d), 10) + ")"
+	}
+}
 
 // StuckResult carries the verdict plus a human-readable reason.
 type StuckResult struct {

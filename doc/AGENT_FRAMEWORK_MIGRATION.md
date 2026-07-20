@@ -105,6 +105,14 @@ core.RetryPolicy{
 ```
 
 `StuckDecision` 的零值是 `StuckStop`；需要重新规划时返回 `StuckReplan`。不要依赖“未设置等于继续”的危险语义。
+策略返回值可以用 `StuckDecision.Valid` 校验或用 `String` 记录。runtime 会拒绝未知值，
+并要求 `StuckReplan` 在下一次观察前产生可见进展（例如修改 blackboard/conditions，或通过
+清除 exclusion 使计划恢复）；相同 WorldState 再次无计划时会进入 `StatusStuck`，不会无限重试。
+策略给出的 `StuckResult.Reason` 现在会进入 `event.ProcessStuck` 及其 JSON payload 的可选
+`reason` 字段，事件消费者应按新增可选字段处理。
+
+并发提交 `TerminateAction` 与 `TerminateAgent` 时，Agent scope 始终胜出；同 scope 的首个
+原因被保留。调用方不应依赖 goroutine 调度决定最终终止边界。
 
 删除 process-wide candidate-action 并发。Process tick 仍按计划稳定执行一个 Action；
 需要业务级 fan-out 时使用：

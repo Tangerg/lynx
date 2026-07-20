@@ -202,6 +202,7 @@ func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (
 	if planResult == nil {
 		return nil, true, p.handleStuck(ctx, worldState)
 	}
+	p.state.clearStuckReplan()
 	if planResult.Complete() {
 		p.completeForGoal(ctx, planResult.Goal())
 		return nil, true, nil
