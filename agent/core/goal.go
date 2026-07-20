@@ -1,6 +1,8 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"reflect"
 	"slices"
 )
@@ -88,6 +90,24 @@ func (g *Goal) Description() string {
 		return ""
 	}
 	return g.description
+}
+
+func (g *Goal) validate() error {
+	if g == nil {
+		return errors.New("goal is nil")
+	}
+	var problems []error
+	for index, condition := range g.preconditions {
+		if err := validateConditionKey(condition); err != nil {
+			problems = append(problems, fmt.Errorf("precondition %d: %w", index, err))
+		}
+	}
+	for index, binding := range g.inputs {
+		if err := binding.Validate(); err != nil {
+			problems = append(problems, fmt.Errorf("input binding %d: %w", index, err))
+		}
+	}
+	return errors.Join(problems...)
 }
 
 // RequiredConditions returns the explicitly named condition requirements.

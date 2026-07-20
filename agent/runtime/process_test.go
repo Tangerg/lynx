@@ -15,6 +15,18 @@ import (
 type word struct{ Text string }
 type wordCount struct{ Count int }
 
+type invalidStatusAction struct {
+	metadata core.ActionMetadata
+	runs     int
+}
+
+func (a *invalidStatusAction) Metadata() core.ActionMetadata { return a.metadata }
+
+func (a *invalidStatusAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	a.runs++
+	return core.ActionStatus(9), nil
+}
+
 // stuckCounter is an EventListener extension that counts ProcessStuck
 // occurrences via the supplied pointer.
 type stuckCounter struct{ count *int }
@@ -91,6 +103,58 @@ func TestRunPreservesPanickedActionCause(t *testing.T) {
 	}
 	if !strings.Contains(failure.Error(), "runtime.Process.invokeAction: action panicked") {
 		t.Fatalf("process failure = %v, want panic boundary context", failure)
+	}
+}
+
+func TestRunFailsOnceOnInvalidActionStatus(t *testing.T) {
+	input := core.NewBinding[word]("")
+	output := core.NewBinding[wordCount]("")
+	metadata := core.ActionMetadata{
+		Name:    "invalid-status",
+		Inputs:  []core.Binding{input},
+		Outputs: []core.Binding{output},
+		Retry:   core.DefaultRetryPolicy(),
+	}
+	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.RunCondition(): core.False}
+	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.RunCondition(): core.True}
+	action := &invalidStatusAction{metadata: metadata}
+	a := agent.New(agent.AgentConfig{
+		Name:    "invalid-status",
+		Actions: []agent.Action{action},
+		Goals:   []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || action.runs != 1 {
+		t.Fatalf("status/runs = %s/%d, want failed/1", process.Status(), action.runs)
+	}
+	if failure := process.Failure(); failure == nil || !strings.Contains(failure.Error(), "returned invalid status 9") {
+		t.Fatalf("failure = %v", failure)
+	}
+}
+
+func TestRunFailsWhenConditionReturnsInvalidTruth(t *testing.T) {
+	a := agent.New(agent.AgentConfig{
+		Name: "invalid-truth",
+		Actions: []agent.Action{agent.NewAction("count", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
+			return wordCount{Count: 1}, nil
+		}, core.ActionConfig{Preconditions: []string{"ready"}})},
+		Goals:      []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})},
+		Conditions: []agent.Condition{agent.NewCondition("ready", func(context.Context, *core.ConditionEnv) core.Truth { return core.Truth(9) })},
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed {
+		t.Fatalf("status = %s, want failed", process.Status())
+	}
+	if failure := process.Failure(); failure == nil || !strings.Contains(failure.Error(), "condition \"ready\" returned invalid truth value 9") {
+		t.Fatalf("failure = %v", failure)
 	}
 }
 

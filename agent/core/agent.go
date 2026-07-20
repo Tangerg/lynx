@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/Masterminds/semver/v3"
 )
@@ -152,6 +153,8 @@ func (a *Agent) Validate() error {
 	var problems []error
 	if a.Name() == "" {
 		problems = append(problems, errors.New("agent.Agent.Validate: invalid agent: name is empty"))
+	} else if strings.TrimSpace(a.Name()) != a.Name() {
+		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent: name %q has surrounding whitespace", a.Name()))
 	}
 	if a.Version() != "" {
 		if _, err := semver.NewVersion(a.Version()); err != nil {
@@ -196,6 +199,14 @@ func (a *Agent) Validate() error {
 		metadata := action.Metadata()
 		if err := metadata.validate(); err != nil {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action %q: %w", a.Name(), metadata.Name, err))
+		}
+	}
+	for _, goal := range a.config.Goals {
+		if goal == nil {
+			continue
+		}
+		if err := goal.validate(); err != nil {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: goal %q: %w", a.Name(), goal.Name(), err))
 		}
 	}
 	problems = append(problems, a.goalReachabilityErrors()...)
@@ -286,6 +297,8 @@ func (a *Agent) validateUniqueNamed(
 			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", a.Name(), kind, i)
 		case name == "":
 			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", a.Name(), kind, i)
+		case strings.TrimSpace(name) != name:
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s name %q has surrounding whitespace", a.Name(), kind, name)
 		}
 		if _, dup := seen[name]; dup {
 			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", a.Name(), kind, name)

@@ -92,8 +92,13 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 		replan, attempts = replanRequest, attemptCount
 		return finalStatus, err
 	})
-	if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
-		replan = request
+	status, lastErr = validateActionResult(metadata.Name, status, lastErr)
+	if _, invalid := errors.AsType[invalidActionStatusError](lastErr); !invalid {
+		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
+			replan = request
+		}
+	} else {
+		replan = nil
 	}
 	if p.abortStagedNestedChildren(ctx) > 0 && status != core.ActionFailed {
 		status = core.ActionFailed
@@ -147,6 +152,22 @@ type haltSignal struct{ status core.ActionStatus }
 
 func (h haltSignal) Error() string {
 	return "action halted with status " + h.status.String()
+}
+
+type invalidActionStatusError struct {
+	action string
+	status core.ActionStatus
+}
+
+func (e invalidActionStatusError) Error() string {
+	return fmt.Sprintf("runtime: action %q returned invalid status %d", e.action, e.status)
+}
+
+func validateActionResult(action string, status core.ActionStatus, err error) (core.ActionStatus, error) {
+	if status.Valid() {
+		return status, err
+	}
+	return core.ActionFailed, errors.Join(err, invalidActionStatusError{action: action, status: status})
 }
 
 // runWithRetry runs action up to policy.MaxAttempts times, delegating the
@@ -227,7 +248,8 @@ func (p *Process) invokeAction(ctx context.Context, action core.Action, processC
 			err = panicerr.New("runtime.Process.invokeAction: action panicked", recovered)
 		}
 	}()
-	return action.Execute(ctx, processContext)
+	status, err = action.Execute(ctx, processContext)
+	return validateActionResult(action.Metadata().Name, status, err)
 }
 
 // actionFailure produces a default failure error when an action returned
@@ -248,6 +270,9 @@ func shouldRetryAction(err error) bool {
 		return false
 	}
 	if _, ok := errors.AsType[haltSignal](err); ok {
+		return false
+	}
+	if _, ok := errors.AsType[invalidActionStatusError](err); ok {
 		return false
 	}
 	if errors.Is(err, interaction.ErrCommitted) {
