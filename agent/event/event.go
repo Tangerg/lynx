@@ -14,8 +14,33 @@ import (
 type Event interface {
 	Timestamp() time.Time
 	ProcessID() string
-	Kind() string
+	Kind() Kind
 }
+
+// Kind is the stable event discriminator used by listeners and the JSON wire.
+type Kind string
+
+const (
+	KindAgentDeployed         Kind = "agent_deployed"
+	KindAgentUndeployed       Kind = "agent_undeployed"
+	KindProcessCreated        Kind = "process_created"
+	KindProcessCompleted      Kind = "process_completed"
+	KindProcessFailed         Kind = "process_failed"
+	KindProcessStuck          Kind = "process_stuck"
+	KindProcessWaiting        Kind = "process_waiting"
+	KindProcessSnapshotFailed Kind = "process_snapshot_failed"
+	KindProcessKilled         Kind = "process_killed"
+	KindProcessTerminated     Kind = "process_terminated"
+	KindPlanningStarted       Kind = "planning_started"
+	KindPlanCreated           Kind = "plan_created"
+	KindReplanRequested       Kind = "replan_requested"
+	KindActionStarted         Kind = "action_started"
+	KindActionFinished        Kind = "action_finished"
+	KindGoalAchieved          Kind = "goal_achieved"
+	KindInteractionBoundary   Kind = "interaction_boundary"
+	KindModelCallRecorded     Kind = "model_call_recorded"
+	KindEmbeddingCallRecorded Kind = "embedding_call_recorded"
+)
 
 // Header is the embedded carrier shared across all concrete events.
 // It's an opaque value object: built via [NewHeader] and read through
@@ -41,7 +66,7 @@ type AgentDeployed struct {
 	Deployment core.DeploymentRef `json:"deployment"`
 }
 
-func (AgentDeployed) Kind() string { return "agent_deployed" }
+func (AgentDeployed) Kind() Kind { return KindAgentDeployed }
 
 // AgentUndeployed fires when an agent is removed from an Engine.
 type AgentUndeployed struct {
@@ -49,7 +74,7 @@ type AgentUndeployed struct {
 	Deployment core.DeploymentRef `json:"deployment"`
 }
 
-func (AgentUndeployed) Kind() string { return "agent_undeployed" }
+func (AgentUndeployed) Kind() Kind { return KindAgentUndeployed }
 
 // ProcessCreated fires when a new Process is registered on the engine.
 type ProcessCreated struct {
@@ -57,7 +82,7 @@ type ProcessCreated struct {
 	Bindings core.Bindings `json:"bindings,omitzero"`
 }
 
-func (ProcessCreated) Kind() string { return "process_created" }
+func (ProcessCreated) Kind() Kind { return KindProcessCreated }
 
 // ProcessCompleted fires when the process reaches its goal successfully.
 type ProcessCompleted struct {
@@ -66,7 +91,7 @@ type ProcessCompleted struct {
 	Result any        `json:"-"`
 }
 
-func (ProcessCompleted) Kind() string { return "process_completed" }
+func (ProcessCompleted) Kind() Kind { return KindProcessCompleted }
 
 // ProcessFailed fires when the process terminates with an error.
 type ProcessFailed struct {
@@ -74,7 +99,7 @@ type ProcessFailed struct {
 	Err error `json:"-"`
 }
 
-func (ProcessFailed) Kind() string { return "process_failed" }
+func (ProcessFailed) Kind() Kind { return KindProcessFailed }
 
 // ProcessStuck fires when the planner returns no plan and no StuckPolicy resolves it.
 type ProcessStuck struct {
@@ -82,7 +107,7 @@ type ProcessStuck struct {
 	State core.WorldState `json:"-"`
 }
 
-func (ProcessStuck) Kind() string { return "process_stuck" }
+func (ProcessStuck) Kind() Kind { return KindProcessStuck }
 
 // ProcessWaiting fires when a process parks durable continuation state.
 type ProcessWaiting struct {
@@ -90,7 +115,7 @@ type ProcessWaiting struct {
 	Suspension *interaction.Suspension `json:"suspension"`
 }
 
-func (ProcessWaiting) Kind() string { return "process_waiting" }
+func (ProcessWaiting) Kind() Kind { return KindProcessWaiting }
 
 // ProcessSnapshotFailed reports that automatic persistence did not commit.
 // Report-only policy means the process may continue but is explicitly
@@ -101,7 +126,7 @@ type ProcessSnapshotFailed struct {
 	Err    error  `json:"-"`
 }
 
-func (ProcessSnapshotFailed) Kind() string { return "process_snapshot_failed" }
+func (ProcessSnapshotFailed) Kind() Kind { return KindProcessSnapshotFailed }
 
 // ProcessKilled fires from Engine.Kill or when ctx is canceled mid-run.
 type ProcessKilled struct {
@@ -109,7 +134,7 @@ type ProcessKilled struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-func (ProcessKilled) Kind() string { return "process_killed" }
+func (ProcessKilled) Kind() Kind { return KindProcessKilled }
 
 // ProcessTerminated fires when a StopPolicy or a queued
 // [core.TerminationScopeAgent] signal stops the process.
@@ -119,7 +144,7 @@ type ProcessTerminated struct {
 	Scope  core.TerminationScope `json:"-"`
 }
 
-func (ProcessTerminated) Kind() string { return "process_terminated" }
+func (ProcessTerminated) Kind() Kind { return KindProcessTerminated }
 
 // PlanningStarted reports the world state the planner is about to consume.
 type PlanningStarted struct {
@@ -127,7 +152,7 @@ type PlanningStarted struct {
 	State core.WorldState `json:"-"`
 }
 
-func (PlanningStarted) Kind() string { return "planning_started" }
+func (PlanningStarted) Kind() Kind { return KindPlanningStarted }
 
 // PlanCreated fires when the planner returns a non-nil plan.
 type PlanCreated struct {
@@ -135,7 +160,7 @@ type PlanCreated struct {
 	Plan *planning.Plan `json:"-"`
 }
 
-func (PlanCreated) Kind() string { return "plan_created" }
+func (PlanCreated) Kind() Kind { return KindPlanCreated }
 
 // ReplanRequested fires when an action requests another planning tick.
 type ReplanRequested struct {
@@ -144,7 +169,7 @@ type ReplanRequested struct {
 	Reason     string `json:"reason,omitempty"`
 }
 
-func (ReplanRequested) Kind() string { return "replan_requested" }
+func (ReplanRequested) Kind() Kind { return KindReplanRequested }
 
 // ActionStarted fires before an action is invoked.
 type ActionStarted struct {
@@ -153,7 +178,7 @@ type ActionStarted struct {
 	StartedAt time.Time   `json:"-"`
 }
 
-func (ActionStarted) Kind() string { return "action_started" }
+func (ActionStarted) Kind() Kind { return KindActionStarted }
 
 // ActionFinished fires after an action's retry loop terminates.
 type ActionFinished struct {
@@ -164,7 +189,7 @@ type ActionFinished struct {
 	Err      error             `json:"-"`
 }
 
-func (ActionFinished) Kind() string { return "action_finished" }
+func (ActionFinished) Kind() Kind { return KindActionFinished }
 
 // GoalAchieved fires when the planner returns an empty plan for a non-nil goal.
 type GoalAchieved struct {
@@ -172,7 +197,7 @@ type GoalAchieved struct {
 	Goal *core.Goal `json:"-"`
 }
 
-func (GoalAchieved) Kind() string { return "goal_achieved" }
+func (GoalAchieved) Kind() Kind { return KindGoalAchieved }
 
 // InteractionBoundary binds one model/tool protocol event to the exact process
 // deployment and logical interaction that produced it.
@@ -183,7 +208,7 @@ type InteractionBoundary struct {
 	Boundary      interaction.Event  `json:"boundary"`
 }
 
-func (InteractionBoundary) Kind() string { return "interaction_boundary" }
+func (InteractionBoundary) Kind() Kind { return KindInteractionBoundary }
 
 // ModelCallRecorded fires when an LLM call is attributed to a process.
 type ModelCallRecorded struct {
@@ -191,7 +216,7 @@ type ModelCallRecorded struct {
 	Call core.ModelCall `json:"-"`
 }
 
-func (ModelCallRecorded) Kind() string { return "model_call_recorded" }
+func (ModelCallRecorded) Kind() Kind { return KindModelCallRecorded }
 
 // EmbeddingCallRecorded mirrors [ModelCallRecorded] for the embeddings path.
 type EmbeddingCallRecorded struct {
@@ -199,14 +224,14 @@ type EmbeddingCallRecorded struct {
 	Call core.EmbeddingCall `json:"-"`
 }
 
-func (EmbeddingCallRecorded) Kind() string { return "embedding_call_recorded" }
+func (EmbeddingCallRecorded) Kind() Kind { return KindEmbeddingCallRecorded }
 
 // envelope is the on-wire JSON shape for every event: a discriminator
 // field plus the Header's timestamp / process id plus an opaque
 // payload object. Centralized here so each concrete event's MarshalJSON
 // is a one-liner.
 type envelope struct {
-	Kind      string    `json:"kind"`
+	Kind      Kind      `json:"kind"`
 	Timestamp time.Time `json:"timestamp"`
 	ProcessID string    `json:"process_id"`
 	Payload   any       `json:"payload,omitempty"`

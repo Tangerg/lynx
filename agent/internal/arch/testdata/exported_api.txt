@@ -328,25 +328,26 @@ core: var ErrInvalidSession = errors.New("session: invalid")
 core: var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrSessionNotFound = errSessionNotFound{}
-event: func (ActionFinished) Kind() string
-event: func (ActionStarted) Kind() string
-event: func (AgentDeployed) Kind() string
-event: func (AgentUndeployed) Kind() string
-event: func (EmbeddingCallRecorded) Kind() string
-event: func (GoalAchieved) Kind() string
-event: func (InteractionBoundary) Kind() string
-event: func (ModelCallRecorded) Kind() string
-event: func (PlanCreated) Kind() string
-event: func (PlanningStarted) Kind() string
-event: func (ProcessCompleted) Kind() string
-event: func (ProcessCreated) Kind() string
-event: func (ProcessFailed) Kind() string
-event: func (ProcessKilled) Kind() string
-event: func (ProcessSnapshotFailed) Kind() string
-event: func (ProcessStuck) Kind() string
-event: func (ProcessTerminated) Kind() string
-event: func (ProcessWaiting) Kind() string
-event: func (ReplanRequested) Kind() string
+event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessSnapshotFailed Kind = "process_snapshot_failed" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" KindModelCallRecorded Kind = "model_call_recorded" KindEmbeddingCallRecorded Kind = "embedding_call_recorded" )
+event: func (ActionFinished) Kind() Kind
+event: func (ActionStarted) Kind() Kind
+event: func (AgentDeployed) Kind() Kind
+event: func (AgentUndeployed) Kind() Kind
+event: func (EmbeddingCallRecorded) Kind() Kind
+event: func (GoalAchieved) Kind() Kind
+event: func (InteractionBoundary) Kind() Kind
+event: func (ModelCallRecorded) Kind() Kind
+event: func (PlanCreated) Kind() Kind
+event: func (PlanningStarted) Kind() Kind
+event: func (ProcessCompleted) Kind() Kind
+event: func (ProcessCreated) Kind() Kind
+event: func (ProcessFailed) Kind() Kind
+event: func (ProcessKilled) Kind() Kind
+event: func (ProcessSnapshotFailed) Kind() Kind
+event: func (ProcessStuck) Kind() Kind
+event: func (ProcessTerminated) Kind() Kind
+event: func (ProcessWaiting) Kind() Kind
+event: func (ReplanRequested) Kind() Kind
 event: func (e ActionFinished) MarshalJSON() ([]byte, error)
 event: func (e ActionStarted) MarshalJSON() ([]byte, error)
 event: func (e AgentDeployed) MarshalJSON() ([]byte, error)
@@ -381,10 +382,11 @@ event: type ActionStarted struct { Header Action core.Action `json:"-"` StartedA
 event: type AgentDeployed struct { Header Deployment core.DeploymentRef `json:"deployment"` }
 event: type AgentUndeployed struct { Header Deployment core.DeploymentRef `json:"deployment"` }
 event: type EmbeddingCallRecorded struct { Header Call core.EmbeddingCall `json:"-"` }
-event: type Event interface { Timestamp() time.Time ProcessID() string Kind() string }
+event: type Event interface { Timestamp() time.Time ProcessID() string Kind() Kind }
 event: type GoalAchieved struct { Header Goal *core.Goal `json:"-"` }
 event: type Header struct { }
 event: type InteractionBoundary struct { Header Deployment core.DeploymentRef `json:"deployment"` InteractionID string `json:"interaction_id"` Boundary interaction.Event `json:"boundary"` }
+event: type Kind string
 event: type Listener interface { OnEvent(ctx context.Context, event Event) }
 event: type ListenerFunc func(context.Context, Event)
 event: type ModelCallRecorded struct { Header Call core.ModelCall `json:"-"` }

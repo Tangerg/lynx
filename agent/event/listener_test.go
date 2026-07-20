@@ -12,7 +12,7 @@ import (
 var listenerDeployment = core.DeploymentRef{Name: "x", Digest: "digest"}
 
 func TestNamedListener_NameAndOnEvent(t *testing.T) {
-	var got []string
+	var got []event.Kind
 	listener := event.NewNamedListener("collector", func(_ context.Context, e event.Event) {
 		got = append(got, e.Kind())
 	})
