@@ -14,9 +14,9 @@ import (
 const inMemoryBlackboardName = "in-memory-blackboard"
 
 // inMemoryBlackboard is the default blackboard backed by maps and a slice.
-// It is the only Blackboard implementation in the framework; production
-// deployments that need persistence (Redis, Postgres, ...) write a custom
-// implementation against the core.Blackboard interface.
+// It is the runtime's default Blackboard implementation. Hosts that need a
+// different lifecycle provide an implementation through the core.Blackboard
+// extension contract.
 //
 // All public methods are safe for concurrent use. Reads use RLock, writes
 // use Lock.

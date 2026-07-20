@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
@@ -117,7 +118,7 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 }
 
 func TestLoop_AutoSnapshotPreservesWorkflowState(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		BuildID: "loop-snapshot", ProcessStore: store, AutoSnapshot: true,
 	})

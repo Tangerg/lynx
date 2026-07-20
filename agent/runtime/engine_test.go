@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
@@ -36,8 +37,8 @@ func (e *constructorExtension) Name() string { return e.name }
 
 func TestNewEngineReturnsConfigErrors(t *testing.T) {
 	duplicate := &constructorExtension{name: "duplicate"}
-	var processStore *core.MemoryProcessStore
-	var sessionStore *core.MemorySessionStore
+	var processStore *storetest.MemoryProcessStore
+	var sessionStore *storetest.MemorySessionStore
 	for _, test := range []struct {
 		name     string
 		config   Config

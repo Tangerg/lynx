@@ -10,16 +10,17 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 type flakyProcessStore struct {
-	inner *core.MemoryProcessStore
+	inner *storetest.MemoryProcessStore
 	fail  atomic.Bool
 	err   error
 }
 
 func newFlakyProcessStore(err error) *flakyProcessStore {
-	store := &flakyProcessStore{inner: core.NewMemoryProcessStore(), err: err}
+	store := &flakyProcessStore{inner: storetest.NewMemoryProcessStore(), err: err}
 	store.fail.Store(true)
 	return store
 }
@@ -49,7 +50,7 @@ func TestAutoSnapshot_PersistsTerminalState(t *testing.T) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		BuildID:      "auto-snapshot-test",
 		ProcessStore: store,
@@ -87,7 +88,7 @@ func TestAutoSnapshot_DisabledByDefault(t *testing.T) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "auto-snapshot-test", ProcessStore: store})
 	mustDeploy(t, engine, a)
 

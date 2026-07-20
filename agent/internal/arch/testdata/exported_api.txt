@@ -169,15 +169,6 @@ core: func (r DeploymentRef) String() string
 core: func (r DeploymentRef) Validate() error
 core: func (r ToolGroupRequirement) Allows(required []ToolGroupPermission) bool
 core: func (r ToolGroupRequirement) Validate() error
-core: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
-core: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
-core: func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot, error)
-core: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot) error
-core: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []ProcessSnapshot) error
-core: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
-core: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
-core: func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error)
-core: func (s *MemorySessionStore) Save(_ context.Context, session Session) error
 core: func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error
 core: func (s *Session) BindAgent(agentName string) error
 core: func (s *Session) Touch()
@@ -221,8 +212,6 @@ core: func NewGoal(config GoalConfig) *Goal
 core: func NewGoalTool[In any](config GoalToolConfig) *GoalTool
 core: func NewLazyToolGroup(info ToolGroupInfo, load func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup
 core: func NewLazyToolGroupResolver( name string, info ToolGroupInfo, load func(context.Context) ([]tools.Tool, error), ) (*LazyToolGroupResolver, error)
-core: func NewMemoryProcessStore() *MemoryProcessStore
-core: func NewMemorySessionStore() *MemorySessionStore
 core: func NewOutputGoal[T any](config GoalConfig) *Goal
 core: func NewProcessContext(config ProcessContextConfig) *ProcessContext
 core: func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error)
@@ -285,8 +274,6 @@ core: type IDGenerator interface { Extension Next() string }
 core: type Interaction struct { ID string Model chat.Model Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Observe interaction.Observer Attribute ModelAttributionFunc }
 core: type LazyToolGroup struct { }
 core: type LazyToolGroupResolver struct { }
-core: type MemoryProcessStore struct { }
-core: type MemorySessionStore struct { }
 core: type ModelAttribution struct { Provider string CostUSD float64 }
 core: type ModelAttributionFunc func(response *chat.Response) ModelAttribution
 core: type ModelCall struct { Timestamp time.Time `json:"timestamp"` Model string `json:"model"` Provider string `json:"provider,omitempty"` CostUSD float64 `json:"cost_usd"` PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens int64 `json:"cache_write_input_tokens,omitempty"` Duration time.Duration `json:"duration_ns"` ActionName string `json:"action,omitempty"` }
@@ -641,8 +628,21 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
 runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
+storetest: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
+storetest: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
+storetest: func (s *MemoryProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error)
+storetest: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error
+storetest: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []core.ProcessSnapshot) error
+storetest: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
+storetest: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
+storetest: func (s *MemorySessionStore) Load(_ context.Context, id string) (core.Session, error)
+storetest: func (s *MemorySessionStore) Save(_ context.Context, session core.Session) error
+storetest: func NewMemoryProcessStore() *MemoryProcessStore
+storetest: func NewMemorySessionStore() *MemorySessionStore
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
 storetest: func TestSessionStore(ctx context.Context, store core.SessionStore) error
+storetest: type MemoryProcessStore struct { }
+storetest: type MemorySessionStore struct { }
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
 toolloop: const ( EventModelRequest = interaction.EventModelRequest EventModelResponse = interaction.EventModelResponse EventToolCall = interaction.EventToolCall EventToolResult = interaction.EventToolResult EventPause = interaction.EventPause EventResume = interaction.EventResume )
 toolloop: const CheckpointSchemaVersion uint16 = 2

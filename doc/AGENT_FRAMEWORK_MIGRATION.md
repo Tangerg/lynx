@@ -408,6 +408,10 @@ type ProcessStore interface {
 }
 ```
 
+`core` 不再导出具体内存 Store。测试代码把 `core.NewMemoryProcessStore` 和
+`core.NewMemorySessionStore` 分别替换为 `storetest.NewMemoryProcessStore` 和
+`storetest.NewMemorySessionStore`；生产 Host 应继续注入自己的适配器。
+
 `ProcessSnapshot.Revision` 是 CAS 的唯一 expected revision；新 Process 使用 0，成功提交
 持久化为 `Revision+1`。包含嵌套子进程的原子树快照额外要求实现
 `SaveBatch(context.Context, []ProcessSnapshot) error`。

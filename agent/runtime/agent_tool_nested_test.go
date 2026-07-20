@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -31,7 +32,7 @@ type nestedAgentStage struct {
 }
 
 type singleWriteProcessStore struct {
-	inner *core.MemoryProcessStore
+	inner *storetest.MemoryProcessStore
 }
 
 func (s singleWriteProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
@@ -620,7 +621,7 @@ func TestAgentToolNestedSuspensionReusesChildAcrossConsecutivePauses(t *testing.
 }
 
 func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	var childCompletions atomic.Int32
 	model1 := &nestedParentModel{}
@@ -676,7 +677,7 @@ func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T)
 }
 
 func TestAgentToolNestedSuspensionRequiresAtomicTreeStore(t *testing.T) {
-	inner := core.NewMemoryProcessStore()
+	inner := storetest.NewMemoryProcessStore()
 	store := singleWriteProcessStore{inner: inner}
 	var beforeCalls atomic.Int32
 	var childCompletions atomic.Int32
@@ -703,7 +704,7 @@ func TestAgentToolNestedSuspensionRequiresAtomicTreeStore(t *testing.T) {
 }
 
 func TestAgentToolNestedSuspensionBatchConflictDoesNotPartiallySaveChild(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	var childCompletions atomic.Int32
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-atomic-conflict", ProcessStore: store})
@@ -740,7 +741,7 @@ func TestAgentToolNestedSuspensionBatchConflictDoesNotPartiallySaveChild(t *test
 }
 
 func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var childCompletions atomic.Int32
 
 	model1 := &concurrentNestedParentModel{}
@@ -840,8 +841,8 @@ func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) 
 }
 
 func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
-	store := core.NewMemoryProcessStore()
-	sessionStore := core.NewMemorySessionStore()
+	store := storetest.NewMemoryProcessStore()
+	sessionStore := storetest.NewMemorySessionStore()
 	var beforeCalls atomic.Int32
 	var leafCompletions atomic.Int32
 	model1 := &nestedParentModel{toolName: "nested-middle"}
@@ -956,7 +957,7 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 }
 
 func TestAgentToolNestedSuspensionMissingChildSnapshotIsLost(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	model1 := &nestedParentModel{}
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: "nested-missing", ProcessStore: store, AutoSnapshot: true})
@@ -982,7 +983,7 @@ func TestAgentToolNestedSuspensionMissingChildSnapshotIsLost(t *testing.T) {
 }
 
 func TestAgentToolNestedSuspensionRestoreRollbackPreservesReplacedTerminalProcess(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: "nested-rollback", ProcessStore: store, AutoSnapshot: true})
 	parent1 := deployNestedAgents(t, engine1, false, nil, &nestedParentModel{}, &beforeCalls)
@@ -1016,7 +1017,7 @@ func TestAgentToolNestedSuspensionRestoreRollbackPreservesReplacedTerminalProces
 }
 
 func TestAgentToolNestedSuspensionRestoresTerminalChildCrashWindow(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	var childCompletions atomic.Int32
 	model1 := &nestedParentModel{}
@@ -1061,7 +1062,7 @@ func TestAgentToolNestedSuspensionRestoresTerminalChildCrashWindow(t *testing.T)
 }
 
 func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-manual-cleanup", ProcessStore: store})
 	parent := deployNestedAgents(t, engine, false, nil, &nestedParentModel{}, &beforeCalls)

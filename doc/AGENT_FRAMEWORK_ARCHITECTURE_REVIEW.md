@@ -176,7 +176,7 @@ Blackboard 普通值默认 durable，函数、channel、client 和 runtime handl
 `runtime.Config` 与 `core.ProcessOptions` 是构造输入，不是长生命周期状态。Engine/Process
 在构造边界复制 Guardrails middleware slice、process extension slice 和 Session identity，
 并把公开 DTO 投影为私有运行配置；调用方随后复用或修改原值不会改变运行中的 Process。
-Session 的 opaque Metadata 只由 SessionStore 持有，参考 MemorySessionStore 在 Save 与 Load
+Session 的 opaque Metadata 只由 SessionStore 持有，`storetest.MemorySessionStore` 在 Save 与 Load
 两侧都做递归 JSON 快照，并拒绝 durable backend 无法编码的值。
 
 Session 自身拥有 identity 不变量：`Validate` 检查 ID、parent、Agent 和审计时间，

@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
@@ -150,7 +151,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 }
 
 func TestRepeatUntil_AutoSnapshotRoundTrip(t *testing.T) {
-	store := core.NewMemoryProcessStore()
+	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		BuildID: "repeat-until-snapshot", ProcessStore: store, AutoSnapshot: true,
 	})

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 type srWord struct{ Text string }
@@ -80,7 +81,7 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 }
 
 func TestEngine_RunInSession_WithStore_PersistsSession(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	engine := agent.MustNewEngine(runtime.Config{
 		SessionStore: store,
 	})
@@ -329,7 +330,7 @@ func TestRunChildLinksSessionToParent(t *testing.T) {
 // has a ChildSessionStore, a spawned child's session is saved there (with its
 // ParentID), so the delegation lineage is durably queryable.
 func TestRunChildPersistsSession(t *testing.T) {
-	store := core.NewMemorySessionStore()
+	store := storetest.NewMemorySessionStore()
 	engine := agent.MustNewEngine(runtime.Config{ChildSessionStore: store})
 	child := buildSessionAgent()
 	childDeployment, err := engine.Deploy(child)
