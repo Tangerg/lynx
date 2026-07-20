@@ -64,6 +64,7 @@ type fakeRuns struct {
 	t      *testing.T
 	store  *memStore
 	script []turn
+	hold   chan struct{} // when non-nil, a run holds its terminal until this closes
 	mu     sync.Mutex
 	calls  int
 }
@@ -88,6 +89,9 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 		_ = f.store.Save(ctx, g)
 	}
 	go func() {
+		if f.hold != nil {
+			<-f.hold
+		}
 		if !tn.park {
 			cost := tn.cost
 			run := transcript.Run{
@@ -181,6 +185,54 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 	if _, err := d.Start(context.Background(), "s1", "obj2", "", "", goal.Budget{}); err != goals.ErrGoalActive {
 		t.Fatalf("Start on active goal = %v, want ErrGoalActive", err)
 	}
+}
+
+// TestDriverStopPausesRunningGoal stops a goal while a run is in flight and
+// asserts it settles on paused without launching another run — the loop must
+// honor the pause, never re-affirm active over it (the checkpoint-vs-Stop race).
+func TestDriverStopPausesRunningGoal(t *testing.T) {
+	store := newMemStore()
+	hold := make(chan struct{})
+	fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}}, hold: hold}
+	d := goals.NewDriver(store, fake)
+	t.Cleanup(func() { _ = d.Close() })
+
+	if _, err := d.Start(context.Background(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitCalls(t, fake, 1) // the loop launched the run and is draining its terminal
+
+	if _, err := d.Stop(context.Background(), "s1"); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	close(hold) // let the in-flight run finish
+
+	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool { return ok && g.Status == goal.StatusPaused })
+	time.Sleep(50 * time.Millisecond) // give any stray checkpoint a chance to clobber
+	if g, _, _ := store.Get(context.Background(), "s1"); g.Status != goal.StatusPaused {
+		t.Fatalf("goal not stably paused after stop: %q", g.Status)
+	}
+	fake.mu.Lock()
+	calls := fake.calls
+	fake.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("stopped goal launched %d runs, want 1", calls)
+	}
+}
+
+func waitCalls(t *testing.T, f *fakeRuns, n int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		f.mu.Lock()
+		c := f.calls
+		f.mu.Unlock()
+		if c >= n {
+			return
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+	t.Fatalf("run count never reached %d", n)
 }
 
 func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
