@@ -188,8 +188,8 @@ func TestBusinessMethodDoesNotRequireDiscover(t *testing.T) {
 		raw := readBody(resp)
 		t.Fatalf("status = %d, want 200; body = %s", resp.StatusCode, raw)
 	}
-	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_before_discover" {
-		t.Fatalf("api.cancelledRuns = %v, want [run_before_discover]", api.cancelledRuns)
+	if len(api.canceledRuns) != 1 || api.canceledRuns[0] != "run_before_discover" {
+		t.Fatalf("api.canceledRuns = %v, want [run_before_discover]", api.canceledRuns)
 	}
 }
 
@@ -216,8 +216,8 @@ func TestIdempotencyKeyReplaysMutationAndRejectsReuse(t *testing.T) {
 	first.Body.Close()
 	replay := post(`{"jsonrpc":"2.0","id":"2","method":"runs.cancel","params":{"runId":"run_1"}}`)
 	replay.Body.Close()
-	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_1" {
-		t.Fatalf("cancelled runs = %v, want one run_1", api.cancelledRuns)
+	if len(api.canceledRuns) != 1 || api.canceledRuns[0] != "run_1" {
+		t.Fatalf("canceled runs = %v, want one run_1", api.canceledRuns)
 	}
 
 	conflict := post(`{"jsonrpc":"2.0","id":"3","method":"runs.cancel","params":{"runId":"run_2"}}`)
@@ -225,8 +225,8 @@ func TestIdempotencyKeyReplaysMutationAndRejectsReuse(t *testing.T) {
 	if code := decodeErrorCode(t, conflict); code != -32020 {
 		t.Fatalf("conflict code = %d, want -32020", code)
 	}
-	if len(api.cancelledRuns) != 1 {
-		t.Fatalf("conflicting request executed: cancelled runs = %v", api.cancelledRuns)
+	if len(api.canceledRuns) != 1 {
+		t.Fatalf("conflicting request executed: canceled runs = %v", api.canceledRuns)
 	}
 }
 
@@ -307,8 +307,8 @@ func TestRunsCancelIsRequest(t *testing.T) {
 	if string(env.ID) != `"2"` {
 		t.Fatalf("id = %s, want \"2\"", string(env.ID))
 	}
-	if len(api.cancelledRuns) != 1 || api.cancelledRuns[0] != "run_123" {
-		t.Fatalf("api.cancelledRuns = %v, want [run_123]", api.cancelledRuns)
+	if len(api.canceledRuns) != 1 || api.canceledRuns[0] != "run_123" {
+		t.Fatalf("api.canceledRuns = %v, want [run_123]", api.canceledRuns)
 	}
 }
 

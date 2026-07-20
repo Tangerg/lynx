@@ -17,7 +17,7 @@ import (
 // supplies the methods the tests don't exercise; they panic if hit.
 type fakeRuntime struct {
 	protocol.Runtime
-	cancelledRuns  []string
+	canceledRuns   []string
 	gotLastEventID string
 }
 
@@ -26,7 +26,7 @@ func (f *fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, err
 }
 
 func (f *fakeRuntime) CancelRun(_ context.Context, in protocol.CancelRunRequest) error {
-	f.cancelledRuns = append(f.cancelledRuns, in.RunID)
+	f.canceledRuns = append(f.canceledRuns, in.RunID)
 	return nil
 }
 
