@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -22,6 +23,7 @@ func buildToolEnvironment(
 	approvalPolicy approval.Policy,
 	mcpEnv mcpEnvironment,
 	codebaseIdx toolset.CodebaseIndex,
+	memorySearcher *agentmemory.Searcher,
 	scheduleCoord *schedules.Coordinator,
 	skillStore *skillauthoring.Store,
 ) (toolset.Built, error) {
@@ -53,6 +55,12 @@ func buildToolEnvironment(
 	// when present, for the same nil-interface reason.
 	if cfg.GoalStore != nil {
 		bc.Goals = cfg.GoalStore
+	}
+	// memory_search searches the agent's curated project memory. Set only when a
+	// concrete searcher exists, so a nil *Searcher never reaches the tool builder
+	// as a non-nil interface.
+	if memorySearcher != nil {
+		bc.MemorySearch = memorySearcher
 	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {

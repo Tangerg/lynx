@@ -58,12 +58,12 @@ turn 末 `Extractor.MaybeExtract`（`internal/adapter/maintenance/extraction.go`
 - 注入：`composePrompt` 读 `Items(ScopeProject)` → `Render`（预算 4096）→ `## Agent-curated project memory`。`CuratedMemoryReader`→`AgentMemoryReader`（method `Items`），`Config.CuratedMemory`→`AgentMemory`。
 - **挪批**：G4 冻结快照 → **B4**（需 per-session 快照缓存 + 生命周期淘汰，独立于 item 化；prefix-cache 收益被 todos 已动态注入部分抵消）；G5 load 重扫占位 → **B3**（需威胁扫描器，随 HITL 安全面一起，避免在 B1 造弱扫描器）。
 
-**B2 · 搜索层（L2 + L1.5）**
-- 提取 `vectorsearch` 共享 helper + `encodeVec/decodeVec` 提升。
-- 记忆 item 的 FTS5 虚表 + 向量列；`memory_search` 工具。
-- 会话 transcript 的 FTS5 虚表（over `messages` 表，`sqlite/message.go`）；`session_search` 工具（discovery/scroll/browse 可后置）。
-- L1.5 每轮检索注入 `## Relevant memories`（触点 `agentexec/turnloop.go:214-220` / `composePrompt`）。
-- 工具落 `adapter/toolset/`（一工具一包，照 `codebasesearch` 先例）。
+**B2 · 混合检索后端 + memory_search 工具（✅ SHIPPED）**
+- `agentmemory.Searcher`（`search.go`）：**in-Go 关键词打分 + 向量 cosine，RRF 融合**。**决策**：item 层用 in-Go 关键词而非 FTS5——item 语料小（curation 有界），FTS5 会引入 shadow-table + 触发器 + 改 discardSchema 的风险（违 KISS）；FTS5 留给 session_search 那种大语料。cosine/topK 按 DRY-3 在 memory 侧写小份（未动 codebase）。
+- item 加 `embedding BLOB` 列（复用同包 `encodeVec/decodeVec`）；store 加 `ItemsForSearch`/`UnembeddedItems`/`SetEmbeddings`。schema 12→13。
+- 向量**写时嵌入 + 回填**：extractor reconcile 后 `embedNewItems`（best-effort，复用 `EmbeddingResolver`，`codebaseindex.Embedder`→`agentmemory.Embedder` 桥接；无 embedder 则纯关键词）。也回填 embedding role 后配的旧 item。
+- `memory_search` 工具（`adapter/toolset/memorysearch`，照 codebasesearch 先例，两角色恒在——关键词不依赖 embedding）。全链路 wiring：`toolEnvironmentBuilder` 签名 + `BuildConfig.MemorySearch` + resolver 注册 + bootstrap 建 Searcher + 桥 embedder 进 extractor。
+- **挪批**：L1.5 每轮检索注入 → **B3**（与 pinning 一起，pinned=always-on L1 / 非 pinned=检索,分区才无重复注入/无 always-on 回归）；**session_search**（会话 transcript FTS5，大语料）→ 单列后续。
 
 **B3 · 捕获 + HITL 审阅队列 + 可见面**
 - cadence 自动挖掘 → 产出 **pending 提议**（复用/升级 Extractor；隔离 review fork 可选，先复用 inline）。

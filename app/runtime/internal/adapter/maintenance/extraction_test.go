@@ -66,7 +66,7 @@ func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sql
 	if err != nil {
 		t.Fatal(err)
 	}
-	extractor := NewExtractor(messages, memory, func(context.Context) *chatclient.Client { return client }, CurationConfig{MinPendingFacts: 1})
+	extractor := NewExtractor(messages, memory, func(context.Context) *chatclient.Client { return client }, nil, CurationConfig{MinPendingFacts: 1})
 	extractor.now = func() time.Time { return time.Date(2026, 7, 19, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60)) }
 	return extractor, memory, model
 }

@@ -41,22 +41,23 @@ type Resolver struct {
 	catalog   []tools.Tool
 
 	defaultWorkdir  string
-	skillsGlobalDir string              // user-scope skills dir; merged under each turn's project skills
-	online          []tools.Tool        // working-directory-independent network tools
-	a2a             []tools.Tool        // working-directory-independent remote A2A agents
-	lsp             []tools.Tool        // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
-	codeIntel       *codeintel.Analyzer // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *editguard.Tracker  // backs the read-before-edit + stale guards on read/edit/write
-	pathLocker      *pathLocker         // serializes same-path fs calls across every concurrent turn resolution
-	shell           []tools.Tool        // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            tools.Tool          // delegation tool; coding role only, nil until set
-	askUser         tools.Tool          // ask_user HITL tool; coding role only (askuser.New, via Deps)
-	exitPlan        tools.Tool          // exit_plan_mode HITL tool; coding role only (exitplan.New, via dependencies); nil without an approval policy
-	todo            tools.Tool          // todo_write task-list tool; both roles, nil when no todo store
-	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
-	toolResult      tools.Tool          // read_tool_result offloaded-output reader; both roles, nil when eviction is off
-	skillPropose    tools.Tool          // propose_skill authoring tool; coding role only, nil when authoring is off
-	goalUpdate      tools.Tool          // update_goal loop-signal tool; coding role only, offered only while a goal is active
+	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
+	online          []tools.Tool                                // working-directory-independent network tools
+	a2a             []tools.Tool                                // working-directory-independent remote A2A agents
+	lsp             []tools.Tool                                // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	codeIntel       *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	readTracker     *editguard.Tracker                          // backs the read-before-edit + stale guards on read/edit/write
+	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
+	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
+	task            tools.Tool                                  // delegation tool; coding role only, nil until set
+	askUser         tools.Tool                                  // ask_user HITL tool; coding role only (askuser.New, via Deps)
+	exitPlan        tools.Tool                                  // exit_plan_mode HITL tool; coding role only (exitplan.New, via dependencies); nil without an approval policy
+	todo            tools.Tool                                  // todo_write task-list tool; both roles, nil when no todo store
+	schedule        tools.Tool                                  // schedule management op-tool; coding role only, nil when no registry
+	toolResult      tools.Tool                                  // read_tool_result offloaded-output reader; both roles, nil when eviction is off
+	memorySearch    tools.Tool                                  // memory_search agent-memory reader; both roles, nil when agent memory is off
+	skillPropose    tools.Tool                                  // propose_skill authoring tool; coding role only, nil when authoring is off
+	goalUpdate      tools.Tool                                  // update_goal loop-signal tool; coding role only, offered only while a goal is active
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
@@ -87,22 +88,23 @@ type Resolver struct {
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
-	Online          []tools.Tool        // network tools (webfetch/websearch/httpreq)
-	A2A             []tools.Tool        // remote A2A delegation tools
-	LSP             []tools.Tool        // code-intelligence tools
-	Shell           []tools.Tool        // shell tools (shell / shell_output / shell_kill)
-	AskUser         tools.Tool          // ask_user HITL tool (coding role only)
-	ExitPlan        tools.Tool          // exit_plan_mode HITL tool (coding role only); nil → omitted
-	Todo            tools.Tool          // todo_write task-list tool (both roles); nil → omitted
-	Schedule        tools.Tool          // schedule management op-tool (coding role only); nil → omitted
-	ToolResult      tools.Tool          // read_tool_result offloaded-output reader (both roles); nil → omitted
-	SkillPropose    tools.Tool          // propose_skill authoring tool (coding role only); nil → omitted
-	GoalUpdate      tools.Tool          // update_goal loop-signal tool (coding role only); nil → omitted
+	Online          []tools.Tool                                // network tools (webfetch/websearch/httpreq)
+	A2A             []tools.Tool                                // remote A2A delegation tools
+	LSP             []tools.Tool                                // code-intelligence tools
+	Shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill)
+	AskUser         tools.Tool                                  // ask_user HITL tool (coding role only)
+	ExitPlan        tools.Tool                                  // exit_plan_mode HITL tool (coding role only); nil → omitted
+	Todo            tools.Tool                                  // todo_write task-list tool (both roles); nil → omitted
+	Schedule        tools.Tool                                  // schedule management op-tool (coding role only); nil → omitted
+	ToolResult      tools.Tool                                  // read_tool_result offloaded-output reader (both roles); nil → omitted
+	MemorySearch    tools.Tool                                  // memory_search agent-memory reader (both roles); nil → omitted
+	SkillPropose    tools.Tool                                  // propose_skill authoring tool (coding role only); nil → omitted
+	GoalUpdate      tools.Tool                                  // update_goal loop-signal tool (coding role only); nil → omitted
 	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
-	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
-	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
-	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
-	DownloadAllow   httpreq.Allowlist   // host allowlist gating/guarding download; empty → omitted
+	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
+	ReadTracker     *editguard.Tracker                          // backs the read/edit/write guards
+	CodebaseIndex   CodebaseIndex                               // backs codebase_search (both roles); nil → omitted
+	DownloadAllow   httpreq.Allowlist                           // host allowlist gating/guarding download; empty → omitted
 
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
@@ -148,6 +150,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		todo:            d.Todo,
 		schedule:        d.Schedule,
 		toolResult:      d.ToolResult,
+		memorySearch:    d.MemorySearch,
 		skillPropose:    d.SkillPropose,
 		goalUpdate:      d.GoalUpdate,
 		goalActive:      d.GoalActive,
@@ -317,6 +320,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	// offloaded results the same way the main agent does.
 	if g.resolver.toolResult != nil {
 		tools = append(tools, g.resolver.toolResult)
+	}
+	// memory_search (both roles): keyword + semantic search over the agent's
+	// curated memory for the turn's project. Always offered when wired — keyword
+	// search needs no embedding model.
+	if g.resolver.memorySearch != nil {
+		tools = append(tools, g.resolver.memorySearch)
 	}
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the

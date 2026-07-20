@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 12
+const schemaVersion = 13
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -376,6 +376,10 @@ func installCurrentSchema(db *sql.DB) error {
 			day        TEXT    NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL,
+			-- Content vector for semantic search (little-endian float32 BLOB, as in
+			-- codebase_chunks). Empty until a configured embedder backfills it; a
+			-- keyword scan works without it.
+			embedding  BLOB    NOT NULL DEFAULT x'',
 			UNIQUE(scope, project, digest)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_items_scope

@@ -92,6 +92,11 @@ type Item struct {
 	Day       string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	// Embedding is the item's content vector for semantic search. Populated only
+	// by the search-fetch path ([Store.ItemsForSearch]); empty on ordinary reads
+	// and until an embedder has run over the item.
+	Embedding []float32
 }
 
 // FactBatch is one extraction boundary's project-scoped ledger append.
@@ -170,6 +175,18 @@ type Store interface {
 	// Items lists the active items for (scope, project): pinned first, then most
 	// recently updated. Empty scope/project is valid (returns no items).
 	Items(ctx context.Context, scope Scope, project string) ([]Item, error)
+
+	// ItemsForSearch lists the (scope, project) items with their Embedding
+	// populated, for the [Searcher] to rank. The corpus is small (a project's
+	// curated set), so the searcher scores in-process rather than in SQL.
+	ItemsForSearch(ctx context.Context, scope Scope, project string) ([]Item, error)
+
+	// UnembeddedItems lists the (scope, project) items that still lack an
+	// embedding, so a configured embedder can backfill them.
+	UnembeddedItems(ctx context.Context, scope Scope, project string) ([]Item, error)
+
+	// SetEmbeddings stores a content vector for each item id.
+	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
 }
 
 // NormalizeFacts converts an extraction response into stable markdown bullets.

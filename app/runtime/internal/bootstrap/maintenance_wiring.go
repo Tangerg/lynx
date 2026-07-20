@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 )
@@ -18,7 +19,7 @@ type turnServices struct {
 	extractor turn.Extractor
 }
 
-func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, resolveUtility func(context.Context) *chatclient.Client) turnServices {
+func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
 	services := turnServices{
 		steering:  cfg.Steering,
 		compactor: cfg.Compactor,
@@ -40,7 +41,7 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 		)
 	}
 	if services.extractor == nil && cfg.AgentMemoryStore != nil {
-		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, maintenance.CurationConfig{})
+		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
 	}
 	return services
 }

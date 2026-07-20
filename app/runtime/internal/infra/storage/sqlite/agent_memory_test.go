@@ -126,6 +126,43 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 	}
 }
 
+func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+		t.Fatal(err)
+	}
+
+	// Fresh items carry no embedding.
+	unembedded, err := store.UnembeddedItems(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(unembedded) != 2 {
+		t.Fatalf("unembedded = (%+v, %v), want 2", unembedded, err)
+	}
+	vectors := make(map[string][]float32, len(unembedded))
+	for i, item := range unembedded {
+		vectors[item.ID] = []float32{float32(i + 1), 0.5}
+	}
+	if err := store.SetEmbeddings(t.Context(), vectors); err != nil {
+		t.Fatal(err)
+	}
+
+	// After backfill nothing is unembedded, and the search fetch decodes vectors.
+	if rest, err := store.UnembeddedItems(t.Context(), agentmemory.ScopeProject, "/repo"); err != nil || len(rest) != 0 {
+		t.Fatalf("unembedded after backfill = (%+v, %v), want 0", rest, err)
+	}
+	forSearch, err := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(forSearch) != 2 {
+		t.Fatalf("items for search = (%+v, %v)", forSearch, err)
+	}
+	for _, item := range forSearch {
+		want := vectors[item.ID]
+		if len(item.Embedding) != len(want) || item.Embedding[0] != want[0] || item.Embedding[1] != want[1] {
+			t.Fatalf("embedding round-trip failed for %s: got %v want %v", item.ID, item.Embedding, want)
+		}
+	}
+}
+
 func TestAgentMemoryReconcileCASHasOneWinner(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one")

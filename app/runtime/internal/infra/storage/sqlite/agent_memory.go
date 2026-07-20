@@ -298,11 +298,34 @@ func (s *AgentMemoryStore) reconcileItems(ctx context.Context, project string, c
 	return nil
 }
 
+const agentMemoryItemColumns = `id, scope, project, content, origin, pinned, session_id, day, created_at, updated_at`
+
+// scanItem decodes one item's base columns (embedding excluded — see
+// [AgentMemoryStore.ItemsForSearch] for the search path that reads it).
+func scanItem(row scanRow) (agentmemory.Item, error) {
+	var (
+		item                  agentmemory.Item
+		scopeText, originText string
+		pinned                int
+		createdAt, updatedAt  int64
+	)
+	if err := row.Scan(&item.ID, &scopeText, &item.Project, &item.Content, &originText,
+		&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt); err != nil {
+		return agentmemory.Item{}, fmt.Errorf("sqlite: scan agent memory item: %w", err)
+	}
+	item.Scope = agentmemory.ParseScope(scopeText)
+	item.Origin = agentmemory.ParseOrigin(originText)
+	item.Pinned = pinned != 0
+	item.CreatedAt = time.Unix(0, createdAt).UTC()
+	item.UpdatedAt = time.Unix(0, updatedAt).UTC()
+	return item, nil
+}
+
 // Items lists the active items for (scope, project): pinned first, then most
 // recently updated.
 func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, scope, project, content, origin, pinned, session_id, day, created_at, updated_at
+		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ?
 		 ORDER BY pinned DESC, updated_at DESC`, scope.String(), project)
@@ -312,14 +335,40 @@ func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, p
 	defer rows.Close()
 	var items []agentmemory.Item
 	for rows.Next() {
+		item, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
+	}
+	return items, nil
+}
+
+// ItemsForSearch lists the (scope, project) items with their embedding decoded,
+// for in-process keyword + vector ranking.
+func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+agentMemoryItemColumns+`, embedding
+		 FROM agent_memory_items
+		 WHERE scope = ? AND project = ?`, scope.String(), project)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list agent memory items for search: %w", err)
+	}
+	defer rows.Close()
+	var items []agentmemory.Item
+	for rows.Next() {
 		var (
-			item                 agentmemory.Item
+			item                  agentmemory.Item
 			scopeText, originText string
-			pinned               int
-			createdAt, updatedAt int64
+			pinned                int
+			createdAt, updatedAt  int64
+			blob                  []byte
 		)
 		if err := rows.Scan(&item.ID, &scopeText, &item.Project, &item.Content, &originText,
-			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt); err != nil {
+			&pinned, &item.SessionID, &item.Day, &createdAt, &updatedAt, &blob); err != nil {
 			return nil, fmt.Errorf("sqlite: scan agent memory item: %w", err)
 		}
 		item.Scope = agentmemory.ParseScope(scopeText)
@@ -327,10 +376,54 @@ func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, p
 		item.Pinned = pinned != 0
 		item.CreatedAt = time.Unix(0, createdAt).UTC()
 		item.UpdatedAt = time.Unix(0, updatedAt).UTC()
+		if len(blob) > 0 {
+			item.Embedding = decodeVec(blob)
+		}
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
 	}
 	return items, nil
+}
+
+// UnembeddedItems lists the (scope, project) items that still lack an embedding.
+func (s *AgentMemoryStore) UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+agentMemoryItemColumns+`
+		 FROM agent_memory_items
+		 WHERE scope = ? AND project = ? AND length(embedding) = 0`, scope.String(), project)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list unembedded agent memory items: %w", err)
+	}
+	defer rows.Close()
+	var items []agentmemory.Item
+	for rows.Next() {
+		item, err := scanItem(rows)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
+	}
+	return items, nil
+}
+
+// SetEmbeddings stores a content vector for each item id, ignoring ids that no
+// longer exist (a concurrent reconcile may have pruned one).
+func (s *AgentMemoryStore) SetEmbeddings(ctx context.Context, vectors map[string][]float32) error {
+	if len(vectors) == 0 {
+		return nil
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		for id, vec := range vectors {
+			if _, err := conn(ctx, s.db).ExecContext(ctx,
+				`UPDATE agent_memory_items SET embedding = ? WHERE id = ?`, encodeVec(vec), id); err != nil {
+				return fmt.Errorf("sqlite: set agent memory embedding: %w", err)
+			}
+		}
+		return nil
+	})
 }
