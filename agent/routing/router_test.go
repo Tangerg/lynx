@@ -42,7 +42,7 @@ func TestRouter_PicksHighestConfidence(t *testing.T) {
 	a1 := newAgent("alpha")
 	a2 := newAgent("beta")
 	for _, a := range []*core.Agent{a1, a2} {
-		if _, err := engine.Deploy(a); err != nil {
+		if _, err := engine.Deploy(t.Context(), a); err != nil {
 			t.Fatalf("deploy %s: %v", a.Name(), err)
 		}
 	}
@@ -68,7 +68,7 @@ func TestRouter_PicksHighestConfidence(t *testing.T) {
 
 func TestRouter_LowConfidenceReturnsError(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(newAgent("alpha")); err != nil {
+	if _, err := engine.Deploy(t.Context(), newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
@@ -88,7 +88,7 @@ func TestRouter_LowConfidenceReturnsError(t *testing.T) {
 
 func TestRouter_RunInstallsTargetGoalApprover(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(newAgent("alpha")); err != nil {
+	if _, err := engine.Deploy(t.Context(), newAgent("alpha")); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
@@ -128,7 +128,7 @@ func (droppingRanker) Rank(context.Context, string, []routing.Candidate) ([]rout
 
 func TestRouterRejectsRankerCandidateDrift(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(newAgent("alpha")); err != nil {
+	if _, err := engine.Deploy(t.Context(), newAgent("alpha")); err != nil {
 		t.Fatal(err)
 	}
 	router, err := routing.New(engine, droppingRanker{}, routing.Config{})
@@ -189,7 +189,7 @@ func TestRouter_AgentFilter(t *testing.T) {
 func TestCandidateKeepsExactImmutableIdentity(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	definition := newAgent("stable")
-	deployment, err := engine.Deploy(definition)
+	deployment, err := engine.Deploy(t.Context(), definition)
 	if err != nil {
 		t.Fatal(err)
 	}

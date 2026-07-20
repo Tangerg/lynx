@@ -16,15 +16,26 @@ import (
 // run drives the OODA loop until the process terminates. Internal — the
 // only caller is Engine.Run / Start, which Engine exposes.
 func (p *Process) run(ctx context.Context) error {
-	ctx = normalizeContext(ctx)
-
-	started, err := p.state.beginRun()
+	started, err := p.beginRun()
 	if err != nil {
-		return fmt.Errorf("runtime.Process.run %q: %w", p.ID(), err)
+		return err
 	}
 	if !started {
 		return nil
 	}
+	return p.runOwned(ctx)
+}
+
+func (p *Process) beginRun() (bool, error) {
+	started, err := p.state.beginRun()
+	if err != nil {
+		return false, fmt.Errorf("runtime.Process.run %q: %w", p.ID(), err)
+	}
+	return started, nil
+}
+
+func (p *Process) runOwned(ctx context.Context) error {
+	ctx = normalizeContext(ctx)
 	defer p.state.endRun()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	releaseRun := p.signals.registerRunCancel(cancelRun)

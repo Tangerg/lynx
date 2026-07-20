@@ -325,15 +325,15 @@ func deployNestedTree(
 	completed *atomic.Int32,
 ) *core.Agent {
 	t.Helper()
-	if _, err := engine.Deploy(nestedSingleSuspensionAgent("nested-leaf", completed)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedSingleSuspensionAgent("nested-leaf", completed)); err != nil {
 		t.Fatalf("deploy leaf: %v", err)
 	}
 	middle := nestedDelegatingAgent(t, engine, "nested-middle", "nested-leaf")
-	if _, err := engine.Deploy(middle); err != nil {
+	if _, err := engine.Deploy(t.Context(), middle); err != nil {
 		t.Fatalf("deploy middle: %v", err)
 	}
 	parent := nestedManagedParentAgent(t, engine, "nested-root", "nested-middle", model, beforeCalls)
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy root: %v", err)
 	}
 	return parent
@@ -341,11 +341,11 @@ func deployNestedTree(
 
 func deployNestedAgents(t *testing.T, engine *runtime.Engine, twoSuspensions bool, completed *atomic.Int32, model *nestedParentModel, beforeCalls *atomic.Int32) *core.Agent {
 	t.Helper()
-	if _, err := engine.Deploy(nestedChildAgent(twoSuspensions, completed)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedChildAgent(twoSuspensions, completed)); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	parent := nestedParentAgent(t, engine, model, beforeCalls)
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 	return parent
@@ -473,12 +473,12 @@ func TestAgentToolNestedSuspensionParksParentAndResumesOriginalToolCall(t *testi
 func TestAgentToolConcurrentNestedSuspensionsCommitInToolCallOrder(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	var childCompletions atomic.Int32
-	if _, err := engine.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedChildAgent(false, &childCompletions)); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	model := &concurrentNestedParentModel{}
 	parent := concurrentNestedParentAgent(t, engine, model)
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -542,11 +542,11 @@ func TestAgentToolDirectNestedSuspensionResumesOriginalChild(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	var prepared atomic.Int32
 	var childCompletions atomic.Int32
-	if _, err := engine.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedChildAgent(false, &childCompletions)); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	parent := directNestedParentAgent(t, engine, &prepared)
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -750,11 +750,11 @@ func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) 
 		ProcessStore: store,
 		AutoSnapshot: true,
 	})
-	if _, err := engine1.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+	if _, err := engine1.Deploy(t.Context(), nestedChildAgent(false, &childCompletions)); err != nil {
 		t.Fatalf("deploy child on engine1: %v", err)
 	}
 	parent1 := concurrentNestedParentAgent(t, engine1, model1)
-	if _, err := engine1.Deploy(parent1); err != nil {
+	if _, err := engine1.Deploy(t.Context(), parent1); err != nil {
 		t.Fatalf("deploy parent on engine1: %v", err)
 	}
 	process1 := runNestedParent(t, engine1, parent1)
@@ -769,11 +769,11 @@ func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) 
 		ProcessStore: store,
 		AutoSnapshot: true,
 	})
-	if _, err := engine2.Deploy(nestedChildAgent(false, &childCompletions)); err != nil {
+	if _, err := engine2.Deploy(t.Context(), nestedChildAgent(false, &childCompletions)); err != nil {
 		t.Fatalf("deploy child on engine2: %v", err)
 	}
 	parent2 := concurrentNestedParentAgent(t, engine2, model2)
-	if _, err := engine2.Deploy(parent2); err != nil {
+	if _, err := engine2.Deploy(t.Context(), parent2); err != nil {
 		t.Fatalf("deploy parent on engine2: %v", err)
 	}
 	restored, err := engine2.RestoreResumable(t.Context(), process1.ID(), core.ProcessOptions{})
@@ -1104,7 +1104,7 @@ func TestAgentToolNestedSuspensionCleansKilledChild(t *testing.T) {
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
 
-	if err := engine.Kill(child.ID()); err != nil {
+	if err := engine.Kill(t.Context(), child.ID()); err != nil {
 		t.Fatalf("Kill child: %v", err)
 	}
 	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
@@ -1128,12 +1128,12 @@ func TestAgentToolNestedSuspensionCleansFailedChild(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	var beforeCalls atomic.Int32
 	var failures atomic.Int32
-	if _, err := engine.Deploy(nestedFailingChildAgent(&failures)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedFailingChildAgent(&failures)); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	model := &nestedParentModel{}
 	parent := nestedParentAgent(t, engine, model, &beforeCalls)
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 	process := runNestedParent(t, engine, parent)
@@ -1163,7 +1163,7 @@ func TestAgentToolNestedSuspensionKillParentTerminatesChild(t *testing.T) {
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
 
-	if err := engine.Kill(process.ID()); err != nil {
+	if err := engine.Kill(t.Context(), process.ID()); err != nil {
 		t.Fatalf("Kill parent: %v", err)
 	}
 	if process.Status() != core.StatusKilled || child.Status() != core.StatusKilled {
@@ -1173,7 +1173,7 @@ func TestAgentToolNestedSuspensionKillParentTerminatesChild(t *testing.T) {
 
 func TestStandaloneAgentToolKeepsExternalWaitingResult(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(nestedChildAgent(false, nil)); err != nil {
+	if _, err := engine.Deploy(t.Context(), nestedChildAgent(false, nil)); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 	tool, err := runtime.NewStandaloneAgentTool[nestedAgentInput, nestedAgentOutput](engine, "nested-child")

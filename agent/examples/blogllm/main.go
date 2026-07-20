@@ -58,7 +58,7 @@ func main() {
 		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
 		Extensions: []agent.Extension{resolver, &eventLogger{}},
 	})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(context.Background(), a); err != nil {
 		log.Fatal(err)
 	}
 

@@ -22,7 +22,7 @@ func main() {
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[CountResult](agent.GoalConfig{Description: "uppercase length determined"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(context.Background(), a); err != nil {
 		log.Fatal(err)
 	}
 

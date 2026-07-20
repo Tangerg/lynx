@@ -58,6 +58,7 @@ type ParallelConfig[In, Element, Result any] struct {
 // sub-agent, or nil Joiner — caller decides whether to surface, retry,
 // or panic.
 func Parallel[In, Element, Result any](
+	ctx context.Context,
 	engine *runtime.Engine,
 	config ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
@@ -80,7 +81,7 @@ func Parallel[In, Element, Result any](
 	}
 	deployments := make([]*runtime.Deployment, len(config.Agents))
 	for index, agent := range config.Agents {
-		deployment, err := engine.Deploy(agent)
+		deployment, err := engine.Deploy(ctx, agent)
 		if err != nil {
 			return nil, fmt.Errorf("workflow.Parallel: deploy Agents[%d] %q: %w", index, agent.Name(), err)
 		}

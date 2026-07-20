@@ -50,7 +50,7 @@ func TestEngineProcessActionDependencyScopes(t *testing.T) {
 	if err := core.RegisterDependency(processDependencies, shared, "process"); err != nil {
 		t.Fatalf("RegisterDependency process: %v", err)
 	}
-	if _, err := engine.Deploy(agentDefinition); err != nil {
+	if _, err := engine.Deploy(t.Context(), agentDefinition); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestProcessDependenciesMustBelongToEngine(t *testing.T) {
 		return output(input), nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})}})
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(agentDefinition); err != nil {
+	if _, err := engine.Deploy(t.Context(), agentDefinition); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 

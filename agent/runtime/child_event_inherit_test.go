@@ -58,7 +58,7 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 // only — child events reached just the engine multicast.
 func TestChildEventsReachParentProcessListener(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		}
 		return parentOutput{Final: decoded.Doubled}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "final produced"})}})
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 

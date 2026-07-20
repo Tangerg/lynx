@@ -19,7 +19,7 @@ import (
 func TestAgentTool_DiscardsCompletedChildSnapshot(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "agent-tool-discard-test", ProcessStore: store, AutoSnapshot: true})
-	if _, err := engine.Deploy(childAgent()); err != nil {
+	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
@@ -36,7 +36,7 @@ func TestAgentTool_DiscardsCompletedChildSnapshot(t *testing.T) {
 		}
 		return parentOutput{Final: decoded.Doubled}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "final produced"})}})
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 

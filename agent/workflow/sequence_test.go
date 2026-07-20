@@ -38,20 +38,20 @@ func TestSequence_TwoStepChain(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	outliner := makeOutlineAgent()
 	drafter := makeDraftAgent()
-	if _, err := engine.Deploy(outliner); err != nil {
+	if _, err := engine.Deploy(t.Context(), outliner); err != nil {
 		t.Fatalf("deploy outliner: %v", err)
 	}
-	if _, err := engine.Deploy(drafter); err != nil {
+	if _, err := engine.Deploy(t.Context(), drafter); err != nil {
 		t.Fatalf("deploy drafter: %v", err)
 	}
 
-	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
+	pipeline, err := workflow.Sequence[seqTopic, seqDraft](t.Context(),
 		engine, "topic-to-draft", outliner, drafter,
 	)
 	if err != nil {
 		t.Fatalf("Sequence: %v", err)
 	}
-	_, err = engine.Deploy(pipeline)
+	_, err = engine.Deploy(t.Context(), pipeline)
 	if err != nil {
 		t.Fatalf("deploy pipeline: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 	drafter := makeDraftAgent()
 	mustDeploy(t, engine, failing, drafter)
 
-	pipeline, err := workflow.Sequence[seqTopic, seqDraft](
+	pipeline, err := workflow.Sequence[seqTopic, seqDraft](t.Context(),
 		engine, "fail-pipeline", failing, drafter,
 	)
 	if err != nil {
@@ -113,20 +113,20 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 
 func TestSequence_RejectsTooFewAgents(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := workflow.Sequence[seqTopic, seqDraft](engine, "single", makeOutlineAgent()); err == nil {
+	if _, err := workflow.Sequence[seqTopic, seqDraft](t.Context(), engine, "single", makeOutlineAgent()); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestSequence_RejectsNilAgent(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := workflow.Sequence[seqTopic, seqDraft](engine, "with-nil", makeOutlineAgent(), nil); err == nil {
+	if _, err := workflow.Sequence[seqTopic, seqDraft](t.Context(), engine, "with-nil", makeOutlineAgent(), nil); err == nil {
 		t.Fatal("expected error")
 	}
 }
 
 func TestSequence_RejectsNilEngine(t *testing.T) {
-	if _, err := workflow.Sequence[seqTopic, seqDraft](nil, "x", makeOutlineAgent(), makeDraftAgent()); err == nil {
+	if _, err := workflow.Sequence[seqTopic, seqDraft](t.Context(), nil, "x", makeOutlineAgent(), makeDraftAgent()); err == nil {
 		t.Fatal("expected error")
 	}
 }

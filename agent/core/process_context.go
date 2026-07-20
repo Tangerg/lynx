@@ -3,8 +3,10 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -60,15 +62,9 @@ type ProcessContextConfig struct {
 	// MaxToolRounds is the resolved process-level Prompt limit.
 	MaxToolRounds int
 
-	// Emit is invoked by [ProcessContext.Emit]; nil makes Emit a
-	// no-op. The runtime supplies a closure that fans the event out to the
-	// engine's multicast listener.
-	Emit func(context.Context, any)
-
-	// ResolveTools is invoked by [ProcessContext.ResolveTools]; nil
-	// makes ResolveTools return (nil, nil). The runtime supplies a
+	// ActionTools backs [ProcessContext.ActionTools]. The runtime supplies a
 	// closure backed by the engine's [ToolGroupResolver].
-	ResolveTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
+	ActionTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
 
 	// RunInteraction executes framework-managed model/tool control flow.
 	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
@@ -100,12 +96,11 @@ type ProcessContext struct {
 	hasSession   bool
 
 	// Engine-wired hooks. Private so action bodies go through
-	// the typed methods (Chat / Emit / ResolveTools / ...) instead
+	// the typed methods instead
 	// of touching the underlying client / closure directly.
 	chat           func() (ChatCapability, error)
 	maxToolRounds  int
-	emit           func(context.Context, any)
-	resolveTools   func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
+	actionTools    func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
 	runInteraction func(context.Context, Interaction) (interaction.Result, error)
 	toolCallCancel func(context.CancelFunc) (release func())
 	control        ProcessControl
@@ -140,8 +135,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		chat:             config.Chat,
 		maxToolRounds:    config.MaxToolRounds,
 		actionToolGroups: config.ActionToolGroups,
-		emit:             config.Emit,
-		resolveTools:     config.ResolveTools,
+		actionTools:      config.ActionTools,
 		runInteraction:   config.RunInteraction,
 		toolCallCancel:   config.ToolCallCancel,
 	}
@@ -185,20 +179,24 @@ func (pc *ProcessContext) Session() (session SessionInfo, ok bool) {
 // concurrently with other branches of the SAME action — the workflow fan-out
 // builders (ScatterGather / Consensus / Parallel) hand one to each generator.
 //
-// It shares the read-only ProcessView, usage recorder, and safe output
-// channel, but forks Blackboard and action-dependency state from the same
-// pre-branch snapshot. Branch writes, conditions, and dependency registrations
+// It shares the read-only ProcessView and usage recorder, but forks Blackboard
+// and action-dependency state from the same pre-branch snapshot. Branch writes,
+// conditions, and dependency registrations
 // are local and discarded; the workflow commits only returned values in
 // declaration order. Lifecycle control and managed interaction are disabled
 // because one Process cannot own multiple competing suspension/termination
 // continuations.
-func (pc *ProcessContext) ForParallelBranch() *ProcessContext {
+func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error) {
 	if pc == nil {
-		return nil
+		return nil, errors.New("agent.ProcessContext.ForParallelBranch: process context is nil")
 	}
 	branch := *pc
 	if pc.blackboard != nil {
-		branch.blackboard = pc.blackboard.Clone()
+		blackboard, err := cloneBranchBlackboard(pc.blackboard)
+		if err != nil {
+			return nil, fmt.Errorf("agent.ProcessContext.ForParallelBranch: %w", err)
+		}
+		branch.blackboard = blackboard
 	}
 	if pc.dependencies != nil {
 		branch.dependencies = pc.dependencies.Child()
@@ -211,7 +209,21 @@ func (pc *ProcessContext) ForParallelBranch() *ProcessContext {
 	branch.toolCallCancel = nil
 	branch.suspended = false
 	branch.parallelBranch = true
-	return &branch
+	return &branch, nil
+}
+
+func cloneBranchBlackboard(blackboard Blackboard) (clone Blackboard, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			clone = nil
+			err = panicerr.New(fmt.Sprintf("blackboard %T Clone panicked", blackboard), recovered)
+		}
+	}()
+	clone = blackboard.Clone()
+	if valueIsNil(clone) {
+		return nil, fmt.Errorf("blackboard %T Clone returned nil", blackboard)
+	}
+	return clone, nil
 }
 
 // Chat returns provider-neutral model and stream capabilities scoped to this process.
@@ -286,31 +298,12 @@ func (pc *ProcessContext) TerminateToolCall() error {
 	return nil
 }
 
-// Emit delivers an event to the runtime's listeners.
-func (pc *ProcessContext) Emit(ctx context.Context, event any) {
-	if pc.emit != nil {
-		pc.emit(contextOrBackground(ctx), event)
-	}
-}
-
-// ResolveTools resolves unprivileged tool roles through the engine-configured resolver.
-func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]tools.Tool, error) {
-	if pc.resolveTools == nil {
-		return nil, nil
-	}
-	requirements := make([]ToolGroupRequirement, len(roles))
-	for i, role := range roles {
-		requirements[i] = RequireToolGroup(role)
-	}
-	return pc.resolveTools(contextOrBackground(ctx), requirements)
-}
-
 // ActionTools resolves the tool groups declared by the current action.
 func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error) {
-	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
+	if pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
-	return pc.resolveTools(contextOrBackground(ctx), pc.actionToolGroups)
+	return pc.actionTools(contextOrBackground(ctx), pc.actionToolGroups)
 }
 
 // ToolCallContext derives a child context cancellable through TerminateToolCall.

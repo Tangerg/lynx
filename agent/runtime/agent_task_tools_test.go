@@ -35,7 +35,7 @@ func TestStartChildContinuesAfterParent(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	release := make(chan struct{})
 	child := blockingChild("bg-child", release)
-	childDeployment, err := engine.Deploy(child)
+	childDeployment, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -51,7 +51,7 @@ func TestStartChildContinuesAfterParent(t *testing.T) {
 		taskID, childDone = child.ID(), done
 		return parentOutput{Final: 0}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})}})
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestTaskTools_StartRunningThenResultDone(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
 	release := make(chan struct{})
 	child := blockingChild("bg-tool-child", release)
-	_, err := engine.Deploy(child)
+	_, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestTaskTools_StartRunningThenResultDone(t *testing.T) {
 		}
 		return parentOutput{Final: 1}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "driven"})}})
-	if _, err = engine.Deploy(parent); err != nil {
+	if _, err = engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -210,7 +210,7 @@ func TestTaskTools_StartRunningThenResultDone(t *testing.T) {
 func TestTaskTools_ResultUnknownTaskErrors(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	child := childAgent()
-	_, err := engine.Deploy(child)
+	_, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -231,7 +231,7 @@ func TestKillChildren_SweepsOutstandingBackgroundChildren(t *testing.T) {
 	release := make(chan struct{})
 	defer close(release) // unblock the killed child's goroutine on exit
 	child := blockingChild("kc-child", release)
-	childDeployment, err := engine.Deploy(child)
+	childDeployment, err := engine.Deploy(t.Context(), child)
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestKillChildren_SweepsOutstandingBackgroundChildren(t *testing.T) {
 		taskID = child.ID()
 		return parentOutput{Final: 0}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})}})
-	if _, err := engine.Deploy(parent); err != nil {
+	if _, err := engine.Deploy(t.Context(), parent); err != nil {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
@@ -263,7 +263,7 @@ func TestKillChildren_SweepsOutstandingBackgroundChildren(t *testing.T) {
 		t.Fatalf("child should still be running, got %s", bg.Status())
 	}
 
-	killed := engine.KillChildren(proc.ID())
+	killed := engine.KillChildren(t.Context(), proc.ID())
 	if len(killed) != 1 || killed[0] != taskID {
 		t.Fatalf("KillChildren = %v, want [%s]", killed, taskID)
 	}

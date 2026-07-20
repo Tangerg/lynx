@@ -85,7 +85,7 @@ func TestChatProvider_OverridesEngineClient(t *testing.T) {
 
 	a := chatAgent(t)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestChatProvider_FallsBackToEngine(t *testing.T) {
 
 	a := chatAgent(t)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -146,7 +146,7 @@ func TestChatProvider_TypedNilFallsBackToEngine(t *testing.T) {
 
 	a := chatAgent(t)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 
@@ -189,7 +189,7 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 	platformClient, _ := chatclient.New(newRecordingModel())
 	a := chatAgent(t)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
 	process, err := engine.Run(

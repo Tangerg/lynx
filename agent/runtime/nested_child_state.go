@@ -230,7 +230,7 @@ func (p *Process) abortStagedNestedChildren(ctx context.Context) int {
 		return len(childIDs)
 	}
 	for _, childID := range childIDs {
-		_ = p.engine.KillContext(ctx, childID)
+		_ = p.engine.Kill(ctx, childID)
 		p.engine.discardProcessTree(ctx, childID)
 	}
 	return len(childIDs)

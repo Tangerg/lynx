@@ -32,13 +32,16 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 		}
 		return subOutput{Doubled: 42}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[subOutput](core.GoalConfig{Description: "gated output"})}})
-	if _, err := engine.Deploy(gate); err != nil {
+	if _, err := engine.Deploy(t.Context(), gate); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 
 	ctx := context.Background()
-	proc, done := engine.Start(ctx, gate,
+	proc, done, err := engine.Start(ctx, gate,
 		core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	<-done
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("after start: status = %v, want waiting", proc.Status())

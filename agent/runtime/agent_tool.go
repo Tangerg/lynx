@@ -175,7 +175,7 @@ func (t *agentTool) abortNestedChild(ctx context.Context, child *Process) {
 		return
 	}
 	if !child.Status().IsTerminal() {
-		_ = t.engine.KillContext(ctx, child.ID())
+		_ = t.engine.Kill(ctx, child.ID())
 	}
 	t.engine.discardProcessTree(ctx, child.ID())
 }
@@ -199,7 +199,7 @@ func (e *Engine) discardProcessTree(ctx context.Context, processID string) {
 			continue
 		}
 		if !candidate.Status().IsTerminal() {
-			_ = e.KillContext(ctx, candidate.ID())
+			_ = e.Kill(ctx, candidate.ID())
 		}
 		e.discardProcessTree(ctx, candidate.ID())
 	}

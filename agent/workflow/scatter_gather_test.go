@@ -57,7 +57,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err = engine.Deploy(a)
+	_, err = engine.Deploy(t.Context(), a)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,
@@ -184,7 +184,7 @@ func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a,
@@ -224,7 +224,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 		t.Fatalf("ScatterGather: %v", err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(a); err != nil {
+	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,

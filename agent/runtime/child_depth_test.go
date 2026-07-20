@@ -14,7 +14,7 @@ import (
 func TestRunChildLimitsDepth(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	def := childAgent()
-	deployment, err := engine.Deploy(def)
+	deployment, err := engine.Deploy(t.Context(), def)
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}

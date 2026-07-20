@@ -177,7 +177,10 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
-	proc, done := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	proc, done, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	firstStarted := <-started
 	secondStarted := <-started
 	select {
@@ -247,7 +250,10 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
 	mustDeploy(t, engine, a)
 
-	proc, done := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	proc, done, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
@@ -459,7 +465,10 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine1, a)
 
-	proc, done := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	proc, done, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
@@ -519,7 +528,10 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
-	proc, done := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
+	proc, done, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	if err := <-done; err != nil {
 		t.Fatalf("run control-flow error = %v", err)
 	}

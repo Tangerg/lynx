@@ -43,6 +43,7 @@ const minimumSequenceAgents = 2
 // Returns an error on missing name, fewer than 2 agents, or any nil
 // agent — caller decides whether to surface, retry, or panic.
 func Sequence[In, Out any](
+	ctx context.Context,
 	engine *runtime.Engine,
 	name string,
 	agents ...*core.Agent,
@@ -63,7 +64,7 @@ func Sequence[In, Out any](
 	}
 	deployments := make([]*runtime.Deployment, len(agents))
 	for index, agent := range agents {
-		deployment, err := engine.Deploy(agent)
+		deployment, err := engine.Deploy(ctx, agent)
 		if err != nil {
 			return nil, fmt.Errorf("workflow.Sequence: deploy agents[%d] %q: %w", index, agent.Name(), err)
 		}

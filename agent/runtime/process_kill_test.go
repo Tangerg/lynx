@@ -30,7 +30,7 @@ func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 	}
 
 	// Kill a completed process — must NOT clobber Completed -> Killed.
-	if err := engine.Kill(proc.ID()); err != nil {
+	if err := engine.Kill(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Kill: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {
@@ -38,7 +38,7 @@ func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 	}
 
 	// Repeat kill is a no-op (still completed, no error).
-	if err := engine.Kill(proc.ID()); err != nil {
+	if err := engine.Kill(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("second Kill: %v", err)
 	}
 	if proc.Status() != core.StatusCompleted {

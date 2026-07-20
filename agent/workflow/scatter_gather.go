@@ -91,7 +91,11 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 			items := make([]Element, len(generators))
 			branches := make([]*core.ProcessContext, len(generators))
 			for index := range branches {
-				branches[index] = process.ForParallelBranch()
+				branch, err := process.ForParallelBranch()
+				if err != nil {
+					return scatterOutput[Element]{}, fmt.Errorf("scatter branch %d: %w", index, err)
+				}
+				branches[index] = branch
 			}
 			group, groupContext := errgroup.WithContext(ctx)
 			var slots *semaphore.Weighted

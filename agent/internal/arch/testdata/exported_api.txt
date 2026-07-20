@@ -142,15 +142,13 @@ core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, 
 core: func (pc *ProcessContext) Blackboard() Blackboard
 core: func (pc *ProcessContext) Chat() (ChatCapability, error)
 core: func (pc *ProcessContext) Dependencies() *Dependencies
-core: func (pc *ProcessContext) Emit(ctx context.Context, event any)
-core: func (pc *ProcessContext) ForParallelBranch() *ProcessContext
+core: func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error)
 core: func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error)
 core: func (pc *ProcessContext) Process() ProcessView
 core: func (pc *ProcessContext) Prompt(ctx context.Context, text string, config PromptConfig) (string, error)
 core: func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall)
 core: func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall)
 core: func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int)
-core: func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Session() (session SessionInfo, ok bool)
 core: func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
 core: func (pc *ProcessContext) TerminateAction(reason string) error
@@ -279,7 +277,7 @@ core: type ModelAttributionFunc func(response *chat.Response) ModelAttribution
 core: type ModelCall struct { Timestamp time.Time `json:"timestamp"` Model string `json:"model"` Provider string `json:"provider,omitempty"` CostUSD float64 `json:"cost_usd"` PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens int64 `json:"cache_write_input_tokens,omitempty"` Duration time.Duration `json:"duration_ns"` ActionName string `json:"action,omitempty"` }
 core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
-core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Usage UsageRecorder Blackboard Blackboard Session *Session Dependencies *Dependencies Chat func() (ChatCapability, error) MaxToolRounds int Emit func(context.Context, any) ResolveTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []ToolGroupRequirement }
+core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Usage UsageRecorder Blackboard Blackboard Session *Session Dependencies *Dependencies Chat func() (ChatCapability, error) MaxToolRounds int ActionTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []ToolGroupRequirement }
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Session *Session Extensions []Extension Guardrails *ChatGuardrails }
 core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` Revision uint64 `json:"revision"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure string `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
@@ -549,26 +547,22 @@ runtime: func (e *DeploymentConflictError) Unwrap() error
 runtime: func (e *Engine) ActiveDeployment(name string) (*Deployment, bool)
 runtime: func (e *Engine) ActiveDeployments() []*Deployment
 runtime: func (e *Engine) Continue(ctx context.Context, id string) error
-runtime: func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error
+runtime: func (e *Engine) ContinueAsync(ctx context.Context, id string) (<-chan error, error)
 runtime: func (e *Engine) Dependencies() *core.Dependencies
-runtime: func (e *Engine) Deploy(agent *core.Agent) (*Deployment, error)
-runtime: func (e *Engine) DeployContext(ctx context.Context, agent *core.Agent) (*Deployment, error)
+runtime: func (e *Engine) Deploy(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
-runtime: func (e *Engine) Kill(id string) error
-runtime: func (e *Engine) KillChildren(parentID string) []string
-runtime: func (e *Engine) KillChildrenContext(ctx context.Context, parentID string) []string
-runtime: func (e *Engine) KillContext(ctx context.Context, id string) error
+runtime: func (e *Engine) Kill(ctx context.Context, id string) error
+runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) []string
 runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) ProcessStore() core.ProcessStore
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) Prune() []string
 runtime: func (e *Engine) Remove(id string) error
-runtime: func (e *Engine) Replace(agent *core.Agent) (*Deployment, error)
-runtime: func (e *Engine) ReplaceContext(ctx context.Context, agent *core.Agent) (*Deployment, error)
+runtime: func (e *Engine) Replace(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error)
@@ -580,14 +574,12 @@ runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Dep
 runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session *core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
-runtime: func (e *Engine) RunTeam( ctx context.Context, config TeamConfig, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
 runtime: func (e *Engine) SessionStore() core.SessionStore
 runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
-runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error)
+runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error, error)
 runtime: func (e *Engine) StartChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, <-chan error, error)
-runtime: func (e *Engine) Undeploy(name string) error
-runtime: func (e *Engine) UndeployContext(ctx context.Context, name string) error
+runtime: func (e *Engine) Undeploy(ctx context.Context, name string) error
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) EmbeddingCalls() []core.EmbeddingCall
@@ -624,7 +616,6 @@ runtime: type EventListener interface { core.Extension OnEvent(ctx context.Conte
 runtime: type Process struct { }
 runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sessionID string) (release func(), err error) }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
-runtime: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") )
 runtime: var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
@@ -715,13 +706,14 @@ workflow: func (h AttemptHistory[Out]) MarshalJSON() ([]byte, error)
 workflow: func (h History[T]) MarshalJSON() ([]byte, error)
 workflow: func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error)
 workflow: func DefaultKey[Element ~string](element Element) string
-workflow: func Loop[In, Out any]( engine *runtime.Engine, config LoopConfig[In, Out], ) (*core.Agent, error)
-workflow: func Parallel[In, Element, Result any]( engine *runtime.Engine, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
+workflow: func Loop[In, Out any]( ctx context.Context, engine *runtime.Engine, config LoopConfig[In, Out], ) (*core.Agent, error)
+workflow: func Parallel[In, Element, Result any]( ctx context.Context, engine *runtime.Engine, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
 workflow: func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error)
 workflow: func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error)
 workflow: func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error)
-workflow: func Sequence[In, Out any]( engine *runtime.Engine, name string, agents ...*core.Agent, ) (*core.Agent, error)
+workflow: func Sequence[In, Out any]( ctx context.Context, engine *runtime.Engine, name string, agents ...*core.Agent, ) (*core.Agent, error)
 workflow: func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In, Out]) (*core.Agent, error)
+workflow: func Team(config TeamConfig) (*core.Agent, error)
 workflow: type AttemptHistory[Out any] struct { }
 workflow: type Attempt[Out any] struct { Output Out Feedback Feedback }
 workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Key func(Element) string }
@@ -734,3 +726,4 @@ workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Des
 workflow: type RepeatUntilConfig[In, Out any] struct { Name string Description string MaxIterations int Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Accept func(ctx context.Context, input In, latest Out, history *History[Out]) bool }
 workflow: type ScatterGatherConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
 workflow: type SupervisorConfig[In, Out any] struct { Name string Description string Agents []string Instructions string Render func(In) string Parse func(text string) (Out, error) MaxToolRounds int }
+workflow: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }

@@ -163,7 +163,7 @@ func TestGoalTools_RejectNilEngine(t *testing.T) {
 
 func TestDeployRejectsGoalToolWithInterfaceInput(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err := engine.Deploy(makeInvalidGoalToolAgent())
+	_, err := engine.Deploy(t.Context(), makeInvalidGoalToolAgent())
 	if err == nil {
 		t.Fatal("expected schema error")
 	}

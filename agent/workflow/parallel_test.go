@@ -36,12 +36,12 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 	a2 := makeScoringAgent("scorer-2", 2)
 	a3 := makeScoringAgent("scorer-3", 3)
 	for _, a := range []*core.Agent{a1, a2, a3} {
-		if _, err := engine.Deploy(a); err != nil {
+		if _, err := engine.Deploy(t.Context(), a); err != nil {
 			t.Fatalf("deploy %s: %v", a.Name(), err)
 		}
 	}
 
-	wf, err := workflow.Parallel[paIn, paScore, paSummary](
+	wf, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 		engine,
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-scoring",
@@ -58,7 +58,7 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Parallel: %v", err)
 	}
-	_, err = engine.Deploy(wf)
+	_, err = engine.Deploy(t.Context(), wf)
 	if err != nil {
 		t.Fatalf("deploy wf: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[paScore](core.GoalConfig{Description: "score (will fail)"})}})
 	mustDeploy(t, engine, good, bad)
 
-	wf, err := workflow.Parallel[paIn, paScore, paSummary](
+	wf, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 		engine,
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-fail",
@@ -161,7 +161,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 		}
 		mustDeploy(t, engine, subs...)
 
-		wf, err := workflow.Parallel[paIn, paScore, paSummary](
+		wf, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 			engine,
 			workflow.ParallelConfig[paIn, paScore, paSummary]{
 				Name:           "capped",
@@ -217,7 +217,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 
 func TestParallel_RejectsEmptyAgents(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err := workflow.Parallel[paIn, paScore, paSummary](
+	_, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 		engine,
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name: "empty",
@@ -233,7 +233,7 @@ func TestParallel_RejectsEmptyAgents(t *testing.T) {
 
 func TestParallel_RejectsNilJoiner(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	_, err := workflow.Parallel[paIn, paScore, paSummary](
+	_, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 		engine,
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "no-joiner",
