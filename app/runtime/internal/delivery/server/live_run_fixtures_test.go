@@ -4,7 +4,6 @@ import (
 	"context"
 	"iter"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -97,12 +96,8 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 	if err != nil {
 		t.Fatalf("start live run: %v", err)
 	}
-	deadline := time.Now().Add(time.Second)
-	for !s.coordinator.Contains(result.RunID) {
-		if time.Now().After(deadline) {
-			t.Fatal("live run was not registered")
-		}
-		time.Sleep(time.Millisecond)
+	if !s.coordinator.Contains(result.RunID) {
+		t.Fatal("Start returned before the live run was registered")
 	}
 	t.Cleanup(s.Close)
 	return result.RunID
