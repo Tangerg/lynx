@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const defaultMaxAttempts = 1
+
 // Action is the agent's smallest planning unit. Implementations are
 // typically produced via [NewAction] so the framework keeps type
 // information end-to-end; the interface form is here for advanced users
@@ -164,7 +166,7 @@ type RetryPolicy struct {
 // DefaultRetryPolicy returns the side-effect-safe framework default: exactly
 // one attempt and no replay declaration.
 func DefaultRetryPolicy() RetryPolicy {
-	return RetryPolicy{MaxAttempts: 1}
+	return RetryPolicy{MaxAttempts: defaultMaxAttempts}
 }
 
 func (p RetryPolicy) validate() error {
@@ -180,7 +182,7 @@ func (p RetryPolicy) validate() error {
 	if !p.Safety.Valid() {
 		return fmt.Errorf("unknown retry safety %d", p.Safety)
 	}
-	if p.MaxAttempts > 1 && p.Safety == RetrySafetyUnspecified {
+	if p.MaxAttempts > defaultMaxAttempts && p.Safety == RetrySafetyUnspecified {
 		return fmt.Errorf("max attempts %d requires idempotent or compensated retry safety", p.MaxAttempts)
 	}
 	return nil

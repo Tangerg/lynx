@@ -8,6 +8,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+// DefaultAcceptableScore is the acceptance threshold used when none is set.
+const DefaultAcceptableScore = 0.7
+
 // Evaluator is the user-supplied "did this attempt meet the bar?"
 // callback driving [RepeatUntilAcceptableConfig]. It receives the
 // loop's input and the latest attempt; returns a [Feedback] whose
@@ -85,11 +88,11 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	}
 	threshold := config.AcceptableScore
 	if threshold <= 0 {
-		threshold = 0.7
+		threshold = DefaultAcceptableScore
 	}
 	maxIterations := config.MaxIterations
 	if maxIterations <= 0 {
-		maxIterations = 3
+		maxIterations = DefaultRepeatIterations
 	}
 
 	acceptKey := config.Name + "_acceptable"

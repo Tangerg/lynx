@@ -66,7 +66,7 @@ func newAgentMetrics() *agentMetrics {
 }
 
 func millis(duration time.Duration) float64 {
-	return float64(duration.Microseconds()) / 1000.0
+	return float64(duration) / float64(time.Millisecond)
 }
 
 func (p *Process) agentAttr() attribute.KeyValue {

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+const defaultPromptConditionCost = 1.0
+
 // PromptFunc builds a condition prompt from the current process state.
 type PromptFunc func(context.Context, *ConditionEnv) string
 
@@ -53,7 +55,7 @@ func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) 
 	}
 	cost := config.Cost
 	if cost == 0 {
-		cost = 1
+		cost = defaultPromptConditionCost
 	}
 	return &PromptCondition{
 		name:   config.Name,

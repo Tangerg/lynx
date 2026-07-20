@@ -9,6 +9,9 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
+// DefaultLoopIterations bounds Loop when Config.MaxIterations is unset.
+const DefaultLoopIterations = 5
+
 // LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
 // iteration runs Body via [runtime.RunChildIsolated] — a child process
@@ -91,7 +94,7 @@ func Loop[In, Out any](
 	bodyName := bodyDeployment.Ref().Name
 	maxIterations := config.MaxIterations
 	if maxIterations <= 0 {
-		maxIterations = 5
+		maxIterations = DefaultLoopIterations
 	}
 
 	// Condition keys must not contain ':' — the determiner reserves

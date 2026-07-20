@@ -43,8 +43,10 @@ func (e AgentUndeployed) MarshalJSON() ([]byte, error) {
 // ------------------------------------------------------------------
 
 type processCreatedPayload struct {
-	Bindings map[string]any `json:"bindings"`
+	Bindings bindingSummary `json:"bindings"`
 }
+
+type bindingSummary map[string]any
 
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
 	return emit(e, processCreatedPayload{Bindings: summarizeBindings(e.Bindings)})
@@ -333,11 +335,11 @@ func summarizeValue(value any) any {
 	return decoded
 }
 
-func summarizeBindings(bindings core.Bindings) map[string]any {
+func summarizeBindings(bindings core.Bindings) bindingSummary {
 	if bindings.Len() == 0 {
 		return nil
 	}
-	summary := make(map[string]any, bindings.Len())
+	summary := make(bindingSummary, bindings.Len())
 	for key, value := range bindings.All() {
 		summary[key] = summarizeValue(value)
 	}

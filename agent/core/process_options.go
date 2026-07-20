@@ -98,9 +98,19 @@ type Budget struct {
 	TokenLimit  int
 }
 
+const (
+	DefaultBudgetCostLimit   = 2.0
+	DefaultBudgetActionLimit = 50
+	DefaultBudgetTokenLimit  = 1_000_000
+)
+
 // DefaultBudget is the baseline that applies when callers don't supply one —
 // ~$2 cap, 50 actions, 1M tokens. The numbers are deliberately generous;
 // production deployments tune them per-tenant.
 func DefaultBudget() Budget {
-	return Budget{CostLimit: 2.0, ActionLimit: 50, TokenLimit: 1_000_000}
+	return Budget{
+		CostLimit:   DefaultBudgetCostLimit,
+		ActionLimit: DefaultBudgetActionLimit,
+		TokenLimit:  DefaultBudgetTokenLimit,
+	}
 }

@@ -16,7 +16,8 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-const defaultMaxRounds = 50
+// DefaultMaxRounds bounds a tool loop when Config.MaxRounds is unset.
+const DefaultMaxRounds = 50
 
 var (
 	// ErrInvalidConfig reports an invalid model or Config.
@@ -58,7 +59,7 @@ func NewRunner(model chat.Model, config Config) (*Runner, error) {
 	}
 	maxRounds := config.MaxRounds
 	if maxRounds == 0 {
-		maxRounds = defaultMaxRounds
+		maxRounds = DefaultMaxRounds
 	}
 	maxConcurrentCalls := config.MaxConcurrentCalls
 	if maxConcurrentCalls == 0 {

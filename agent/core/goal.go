@@ -5,6 +5,8 @@ import (
 	"slices"
 )
 
+const defaultGoalValue = 1.0
+
 // GoalConfig is the construction input for [NewGoal]. It remains ordinary Go
 // data; Goal takes a defensive snapshot and owns the resulting value object.
 type GoalConfig struct {
@@ -241,7 +243,7 @@ func NewOutputGoal[T any](config GoalConfig) *Goal {
 	}
 	config.Inputs = append(slices.Clone(config.Inputs), NewBinding[T](DefaultBindingName))
 	if config.Value == nil {
-		config.Value = FixedScore(1.0)
+		config.Value = FixedScore(defaultGoalValue)
 	}
 	return NewGoal(config)
 }

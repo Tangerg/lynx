@@ -35,7 +35,7 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 	var bindings core.Bindings
-	for key, value := range b.named {
+	for key, value := range b.named.All() {
 		if _, transient := b.transientNamed[key]; !transient {
 			bindings.Set(key, value)
 		}
@@ -59,9 +59,9 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	clear(b.named)
+	b.named = core.Bindings{}
 	for key, value := range state.Bindings.All() {
-		b.named[key] = value
+		b.named.Set(key, value)
 	}
 	clear(b.transientNamed)
 	clear(b.conditions)

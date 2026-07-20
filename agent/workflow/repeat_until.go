@@ -7,6 +7,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+// DefaultRepeatIterations bounds repeat workflows when MaxIterations is unset.
+const DefaultRepeatIterations = 3
+
 // RepeatUntilConfig configures a "loop a task until the result is
 // acceptable" workflow. Each iteration runs Task to produce a fresh
 // Out; Accept then inspects the latest attempt (with full History)
@@ -66,7 +69,7 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	}
 	maxIterations := config.MaxIterations
 	if maxIterations <= 0 {
-		maxIterations = 3
+		maxIterations = DefaultRepeatIterations
 	}
 
 	// Condition keys must not contain ':' — the determiner reserves

@@ -2,6 +2,9 @@ package core
 
 import "context"
 
+// BudgetPolicyName is the built-in budget policy's extension identifier.
+const BudgetPolicyName = "budget-policy"
+
 // StuckPolicy is invoked when the planner returns no plan. The default is to
 // transition to StatusStuck; a policy may update the blackboard and request a
 // new planning pass.
@@ -41,7 +44,7 @@ type BudgetPolicy struct {
 }
 
 // Name is the extension identifier for the built-in budget policy.
-func (p BudgetPolicy) Name() string { return "budget-policy" }
+func (p BudgetPolicy) Name() string { return BudgetPolicyName }
 
 // Check enforces non-zero cost, token, and action ceilings.
 func (p BudgetPolicy) Check(process ProcessView) (bool, string) {

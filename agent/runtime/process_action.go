@@ -197,7 +197,7 @@ func (p *Process) runWithRetry(
 
 	maxAttempts := policy.MaxAttempts
 	if maxAttempts <= 0 {
-		maxAttempts = 1
+		maxAttempts = core.DefaultRetryPolicy().MaxAttempts
 	}
 
 	// Discard the retry error — status, replan, attempts, and lastErr

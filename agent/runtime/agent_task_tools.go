@@ -91,7 +91,7 @@ type taskResultInput struct {
 
 // taskResult is the JSON shape the background tools hand back to the
 // model. One struct documents the whole wire contract instead of
-// scattering magic string keys across map[string]any literals; the
+// scattering protocol keys across dynamic JSON literals; the
 // "waiting" state is rendered separately by waitingToolResult (it
 // carries the pending suspension, not a task result).
 type taskResult struct {
