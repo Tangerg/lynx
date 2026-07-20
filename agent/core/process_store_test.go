@@ -96,7 +96,7 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	if decoded["status"] != "running" {
 		t.Fatalf("status wire = %#v", decoded["status"])
 	}
-	for _, version := range []float64{0, 1, 3} {
+	for _, version := range []float64{0, 1, 2, 4} {
 		decoded["schema_version"] = version
 		invalid, _ := json.Marshal(decoded)
 		var target core.ProcessSnapshot

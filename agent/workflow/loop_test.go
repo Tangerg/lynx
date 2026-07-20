@@ -116,6 +116,35 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	}
 }
 
+func TestLoop_AutoSnapshotPreservesWorkflowState(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "loop-snapshot", ProcessStore: store, AutoSnapshot: true,
+	})
+	body, _ := makeIncrementingBody()
+	mustDeploy(t, engine, body)
+	wf, err := workflow.Loop[loopIn, loopOut](engine, workflow.LoopConfig[loopIn, loopOut]{
+		Name: "durable-loop", MaxIterations: 2, Body: body,
+		Until: func(context.Context, loopIn, loopOut) bool { return false },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustDeploy(t, engine, wf)
+	process, err := engine.Run(t.Context(), wf, core.Input(loopIn{Target: 99}), core.ProcessOptions{})
+	if err != nil || process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	}
+	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	history, ok := core.Result[*workflow.History[loopOut]](restored)
+	if !ok || history.Count() != 2 {
+		t.Fatalf("restored history count=%d ok=%v, want 2", history.Count(), ok)
+	}
+}
+
 func TestLoop_BranchIsolation(t *testing.T) {
 	// Verify the body sub-agent runs with a FRESH blackboard each
 	// iteration: it should NOT see prior iterations' loopOut bindings

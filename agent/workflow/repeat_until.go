@@ -75,6 +75,8 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	// Condition keys must not contain ':' — the determiner reserves
 	// that for type-binding keys. Use '_' as the separator.
 	acceptKey := config.Name + "_acceptable"
+	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
+	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
 
 	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*History[Out]](env.Blackboard)
@@ -92,7 +94,7 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 		// In==Out the per-iteration outputs would shadow the input.
 		var input In
 		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			input = original.value
+			input = original.Value
 		}
 		if config.Accept(ctx, input, last, history) {
 			return core.True
@@ -106,15 +108,15 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 			history, ok := core.Last[*History[Out]](process.Blackboard())
 			if !ok {
 				history = &History[Out]{}
-				process.Blackboard().Bind(history)
+				process.Blackboard().Store(historyState.Name, history)
 				// First iteration: `in` IS the original input (no Out bound yet to
 				// shadow it). Stash it so later iterations + Accept recover it even
 				// when In==Out.
-				process.Blackboard().Bind(loopInput[In]{value: input})
+				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
 			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
 				// Later iterations: the framework binds `in` from Last[In], which is
 				// the latest Out when In==Out — restore the original.
-				input = original.value
+				input = original.Value
 			}
 			output, err := config.Task(ctx, process, input, history)
 			if err != nil {
@@ -132,10 +134,11 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        config.Name,
-		Description: config.Description,
-		Actions:     []core.Action{task},
-		Conditions:  []core.Condition{acceptCondition},
-		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
+		Name:         config.Name,
+		Description:  config.Description,
+		Actions:      []core.Action{task},
+		Conditions:   []core.Condition{acceptCondition},
+		DurableState: []core.Binding{historyState, inputState},
+		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

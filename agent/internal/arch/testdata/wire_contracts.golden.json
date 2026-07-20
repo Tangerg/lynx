@@ -108,7 +108,7 @@
     }
   ],
   "process_snapshot": {
-    "schema_version": 2,
+    "schema_version": 3,
     "revision": 7,
     "id": "process-1",
     "parent_id": "process-root",

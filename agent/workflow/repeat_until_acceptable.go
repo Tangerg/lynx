@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -87,6 +88,9 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
 	threshold := config.AcceptableScore
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold > 1 {
+		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be finite and at most 1", threshold)
+	}
 	if threshold <= 0 {
 		threshold = DefaultAcceptableScore
 	}
@@ -96,6 +100,9 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	}
 
 	acceptKey := config.Name + "_acceptable"
+	historyState := core.NewBinding[*AttemptHistory[Out]](config.Name + historyStateSuffix)
+	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
+	feedbackState := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
 
 	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, env *core.ConditionEnv) core.Truth {
 		history, ok := core.Last[*AttemptHistory[Out]](env.Blackboard)
@@ -123,11 +130,14 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 			history, ok := core.Last[*AttemptHistory[Out]](process.Blackboard())
 			if !ok {
 				history = &AttemptHistory[Out]{}
-				process.Blackboard().Bind(history)
+				process.Blackboard().Store(historyState.Name, history)
+				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
+			} else if original, found := core.Last[loopInput[In]](process.Blackboard()); found {
+				input = original.Value
 			}
 
 			// The task sees prior outputs so it can revise.
-			output, err := config.Task(ctx, process, input, &History[Out]{Attempts: history.outputs()})
+			output, err := config.Task(ctx, process, input, newHistory(history.outputs()))
 			if err != nil {
 				return zero, err
 			}
@@ -137,9 +147,11 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 				// Keep the attempt (score 0) and keep looping rather than
 				// failing the whole workflow on a transient eval error.
 				feedback = Feedback{Score: 0, Text: fmt.Sprintf("evaluation failed: %v", evaluationErr)}
+			} else if err := feedback.Validate(); err != nil {
+				return zero, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluator feedback: %w", err)
 			}
 			history.record(output, feedback)
-			process.Blackboard().Bind(feedback)
+			process.Blackboard().Store(feedbackState.Name, feedback)
 
 			best, _ := history.Best()
 			return best.Output, nil
@@ -152,10 +164,11 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:        config.Name,
-		Description: config.Description,
-		Actions:     []core.Action{task},
-		Conditions:  []core.Condition{acceptCondition},
-		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce best-scoring " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
+		Name:         config.Name,
+		Description:  config.Description,
+		Actions:      []core.Action{task},
+		Conditions:   []core.Condition{acceptCondition},
+		DurableState: []core.Binding{historyState, inputState, feedbackState},
+		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce best-scoring " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

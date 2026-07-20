@@ -19,7 +19,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only durable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 2
+const ProcessSnapshotSchemaVersion uint16 = 3
 
 var (
 	ErrSnapshotNotFound = errors.New("process store: snapshot not found")

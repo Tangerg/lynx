@@ -64,7 +64,7 @@ core: const ( ToolGroupHostAccess ToolGroupPermission = iota ToolGroupInternetAc
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
 core: const BudgetPolicyName = "budget-policy"
-core: const ProcessSnapshotSchemaVersion uint16 = 2
+core: const ProcessSnapshotSchemaVersion uint16 = 3
 core: const StaticToolGroupResolverName = "static-tool-group-resolver"
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
@@ -72,6 +72,7 @@ core: func (a *Agent) Actions() []Action
 core: func (a *Agent) Conditions() []Condition
 core: func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error)
 core: func (a *Agent) Description() string
+core: func (a *Agent) DurableState() []Binding
 core: func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]TaggedValue, []TaggedValue, error)
 core: func (a *Agent) Goals() []*Goal
 core: func (a *Agent) Name() string
@@ -250,7 +251,7 @@ core: type ActionMiddleware interface { Extension RunAction( ctx context.Context
 core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status ActionStatus `json:"-"` Attempts int `json:"attempts"` }
 core: type ActionStatus int8
 core: type Agent struct { }
-core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition PlannerName string }
+core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition DurableState []Binding PlannerName string }
 core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
@@ -689,11 +690,18 @@ workflow: const DefaultAcceptableScore = 0.7
 workflow: const DefaultLoopIterations = 5
 workflow: const DefaultRepeatIterations = 3
 workflow: func (f Feedback) Acceptable(threshold float64) bool
+workflow: func (f Feedback) Validate() error
+workflow: func (h *AttemptHistory[Out]) Attempts() []Attempt[Out]
 workflow: func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool)
 workflow: func (h *AttemptHistory[Out]) Count() int
 workflow: func (h *AttemptHistory[Out]) Last() (Attempt[Out], bool)
+workflow: func (h *AttemptHistory[Out]) UnmarshalJSON(data []byte) error
+workflow: func (h *History[T]) Attempts() []T
 workflow: func (h *History[T]) Count() int
 workflow: func (h *History[T]) Last() (T, bool)
+workflow: func (h *History[T]) UnmarshalJSON(data []byte) error
+workflow: func (h AttemptHistory[Out]) MarshalJSON() ([]byte, error)
+workflow: func (h History[T]) MarshalJSON() ([]byte, error)
 workflow: func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error)
 workflow: func DefaultKey[Element ~string](element Element) string
 workflow: func Loop[In, Out any]( engine *runtime.Engine, config LoopConfig[In, Out], ) (*core.Agent, error)
@@ -703,12 +711,12 @@ workflow: func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*cor
 workflow: func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error)
 workflow: func Sequence[In, Out any]( engine *runtime.Engine, name string, agents ...*core.Agent, ) (*core.Agent, error)
 workflow: func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In, Out]) (*core.Agent, error)
-workflow: type AttemptHistory[Out any] struct { Attempts []Attempt[Out] }
+workflow: type AttemptHistory[Out any] struct { }
 workflow: type Attempt[Out any] struct { Output Out Feedback Feedback }
 workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Key func(Element) string }
 workflow: type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessContext, input In, latest Out) (Feedback, error)
 workflow: type Feedback struct { Score float64 Text string }
-workflow: type History[T any] struct { Attempts []T }
+workflow: type History[T any] struct { }
 workflow: type LoopConfig[In, Out any] struct { Name string Description string MaxIterations int Body *core.Agent Until func(ctx context.Context, input In, latest Out) bool }
 workflow: type ParallelConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Agents []*core.Agent Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
 workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Description string MaxIterations int AcceptableScore float64 Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Evaluator Evaluator[In, Out] }

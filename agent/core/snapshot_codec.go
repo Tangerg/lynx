@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 const nullJSON = "null"
@@ -66,7 +67,7 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 	if value == nil {
 		return TaggedValue{Type: anyTypeName, Value: json.RawMessage(nullJSON)}, nil
 	}
-	typeName := typeFullName(reflect.TypeOf(value))
+	typeName := snapshotTypeName(reflect.TypeOf(value))
 	if _, ok := table[typeName]; !ok {
 		return TaggedValue{}, fmt.Errorf("type %q is not declared durable state", typeName)
 	}
@@ -140,20 +141,46 @@ func (a *Agent) durableTypes() map[string]reflect.Type {
 		reflect.TypeFor[uint](), reflect.TypeFor[uint8](), reflect.TypeFor[uint16](), reflect.TypeFor[uint32](), reflect.TypeFor[uint64](),
 		reflect.TypeFor[float32](), reflect.TypeFor[float64](),
 	} {
-		table[typeFullName(value)] = value
+		table[snapshotTypeName(value)] = value
 	}
+	register := func(bindings []Binding) {
+		for _, binding := range bindings {
+			if binding.goType != nil {
+				table[snapshotTypeName(binding.goType)] = binding.goType
+			}
+		}
+	}
+	register(a.DurableState())
 	for _, action := range a.Actions() {
 		if action == nil {
 			continue
 		}
 		metadata := action.Metadata()
-		for _, bindings := range [][]Binding{metadata.Inputs, metadata.Outputs} {
-			for _, binding := range bindings {
-				if binding.goType != nil {
-					table[binding.Type] = binding.goType
-				}
-			}
-		}
+		register(metadata.Inputs)
+		register(metadata.Outputs)
 	}
 	return table
+}
+
+// snapshotTypeName is the durable identity of an exact Go type. Planner
+// bindings intentionally normalize pointers, while snapshots must distinguish
+// T from *T to restore values accepted by typed actions.
+func snapshotTypeName(typ reflect.Type) string {
+	if typ == nil {
+		return anyTypeName
+	}
+	switch typ.Kind() {
+	case reflect.Pointer:
+		return "*" + snapshotTypeName(typ.Elem())
+	case reflect.Slice:
+		return "[]" + snapshotTypeName(typ.Elem())
+	case reflect.Array:
+		return "[" + strconv.Itoa(typ.Len()) + "]" + snapshotTypeName(typ.Elem())
+	case reflect.Map:
+		return "map[" + snapshotTypeName(typ.Key()) + "]" + snapshotTypeName(typ.Elem())
+	}
+	if typ.PkgPath() != "" && typ.Name() != "" {
+		return typ.PkgPath() + "." + typ.Name()
+	}
+	return typ.String()
 }

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -138,14 +139,15 @@ func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {
 
 	actions := source.Actions()
 	config := core.AgentConfig{
-		Name:        source.Name(),
-		Description: source.Description(),
-		Version:     source.Version(),
-		StuckPolicy: source.StuckPolicy(),
-		Actions:     make([]core.Action, len(actions)),
-		Goals:       source.Goals(),
-		Conditions:  make([]core.Condition, len(source.Conditions())),
-		PlannerName: source.PlannerName(),
+		Name:         source.Name(),
+		Description:  source.Description(),
+		Version:      source.Version(),
+		StuckPolicy:  source.StuckPolicy(),
+		Actions:      make([]core.Action, len(actions)),
+		Goals:        source.Goals(),
+		Conditions:   make([]core.Condition, len(source.Conditions())),
+		DurableState: source.DurableState(),
+		PlannerName:  source.PlannerName(),
 	}
 
 	for i, action := range actions {
@@ -219,16 +221,17 @@ func (a frozenAction) metadataSnapshot() core.ActionMetadata {
 }
 
 type canonicalDefinition struct {
-	Format      int                  `json:"format"`
-	Name        string               `json:"name"`
-	Description string               `json:"description,omitempty"`
-	Version     string               `json:"version,omitempty"`
-	BuildID     string               `json:"build_id,omitempty"`
-	Planner     string               `json:"planner,omitempty"`
-	Actions     []canonicalAction    `json:"actions"`
-	Goals       []canonicalGoal      `json:"goals"`
-	Conditions  []canonicalCondition `json:"conditions,omitempty"`
-	StuckPolicy string               `json:"stuck_policy,omitempty"`
+	Format       int                  `json:"format"`
+	Name         string               `json:"name"`
+	Description  string               `json:"description,omitempty"`
+	Version      string               `json:"version,omitempty"`
+	BuildID      string               `json:"build_id,omitempty"`
+	Planner      string               `json:"planner,omitempty"`
+	Actions      []canonicalAction    `json:"actions"`
+	Goals        []canonicalGoal      `json:"goals"`
+	Conditions   []canonicalCondition `json:"conditions,omitempty"`
+	DurableState []canonicalBinding   `json:"durable_state,omitempty"`
+	StuckPolicy  string               `json:"stuck_policy,omitempty"`
 }
 
 type canonicalAction struct {
@@ -289,15 +292,16 @@ type canonicalCondition struct {
 
 func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, error) {
 	definition := canonicalDefinition{
-		Format:      compiledDefinitionFormat,
-		Name:        agent.Name(),
-		Description: agent.Description(),
-		BuildID:     c.buildID,
-		Planner:     planning.EffectivePlannerName(agent.PlannerName()),
-		Actions:     make([]canonicalAction, 0, len(agent.Actions())),
-		Goals:       make([]canonicalGoal, 0, len(agent.Goals())),
-		Conditions:  make([]canonicalCondition, 0, len(agent.Conditions())),
-		StuckPolicy: c.typeName(agent.StuckPolicy()),
+		Format:       compiledDefinitionFormat,
+		Name:         agent.Name(),
+		Description:  agent.Description(),
+		BuildID:      c.buildID,
+		Planner:      planning.EffectivePlannerName(agent.PlannerName()),
+		Actions:      make([]canonicalAction, 0, len(agent.Actions())),
+		Goals:        make([]canonicalGoal, 0, len(agent.Goals())),
+		Conditions:   make([]canonicalCondition, 0, len(agent.Conditions())),
+		DurableState: c.canonicalDurableState(agent.DurableState()),
+		StuckPolicy:  c.typeName(agent.StuckPolicy()),
 	}
 	definition.Version = agent.Version()
 
@@ -392,6 +396,17 @@ func (c deploymentCompiler) canonicalBindings(bindings []core.Binding) []canonic
 		}
 		canonical[i] = canonicalBinding{Name: name, Type: binding.Type}
 	}
+	return canonical
+}
+
+func (c deploymentCompiler) canonicalDurableState(bindings []core.Binding) []canonicalBinding {
+	canonical := c.canonicalBindings(bindings)
+	slices.SortFunc(canonical, func(left, right canonicalBinding) int {
+		if order := cmp.Compare(left.Name, right.Name); order != 0 {
+			return order
+		}
+		return cmp.Compare(left.Type, right.Type)
+	})
 	return canonical
 }
 

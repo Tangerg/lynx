@@ -76,14 +76,16 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
+	durableState := []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")}
 	config := core.AgentConfig{
-		Name:        "writer",
-		Description: "original",
-		Version:     "1.2.3",
-		PlannerName: "goap",
-		Actions:     actions,
-		Goals:       goals,
-		Conditions:  conditions,
+		Name:         "writer",
+		Description:  "original",
+		Version:      "1.2.3",
+		PlannerName:  "goap",
+		Actions:      actions,
+		Goals:        goals,
+		Conditions:   conditions,
+		DurableState: durableState,
 	}
 	source := core.NewAgent(config)
 
@@ -99,6 +101,7 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
+	durableState[0].Name = "mutated"
 	pre[0] = "mutated"
 	tags[0] = "mutated"
 	examples[0] = "mutated"
@@ -132,6 +135,9 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	}
 	if frozen.Conditions()[0].Name() != "ready" || frozen.Conditions()[0].Cost() != 2.5 {
 		t.Fatalf("frozen condition = %q/%v", frozen.Conditions()[0].Name(), frozen.Conditions()[0].Cost())
+	}
+	if state := frozen.DurableState(); len(state) != 1 || state[0].Name != "draft_state" {
+		t.Fatalf("frozen durable state = %#v", state)
 	}
 
 	// Metadata access itself must remain defensive.
@@ -341,7 +347,8 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		Goals: []*core.Goal{
 			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11), Tags: []string{"research", "report"}, Examples: []string{"Research Go releases", "Compare runtime designs"}, Tool: core.NewGoalTool[deploymentGoldenInput](core.GoalToolConfig{Standalone: true, Description: "produce an evidence-backed report"})}),
 		},
-		Conditions: []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
+		Conditions:   []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
+		DurableState: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
 	})
 
 	compiled, err := (deploymentCompiler{}).compile(source)
@@ -355,7 +362,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 	if !bytes.Equal(compiled.definition, bytes.TrimSpace(want)) {
 		t.Fatalf("canonical definition changed\nwant:\n%s\ngot:\n%s", bytes.TrimSpace(want), compiled.definition)
 	}
-	const wantDigest = "8c3915dc1606e96f2d82185dd76eeeff4349d613c9082c6009f9f8fed684fd81"
+	const wantDigest = "18ba9546b065bdd91d4b777b7e18cf92179523df070eacaaa0436c558c0cf529"
 	if compiled.ref.Digest != wantDigest {
 		t.Fatalf("definition digest = %s, want %s", compiled.ref.Digest, wantDigest)
 	}
@@ -367,7 +374,7 @@ func TestCanonicalDefinitionFieldInventory(t *testing.T) {
 	// bypass the digest silently is more dangerous than making the author
 	// classify it as canonical data or implementation identity.
 	assertExportedFields(t, reflect.TypeFor[core.AgentConfig](), []string{
-		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "PlannerName",
+		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "DurableState", "PlannerName",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Agent](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.ActionMetadata](), []string{

@@ -21,9 +21,10 @@ func snapshotAgent() *core.Agent {
 		return snapshotOutput{Count: len(input.Text)}, nil
 	}, core.ActionConfig{})
 	return core.NewAgent(core.AgentConfig{
-		Name:    "snapshot",
-		Actions: []core.Action{action},
-		Goals:   []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
+		Name:         "snapshot",
+		Actions:      []core.Action{action},
+		Goals:        []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
+		DurableState: []core.Binding{core.NewBinding[*snapshotInput]("pointer_input")},
 	})
 }
 
@@ -32,7 +33,7 @@ func TestAgentBlackboardCodecRoundTrip(t *testing.T) {
 	var named core.Bindings
 	named.Set("input", snapshotInput{Text: "lynx"})
 	named.Set("count", 4)
-	objects := []any{snapshotOutput{Count: 4}, "done"}
+	objects := []any{snapshotOutput{Count: 4}, "done", &snapshotInput{Text: "pointer"}}
 
 	taggedNamed, taggedObjects, err := agent.EncodeBlackboard(named, objects)
 	if err != nil {
