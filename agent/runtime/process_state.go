@@ -47,16 +47,6 @@ func (s *processState) restoreRevision(revision uint64) {
 	s.mu.Unlock()
 }
 
-func (s *processState) commitRevision(expected, revision uint64) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.revision != expected || revision != expected+1 {
-		return false
-	}
-	s.revision = revision
-	return true
-}
-
 // newProcessState returns a fresh state block ready for the
 // NotStarted → Running transition.
 func newProcessState() processState {

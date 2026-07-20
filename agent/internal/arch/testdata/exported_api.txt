@@ -172,7 +172,8 @@ core: func (r ToolGroupRequirement) Validate() error
 core: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
 core: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
 core: func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot, error)
-core: func (s *MemoryProcessStore) Save(_ context.Context, snapshot ProcessSnapshot, expectedRevision uint64) (uint64, error)
+core: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot, expectedRevision uint64) (uint64, error)
+core: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, writes []SnapshotWrite) ([]uint64, error)
 core: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
 core: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
 core: func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error)
@@ -315,10 +316,12 @@ core: type SessionMetadata struct { }
 core: type SessionReader interface { Load(ctx context.Context, id string) (Session, error) }
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
+core: type SnapshotBatchWriter interface { SaveBatch(context.Context, []SnapshotWrite) ([]uint64, error) }
 core: type SnapshotDeleter interface { Delete(context.Context, string) error }
 core: type SnapshotFailurePolicy uint8
 core: type SnapshotLister interface { List(context.Context) ([]string, error) }
 core: type SnapshotReader interface { Load(context.Context, string) (ProcessSnapshot, error) }
+core: type SnapshotWrite struct { Snapshot ProcessSnapshot ExpectedRevision uint64 }
 core: type SnapshotWriter interface { Save(context.Context, ProcessSnapshot, uint64) (uint64, error) }
 core: type StaticToolGroupResolver struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
@@ -632,6 +635,7 @@ runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sess
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") )
+runtime: var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
 runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
