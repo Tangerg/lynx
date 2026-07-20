@@ -74,7 +74,7 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 func TestProcessSnapshotFailedMarshalUsesEventEnvelope(t *testing.T) {
 	raw, err := json.Marshal(ProcessSnapshotFailed{
 		Header: NewHeader("proc"),
-		Policy: "report_only",
+		Policy: core.SnapshotFailureReportOnly,
 		Err:    errors.New("store unavailable"),
 	})
 	if err != nil {

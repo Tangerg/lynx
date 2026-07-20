@@ -163,7 +163,7 @@ func TestAutoSnapshotFailurePolicyReportOnlyPublishesDegradation(t *testing.T) {
 	if err != nil || proc.Status() != core.StatusCompleted {
 		t.Fatalf("reported run status=%s err=%v", proc.Status(), err)
 	}
-	if degraded.Policy != "report_only" || !errors.Is(degraded.Err, storeErr) {
+	if degraded.Policy != core.SnapshotFailureReportOnly || !errors.Is(degraded.Err, storeErr) {
 		t.Fatalf("degradation event = %#v", degraded)
 	}
 	if _, err := store.Load(t.Context(), proc.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {

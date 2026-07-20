@@ -362,6 +362,7 @@ Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated`
 `toolloop` 只复用同一类型，不再维护一份可能漂移的平行协议。
 ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
 稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
+自动快照失败事件也携带 `core.SnapshotFailurePolicy`，只有 JSON adapter 输出规范字符串。
 
 开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
 迁移文档一次性收口，不保留 alias/shim。`storetest` 是故意公开的外部实现 contract package，

@@ -122,8 +122,8 @@ func (ProcessWaiting) Kind() Kind { return KindProcessWaiting }
 // degraded rather than being represented as durable.
 type ProcessSnapshotFailed struct {
 	Header
-	Policy string `json:"policy"`
-	Err    error  `json:"-"`
+	Policy core.SnapshotFailurePolicy `json:"-"`
+	Err    error                      `json:"-"`
 }
 
 func (ProcessSnapshotFailed) Kind() Kind { return KindProcessSnapshotFailed }

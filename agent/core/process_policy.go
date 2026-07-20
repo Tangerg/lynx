@@ -5,6 +5,34 @@ import "context"
 // BudgetPolicyName is the built-in budget policy's extension identifier.
 const BudgetPolicyName = "budget-policy"
 
+// SnapshotFailurePolicy controls how a runtime reacts when automatic process
+// persistence fails.
+type SnapshotFailurePolicy uint8
+
+const (
+	SnapshotFailureFailProcess SnapshotFailurePolicy = iota
+	SnapshotFailurePauseProcess
+	SnapshotFailureReportOnly
+)
+
+// Valid reports whether p is a framework-defined failure policy.
+func (p SnapshotFailurePolicy) Valid() bool {
+	return p >= SnapshotFailureFailProcess && p <= SnapshotFailureReportOnly
+}
+
+func (p SnapshotFailurePolicy) String() string {
+	switch p {
+	case SnapshotFailureFailProcess:
+		return "fail_process"
+	case SnapshotFailurePauseProcess:
+		return "pause_process"
+	case SnapshotFailureReportOnly:
+		return "report_only"
+	default:
+		return "unknown"
+	}
+}
+
 // StuckPolicy is invoked when the planner returns no plan. The default is to
 // transition to StatusStuck; a policy may update the blackboard and request a
 // new planning pass.
