@@ -180,11 +180,11 @@ func (r childRun) create() (*Process, error) {
 	return child, nil
 }
 
-func (r childRun) bindings() map[string]any {
+func (r childRun) bindings() core.Bindings {
 	if r.input == nil {
-		return nil
+		return core.Bindings{}
 	}
-	return map[string]any{core.DefaultBindingName: r.input}
+	return core.Input(r.input)
 }
 
 func (r childRun) parentProcess() (*Process, error) {

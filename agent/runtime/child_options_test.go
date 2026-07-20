@@ -83,7 +83,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		mu         sync.Mutex
 		configured []string
 	)
-	process, err := engine.Run(t.Context(), root, map[string]any{core.DefaultBindingName: childPolicyInput{}}, core.ProcessOptions{
+	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
 		ChildOptions: func(_ context.Context, _ core.ProcessView, child *core.Agent) (core.ProcessOptions, error) {
 			dependencies := engine.Dependencies().Child()
 			if err := core.RegisterDependency(dependencies, childPolicyKey, child.Name()); err != nil {
@@ -145,7 +145,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("deploy root: %v", err)
 	}
 
-	process, done := engine.Start(t.Context(), root, map[string]any{core.DefaultBindingName: childPolicyInput{}}, core.ProcessOptions{})
+	process, done := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
 	select {
 	case <-started:
 	case <-time.After(time.Second):

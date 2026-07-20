@@ -33,7 +33,7 @@ var ErrProcessNotFound = errors.New("runtime: process not found")
 func (e *Engine) Run(
 	ctx context.Context,
 	agent *core.Agent,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if agent == nil {
@@ -49,7 +49,7 @@ func (e *Engine) Run(
 func (e *Engine) runDeployment(
 	ctx context.Context,
 	deployment *Deployment,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	process, err := e.createProcessFromDeployment(deployment, bindings, options)
@@ -94,7 +94,7 @@ func (e *Engine) RunInSession(
 	ctx context.Context,
 	agent *core.Agent,
 	session *core.Session,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if session == nil {
@@ -174,7 +174,7 @@ func (e *Engine) SessionStore() core.SessionStore { return e.sessionStore }
 func (e *Engine) Start(
 	ctx context.Context,
 	agent *core.Agent,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, <-chan error) {
 	done := make(chan error, 1)

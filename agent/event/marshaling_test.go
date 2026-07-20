@@ -49,9 +49,11 @@ func TestProcessCompletedMarshal_SummarizesOpaqueResult(t *testing.T) {
 }
 
 func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
+	var bindings core.Bindings
+	bindings.Set("input", func() {})
 	raw, err := json.Marshal(ProcessCreated{
 		Header:   NewHeader("proc"),
-		Bindings: map[string]any{"input": func() {}},
+		Bindings: bindings,
 	})
 	if err != nil {
 		t.Fatalf("MarshalJSON: %v", err)

@@ -549,6 +549,6 @@ func managedInteractionAgent(t *testing.T, name string, model chat.Model, regist
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
 }
 
-func managedInput() map[string]any {
-	return map[string]any{core.DefaultBindingName: struct{}{}}
+func managedInput() core.Bindings {
+	return core.Input(struct{}{})
 }

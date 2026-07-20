@@ -79,7 +79,7 @@ func main() {
 
 	process, err := engine.Run(
 		context.Background(), parent,
-		map[string]any{agent.DefaultBindingName: Topic{Title: "agent frameworks in 2026"}},
+		agent.Input(Topic{Title: "agent frameworks in 2026"}),
 		agent.ProcessOptions{},
 	)
 	if err != nil {

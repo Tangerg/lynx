@@ -44,7 +44,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruaIn{Topic: "test"}},
+		core.Input(ruaIn{Topic: "test"}),
 		core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -87,7 +87,7 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruaIn{Topic: "x"}},
+		core.Input(ruaIn{Topic: "x"}),
 		core.ProcessOptions{})
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
@@ -126,7 +126,7 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruaIn{Topic: "t"}},
+		core.Input(ruaIn{Topic: "t"}),
 		core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)

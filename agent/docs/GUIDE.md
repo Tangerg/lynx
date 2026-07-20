@@ -70,9 +70,12 @@ func main() {
     }
     fmt.Println("deployed", deployment.Ref())
 
-    process, err := engine.Run(context.Background(), writer, map[string]any{
-        agent.DefaultBindingName: Topic{Title: "Go agents"},
-    }, agent.ProcessOptions{})
+    process, err := engine.Run(
+        context.Background(),
+        writer,
+        agent.Input(Topic{Title: "Go agents"}),
+        agent.ProcessOptions{},
+    )
     if err != nil {
         panic(err)
     }
@@ -83,6 +86,12 @@ func main() {
     fmt.Println(post.Body)
 }
 ```
+
+运行入口接收零值可用的 `core.Bindings`，不接收裸 `map[string]any`。单输入使用
+`agent.Input(value)`；多个命名输入先声明一个 `agent.Bindings`，再调用 `Set`。Runtime 在创建
+Process 时复制绑定容器，因此调用方后续增删绑定不会改写运行中的黑板。自定义 Blackboard 的
+持久化能力通过 `runtime.BlackboardSnapshotter` / `runtime.BlackboardRestorer` 交换一个
+`runtime.BlackboardState`，不再依赖多返回值的位置约定。
 
 完整示例见 [`../examples/hello`](../examples/hello)、[`../examples/blog`](../examples/blog)
 和 [`../examples/blogllm`](../examples/blogllm)。

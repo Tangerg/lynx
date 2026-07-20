@@ -304,15 +304,15 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 	if !ok {
 		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: blackboard does not support durable capture")
 	}
-	named, conditions, objects, err := snapshotter.Snapshot()
+	blackboardState, err := snapshotter.Snapshot()
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: capture blackboard: %w", err)
 	}
-	snapshot.Blackboard, snapshot.Objects, err = p.agent().EncodeBlackboard(named, objects)
+	snapshot.Blackboard, snapshot.Objects, err = p.agent().EncodeBlackboard(blackboardState.Bindings, blackboardState.Objects)
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: encode blackboard: %w", err)
 	}
-	snapshot.Conditions = conditions
+	snapshot.Conditions = blackboardState.Conditions
 	if err := snapshot.Validate(); err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
 	}
@@ -430,11 +430,15 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	if !ok {
 		return nil, errors.New("runtime.Engine.RestoreSnapshot: blackboard does not support durable restore")
 	}
-	named, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
+	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: decode blackboard: %w", err)
 	}
-	if err := restorer.Restore(named, snapshot.Conditions, objects); err != nil {
+	if err := restorer.Restore(BlackboardState{
+		Bindings:   bindings,
+		Conditions: snapshot.Conditions,
+		Objects:    objects,
+	}); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: restore blackboard: %w", err)
 	}
 

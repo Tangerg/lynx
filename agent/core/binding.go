@@ -1,6 +1,8 @@
 package core
 
 import (
+	"iter"
+	"maps"
 	"reflect"
 	"strings"
 )
@@ -15,6 +17,47 @@ const (
 	// object regardless of type.
 	LastResultBindingName = "last_result"
 )
+
+// Bindings is an ownership-aware set of initial blackboard values. Its zero
+// value is an empty set ready for use. Clone copies the container so runtime
+// processes never retain a caller-owned map; stored values themselves are not
+// deep-copied because blackboard values may be arbitrary Go objects.
+type Bindings struct {
+	values map[string]any
+}
+
+// Input returns bindings containing value under [DefaultBindingName].
+func Input(value any) Bindings {
+	var bindings Bindings
+	bindings.Set(DefaultBindingName, value)
+	return bindings
+}
+
+// Set associates value with name.
+func (b *Bindings) Set(name string, value any) {
+	if b.values == nil {
+		b.values = make(map[string]any)
+	}
+	b.values[name] = value
+}
+
+// Get returns the value associated with name.
+func (b Bindings) Get(name string) (any, bool) {
+	value, ok := b.values[name]
+	return value, ok
+}
+
+// Delete removes name from b.
+func (b *Bindings) Delete(name string) { delete(b.values, name) }
+
+// Len returns the number of bindings.
+func (b Bindings) Len() int { return len(b.values) }
+
+// All returns an iterator over the bindings. Iteration order is unspecified.
+func (b Bindings) All() iter.Seq2[string, any] { return maps.All(b.values) }
+
+// Clone returns an independent copy of the binding container.
+func (b Bindings) Clone() Bindings { return Bindings{values: maps.Clone(b.values)} }
 
 // Binding identifies a typed slot on the blackboard: a variable name plus
 // a stable string describing its Go type. The string form ("name:Type") is

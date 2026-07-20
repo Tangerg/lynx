@@ -96,7 +96,7 @@ func TestRouter_RunInstallsTargetGoalApprover(t *testing.T) {
 	}, routing.Config{})
 
 	choice, proc, err := auto.Run(t.Context(), "anything",
-		map[string]any{core.DefaultBindingName: chooseIn{Topic: "x"}},
+		core.Input(chooseIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {

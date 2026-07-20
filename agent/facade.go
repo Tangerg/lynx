@@ -34,6 +34,7 @@ type (
 	ProcessStatus    = core.ProcessStatus
 	Extension        = core.Extension
 	Session          = core.Session
+	Bindings         = core.Bindings
 	RetryPolicy      = core.RetryPolicy
 	RetrySafety      = core.RetrySafety
 
@@ -93,6 +94,9 @@ const (
 
 // New constructs a read-only Agent definition from ordinary Go config.
 func New(config AgentConfig) *Agent { return core.NewAgent(config) }
+
+// Input returns initial blackboard bindings for one conventional input value.
+func Input(value any) Bindings { return core.Input(value) }
 
 // NewGoal constructs an immutable Goal from ordinary Go config.
 func NewGoal(config GoalConfig) *Goal { return core.NewGoal(config) }

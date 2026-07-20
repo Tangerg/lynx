@@ -64,7 +64,7 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 	}
 
 	proc, err := engine.Run(t.Context(), wf,
-		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
+		core.Input(paIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -108,7 +108,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 	mustDeploy(t, engine, wf)
 
 	proc, _ := engine.Run(t.Context(), wf,
-		map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
+		core.Input(paIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusFailed {
@@ -184,7 +184,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 		done := make(chan runResult, 1)
 		go func() {
 			process, runErr := engine.Run(t.Context(), wf,
-				map[string]any{core.DefaultBindingName: paIn{Topic: "x"}},
+				core.Input(paIn{Topic: "x"}),
 				core.ProcessOptions{},
 			)
 			done <- runResult{process: process, err: runErr}

@@ -21,7 +21,7 @@ func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 	mustDeploy(t, engine, buildSnapshotAgent())
 
 	proc, err := engine.Run(context.Background(), buildSnapshotAgent(),
-		map[string]any{core.DefaultBindingName: ssWord{Text: "x"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "x"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}

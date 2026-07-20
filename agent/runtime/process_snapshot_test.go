@@ -67,7 +67,7 @@ func TestEngine_SaveProcess_NoStore(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}},
+		core.Input(ssWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestEngine_SaveAndRestore_RoundTrip(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}},
+		core.Input(ssWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -175,7 +175,7 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 
 	ctx := context.Background()
 	proc, done := engine.Start(ctx, buildGate(),
-		map[string]any{core.DefaultBindingName: ssWord{Text: "hi"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "hi"}), core.ProcessOptions{})
 	<-done
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("after start: status = %v, want waiting", proc.Status())
@@ -236,7 +236,7 @@ func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *test
 	first := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: store})
 	mustDeploy(t, first, buildGate())
 	process, done := first.Start(t.Context(), buildGate(),
-		map[string]any{core.DefaultBindingName: ssWord{Text: "hi"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "hi"}), core.ProcessOptions{})
 	if err := <-done; err != nil {
 		t.Fatalf("start waiting process: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestSnapshot_JSONRoundTrip_PreservesConcreteType(t *testing.T) {
 	mustDeploy(t, engine, buildSnapshotAgent())
 
 	proc, err := engine.Run(context.Background(), buildSnapshotAgent(),
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestSnapshotStrictDurableAndExplicitTransientBlackboard(t *testing.T) {
 	mustDeploy(t, engine, a)
 	blackboard := engine.NewBlackboard()
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{Blackboard: blackboard})
+		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{Blackboard: blackboard})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ func TestSnapshotRejectsDeclaredButUnencodableDurableValue(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
 	a := buildSnapshotAgent()
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,7 +452,7 @@ func TestRestoreRejectsUnknownTaggedBlackboardType(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "unknown-tag"})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +477,7 @@ func TestEngineRestorePausedProcessFromDurableBlackboardState(t *testing.T) {
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine1, a)
 	proc, err := engine1.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ssWord{Text: "input"}}, core.ProcessOptions{})
+		core.Input(ssWord{Text: "input"}), core.ProcessOptions{})
 	if err != nil || proc.Status() != core.StatusPaused {
 		t.Fatalf("first run status=%s err=%v", proc.Status(), err)
 	}

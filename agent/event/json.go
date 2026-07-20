@@ -47,7 +47,7 @@ type processCreatedPayload struct {
 }
 
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, processCreatedPayload{Bindings: summarizeMap(e.Bindings)})
+	return emit(e, processCreatedPayload{Bindings: summarizeBindings(e.Bindings)})
 }
 
 type processCompletedPayload struct {
@@ -333,12 +333,12 @@ func summarizeValue(value any) any {
 	return decoded
 }
 
-func summarizeMap(values map[string]any) map[string]any {
-	if len(values) == 0 {
+func summarizeBindings(bindings core.Bindings) map[string]any {
+	if bindings.Len() == 0 {
 		return nil
 	}
-	summary := make(map[string]any, len(values))
-	for key, value := range values {
+	summary := make(map[string]any, bindings.Len())
+	for key, value := range bindings.All() {
 		summary[key] = summarizeValue(value)
 	}
 	return summary

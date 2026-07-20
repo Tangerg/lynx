@@ -29,10 +29,9 @@ func snapshotAgent() *core.Agent {
 
 func TestAgentBlackboardCodecRoundTrip(t *testing.T) {
 	agent := snapshotAgent()
-	named := map[string]any{
-		"input": snapshotInput{Text: "lynx"},
-		"count": 4,
-	}
+	var named core.Bindings
+	named.Set("input", snapshotInput{Text: "lynx"})
+	named.Set("count", 4)
 	objects := []any{snapshotOutput{Count: 4}, "done"}
 
 	taggedNamed, taggedObjects, err := agent.EncodeBlackboard(named, objects)
@@ -43,8 +42,11 @@ func TestAgentBlackboardCodecRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodeBlackboard: %v", err)
 	}
-	if !reflect.DeepEqual(decodedNamed, named) {
-		t.Fatalf("named = %#v, want %#v", decodedNamed, named)
+	for name, want := range named.All() {
+		got, ok := decodedNamed.Get(name)
+		if !ok || !reflect.DeepEqual(got, want) {
+			t.Fatalf("binding %q = %#v, want %#v", name, got, want)
+		}
 	}
 	if !reflect.DeepEqual(decodedObjects, objects) {
 		t.Fatalf("objects = %#v, want %#v", decodedObjects, objects)
@@ -53,7 +55,7 @@ func TestAgentBlackboardCodecRoundTrip(t *testing.T) {
 
 func TestAgentBlackboardCodecRejectsNilReceiver(t *testing.T) {
 	var agent *core.Agent
-	if _, _, err := agent.EncodeBlackboard(nil, nil); err == nil {
+	if _, _, err := agent.EncodeBlackboard(core.Bindings{}, nil); err == nil {
 		t.Fatal("EncodeBlackboard accepted nil agent")
 	}
 	if _, _, err := agent.DecodeBlackboard(nil, nil); err == nil {

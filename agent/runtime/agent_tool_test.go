@@ -51,7 +51,7 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 
 	proc, err := engine.Run(
 		t.Context(), parent,
-		map[string]any{core.DefaultBindingName: subInput{Value: 21}},
+		core.Input(subInput{Value: 21}),
 		core.ProcessOptions{},
 	)
 	if err != nil {

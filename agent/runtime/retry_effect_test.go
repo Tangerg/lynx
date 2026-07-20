@@ -39,7 +39,7 @@ func TestRetryClearsEffectConditions(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -70,7 +70,7 @@ func TestActionFailureRunsOnceByDefault(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestExplicitRetryPolicyHonorsMaxAttempts(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+		core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

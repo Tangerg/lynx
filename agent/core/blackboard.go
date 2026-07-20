@@ -70,8 +70,8 @@ type BlackboardWriter interface {
 	// durable. Use it for handles, clients, channels, and other runtime state.
 	BindTransient(value any)
 
-	// StoreAll stores each map entry — convenience for seeding.
-	StoreAll(m map[string]any)
+	// StoreAll stores each binding — convenience for seeding.
+	StoreAll(bindings Bindings)
 
 	// StoreProtected marks a key so Clone() preserves it on child blackboards
 	// even when the rest of the state is forked. Useful for session tokens

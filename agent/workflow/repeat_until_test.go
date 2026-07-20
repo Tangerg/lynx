@@ -48,7 +48,7 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: refine{Tag: "orig"}},
+		core.Input(refine{Tag: "orig"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 	}
 	var proc *runtime.Process
 	proc, err = engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruIn{Target: 4}},
+		core.Input(ruIn{Target: 4}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -137,7 +137,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruIn{Target: 999}},
+		core.Input(ruIn{Target: 999}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusCompleted {
@@ -175,7 +175,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: ruIn{Target: 0}},
+		core.Input(ruIn{Target: 0}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusCompleted {

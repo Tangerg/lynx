@@ -55,7 +55,7 @@ func main() {
 	process, err := engine.Run(
 		context.Background(),
 		a,
-		map[string]any{agent.DefaultBindingName: Topic{Title: "agent-frameworks"}},
+		agent.Input(Topic{Title: "agent-frameworks"}),
 		agent.ProcessOptions{},
 	)
 	if err != nil {

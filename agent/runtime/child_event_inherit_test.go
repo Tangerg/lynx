@@ -72,7 +72,7 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	capture := &pidCapture{}
 	proc, err := engine.Run(
 		t.Context(), parent,
-		map[string]any{core.DefaultBindingName: subInput{Value: 21}},
+		core.Input(subInput{Value: 21}),
 		// Process-scope ONLY — the listener is not on Config.
 		core.ProcessOptions{Extensions: []core.Extension{capture}},
 	)
@@ -105,8 +105,9 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		if ev.ProcessID() == proc.ID() {
 			continue
 		}
-		in, ok := ev.Bindings[core.DefaultBindingName].(subInput)
-		if !ok || in.Value != 21 {
+		value, exists := ev.Bindings.Get(core.DefaultBindingName)
+		in, ok := value.(subInput)
+		if !exists || !ok || in.Value != 21 {
 			t.Fatalf("child ProcessCreated bindings = %#v, want subInput{21}", ev.Bindings)
 		}
 		childID = ev.ProcessID()

@@ -340,7 +340,7 @@ func deployNestedAgents(t *testing.T, engine *runtime.Engine, twoSuspensions boo
 
 func runNestedParent(t *testing.T, engine *runtime.Engine, parent *core.Agent) *runtime.Process {
 	t.Helper()
-	process, err := engine.Run(t.Context(), parent, map[string]any{core.DefaultBindingName: struct{}{}}, core.ProcessOptions{})
+	process, err := engine.Run(t.Context(), parent, core.Input(struct{}{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run parent: %v", err)
 	}
@@ -540,7 +540,7 @@ func TestAgentToolDirectNestedSuspensionResumesOriginalChild(t *testing.T) {
 	process, err := engine.Run(
 		t.Context(),
 		parent,
-		map[string]any{core.DefaultBindingName: struct{}{}},
+		core.Input(struct{}{}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -783,7 +783,7 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 		t.Context(),
 		parent1,
 		&rootSession,
-		map[string]any{core.DefaultBindingName: struct{}{}},
+		core.Input(struct{}{}),
 		core.ProcessOptions{},
 	)
 	if err != nil {

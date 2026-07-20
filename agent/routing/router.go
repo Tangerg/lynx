@@ -188,7 +188,7 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 func (r *Router) Run(
 	ctx context.Context,
 	input string,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (Choice, *runtime.Process, error) {
 	choice, err := r.Choose(ctx, input)

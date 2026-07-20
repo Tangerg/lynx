@@ -33,7 +33,7 @@ func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
 		t.Fatalf("deploy parent: %v", err)
 	}
 	parent, err := engine.Run(t.Context(), parentDef,
-		map[string]any{core.DefaultBindingName: subInput{Value: 1}}, core.ProcessOptions{})
+		core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run parent: %v", err)
 	}

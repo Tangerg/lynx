@@ -90,7 +90,7 @@ func TestChatProvider_OverridesEngineClient(t *testing.T) {
 
 	_, err := engine.Run(
 		t.Context(), a,
-		map[string]any{core.DefaultBindingName: callIn{V: 1}},
+		core.Input(callIn{V: 1}),
 		core.ProcessOptions{
 			Extensions: []core.Extension{
 				fixedClientProvider{name: "per-run-model", client: overrideClient},
@@ -123,7 +123,7 @@ func TestChatProvider_FallsBackToEngine(t *testing.T) {
 	// A provider that defers (nil) must not shadow the engine client.
 	_, err := engine.Run(
 		t.Context(), a,
-		map[string]any{core.DefaultBindingName: callIn{V: 1}},
+		core.Input(callIn{V: 1}),
 		core.ProcessOptions{
 			Extensions: []core.Extension{
 				fixedClientProvider{name: "defers", client: nil},
@@ -151,7 +151,7 @@ func TestChatProvider_TypedNilFallsBackToEngine(t *testing.T) {
 
 	_, err := engine.Run(
 		t.Context(), a,
-		map[string]any{core.DefaultBindingName: callIn{V: 1}},
+		core.Input(callIn{V: 1}),
 		core.ProcessOptions{
 			Extensions: []core.Extension{
 				fixedClientProvider{name: "typed-nil", client: typedNil},
@@ -187,7 +187,7 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 	process, err := engine.Run(
 		t.Context(),
 		a,
-		map[string]any{core.DefaultBindingName: callIn{V: 1}},
+		core.Input(callIn{V: 1}),
 		core.ProcessOptions{Extensions: []core.Extension{streamingOnlyProvider{}}},
 	)
 	if err != nil {

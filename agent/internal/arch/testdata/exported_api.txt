@@ -5,6 +5,7 @@
 .: const ( DefaultBindingName = core.DefaultBindingName Unknown = core.Unknown True = core.True False = core.False StatusNotStarted = core.StatusNotStarted StatusRunning = core.StatusRunning StatusCompleted = core.StatusCompleted StatusFailed = core.StatusFailed StatusStuck = core.StatusStuck StatusWaiting = core.StatusWaiting StatusPaused = core.StatusPaused StatusTerminated = core.StatusTerminated StatusKilled = core.StatusKilled RetrySafetyUnspecified = core.RetrySafetyUnspecified RetrySafetyIdempotent = core.RetrySafetyIdempotent RetrySafetyCompensated = core.RetrySafetyCompensated )
 .: const ( SuspensionSchemaVersion = interaction.SuspensionSchemaVersion SuspensionHuman = interaction.SuspensionHuman SuspensionTool = interaction.SuspensionTool InteractionEventModelRequest = interaction.EventModelRequest InteractionEventModelResponse = interaction.EventModelResponse InteractionEventToolCall = interaction.EventToolCall InteractionEventToolResult = interaction.EventToolResult InteractionEventPause = interaction.EventPause InteractionEventResume = interaction.EventResume InteractionStopNone = interaction.StopNone InteractionStopBudget = interaction.StopBudget InteractionStopSteps = interaction.StopSteps )
 .: func DefaultRetryPolicy() RetryPolicy
+.: func Input(value any) Bindings
 .: func MustNewEngine(config EngineConfig) *Engine
 .: func New(config AgentConfig) *Agent
 .: func NewAction[In, Out any](name string, fn func(context.Context, *ProcessContext, In) (Out, error), config ActionConfig) *FuncAction[In, Out]
@@ -20,6 +21,7 @@
 .: type ActionConfig = core.ActionConfig
 .: type Agent = core.Agent
 .: type AgentConfig = core.AgentConfig
+.: type Bindings = core.Bindings
 .: type ChatCapability = core.ChatCapability
 .: type ChildOptionsFunc = core.ChildOptionsFunc
 .: type Condition = core.Condition
@@ -63,9 +65,9 @@ core: const ProcessSnapshotSchemaVersion uint16 = 2
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
 core: func (a *Agent) Conditions() []Condition
-core: func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (map[string]any, []any, error)
+core: func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error)
 core: func (a *Agent) Description() string
-core: func (a *Agent) EncodeBlackboard(named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error)
+core: func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]TaggedValue, []TaggedValue, error)
 core: func (a *Agent) Goals() []*Goal
 core: func (a *Agent) Name() string
 core: func (a *Agent) PlannerName() string
@@ -74,8 +76,14 @@ core: func (a *Agent) Validate() error
 core: func (a *Agent) Version() string
 core: func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessContext) (ActionStatus, error)
 core: func (a *FuncAction[In, Out]) Metadata() ActionMetadata
+core: func (b *Bindings) Delete(name string)
+core: func (b *Bindings) Set(name string, value any)
 core: func (b Binding) IsDefault() bool
 core: func (b Binding) String() string
+core: func (b Bindings) All() iter.Seq2[string, any]
+core: func (b Bindings) Clone() Bindings
+core: func (b Bindings) Get(name string) (any, bool)
+core: func (b Bindings) Len() int
 core: func (c *FuncCondition) Cost() float64
 core: func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 core: func (c *FuncCondition) Name() string
@@ -170,6 +178,7 @@ core: func DefaultRetryPolicy() RetryPolicy
 core: func FixedScore(value float64) ScoreFunc
 core: func FormatBlackboard(blackboard BlackboardReader, verbose bool) string
 core: func Get[T any](blackboard BlackboardReader, name string) (T, bool)
+core: func Input(value any) Bindings
 core: func Last[T any](blackboard BlackboardReader) (T, bool)
 core: func LookupDependency[T any](dependencies *Dependencies, key DependencyKey[T]) (T, error)
 core: func MustDependencyKey[T any](name string) DependencyKey[T]
@@ -217,9 +226,10 @@ core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition PlannerName string }
 core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
+core: type Bindings struct { }
 core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() Blackboard ClearWorkingState() }
 core: type BlackboardReader interface { ID() string Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) Inspect(verbose bool) string }
-core: type BlackboardWriter interface { Store(key string, value any) StoreTransient(key string, value any) Add(value any) AddTransient(value any) Bind(value any) BindTransient(value any) StoreAll(m map[string]any) StoreProtected(key string, value any) Hide(target any) StoreCondition(key string, value bool) }
+core: type BlackboardWriter interface { Store(key string, value any) StoreTransient(key string, value any) Add(value any) AddTransient(value any) Bind(value any) BindTransient(value any) StoreAll(bindings Bindings) StoreProtected(key string, value any) Hide(target any) StoreCondition(key string, value bool) }
 core: type Budget struct { CostLimit float64 ActionLimit int TokenLimit int }
 core: type BudgetPolicy struct { Budget Budget }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
@@ -369,7 +379,7 @@ event: type NamedListener struct { }
 event: type PlanCreated struct { Header Plan *planning.Plan `json:"-"` }
 event: type PlanningStarted struct { Header State core.WorldState `json:"-"` }
 event: type ProcessCompleted struct { Header Goal *core.Goal `json:"-"` Result any `json:"-"` }
-event: type ProcessCreated struct { Header Bindings map[string]any `json:"bindings,omitempty"` }
+event: type ProcessCreated struct { Header Bindings core.Bindings `json:"bindings,omitzero"` }
 event: type ProcessFailed struct { Header Err error `json:"-"` }
 event: type ProcessKilled struct { Header Reason string `json:"reason,omitempty"` }
 event: type ProcessSnapshotFailed struct { Header Policy string `json:"policy"` Err error `json:"-"` }
@@ -483,7 +493,7 @@ routing: func (c Candidate) String() string
 routing: func (r *ModelRanker) Rank(ctx context.Context, userInput string, candidates []Candidate) ([]Choice, error)
 routing: func (r *Router) Candidates() []Candidate
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
-routing: func (r *Router) Run( ctx context.Context, input string, bindings map[string]any, options core.ProcessOptions, ) (Choice, *runtime.Process, error)
+routing: func (r *Router) Run( ctx context.Context, input string, bindings core.Bindings, options core.ProcessOptions, ) (Choice, *runtime.Process, error)
 routing: func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error)
 routing: func NewModelRanker(model chat.Model, config ModelConfig) (*ModelRanker, error)
 routing: type Candidate struct { }
@@ -523,17 +533,17 @@ runtime: func (e *Engine) RestoreResumable(ctx context.Context, processID string
 runtime: func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error)
 runtime: func (e *Engine) Resume(id, suspensionID string, response any) error
-runtime: func (e *Engine) Run( ctx context.Context, agent *core.Agent, bindings map[string]any, options core.ProcessOptions, ) (*Process, error)
+runtime: func (e *Engine) Run( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
-runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session *core.Session, bindings map[string]any, options core.ProcessOptions, ) (*Process, error)
-runtime: func (e *Engine) RunTeam( ctx context.Context, config TeamConfig, bindings map[string]any, options core.ProcessOptions, ) (*Process, error)
+runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session *core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
+runtime: func (e *Engine) RunTeam( ctx context.Context, config TeamConfig, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
 runtime: func (e *Engine) SessionStore() core.SessionStore
 runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
-runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings map[string]any, options core.ProcessOptions, ) (*Process, <-chan error)
+runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error)
 runtime: func (e *Engine) StartChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, <-chan error, error)
 runtime: func (e *Engine) Undeploy(name string) error
 runtime: func (p *Process) Blackboard() core.BlackboardReader
@@ -562,8 +572,9 @@ runtime: func NewChatGuardrails(config ChatGuardrailsConfig) (*core.ChatGuardrai
 runtime: func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration time.Duration Status core.ActionStatus Attempts int }
-runtime: type BlackboardRestorer interface { Restore(named map[string]any, conditions map[string]bool, objects []any) error }
-runtime: type BlackboardSnapshotter interface { Snapshot() (named map[string]any, conditions map[string]bool, objects []any, err error) }
+runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
+runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
+runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
 runtime: type ChatGuardrailsConfig struct { HistoryStore chathistory.Store MaxToolRounds int }
 runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore ChildSessionStore core.SessionStore Extensions []core.Extension }
 runtime: type Deployment struct { }

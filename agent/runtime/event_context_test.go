@@ -98,7 +98,7 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -131,7 +131,7 @@ func TestProcessContextSuspendKeepsActionTrace(t *testing.T) {
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	proc, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	proc, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -167,7 +167,7 @@ func TestProcessContextRecordModelCallKeepsActionTrace(t *testing.T) {
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -200,7 +200,7 @@ func TestProcessContextPublishKeepsActionTrace(t *testing.T) {
 
 	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
-	_, err := engine.Run(ctx, a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()
 	if err != nil {
 		t.Fatalf("Run: %v", err)

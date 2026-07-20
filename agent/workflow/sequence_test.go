@@ -58,7 +58,7 @@ func TestSequence_TwoStepChain(t *testing.T) {
 
 	var proc *runtime.Process
 	proc, err = engine.Run(t.Context(), pipeline,
-		map[string]any{core.DefaultBindingName: seqTopic{Word: "agents"}},
+		core.Input(seqTopic{Word: "agents"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -100,7 +100,7 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 	mustDeploy(t, engine, pipeline)
 
 	proc, _ := engine.Run(t.Context(), pipeline,
-		map[string]any{core.DefaultBindingName: seqTopic{Word: "x"}},
+		core.Input(seqTopic{Word: "x"}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusFailed {

@@ -141,7 +141,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
 	process, done := e.runtime.Start(ctx, e.agent,
-		map[string]any{core.DefaultBindingName: input},
+		core.Input(input),
 		processOptions,
 	)
 	if process == nil {
