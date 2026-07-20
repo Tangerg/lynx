@@ -372,14 +372,14 @@ func TestEngine_RestoreProcess_AgentNotDeployed(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-missing-agent-test", ProcessStore: store})
 
 	started := time.Now().Add(-time.Second)
-	_, _ = store.Save(context.Background(), core.ProcessSnapshot{
+	_ = store.Save(context.Background(), core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "orphan",
 		Deployment:    core.DeploymentRef{Name: "never-deployed", Digest: "missing"},
 		StartedAt:     started,
 		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
-	}, 0)
+	})
 
 	if _, err := engine.Restore(context.Background(), "orphan", core.ProcessOptions{}); err == nil {
 		t.Error("expected error when agent not deployed")

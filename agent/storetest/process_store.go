@@ -39,19 +39,18 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	}
 	wrongSchema := snapshot
 	wrongSchema.SchemaVersion++
-	if _, err := store.Save(ctx, wrongSchema, 0); !errors.Is(err, core.ErrSnapshotSchema) {
+	if err := store.Save(ctx, wrongSchema); !errors.Is(err, core.ErrSnapshotSchema) {
 		return fmt.Errorf("storetest: unsupported schema error = %w", err)
 	}
 	invalidWire := snapshot
 	invalidWire.Blackboard = map[string]core.TaggedValue{
 		"invalid": {Type: "string", Value: []byte("{")},
 	}
-	if _, err := store.Save(ctx, invalidWire, 0); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(ctx, invalidWire); !errors.Is(err, core.ErrInvalidSnapshot) {
 		return fmt.Errorf("storetest: invalid serialized state error = %w", err)
 	}
-	revision, err := store.Save(ctx, snapshot, 0)
-	if err != nil || revision != 1 {
-		return fmt.Errorf("storetest: create revision = %d: %w", revision, err)
+	if err := store.Save(ctx, snapshot); err != nil {
+		return fmt.Errorf("storetest: create snapshot: %w", err)
 	}
 	loaded, err := store.Load(ctx, id)
 	if err != nil || loaded.Revision != 1 || !loaded.Conditions["durable"] {
@@ -71,8 +70,7 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 		candidate.OwnTokens = tokens
 		wait.Go(func() {
 			<-start
-			_, saveErr := store.Save(ctx, candidate, 1)
-			results <- saveErr
+			results <- store.Save(ctx, candidate)
 		})
 	}
 	close(start)
@@ -157,21 +155,14 @@ func testSnapshotBatchWriter(
 	}
 	first := newSnapshot(firstID, 1)
 	second := newSnapshot(secondID, 2)
-	revisions, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
-		{Snapshot: first, ExpectedRevision: 0},
-		{Snapshot: second, ExpectedRevision: 0},
-	})
-	if err != nil || len(revisions) != 2 || revisions[0] != 1 || revisions[1] != 1 {
-		return fmt.Errorf("storetest: SaveBatch create revisions = %v: %w", revisions, err)
+	if err := writer.SaveBatch(ctx, []core.ProcessSnapshot{first, second}); err != nil {
+		return fmt.Errorf("storetest: SaveBatch create: %w", err)
 	}
 
 	first.Revision = 1
 	first.OwnTokens = 10
 	second.OwnTokens = 20 // Deliberately stale: its durable revision is 1.
-	if _, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
-		{Snapshot: first, ExpectedRevision: 1},
-		{Snapshot: second, ExpectedRevision: 0},
-	}); !errors.Is(err, core.ErrRevisionConflict) {
+	if err := writer.SaveBatch(ctx, []core.ProcessSnapshot{first, second}); !errors.Is(err, core.ErrRevisionConflict) {
 		return fmt.Errorf("storetest: stale SaveBatch error = %w", err)
 	}
 	storedFirst, err := store.Load(ctx, firstID)
@@ -187,10 +178,7 @@ func testSnapshotBatchWriter(
 	}
 
 	duplicate := newSnapshot(prefix+"-batch-duplicate", 3)
-	if _, err := writer.SaveBatch(ctx, []core.SnapshotWrite{
-		{Snapshot: duplicate, ExpectedRevision: 0},
-		{Snapshot: duplicate, ExpectedRevision: 0},
-	}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := writer.SaveBatch(ctx, []core.ProcessSnapshot{duplicate, duplicate}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		return fmt.Errorf("storetest: duplicate SaveBatch error = %w", err)
 	}
 	if _, err := store.Load(ctx, duplicate.ID); !errors.Is(err, core.ErrSnapshotNotFound) {

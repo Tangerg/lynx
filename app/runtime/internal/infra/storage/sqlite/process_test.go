@@ -55,20 +55,18 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 	snapshot := validStoredSnapshot("proc-1", core.StatusWaiting)
 	snapshot.Conditions = map[string]bool{"k": true}
 
-	revision, err := store.Save(ctx, snapshot, 0)
-	if err != nil || revision != 1 {
-		t.Fatalf("first Save = revision %d, err %v", revision, err)
+	if err := store.Save(ctx, snapshot); err != nil {
+		t.Fatalf("first Save: %v", err)
 	}
 	stale := snapshot
-	if _, err := store.Save(ctx, stale, 0); !errors.Is(err, core.ErrRevisionConflict) {
+	if err := store.Save(ctx, stale); !errors.Is(err, core.ErrRevisionConflict) {
 		t.Fatalf("stale Save error = %v", err)
 	}
-	snapshot.Revision = revision
+	snapshot.Revision = 1
 	snapshot.Status = core.StatusCompleted
 	snapshot.Suspension = nil
-	revision, err = store.Save(ctx, snapshot, revision)
-	if err != nil || revision != 2 {
-		t.Fatalf("second Save = revision %d, err %v", revision, err)
+	if err := store.Save(ctx, snapshot); err != nil {
+		t.Fatalf("second Save: %v", err)
 	}
 
 	got, err := store.Load(ctx, snapshot.ID)
@@ -85,8 +83,7 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			<-start
-			_, saveErr := store.Save(ctx, candidate, 2)
-			results <- saveErr
+			results <- store.Save(ctx, candidate)
 		}()
 	}
 	close(start)
@@ -128,7 +125,7 @@ func TestProcessStoreLoadCorruptSnapshotIsInvalidSentinel(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewProcessStore(db)
 	snapshot := validStoredSnapshot("proc-corrupt", core.StatusCompleted)
-	if _, err := store.Save(t.Context(), snapshot, 0); err != nil {
+	if err := store.Save(t.Context(), snapshot); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, snapshot.ID); err != nil {
@@ -143,7 +140,7 @@ func TestProcessStoreListDeleteIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store := newProcessStore(t)
 	for _, id := range []string{"a", "b"} {
-		if _, err := store.Save(ctx, validStoredSnapshot(id, core.StatusCompleted), 0); err != nil {
+		if err := store.Save(ctx, validStoredSnapshot(id, core.StatusCompleted)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -174,7 +171,7 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	grandchild.Depth = 2
 	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
 	for _, snapshot := range []core.ProcessSnapshot{root, child, grandchild, unrelated} {
-		if _, err := store.Save(ctx, snapshot, 0); err != nil {
+		if err := store.Save(ctx, snapshot); err != nil {
 			t.Fatalf("Save(%s): %v", snapshot.ID, err)
 		}
 	}

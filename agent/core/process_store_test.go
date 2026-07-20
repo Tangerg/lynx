@@ -28,9 +28,9 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 	snapshot := validSnapshot("p-1")
 	snapshot.OwnTokens = 1500
 
-	revision, err := store.Save(ctx, snapshot, 0)
-	if err != nil || revision != 1 {
-		t.Fatalf("first Save = revision %d, err %v", revision, err)
+	err := store.Save(ctx, snapshot)
+	if err != nil {
+		t.Fatalf("first Save: %v", err)
 	}
 	loaded, err := store.Load(ctx, snapshot.ID)
 	if err != nil || loaded.Revision != 1 || loaded.OwnTokens != 1500 {
@@ -42,15 +42,14 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 		t.Fatal("Load returned mutable stored state")
 	}
 
-	snapshot.Revision = revision
+	snapshot.Revision = 1
 	snapshot.OwnTokens = 2000
-	revision, err = store.Save(ctx, snapshot, 1)
-	if err != nil || revision != 2 {
-		t.Fatalf("second Save = revision %d, err %v", revision, err)
+	if err := store.Save(ctx, snapshot); err != nil {
+		t.Fatalf("second Save: %v", err)
 	}
 	stale := snapshot
 	stale.Revision = 1
-	if _, err := store.Save(ctx, stale, 1); !errors.Is(err, core.ErrRevisionConflict) {
+	if err := store.Save(ctx, stale); !errors.Is(err, core.ErrRevisionConflict) {
 		t.Fatalf("stale Save error = %v", err)
 	} else {
 		var conflict *core.RevisionConflictError
@@ -67,22 +66,16 @@ func TestMemoryProcessStoreSaveBatchIsAtomic(t *testing.T) {
 	second := validSnapshot("second")
 	second.OwnTokens = 2
 
-	revisions, err := store.SaveBatch(t.Context(), []core.SnapshotWrite{
-		{Snapshot: first, ExpectedRevision: 0},
-		{Snapshot: second, ExpectedRevision: 0},
-	})
-	if err != nil || len(revisions) != 2 || revisions[0] != 1 || revisions[1] != 1 {
-		t.Fatalf("first SaveBatch = %v, %v, want [1 1]", revisions, err)
+	err := store.SaveBatch(t.Context(), []core.ProcessSnapshot{first, second})
+	if err != nil {
+		t.Fatalf("first SaveBatch: %v", err)
 	}
 
 	first.Revision = 1
 	first.OwnTokens = 10
 	second.Revision = 0 // stale: durable revision is already 1.
 	second.OwnTokens = 20
-	_, err = store.SaveBatch(t.Context(), []core.SnapshotWrite{
-		{Snapshot: first, ExpectedRevision: 1},
-		{Snapshot: second, ExpectedRevision: 0},
-	})
+	err = store.SaveBatch(t.Context(), []core.ProcessSnapshot{first, second})
 	if !errors.Is(err, core.ErrRevisionConflict) {
 		t.Fatalf("stale SaveBatch error = %v, want revision conflict", err)
 	}
@@ -102,10 +95,7 @@ func TestMemoryProcessStoreSaveBatchIsAtomic(t *testing.T) {
 func TestMemoryProcessStoreSaveBatchRejectsDuplicateIdentity(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	snapshot := validSnapshot("duplicate")
-	_, err := store.SaveBatch(t.Context(), []core.SnapshotWrite{
-		{Snapshot: snapshot, ExpectedRevision: 0},
-		{Snapshot: snapshot, ExpectedRevision: 0},
-	})
+	err := store.SaveBatch(t.Context(), []core.ProcessSnapshot{snapshot, snapshot})
 	if !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("duplicate SaveBatch error = %v, want invalid snapshot", err)
 	}
@@ -118,7 +108,7 @@ func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	ctx := context.Background()
 	for _, id := range []string{"c", "a", "b"} {
-		if _, err := store.Save(ctx, validSnapshot(id), 0); err != nil {
+		if err := store.Save(ctx, validSnapshot(id)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -195,7 +185,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
 	invalid.Status = core.StatusWaiting
-	if _, err := store.Save(t.Context(), invalid, 0); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), invalid); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting without suspension error = %v", err)
 	}
 	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -205,7 +195,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	invalidModelCall.OwnModelCalls = []core.ModelCall{{
 		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,
 	}}
-	if _, err := store.Save(t.Context(), invalidModelCall, 0); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), invalidModelCall); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("invalid model call error = %v", err)
 	}
 }

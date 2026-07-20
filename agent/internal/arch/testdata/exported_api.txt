@@ -172,8 +172,8 @@ core: func (r ToolGroupRequirement) Validate() error
 core: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
 core: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
 core: func (s *MemoryProcessStore) Load(_ context.Context, id string) (ProcessSnapshot, error)
-core: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot, expectedRevision uint64) (uint64, error)
-core: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, writes []SnapshotWrite) ([]uint64, error)
+core: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot ProcessSnapshot) error
+core: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []ProcessSnapshot) error
 core: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
 core: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
 core: func (s *MemorySessionStore) Load(_ context.Context, id string) (Session, error)
@@ -316,13 +316,12 @@ core: type SessionMetadata struct { }
 core: type SessionReader interface { Load(ctx context.Context, id string) (Session, error) }
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
-core: type SnapshotBatchWriter interface { SaveBatch(context.Context, []SnapshotWrite) ([]uint64, error) }
+core: type SnapshotBatchWriter interface { SaveBatch(context.Context, []ProcessSnapshot) error }
 core: type SnapshotDeleter interface { Delete(context.Context, string) error }
 core: type SnapshotFailurePolicy uint8
 core: type SnapshotLister interface { List(context.Context) ([]string, error) }
 core: type SnapshotReader interface { Load(context.Context, string) (ProcessSnapshot, error) }
-core: type SnapshotWrite struct { Snapshot ProcessSnapshot ExpectedRevision uint64 }
-core: type SnapshotWriter interface { Save(context.Context, ProcessSnapshot, uint64) (uint64, error) }
+core: type SnapshotWriter interface { Save(context.Context, ProcessSnapshot) error }
 core: type StaticToolGroupResolver struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8

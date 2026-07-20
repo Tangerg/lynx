@@ -91,7 +91,7 @@ type discardProcessStore struct {
 	deleted   []string
 }
 
-func (*discardProcessStore) Save(context.Context, core.ProcessSnapshot, uint64) (uint64, error) {
+func (*discardProcessStore) Save(context.Context, core.ProcessSnapshot) error {
 	panic("unused")
 }
 

@@ -83,7 +83,7 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	t.Helper()
 	ctx := context.Background()
 	processID := "proc_" + runID
-	if _, err := processes.Save(ctx, bootstrapWaitingSnapshot(processID), 0); err != nil {
+	if err := processes.Save(ctx, bootstrapWaitingSnapshot(processID)); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -107,7 +107,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if _, err := ss.processes.Save(ctx, child, 0); err != nil {
+	if err := ss.processes.Save(ctx, child); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeCanceled
@@ -146,7 +146,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if _, err := ss.processes.Save(ctx, child, 0); err != nil {
+	if err := ss.processes.Save(ctx, child); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeError
@@ -350,7 +350,7 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
-	if _, err := ss.processes.Save(ctx, bootstrapWaitingSnapshot("proc_preserve"), 0); err != nil {
+	if err := ss.processes.Save(ctx, bootstrapWaitingSnapshot("proc_preserve")); err != nil {
 		t.Fatalf("seed process snapshot: %v", err)
 	}
 

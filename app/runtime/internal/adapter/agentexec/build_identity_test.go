@@ -121,9 +121,9 @@ type failingProcessStore struct {
 	err   error
 }
 
-func (s *failingProcessStore) Save(context.Context, core.ProcessSnapshot, uint64) (uint64, error) {
+func (s *failingProcessStore) Save(context.Context, core.ProcessSnapshot) error {
 	s.saves.Add(1)
-	return 0, s.err
+	return s.err
 }
 
 func (*failingProcessStore) Load(context.Context, string) (core.ProcessSnapshot, error) {
