@@ -6,6 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -217,6 +221,52 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 	fake.mu.Unlock()
 	if calls != 1 {
 		t.Fatalf("stopped goal launched %d runs, want 1", calls)
+	}
+}
+
+// TestDriverEmitsTurnSpan proves the observability is real (not just no-op): a
+// goal.turn span carries the session, turn ordinal, and the run's outcome/usage.
+func TestDriverEmitsTurnSpan(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	prev := otel.GetTracerProvider()
+	otel.SetTracerProvider(tp)
+	t.Cleanup(func() {
+		otel.SetTracerProvider(prev)
+		_ = tp.Shutdown(context.Background())
+	})
+
+	store := newMemStore()
+	// One completed turn; MaxTurns=1 blocks after it, so the span has run.outcome.
+	d := newDriver(t, store, turn{outcome: execution.OutcomeCompleted, cost: 0.3, steps: 2})
+	if _, err := d.Start(context.Background(), "s1", "do it", "p", "m", goal.Budget{MaxTurns: 1}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool { return ok && g.Status == goal.StatusBlocked })
+
+	var span *tracetest.SpanStub
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && span == nil {
+		for _, s := range exporter.GetSpans() {
+			if s.Name == "goal.turn" {
+				stub := s
+				span = &stub
+				break
+			}
+		}
+		if span == nil {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	if span == nil {
+		t.Fatal("no goal.turn span was emitted")
+	}
+	attrs := map[string]string{}
+	for _, a := range span.Attributes {
+		attrs[string(a.Key)] = a.Value.Emit()
+	}
+	if attrs["goal.session"] != "s1" || attrs["goal.turn"] != "1" || attrs["run.outcome"] != "completed" {
+		t.Fatalf("goal.turn span attributes = %v, want session s1 / turn 1 / outcome completed", attrs)
 	}
 }
 

@@ -5,6 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -59,11 +63,10 @@ func (d *Driver) forget(sessionID string, handle *loopHandle) {
 	d.mu.Unlock()
 }
 
-// drive runs autonomous turns until the goal leaves active. Each iteration
-// launches one run, waits for it to finish, folds its usage in, and decides
-// whether to keep going. Cancellation (Stop / shutdown) leaves the goal's stored
-// status untouched — Stop already paused it; a shutdown leaves it active so the
-// boot reconcile degrades it to paused rather than resuming and burning budget.
+// drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
+// shutdown) leaves the goal's stored status untouched — Stop already paused it;
+// a shutdown leaves it active so the boot reconcile degrades it to paused rather
+// than resuming and burning budget.
 func (d *Driver) drive(ctx context.Context, sessionID string) {
 	for {
 		if ctx.Err() != nil {
@@ -73,61 +76,95 @@ func (d *Driver) drive(ctx context.Context, sessionID string) {
 		if err != nil || !ok || g.Status != goal.StatusActive {
 			return
 		}
-
-		result, err := d.startNext(ctx, d.command(g))
-		if err != nil {
-			// A cancellation is Stop/shutdown, handled above; any other failure to
-			// launch pauses the goal so the user can see and resume it.
-			if ctx.Err() == nil {
-				d.persist(ctx, sessionID, func(g *goal.Goal) { g.Pause("could not start the next run: "+err.Error(), d.now()) })
-			}
+		if _, keepGoing := d.runTurn(ctx, &g); !keepGoing {
 			return
 		}
-
-		finished := drainTerminal(result.Events)
-
-		// Re-read: the model may have set complete/blocked mid-turn via update_goal.
-		g, ok, err = d.goals.Get(ctx, sessionID)
-		if err != nil || !ok {
-			return
-		}
-		switch g.Status {
-		case goal.StatusComplete:
-			d.clear(ctx, sessionID) // transient — announce (the model's reply) then clear
-			return
-		case goal.StatusBlocked, goal.StatusPaused:
-			return // the model declared blocked, or a concurrent Stop paused it
-		}
-
-		if finished == nil {
-			// The run parked for HITL and produced no terminal (rare — autonomous
-			// runs are headless, so an unanswerable interrupt auto-denies rather than
-			// parking). Wait for the user, who resolves it and can resume the goal.
-			d.persist(ctx, sessionID, func(g *goal.Goal) { g.Pause("the run is waiting for your input", d.now()) })
-			return
-		}
-
-		cost, steps := turnUsage(finished)
-		g.AddTurn(cost, steps, d.now())
-		if outcome := outcomeOf(finished); outcome != execution.OutcomeCompleted {
-			g.Pause("the run ended ("+outcome.String()+")", d.now())
-			d.save(ctx, g)
-			return
-		}
-		if axis, over := g.Budget.Exceeded(g.Used); over {
-			g.Block("reached the "+axis+" budget", d.now())
-			d.save(ctx, g)
-			return
-		}
-		// Still active, within budget: record this turn's usage and loop. This
-		// checkpoint MUST honor ctx (unlike the terminal saves above, which detach
-		// to survive shutdown): it re-affirms status=active, so if it detached it
-		// could commit after a concurrent Stop paused the goal and clobber the pause
-		// — wedging the goal active with no loop driving it. A Stop cancels this ctx
-		// before it writes paused, so the checkpoint is skipped (losing at most this
-		// turn's usage accounting) and the store converges on paused.
-		_ = d.goals.Save(ctx, g)
 	}
+}
+
+// runTurn launches one autonomous run, waits for it to finish, folds its usage
+// in, and decides what to do next — all under a goal.turn span. It returns the
+// turn's disposition (empty when a cancellation or a vanished goal means no turn
+// completed, so nothing is metered) and whether the loop should keep going.
+func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string, keepGoing bool) {
+	ctx, span := driverTracer.Start(ctx, "goal.turn", trace.WithAttributes(
+		attribute.String("goal.session", g.SessionID),
+		attribute.Int("goal.turn", g.Used.Turns+1),
+	))
+	defer span.End()
+	// Meter each turn under its own span (this defer runs before span.End) so the
+	// exemplar links to the turn; a "" disposition (cancelled / vanished goal) is
+	// not a completed turn and is not counted.
+	defer func() {
+		if disposition != "" {
+			recordGoalTurn(ctx, disposition)
+		}
+	}()
+
+	result, err := d.startNext(ctx, d.command(*g))
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", false // Stop/shutdown — the state is handled by Stop / reconcile
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "start run")
+		g.Pause("could not start the next run: "+err.Error(), d.now())
+		d.save(ctx, *g)
+		return dispPaused, false
+	}
+
+	finished := drainTerminal(result.Events)
+
+	// Re-read: the model may have set complete/blocked mid-turn via update_goal.
+	reread, ok, err := d.goals.Get(ctx, g.SessionID)
+	if err != nil {
+		span.RecordError(err)
+		return "", false
+	}
+	if !ok {
+		return "", false
+	}
+	*g = reread
+	switch g.Status {
+	case goal.StatusComplete:
+		d.clear(ctx, g.SessionID) // transient — announce (the model's reply) then clear
+		return dispComplete, false
+	case goal.StatusBlocked:
+		return dispBlocked, false // the model declared blocked
+	case goal.StatusPaused:
+		return "", false // a concurrent Stop already recorded its intent
+	}
+
+	if finished == nil {
+		// The run parked for HITL and produced no terminal (rare — autonomous runs
+		// are headless, so an unanswerable interrupt auto-denies rather than
+		// parking). Wait for the user, who resolves it and can resume the goal.
+		g.Pause("the run is waiting for your input", d.now())
+		d.save(ctx, *g)
+		return dispPaused, false
+	}
+
+	cost, steps := turnUsage(finished)
+	outcome := outcomeOf(finished)
+	span.SetAttributes(
+		attribute.String("run.outcome", outcome.String()),
+		attribute.Float64("goal.cost_usd", cost),
+		attribute.Int("goal.steps", steps),
+	)
+	g.AddTurn(cost, steps, d.now())
+
+	if outcome != execution.OutcomeCompleted {
+		g.Pause("the run ended ("+outcome.String()+")", d.now())
+		d.save(ctx, *g)
+		return dispPaused, false
+	}
+	if axis, over := g.Budget.Exceeded(g.Used); over {
+		g.Block("reached the "+axis+" budget", d.now())
+		d.save(ctx, *g)
+		return dispBlocked, false
+	}
+	d.checkpoint(ctx, *g)
+	return dispContinue, true
 }
 
 // startNext launches the next run, waiting out the brief window in which the
@@ -208,28 +245,30 @@ func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
 	return costUSD, run.Result.Steps
 }
 
-// persist re-reads the goal and applies mutate before saving — used on the paths
-// where the loop must record a terminal state (pause/block) from a mutation
-// closure. save persists a goal the loop already holds.
-func (d *Driver) persist(ctx context.Context, sessionID string, mutate func(*goal.Goal)) {
-	g, ok, err := d.goals.Get(detached(ctx), sessionID)
-	if err != nil || !ok {
-		return
-	}
-	mutate(&g)
-	d.save(ctx, g)
-}
-
-// save / clear persist the loop's terminal state even when ctx was cancelled by
-// Stop/shutdown (detached drops cancellation but keeps trace values). They are
-// best-effort: a failed write leaves the goal for the boot reconcile to degrade,
-// so it can never corrupt into a resumed-but-lost loop.
+// save / clear persist the loop's TERMINAL state even when ctx was cancelled by
+// Stop/shutdown (detached drops cancellation but keeps trace values). Best-effort:
+// a failed write leaves the goal for the boot reconcile to degrade, so it can
+// never corrupt into a resumed-but-lost loop — but the failure is recorded on the
+// turn span rather than dropped.
 func (d *Driver) save(ctx context.Context, g goal.Goal) {
-	_ = d.goals.Save(detached(ctx), g)
+	recordSaveError(ctx, d.goals.Save(detached(ctx), g))
 }
 
 func (d *Driver) clear(ctx context.Context, sessionID string) {
-	_ = d.goals.Clear(detached(ctx), sessionID)
+	recordSaveError(ctx, d.goals.Clear(detached(ctx), sessionID))
+}
+
+// checkpoint persists mid-loop usage progress. Unlike the terminal saves it
+// HONORS ctx: it re-affirms status=active, so if it detached it could commit
+// after a concurrent Stop paused the goal and clobber the pause — wedging the
+// goal active with no loop driving it. A Stop cancels this ctx before it writes
+// paused, so the checkpoint is skipped (losing at most this turn's usage
+// accounting) and the store converges on paused; a cancellation here is that
+// expected path, not an error worth recording.
+func (d *Driver) checkpoint(ctx context.Context, g goal.Goal) {
+	if err := d.goals.Save(ctx, g); err != nil && ctx.Err() == nil {
+		recordSaveError(ctx, err)
+	}
 }
 
 func detached(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
