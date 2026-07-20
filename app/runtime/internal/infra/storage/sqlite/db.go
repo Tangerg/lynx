@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 10
+const schemaVersion = 11
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -207,6 +207,20 @@ func installCurrentSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS todos (
 			session_id TEXT    PRIMARY KEY,
 			items      TEXT    NOT NULL,
+			updated_at INTEGER NOT NULL
+		)`,
+		// One autonomous goal per session (Goal mode). budget/used are small JSON
+		// blobs — read and written whole with the row, like todos.items.
+		`CREATE TABLE IF NOT EXISTS goals (
+			session_id TEXT    PRIMARY KEY,
+			objective  TEXT    NOT NULL,
+			status     TEXT    NOT NULL,
+			reason     TEXT    NOT NULL DEFAULT '',
+			provider   TEXT    NOT NULL DEFAULT '',
+			model      TEXT    NOT NULL DEFAULT '',
+			budget     TEXT    NOT NULL,
+			used       TEXT    NOT NULL,
+			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
 		// Persistent fine-grained approval rules (AUX_API §6). id is
