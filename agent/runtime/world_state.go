@@ -45,7 +45,7 @@ func newWorldStateReader(domain *planning.Domain, blackboard core.Blackboard, pr
 }
 
 func (r *worldStateReader) read(ctx context.Context) core.WorldState {
-	state := map[string]core.Truth{}
+	state := core.ConditionSet{}
 	env := &core.ConditionEnv{Process: r.process, Blackboard: r.blackboard}
 
 	for condition := range r.domain.KnownConditions() {

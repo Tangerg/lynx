@@ -143,13 +143,13 @@ func (p *Planner) expansionCap(options planning.Options) int {
 // exclusion set and stable-sorts so more-specific actions (those with more
 // preconditions) get expanded first. Specificity-first tie ordering keeps the
 // search frontier focused without affecting cost optimality.
-func (p *Planner) candidateActions(actions []core.Action, excluded map[string]struct{}) []core.Action {
+func (p *Planner) candidateActions(actions []core.Action, excluded planning.Exclusions) []core.Action {
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {
 		if action == nil {
 			continue
 		}
-		if _, skip := excluded[action.Metadata().Name]; skip {
+		if excluded.Contains(action.Metadata().Name) {
 			continue
 		}
 		out = append(out, action)

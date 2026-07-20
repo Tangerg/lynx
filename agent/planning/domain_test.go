@@ -2,6 +2,7 @@ package planning_test
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -18,6 +19,19 @@ func TestEffectivePlannerName(t *testing.T) {
 	}
 	if got := planning.EffectivePlannerName(planning.HTNPlannerName); got != planning.HTNPlannerName {
 		t.Fatalf("EffectivePlannerName(htn) = %q", got)
+	}
+}
+
+func TestExclusionsAreZeroValueUsableAndImmutable(t *testing.T) {
+	var empty planning.Exclusions
+	withA := empty.With("a")
+	withAB := withA.With("b")
+
+	if empty.Contains("a") || !withA.Contains("a") || withA.Contains("b") {
+		t.Fatal("With mutated an existing exclusion set")
+	}
+	if !withAB.Contains("a") || !withAB.Contains("b") {
+		t.Fatal("With did not preserve existing exclusions")
 	}
 }
 
@@ -57,10 +71,10 @@ func TestDomainForAgentsEmptyInputProducesEmptyDomain(t *testing.T) {
 	}
 }
 
-func TestNewDomainCopiesInputsAndKnownConditions(t *testing.T) {
+func TestNewDomainCopiesInputsAndOrdersKnownConditions(t *testing.T) {
 	action := domainAgent("copy", "copy:step").Actions()[0]
 	actions := []core.Action{action}
-	goals := []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})}
+	goals := []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"z_done", "a_done"}})}
 	domain := planning.NewDomain(actions, goals, nil)
 
 	actions[0] = nil
@@ -69,10 +83,9 @@ func TestNewDomainCopiesInputsAndKnownConditions(t *testing.T) {
 		t.Fatal("NewDomain retained caller-owned slice storage")
 	}
 
-	conditions := domain.KnownConditions()
-	delete(conditions, "done")
-	if _, ok := domain.KnownConditions()["done"]; !ok {
-		t.Fatal("KnownConditions returned its cached map")
+	conditions := slices.Collect(domain.KnownConditions())
+	if !slices.Equal(conditions[len(conditions)-2:], []string{"a_done", "z_done"}) {
+		t.Fatalf("KnownConditions tail = %v, want deterministic goal keys", conditions)
 	}
 }
 

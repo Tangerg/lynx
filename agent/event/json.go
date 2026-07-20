@@ -309,8 +309,8 @@ func summarizePlan(plan *planning.Plan) *planSummary {
 }
 
 type worldStateSummary struct {
-	State     map[string]core.Truth `json:"state,omitempty"`
-	Timestamp time.Time             `json:"timestamp,omitzero"`
+	State     core.ConditionSet `json:"state,omitempty"`
+	Timestamp time.Time         `json:"timestamp,omitzero"`
 }
 
 func summarizeWorldState(state core.WorldState) *worldStateSummary {

@@ -154,7 +154,7 @@ func planUtility(
 func topApplicable(
 	start core.WorldState,
 	actions []core.Action,
-	excluded map[string]struct{},
+	excluded planning.Exclusions,
 ) core.Action {
 	state := start.Conditions()
 	var (
@@ -166,7 +166,7 @@ func topApplicable(
 			continue
 		}
 		metadata := action.Metadata()
-		if _, skip := excluded[metadata.Name]; skip {
+		if excluded.Contains(metadata.Name) {
 			continue
 		}
 		if !metadata.Applicable(state) {

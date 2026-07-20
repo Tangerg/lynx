@@ -42,13 +42,8 @@ type Method struct {
 }
 
 // applicable reports whether every method precondition holds in state.
-func (m Method) applicable(state map[string]core.Truth) bool {
-	for key, required := range m.Preconditions {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
+func (m Method) applicable(state core.ConditionSet) bool {
+	return state.Satisfies(m.Preconditions)
 }
 
 // IsPrimitive reports whether this task wraps a single core.Action.

@@ -1,6 +1,7 @@
 package planning
 
 import (
+	"iter"
 	"maps"
 	"slices"
 
@@ -13,7 +14,7 @@ type Domain struct {
 	actions         []core.Action
 	goals           []*core.Goal
 	conditions      []core.Condition
-	knownConditions map[string]struct{}
+	knownConditions []string
 }
 
 // NewDomain constructs a domain from explicit slices. Pass nil for
@@ -88,41 +89,49 @@ func DomainForAgents(agents []*core.Agent) *Domain {
 	return NewDomain(actions, goals, conditions)
 }
 
-// KnownConditions enumerates all condition keys reachable via the domain —
-// the world-state determiner uses it to know what to evaluate. Result is
-// cached after the first call.
-func (d *Domain) KnownConditions() map[string]struct{} {
+// KnownConditions enumerates all condition keys reachable through the domain.
+// Iteration is deterministic: action and goal declaration order first, with
+// map-backed keys sorted within each declaration, followed by named conditions.
+func (d *Domain) KnownConditions() iter.Seq[string] {
 	if d == nil {
-		return nil
+		return slices.Values([]string(nil))
 	}
-	return maps.Clone(d.knownConditions)
+	return slices.Values(d.knownConditions)
 }
 
-func (d *Domain) computeKnownConditions() map[string]struct{} {
-	conditions := map[string]struct{}{}
+func (d *Domain) computeKnownConditions() []string {
+	seen := map[string]struct{}{}
+	var conditions []string
+	appendCondition := func(name string) {
+		if _, exists := seen[name]; exists {
+			return
+		}
+		seen[name] = struct{}{}
+		conditions = append(conditions, name)
+	}
 	for _, action := range d.actions {
 		if action == nil {
 			continue
 		}
 		metadata := action.Metadata()
-		for key := range metadata.Preconditions {
-			conditions[key] = struct{}{}
+		for _, key := range slices.Sorted(maps.Keys(metadata.Preconditions)) {
+			appendCondition(key)
 		}
-		for key := range metadata.Effects {
-			conditions[key] = struct{}{}
+		for _, key := range slices.Sorted(maps.Keys(metadata.Effects)) {
+			appendCondition(key)
 		}
 	}
 	for _, goal := range d.goals {
 		if goal == nil {
 			continue
 		}
-		for key := range goal.Preconditions() {
-			conditions[key] = struct{}{}
+		for _, key := range slices.Sorted(maps.Keys(goal.Preconditions())) {
+			appendCondition(key)
 		}
 	}
 	for _, condition := range d.conditions {
 		if condition != nil {
-			conditions[condition.Name()] = struct{}{}
+			appendCondition(condition.Name())
 		}
 	}
 	return conditions

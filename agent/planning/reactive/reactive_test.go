@@ -120,7 +120,7 @@ func TestReactive_RespectsExclusion(t *testing.T) {
 
 	domain := planning.NewDomain([]core.Action{preferred, fallback}, []*core.Goal{g}, nil)
 	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{
-		ExcludedActions: map[string]struct{}{"preferred": {}},
+		ExcludedActions: planning.NewExclusions("preferred"),
 	})
 	if pl.Actions()[0].Metadata().Name != "fallback" {
 		t.Fatalf("expected exclusion to leave fallback, got %q", pl.Actions()[0].Metadata().Name)
