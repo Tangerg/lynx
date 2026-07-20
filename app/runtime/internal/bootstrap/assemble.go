@@ -21,11 +21,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
@@ -33,6 +33,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -155,6 +156,7 @@ type toolEnvironmentBuilder func(
 	approval.Policy,
 	mcpEnvironment,
 	toolset.CodebaseIndex,
+	*agentmemory.Searcher,
 	*schedules.Coordinator,
 	*skillauthoring.Store,
 ) (toolset.Built, error)
@@ -219,6 +221,14 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if err != nil {
 		return Host{}, err
 	}
+	// Agent-memory search (memory_search + the extractor's vector backfill) embeds
+	// through the same live embedding role as @codebase. The searcher is nil when
+	// no memory store is wired; keyword search works without an embedder.
+	memoryEmbed := memoryEmbedder(embeddingEnv.resolveEmbedder)
+	var memorySearcher *agentmemory.Searcher
+	if cfg.AgentMemoryStore != nil {
+		memorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, memoryEmbed)
+	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
@@ -243,7 +253,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths:    workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, scheduleCoord, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, memorySearcher, scheduleCoord, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -258,7 +268,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
 	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.Shells, utilityEnv.resolve)
+	turnServices := buildTurnServices(cfg, messages, built.Shells, utilityEnv.resolve, memoryEmbed)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {

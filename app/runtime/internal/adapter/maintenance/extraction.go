@@ -56,6 +56,8 @@ type agentMemory interface {
 	State(ctx context.Context, project string) (agentmemory.State, error)
 	Reconcile(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (bool, error)
 	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
+	UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
+	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
 }
 
 type messageReader interface {
@@ -63,26 +65,30 @@ type messageReader interface {
 }
 
 // Extractor mines durable facts into a daily append-only ledger, then folds due
-// ledger entries into a bounded complete project memory. It never writes the
-// human-owned LYRA.md cascade.
+// ledger entries into curated memory items. It never writes the human-owned
+// LYRA.md cascade. When an embedder is configured it backfills item vectors for
+// semantic search; without one, items stay keyword-searchable.
 type Extractor struct {
-	history messageReader
-	memory  agentMemory
-	client  ClientFunc
-	config  CurationConfig
-	minMsgs int
-	now     func() time.Time
+	history  messageReader
+	memory   agentMemory
+	client   ClientFunc
+	embedder func(context.Context) (agentmemory.Embedder, error)
+	config   CurationConfig
+	minMsgs  int
+	now      func() time.Time
 }
 
 // NewExtractor builds the turn-boundary extraction and curation worker.
-func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, config CurationConfig) *Extractor {
+// embedder is optional (nil = keyword-only memory search).
+func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, embedder func(context.Context) (agentmemory.Embedder, error), config CurationConfig) *Extractor {
 	return &Extractor{
-		history: store,
-		memory:  memory,
-		client:  client,
-		config:  config.normalized(),
-		minMsgs: 4,
-		now:     time.Now,
+		history:  store,
+		memory:   memory,
+		client:   client,
+		embedder: embedder,
+		config:   config.normalized(),
+		minMsgs:  4,
+		now:      time.Now,
 	}
 }
 
@@ -151,7 +157,44 @@ func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Ti
 	if err != nil {
 		return false, fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}
+	if published {
+		e.embedNewItems(ctx, project)
+	}
 	return published, nil
+}
+
+// embedNewItems backfills content vectors for the project's items that lack one,
+// so semantic search can rank them. Best-effort and vector-only: no embedder, an
+// unconfigured embedding role, or an embed failure leaves the items
+// keyword-searchable rather than failing the curation. It also backfills items
+// created before an embedding model was configured, on the next fold.
+func (e *Extractor) embedNewItems(ctx context.Context, project string) {
+	if e.embedder == nil {
+		return
+	}
+	embedder, err := e.embedder(ctx)
+	if err != nil || embedder == nil {
+		return
+	}
+	items, err := e.memory.UnembeddedItems(ctx, agentmemory.ScopeProject, project)
+	if err != nil || len(items) == 0 {
+		return
+	}
+	texts := make([]string, len(items))
+	for i, item := range items {
+		texts[i] = item.Content
+	}
+	vectors, err := embedder.Embed(ctx, texts)
+	if err != nil || len(vectors) != len(items) {
+		return
+	}
+	byID := make(map[string][]float32, len(items))
+	for i, item := range items {
+		byID[item.ID] = vectors[i]
+	}
+	// Best-effort: a failed write just leaves the items keyword-searchable until
+	// the next fold retries the backfill.
+	_ = e.memory.SetEmbeddings(ctx, byID)
 }
 
 // currentMemory renders the project's existing auto items as the "current"
