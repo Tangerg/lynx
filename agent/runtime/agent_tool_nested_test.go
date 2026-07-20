@@ -30,6 +30,18 @@ type nestedAgentStage struct {
 	Value int `json:"value"`
 }
 
+type singleWriteProcessStore struct {
+	inner *core.MemoryProcessStore
+}
+
+func (s singleWriteProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot, expected uint64) (uint64, error) {
+	return s.inner.Save(ctx, snapshot, expected)
+}
+
+func (s singleWriteProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
+	return s.inner.Load(ctx, id)
+}
+
 type nestedParentModel struct {
 	mu       sync.Mutex
 	calls    int
@@ -660,6 +672,70 @@ func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T)
 	}
 	if len(ids) != 1 || ids[0] != restored.ID() {
 		t.Fatalf("stored process ids = %v, want only parent %q", ids, restored.ID())
+	}
+}
+
+func TestAgentToolNestedSuspensionRequiresAtomicTreeStore(t *testing.T) {
+	inner := core.NewMemoryProcessStore()
+	store := singleWriteProcessStore{inner: inner}
+	var beforeCalls atomic.Int32
+	var childCompletions atomic.Int32
+	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-atomic-store", ProcessStore: store})
+	parent := deployNestedAgents(t, engine, false, &childCompletions, &nestedParentModel{}, &beforeCalls)
+	process := runNestedParent(t, engine, parent)
+	child := nestedChildProcess(t, engine, process.ID())
+
+	if _, err := engine.Save(t.Context(), process.ID()); !errors.Is(err, runtime.ErrAtomicSnapshotUnsupported) {
+		t.Fatalf("Save error = %v, want atomic-tree capability error", err)
+	}
+	for _, candidate := range []*runtime.Process{child, process} {
+		if _, err := inner.Load(t.Context(), candidate.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
+			t.Fatalf("process %q was partially persisted: %v", candidate.ID(), err)
+		}
+		snapshot, err := candidate.Snapshot()
+		if err != nil {
+			t.Fatalf("Snapshot process %q: %v", candidate.ID(), err)
+		}
+		if snapshot.Revision != 0 {
+			t.Fatalf("process %q in-memory revision = %d, want unchanged", candidate.ID(), snapshot.Revision)
+		}
+	}
+}
+
+func TestAgentToolNestedSuspensionBatchConflictDoesNotPartiallySaveChild(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	var beforeCalls atomic.Int32
+	var childCompletions atomic.Int32
+	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-atomic-conflict", ProcessStore: store})
+	parent := deployNestedAgents(t, engine, false, &childCompletions, &nestedParentModel{}, &beforeCalls)
+	process := runNestedParent(t, engine, parent)
+	child := nestedChildProcess(t, engine, process.ID())
+
+	parentSnapshot, err := process.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Save(t.Context(), parentSnapshot, 0); err != nil {
+		t.Fatalf("seed conflicting parent revision: %v", err)
+	}
+	if _, err := engine.Save(t.Context(), process.ID()); !errors.Is(err, core.ErrRevisionConflict) {
+		t.Fatalf("Save error = %v, want parent revision conflict", err)
+	}
+	if _, err := store.Load(t.Context(), child.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("child was partially committed before parent conflict: %v", err)
+	}
+	storedParent, err := store.Load(t.Context(), process.ID())
+	if err != nil || storedParent.Revision != 1 {
+		t.Fatalf("seeded parent = revision %d, %v, want unchanged revision 1", storedParent.Revision, err)
+	}
+	for _, candidate := range []*runtime.Process{child, process} {
+		snapshot, err := candidate.Snapshot()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if snapshot.Revision != 0 {
+			t.Fatalf("process %q in-memory revision = %d after rejected batch, want 0", candidate.ID(), snapshot.Revision)
+		}
 	}
 }
 

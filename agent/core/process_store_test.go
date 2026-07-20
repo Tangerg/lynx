@@ -60,6 +60,60 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 	}
 }
 
+func TestMemoryProcessStoreSaveBatchIsAtomic(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	first := validSnapshot("first")
+	first.OwnTokens = 1
+	second := validSnapshot("second")
+	second.OwnTokens = 2
+
+	revisions, err := store.SaveBatch(t.Context(), []core.SnapshotWrite{
+		{Snapshot: first, ExpectedRevision: 0},
+		{Snapshot: second, ExpectedRevision: 0},
+	})
+	if err != nil || len(revisions) != 2 || revisions[0] != 1 || revisions[1] != 1 {
+		t.Fatalf("first SaveBatch = %v, %v, want [1 1]", revisions, err)
+	}
+
+	first.Revision = 1
+	first.OwnTokens = 10
+	second.Revision = 0 // stale: durable revision is already 1.
+	second.OwnTokens = 20
+	_, err = store.SaveBatch(t.Context(), []core.SnapshotWrite{
+		{Snapshot: first, ExpectedRevision: 1},
+		{Snapshot: second, ExpectedRevision: 0},
+	})
+	if !errors.Is(err, core.ErrRevisionConflict) {
+		t.Fatalf("stale SaveBatch error = %v, want revision conflict", err)
+	}
+	storedFirst, err := store.Load(t.Context(), first.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	storedSecond, err := store.Load(t.Context(), second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedFirst.Revision != 1 || storedFirst.OwnTokens != 1 || storedSecond.Revision != 1 || storedSecond.OwnTokens != 2 {
+		t.Fatalf("stored batch after rejected CAS = %#v / %#v, want both original revisions", storedFirst, storedSecond)
+	}
+}
+
+func TestMemoryProcessStoreSaveBatchRejectsDuplicateIdentity(t *testing.T) {
+	store := core.NewMemoryProcessStore()
+	snapshot := validSnapshot("duplicate")
+	_, err := store.SaveBatch(t.Context(), []core.SnapshotWrite{
+		{Snapshot: snapshot, ExpectedRevision: 0},
+		{Snapshot: snapshot, ExpectedRevision: 0},
+	})
+	if !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("duplicate SaveBatch error = %v, want invalid snapshot", err)
+	}
+	if _, err := store.Load(t.Context(), snapshot.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("duplicate SaveBatch mutated store: %v", err)
+	}
+}
+
 func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	ctx := context.Background()

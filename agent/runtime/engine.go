@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -14,6 +15,10 @@ import (
 // DefaultSessionFinalizeTimeout bounds the durable session write performed
 // after a turn finishes. It is independent of request cancellation.
 const DefaultSessionFinalizeTimeout = 10 * time.Second
+
+// ErrAtomicSnapshotUnsupported reports that a ProcessStore can save individual
+// snapshots but cannot atomically commit a nested process tree.
+var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 
 // Engine is the agent runtime's top-level container — registers
 // agents, builds processes, dispatches events, and exposes the
@@ -262,8 +267,9 @@ func (e *Engine) ProcessStore() core.ProcessStore { return e.processStore }
 
 // Save captures the named process into the configured
 // [core.ProcessStore] under its current id. Errors when no store is
-// configured, the process id is unknown, or the store rejects the
-// write.
+// configured, the process id is unknown, or the store rejects the write. A
+// process with durable nested children additionally requires the store to
+// implement [core.SnapshotBatchWriter].
 func (e *Engine) Save(ctx context.Context, processID string) (uint64, error) {
 	if e.processStore == nil {
 		return 0, errors.New("runtime.Engine.Save: no ProcessStore configured")
@@ -370,25 +376,90 @@ func captureLockedProcessTree(tree *lockedProcessTree) error {
 	return nil
 }
 
+type lockedSnapshotWrite struct {
+	tree  *lockedProcessTree
+	write core.SnapshotWrite
+}
+
 func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree) (uint64, error) {
-	for _, child := range tree.children {
-		if _, err := e.saveLockedProcessTree(ctx, child); err != nil {
-			return 0, err
+	var writes []lockedSnapshotWrite
+	collectLockedSnapshotWrites(tree, &writes)
+	if len(writes) == 0 {
+		return 0, errors.New("runtime.Engine.saveProcess: captured process tree is empty")
+	}
+	for _, pending := range writes {
+		actual := pending.tree.process.state.snapshotRevision()
+		if actual != pending.write.ExpectedRevision {
+			return 0, &core.RevisionConflictError{
+				ProcessID: pending.write.Snapshot.ID,
+				Expected:  pending.write.ExpectedRevision,
+				Actual:    actual,
+			}
+		}
+		if pending.write.ExpectedRevision == math.MaxUint64 {
+			return 0, fmt.Errorf("runtime.Engine.saveProcess: %w: process %q revision is exhausted",
+				core.ErrInvalidSnapshot, pending.write.Snapshot.ID)
 		}
 	}
-	snapshot := tree.snapshot
-	revision, err := e.processStore.Save(ctx, snapshot, snapshot.Revision)
+
+	revisions, err := e.commitSnapshotWrites(ctx, writes)
 	if err != nil {
 		return 0, err
 	}
-	if !tree.process.state.commitRevision(snapshot.Revision, revision) {
-		return 0, &core.RevisionConflictError{
-			ProcessID: tree.process.ID(),
-			Expected:  snapshot.Revision,
-			Actual:    tree.process.state.snapshotRevision(),
+	for index, pending := range writes {
+		expected := pending.write.ExpectedRevision + 1
+		if revisions[index] != expected {
+			return 0, fmt.Errorf("runtime.Engine.saveProcess: store returned revision %d for process %q, want %d",
+				revisions[index], pending.write.Snapshot.ID, expected)
 		}
 	}
-	return revision, nil
+	for index, pending := range writes {
+		pending.tree.process.state.restoreRevision(revisions[index])
+	}
+	return revisions[len(revisions)-1], nil
+}
+
+func collectLockedSnapshotWrites(tree *lockedProcessTree, writes *[]lockedSnapshotWrite) {
+	if tree == nil {
+		return
+	}
+	for _, child := range tree.children {
+		collectLockedSnapshotWrites(child, writes)
+	}
+	*writes = append(*writes, lockedSnapshotWrite{
+		tree: tree,
+		write: core.SnapshotWrite{
+			Snapshot:         tree.snapshot,
+			ExpectedRevision: tree.snapshot.Revision,
+		},
+	})
+}
+
+func (e *Engine) commitSnapshotWrites(ctx context.Context, writes []lockedSnapshotWrite) ([]uint64, error) {
+	if len(writes) == 1 {
+		write := writes[0].write
+		revision, err := e.processStore.Save(ctx, write.Snapshot, write.ExpectedRevision)
+		if err != nil {
+			return nil, err
+		}
+		return []uint64{revision}, nil
+	}
+	batchWriter, ok := e.processStore.(core.SnapshotBatchWriter)
+	if !ok {
+		return nil, fmt.Errorf("%w: store %T cannot commit %d snapshots", ErrAtomicSnapshotUnsupported, e.processStore, len(writes))
+	}
+	batch := make([]core.SnapshotWrite, len(writes))
+	for index, pending := range writes {
+		batch[index] = pending.write
+	}
+	revisions, err := batchWriter.SaveBatch(ctx, batch)
+	if err != nil {
+		return nil, err
+	}
+	if len(revisions) != len(batch) {
+		return nil, fmt.Errorf("runtime.Engine.saveProcess: batch store returned %d revisions for %d snapshots", len(revisions), len(batch))
+	}
+	return revisions, nil
 }
 
 func collectNestedChildCleanup(tree *lockedProcessTree, cleanup *[]string) {
