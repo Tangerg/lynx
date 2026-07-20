@@ -3,6 +3,7 @@ package planning_test
 import (
 	"context"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -12,6 +13,20 @@ import (
 
 type domainInput struct{ X int }
 type domainOutput struct{ Y int }
+
+type planAction struct{ metadata core.ActionMetadata }
+
+func (a *planAction) Metadata() core.ActionMetadata { return a.metadata }
+func (*planAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return core.ActionSucceeded, nil
+}
+
+type plannerFunc func(*core.Goal) *planning.Plan
+
+func (plannerFunc) Name() string { return "test-planner" }
+func (f plannerFunc) PlanToGoal(_ context.Context, _ core.WorldState, _ *planning.Domain, goal *core.Goal, _ planning.Options) (*planning.Plan, error) {
+	return f(goal), nil
+}
 
 func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
 	t.Helper()
@@ -164,5 +179,65 @@ func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 	var nilDomain *planning.Domain
 	if err := nilDomain.ValidatePlanInputs(state, goal); err == nil {
 		t.Fatal("ValidatePlanInputs accepted nil domain")
+	}
+}
+
+func TestDomainRejectsInvalidPlannerResults(t *testing.T) {
+	canonical := &planAction{metadata: core.ActionMetadata{
+		Name:    "work",
+		Effects: core.ConditionSet{"done": core.True},
+	}}
+	blocked := &planAction{metadata: core.ActionMetadata{
+		Name:          "blocked",
+		Preconditions: core.ConditionSet{"ready": core.True},
+		Effects:       core.ConditionSet{"done": core.True},
+	}}
+	noop := &planAction{metadata: core.ActionMetadata{Name: "noop"}}
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	otherGoal := core.NewGoal(core.GoalConfig{Name: "other", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{canonical, blocked, noop}, []*core.Goal{goal}, nil)
+	state := planning.NewState(nil)
+
+	tests := []struct {
+		name    string
+		plan    func(*core.Goal) *planning.Plan
+		options planning.Options
+	}{
+		{"different goal", func(*core.Goal) *planning.Plan { return planning.NewPlan(nil, otherGoal) }, planning.Options{}},
+		{"nil action", func(goal *core.Goal) *planning.Plan { return planning.NewPlan([]core.Action{nil}, goal) }, planning.Options{}},
+		{"outside action", func(goal *core.Goal) *planning.Plan {
+			return planning.NewPlan([]core.Action{&planAction{metadata: core.ActionMetadata{Name: "rogue"}}}, goal)
+		}, planning.Options{}},
+		{"excluded action", func(goal *core.Goal) *planning.Plan { return planning.NewPlan([]core.Action{canonical}, goal) }, planning.Options{ExcludedActions: planning.NewExclusions("work")}},
+		{"unsatisfied preconditions", func(goal *core.Goal) *planning.Plan { return planning.NewPlan([]core.Action{blocked}, goal) }, planning.Options{}},
+		{"goal not achieved", func(goal *core.Goal) *planning.Plan {
+			return planning.NewPlan([]core.Action{noop}, goal)
+		}, planning.Options{}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := domain.Plans(t.Context(), plannerFunc(test.plan), state, test.options)
+			if err == nil || !strings.Contains(err.Error(), "planning: invalid plan") {
+				t.Fatalf("Plans() error = %v, want invalid plan", err)
+			}
+		})
+	}
+}
+
+func TestDomainCanonicalizesPlannerActions(t *testing.T) {
+	canonical := &planAction{metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}}}
+	lookalike := &planAction{metadata: canonical.metadata}
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{canonical}, []*core.Goal{goal}, nil)
+
+	plans, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
+		return planning.NewPlan([]core.Action{lookalike}, goal)
+	}), planning.NewState(nil), planning.Options{})
+	if err != nil {
+		t.Fatalf("Plans: %v", err)
+	}
+	if got := plans[0].Actions()[0]; got != canonical {
+		t.Fatalf("accepted action = %p, want canonical %p", got, canonical)
 	}
 }

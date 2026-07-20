@@ -21,7 +21,7 @@ import (
 //     subtask; ctx canceled).
 func (p *Planner) decompose(
 	ctx context.Context,
-	task *Task,
+	task Task,
 	state core.WorldState,
 	excluded planning.Exclusions,
 	depth int,
@@ -36,6 +36,9 @@ func (p *Planner) decompose(
 	if task.IsPrimitive() {
 		metadata := task.Action.Metadata()
 		if excluded.Contains(metadata.Name) {
+			return nil, state, false, nil
+		}
+		if !metadata.Applicable(state.Conditions()) {
 			return nil, state, false, nil
 		}
 		return []core.Action{task.Action}, state.Apply(metadata.Effects), true, nil
@@ -73,7 +76,7 @@ func (p *Planner) tryMethod(
 	actions := make([]core.Action, 0, len(method.Subtasks))
 	cur := state
 	for _, subtaskName := range method.Subtasks {
-		sub, ok := p.library.Lookup(subtaskName)
+		sub, ok := p.tasks[subtaskName]
 		if !ok {
 			return nil, state, false, fmt.Errorf("htn.Planner.tryMethod: method %q references unknown subtask %q", method.Name, subtaskName)
 		}

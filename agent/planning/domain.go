@@ -86,6 +86,15 @@ func (d *Domain) Actions() []core.Action {
 	return slices.Clone(d.actions)
 }
 
+func (d *Domain) action(name string) (core.Action, bool) {
+	for _, action := range d.actions {
+		if action != nil && action.Metadata().Name == name {
+			return action, true
+		}
+	}
+	return nil, false
+}
+
 // Goals returns a snapshot of the candidate goals.
 func (d *Domain) Goals() []*core.Goal {
 	if d == nil {

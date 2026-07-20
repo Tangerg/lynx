@@ -57,10 +57,11 @@ func names(actions []core.Action) []string {
 
 func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "do_thing", Action: newAction("thing", core.ConditionSet{"done": core.True})})
+	action := newAction("thing", core.ConditionSet{"done": core.True})
+	lib.MustAdd(&htn.Task{Name: "do_thing", Action: action})
 
 	g := core.NewGoal(core.GoalConfig{Name: "do_thing", Preconditions: []string{"done"}})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{action}, []*core.Goal{g}, nil)
 
 	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if err != nil {
@@ -76,14 +77,16 @@ func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 
 func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "step_a", Action: newAction("a", core.ConditionSet{"a_done": core.True})})
-	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.ConditionSet{"b_done": core.True})})
+	actionA := newAction("a", core.ConditionSet{"a_done": core.True})
+	actionB := newAction("b", core.ConditionSet{"b_done": core.True})
+	lib.MustAdd(&htn.Task{Name: "step_a", Action: actionA})
+	lib.MustAdd(&htn.Task{Name: "step_b", Action: actionB})
 	lib.MustAdd(&htn.Task{Name: "build_thing", Methods: []htn.Method{
 		{Name: "default", Subtasks: []string{"step_a", "step_b"}},
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "build_thing", Preconditions: []string{"b_done"}})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{actionA, actionB}, []*core.Goal{g}, nil)
 	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if got := names(pl.Actions()); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected [a b], got %v", got)
@@ -92,8 +95,10 @@ func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 
 func TestHTN_MethodPreconditionGate(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "fast", Action: newAction("fast", core.ConditionSet{"served": core.True})})
-	lib.MustAdd(&htn.Task{Name: "slow", Action: newAction("slow", core.ConditionSet{"served": core.True})})
+	fast := newAction("fast", core.ConditionSet{"served": core.True})
+	slow := newAction("slow", core.ConditionSet{"served": core.True})
+	lib.MustAdd(&htn.Task{Name: "fast", Action: fast})
+	lib.MustAdd(&htn.Task{Name: "slow", Action: slow})
 	lib.MustAdd(&htn.Task{Name: "serve", Methods: []htn.Method{
 		// First method requires "ready=true" — falls through when not.
 		{Name: "express", Preconditions: core.ConditionSet{"ready": core.True}, Subtasks: []string{"fast"}},
@@ -101,7 +106,7 @@ func TestHTN_MethodPreconditionGate(t *testing.T) {
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "serve", Preconditions: []string{"served"}})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{fast, slow}, []*core.Goal{g}, nil)
 	planner := mustHTNPlanner(t, lib)
 
 	// Without "ready" → falls back to slow.
@@ -159,7 +164,7 @@ func TestHTN_RejectsBadTaskShapes(t *testing.T) {
 	}
 }
 
-func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
+func TestHTN_RejectsUnknownSubtaskAtConstruction(t *testing.T) {
 	lib := htn.NewLibrary()
 	lib.MustAdd(&htn.Task{Name: "step_b", Action: newAction("b", core.ConditionSet{"done": core.True})})
 	// First method tries an unknown task — this surfaces as an error,
@@ -169,25 +174,25 @@ func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 		{Name: "good", Subtasks: []string{"step_b"}},
 	}})
 
-	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
-	_, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
+	_, err := htn.NewPlanner(lib)
 	if err == nil {
-		t.Fatal("expected error when method references unknown subtask (no silent backtrack on missing names)")
+		t.Fatal("expected unknown subtask to reject planner construction")
 	}
 }
 
 func TestHTN_RespectsExclusion(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "primary", Action: newAction("primary", core.ConditionSet{"done": core.True})})
-	lib.MustAdd(&htn.Task{Name: "fallback", Action: newAction("fallback", core.ConditionSet{"done": core.True})})
+	primary := newAction("primary", core.ConditionSet{"done": core.True})
+	fallback := newAction("fallback", core.ConditionSet{"done": core.True})
+	lib.MustAdd(&htn.Task{Name: "primary", Action: primary})
+	lib.MustAdd(&htn.Task{Name: "fallback", Action: fallback})
 	lib.MustAdd(&htn.Task{Name: "do", Methods: []htn.Method{
 		{Name: "first", Subtasks: []string{"primary"}},
 		{Name: "second", Subtasks: []string{"fallback"}},
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{primary, fallback}, []*core.Goal{g}, nil)
 	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{
 		ExcludedActions: planning.NewExclusions("primary"),
 	})
@@ -198,15 +203,61 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 
 func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	lib := htn.NewLibrary()
-	lib.MustAdd(&htn.Task{Name: "low_goal", Action: newAction("a", core.ConditionSet{"x": core.True})})
-	lib.MustAdd(&htn.Task{Name: "high_goal", Action: newAction("b", core.ConditionSet{"y": core.True})})
+	actionA := newAction("a", core.ConditionSet{"x": core.True})
+	actionB := newAction("b", core.ConditionSet{"y": core.True})
+	lib.MustAdd(&htn.Task{Name: "low_goal", Action: actionA})
+	lib.MustAdd(&htn.Task{Name: "high_goal", Action: actionB})
 
 	low := core.NewGoal(core.GoalConfig{Name: "low_goal", Preconditions: []string{"x"}, Value: core.FixedScore(2)})
 	high := core.NewGoal(core.GoalConfig{Name: "high_goal", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
-	domain := mustDomain(t, nil, []*core.Goal{low, high}, nil)
+	domain := mustDomain(t, []core.Action{actionA, actionB}, []*core.Goal{low, high}, nil)
 	pl, _ := domain.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), planning.Options{})
 	if pl.Goal().Name() != "high_goal" {
 		t.Fatalf("expected high_goal, got %q", pl.Goal().Name())
+	}
+}
+
+func TestHTN_AlreadySatisfiedGoalReturnsEmptyPlan(t *testing.T) {
+	lib := htn.NewLibrary()
+	action := newAction("work", core.ConditionSet{"done": core.True})
+	lib.MustAdd(&htn.Task{Name: "goal", Action: action})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+
+	plan, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(core.ConditionSet{"done": core.True}), domain, goal, planning.Options{})
+	if err != nil || plan == nil || !plan.Complete() {
+		t.Fatalf("PlanToGoal() = %#v, %v; want complete plan", plan, err)
+	}
+}
+
+func TestHTN_PrimitivePreconditionsMustHold(t *testing.T) {
+	lib := htn.NewLibrary()
+	action := newAction("work", core.ConditionSet{"done": core.True})
+	action.(*fakeAction).meta.Preconditions = core.ConditionSet{"ready": core.True}
+	lib.MustAdd(&htn.Task{Name: "goal", Action: action})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+
+	plan, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
+	if err != nil || plan != nil {
+		t.Fatalf("PlanToGoal() = %#v, %v; want nil plan", plan, err)
+	}
+}
+
+func TestHTN_PlannerOwnsLibrarySnapshot(t *testing.T) {
+	lib := htn.NewLibrary()
+	action := newAction("work", core.ConditionSet{"done": core.True})
+	task := &htn.Task{Name: "goal", Action: action}
+	lib.MustAdd(task)
+	planner := mustHTNPlanner(t, lib)
+
+	task.Name = "mutated"
+	lib.MustAdd(&htn.Task{Name: "later", Action: newAction("later", core.ConditionSet{"later": core.True})})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+	plan, err := planner.PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
+	if err != nil || plan == nil || len(plan.Actions()) != 1 {
+		t.Fatalf("snapshot planner result = %#v, %v", plan, err)
 	}
 }
