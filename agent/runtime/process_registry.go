@@ -16,10 +16,20 @@ func newProcessRegistry() processRegistry {
 	return processRegistry{items: map[string]*Process{}}
 }
 
-func (r *processRegistry) register(process *Process) {
+func (r *processRegistry) replace(process *Process) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.items[process.id] = process
+}
+
+func (r *processRegistry) insert(process *Process) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.items[process.id]; exists {
+		return false
+	}
+	r.items[process.id] = process
+	return true
 }
 
 // registerNew refuses to replace a live process with a restored copy.

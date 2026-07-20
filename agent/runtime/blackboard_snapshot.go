@@ -1,10 +1,12 @@
 package runtime
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // BlackboardState is the ownership-isolated state required to durably restore
@@ -26,6 +28,41 @@ type BlackboardSnapshotter interface {
 // BlackboardRestorer is the optional restore surface.
 type BlackboardRestorer interface {
 	Restore(BlackboardState) error
+}
+
+func snapshotBlackboard(blackboard core.Blackboard) (state BlackboardState, err error) {
+	snapshotter, ok := blackboard.(BlackboardSnapshotter)
+	if !ok {
+		return BlackboardState{}, fmt.Errorf("blackboard %T does not support durable capture", blackboard)
+	}
+	name, err := blackboardName(blackboard)
+	if err != nil {
+		return BlackboardState{}, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			state = BlackboardState{}
+			err = panicerr.New(fmt.Sprintf("blackboard %q Snapshot panicked", name), recovered)
+		}
+	}()
+	return snapshotter.Snapshot()
+}
+
+func restoreBlackboard(blackboard core.Blackboard, state BlackboardState) (err error) {
+	restorer, ok := blackboard.(BlackboardRestorer)
+	if !ok {
+		return fmt.Errorf("blackboard %T does not support durable restore", blackboard)
+	}
+	name, err := blackboardName(blackboard)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("blackboard %q Restore panicked", name), recovered)
+		}
+	}()
+	return restorer.Restore(state)
 }
 
 // Snapshot implements [BlackboardSnapshotter]. Hidden + protected markers are

@@ -51,6 +51,50 @@ type panickingNameExtension struct{ cause error }
 
 func (e panickingNameExtension) Name() string { panic(e.cause) }
 
+type testIDGenerator struct {
+	name string
+	next func() string
+}
+
+func (g testIDGenerator) Name() string { return g.name }
+func (g testIDGenerator) Next() string { return g.next() }
+
+type testBlackboard struct {
+	core.Blackboard
+	name     string
+	clone    func() core.Blackboard
+	bind     func(any)
+	snapshot func() (runtime.BlackboardState, error)
+	restore  func(runtime.BlackboardState) error
+}
+
+func (b *testBlackboard) Name() string { return b.name }
+func (b *testBlackboard) Clone() core.Blackboard {
+	if b.clone != nil {
+		return b.clone()
+	}
+	return b.Blackboard.Clone()
+}
+func (b *testBlackboard) Bind(value any) {
+	if b.bind != nil {
+		b.bind(value)
+		return
+	}
+	b.Blackboard.Bind(value)
+}
+func (b *testBlackboard) Snapshot() (runtime.BlackboardState, error) {
+	if b.snapshot != nil {
+		return b.snapshot()
+	}
+	return b.Blackboard.(runtime.BlackboardSnapshotter).Snapshot()
+}
+func (b *testBlackboard) Restore(state runtime.BlackboardState) error {
+	if b.restore != nil {
+		return b.restore(state)
+	}
+	return b.Blackboard.(runtime.BlackboardRestorer).Restore(state)
+}
+
 func (m actionMiddlewareFunc) Name() string { return m.name }
 func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	return m.run(next)
@@ -108,6 +152,180 @@ func TestEngineExtensionNamePanicReturnsError(t *testing.T) {
 	_, err := runtime.New(runtime.Config{Extensions: []core.Extension{panickingNameExtension{cause: cause}}})
 	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "Name panicked") {
 		t.Fatalf("New error = %v, want attributed Name panic", err)
+	}
+}
+
+func extensionBoundaryAgent() *core.Agent {
+	type output struct{ Value string }
+	return agent.New(agent.AgentConfig{
+		Name: "extension-boundary",
+		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, string) (output, error) {
+			return output{Value: "done"}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+	})
+}
+
+func TestIDGeneratorFailuresReturnProcessCreationErrors(t *testing.T) {
+	cause := errors.New("ID generator sentinel")
+	tests := []struct {
+		name      string
+		next      func() string
+		wantError error
+		contains  string
+	}{
+		{
+			name: "panic",
+			next: func() string {
+				panic(cause)
+			},
+			wantError: cause,
+			contains:  `ID generator "test-id" Next panicked`,
+		},
+		{name: "empty", next: func() string { return "" }, wantError: runtime.ErrProcessIdentity, contains: "returned"},
+		{name: "surrounding whitespace", next: func() string { return " process-1 " }, wantError: runtime.ErrProcessIdentity, contains: "returned"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{testIDGenerator{
+				name: "test-id",
+				next: test.next,
+			}}})
+			process, err := engine.Run(t.Context(), extensionBoundaryAgent(), core.Input("input"), core.ProcessOptions{})
+			if process != nil || !errors.Is(err, test.wantError) || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("Run = %#v, %v; want nil process and %v containing %q", process, err, test.wantError, test.contains)
+			}
+		})
+	}
+}
+
+func TestDuplicateGeneratedProcessIDDoesNotReplaceRegistryEntry(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{testIDGenerator{
+		name: "static-id",
+		next: func() string { return "process-1" },
+	}}})
+	definition := extensionBoundaryAgent()
+	first, err := engine.Run(t.Context(), definition, core.Input("first"), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("first Run: %v", err)
+	}
+	second, err := engine.Run(t.Context(), definition, core.Input("second"), core.ProcessOptions{})
+	if second != nil || !errors.Is(err, runtime.ErrProcessIdentity) {
+		t.Fatalf("second Run = %#v, %v; want duplicate identity error", second, err)
+	}
+	registered, ok := engine.Process(first.ID())
+	if !ok || registered != first {
+		t.Fatalf("registered process = %#v, %v; want original %#v", registered, ok, first)
+	}
+}
+
+func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
+	baseEngine := agent.MustNewEngine(runtime.Config{})
+	base, err := baseEngine.NewBlackboard()
+	if err != nil {
+		t.Fatalf("NewBlackboard baseline: %v", err)
+	}
+	cause := errors.New("blackboard sentinel")
+	tests := []struct {
+		name      string
+		prototype *testBlackboard
+		wantError error
+		contains  string
+	}{
+		{
+			name: "clone panic",
+			prototype: &testBlackboard{Blackboard: base, name: "panic-board", clone: func() core.Blackboard {
+				panic(cause)
+			}},
+			wantError: cause,
+			contains:  `blackboard "panic-board" Clone panicked`,
+		},
+		{
+			name:      "nil clone",
+			prototype: &testBlackboard{Blackboard: base, name: "nil-board", clone: func() core.Blackboard { return nil }},
+			contains:  `blackboard "nil-board" Clone returned nil`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{test.prototype}})
+			blackboard, err := engine.NewBlackboard()
+			if blackboard != nil || err == nil || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("NewBlackboard = %#v, %v; want nil and %q", blackboard, err, test.contains)
+			}
+			if test.wantError != nil && !errors.Is(err, test.wantError) {
+				t.Fatalf("NewBlackboard error = %v, want %v", err, test.wantError)
+			}
+		})
+	}
+}
+
+func TestBlackboardSeedPanicReturnsProcessCreationError(t *testing.T) {
+	baseEngine := agent.MustNewEngine(runtime.Config{})
+	base, err := baseEngine.NewBlackboard()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("seed sentinel")
+	blackboard := &testBlackboard{
+		Blackboard: base,
+		name:       "seed-board",
+		bind: func(any) {
+			panic(cause)
+		},
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), extensionBoundaryAgent(), core.Input("input"), core.ProcessOptions{Blackboard: blackboard})
+	if process != nil || !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "seed-board" seed panicked`) {
+		t.Fatalf("Run = %#v, %v; want attributed seed panic", process, err)
+	}
+}
+
+func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
+	baseEngine := agent.MustNewEngine(runtime.Config{})
+	base, err := baseEngine.NewBlackboard()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("blackboard persistence sentinel")
+	definition := extensionBoundaryAgent()
+	snapshotBoard := &testBlackboard{
+		Blackboard: base,
+		name:       "snapshot-board",
+		snapshot: func() (runtime.BlackboardState, error) {
+			panic(cause)
+		},
+	}
+	process, err := baseEngine.Run(t.Context(), definition, core.Input("input"), core.ProcessOptions{Blackboard: snapshotBoard})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, err := process.Snapshot(); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "snapshot-board" Snapshot panicked`) {
+		t.Fatalf("Snapshot error = %v, want attributed panic", err)
+	}
+
+	validProcess, err := baseEngine.Run(t.Context(), definition, core.Input("input"), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("valid Run: %v", err)
+	}
+	snapshot, err := validProcess.Snapshot()
+	if err != nil {
+		t.Fatalf("valid Snapshot: %v", err)
+	}
+	restoreBoard := &testBlackboard{
+		Blackboard: base,
+		name:       "restore-board",
+		restore: func(runtime.BlackboardState) error {
+			panic(cause)
+		},
+	}
+	restoreBoard.clone = func() core.Blackboard { return restoreBoard }
+	restoreEngine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{restoreBoard}})
+	if _, err := restoreEngine.Deploy(definition); err != nil {
+		t.Fatalf("Deploy: %v", err)
+	}
+	if _, err := restoreEngine.RestoreSnapshot(snapshot, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
+		t.Fatalf("RestoreSnapshot error = %v, want attributed panic", err)
 	}
 }
 

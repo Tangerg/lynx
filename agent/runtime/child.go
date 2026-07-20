@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // maxChildDepth limits recursive delegation. A root process has depth zero.
@@ -209,9 +210,17 @@ func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.
 	var options core.ProcessOptions
 	switch r.mode {
 	case childCopiesAmbientState:
-		options.Blackboard = ambientBlackboard(parent.blackboard)
+		blackboard, err := ambientBlackboard(parent.blackboard)
+		if err != nil {
+			return core.ProcessOptions{}, err
+		}
+		options.Blackboard = blackboard
 	case childStartsEmpty:
-		options.Blackboard = r.engine.NewBlackboard()
+		blackboard, err := r.engine.NewBlackboard()
+		if err != nil {
+			return core.ProcessOptions{}, err
+		}
+		options.Blackboard = blackboard
 	}
 	return configureChildProcessOptions(r.ctx, parent, deployment, options)
 }
@@ -240,10 +249,23 @@ func configureChildProcessOptions(
 }
 
 // ambientBlackboard copies the parent's protected entries into a clean board.
-func ambientBlackboard(parent core.Blackboard) core.Blackboard {
-	blackboard := parent.Clone()
+func ambientBlackboard(parent core.Blackboard) (blackboard core.Blackboard, err error) {
+	blackboard, err = cloneBlackboard(parent)
+	if err != nil {
+		return nil, err
+	}
+	name, err := blackboardName(blackboard)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			blackboard = nil
+			err = panicerr.New(fmt.Sprintf("blackboard %q ClearWorkingState panicked", name), recovered)
+		}
+	}()
 	blackboard.ClearWorkingState()
-	return blackboard
+	return blackboard, nil
 }
 
 // linkSession gives the child its own conversation while preserving delegation

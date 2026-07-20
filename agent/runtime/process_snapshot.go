@@ -95,7 +95,7 @@ func (e *Engine) RestoreResumable(ctx context.Context, processID string, options
 		for index := len(restored) - 1; index >= 0; index-- {
 			e.processes.unregister(restored[index].process.ID())
 			if restored[index].previous != nil {
-				e.processes.register(restored[index].previous)
+				e.processes.replace(restored[index].previous)
 			}
 		}
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: rebuild process %q: %w", ErrResumableSnapshotLost, processID, err)
@@ -300,11 +300,7 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 		}
 	}
 
-	snapshotter, ok := p.blackboard.(BlackboardSnapshotter)
-	if !ok {
-		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: blackboard does not support durable capture")
-	}
-	blackboardState, err := snapshotter.Snapshot()
+	blackboardState, err := snapshotBlackboard(p.blackboard)
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: capture blackboard: %w", err)
 	}
@@ -367,7 +363,10 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	blackboard := e.resolveBlackboard(options.Blackboard)
+	blackboard, err := e.resolveBlackboard(options.Blackboard)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+	}
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
@@ -429,15 +428,11 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	// table the agent's action I/O bindings declare (see
 	// core.Agent.DecodeBlackboard) — so a restored typed-action input is the
 	// original struct, not the map JSON would otherwise yield.
-	restorer, ok := blackboard.(BlackboardRestorer)
-	if !ok {
-		return nil, errors.New("runtime.Engine.RestoreSnapshot: blackboard does not support durable restore")
-	}
 	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: decode blackboard: %w", err)
 	}
-	if err := restorer.Restore(BlackboardState{
+	if err := restoreBlackboard(blackboard, BlackboardState{
 		Bindings:   bindings,
 		Conditions: snapshot.Conditions,
 		Objects:    objects,
