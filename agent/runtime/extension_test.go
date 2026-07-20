@@ -42,6 +42,16 @@ type orderedInterceptor struct {
 	recorder *orderRecorder
 }
 
+type actionMiddlewareFunc struct {
+	name string
+	run  func(func() (core.ActionStatus, error)) (core.ActionStatus, error)
+}
+
+func (m actionMiddlewareFunc) Name() string { return m.name }
+func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+	return m.run(next)
+}
+
 func (i orderedInterceptor) Name() string { return i.name }
 
 func (i orderedInterceptor) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
@@ -147,6 +157,96 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("log[%d] = %q, want %q\nfull = %v", i, got[i], want[i], got)
 		}
+	}
+}
+
+func TestActionMiddlewareShortCircuitProducesDurableHistory(t *testing.T) {
+	type output struct{}
+	a := agent.New(agent.AgentConfig{
+		Name: "middleware-short-circuit",
+		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
+			return output{}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+	})
+	middlewareErr := errors.New("circuit open")
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{actionMiddlewareFunc{
+		name: "short-circuit",
+		run: func(func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+			return core.ActionFailed, middlewareErr
+		},
+	}}})
+	process, err := engine.Run(t.Context(), a, core.Input(struct{}{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !errors.Is(process.Failure(), middlewareErr) {
+		t.Fatalf("failure = %v, want middleware error", process.Failure())
+	}
+	if history := process.History(); len(history) != 1 || history[0].Attempts != 1 {
+		t.Fatalf("history = %#v, want one chain attempt", history)
+	}
+	if _, err := process.Snapshot(); err != nil {
+		t.Fatalf("Snapshot after short circuit: %v", err)
+	}
+}
+
+func TestActionMiddlewareNextRunsAtMostOnce(t *testing.T) {
+	type output struct{}
+	bodyRuns := 0
+	a := agent.New(agent.AgentConfig{
+		Name: "middleware-next-once",
+		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
+			bodyRuns++
+			return output{}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{actionMiddlewareFunc{
+		name: "double-next",
+		run: func(next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+			firstStatus, firstErr := next()
+			secondStatus, secondErr := next()
+			if firstStatus != secondStatus || !errors.Is(secondErr, firstErr) {
+				return core.ActionFailed, errors.New("next returned inconsistent results")
+			}
+			return firstStatus, firstErr
+		},
+	}}})
+	process, err := engine.Run(t.Context(), a, core.Input(struct{}{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted || bodyRuns != 1 {
+		t.Fatalf("status/body runs = %s/%d, want completed/1", process.Status(), bodyRuns)
+	}
+}
+
+func TestActionMiddlewarePanicFailsProcess(t *testing.T) {
+	type output struct{}
+	cause := errors.New("middleware panic")
+	a := agent.New(agent.AgentConfig{
+		Name: "middleware-panic",
+		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
+			return output{}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{actionMiddlewareFunc{
+		name: "panic",
+		run: func(func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+			panic(cause)
+		},
+	}}})
+	process, err := engine.Run(t.Context(), a, core.Input(struct{}{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v", process.Status(), process.Failure())
+	}
+	if !strings.Contains(process.Failure().Error(), "action middleware panicked") {
+		t.Fatalf("failure = %v, want middleware panic context", process.Failure())
 	}
 }
 

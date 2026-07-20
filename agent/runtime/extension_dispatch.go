@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -109,9 +110,10 @@ func (p *Process) runActionChain(
 		if index >= len(actionMiddleware) {
 			return base()
 		}
-		return actionMiddleware[index].RunAction(ctx, p, action, func() (core.ActionStatus, error) {
+		next := sync.OnceValues(func() (core.ActionStatus, error) {
 			return run(index + 1)
 		})
+		return actionMiddleware[index].RunAction(ctx, p, action, next)
 	}
 	return run(0)
 }

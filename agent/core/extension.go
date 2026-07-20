@@ -24,7 +24,9 @@ type Extension interface {
 // context propagation (auth / tenancy / OTel baggage),
 // circuit-breaker / rate-limit (skip next to short-circuit).
 // Composition is onion-style: the first registered interceptor is
-// the outermost layer. Panics in next become [ActionFailed].
+// the outermost layer. The runtime invokes the wrapped chain at most once even
+// if middleware calls next repeatedly, and converts middleware panics into
+// [ActionFailed].
 type ActionMiddleware interface {
 	Extension
 

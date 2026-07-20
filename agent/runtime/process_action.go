@@ -84,16 +84,19 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	var (
 		status   core.ActionStatus
 		replan   *core.ReplanRequest
-		attempts int
+		attempts = 1
 		lastErr  error
 	)
-	status, lastErr = p.runActionChain(ctx, action, func() (core.ActionStatus, error) {
+	status, lastErr = p.invokeActionChain(ctx, action, func() (core.ActionStatus, error) {
 		finalStatus, replanRequest, attemptCount, err := p.runWithRetry(ctx, action, processContext, metadata.Retry)
 		replan, attempts = replanRequest, attemptCount
 		return finalStatus, err
 	})
 	status, lastErr = validateActionResult(metadata.Name, status, lastErr)
-	if _, invalid := errors.AsType[invalidActionStatusError](lastErr); !invalid {
+	if status == core.ActionFailed && lastErr == nil {
+		lastErr = p.actionFailure(metadata.Name)
+	}
+	if _, invalid := errors.AsType[invalidActionResultError](lastErr); !invalid {
 		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 			replan = request
 		}
@@ -154,20 +157,31 @@ func (h haltSignal) Error() string {
 	return "action halted with status " + h.status.String()
 }
 
-type invalidActionStatusError struct {
+type invalidActionResultError struct {
 	action string
 	status core.ActionStatus
+	reason string
 }
 
-func (e invalidActionStatusError) Error() string {
+func (e invalidActionResultError) Error() string {
+	if e.reason != "" {
+		return fmt.Sprintf("runtime: action %q returned invalid result: status %s %s", e.action, e.status, e.reason)
+	}
 	return fmt.Sprintf("runtime: action %q returned invalid status %d", e.action, e.status)
 }
 
 func validateActionResult(action string, status core.ActionStatus, err error) (core.ActionStatus, error) {
-	if status.Valid() {
-		return status, err
+	if !status.Valid() {
+		return core.ActionFailed, errors.Join(err, invalidActionResultError{action: action, status: status})
 	}
-	return core.ActionFailed, errors.Join(err, invalidActionStatusError{action: action, status: status})
+	if err != nil && status != core.ActionFailed {
+		return core.ActionFailed, errors.Join(err, invalidActionResultError{
+			action: action,
+			status: status,
+			reason: "must not carry an error",
+		})
+	}
+	return status, err
 }
 
 // runWithRetry runs action up to policy.MaxAttempts times, delegating the
@@ -195,6 +209,9 @@ func (p *Process) runWithRetry(
 		}
 
 		status, lastErr = p.invokeAction(ctx, action, processContext)
+		if status == core.ActionFailed && lastErr == nil {
+			lastErr = p.actionFailure(action.Metadata().Name)
+		}
 
 		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 			replan = request
@@ -208,12 +225,7 @@ func (p *Process) runWithRetry(
 			return haltSignal{status: status}
 		}
 
-		// ActionFailed produces an error so [pkg/retry] knows this attempt
-		// didn't succeed.
-		if lastErr != nil {
-			return lastErr
-		}
-		return p.actionFailure(action.Metadata().Name)
+		return lastErr
 	}
 
 	maxAttempts := policy.MaxAttempts
@@ -221,9 +233,9 @@ func (p *Process) runWithRetry(
 		maxAttempts = core.DefaultRetryPolicy().MaxAttempts
 	}
 
-	// Discard the retry error — status, replan, attempts, and lastErr
-	// are captured by the attempt closure above. retry.Do's error only signals
-	// that retries were exhausted, which the captured state already reflects.
+	// The attempt closure retains the canonical underlying error; retry.Do's
+	// wrapping describes orchestration rather than the action failure surfaced
+	// through Process and ActionFinished.
 	_ = retry.Do(attempt,
 		retry.WithContext(ctx),
 		retry.WithMaxAttempts(maxAttempts),
@@ -252,6 +264,20 @@ func (p *Process) invokeAction(ctx context.Context, action core.Action, processC
 	return validateActionResult(action.Metadata().Name, status, err)
 }
 
+func (p *Process) invokeActionChain(
+	ctx context.Context,
+	action core.Action,
+	base func() (core.ActionStatus, error),
+) (status core.ActionStatus, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			status = core.ActionFailed
+			err = panicerr.New("runtime.Process.executeAction: action middleware panicked", recovered)
+		}
+	}()
+	return p.runActionChain(ctx, action, base)
+}
+
 // actionFailure produces a default failure error when an action returned
 // ActionFailed without recording an explicit error on the ProcessContext.
 func (p *Process) actionFailure(name string) error {
@@ -272,7 +298,7 @@ func shouldRetryAction(err error) bool {
 	if _, ok := errors.AsType[haltSignal](err); ok {
 		return false
 	}
-	if _, ok := errors.AsType[invalidActionStatusError](err); ok {
+	if _, ok := errors.AsType[invalidActionResultError](err); ok {
 		return false
 	}
 	if errors.Is(err, interaction.ErrCommitted) {
