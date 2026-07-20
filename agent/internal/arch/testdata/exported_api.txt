@@ -56,6 +56,7 @@ core: const ( ActionSucceeded ActionStatus = iota ActionFailed ActionWaiting Act
 core: const ( DefaultBindingName = "it" LastResultBindingName = "last_result" )
 core: const ( DefaultBudgetCostLimit = 2.0 DefaultBudgetActionLimit = 50 DefaultBudgetTokenLimit = 1_000_000 )
 core: const ( RetrySafetyUnspecified RetrySafety = iota RetrySafetyIdempotent RetrySafetyCompensated )
+core: const ( SnapshotFailureFailProcess SnapshotFailurePolicy = iota SnapshotFailurePauseProcess SnapshotFailureReportOnly )
 core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusCompleted StatusFailed StatusStuck StatusWaiting StatusPaused StatusTerminated StatusKilled )
 core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
@@ -128,6 +129,8 @@ core: func (m SessionMetadata) Len() int
 core: func (m SessionMetadata) MarshalJSON() ([]byte, error)
 core: func (p BudgetPolicy) Check(process ProcessView) (bool, string)
 core: func (p BudgetPolicy) Name() string
+core: func (p SnapshotFailurePolicy) String() string
+core: func (p SnapshotFailurePolicy) Valid() bool
 core: func (p ToolGroupPermission) String() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard
@@ -307,6 +310,7 @@ core: type SessionReader interface { Load(ctx context.Context, id string) (Sessi
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
 core: type SnapshotDeleter interface { Delete(context.Context, string) error }
+core: type SnapshotFailurePolicy uint8
 core: type SnapshotLister interface { List(context.Context) ([]string, error) }
 core: type SnapshotReader interface { Load(context.Context, string) (ProcessSnapshot, error) }
 core: type SnapshotWriter interface { Save(context.Context, ProcessSnapshot, uint64) (uint64, error) }
@@ -405,7 +409,7 @@ event: type ProcessCompleted struct { Header Goal *core.Goal `json:"-"` Result a
 event: type ProcessCreated struct { Header Bindings core.Bindings `json:"bindings,omitzero"` }
 event: type ProcessFailed struct { Header Err error `json:"-"` }
 event: type ProcessKilled struct { Header Reason string `json:"reason,omitempty"` }
-event: type ProcessSnapshotFailed struct { Header Policy string `json:"policy"` Err error `json:"-"` }
+event: type ProcessSnapshotFailed struct { Header Policy core.SnapshotFailurePolicy `json:"-"` Err error `json:"-"` }
 event: type ProcessStuck struct { Header State core.WorldState `json:"-"` }
 event: type ProcessTerminated struct { Header Reason string `json:"reason,omitempty"` Scope core.TerminationScope `json:"-"` }
 event: type ProcessWaiting struct { Header Suspension *interaction.Suspension `json:"suspension"` }
@@ -534,7 +538,7 @@ routing: type ModelRanker struct { }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
-runtime: const ( SnapshotFailureFailProcess SnapshotFailurePolicy = iota SnapshotFailurePauseProcess SnapshotFailureReportOnly )
+runtime: const ( SnapshotFailureFailProcess = core.SnapshotFailureFailProcess SnapshotFailurePauseProcess = core.SnapshotFailurePauseProcess SnapshotFailureReportOnly = core.SnapshotFailureReportOnly )
 runtime: func (d *Deployment) Agent() *core.Agent
 runtime: func (d *Deployment) Ref() core.DeploymentRef
 runtime: func (e *DeploymentConflictError) Error() string
@@ -592,8 +596,6 @@ runtime: func (p *Process) Suspension() *interaction.Suspension
 runtime: func (p *Process) TerminalError() error
 runtime: func (p *Process) Usage() (cost float64, tokens int, actions int)
 runtime: func (p *Process) WorldState() core.WorldState
-runtime: func (p SnapshotFailurePolicy) String() string
-runtime: func (p SnapshotFailurePolicy) Valid() bool
 runtime: func MustNew(config Config) *Engine
 runtime: func New(config Config) (*Engine, error)
 runtime: func NewAgentTaskTools[In, Out any](engine *Engine, agentName string) (start tools.Tool, result tools.Tool, err error)
@@ -612,7 +614,7 @@ runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candida
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }
-runtime: type SnapshotFailurePolicy uint8
+runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")

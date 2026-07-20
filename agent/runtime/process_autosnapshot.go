@@ -5,34 +5,18 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
 
 // SnapshotFailurePolicy controls automatic durability failure behavior.
-type SnapshotFailurePolicy uint8
+type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 
 const (
-	SnapshotFailureFailProcess SnapshotFailurePolicy = iota
-	SnapshotFailurePauseProcess
-	SnapshotFailureReportOnly
+	SnapshotFailureFailProcess  = core.SnapshotFailureFailProcess
+	SnapshotFailurePauseProcess = core.SnapshotFailurePauseProcess
+	SnapshotFailureReportOnly   = core.SnapshotFailureReportOnly
 )
-
-func (p SnapshotFailurePolicy) Valid() bool {
-	return p == SnapshotFailureFailProcess || p == SnapshotFailurePauseProcess || p == SnapshotFailureReportOnly
-}
-
-func (p SnapshotFailurePolicy) String() string {
-	switch p {
-	case SnapshotFailureFailProcess:
-		return "fail_process"
-	case SnapshotFailurePauseProcess:
-		return "pause_process"
-	case SnapshotFailureReportOnly:
-		return "report_only"
-	default:
-		return "unknown"
-	}
-}
 
 func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	if p.engine == nil || !p.engine.autoSnapshot || p.engine.processStore == nil {
@@ -50,7 +34,7 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	policy := p.engine.snapshotFailurePolicy
 	p.publishEvent(ctx, event.ProcessSnapshotFailed{
 		Header: p.eventHeader(),
-		Policy: policy.String(),
+		Policy: policy,
 		Err:    err,
 	})
 

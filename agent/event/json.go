@@ -95,7 +95,7 @@ type processSnapshotFailedPayload struct {
 
 func (e ProcessSnapshotFailed) MarshalJSON() ([]byte, error) {
 	return emit(e, processSnapshotFailedPayload{
-		Policy: e.Policy,
+		Policy: e.Policy.String(),
 		Error:  errString(e.Err),
 	})
 }
