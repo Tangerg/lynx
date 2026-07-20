@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -53,17 +54,30 @@ func (e *DeploymentConflictError) Unwrap() error { return ErrDeploymentConflict 
 // exact same DeploymentRef is idempotent; a different definition returns
 // ErrDeploymentConflict. Use Replace for an intentional route change.
 func (e *Engine) Deploy(agent *core.Agent) (*Deployment, error) {
-	return e.deploy(agent, false)
+	return e.DeployContext(context.Background(), agent)
+}
+
+// DeployContext is [Engine.Deploy] with a context for deployment event
+// propagation. Deployment itself is local and non-blocking; ctx is carried to
+// listeners and tracing rather than used as a cancellation boundary.
+func (e *Engine) DeployContext(ctx context.Context, agent *core.Agent) (*Deployment, error) {
+	return e.deploy(normalizeContext(ctx), agent, false)
 }
 
 // Replace explicitly changes an existing active deployment while retaining
 // the previous definition in the historical catalog. It returns
 // ErrDeploymentNotFound when no active route exists for the candidate name.
 func (e *Engine) Replace(agent *core.Agent) (*Deployment, error) {
-	return e.deploy(agent, true)
+	return e.ReplaceContext(context.Background(), agent)
 }
 
-func (e *Engine) deploy(agent *core.Agent, replace bool) (*Deployment, error) {
+// ReplaceContext is [Engine.Replace] with a context for deployment event
+// propagation.
+func (e *Engine) ReplaceContext(ctx context.Context, agent *core.Agent) (*Deployment, error) {
+	return e.deploy(normalizeContext(ctx), agent, true)
+}
+
+func (e *Engine) deploy(ctx context.Context, agent *core.Agent, replace bool) (*Deployment, error) {
 	operation := "Deploy"
 	if replace {
 		operation = "Replace"
@@ -78,7 +92,7 @@ func (e *Engine) deploy(agent *core.Agent, replace bool) (*Deployment, error) {
 		return nil, fmt.Errorf("runtime.Engine.%s: %w", operation, err)
 	}
 	if changed {
-		e.publish(event.AgentDeployed{
+		e.publishContext(ctx, event.AgentDeployed{
 			Header:     event.NewHeader(""),
 			Deployment: active.Ref(),
 		})
@@ -109,11 +123,17 @@ func (e *Engine) validateForDeploy(agent *core.Agent) error {
 // Undeploy removes an agent. Returns an error when the name is
 // unknown so callers don't silently miss typos.
 func (e *Engine) Undeploy(name string) error {
+	return e.UndeployContext(context.Background(), name)
+}
+
+// UndeployContext is [Engine.Undeploy] with a context for deployment event
+// propagation. The catalog mutation itself remains local and non-cancelable.
+func (e *Engine) UndeployContext(ctx context.Context, name string) error {
 	deployment, err := e.catalog.unregister(name)
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Undeploy: undeploy agent %q: %w", name, err)
 	}
-	e.publish(event.AgentUndeployed{
+	e.publishContext(normalizeContext(ctx), event.AgentUndeployed{
 		Header:     event.NewHeader(""),
 		Deployment: deployment.Ref(),
 	})

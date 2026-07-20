@@ -552,12 +552,15 @@ runtime: func (e *Engine) Continue(ctx context.Context, id string) error
 runtime: func (e *Engine) ContinueAsync(ctx context.Context, id string) <-chan error
 runtime: func (e *Engine) Dependencies() *core.Dependencies
 runtime: func (e *Engine) Deploy(agent *core.Agent) (*Deployment, error)
+runtime: func (e *Engine) DeployContext(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(id string) error
 runtime: func (e *Engine) KillChildren(parentID string) []string
+runtime: func (e *Engine) KillChildrenContext(ctx context.Context, parentID string) []string
+runtime: func (e *Engine) KillContext(ctx context.Context, id string) error
 runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) ProcessStore() core.ProcessStore
@@ -565,6 +568,7 @@ runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) Prune() []string
 runtime: func (e *Engine) Remove(id string) error
 runtime: func (e *Engine) Replace(agent *core.Agent) (*Deployment, error)
+runtime: func (e *Engine) ReplaceContext(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error)
@@ -583,6 +587,7 @@ runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error)
 runtime: func (e *Engine) StartChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, <-chan error, error)
 runtime: func (e *Engine) Undeploy(name string) error
+runtime: func (e *Engine) UndeployContext(ctx context.Context, name string) error
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) EmbeddingCalls() []core.EmbeddingCall

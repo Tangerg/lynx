@@ -21,6 +21,7 @@ var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 // the engine's map before being returned so concurrent
 // Resume / Kill calls can find it.
 func (e *Engine) createProcess(
+	ctx context.Context,
 	agent *core.Agent,
 	bindings core.Bindings,
 	options core.ProcessOptions,
@@ -28,11 +29,11 @@ func (e *Engine) createProcess(
 	if agent == nil {
 		return nil, errors.New("runtime.Engine.createProcess: agent definition is nil")
 	}
-	deployment, err := e.deploymentForProcess(agent)
+	deployment, err := e.deploymentForProcess(ctx, agent)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createProcess: %w", err)
 	}
-	return e.createProcessFromDeployment(deployment, bindings, options)
+	return e.createProcessFromDeployment(ctx, deployment, bindings, options)
 }
 
 // createProcessFromDeployment is the exact-identity construction path used by
@@ -40,6 +41,7 @@ func (e *Engine) createProcess(
 // has already resolved and ownership-checked the immutable deployment handle,
 // so construction cannot drift to a newer active route.
 func (e *Engine) createProcessFromDeployment(
+	ctx context.Context,
 	deployment *Deployment,
 	bindings core.Bindings,
 	options core.ProcessOptions,
@@ -88,14 +90,14 @@ func (e *Engine) createProcessFromDeployment(
 	if !e.processes.insert(process) {
 		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, processID)
 	}
-	process.publishEvent(context.Background(), event.ProcessCreated{
+	process.publishEvent(normalizeContext(ctx), event.ProcessCreated{
 		Header:   event.NewHeader(processID),
 		Bindings: bindings,
 	})
 	return process, nil
 }
 
-func (e *Engine) deploymentForProcess(agent *core.Agent) (*Deployment, error) {
+func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*Deployment, error) {
 	if deployment, ok := e.catalog.forSource(agent); ok {
 		return deployment, nil
 	}
@@ -103,10 +105,11 @@ func (e *Engine) deploymentForProcess(agent *core.Agent) (*Deployment, error) {
 	// must never bind an uncataloged deployment: its snapshot would carry an
 	// DeploymentRef that Restore cannot resolve. Deploy is idempotent for the
 	// same ref and preserves the explicit conflict/replace semantics.
-	return e.Deploy(agent)
+	return e.DeployContext(ctx, agent)
 }
 
 func (e *Engine) createChild(
+	ctx context.Context,
 	deployment *Deployment,
 	parent *Process,
 	bindings core.Bindings,
@@ -136,7 +139,7 @@ func (e *Engine) createChild(
 	// callers that don't observe per-process.
 	options.Extensions = parent.childExtensions(options.Extensions)
 
-	child, err := e.createProcessFromDeployment(deployment, bindings, options)
+	child, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
 	if err != nil {
 		return nil, err
 	}

@@ -95,7 +95,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 // alongside cancellation because this caller still owns a synchronous error
 // boundary.
 func rejectRestoredTurn(state *turnState, process agentexec.TurnProcess, cause error) error {
-	cancelErr := cancelTurnProcess(process)
+	cancelErr := cancelTurnProcess(state.ctx, process)
 	recordTurnCleanupError(state, cancelErr)
 	discardErr := discardProcess(state.ctx, process)
 	recordTurnCleanupError(state, discardErr)

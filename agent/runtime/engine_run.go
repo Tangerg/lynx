@@ -46,7 +46,7 @@ func (e *Engine) Run(
 	if agent == nil {
 		return nil, errors.New("runtime.Engine.Run: agent definition is nil")
 	}
-	deployment, err := e.deploymentForProcess(agent)
+	deployment, err := e.deploymentForProcess(ctx, agent)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.Run: %w", err)
 	}
@@ -59,27 +59,39 @@ func (e *Engine) runDeployment(
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
-	process, err := e.createProcessFromDeployment(deployment, bindings, options)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, span := agentTracer.Start(normalizeContext(ctx), spanRun,
-		trace.WithSpanKind(trace.SpanKindInternal),
-		trace.WithAttributes(
-			attribute.String(attrAgentName, process.agent().Name()),
-			attribute.String(attrProcessID, process.id),
-		),
-	)
+	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
 	defer span.End()
 
+	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
+	if err != nil {
+		finishAgentRunSpan(span, nil, err)
+		return nil, err
+	}
+	span.SetAttributes(attribute.String(attrProcessID, process.id))
+
 	if err := process.run(ctx); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
+		finishAgentRunSpan(span, process, err)
 		return process, err
 	}
-	span.SetAttributes(attribute.String(attrProcessStatus, process.Status().String()))
+	finishAgentRunSpan(span, process, nil)
 	return process, nil
+}
+
+func startAgentRunSpan(ctx context.Context, agentName string) (context.Context, trace.Span) {
+	return agentTracer.Start(normalizeContext(ctx), spanRun,
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithAttributes(attribute.String(attrAgentName, agentName)),
+	)
+}
+
+func finishAgentRunSpan(span trace.Span, process *Process, err error) {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	if process != nil {
+		span.SetAttributes(attribute.String(attrProcessStatus, process.Status().String()))
+	}
 }
 
 // RunInSession runs the agent under a multi-turn session context.
@@ -117,7 +129,7 @@ func (e *Engine) runInSession(
 	if session == nil {
 		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
 	}
-	deployment, err := e.sessionDeployment(agent, session)
+	deployment, err := e.sessionDeployment(ctx, agent, session)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
 	}
@@ -165,7 +177,7 @@ func (e *Engine) runInSession(
 	return process, runErr
 }
 
-func (e *Engine) sessionDeployment(agent *core.Agent, session *core.Session) (*Deployment, error) {
+func (e *Engine) sessionDeployment(ctx context.Context, agent *core.Agent, session *core.Session) (*Deployment, error) {
 	if agent != nil {
 		candidate := *session
 		if err := candidate.BindAgent(agent.Name()); err != nil {
@@ -174,7 +186,7 @@ func (e *Engine) sessionDeployment(agent *core.Agent, session *core.Session) (*D
 		if err := candidate.Validate(); err != nil {
 			return nil, err
 		}
-		return e.deploymentForProcess(agent)
+		return e.deploymentForProcess(ctx, agent)
 	}
 	if err := session.Validate(); err != nil {
 		return nil, err
@@ -212,14 +224,32 @@ func (e *Engine) Start(
 ) (*Process, <-chan error) {
 	done := make(chan error, 1)
 
-	process, err := e.createProcess(agent, bindings, options)
+	if agent == nil {
+		done <- errors.New("runtime.Engine.Start: agent definition is nil")
+		close(done)
+		return nil, done
+	}
+	deployment, err := e.deploymentForProcess(ctx, agent)
 	if err != nil {
+		done <- fmt.Errorf("runtime.Engine.Start: %w", err)
+		close(done)
+		return nil, done
+	}
+	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
+	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
+	if err != nil {
+		finishAgentRunSpan(span, nil, err)
+		span.End()
 		done <- err
 		close(done)
 		return nil, done
 	}
+	span.SetAttributes(attribute.String(attrProcessID, process.id))
 	go func() {
-		done <- process.run(normalizeContext(ctx))
+		err := process.run(ctx)
+		finishAgentRunSpan(span, process, err)
+		span.End()
+		done <- err
 		close(done)
 	}()
 	return process, done
@@ -352,6 +382,13 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 // left untouched, so a kill racing natural completion cannot clobber a clean
 // terminal state or publish a duplicate event.
 func (e *Engine) Kill(id string) error {
+	return e.KillContext(context.Background(), id)
+}
+
+// KillContext is [Engine.Kill] with a context for lifecycle-event propagation.
+// Killing is a local state transition and is not canceled when ctx is done;
+// listeners and tracing still receive the caller's context.
+func (e *Engine) KillContext(ctx context.Context, id string) error {
 	process, ok := e.Process(id)
 	if !ok {
 		return processNotFoundError("kill process", id)
@@ -361,11 +398,11 @@ func (e *Engine) Kill(id string) error {
 	}
 	process.signals.fireRunCancel()
 	process.signals.fireToolCallCancel()
-	e.publish(event.ProcessKilled{
+	process.publishEvent(normalizeContext(ctx), event.ProcessKilled{
 		Header: event.NewHeader(id),
 		Reason: "kill requested",
 	})
-	e.KillChildren(id)
+	e.killChildren(ctx, id)
 	return nil
 }
 
@@ -373,12 +410,22 @@ func (e *Engine) Kill(id string) error {
 // matches parentID and returns those direct child ids (order unspecified).
 // Each child Kill recursively terminates its own descendants.
 func (e *Engine) KillChildren(parentID string) []string {
+	return e.KillChildrenContext(context.Background(), parentID)
+}
+
+// KillChildrenContext is [Engine.KillChildren] with a context for each
+// descendant's lifecycle-event propagation.
+func (e *Engine) KillChildrenContext(ctx context.Context, parentID string) []string {
+	return e.killChildren(normalizeContext(ctx), parentID)
+}
+
+func (e *Engine) killChildren(ctx context.Context, parentID string) []string {
 	var killed []string
 	for _, process := range e.processes.list() {
 		if process.ParentID() != parentID || process.Status().IsTerminal() {
 			continue
 		}
-		if err := e.Kill(process.ID()); err == nil {
+		if err := e.KillContext(ctx, process.ID()); err == nil {
 			killed = append(killed, process.ID())
 		}
 	}

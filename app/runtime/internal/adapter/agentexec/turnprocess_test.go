@@ -76,7 +76,9 @@ type discardProcessEngine struct {
 
 func (*discardProcessEngine) Processes() []*agentruntime.Process { return nil }
 func (e *discardProcessEngine) ProcessStore() core.ProcessStore  { return e.store }
-func (*discardProcessEngine) Kill(string) error                  { panic("unexpected Kill") }
+func (*discardProcessEngine) KillContext(context.Context, string) error {
+	panic("unexpected KillContext")
+}
 func (e *discardProcessEngine) Remove(id string) error {
 	e.removed = append(e.removed, id)
 	return nil

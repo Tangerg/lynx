@@ -263,12 +263,7 @@ func (e *Engine) Processes() []*Process { return e.processes.list() }
 // the engine was constructed without one.
 func (e *Engine) ProcessStore() core.ProcessStore { return e.processStore }
 
-// publish is the runtime's event entry point. Used by Process
-// and executeAction.
-func (e *Engine) publish(published event.Event) {
-	e.publishContext(context.Background(), published)
-}
-
+// publishContext is the runtime's engine-scoped event entry point.
 func (e *Engine) publishContext(ctx context.Context, published event.Event) {
 	if published == nil {
 		return
