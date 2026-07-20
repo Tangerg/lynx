@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/chatclient"
@@ -51,7 +52,10 @@ func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model st
 		return nil, err
 	}
 	if !ok || !entry.Enabled() {
-		return nil, fmt.Errorf("modelclient: provider %q is not configured (set its API key first)", providerID)
+		return nil, &execution.Failure{
+			Kind: execution.FailureInvalidCredentials,
+			Err:  fmt.Errorf("modelclient: provider %q is not configured (set its API key first)", providerID),
+		}
 	}
 
 	// Key by everything that changes the built client, so a providers.configure

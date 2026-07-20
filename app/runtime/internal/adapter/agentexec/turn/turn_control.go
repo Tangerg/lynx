@@ -96,7 +96,7 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
-		s.emit(state, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
+		s.emit(state, ErrorEvent{Message: err.Error(), Code: ErrorCodeEngine, Problem: problemFromError(err)})
 		s.finishTurn(state, execution.OutcomeError)
 		return err
 	}

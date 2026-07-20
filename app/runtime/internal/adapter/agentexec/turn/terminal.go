@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -89,7 +90,7 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, process agentexec.TurnProc
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	if plan.errMsg != "" {
-		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode})
+		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode, Problem: plan.problem})
 	}
 	end := TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD, MaxSteps: st.maxSteps}
 	if plan.withUsage {
@@ -122,7 +123,8 @@ type turnEndPlan struct {
 	reason    execution.Outcome
 	withUsage bool
 	errMsg    string // non-empty → emit an ErrorEvent before TurnEnd
-	errCode   string
+	errCode   ErrorCode
+	problem   runs.Problem
 }
 
 // planTurnEnd is the turnEndPlan constructor: it maps the captured
@@ -144,9 +146,15 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 		if t.Err != nil {
 			msg = t.Err.Error()
 		}
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: msg, errCode: "ENGINE_ERROR"}
+		return turnEndPlan{
+			reason: execution.OutcomeError, errMsg: msg, errCode: ErrorCodeEngine,
+			problem: problemFromError(t.Err),
+		}
 	case event.ProcessStuck:
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: "AGENT_STUCK"}
+		return turnEndPlan{
+			reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: ErrorCodeAgentStuck,
+			problem: problemForFailure(execution.FailureAgentStuck, 0),
+		}
 	default:
 		return fallbackPlan(out, runErr, ctxErr, status)
 	}
@@ -168,7 +176,8 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 		return turnEndPlan{
 			reason:  execution.OutcomeError,
 			errMsg:  fmt.Sprintf("invalid turn stop reason %q", out.StopReason),
-			errCode: "ENGINE_ERROR",
+			errCode: ErrorCodeEngine,
+			problem: internalRunProblem(),
 		}
 	}
 }
@@ -182,7 +191,58 @@ func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.Pr
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
 			return turnEndPlan{reason: execution.OutcomeCanceled}
 		}
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: "ENGINE_ERROR"}
+		return turnEndPlan{
+			reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: ErrorCodeEngine,
+			problem: problemFromError(runErr),
+		}
 	}
 	return completedPlan(out)
+}
+
+func problemFromError(err error) runs.Problem {
+	var failure *execution.Failure
+	if errors.As(err, &failure) {
+		return problemForFailure(failure.Kind, failure.RetryAfter)
+	}
+	return internalRunProblem()
+}
+
+func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) runs.Problem {
+	problem := runs.Problem{Scope: runs.RunProblem}
+	switch kind {
+	case execution.FailureAgentStuck:
+		problem.Kind = runs.AgentStuckProblem
+		problem.Detail = "the agent stopped because it could not make forward progress"
+	case execution.FailureRateLimited:
+		problem.Kind = runs.RateLimitedProblem
+		problem.Detail = "the model provider rate-limited the request; retry shortly"
+		problem.Retryable = true
+	case execution.FailureInvalidCredentials:
+		problem.Kind = runs.InvalidAPIKeyProblem
+		problem.Detail = "the model provider rejected the credentials; check the provider API key"
+	case execution.FailureTimeout:
+		problem.Kind = runs.TimeoutProblem
+		problem.Detail = "the model provider request timed out or the connection failed; retry shortly"
+		problem.Retryable = true
+	case execution.FailureProviderUnavailable:
+		problem.Kind = runs.ProviderUnavailableProblem
+		problem.Detail = "the model provider is temporarily unavailable; retry shortly"
+		problem.Retryable = true
+	case execution.FailureProviderRejected:
+		problem.Kind = runs.ProviderRejectedProblem
+		problem.Detail = "the model provider rejected the request as invalid"
+	default:
+		return internalRunProblem()
+	}
+	if problem.Retryable && retryAfter > 0 {
+		problem.RetryAfterSeconds = int((retryAfter + time.Second - 1) / time.Second)
+	}
+	return problem
+}
+
+func internalRunProblem() runs.Problem {
+	return runs.Problem{
+		Kind: runs.InternalProblem, Scope: runs.RunProblem,
+		Detail: "the run failed due to an internal error",
+	}
 }

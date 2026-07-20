@@ -2,9 +2,6 @@ package runs
 
 import (
 	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -17,7 +14,7 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	detail := ""
 	switch e.Reason {
 	case execution.OutcomeError:
-		result.Error = r.classifyRunError(r.errMsg)
+		result.Error = r.runProblem()
 	case execution.OutcomeMaxBudget:
 		detail = budgetDetail(e)
 	case execution.OutcomeMaxSteps:
@@ -82,58 +79,6 @@ func stepDetail(e TurnEnd) string {
 		return fmt.Sprintf("reached the %d-step limit", e.MaxSteps)
 	}
 	return "reached the configured step limit"
-}
-
-func (r *reducer) classifyRunError(message string) *Problem {
-	if r.errCode == "AGENT_STUCK" {
-		return &Problem{Kind: AgentStuckProblem, Scope: RunProblem, Detail: message}
-	}
-	lower := strings.ToLower(message)
-	contains := func(values ...string) bool {
-		for _, value := range values {
-			if strings.Contains(lower, value) {
-				return true
-			}
-		}
-		return false
-	}
-	problem := func(kind ProblemKind, detail string) *Problem {
-		return &Problem{Kind: kind, Scope: RunProblem, Detail: detail}
-	}
-	retryable := func(kind ProblemKind, detail string) *Problem {
-		p := problem(kind, detail)
-		p.Retryable = true
-		p.RetryAfterSeconds = parseRetryAfter(message)
-		return p
-	}
-	switch {
-	case contains("429", "too many requests", "rate limit", "overloaded", "quota"):
-		return retryable(RateLimitedProblem, "the model provider rate-limited the request; retry shortly")
-	case contains(" 401", " 403", "unauthorized", "forbidden", "invalid_api_key", "api key"):
-		return problem(InvalidAPIKeyProblem, "the model provider rejected the credentials; check the provider API key")
-	case contains("deadline exceeded", "timeout", "timed out", "client.timeout", "connection refused", "no such host", "i/o timeout", "eof", "connection reset"):
-		return retryable(TimeoutProblem, "the model provider request timed out or the connection failed; retry shortly")
-	case contains(" 500", " 502", " 503", " 504", "bad gateway", "service unavailable", "internal server error"):
-		return retryable(ProviderUnavailableProblem, "the model provider is temporarily unavailable; retry shortly")
-	case contains(" 400", "invalid_request_error", "bad request"):
-		return problem(ProviderRejectedProblem, "the model provider rejected the request as invalid")
-	default:
-		return problem(InternalProblem, "the run failed due to an internal error")
-	}
-}
-
-var retryAfterRe = regexp.MustCompile(`(?i)(?:retry[- ]?after|try again in)[:\s]+(\d+)`)
-
-func parseRetryAfter(message string) int {
-	match := retryAfterRe.FindStringSubmatch(message)
-	if len(match) < 2 {
-		return 0
-	}
-	seconds, err := strconv.Atoi(match[1])
-	if err != nil || seconds < 0 || seconds > 3600 {
-		return 0
-	}
-	return seconds
 }
 
 func (r *reducer) turnUsage(e TurnEnd) *Usage {

@@ -18,12 +18,19 @@ type Interrupt = runs.Interrupt
 type InterruptKind = runs.InterruptKind
 type ApprovalPrompt = runs.ApprovalPrompt
 type TurnEnd = runs.TurnEnd
+type ErrorCode = runs.ErrorCode
 type ErrorEvent = runs.ErrorEvent
 type UsageReported = runs.UsageReported
 type TodosUpdated = runs.TodosUpdated
 type SteerMessage = runs.SteerMessage
 
 const (
-	ApprovalInterruptKind = runs.ApprovalInterruptKind
-	QuestionInterruptKind = runs.QuestionInterruptKind
+	ApprovalInterruptKind      = runs.ApprovalInterruptKind
+	QuestionInterruptKind      = runs.QuestionInterruptKind
+	ErrorCodeEngine            = runs.ErrorCodeEngine
+	ErrorCodeAgentStuck        = runs.ErrorCodeAgentStuck
+	ErrorCodeModelUnavailable  = runs.ErrorCodeModelUnavailable
+	ErrorCodeSteering          = runs.ErrorCodeSteering
+	ErrorCodeCompaction        = runs.ErrorCodeCompaction
+	ErrorCodeMemoryMaintenance = runs.ErrorCodeMemoryMaintenance
 )

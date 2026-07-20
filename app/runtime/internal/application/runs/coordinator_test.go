@@ -281,7 +281,10 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
 	executor := &fakeExecutor{events: []EngineEvent{
 		TurnStart{Model: "model"},
-		ErrorEvent{Message: "engine: start chat: duplicate process extension", Code: "ENGINE_ERROR"},
+		ErrorEvent{
+			Message: "engine: start chat: duplicate process extension",
+			Code:    ErrorCodeEngine, Problem: Problem{Kind: InternalProblem, Scope: RunProblem, Detail: "the run failed due to an internal error"},
+		},
 		TurnEnd{Reason: execution.OutcomeError},
 	}}
 	effects := &fakeEffects{}

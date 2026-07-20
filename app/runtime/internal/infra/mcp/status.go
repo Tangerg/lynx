@@ -2,7 +2,6 @@ package mcp
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -16,6 +15,18 @@ var ErrUnknownServer = errors.New("mcp: unknown server")
 // new registry instead of reviving sessions behind the component owner's back.
 var ErrConnectionsClosed = errors.New("mcp: connections closed")
 
+type dialFailureKind uint8
+
+const dialFailureNeedsAuth dialFailureKind = iota + 1
+
+type dialFailure struct {
+	kind dialFailureKind
+	err  error
+}
+
+func (e *dialFailure) Error() string { return e.err.Error() }
+func (e *dialFailure) Unwrap() error { return e.err }
+
 // dialStatus maps a dial error to the connection status: an
 // auth-distinguishable failure becomes "needsAuth" (so the client can prompt
 // for credentials), otherwise "failed".
@@ -26,15 +37,11 @@ func dialStatus(err error) mcpserver.ConnectionState {
 	return mcpserver.ConnectionFailed
 }
 
-// isAuthError reports whether err looks like an MCP server rejecting the
-// connection for missing / invalid credentials (HTTP 401 Unauthorized). The
-// go-sdk surfaces the transport failure as a wrapped error, so detection is a
-// heuristic string match; a false negative just yields the generic "failed"
-// status, never a wrong success.
+// isAuthError reports whether the HTTP transport observed an authentication
+// rejection while the MCP SDK was dialing. The SDK turns the response into a
+// plain wrapped error, so our transport records the status before that type
+// information is lost.
 func isAuthError(err error) bool {
-	if err == nil {
-		return false
-	}
-	s := strings.ToLower(err.Error())
-	return strings.Contains(s, "401") || strings.Contains(s, "unauthorized")
+	var failure *dialFailure
+	return errors.As(err, &failure) && failure.kind == dialFailureNeedsAuth
 }

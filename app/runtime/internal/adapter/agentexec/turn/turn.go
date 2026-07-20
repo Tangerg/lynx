@@ -32,7 +32,10 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	if request.Provider != "" && request.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, request.Provider, request.Model)
 		if err != nil {
-			s.emit(st, ErrorEvent{Message: err.Error(), Code: "MODEL_UNAVAILABLE"})
+			s.emit(st, ErrorEvent{
+				Message: err.Error(), Code: ErrorCodeModelUnavailable,
+				Problem: problemFromError(err),
+			})
 			s.finishTurn(st, execution.OutcomeError)
 			return
 		}
@@ -59,7 +62,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		s.emit(st, ErrorEvent{Message: err.Error(), Code: "ENGINE_ERROR"})
+		s.emit(st, ErrorEvent{Message: err.Error(), Code: ErrorCodeEngine, Problem: internalRunProblem()})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
@@ -145,14 +148,20 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	}
 	if suspension == nil {
 		recordTurnCleanupError(st, cancelTurnProcess(process))
-		s.emit(st, ErrorEvent{Message: "agent process is waiting without a suspension", Code: "ENGINE_ERROR"})
+		s.emit(st, ErrorEvent{
+			Message: "agent process is waiting without a suspension",
+			Code:    ErrorCodeEngine, Problem: internalRunProblem(),
+		})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
 		recordTurnCleanupError(st, cancelTurnProcess(process))
-		s.emit(st, ErrorEvent{Message: "agent process returned an unsupported interrupt payload", Code: "ENGINE_ERROR"})
+		s.emit(st, ErrorEvent{
+			Message: "agent process returned an unsupported interrupt payload",
+			Code:    ErrorCodeEngine, Problem: internalRunProblem(),
+		})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
@@ -233,7 +242,8 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	if err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),
-			Code:    "COMPACTION_ERROR",
+			Code:    ErrorCodeCompaction,
+			Problem: internalRunProblem(),
 		})
 		return
 	}
@@ -251,7 +261,8 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	if err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd); err != nil {
 		s.emit(st, ErrorEvent{
 			Message: "memory maintenance failed: " + err.Error(),
-			Code:    "MEMORY_MAINTENANCE_ERROR",
+			Code:    ErrorCodeMemoryMaintenance,
+			Problem: internalRunProblem(),
 		})
 	}
 }

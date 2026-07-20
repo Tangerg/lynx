@@ -1,9 +1,11 @@
 package modelclient
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -23,6 +25,10 @@ func TestClientResolver_RejectsUnconfigured(t *testing.T) {
 	_, err = r.ResolveClient(t.Context(), "deepseek", "deepseek-v4-pro")
 	if err == nil {
 		t.Fatal("expected an error resolving against an unconfigured provider")
+	}
+	var failure *execution.Failure
+	if !errors.As(err, &failure) || failure.Kind != execution.FailureInvalidCredentials {
+		t.Fatalf("unconfigured provider error = %#v, want invalid-credentials failure", err)
 	}
 
 	err = ps.Configure(t.Context(), provider.Provider{ID: "deepseek", APIKey: "k"})
