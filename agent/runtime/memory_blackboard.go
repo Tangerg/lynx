@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+const inMemoryBlackboardName = "in-memory-blackboard"
+
 // inMemoryBlackboard is the default blackboard backed by maps and a slice.
 // It is the only Blackboard implementation in the framework; production
 // deployments that need persistence (Redis, Postgres, ...) write a custom
@@ -22,7 +24,7 @@ type inMemoryBlackboard struct {
 	id string
 
 	mu             sync.RWMutex
-	named          map[string]any
+	named          core.Bindings
 	transientNamed map[string]struct{}
 	protected      map[string]struct{}
 	objects        []any
@@ -34,7 +36,6 @@ type inMemoryBlackboard struct {
 func newInMemoryBlackboard() *inMemoryBlackboard {
 	return &inMemoryBlackboard{
 		id:             uuid.NewString(),
-		named:          map[string]any{},
 		transientNamed: map[string]struct{}{},
 		protected:      map[string]struct{}{},
 		conditions:     map[string]bool{},
@@ -45,7 +46,7 @@ func newInMemoryBlackboard() *inMemoryBlackboard {
 // runtime treats Blackboard as an Extension; the registered prototype's
 // Name() shows up in extension lists / debug output but is otherwise
 // not load-bearing.
-func (b *inMemoryBlackboard) Name() string { return "in-memory-blackboard" }
+func (b *inMemoryBlackboard) Name() string { return inMemoryBlackboardName }
 
 func (b *inMemoryBlackboard) ID() string { return b.id }
 
@@ -56,7 +57,7 @@ func (b *inMemoryBlackboard) Store(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named[key] = value
+	b.named.Set(key, value)
 	delete(b.transientNamed, key)
 	b.objects = append(b.objects, value)
 	b.durableObjects = append(b.durableObjects, true)
@@ -65,7 +66,7 @@ func (b *inMemoryBlackboard) Store(key string, value any) {
 func (b *inMemoryBlackboard) StoreTransient(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.named[key] = value
+	b.named.Set(key, value)
 	b.transientNamed[key] = struct{}{}
 	b.objects = append(b.objects, value)
 	b.durableObjects = append(b.durableObjects, false)
@@ -75,7 +76,7 @@ func (b *inMemoryBlackboard) Load(key string) (any, bool) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
-	v, ok := b.named[key]
+	v, ok := b.named.Get(key)
 	return v, ok
 }
 
@@ -108,10 +109,10 @@ func (b *inMemoryBlackboard) Bind(value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named[core.DefaultBindingName] = value
+	b.named.Set(core.DefaultBindingName, value)
 	delete(b.transientNamed, core.DefaultBindingName)
 	if derivedKey := core.TypeKey(value); derivedKey != "" {
-		b.named[derivedKey] = value
+		b.named.Set(derivedKey, value)
 		delete(b.transientNamed, derivedKey)
 	}
 	b.objects = append(b.objects, value)
@@ -121,10 +122,10 @@ func (b *inMemoryBlackboard) Bind(value any) {
 func (b *inMemoryBlackboard) BindTransient(value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.named[core.DefaultBindingName] = value
+	b.named.Set(core.DefaultBindingName, value)
 	b.transientNamed[core.DefaultBindingName] = struct{}{}
 	if derivedKey := core.TypeKey(value); derivedKey != "" {
-		b.named[derivedKey] = value
+		b.named.Set(derivedKey, value)
 		b.transientNamed[derivedKey] = struct{}{}
 	}
 	b.objects = append(b.objects, value)
@@ -136,7 +137,7 @@ func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) {
 	defer b.mu.Unlock()
 
 	for key, value := range bindings.All() {
-		b.named[key] = value
+		b.named.Set(key, value)
 		delete(b.transientNamed, key)
 		b.objects = append(b.objects, value)
 		b.durableObjects = append(b.durableObjects, true)
@@ -149,7 +150,7 @@ func (b *inMemoryBlackboard) StoreProtected(key string, value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named[key] = value
+	b.named.Set(key, value)
 	delete(b.transientNamed, key)
 	b.protected[key] = struct{}{}
 	b.objects = append(b.objects, value)
@@ -190,7 +191,7 @@ func (b *inMemoryBlackboard) Clone() core.Blackboard {
 	defer b.mu.RUnlock()
 
 	child := newInMemoryBlackboard()
-	maps.Copy(child.named, b.named)
+	child.named = b.named.Clone()
 	maps.Copy(child.transientNamed, b.transientNamed)
 	maps.Copy(child.protected, b.protected)
 	maps.Copy(child.conditions, b.conditions)
@@ -205,15 +206,14 @@ func (b *inMemoryBlackboard) ClearWorkingState() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	preserved := make(map[string]any, len(b.protected))
+	var preserved core.Bindings
 	for key := range b.protected {
-		if value, ok := b.named[key]; ok {
-			preserved[key] = value
+		if value, ok := b.named.Get(key); ok {
+			preserved.Set(key, value)
 		}
 	}
 
-	clear(b.named)
-	maps.Copy(b.named, preserved)
+	b.named = preserved
 	clear(b.transientNamed)
 	b.objects = b.objects[:0]
 	b.durableObjects = b.durableObjects[:0]
@@ -237,7 +237,7 @@ func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 		return b.findLatestVisible()
 	}
 
-	value, ok := b.named[variable]
+	value, ok := b.named.Get(variable)
 	if !ok {
 		return nil, false
 	}

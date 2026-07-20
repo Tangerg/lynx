@@ -54,6 +54,7 @@
 .: type Truth = core.Truth
 core: const ( ActionSucceeded ActionStatus = iota ActionFailed ActionWaiting ActionPaused )
 core: const ( DefaultBindingName = "it" LastResultBindingName = "last_result" )
+core: const ( DefaultBudgetCostLimit = 2.0 DefaultBudgetActionLimit = 50 DefaultBudgetTokenLimit = 1_000_000 )
 core: const ( RetrySafetyUnspecified RetrySafety = iota RetrySafetyIdempotent RetrySafetyCompensated )
 core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusCompleted StatusFailed StatusStuck StatusWaiting StatusPaused StatusTerminated StatusKilled )
 core: const ( StuckStop StuckDecision = iota StuckReplan )
@@ -61,7 +62,9 @@ core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeActi
 core: const ( ToolGroupHostAccess ToolGroupPermission = iota ToolGroupInternetAccess )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
+core: const BudgetPolicyName = "budget-policy"
 core: const ProcessSnapshotSchemaVersion uint16 = 2
+core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
 core: func (a *Agent) Conditions() []Condition
@@ -609,6 +612,7 @@ toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "c
 toolloop: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
 toolloop: const CheckpointSchemaVersion uint16 = 2
 toolloop: const DefaultMaxConcurrentCalls = 8
+toolloop: const DefaultMaxRounds = 50
 toolloop: func (c *Checkpoint) ToolCalls() ([]chat.ToolCall, error)
 toolloop: func (c *Checkpoint) UnmarshalJSON(data []byte) error
 toolloop: func (c *Checkpoint) Validate() error
@@ -655,6 +659,9 @@ toolpolicy: func WithScope(ctx context.Context) context.Context
 toolpolicy: type Condition func(ctx context.Context, arguments string) (allowed bool, reason string)
 toolpolicy: var ErrAlreadyCalled = errors.New("toolpolicy: tool already called in this policy scope")
 toolpolicy: var ErrLocked = errors.New("toolpolicy: tool call blocked by condition")
+workflow: const DefaultAcceptableScore = 0.7
+workflow: const DefaultLoopIterations = 5
+workflow: const DefaultRepeatIterations = 3
 workflow: func (f Feedback) Acceptable(threshold float64) bool
 workflow: func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool)
 workflow: func (h *AttemptHistory[Out]) Count() int

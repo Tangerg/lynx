@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 )
 
+const defaultActionCost = 1.0
+
 // ActionFunc is the user-supplied Action body. The framework keeps In/Out
 // concrete all the way through to Execute so users get true compile-time type
 // safety — the same compile-time guarantee that reflection-based frameworks
@@ -138,7 +140,7 @@ func NewAction[In, Out any](
 ) *FuncAction[In, Out] {
 	cost := config.Cost
 	if cost == nil {
-		cost = FixedScore(1.0)
+		cost = FixedScore(defaultActionCost)
 	}
 	value := config.Value
 	if value == nil {

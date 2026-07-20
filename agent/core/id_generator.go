@@ -2,6 +2,9 @@ package core
 
 import "github.com/google/uuid"
 
+// UUIDGeneratorName is the default UUID generator's extension identifier.
+const UUIDGeneratorName = "uuid"
+
 // IDGenerator produces stable, unique IDs for processes. It also acts as an
 // engine-level [Extension] — the runtime registers one through
 // Config.Extensions and falls back to a built-in UUID generator
@@ -19,7 +22,7 @@ type UUIDGenerator struct{ name string }
 // supplied extension Name (defaults to "uuid" when blank).
 func NewUUIDGenerator(name string) *UUIDGenerator {
 	if name == "" {
-		name = "uuid"
+		name = UUIDGeneratorName
 	}
 	return &UUIDGenerator{name: name}
 }

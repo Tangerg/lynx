@@ -76,7 +76,7 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 }
 
 // DecodeBlackboard reconstructs strict durable values. Unknown tags and decode
-// failures are errors; restore never silently substitutes map[string]any.
+// failures are errors; restore never silently substitutes generic JSON objects.
 func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error) {
 	if a == nil {
 		return Bindings{}, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
