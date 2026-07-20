@@ -88,3 +88,48 @@ func (s ProcessStatus) valid() bool {
 		return false
 	}
 }
+
+// ReplanRequest tells the runtime that an action invalidated the current plan.
+// The runtime excludes that action for one tick, applies Update, and plans
+// again.
+type ReplanRequest struct {
+	Reason string
+
+	// Update stages state discovered by the action before re-planning.
+	Update func(Blackboard)
+}
+
+func (r *ReplanRequest) Error() string {
+	if r == nil || r.Reason == "" {
+		return "replan requested"
+	}
+	return "replan requested: " + r.Reason
+}
+
+// TerminationScope identifies the boundary affected by a termination request.
+type TerminationScope int
+
+const (
+	// TerminationScopeAgent stops the entire process.
+	TerminationScopeAgent TerminationScope = iota
+
+	// TerminationScopeAction stops the current action and replans.
+	TerminationScopeAction
+)
+
+func (s TerminationScope) String() string {
+	switch s {
+	case TerminationScopeAgent:
+		return "agent"
+	case TerminationScopeAction:
+		return "action"
+	default:
+		return "unknown"
+	}
+}
+
+// TerminationSignal is a pending structured termination request.
+type TerminationSignal struct {
+	Scope  TerminationScope
+	Reason string
+}
