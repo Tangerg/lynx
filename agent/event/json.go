@@ -1,10 +1,13 @@
 package event
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // JSON marshaling for every event type lives here, separate from the
@@ -247,4 +250,96 @@ func (e EmbeddingCallRecorded) MarshalJSON() ([]byte, error) {
 		DurationNS:  call.Duration.Nanoseconds(),
 		Action:      call.ActionName,
 	})
+}
+
+// goalSummary is the lossy wire representation of a Goal. Function-valued
+// planning callbacks intentionally do not cross the event boundary.
+type goalSummary struct {
+	Name          string         `json:"name,omitempty"`
+	Description   string         `json:"description,omitempty"`
+	Preconditions []string       `json:"pre,omitempty"`
+	Inputs        []core.Binding `json:"inputs,omitempty"`
+}
+
+func summarizeGoal(goal *core.Goal) *goalSummary {
+	if goal == nil {
+		return nil
+	}
+	return &goalSummary{
+		Name:          goal.Name(),
+		Description:   goal.Description(),
+		Preconditions: goal.RequiredConditions(),
+		Inputs:        goal.Inputs(),
+	}
+}
+
+func actionName(action core.Action) string {
+	if action == nil {
+		return ""
+	}
+	return action.Metadata().Name
+}
+
+func actionNames(actions []core.Action) []string {
+	if len(actions) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(actions))
+	for _, action := range actions {
+		names = append(names, actionName(action))
+	}
+	return names
+}
+
+type planSummary struct {
+	Actions []string     `json:"actions,omitempty"`
+	Goal    *goalSummary `json:"goal,omitempty"`
+}
+
+func summarizePlan(plan *planning.Plan) *planSummary {
+	if plan == nil {
+		return nil
+	}
+	return &planSummary{
+		Actions: actionNames(plan.Actions()),
+		Goal:    summarizeGoal(plan.Goal()),
+	}
+}
+
+type worldStateSummary struct {
+	State     map[string]core.Truth `json:"state,omitempty"`
+	Timestamp time.Time             `json:"timestamp,omitzero"`
+}
+
+func summarizeWorldState(state core.WorldState) *worldStateSummary {
+	if state == nil {
+		return nil
+	}
+	return &worldStateSummary{State: state.Conditions(), Timestamp: state.Timestamp()}
+}
+
+func summarizeValue(value any) any {
+	if value == nil {
+		return nil
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Sprint(value)
+	}
+	var decoded any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		return fmt.Sprint(value)
+	}
+	return decoded
+}
+
+func summarizeMap(values map[string]any) map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	summary := make(map[string]any, len(values))
+	for key, value := range values {
+		summary[key] = summarizeValue(value)
+	}
+	return summary
 }
