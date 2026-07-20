@@ -263,29 +263,32 @@ func TestStoretestIsOnlyImportedByTests(t *testing.T) {
 	}
 }
 
-func TestTargetToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
-	root := moduleRoot(t)
+func TestToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "toolloop")
 	fset := token.NewFileSet()
-	for _, name := range []string{
-		"checkpoint.go",
-		"control.go",
-		"event.go",
-		"resolver.go",
-		"runner.go",
-		"runtime_policy.go",
-	} {
-		path := filepath.Join(root, "toolloop", name)
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
 		if err != nil {
-			t.Fatalf("parse target tool-loop file %s: %v", name, err)
+			return err
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			if importPath == "github.com/Tangerg/lynx/chatclient" ||
 				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/chatclient/") {
-				t.Errorf("target tool-loop file %s imports frozen runtime %q", name, importPath)
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("tool-loop file %s imports frozen runtime %q", rel, importPath)
 			}
 		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk tool-loop package: %v", walkErr)
 	}
 }
 
