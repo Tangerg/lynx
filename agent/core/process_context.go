@@ -214,6 +214,153 @@ func (pc *ProcessContext) ForParallelBranch() *ProcessContext {
 	return &branch
 }
 
+// Chat returns provider-neutral model and stream capabilities scoped to this process.
+func (pc *ProcessContext) Chat() (ChatCapability, error) {
+	if pc == nil || pc.chat == nil {
+		if pc != nil && pc.parallelBranch {
+			return ChatCapability{}, ErrParallelBranchControl
+		}
+		return ChatCapability{}, errors.New("agent.ProcessContext.Chat: no chat model configured on the engine")
+	}
+	capability, err := pc.chat()
+	if err != nil {
+		return ChatCapability{}, err
+	}
+	if capability.Model == nil {
+		return ChatCapability{}, errors.New("agent.ProcessContext.Chat: runtime resolved a nil chat model")
+	}
+	return capability, nil
+}
+
+// Interact runs a complete framework-managed model/tool interaction and
+// preserves its terminal event.
+func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error) {
+	if pc == nil || pc.runInteraction == nil {
+		return interaction.Result{}, errors.New("agent.ProcessContext.Interact: managed interaction is not configured")
+	}
+	return pc.runInteraction(contextOrBackground(ctx), input)
+}
+
+// Suspend parks one durable continuation on the current process.
+func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) {
+	if pc == nil || pc.control == nil {
+		if pc != nil && pc.parallelBranch {
+			return ActionFailed, ErrParallelBranchControl
+		}
+		return ActionFailed, errors.New("agent: process context has no lifecycle control")
+	}
+	status, err := pc.control.Suspend(contextOrBackground(ctx), suspension)
+	if err != nil {
+		return status, err
+	}
+	if status == ActionWaiting {
+		pc.suspended = true
+	}
+	return status, nil
+}
+
+// TerminateAgent requests process termination at the next tick boundary.
+func (pc *ProcessContext) TerminateAgent(reason string) error {
+	if pc == nil || pc.control == nil {
+		return ErrParallelBranchControl
+	}
+	pc.control.TerminateAgent(reason)
+	return nil
+}
+
+// TerminateAction requests re-planning without terminating the process.
+func (pc *ProcessContext) TerminateAction(reason string) error {
+	if pc == nil || pc.control == nil {
+		return ErrParallelBranchControl
+	}
+	pc.control.TerminateAction(reason)
+	return nil
+}
+
+// TerminateToolCall cancels the process's registered in-flight tool call.
+func (pc *ProcessContext) TerminateToolCall() error {
+	if pc == nil || pc.control == nil {
+		return ErrParallelBranchControl
+	}
+	pc.control.TerminateToolCall()
+	return nil
+}
+
+// Emit delivers an event to the runtime's listeners.
+func (pc *ProcessContext) Emit(ctx context.Context, event any) {
+	if pc.emit != nil {
+		pc.emit(contextOrBackground(ctx), event)
+	}
+}
+
+// ResolveTools resolves unprivileged tool roles through the engine-configured resolver.
+func (pc *ProcessContext) ResolveTools(ctx context.Context, roles ...string) ([]tools.Tool, error) {
+	if pc.resolveTools == nil {
+		return nil, nil
+	}
+	requirements := make([]ToolGroupRequirement, len(roles))
+	for i, role := range roles {
+		requirements[i] = RequireToolGroup(role)
+	}
+	return pc.resolveTools(contextOrBackground(ctx), requirements)
+}
+
+// ActionTools resolves the tool groups declared by the current action.
+func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error) {
+	if pc.resolveTools == nil || len(pc.actionToolGroups) == 0 {
+		return nil, nil
+	}
+	return pc.resolveTools(contextOrBackground(ctx), pc.actionToolGroups)
+}
+
+// ToolCallContext derives a child context cancellable through TerminateToolCall.
+// The returned cancel function also unregisters the runtime callback and must
+// be called when the tool invocation finishes.
+func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(contextOrBackground(parent))
+	if pc.toolCallCancel == nil {
+		return ctx, cancel
+	}
+	release := pc.toolCallCancel(cancel)
+	return ctx, func() {
+		cancel()
+		if release != nil {
+			release()
+		}
+	}
+}
+
+// RecordUsage attributes aggregate model usage to the running process.
+func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int) {
+	if pc == nil || pc.usage == nil {
+		return
+	}
+	pc.usage.RecordUsage(contextOrBackground(ctx), cost, tokens)
+}
+
+// RecordModelCall attributes one model call to the running process.
+func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall) {
+	if pc == nil || pc.usage == nil {
+		return
+	}
+	pc.usage.RecordModelCall(contextOrBackground(ctx), call)
+}
+
+// RecordEmbeddingCall attributes one embedding call to the running process.
+func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) {
+	if pc == nil || pc.usage == nil {
+		return
+	}
+	pc.usage.RecordEmbeddingCall(contextOrBackground(ctx), call)
+}
+
+func contextOrBackground(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
 // ErrParallelBranchControl reports lifecycle or managed-interaction use from
 // a workflow branch. Use an isolated child Process when a parallel unit needs
 // suspension, termination, or its own model/tool lifecycle.
