@@ -104,22 +104,38 @@ func (e *Engine) RunInSession(
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
+	return e.runInSession(ctx, agent, session, bindings, options)
+}
+
+func (e *Engine) runInSession(
+	ctx context.Context,
+	agent *core.Agent,
+	session *core.Session,
+	bindings core.Bindings,
+	options core.ProcessOptions,
+) (process *Process, err error) {
 	if session == nil {
 		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
 	}
-	ctx = normalizeContext(ctx)
-	release, err := e.sessionTurnSequencer.Acquire(ctx, session.ID)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: acquire session turn %q: %w", session.ID, err)
-	}
-	if release == nil {
-		return nil, errors.New("runtime.Engine.RunInSession: SessionTurnSequencer returned a nil release function")
-	}
-	defer release()
-
 	deployment, err := e.sessionDeployment(agent, session)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
+	}
+	sessionID := session.ID
+
+	ctx = normalizeContext(ctx)
+	release, err := acquireSessionTurn(ctx, e.sessionTurnSequencer, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: acquire session turn %q: %w", sessionID, err)
+	}
+	defer func() {
+		if releaseErr := releaseSessionTurn(release); releaseErr != nil {
+			err = errors.Join(err, fmt.Errorf("runtime.Engine.RunInSession: release session turn %q: %w", sessionID, releaseErr))
+		}
+	}()
+
+	if session.ID != sessionID {
+		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w: session ID changed while waiting for turn ownership", core.ErrInvalidSession)
 	}
 	if err := session.BindAgent(deployment.agent.Name()); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)

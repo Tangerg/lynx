@@ -388,6 +388,10 @@ type SessionStore interface {
 以 `ErrInvalidSession` 失败。最终 Session save 使用保留 context value 但脱离 request
 cancel 的 context，并用 `errors.Join` 同时保留运行错误和持久化错误。
 
+默认 Session turn 协调器现在显式按到达顺序授权，同一 Session 串行、不同 Session 并行，
+等待取消不会阻塞后续 turn。自定义 `SessionTurnSequencer` 也必须提供 FIFO 语义。该端口不
+携带 fencing token，因此不能单独充当跨节点执行租约；分布式 Host 必须在外层拒绝陈旧 owner。
+
 自定义 Session 后端运行公共契约：
 
 ```go
