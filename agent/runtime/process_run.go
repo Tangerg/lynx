@@ -18,11 +18,14 @@ import (
 func (p *Process) run(ctx context.Context) error {
 	ctx = normalizeContext(ctx)
 
-	// beginRun is a CAS — if the process is already running (e.g.
-	// a double Start call), it returns false and the call silently no-ops.
-	if !p.state.beginRun() {
+	started, err := p.state.beginRun()
+	if err != nil {
+		return fmt.Errorf("runtime.Process.run %q: %w", p.ID(), err)
+	}
+	if !started {
 		return nil
 	}
+	defer p.state.endRun()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	releaseRun := p.signals.registerRunCancel(cancelRun)
 	defer func() {

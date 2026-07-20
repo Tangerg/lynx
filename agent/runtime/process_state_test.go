@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -14,7 +15,7 @@ import (
 // only when it won — no duplicate / conflicting terminals.
 func TestProcessState_FirstTerminalWins(t *testing.T) {
 	s := newProcessState()
-	if !s.beginRun() {
+	if started, err := s.beginRun(); err != nil || !started {
 		t.Fatal("beginRun from NotStarted should win the loop")
 	}
 
@@ -55,7 +56,7 @@ func TestProcessState_FirstTerminalWins(t *testing.T) {
 // sets cleanly while not terminal, and beginRun re-enters from Waiting.
 func TestProcessState_NonTerminalTransitions(t *testing.T) {
 	s := newProcessState()
-	if !s.beginRun() {
+	if started, err := s.beginRun(); err != nil || !started {
 		t.Fatal("NotStarted → Running should win")
 	}
 	if !s.transition(core.StatusWaiting) {
@@ -64,10 +65,25 @@ func TestProcessState_NonTerminalTransitions(t *testing.T) {
 	if got := s.status(); got != core.StatusWaiting {
 		t.Fatalf("status = %v, want Waiting", got)
 	}
-	if !s.beginRun() {
+	s.endRun()
+	if started, err := s.beginRun(); err != nil || !started {
 		t.Fatal("Waiting → Running (resume) should win")
 	}
 	if got := s.status(); got != core.StatusRunning {
 		t.Fatalf("status = %v, want Running", got)
 	}
+}
+
+func TestProcessState_RestoredRunningAcquiresFreshOwnership(t *testing.T) {
+	s := newProcessState()
+	if !s.transition(core.StatusRunning) {
+		t.Fatal("restore Running transition should succeed")
+	}
+	if started, err := s.beginRun(); err != nil || !started {
+		t.Fatalf("beginRun from restored Running = (%v, %v), want (true, nil)", started, err)
+	}
+	if started, err := s.beginRun(); started || !errors.Is(err, ErrProcessRunning) {
+		t.Fatalf("overlapping beginRun = (%v, %v), want ErrProcessRunning", started, err)
+	}
+	s.endRun()
 }
