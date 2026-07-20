@@ -56,6 +56,8 @@ type Resolver struct {
 	schedule        tools.Tool          // schedule management op-tool; coding role only, nil when no registry
 	toolResult      tools.Tool          // read_tool_result offloaded-output reader; both roles, nil when eviction is off
 	skillPropose    tools.Tool          // propose_skill authoring tool; coding role only, nil when authoring is off
+	goalUpdate      tools.Tool          // update_goal loop-signal tool; coding role only, offered only while a goal is active
+	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
 	// a pre-built tool) so Tools() can gate inclusion on Available() per turn —
@@ -95,6 +97,8 @@ type Deps struct {
 	Schedule        tools.Tool          // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      tools.Tool          // read_tool_result offloaded-output reader (both roles); nil → omitted
 	SkillPropose    tools.Tool          // propose_skill authoring tool (coding role only); nil → omitted
+	GoalUpdate      tools.Tool          // update_goal loop-signal tool (coding role only); nil → omitted
+	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
 	CodeIntel       *codeintel.Analyzer // backs the post-edit diagnostics wrap
 	ReadTracker     *editguard.Tracker  // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex       // backs codebase_search (both roles); nil → omitted
@@ -145,6 +149,8 @@ func NewResolver(d Deps) (*Resolver, error) {
 		schedule:        d.Schedule,
 		toolResult:      d.ToolResult,
 		skillPropose:    d.SkillPropose,
+		goalUpdate:      d.GoalUpdate,
+		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
 		pathLocker:      newPathLocker(),
@@ -352,6 +358,16 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 		// subtask shouldn't author skills.
 		if g.resolver.skillPropose != nil {
 			tools = append(tools, g.resolver.skillPropose)
+		}
+		// update_goal ends the autonomous loop (coding role only — a subtask must
+		// not complete its parent's goal). Offered only while a goal is active for
+		// the session, so it never clutters an ordinary turn. A reader failure is
+		// not fatal: it just omits the tool for this turn (the loop keeps driving;
+		// the model simply lacks the signal until the next resolution succeeds).
+		if g.resolver.goalUpdate != nil && g.resolver.goalActive != nil {
+			if active, err := g.resolver.goalActive(ctx, turnctx.TurnSession(ctx)); err == nil && active {
+				tools = append(tools, g.resolver.goalUpdate)
+			}
 		}
 	}
 	// search_tools (both roles): the progressive-disclosure surface over the
