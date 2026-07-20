@@ -140,7 +140,7 @@ func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, 
 		SessionID: l.sessionID,
 		Cwd:       l.cwd,
 		Subagent:  &in,
-		Reason:    e.Kind(),
+		Reason:    string(e.Kind()),
 	})
 }
 

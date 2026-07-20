@@ -352,6 +352,9 @@ Framework 使用两层自动门禁：
 - `internal/arch/testdata/exported_api.txt` 锁定所有公共 package 的 exported API；
 - wire fixture 锁定 ProcessSnapshot、Suspension、toolloop、event 等稳定 JSON shape。
 
+Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated` 等规范常量；listener
+不需要比较自由字符串。`event.Kind` 在 JSON 中仍编码为原有字符串，类型安全不会改变 wire。
+
 开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
 迁移文档一次性收口，不保留 alias/shim。`storetest` 是故意公开的外部实现 contract package，
 命名遵循标准库 `fstest`、`slogtest` 的惯例，不应移动到 `internal`。
