@@ -162,10 +162,15 @@ type cancellationAwareSessionStore struct {
 	saveContexts []error
 	failAt       int
 	failure      error
+	cancelAt     int
+	cancel       context.CancelFunc
 }
 
 func (s *cancellationAwareSessionStore) Save(ctx context.Context, _ core.Session) error {
 	s.saveContexts = append(s.saveContexts, ctx.Err())
+	if len(s.saveContexts) == s.cancelAt {
+		s.cancel()
+	}
 	if len(s.saveContexts) == s.failAt {
 		return s.failure
 	}
@@ -209,9 +214,11 @@ func TestEngine_RunInSession_FinalSaveSurvivesCancellation(t *testing.T) {
 
 func TestEngine_RunInSession_PreservesRunAndFinalSaveErrors(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
 	finalSaveErr := errors.New("final session save failed")
-	store := &cancellationAwareSessionStore{failAt: 2, failure: finalSaveErr}
+	store := &cancellationAwareSessionStore{
+		failAt: 2, failure: finalSaveErr,
+		cancelAt: 1, cancel: cancel,
+	}
 	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
 	a := buildSessionAgent()
 	mustDeploy(t, engine, a)
@@ -223,6 +230,44 @@ func TestEngine_RunInSession_PreservesRunAndFinalSaveErrors(t *testing.T) {
 		core.ProcessOptions{})
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, finalSaveErr) {
 		t.Fatalf("RunInSession error = %v, want cancellation and final save failure", err)
+	}
+}
+
+type blockingFinalSessionStore struct {
+	calls int
+}
+
+func (s *blockingFinalSessionStore) Save(ctx context.Context, _ core.Session) error {
+	s.calls++
+	if s.calls == 1 {
+		return nil
+	}
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (*blockingFinalSessionStore) Load(context.Context, string) (core.Session, error) {
+	return core.Session{}, core.ErrSessionNotFound
+}
+
+func TestEngine_RunInSession_BoundsFinalSave(t *testing.T) {
+	store := new(blockingFinalSessionStore)
+	engine := agent.MustNewEngine(runtime.Config{
+		SessionStore:           store,
+		SessionFinalizeTimeout: time.Millisecond,
+	})
+	a := buildSessionAgent()
+	mustDeploy(t, engine, a)
+	session := core.NewSession("c-1", "user-1", a.Name())
+
+	process, err := engine.RunInSession(t.Context(), a, &session, core.Input(
+		srWord{Text: "lynx"}),
+		core.ProcessOptions{})
+	if process == nil || process.Status() != core.StatusCompleted {
+		t.Fatalf("process = %#v, want completed process", process)
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("RunInSession error = %v, want final-save deadline", err)
 	}
 }
 

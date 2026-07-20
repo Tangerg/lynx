@@ -5,10 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
+
+// DefaultSessionFinalizeTimeout bounds the durable session write performed
+// after a turn finishes. It is independent of request cancellation.
+const DefaultSessionFinalizeTimeout = 10 * time.Second
 
 // Engine is the agent runtime's top-level container — registers
 // agents, builds processes, dispatches events, and exposes the
@@ -36,16 +41,18 @@ type Engine struct {
 
 	extensions extensionRegistry // engine-scoped extensions
 
-	events                *event.Multicast     // populated from EventListener extensions
-	dependencies          *core.Dependencies   // typed engine dependency scope
-	chat                  core.ChatCapability  // optional shared model and streamer
-	guardrails            *core.ChatGuardrails // optional global chat middlewares
-	processStore          core.ProcessStore    // optional snapshot backend
-	sessionStore          core.SessionStore    // optional root-session persistence
-	childSessionStore     core.SessionStore    // optional delegated-session persistence
-	autoSnapshot          bool                 // snapshot every tick when a store is configured
-	snapshotFailurePolicy SnapshotFailurePolicy
-	buildID               string // stable host build identity included in deployment digests
+	events                 *event.Multicast     // populated from EventListener extensions
+	dependencies           *core.Dependencies   // typed engine dependency scope
+	chat                   core.ChatCapability  // optional shared model and streamer
+	guardrails             *core.ChatGuardrails // optional global chat middlewares
+	processStore           core.ProcessStore    // optional snapshot backend
+	sessionStore           core.SessionStore    // optional root-session persistence
+	childSessionStore      core.SessionStore    // optional delegated-session persistence
+	sessionTurnSequencer   SessionTurnSequencer // orders turns sharing a session ID
+	sessionFinalizeTimeout time.Duration        // bounds the post-dispatch session write
+	autoSnapshot           bool                 // snapshot every tick when a store is configured
+	snapshotFailurePolicy  SnapshotFailurePolicy
+	buildID                string // stable host build identity included in deployment digests
 }
 
 // Config is the construction-time configuration for
@@ -101,6 +108,17 @@ type Config struct {
 	// saved between turns.
 	SessionStore core.SessionStore
 
+	// SessionTurnSequencer orders concurrent turns for the same session ID. The
+	// default is process-local and still allows different sessions to run in
+	// parallel. Multi-node hosts should provide a distributed implementation.
+	SessionTurnSequencer SessionTurnSequencer
+
+	// SessionFinalizeTimeout bounds the post-dispatch SessionStore write. That
+	// write is detached from request cancellation so audit state can survive a
+	// canceled request, but it must not hold the session turn forever. Zero uses
+	// [DefaultSessionFinalizeTimeout]; negative values are rejected.
+	SessionFinalizeTimeout time.Duration
+
 	// ChildSessionStore persists sessions created for delegated child
 	// processes. It is separate from SessionStore because hosts may use a
 	// product-specific lineage backend that must never receive root-session
@@ -138,6 +156,12 @@ func New(config Config) (*Engine, error) {
 	if config.SessionStore != nil && valueIsNil(config.SessionStore) {
 		return nil, errors.New("runtime.New: SessionStore is typed nil")
 	}
+	if config.SessionTurnSequencer != nil && valueIsNil(config.SessionTurnSequencer) {
+		return nil, errors.New("runtime.New: SessionTurnSequencer is typed nil")
+	}
+	if config.SessionFinalizeTimeout < 0 {
+		return nil, errors.New("runtime.New: SessionFinalizeTimeout must not be negative")
+	}
 	if config.ChildSessionStore != nil && valueIsNil(config.ChildSessionStore) {
 		return nil, errors.New("runtime.New: ChildSessionStore is typed nil")
 	}
@@ -148,21 +172,31 @@ func New(config Config) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
+	turnSequencer := config.SessionTurnSequencer
+	if turnSequencer == nil {
+		turnSequencer = newLocalSessionTurnSequencer()
+	}
+	finalizeTimeout := config.SessionFinalizeTimeout
+	if finalizeTimeout == 0 {
+		finalizeTimeout = DefaultSessionFinalizeTimeout
+	}
 
 	engine := &Engine{
-		catalog:               newDeploymentRegistry(),
-		processes:             newProcessRegistry(),
-		extensions:            newExtensionRegistry(),
-		events:                event.NewMulticast(),
-		dependencies:          core.NewDependencies(),
-		chat:                  config.Chat,
-		guardrails:            guardrails,
-		processStore:          config.ProcessStore,
-		sessionStore:          config.SessionStore,
-		childSessionStore:     config.ChildSessionStore,
-		autoSnapshot:          config.AutoSnapshot,
-		snapshotFailurePolicy: config.SnapshotFailurePolicy,
-		buildID:               config.BuildID,
+		catalog:                newDeploymentRegistry(),
+		processes:              newProcessRegistry(),
+		extensions:             newExtensionRegistry(),
+		events:                 event.NewMulticast(),
+		dependencies:           core.NewDependencies(),
+		chat:                   config.Chat,
+		guardrails:             guardrails,
+		processStore:           config.ProcessStore,
+		sessionStore:           config.SessionStore,
+		childSessionStore:      config.ChildSessionStore,
+		sessionTurnSequencer:   turnSequencer,
+		sessionFinalizeTimeout: finalizeTimeout,
+		autoSnapshot:           config.AutoSnapshot,
+		snapshotFailurePolicy:  config.SnapshotFailurePolicy,
+		buildID:                config.BuildID,
 	}
 	for _, extension := range config.Extensions {
 		if err := engine.extensions.register("Config.Extensions", extension); err != nil {
