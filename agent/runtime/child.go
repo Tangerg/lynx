@@ -169,7 +169,7 @@ func (r childRun) create() (*Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: options: %w", agentName, err)
 	}
-	child, err := r.engine.createChild(deployment, parent, r.bindings(), options)
+	child, err := r.engine.createChild(r.ctx, deployment, parent, r.bindings(), options)
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}

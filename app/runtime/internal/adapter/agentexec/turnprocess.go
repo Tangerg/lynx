@@ -43,7 +43,7 @@ type TurnProcess interface {
 	// Cancel marks the process [core.StatusKilled] via the engine.
 	// The ongoing tick observes the status flip at its next checkpoint
 	// and the run loop exits, delivering its error on Done().
-	Cancel() error
+	Cancel(ctx context.Context) error
 
 	// Resume answers a HITL interrupt the process is parked on
 	// (StatusWaiting) — a gated tool call or an ask_user / exit_plan_mode
@@ -84,8 +84,8 @@ type turnProcess struct {
 func (p *turnProcess) ID() string                 { return p.process.ID() }
 func (p *turnProcess) Status() core.ProcessStatus { return p.process.Status() }
 func (p *turnProcess) Done() <-chan error         { return p.done }
-func (p *turnProcess) Cancel() error {
-	return p.engine.Kill(p.process.ID())
+func (p *turnProcess) Cancel(ctx context.Context) error {
+	return p.engine.KillContext(ctx, p.process.ID())
 }
 
 func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
@@ -111,7 +111,7 @@ func (p *turnProcess) Discard(ctx context.Context) error {
 type processTreeEngine interface {
 	Processes() []*runtime.Process
 	ProcessStore() core.ProcessStore
-	Kill(id string) error
+	KillContext(ctx context.Context, id string) error
 	Remove(id string) error
 }
 
@@ -236,7 +236,7 @@ func discardProcessTree(ctx context.Context, rootID string, engine processTreeEn
 			continue
 		}
 		if process := live[id]; process != nil && !process.Status().IsTerminal() {
-			if err := engine.Kill(id); err != nil && !errors.Is(err, runtime.ErrProcessNotFound) {
+			if err := engine.KillContext(ctx, id); err != nil && !errors.Is(err, runtime.ErrProcessNotFound) {
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("agentexec: discard process tree %q: kill process %q: %w", rootID, id, err))
 				blocked[id] = true
 				continue

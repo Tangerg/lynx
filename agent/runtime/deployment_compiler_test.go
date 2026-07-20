@@ -724,7 +724,7 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	parentDef := deploymentFixture("foreign-parent", core.ConditionSet{"finish": core.True}, nil)
-	parent, err := engine.createProcess(parentDef, core.Bindings{}, core.ProcessOptions{})
+	parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -776,7 +776,7 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	childDeployment := existingDeployment(t, engine, childDef)
 
 	parentSession := core.NewSession("parent-session", "user-1", parentDef.Name())
-	parent, err := engine.createProcess(parentDef, core.Bindings{}, core.ProcessOptions{Session: &parentSession})
+	parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{Session: &parentSession})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -870,7 +870,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	if _, err := engine.Replace(second); err != nil {
 		t.Fatal(err)
 	}
-	parent, err := engine.createProcess(parentDef, core.Bindings{}, core.ProcessOptions{})
+	parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -931,7 +931,7 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 	}
 
 	parentDef := deploymentFixture("direct-tool-parent", core.ConditionSet{"finish": core.True}, nil)
-	parent, err := engine.createProcess(parentDef, core.Bindings{}, core.ProcessOptions{})
+	parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1024,6 +1024,7 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 	}
 
 	existing, err := engine.createProcess(
+		t.Context(),
 		first,
 		core.Input(deploymentRunInput{Value: 20}),
 		core.ProcessOptions{},

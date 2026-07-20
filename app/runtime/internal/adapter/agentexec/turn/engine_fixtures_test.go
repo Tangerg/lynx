@@ -96,7 +96,7 @@ func (cp *stubTurnProcess) Done() <-chan error { return cp.done }
 func (cp *stubTurnProcess) Output() (agentexec.TurnOutput, error) {
 	return cp.output, nil
 }
-func (cp *stubTurnProcess) Cancel() error {
+func (cp *stubTurnProcess) Cancel(context.Context) error {
 	cp.status.Store(int32(core.StatusKilled))
 	if cp.onCancel != nil {
 		cp.onCancel()

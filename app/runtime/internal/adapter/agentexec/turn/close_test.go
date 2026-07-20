@@ -82,7 +82,7 @@ func (*blockingCancelProcess) Done() <-chan error         { return nil }
 func (*blockingCancelProcess) Output() (agentexec.TurnOutput, error) {
 	return agentexec.TurnOutput{}, nil
 }
-func (p *blockingCancelProcess) Cancel() error {
+func (p *blockingCancelProcess) Cancel(context.Context) error {
 	<-p.release
 	return p.err
 }

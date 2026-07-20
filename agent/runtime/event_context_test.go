@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -82,6 +83,84 @@ func (l *waitingPanicListener) OnEvent(_ context.Context, e event.Event) {
 	if _, ok := e.(event.ProcessWaiting); ok && l.done.CompareAndSwap(false, true) {
 		panic("waiting listener failed")
 	}
+}
+
+type lifecyclePanicListener struct {
+	name string
+	kind event.Kind
+	done atomic.Bool
+}
+
+func (l *lifecyclePanicListener) Name() string { return l.name }
+
+func (l *lifecyclePanicListener) OnEvent(_ context.Context, e event.Event) {
+	if e.Kind() == l.kind && l.done.CompareAndSwap(false, true) {
+		panic("lifecycle listener failed")
+	}
+}
+
+func requireListenerPanicTrace(t *testing.T, exp *tracetest.InMemoryExporter, traceID trace.TraceID) {
+	t.Helper()
+	for _, span := range exp.GetSpans() {
+		if span.Name != "agent.listener.panic" {
+			continue
+		}
+		if span.SpanContext.TraceID() != traceID {
+			t.Fatalf("panic span trace = %s, want caller trace %s", span.SpanContext.TraceID(), traceID)
+		}
+		return
+	}
+	t.Fatal("missing agent.listener.panic span")
+}
+
+func TestProcessCreatedEventKeepsRunTrace(t *testing.T) {
+	exp := installRuntimeTraceCapture(t)
+	a := buildSnapshotAgent()
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	listener := &lifecyclePanicListener{name: "created-panic-listener", kind: event.KindProcessCreated}
+
+	ctx, parent := otel.Tracer("test/runtime").Start(t.Context(), "test-parent")
+	parentTrace := parent.SpanContext().TraceID()
+	_, err := engine.Run(ctx, a, core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{
+		Extensions: []core.Extension{listener},
+	})
+	parent.End()
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	requireListenerPanicTrace(t, exp, parentTrace)
+}
+
+func TestProcessKilledEventKeepsCallerTrace(t *testing.T) {
+	exp := installRuntimeTraceCapture(t)
+	a := agent.New(agent.AgentConfig{Name: "kill-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, _ *core.ProcessContext, _ word) (wordCount, error) {
+		_, err := hitl.Interrupt[bool](ctx, "wait", "continue?")
+		return wordCount{}, err
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "waited"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+	listener := &lifecyclePanicListener{name: "killed-panic-listener", kind: event.KindProcessKilled}
+	process, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{
+		Extensions: []core.Extension{listener},
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusWaiting {
+		t.Fatalf("process status = %s, want %s", process.Status(), core.StatusWaiting)
+	}
+	exp.Reset()
+
+	ctx, parent := otel.Tracer("test/runtime").Start(t.Context(), "test-parent")
+	parentTrace := parent.SpanContext().TraceID()
+	if err := engine.KillContext(ctx, process.ID()); err != nil {
+		t.Fatalf("KillContext: %v", err)
+	}
+	parent.End()
+
+	requireListenerPanicTrace(t, exp, parentTrace)
 }
 
 func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {

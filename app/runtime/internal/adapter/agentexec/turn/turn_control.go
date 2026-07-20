@@ -19,7 +19,7 @@ import (
 // process here instead would clobber its status — dropping a continuation a
 // racing Resume just started (the approved tool never runs) — and publish a
 // duplicate ProcessKilled alongside markCancelled.
-func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
+func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -39,14 +39,14 @@ func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
 		case claimed && status != core.StatusRunning:
 			// This Cancel owns the parked suspension. There is no continuation
 			// loop to observe ctx cancellation, so terminate the whole tree.
-			err = cancelTurnProcess(process)
+			err = cancelTurnProcess(ctx, process)
 		case !claimed && status != core.StatusRunning && status != core.StatusWaiting:
 			// A not-yet-running, non-parked process also has no loop that can
 			// observe ctx cancellation. Waiting is deliberately excluded: a
 			// racing Resume may have won claimPark but not yet recorded the
 			// response. Killing that transient Waiting process would clear its
 			// suspension and make the winning Resume fail stale.
-			err = cancelTurnProcess(process)
+			err = cancelTurnProcess(ctx, process)
 		}
 	}
 	if claimed {
@@ -57,11 +57,11 @@ func (s *memoryDispatcher) Cancel(_ context.Context, handle TurnHandle) error {
 	return err
 }
 
-func cancelTurnProcess(process agentexec.TurnProcess) error {
+func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error {
 	if process == nil {
 		return nil
 	}
-	if err := process.Cancel(); err != nil {
+	if err := process.Cancel(ctx); err != nil {
 		return fmt.Errorf("turn: cancel process %q: %w", process.ID(), err)
 	}
 	return nil
