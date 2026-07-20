@@ -363,6 +363,8 @@ Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated`
 不需要比较自由字符串。`event.Kind` 在 JSON 中仍编码为原有字符串，类型安全不会改变 wire。
 模型、工具、暂停和恢复边界的 discriminator 与 Resume payload 由 `interaction` 唯一拥有；
 `toolloop` 只复用同一类型，不再维护一份可能漂移的平行协议。
+Suspension、Pause、Checkpoint 与 Resume 的稳定 ID 统一通过 `interaction.ValidateID` 校验；
+相关 Event 解码严格拒绝未知字段和 trailing value，协议版本漂移不会被静默吞掉。
 ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
 稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
 自动快照失败事件也携带 `core.SnapshotFailurePolicy`，只有 JSON adapter 输出规范字符串。

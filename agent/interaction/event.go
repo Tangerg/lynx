@@ -1,17 +1,30 @@
 package interaction
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
-var ErrInvalidEvent = errors.New("interaction: invalid event")
+var (
+	ErrInvalidEvent = errors.New("interaction: invalid event")
+	ErrInvalidID    = errors.New("interaction: invalid ID")
+)
+
+// ValidateID verifies a stable suspension or resume identity.
+func ValidateID(id string) error {
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
+		return fmt.Errorf("%w: must be non-empty without surrounding whitespace", ErrInvalidID)
+	}
+	return nil
+}
 
 // ErrCommitted marks a failure after observable model output or a tool result
 // was committed. Retrying the enclosing action could duplicate cost or side
@@ -74,11 +87,8 @@ type Resume struct {
 
 // Validate checks the continuation identity and input payload.
 func (r Resume) Validate() error {
-	if strings.TrimSpace(r.ID) == "" {
-		return fmt.Errorf("%w: resume ID must not be empty", ErrInvalidEvent)
-	}
-	if strings.TrimSpace(r.ID) != r.ID {
-		return fmt.Errorf("%w: resume ID has surrounding whitespace", ErrInvalidEvent)
+	if err := ValidateID(r.ID); err != nil {
+		return fmt.Errorf("%w: resume ID: %w", ErrInvalidEvent, err)
 	}
 	if !json.Valid(r.Input) {
 		return fmt.Errorf("%w: resume input must be valid JSON", ErrInvalidEvent)
@@ -189,8 +199,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	}
 	type wire Event
 	var decoded wire
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: trailing JSON value", ErrInvalidEvent)
 	}
 	candidate := Event(decoded)
 	if err := candidate.Validate(); err != nil {

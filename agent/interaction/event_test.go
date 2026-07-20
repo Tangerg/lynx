@@ -1,6 +1,7 @@
 package interaction_test
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -16,5 +17,24 @@ func TestEventWrapsNestedProtocolValidation(t *testing.T) {
 	}
 	if err := event.Validate(); !errors.Is(err, interaction.ErrInvalidEvent) {
 		t.Fatalf("Validate error = %v, want ErrInvalidEvent", err)
+	}
+}
+
+func TestValidateIDRejectsUnstableIdentity(t *testing.T) {
+	for _, id := range []string{"", "   ", " approval-1", "approval-1 "} {
+		if err := interaction.ValidateID(id); !errors.Is(err, interaction.ErrInvalidID) {
+			t.Errorf("ValidateID(%q) error = %v", id, err)
+		}
+	}
+	if err := interaction.ValidateID("approval-1"); err != nil {
+		t.Fatalf("ValidateID: %v", err)
+	}
+}
+
+func TestEventUnmarshalRejectsUnknownFields(t *testing.T) {
+	body := []byte(`{"kind":"resume","round":1,"resume":{"id":"approval-1","input":true},"future":true}`)
+	var event interaction.Event
+	if err := json.Unmarshal(body, &event); !errors.Is(err, interaction.ErrInvalidEvent) {
+		t.Fatalf("Unmarshal error = %v", err)
 	}
 }

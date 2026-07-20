@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/Tangerg/lynx/agent/interaction"
 )
 
 // ErrInvalidControlFlow reports a malformed pause or abort signal.
@@ -29,9 +31,20 @@ func (e *PauseError) Error() string {
 }
 
 func (e *PauseError) validate() error {
-	if e == nil || strings.TrimSpace(e.ID) == "" || strings.TrimSpace(e.Reason) == "" ||
-		!json.Valid(e.Prompt) || !json.Valid(e.ResumeSchema) {
-		return fmt.Errorf("%w: pause requires a non-empty ID and reason", ErrInvalidControlFlow)
+	if e == nil {
+		return fmt.Errorf("%w: pause is nil", ErrInvalidControlFlow)
+	}
+	if err := interaction.ValidateID(e.ID); err != nil {
+		return fmt.Errorf("%w: pause ID: %w", ErrInvalidControlFlow, err)
+	}
+	if strings.TrimSpace(e.Reason) == "" {
+		return fmt.Errorf("%w: pause reason must not be empty", ErrInvalidControlFlow)
+	}
+	if !json.Valid(e.Prompt) {
+		return fmt.Errorf("%w: pause prompt must be valid JSON", ErrInvalidControlFlow)
+	}
+	if !json.Valid(e.ResumeSchema) {
+		return fmt.Errorf("%w: pause resume schema must be valid JSON", ErrInvalidControlFlow)
 	}
 	return nil
 }
