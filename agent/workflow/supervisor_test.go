@@ -90,7 +90,7 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	mustDeploy(t, engine, supervisor)
 
 	process, err := engine.Run(context.Background(), supervisor,
-		map[string]any{core.DefaultBindingName: supTopic{Title: "go generics"}},
+		core.Input(supTopic{Title: "go generics"}),
 		core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)

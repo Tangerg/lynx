@@ -68,7 +68,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 	done := make(chan runResult, 1)
 	go func() {
 		proc, runErr := engine.Run(t.Context(), a,
-			map[string]any{core.DefaultBindingName: sgIn{Topic: "test"}},
+			core.Input(sgIn{Topic: "test"}),
 			core.ProcessOptions{},
 		)
 		done <- runResult{process: proc, err: runErr}
@@ -135,7 +135,7 @@ func TestScatterGather_FirstErrorCancelsAndJoinsOtherBranches(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
+		core.Input(sgIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	select {
@@ -188,7 +188,7 @@ func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, err := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
+		core.Input(sgIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -228,7 +228,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: sgIn{Topic: "x"}},
+		core.Input(sgIn{Topic: "x"}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() == core.StatusCompleted {

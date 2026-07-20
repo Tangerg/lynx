@@ -29,7 +29,7 @@ func TestEngine_RunInSession_NilSession(t *testing.T) {
 	a := buildSessionAgent()
 	mustDeploy(t, engine, a)
 
-	_, err := engine.RunInSession(context.Background(), a, nil, nil, core.ProcessOptions{})
+	_, err := engine.RunInSession(context.Background(), a, nil, core.Bindings{}, core.ProcessOptions{})
 	if err == nil {
 		t.Error("expected error for nil session")
 	}
@@ -41,7 +41,7 @@ func TestEngine_RunInSession_EmptyID(t *testing.T) {
 	mustDeploy(t, engine, a)
 
 	sess := &core.Session{} // ID empty
-	_, err := engine.RunInSession(context.Background(), a, sess, nil, core.ProcessOptions{})
+	_, err := engine.RunInSession(context.Background(), a, sess, core.Bindings{}, core.ProcessOptions{})
 	if err == nil {
 		t.Error("expected error for empty session ID")
 	}
@@ -58,7 +58,7 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	sess.UpdatedAt = previousUpdate
 	proc, err := engine.RunInSession(
 		context.Background(), a, &sess,
-		map[string]any{core.DefaultBindingName: srWord{Text: "lynx"}},
+		core.Input(srWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestEngine_RunInSession_WithStore_PersistsSession(t *testing.T) {
 	sess := core.NewSession("conv-A", "bob", "session-agent")
 	_, err := engine.RunInSession(
 		context.Background(), a, &sess,
-		map[string]any{core.DefaultBindingName: srWord{Text: "x"}},
+		core.Input(srWord{Text: "x"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -114,7 +114,7 @@ func TestEngine_RunInSession_DerivesAgentName(t *testing.T) {
 	sess := core.NewSession("c-1", "", "")
 	_, err := engine.RunInSession(
 		context.Background(), a, &sess,
-		map[string]any{core.DefaultBindingName: srWord{Text: "hi"}},
+		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -133,7 +133,7 @@ func TestEngine_RunInSession_UsesSessionAgentWhenDefinitionIsNil(t *testing.T) {
 
 	process, err := engine.RunInSession(
 		t.Context(), nil, &session,
-		map[string]any{core.DefaultBindingName: srWord{Text: "lynx"}},
+		core.Input(srWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -149,7 +149,7 @@ func TestEngine_RunInSession_RejectsAgentIdentityConflict(t *testing.T) {
 	a := buildSessionAgent()
 	session := core.NewSession("c-1", "user-1", "other-agent")
 
-	_, err := engine.RunInSession(t.Context(), a, &session, nil, core.ProcessOptions{})
+	_, err := engine.RunInSession(t.Context(), a, &session, core.Bindings{}, core.ProcessOptions{})
 	if !errors.Is(err, core.ErrInvalidSession) {
 		t.Fatalf("RunInSession error = %v, want ErrInvalidSession", err)
 	}
@@ -195,9 +195,10 @@ func TestEngine_RunInSession_FinalSaveSurvivesCancellation(t *testing.T) {
 	mustDeploy(t, engine, a)
 	session := core.NewSession("c-1", "user-1", a.Name())
 
-	_, _ = engine.RunInSession(ctx, a, &session, map[string]any{
-		core.DefaultBindingName: srWord{Text: "lynx"},
-	}, core.ProcessOptions{})
+	_, _ = engine.RunInSession(ctx, a, &session, core.Input(
+		srWord{Text: "lynx"}),
+
+		core.ProcessOptions{})
 	if len(store.saveContexts) != 2 {
 		t.Fatalf("Save calls = %d, want pre- and post-dispatch", len(store.saveContexts))
 	}
@@ -216,9 +217,10 @@ func TestEngine_RunInSession_PreservesRunAndFinalSaveErrors(t *testing.T) {
 	mustDeploy(t, engine, a)
 	session := core.NewSession("c-1", "user-1", a.Name())
 
-	_, err := engine.RunInSession(ctx, a, &session, map[string]any{
-		core.DefaultBindingName: srWord{Text: "lynx"},
-	}, core.ProcessOptions{})
+	_, err := engine.RunInSession(ctx, a, &session, core.Input(
+		srWord{Text: "lynx"}),
+
+		core.ProcessOptions{})
 	if !errors.Is(err, context.Canceled) || !errors.Is(err, finalSaveErr) {
 		t.Fatalf("RunInSession error = %v, want cancellation and final save failure", err)
 	}
@@ -258,7 +260,7 @@ func TestRunChildLinksSessionToParent(t *testing.T) {
 	sess := core.NewSession("parent-conv", "alice", "lineage-parent")
 	proc, err := engine.RunInSession(
 		context.Background(), parent, &sess,
-		map[string]any{core.DefaultBindingName: srWord{Text: "hi"}},
+		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -295,7 +297,7 @@ func TestRunChildPersistsSession(t *testing.T) {
 	sess := core.NewSession("root-conv", "alice", "lineage-parent")
 	proc, err := engine.RunInSession(
 		context.Background(), parent, &sess,
-		map[string]any{core.DefaultBindingName: srWord{Text: "hi"}},
+		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {

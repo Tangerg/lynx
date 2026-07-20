@@ -49,7 +49,7 @@ func TestModelCallsPublishEvents(t *testing.T) {
 	mustDeploy(t, engine, definition)
 
 	if _, err := engine.Run(context.Background(), definition,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

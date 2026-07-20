@@ -29,7 +29,7 @@ func main() {
 	process, err := engine.Run(
 		context.Background(),
 		a,
-		map[string]any{agent.DefaultBindingName: "hello"},
+		agent.Input("hello"),
 		agent.ProcessOptions{},
 	)
 	if err != nil {

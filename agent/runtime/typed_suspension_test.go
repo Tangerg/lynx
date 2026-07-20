@@ -38,7 +38,7 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 
 	ctx := context.Background()
 	proc, done := engine.Start(ctx, gate,
-		map[string]any{core.DefaultBindingName: subInput{Value: 1}}, core.ProcessOptions{})
+		core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	<-done
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("after start: status = %v, want waiting", proc.Status())

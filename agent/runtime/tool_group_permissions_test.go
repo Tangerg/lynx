@@ -62,7 +62,7 @@ func runActionToolsWithResolver(t *testing.T, req core.ToolGroupRequirement, res
 	mustDeploy(t, engine, a)
 
 	if _, err := engine.Run(context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{}); err != nil {
 		t.Fatalf("Run: %v", err)
 	}

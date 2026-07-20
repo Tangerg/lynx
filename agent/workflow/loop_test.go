@@ -58,7 +58,7 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 	}
 
 	proc, runErr := engine.Run(t.Context(), wf,
-		map[string]any{core.DefaultBindingName: loopIn{Target: 4}},
+		core.Input(loopIn{Target: 4}),
 		core.ProcessOptions{},
 	)
 	if runErr != nil {
@@ -101,7 +101,7 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	mustDeploy(t, engine, wf)
 
 	proc, _ := engine.Run(t.Context(), wf,
-		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},
+		core.Input(loopIn{Target: 100}),
 		core.ProcessOptions{},
 	)
 	if proc.Status() != core.StatusCompleted {
@@ -147,7 +147,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	mustDeploy(t, engine, wf)
 
 	engine.Run(t.Context(), wf,
-		map[string]any{core.DefaultBindingName: loopIn{Target: 100}},
+		core.Input(loopIn{Target: 100}),
 		core.ProcessOptions{},
 	)
 	if sawPriorOut.Load() {

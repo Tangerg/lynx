@@ -54,7 +54,7 @@ func (AgentUndeployed) Kind() string { return "agent_undeployed" }
 // ProcessCreated fires when a new Process is registered on the engine.
 type ProcessCreated struct {
 	Header
-	Bindings map[string]any `json:"bindings,omitempty"`
+	Bindings core.Bindings `json:"bindings,omitzero"`
 }
 
 func (ProcessCreated) Kind() string { return "process_created" }

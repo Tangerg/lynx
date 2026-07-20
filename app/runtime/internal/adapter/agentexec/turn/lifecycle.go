@@ -149,8 +149,12 @@ type subagentTask interface {
 	SubagentPrompt() string
 }
 
-func subagentTaskInput(bindings map[string]any) (description, prompt string) {
-	task, ok := bindings[core.DefaultBindingName].(subagentTask)
+func subagentTaskInput(bindings core.Bindings) (description, prompt string) {
+	value, ok := bindings.Get(core.DefaultBindingName)
+	if !ok {
+		return "", ""
+	}
+	task, ok := value.(subagentTask)
 	if !ok {
 		return "", ""
 	}

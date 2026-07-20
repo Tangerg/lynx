@@ -37,3 +37,34 @@ func TestParseBinding(t *testing.T) {
 		t.Fatalf("parsed: %+v", parsed)
 	}
 }
+
+func TestBindingsZeroValue(t *testing.T) {
+	var bindings core.Bindings
+	if bindings.Len() != 0 {
+		t.Fatalf("Len() = %d, want 0", bindings.Len())
+	}
+	bindings.Set("topic", sample{V: 1})
+	value, ok := bindings.Get("topic")
+	if !ok || value != (sample{V: 1}) {
+		t.Fatalf("Get(topic) = %#v, %t", value, ok)
+	}
+	bindings.Delete("topic")
+	if _, ok := bindings.Get("topic"); ok {
+		t.Fatal("Delete left topic present")
+	}
+}
+
+func TestBindingsCloneOwnsContainer(t *testing.T) {
+	bindings := core.Input(sample{V: 1})
+	clone := bindings.Clone()
+	bindings.Set(core.DefaultBindingName, sample{V: 2})
+	clone.Set("extra", true)
+
+	value, _ := clone.Get(core.DefaultBindingName)
+	if value != (sample{V: 1}) {
+		t.Fatalf("clone input = %#v, want original value", value)
+	}
+	if _, ok := bindings.Get("extra"); ok {
+		t.Fatal("clone mutation leaked into source")
+	}
+}

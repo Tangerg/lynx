@@ -131,11 +131,11 @@ func (b *inMemoryBlackboard) BindTransient(value any) {
 	b.durableObjects = append(b.durableObjects, false)
 }
 
-func (b *inMemoryBlackboard) StoreAll(m map[string]any) {
+func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for key, value := range m {
+	for key, value := range bindings.All() {
 		b.named[key] = value
 		delete(b.transientNamed, key)
 		b.objects = append(b.objects, value)

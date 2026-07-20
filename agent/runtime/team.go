@@ -56,7 +56,7 @@ type TeamConfig struct {
 func (e *Engine) RunTeam(
 	ctx context.Context,
 	config TeamConfig,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if config.Name == "" {

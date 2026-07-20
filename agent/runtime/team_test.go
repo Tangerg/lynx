@@ -41,7 +41,7 @@ func TestRunTeam_CrossAgentPlanning(t *testing.T) {
 			Name:   "team:joint",
 			Agents: []*core.Agent{teamAgentA(), teamAgentB()},
 		},
-		map[string]any{core.DefaultBindingName: teamInput{Text: "lynx"}},
+		core.Input(teamInput{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -72,7 +72,7 @@ func TestRunTeam_ReusesExactSyntheticDeployment(t *testing.T) {
 	for i := range 2 {
 		if _, err := engine.RunTeam(
 			context.Background(), config,
-			map[string]any{core.DefaultBindingName: teamInput{Text: "ab"}},
+			core.Input(teamInput{Text: "ab"}),
 			core.ProcessOptions{},
 		); err != nil {
 			t.Fatalf("run %d: %v", i, err)
@@ -95,7 +95,7 @@ func TestRunTeam_RejectsChangedDefinitionUnderActiveName(t *testing.T) {
 	first := runtime.TeamConfig{Name: "team:conflict", Agents: []*core.Agent{teamAgentA(), teamAgentB()}}
 	if _, err := engine.RunTeam(
 		context.Background(), first,
-		map[string]any{core.DefaultBindingName: teamInput{Text: "ab"}},
+		core.Input(teamInput{Text: "ab"}),
 		core.ProcessOptions{},
 	); err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestRunTeam_RejectsChangedDefinitionUnderActiveName(t *testing.T) {
 	changed.Description = "changed"
 	_, err := engine.RunTeam(
 		context.Background(), changed,
-		map[string]any{core.DefaultBindingName: teamInput{Text: "ab"}},
+		core.Input(teamInput{Text: "ab"}),
 		core.ProcessOptions{},
 	)
 	if !errors.Is(err, runtime.ErrDeploymentConflict) {
@@ -118,7 +118,7 @@ func TestRunTeam_EmptyName(t *testing.T) {
 	_, err := engine.RunTeam(
 		context.Background(),
 		runtime.TeamConfig{Agents: []*core.Agent{teamAgentA()}},
-		nil, core.ProcessOptions{},
+		core.Bindings{}, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "name must not be empty") {
 		t.Fatalf("want Name-empty error, got %v", err)
@@ -130,7 +130,7 @@ func TestRunTeam_EmptyAgents(t *testing.T) {
 	_, err := engine.RunTeam(
 		context.Background(),
 		runtime.TeamConfig{Name: "empty"},
-		nil, core.ProcessOptions{},
+		core.Bindings{}, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "agents must not be empty") {
 		t.Fatalf("want Agents-empty error, got %v", err)
@@ -145,7 +145,7 @@ func TestRunTeam_NilAgentEntry(t *testing.T) {
 			Name:   "with-nil",
 			Agents: []*core.Agent{teamAgentA(), nil},
 		},
-		nil, core.ProcessOptions{},
+		core.Bindings{}, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), "agents[1] is nil") {
 		t.Fatalf("want nil-entry error, got %v", err)
@@ -170,7 +170,7 @@ func TestRunTeam_DuplicateActionNameAcrossAgents(t *testing.T) {
 			Name:   "team:dup",
 			Agents: []*core.Agent{dup("agent-1"), dup("agent-2")},
 		},
-		nil, core.ProcessOptions{},
+		core.Bindings{}, core.ProcessOptions{},
 	)
 	if err == nil || !strings.Contains(err.Error(), `duplicate action name "same-name"`) {
 		t.Fatalf("want duplicate-name error, got %v", err)
@@ -183,7 +183,7 @@ func TestRunTeamBuildsSyntheticDefinition(t *testing.T) {
 		Name:        "inspect",
 		Description: "custom",
 		Agents:      []*core.Agent{teamAgentA(), teamAgentB()},
-	}, map[string]any{core.DefaultBindingName: teamInput{Text: "lynx"}}, core.ProcessOptions{})
+	}, core.Input(teamInput{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestRunTeamBuildsDefaultDescription(t *testing.T) {
 	_, err := engine.RunTeam(t.Context(), runtime.TeamConfig{
 		Name:   "auto",
 		Agents: []*core.Agent{teamAgentA(), teamAgentB()},
-	}, map[string]any{core.DefaultBindingName: teamInput{Text: "lynx"}}, core.ProcessOptions{})
+	}, core.Input(teamInput{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

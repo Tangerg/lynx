@@ -141,7 +141,7 @@ func (f fakeBlackboard) Add(any)                       {}
 func (f fakeBlackboard) AddTransient(any)              {}
 func (f fakeBlackboard) Bind(any)                      {}
 func (f fakeBlackboard) BindTransient(any)             {}
-func (f fakeBlackboard) StoreAll(map[string]any)       {}
+func (f fakeBlackboard) StoreAll(core.Bindings)        {}
 func (f fakeBlackboard) StoreProtected(string, any)    {}
 func (f fakeBlackboard) Hide(any)                      {}
 func (f fakeBlackboard) StoreCondition(string, bool)   {}

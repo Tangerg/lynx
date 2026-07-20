@@ -41,7 +41,7 @@ func TestRunSingleAction(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestRunPreservesPanickedActionCause(t *testing.T) {
 	process, err := engine.Run(
 		t.Context(),
 		a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -117,7 +117,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "abcd"}}, // len=4 → 4*2+1=9
+		core.Input(word{Text: "abcd"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
@@ -144,7 +144,7 @@ func TestRunValidatesBeforeCreatingProcess(t *testing.T) {
 	})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	proc, err := engine.Run(context.Background(), a, nil, core.ProcessOptions{})
+	proc, err := engine.Run(context.Background(), a, core.Bindings{}, core.ProcessOptions{})
 	if err == nil {
 		t.Fatal("Run should reject invalid agent")
 	}
@@ -165,7 +165,7 @@ func TestRunRejectsUnknownPlannerName(t *testing.T) {
 
 	proc, err := engine.Run(
 		context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err == nil {
@@ -207,7 +207,7 @@ func TestRunPublishesSingleStuckEvent(t *testing.T) {
 		},
 	})
 
-	proc, err := engine.Run(context.Background(), a, nil, core.ProcessOptions{})
+	proc, err := engine.Run(context.Background(), a, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestRunMarksCancelledDuringActionAsKilled(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	proc, err := engine.Run(
 		ctx, a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {

@@ -58,7 +58,7 @@ func TestAutoSnapshot_PersistsTerminalState(t *testing.T) {
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -92,7 +92,7 @@ func TestAutoSnapshot_DisabledByDefault(t *testing.T) {
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(context.Background(), a,
-		map[string]any{core.DefaultBindingName: word{Text: "lynx"}},
+		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -109,7 +109,7 @@ func TestAutoSnapshotFailurePolicyFailProcess(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-fail", ProcessStore: store, AutoSnapshot: true})
 	a := autoSnapshotAgent()
 	mustDeploy(t, engine, a)
-	proc, err := engine.Run(t.Context(), a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if !errors.Is(err, storeErr) {
 		t.Fatalf("Run error = %v", err)
 	}
@@ -126,7 +126,7 @@ func TestAutoSnapshotFailurePolicyPauseAndRetry(t *testing.T) {
 	})
 	a := autoSnapshotAgent()
 	mustDeploy(t, engine, a)
-	proc, err := engine.Run(t.Context(), a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil || proc.Status() != core.StatusPaused {
 		t.Fatalf("paused run status=%s err=%v", proc.Status(), err)
 	}
@@ -159,7 +159,7 @@ func TestAutoSnapshotFailurePolicyReportOnlyPublishesDegradation(t *testing.T) {
 	})
 	a := autoSnapshotAgent()
 	mustDeploy(t, engine, a)
-	proc, err := engine.Run(t.Context(), a, map[string]any{core.DefaultBindingName: word{Text: "lynx"}}, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil || proc.Status() != core.StatusCompleted {
 		t.Fatalf("reported run status=%s err=%v", proc.Status(), err)
 	}

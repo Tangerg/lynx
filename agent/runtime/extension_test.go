@@ -113,7 +113,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 
 	proc, err := engine.Run(
 		t.Context(), a,
-		map[string]any{core.DefaultBindingName: runIn{V: 1}},
+		core.Input(runIn{V: 1}),
 		core.ProcessOptions{
 			Extensions: []core.Extension{
 				orderedInterceptor{name: "process-X", recorder: rec},
@@ -232,7 +232,7 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 	if _, err := engine.Deploy(a); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	proc, err := engine.Run(t.Context(), a, nil, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestProcessExtensionDedupErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	rec := &orderRecorder{}
-	_, err := engine.Run(t.Context(), a, nil, core.ProcessOptions{
+	_, err := engine.Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{
 		Extensions: []core.Extension{
 			orderedInterceptor{name: "same", recorder: rec},
 			orderedInterceptor{name: "same", recorder: rec},
@@ -301,7 +301,7 @@ func TestProcessScopedListenerFires(t *testing.T) {
 	count := 0
 	proc, err := engine.Run(
 		t.Context(), a,
-		map[string]any{core.DefaultBindingName: "hello"},
+		core.Input("hello"),
 		core.ProcessOptions{
 			Extensions: []core.Extension{
 				processOnlyListener{name: "proc-listener", count: &count},

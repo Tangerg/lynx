@@ -16,7 +16,7 @@ import (
 // Resume / Kill calls can find it.
 func (e *Engine) createProcess(
 	agent *core.Agent,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if agent == nil {
@@ -35,7 +35,7 @@ func (e *Engine) createProcess(
 // so construction cannot drift to a newer active route.
 func (e *Engine) createProcessFromDeployment(
 	deployment *Deployment,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if deployment == nil || deployment.agent == nil {
@@ -50,6 +50,7 @@ func (e *Engine) createProcessFromDeployment(
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
 	}
+	bindings = bindings.Clone()
 
 	blackboard := e.resolveBlackboard(options.Blackboard)
 	bindBlackboardSeed(blackboard, bindings)
@@ -89,7 +90,7 @@ func (e *Engine) deploymentForProcess(agent *core.Agent) (*Deployment, error) {
 func (e *Engine) createChild(
 	deployment *Deployment,
 	parent *Process,
-	bindings map[string]any,
+	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
 	if deployment == nil || deployment.agent == nil {
@@ -204,8 +205,8 @@ func validateProcessExtensions(extensions []core.Extension) error {
 // bindBlackboardSeed applies the caller's initial bindings.
 // [core.DefaultBindingName] uses Bind() so the dual-binding behavior
 // kicks in; other keys go through Set so their explicit name wins.
-func bindBlackboardSeed(blackboard core.Blackboard, bindings map[string]any) {
-	for key, value := range bindings {
+func bindBlackboardSeed(blackboard core.Blackboard, bindings core.Bindings) {
+	for key, value := range bindings.All() {
 		if key == core.DefaultBindingName {
 			blackboard.Bind(value)
 			continue

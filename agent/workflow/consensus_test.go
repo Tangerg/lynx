@@ -37,7 +37,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	proc, runErr := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: consensusIn{Question: "ok?"}},
+		core.Input(consensusIn{Question: "ok?"}),
 		core.ProcessOptions{})
 	if runErr != nil {
 		t.Fatalf("Run: %v", runErr)
@@ -69,7 +69,7 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	proc, _ := engine.Run(t.Context(), a,
-		map[string]any{core.DefaultBindingName: consensusIn{}},
+		core.Input(consensusIn{}),
 		core.ProcessOptions{})
 	got, _ := core.Result[consensusVote](proc)
 	if got != "yes" {

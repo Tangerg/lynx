@@ -57,7 +57,7 @@ func TestEngineProcessActionDependencyScopes(t *testing.T) {
 	process, err := engine.Run(
 		t.Context(),
 		agentDefinition,
-		map[string]any{core.DefaultBindingName: dependencyInput{Value: 1}},
+		core.Input(dependencyInput{Value: 1}),
 		core.ProcessOptions{Dependencies: processDependencies},
 	)
 	if err != nil {
@@ -90,7 +90,7 @@ func TestProcessDependenciesMustBelongToEngine(t *testing.T) {
 	_, err := engine.Run(
 		t.Context(),
 		agentDefinition,
-		map[string]any{core.DefaultBindingName: dependencyInput{Value: 1}},
+		core.Input(dependencyInput{Value: 1}),
 		core.ProcessOptions{Dependencies: unrelated},
 	)
 	if err == nil || !strings.Contains(err.Error(), "immediate child") {

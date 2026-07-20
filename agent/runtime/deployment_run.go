@@ -44,9 +44,9 @@ func runDeploymentInput(
 	if deployment == nil || deployment.agent == nil {
 		return nil, errors.New("run deployment: deployment is nil")
 	}
-	var bindings map[string]any
+	var bindings core.Bindings
 	if input != nil {
-		bindings = map[string]any{core.DefaultBindingName: input}
+		bindings = core.Input(input)
 	}
 	process, err := engine.runDeployment(ctx, deployment, bindings, core.ProcessOptions{})
 	if err != nil {

@@ -40,7 +40,7 @@ func TestAgentTool_DiscardsCompletedChildSnapshot(t *testing.T) {
 	}
 
 	proc, err := engine.Run(t.Context(), parent,
-		map[string]any{core.DefaultBindingName: subInput{Value: 21}}, core.ProcessOptions{})
+		core.Input(subInput{Value: 21}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

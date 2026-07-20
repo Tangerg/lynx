@@ -29,10 +29,10 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 	listener.OnEvent(context.Background(), event.ProcessCreated{Header: event.NewHeader("root")})
 	listener.OnEvent(context.Background(), event.ProcessCreated{
 		Header: event.NewHeader("child"),
-		Bindings: map[string]any{core.DefaultBindingName: testTaskInput{
+		Bindings: core.Input(testTaskInput{
 			Description: "inspect auth",
 			Prompt:      "Find where auth failures are handled.",
-		}},
+		}),
 	})
 	listener.OnEvent(context.Background(), event.ProcessCompleted{
 		Header: event.NewHeader("child"),
@@ -88,13 +88,13 @@ func TestSubagentTaskInputRequiresTypedDefaultBinding(t *testing.T) {
 	task := testTaskInput{Description: "inspect auth", Prompt: "Find where auth failures are handled."}
 	for _, test := range []struct {
 		name        string
-		bindings    map[string]any
+		bindings    core.Bindings
 		description string
 		prompt      string
 	}{
-		{name: "typed default", bindings: map[string]any{core.DefaultBindingName: task}, description: task.Description, prompt: task.Prompt},
-		{name: "dynamic map", bindings: map[string]any{core.DefaultBindingName: map[string]any{"description": task.Description, "prompt": task.Prompt}}},
-		{name: "non-default binding", bindings: map[string]any{"task": task}},
+		{name: "typed default", bindings: core.Input(task), description: task.Description, prompt: task.Prompt},
+		{name: "dynamic map", bindings: core.Input(map[string]any{"description": task.Description, "prompt": task.Prompt})},
+		{name: "non-default binding", bindings: namedBinding("task", task)},
 		{name: "nil bindings"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -104,6 +104,12 @@ func TestSubagentTaskInputRequiresTypedDefaultBinding(t *testing.T) {
 			}
 		})
 	}
+}
+
+func namedBinding(name string, value any) core.Bindings {
+	var bindings core.Bindings
+	bindings.Set(name, value)
+	return bindings
 }
 
 func TestSummarizeHookText_KeepsUTF8Boundary(t *testing.T) {

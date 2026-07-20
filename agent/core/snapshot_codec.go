@@ -30,15 +30,15 @@ func (tv TaggedValue) Validate() error {
 // Every non-builtin concrete type must be declared by an action input/output
 // on this Agent. Callers should store undeclared runtime objects through the
 // Blackboard transient API instead.
-func (a *Agent) EncodeBlackboard(named map[string]any, objects []any) (map[string]TaggedValue, []TaggedValue, error) {
+func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]TaggedValue, []TaggedValue, error) {
 	if a == nil {
 		return nil, nil, errors.New("agent.Agent.EncodeBlackboard: agent is nil")
 	}
 	table := a.durableTypes()
 	var taggedNamed map[string]TaggedValue
-	if len(named) > 0 {
-		taggedNamed = make(map[string]TaggedValue, len(named))
-		for key, value := range named {
+	if bindings.Len() > 0 {
+		taggedNamed = make(map[string]TaggedValue, bindings.Len())
+		for key, value := range bindings.All() {
 			tagged, err := tagSnapshotValue(value, table)
 			if err != nil {
 				return nil, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
@@ -77,27 +77,26 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 
 // DecodeBlackboard reconstructs strict durable values. Unknown tags and decode
 // failures are errors; restore never silently substitutes map[string]any.
-func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (map[string]any, []any, error) {
+func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error) {
 	if a == nil {
-		return nil, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
+		return Bindings{}, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
 	}
 	table := a.durableTypes()
-	var decodedNamed map[string]any
+	var decodedNamed Bindings
 	if len(named) > 0 {
-		decodedNamed = make(map[string]any, len(named))
 		for key, tagged := range named {
 			value, err := decodeSnapshotValue(tagged, table)
 			if err != nil {
-				return nil, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
+				return Bindings{}, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
 			}
-			decodedNamed[key] = value
+			decodedNamed.Set(key, value)
 		}
 	}
 	decodedObjects := make([]any, 0, len(objects))
 	for i, tagged := range objects {
 		value, err := decodeSnapshotValue(tagged, table)
 		if err != nil {
-			return nil, nil, fmt.Errorf("objects[%d]: %w", i, err)
+			return Bindings{}, nil, fmt.Errorf("objects[%d]: %w", i, err)
 		}
 		decodedObjects = append(decodedObjects, value)
 	}

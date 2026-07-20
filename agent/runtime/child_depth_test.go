@@ -19,7 +19,7 @@ func TestRunChildLimitsDepth(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 	root, err := engine.Run(t.Context(), def,
-		map[string]any{core.DefaultBindingName: subInput{Value: 0}}, core.ProcessOptions{})
+		core.Input(subInput{Value: 0}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
