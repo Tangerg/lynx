@@ -393,7 +393,10 @@ func TestSnapshotStrictDurableAndExplicitTransientBlackboard(t *testing.T) {
 	a := buildSnapshotAgent()
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
-	blackboard := engine.NewBlackboard()
+	blackboard, err := engine.NewBlackboard()
+	if err != nil {
+		t.Fatalf("NewBlackboard: %v", err)
+	}
 	proc, err := engine.Run(t.Context(), a,
 		core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{Blackboard: blackboard})
 	if err != nil {

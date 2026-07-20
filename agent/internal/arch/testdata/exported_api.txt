@@ -572,7 +572,7 @@ runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(id string) error
 runtime: func (e *Engine) KillChildren(parentID string) []string
-runtime: func (e *Engine) NewBlackboard() core.Blackboard
+runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) ProcessStore() core.ProcessStore
 runtime: func (e *Engine) Processes() []*Process
@@ -640,6 +640,7 @@ runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceede
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
 runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
+runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
 storetest: func TestSessionStore(ctx context.Context, store core.SessionStore) error

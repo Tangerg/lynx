@@ -235,8 +235,9 @@ func (e *Engine) Dependencies() *core.Dependencies { return e.dependencies }
 // Public so orchestration helpers — most notably the workflow
 // agent-level builders — can hand a child process a clean blackboard
 // rather than inheriting the parent's accumulated state via
-// [core.Blackboard.Clone].
-func (e *Engine) NewBlackboard() core.Blackboard { return e.resolveBlackboard(nil) }
+// [core.Blackboard.Clone]. It returns an error when a registered prototype
+// panics or violates the Clone contract.
+func (e *Engine) NewBlackboard() (core.Blackboard, error) { return e.resolveBlackboard(nil) }
 
 // findDeployment looks the active deployment up by name for agent-as-tool constructors
 // ([NewAgentTool] / [NewStandaloneAgentTool]). Returns an error when the engine is

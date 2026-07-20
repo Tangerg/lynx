@@ -4,11 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
+
+// ErrProcessIdentity reports an ID generator result that cannot uniquely
+// identify a new process.
+var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 
 // createProcess assembles a Process and its dependencies
 // (blackboard, state reader, planner). The process is registered in
@@ -52,8 +58,13 @@ func (e *Engine) createProcessFromDeployment(
 	}
 	bindings = bindings.Clone()
 
-	blackboard := e.resolveBlackboard(options.Blackboard)
-	bindBlackboardSeed(blackboard, bindings)
+	blackboard, err := e.resolveBlackboard(options.Blackboard)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+	}
+	if err := bindBlackboardSeed(blackboard, bindings); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+	}
 
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
@@ -64,14 +75,19 @@ func (e *Engine) createProcessFromDeployment(
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: domain: %w", err)
 	}
-	processID := e.idGenerator().Next()
+	processID, err := nextProcessID(e.idGenerator())
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+	}
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
 	process.wireRuntimeDeps(processOptions.extensions)
 
-	e.processes.register(process)
+	if !e.processes.insert(process) {
+		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, processID)
+	}
 	process.publishEvent(context.Background(), event.ProcessCreated{
 		Header:   event.NewHeader(processID),
 		Bindings: bindings,
@@ -103,7 +119,11 @@ func (e *Engine) createChild(
 		return nil, errors.New("runtime.Engine.createChild: parent process is nil")
 	}
 	if options.Blackboard == nil {
-		options.Blackboard = parent.blackboard.Clone()
+		blackboard, err := cloneBlackboard(parent.blackboard)
+		if err != nil {
+			return nil, fmt.Errorf("runtime.Engine.createChild: %w", err)
+		}
+		options.Blackboard = blackboard
 	}
 	// A child shares its parent's event stream: process-scope
 	// EventListener extensions propagate down so the whole delegation
@@ -173,16 +193,70 @@ func findPlannerByName(extensions []core.Extension, name string) (planning.Plann
 // [core.Blackboard] extension is used as a prototype, with [Clone]
 // producing the isolated per-process instance; otherwise the built-in
 // in-memory implementation is constructed fresh.
-func (e *Engine) resolveBlackboard(supplied core.Blackboard) core.Blackboard {
+func (e *Engine) resolveBlackboard(supplied core.Blackboard) (core.Blackboard, error) {
 	if supplied != nil {
-		return supplied
+		if _, err := blackboardName(supplied); err != nil {
+			return nil, err
+		}
+		return supplied, nil
 	}
 	if prototype := e.blackboardPrototype(); prototype != nil {
-		if blackboard := prototype.Clone(); blackboard != nil {
-			return blackboard
-		}
+		return cloneBlackboard(prototype)
 	}
-	return newInMemoryBlackboard()
+	return newInMemoryBlackboard(), nil
+}
+
+func blackboardName(blackboard core.Blackboard) (string, error) {
+	if valueIsNil(blackboard) {
+		return "", errors.New("blackboard is nil")
+	}
+	name, err := extensionName(blackboard)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(name) == "" {
+		return "", fmt.Errorf("blackboard %T returned an empty Name", blackboard)
+	}
+	return name, nil
+}
+
+func cloneBlackboard(source core.Blackboard) (clone core.Blackboard, err error) {
+	name, err := blackboardName(source)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			clone = nil
+			err = panicerr.New(fmt.Sprintf("blackboard %q Clone panicked", name), recovered)
+		}
+	}()
+	clone = source.Clone()
+	if valueIsNil(clone) {
+		return nil, fmt.Errorf("blackboard %q Clone returned nil", name)
+	}
+	if _, err := blackboardName(clone); err != nil {
+		return nil, fmt.Errorf("blackboard %q Clone result: %w", name, err)
+	}
+	return clone, nil
+}
+
+func nextProcessID(generator core.IDGenerator) (id string, err error) {
+	name, err := extensionName(generator)
+	if err != nil {
+		return "", err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			id = ""
+			err = panicerr.New(fmt.Sprintf("ID generator %q Next panicked", name), recovered)
+		}
+	}()
+	id = generator.Next()
+	if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
+		return "", fmt.Errorf("%w: ID generator %q returned %q", ErrProcessIdentity, name, id)
+	}
+	return id, nil
 }
 
 // validateProcessExtensions enforces the per-process invariants:
@@ -216,7 +290,19 @@ func validateProcessExtensions(extensions []core.Extension) error {
 // bindBlackboardSeed applies the caller's initial bindings.
 // [core.DefaultBindingName] uses Bind() so the dual-binding behavior
 // kicks in; other keys go through Set so their explicit name wins.
-func bindBlackboardSeed(blackboard core.Blackboard, bindings core.Bindings) {
+func bindBlackboardSeed(blackboard core.Blackboard, bindings core.Bindings) (err error) {
+	if bindings.Len() == 0 {
+		return nil
+	}
+	name, err := blackboardName(blackboard)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("blackboard %q seed panicked", name), recovered)
+		}
+	}()
 	for key, value := range bindings.All() {
 		if key == core.DefaultBindingName {
 			blackboard.Bind(value)
@@ -224,4 +310,5 @@ func bindBlackboardSeed(blackboard core.Blackboard, bindings core.Bindings) {
 		}
 		blackboard.Store(key, value)
 	}
+	return nil
 }
