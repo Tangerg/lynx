@@ -19,11 +19,17 @@ import (
 
 // memStore is an in-memory goal.Store.
 type memStore struct {
-	mu    sync.Mutex
-	goals map[string]goal.Goal
+	mu      sync.Mutex
+	goals   map[string]goal.Goal
+	changed chan struct{}
 }
 
-func newMemStore() *memStore { return &memStore{goals: map[string]goal.Goal{}} }
+func newMemStore() *memStore {
+	return &memStore{
+		goals:   map[string]goal.Goal{},
+		changed: make(chan struct{}),
+	}
+}
 
 func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
 	s.mu.Lock()
@@ -35,12 +41,14 @@ func (s *memStore) Save(_ context.Context, g goal.Goal) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.goals[g.SessionID] = g
+	s.notifyLocked()
 	return nil
 }
 func (s *memStore) Clear(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.goals, id)
+	s.notifyLocked()
 	return nil
 }
 func (s *memStore) List(context.Context) ([]goal.Goal, error) {
@@ -51,6 +59,18 @@ func (s *memStore) List(context.Context) ([]goal.Goal, error) {
 		out = append(out, g)
 	}
 	return out, nil
+}
+
+func (s *memStore) observe(id string) (goal.Goal, bool, <-chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.goals[id]
+	return g, ok, s.changed
+}
+
+func (s *memStore) notifyLocked() {
+	close(s.changed)
+	s.changed = make(chan struct{})
 }
 
 // turn scripts one autonomous turn's outcome. setStatus simulates the model
@@ -65,12 +85,13 @@ type turn struct {
 }
 
 type fakeRuns struct {
-	t      *testing.T
-	store  *memStore
-	script []turn
-	hold   chan struct{} // when non-nil, a run holds its terminal until this closes
-	mu     sync.Mutex
-	calls  int
+	t       *testing.T
+	store   *memStore
+	script  []turn
+	hold    chan struct{} // when non-nil, a run holds its terminal until this closes
+	started chan struct{}
+	mu      sync.Mutex
+	calls   int
 }
 
 func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
@@ -78,6 +99,12 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	i := f.calls
 	f.calls++
 	f.mu.Unlock()
+	if f.started != nil {
+		select {
+		case f.started <- struct{}{}:
+		default:
+		}
+	}
 
 	events := make(chan runs.Event, 2)
 	if i >= len(f.script) {
@@ -118,19 +145,22 @@ func newDriver(t *testing.T, store *memStore, script ...turn) *goals.Driver {
 	return d
 }
 
-// waitGoal polls until the session's goal satisfies cond, or fails on timeout.
+// waitGoal blocks on store changes until the session's goal satisfies cond.
 func waitGoal(t *testing.T, store *memStore, sessionID string, cond func(goal.Goal, bool) bool) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		g, ok, _ := store.Get(context.Background(), sessionID)
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	for {
+		g, ok, changed := store.observe(sessionID)
 		if cond(g, ok) {
 			return
 		}
-		time.Sleep(5 * time.Millisecond)
+		select {
+		case <-changed:
+		case <-timer.C:
+			t.Fatalf("goal never reached the expected state: %+v (present=%v)", g, ok)
+		}
 	}
-	g, ok, _ := store.Get(context.Background(), sessionID)
-	t.Fatalf("goal never reached the expected state: %+v (present=%v)", g, ok)
 }
 
 func TestDriverCompletesAndClears(t *testing.T) {
@@ -197,22 +227,28 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 func TestDriverStopPausesRunningGoal(t *testing.T) {
 	store := newMemStore()
 	hold := make(chan struct{})
-	fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}}, hold: hold}
+	started := make(chan struct{}, 1)
+	fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}}, hold: hold, started: started}
 	d := goals.NewDriver(store, fake)
 	t.Cleanup(func() { _ = d.Close() })
 
 	if _, err := d.Start(context.Background(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	waitCalls(t, fake, 1) // the loop launched the run and is draining its terminal
+	select {
+	case <-started: // the loop launched the run and is draining its terminal
+	case <-time.After(2 * time.Second):
+		t.Fatal("goal driver did not launch its first run")
+	}
 
 	if _, err := d.Stop(context.Background(), "s1"); err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
 	close(hold) // let the in-flight run finish
 
-	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool { return ok && g.Status == goal.StatusPaused })
-	time.Sleep(50 * time.Millisecond) // give any stray checkpoint a chance to clobber
+	if err := d.Close(); err != nil { // join proves no checkpoint remains in flight
+		t.Fatalf("Close: %v", err)
+	}
 	if g, _, _ := store.Get(context.Background(), "s1"); g.Status != goal.StatusPaused {
 		t.Fatalf("goal not stably paused after stop: %q", g.Status)
 	}
@@ -243,19 +279,16 @@ func TestDriverEmitsTurnSpan(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool { return ok && g.Status == goal.StatusBlocked })
+	if err := d.Close(); err != nil { // goal.turn ends before its span is inspected
+		t.Fatalf("Close: %v", err)
+	}
 
 	var span *tracetest.SpanStub
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && span == nil {
-		for _, s := range exporter.GetSpans() {
-			if s.Name == "goal.turn" {
-				stub := s
-				span = &stub
-				break
-			}
-		}
-		if span == nil {
-			time.Sleep(5 * time.Millisecond)
+	for _, s := range exporter.GetSpans() {
+		if s.Name == "goal.turn" {
+			stub := s
+			span = &stub
+			break
 		}
 	}
 	if span == nil {
@@ -268,21 +301,6 @@ func TestDriverEmitsTurnSpan(t *testing.T) {
 	if attrs["goal.session"] != "s1" || attrs["goal.turn"] != "1" || attrs["run.outcome"] != "completed" {
 		t.Fatalf("goal.turn span attributes = %v, want session s1 / turn 1 / outcome completed", attrs)
 	}
-}
-
-func waitCalls(t *testing.T, f *fakeRuns, n int) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		f.mu.Lock()
-		c := f.calls
-		f.mu.Unlock()
-		if c >= n {
-			return
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	t.Fatalf("run count never reached %d", n)
 }
 
 func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {

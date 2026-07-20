@@ -165,16 +165,11 @@ func TestShellsLaunchRacesKillAll(t *testing.T) {
 
 func waitDone(t *testing.T, shells *Shells, id string) {
 	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		if sh, ok := shells.Get(id); ok {
-			if done, _ := sh.Status(); done {
-				return
-			}
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case <-mustShell(t, shells, id).Done():
+	case <-time.After(10 * time.Second):
+		t.Fatalf("shell %s did not finish in time", id)
 	}
-	t.Fatalf("shell %s did not finish in time", id)
 }
 
 func mustShell(t *testing.T, shells *Shells, id string) *Shell {
