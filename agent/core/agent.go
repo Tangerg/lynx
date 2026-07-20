@@ -43,7 +43,8 @@ type AgentConfig struct {
 	// agent. It must match the [Extension.Name] of a planner
 	// registered on the engine (or via process-scope
 	// [ProcessOptions.Extensions]). Empty → framework default
-	// ("goap"). Built-in names: "goap", "htn", "reactive".
+	// ("goap"). Built-in names include goap, htn, reactive, utility,
+	// and goal-first-utility.
 	PlannerName string
 }
 

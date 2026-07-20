@@ -15,8 +15,9 @@ var agentTracer = otel.Tracer("lynx/agent/runtime")
 
 // Attribute keys are telemetry schema; rename only with exporter/dashboard migration.
 const (
-	attrAgentName = "gen_ai.agent.name"
-	attrProcessID = "agent.process.id"
+	attrAgentName     = "gen_ai.agent.name"
+	attrProcessID     = "agent.process.id"
+	attrProcessStatus = "agent.process.status"
 )
 
 // publishEvent dispatches to both engine and process listener scopes.

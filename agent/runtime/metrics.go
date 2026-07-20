@@ -18,12 +18,11 @@ import (
 const (
 	meterName = "lynx/agent"
 
-	metricTicks      = "agent.ticks"
-	metricActions    = "agent.action.executions"
-	metricActionDur  = "agent.action.duration"
-	metricPlanDur    = "agent.plan.duration"
-	metricRunExits   = "agent.process.exits"
-	attrProcessState = "agent.process.status"
+	metricTicks     = "agent.ticks"
+	metricActions   = "agent.action.executions"
+	metricActionDur = "agent.action.duration"
+	metricPlanDur   = "agent.plan.duration"
+	metricRunExits  = "agent.process.exits"
 )
 
 // agentMetrics holds the lazily-created instruments. Built once via
@@ -95,6 +94,6 @@ func (p *Process) recordPlanMetric(ctx context.Context, duration time.Duration) 
 func (p *Process) recordRunExitMetric(ctx context.Context) {
 	loadMetrics().exits.Add(ctx, 1, metric.WithAttributes(
 		p.agentAttr(),
-		attribute.String(attrProcessState, p.Status().String()),
+		attribute.String(attrProcessStatus, p.Status().String()),
 	))
 }

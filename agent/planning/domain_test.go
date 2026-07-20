@@ -12,6 +12,15 @@ import (
 type domainInput struct{ X int }
 type domainOutput struct{ Y int }
 
+func TestEffectivePlannerName(t *testing.T) {
+	if got := planning.EffectivePlannerName(""); got != planning.GOAPPlannerName {
+		t.Fatalf("EffectivePlannerName(empty) = %q, want %q", got, planning.GOAPPlannerName)
+	}
+	if got := planning.EffectivePlannerName(planning.HTNPlannerName); got != planning.HTNPlannerName {
+		t.Fatalf("EffectivePlannerName(htn) = %q", got)
+	}
+}
+
 func domainAgent(name, actionName string) *core.Agent {
 	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction(actionName, func(_ context.Context, _ *core.ProcessContext, input domainInput) (domainOutput, error) {
 		return domainOutput{Y: input.X + 1}, nil

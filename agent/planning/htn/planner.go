@@ -18,7 +18,7 @@ const defaultMaxRecursion = 64
 // plannerTracer is the package-level tracer for the HTN planner. It shares the
 // `lynx/agent/planner` namespace with the other planners; backends distinguish
 // algorithms by span name ("htn.plan").
-var plannerTracer = otel.Tracer("lynx/agent/planner")
+var plannerTracer = otel.Tracer(planning.TracerName)
 
 // Planner is the concrete HTN planner. Library is supplied at
 // construction; the planner is otherwise stateless and safe to share
@@ -40,7 +40,7 @@ func NewPlanner(library *Library) (*Planner, error) {
 
 // Name is the planner's extension identifier — the value an agent's
 // [core.AgentConfig.PlannerName] must match to select this planner.
-func (p *Planner) Name() string { return "htn" }
+func (p *Planner) Name() string { return planning.HTNPlannerName }
 
 // PlanToGoal decomposes the task whose name matches goal.Name. Goals
 // without a matching task return (nil, nil) so the runtime can fall
@@ -63,10 +63,10 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	ctx, span := plannerTracer.Start(ctx, "htn.plan",
+	ctx, span := plannerTracer.Start(ctx, planning.HTNPlannerName+".plan",
 		trace.WithAttributes(
-			attribute.String("agent.planner", "htn"),
-			attribute.String("agent.goal.name", goal.Name()),
+			attribute.String(planning.PlannerNameKey, p.Name()),
+			attribute.String(planning.GoalNameKey, goal.Name()),
 		),
 	)
 	defer func() {
@@ -74,7 +74,7 @@ func (p *Planner) PlanToGoal(
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 		} else if result != nil {
-			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions())))
+			span.SetAttributes(attribute.Int(planning.PlanLengthKey, len(result.Actions())))
 		}
 		span.End()
 	}()

@@ -98,6 +98,11 @@ Process 时复制绑定容器，因此调用方后续增删绑定不会改写运
 
 ## 3. Definition、Binding 与 Deployment
 
+`AgentConfig.PlannerName` 使用 `planning.GOAPPlannerName`、`planning.HTNPlannerName`、
+`planning.ReactivePlannerName`、`planning.UtilityPlannerName` 等规范标识。空值通过
+`planning.EffectivePlannerName` 归一为 `planning.DefaultPlannerName`；Runtime 选择与
+Deployment digest 共用同一归一规则，避免执行语义和缓存身份漂移。
+
 `AgentConfig` 是构造输入；`Agent` 是只读定义聚合。`Engine.Deploy` 会执行结构验证、扩展验证，
 并编译出不可变 `Deployment`：
 

@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/agent/planning/goap"
 )
 
@@ -131,6 +132,28 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	again := frozen.Actions()[0].Metadata()
 	if again.Effects["finish"] != core.True || again.ToolGroups[0].AllowedPermissions[0] != core.ToolGroupHostAccess {
 		t.Fatalf("metadata accessor leaked deployment state: %#v", again)
+	}
+}
+
+func TestCompileDeploymentCanonicalizesDefaultPlanner(t *testing.T) {
+	implicit := deploymentFixture("canonical-planner", core.ConditionSet{"finish": core.True}, nil)
+	implicit = reconfigureAgent(implicit, func(config *core.AgentConfig) {
+		config.PlannerName = ""
+	})
+	explicit := reconfigureAgent(implicit, func(config *core.AgentConfig) {
+		config.PlannerName = planning.DefaultPlannerName
+	})
+
+	implicitDeployment, err := (deploymentCompiler{}).compile(implicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	explicitDeployment, err := (deploymentCompiler{}).compile(explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if implicitDeployment.ref != explicitDeployment.ref {
+		t.Fatalf("implicit deployment = %s, explicit = %s", implicitDeployment.ref, explicitDeployment.ref)
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 const compiledDefinitionFormat = 1
@@ -251,16 +252,13 @@ func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, erro
 		Name:        agent.Name(),
 		Description: agent.Description(),
 		BuildID:     c.buildID,
-		Planner:     agent.PlannerName(),
+		Planner:     planning.EffectivePlannerName(agent.PlannerName()),
 		Actions:     make([]canonicalAction, 0, len(agent.Actions())),
 		Goals:       make([]canonicalGoal, 0, len(agent.Goals())),
 		Conditions:  make([]canonicalCondition, 0, len(agent.Conditions())),
 		StuckPolicy: c.typeName(agent.StuckPolicy()),
 	}
 	definition.Version = agent.Version()
-	if definition.Planner == "" {
-		definition.Planner = "goap"
-	}
 
 	for _, action := range agent.Actions() {
 		metadata := action.Metadata()

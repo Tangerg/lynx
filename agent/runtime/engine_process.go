@@ -126,14 +126,11 @@ func (e *Engine) createChild(
 // resolvePlanner finds the [planning.Planner] for agent by matching
 // [core.AgentConfig.PlannerName] against registered Planner extensions:
 // process-scope extensions take priority over engine-scope. An empty
-// PlannerName resolves to "goap". The runtime intentionally knows no
+// PlannerName resolves through [planning.DefaultPlannerName]. The runtime intentionally knows no
 // concrete planner — the composition root registers them as extensions
 // (agent.NewEngine registers goap + reactive by default).
 func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []core.Extension) (planning.Planner, error) {
-	name := agent.PlannerName()
-	if name == "" {
-		name = "goap"
-	}
+	name := planning.EffectivePlannerName(agent.PlannerName())
 
 	if planner := findPlannerByName(processExtensions, name); planner != nil {
 		return planner, nil

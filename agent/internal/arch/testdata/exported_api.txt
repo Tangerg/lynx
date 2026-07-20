@@ -468,6 +468,7 @@ planning/utility: func NewGoalFirst() *GoalFirst
 planning/utility: func NewPlanner() *Planner
 planning/utility: type GoalFirst struct{}
 planning/utility: type Planner struct{}
+planning: const ( GOAPPlannerName = "goap" HTNPlannerName = "htn" ReactivePlannerName = "reactive" UtilityPlannerName = "utility" GoalFirstUtilityPlannerName = "goal-first-utility" DefaultPlannerName = GOAPPlannerName TracerName = "lynx/agent/planner" PlannerNameKey = "agent.planner" GoalNameKey = "agent.goal.name" PlanLengthKey = "agent.plan.length" )
 planning: func (d *Domain) Actions() []core.Action
 planning: func (d *Domain) BestPlan( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Plan, error)
 planning: func (d *Domain) Conditions() []core.Condition
@@ -489,6 +490,7 @@ planning: func (s *State) Key() string
 planning: func (s *State) Timestamp() time.Time
 planning: func DomainForAgent(agent *core.Agent) *Domain
 planning: func DomainForAgents(agents []*core.Agent) *Domain
+planning: func EffectivePlannerName(name string) string
 planning: func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) *Domain
 planning: func NewPlan(actions []core.Action, goal *core.Goal) *Plan
 planning: func NewState(conditions core.ConditionSet) *State

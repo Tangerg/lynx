@@ -13,7 +13,7 @@ import (
 )
 
 // plannerTracer is the package-level tracer for the reactive planner.
-var plannerTracer = otel.Tracer("lynx/agent/planner")
+var plannerTracer = otel.Tracer(planning.TracerName)
 
 // Planner is the concrete reactive planner. Stateless across calls;
 // safe to share across goroutines.
@@ -26,7 +26,7 @@ func NewPlanner() *Planner { return &Planner{} }
 
 // Name is the planner's extension identifier — the value an agent's
 // [core.AgentConfig.PlannerName] must match to select this planner.
-func (p *Planner) Name() string { return "reactive" }
+func (p *Planner) Name() string { return planning.ReactivePlannerName }
 
 // PlanToGoal scores each applicable action by how many still-
 // unsatisfied goal preconditions its effects would close, picks the
@@ -52,15 +52,15 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	_, span := plannerTracer.Start(ctx, "reactive.plan",
+	_, span := plannerTracer.Start(ctx, planning.ReactivePlannerName+".plan",
 		trace.WithAttributes(
-			attribute.String("agent.planner", "reactive"),
-			attribute.String("agent.goal.name", goal.Name()),
+			attribute.String(planning.PlannerNameKey, p.Name()),
+			attribute.String(planning.GoalNameKey, goal.Name()),
 		),
 	)
 	defer func() {
 		if result != nil {
-			span.SetAttributes(attribute.Int("agent.plan.length", len(result.Actions())))
+			span.SetAttributes(attribute.Int(planning.PlanLengthKey, len(result.Actions())))
 		}
 		span.End()
 	}()

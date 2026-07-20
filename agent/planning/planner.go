@@ -7,6 +7,38 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
+const (
+	// GOAPPlannerName selects the built-in goal-oriented planner.
+	GOAPPlannerName = "goap"
+	// HTNPlannerName selects the hierarchical task-network planner.
+	HTNPlannerName = "htn"
+	// ReactivePlannerName selects the one-step reactive planner.
+	ReactivePlannerName = "reactive"
+	// UtilityPlannerName selects the classic utility planner.
+	UtilityPlannerName = "utility"
+	// GoalFirstUtilityPlannerName selects the goal-first utility variant.
+	GoalFirstUtilityPlannerName = "goal-first-utility"
+
+	// DefaultPlannerName is used when AgentConfig.PlannerName is empty.
+	DefaultPlannerName = GOAPPlannerName
+
+	// TracerName and the attribute keys form the shared planner telemetry schema.
+	TracerName     = "lynx/agent/planner"
+	PlannerNameKey = "agent.planner"
+	GoalNameKey    = "agent.goal.name"
+	PlanLengthKey  = "agent.plan.length"
+)
+
+// EffectivePlannerName returns name, or [DefaultPlannerName] when name is
+// empty. Runtime selection and deployment identity both use this function so
+// cache identity cannot drift from execution behavior.
+func EffectivePlannerName(name string) string {
+	if name == "" {
+		return DefaultPlannerName
+	}
+	return name
+}
+
 // Options carries per-call planner knobs. ExcludedActions is the
 // runtime's "ignore this recently-replanned action to avoid looping"
 // signal; MaxIterations caps internal search iteration count.
