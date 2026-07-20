@@ -48,18 +48,18 @@ type reducerConfig struct {
 // canonical RunEvent family and EventCommit facts. It owns open item state,
 // item identity, resume correlation, terminal synthesis, and error semantics.
 type reducer struct {
-	cfg       reducerConfig
-	resume    *resumeBinding
-	itemSeq   int
-	step      int
-	toolOrder int
-	userInput []ContentBlock
-	text      *openText
-	reasoning *openText
-	tools     openTools
-	drained   []interrupts.DrainedTool
-	errMsg    string
-	errCode   string
+	cfg        reducerConfig
+	resume     *resumeBinding
+	itemSeq    int
+	step       int
+	toolOrder  int
+	userInput  []ContentBlock
+	text       *openText
+	reasoning  *openText
+	tools      openTools
+	drained    []interrupts.DrainedTool
+	errMsg     string
+	errProblem Problem
 }
 
 type openText struct {
@@ -154,7 +154,7 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 	case TodosUpdated:
 		out = r.todosSnapshot(e)
 	case ErrorEvent:
-		r.errMsg, r.errCode = e.Message, e.Code
+		r.errMsg, r.errProblem = e.Message, e.Problem
 		return nil, nil
 	case CompactBoundary:
 		out = r.compaction(e)
@@ -187,7 +187,7 @@ func (r *reducer) synthesizeTerminal() ([]reduction, error) {
 	outcome := execution.OutcomeCanceled
 	if r.errMsg != "" {
 		outcome = execution.OutcomeError
-		result.Error = r.classifyRunError(r.errMsg)
+		result.Error = r.runProblem()
 	}
 	detail := ""
 	if outcome == execution.OutcomeCanceled && r.cfg.CancelReason != nil {
@@ -206,7 +206,17 @@ func (r *reducer) abort(err error) {
 		return
 	}
 	r.errMsg = err.Error()
-	r.errCode = ""
+	r.errProblem = Problem{Kind: InternalProblem, Scope: RunProblem, Detail: "the run failed due to an internal error"}
+}
+
+func (r *reducer) runProblem() *Problem {
+	problem := r.errProblem
+	problem.Scope = RunProblem
+	if problem.Detail == "" {
+		problem.Kind = InternalProblem
+		problem.Detail = "the run failed due to an internal error"
+	}
+	return &problem
 }
 
 func (r *reducer) project(events []RunEvent) ([]reduction, error) {

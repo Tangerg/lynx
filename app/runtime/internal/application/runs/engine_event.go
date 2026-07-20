@@ -108,10 +108,24 @@ type TurnEnd struct {
 
 func (e TurnEnd) Terminal() (execution.Outcome, bool) { return e.Reason, true }
 
+// ErrorCode identifies the operation that reported an executor error. It is a
+// typed diagnostic tag; user-facing classification is carried by Problem.
+type ErrorCode string
+
+const (
+	ErrorCodeEngine            ErrorCode = "ENGINE_ERROR"
+	ErrorCodeAgentStuck        ErrorCode = "AGENT_STUCK"
+	ErrorCodeModelUnavailable  ErrorCode = "MODEL_UNAVAILABLE"
+	ErrorCodeSteering          ErrorCode = "STEERING_ERROR"
+	ErrorCodeCompaction        ErrorCode = "COMPACTION_ERROR"
+	ErrorCodeMemoryMaintenance ErrorCode = "MEMORY_MAINTENANCE_ERROR"
+)
+
 type ErrorEvent struct {
 	EventMeta
 	Message string
-	Code    string
+	Code    ErrorCode
+	Problem Problem
 }
 
 type UsageReported struct {

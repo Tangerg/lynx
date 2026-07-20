@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os/exec"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
@@ -132,7 +133,8 @@ func dial(ctx context.Context, client *sdkmcp.Client, cfg ServerConfig) (*sdkmcp
 			HTTPClient:   httpClient,
 			OAuthHandler: cfg.OAuthHandler,
 		}
-		return client.Connect(ctx, transport, nil)
+		session, err := client.Connect(ctx, transport, nil)
+		return session, classifyHTTPDialError(httpClient, err)
 	case TransportStdio:
 		cmd := exec.CommandContext(ctx, cfg.Command, cfg.Args...)
 		if cfg.Env != nil {
@@ -214,6 +216,7 @@ type headerRoundTripper struct {
 	authorization string
 	headers       map[string]string
 	base          http.RoundTripper
+	lastStatus    atomic.Int32
 }
 
 func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -227,7 +230,28 @@ func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	if t.authorization != "" {
 		r.Header.Set("Authorization", t.authorization)
 	}
-	return t.base.RoundTrip(r)
+	response, err := t.base.RoundTrip(r)
+	if response != nil {
+		t.lastStatus.Store(int32(response.StatusCode))
+	}
+	return response, err
+}
+
+func (t *headerRoundTripper) classifyDialError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if t.lastStatus.Load() == http.StatusUnauthorized {
+		return &dialFailure{kind: dialFailureNeedsAuth, err: err}
+	}
+	return err
+}
+
+func classifyHTTPDialError(client *http.Client, err error) error {
+	if transport, ok := client.Transport.(*headerRoundTripper); ok {
+		return transport.classifyDialError(err)
+	}
+	return err
 }
 
 func (t *headerRoundTripper) validateTarget(target *url.URL) error {

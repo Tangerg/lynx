@@ -284,30 +284,32 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 
 func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 	cases := []struct {
-		message string
-		kind    ProblemKind
-		retry   bool
+		name    string
+		problem Problem
 	}{
-		{`POST "https://api.example": 429 Too Many Requests; retry-after: 30`, RateLimitedProblem, true},
-		{`POST "https://api.example": 401 Unauthorized`, InvalidAPIKeyProblem, false},
-		{`POST "https://api.example": 503 Service Unavailable`, ProviderUnavailableProblem, true},
-		{`POST "https://api.example": context deadline exceeded`, TimeoutProblem, true},
-		{`POST "https://api.example": 400 Bad Request`, ProviderRejectedProblem, false},
+		{"rate limited", Problem{Kind: RateLimitedProblem, Detail: "retry shortly", Retryable: true, RetryAfterSeconds: 30}},
+		{"invalid credentials", Problem{Kind: InvalidAPIKeyProblem, Detail: "check credentials"}},
+		{"provider unavailable", Problem{Kind: ProviderUnavailableProblem, Detail: "retry shortly", Retryable: true}},
+		{"timeout", Problem{Kind: TimeoutProblem, Detail: "retry shortly", Retryable: true}},
+		{"provider rejected", Problem{Kind: ProviderRejectedProblem, Detail: "invalid request"}},
 	}
 	for _, test := range cases {
-		reducer := newReducer(testReducerConfig())
-		problem := reducer.classifyRunError(test.message)
-		if problem.Kind != test.kind || problem.Retryable != test.retry || strings.Contains(problem.Detail, "api.example") {
-			t.Errorf("classify(%q) = %+v", test.message, problem)
-		}
-	}
-	reducer := newReducer(testReducerConfig())
-	reducer.errCode = "AGENT_STUCK"
-	if problem := reducer.classifyRunError("no progress"); problem.Kind != AgentStuckProblem {
-		t.Fatalf("agent stuck problem = %+v", problem)
-	}
-	if got := parseRetryAfter("try again in 12 seconds"); got != 12 {
-		t.Fatalf("retry-after = %d, want 12", got)
+		t.Run(test.name, func(t *testing.T) {
+			reducer := newReducer(testReducerConfig())
+			mustReduce(t, reducer, ErrorEvent{
+				Message: `POST "https://api.example": provider detail`,
+				Code:    ErrorCodeEngine, Problem: test.problem,
+			})
+			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError})
+			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
+			problem := finished.Run.Result.Error
+			if problem == nil || *problem != (Problem{
+				Kind: test.problem.Kind, Scope: RunProblem, Detail: test.problem.Detail,
+				Retryable: test.problem.Retryable, RetryAfterSeconds: test.problem.RetryAfterSeconds,
+			}) || strings.Contains(problem.Detail, "api.example") {
+				t.Errorf("terminal problem = %+v", problem)
+			}
+		})
 	}
 }
 

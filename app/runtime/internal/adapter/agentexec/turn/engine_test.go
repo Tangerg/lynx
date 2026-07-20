@@ -164,7 +164,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	for event := range events {
 		switch value := event.(type) {
 		case turn.ErrorEvent:
-			sawError = value.Code == "ENGINE_ERROR" && strings.Contains(value.Message, "invalid turn stop reason")
+			sawError = value.Code == turn.ErrorCodeEngine && strings.Contains(value.Message, "invalid turn stop reason")
 		case turn.TurnEnd:
 			sawEnd = value.Reason == execution.OutcomeError
 		}
@@ -528,7 +528,7 @@ func assertCreateFailureEvents(t *testing.T, events iter.Seq[turn.Event], startE
 			starts++
 		case turn.ErrorEvent:
 			failures++
-			if value.Code != "ENGINE_ERROR" || !strings.Contains(value.Message, startErr.Error()) {
+			if value.Code != turn.ErrorCodeEngine || !strings.Contains(value.Message, startErr.Error()) {
 				t.Errorf("ErrorEvent = %+v, want ENGINE_ERROR containing %q", value, startErr)
 			}
 		case turn.TurnEnd:
