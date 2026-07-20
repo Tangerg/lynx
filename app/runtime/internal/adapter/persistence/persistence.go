@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	goalsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -47,6 +48,7 @@ type Bundle struct {
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
 	Todos         todosvc.Store
+	Goals         goalsvc.Store
 	ApprovalRules approval.RuleStore
 	UtilityRole   *sqlitestore.UtilityRoleStore
 	Trust         *sqlitestore.TrustStore
@@ -90,6 +92,7 @@ func Open() (*Bundle, error) {
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatHistory:   sqlitestore.NewMessageStore(db),
 		Todos:         sqlitestore.NewTodoStore(db),
+		Goals:         sqlitestore.NewGoalStore(db),
 		ApprovalRules: sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:   sqlitestore.NewUtilityRoleStore(db),
 		Trust:         sqlitestore.NewTrustStore(db),

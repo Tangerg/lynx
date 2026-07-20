@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -114,6 +115,11 @@ type Config struct {
 	// Optional; nil disables the feature (no tool, no prompt injection). The
 	// composition root injects the sqlite-backed store.
 	TodoStore todo.Store
+
+	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
+	// disables the feature (no update_goal tool, goals.* report
+	// capability_not_negotiated). The composition root injects the sqlite store.
+	GoalStore goal.Store
 
 	// ApprovalMode sets the initial runtime approval stance. The zero value is
 	// [approval.ModeSafe]; [RuntimeConfig] explicitly selects the product default

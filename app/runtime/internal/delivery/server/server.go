@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
@@ -86,6 +87,10 @@ type Config struct {
 	// coordinator, so a build without scheduling reports capability_not_negotiated.
 	Schedules *schedules.Coordinator
 
+	// Goals is the autonomous-execution loop driver (goals.* — Goal mode). nil
+	// makes goals.* report capability_not_negotiated.
+	Goals *goals.Driver
+
 	// Workspace is the application coordinator for the project developer surface
 	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
 	// (every dependency nil), so those workspace.* methods degrade gracefully.
@@ -139,6 +144,10 @@ type Server struct {
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
 	schedules *schedules.Coordinator
+
+	// goals drives the autonomous-execution loop (goals.* — Goal mode). Never nil
+	// after New (a disabled stub when Goal mode is off).
+	goals goalRunner
 
 	// workspace owns the project developer-surface use cases (memory / skills /
 	// recipes / hooks), injected by the composition root. Never nil after New.
@@ -234,6 +243,7 @@ func New(cfg Config) (*Server, error) {
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
 		schedules:    scheduleCoord,
+		goals:        goalRunnerOrDisabled(cfg.Goals),
 		workspace:    workspaceCoord,
 	}
 	// The run pump publishes live file-change nudges through the composition-root

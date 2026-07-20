@@ -90,6 +90,12 @@ const (
 	MethodSchedulesDelete = "schedules.delete"
 	MethodSchedulesRunNow = "schedules.runNow"
 
+	// Goals (API.md §7.14) — Goal mode, the autonomous execution loop.
+	MethodGoalsStart  = "goals.start"
+	MethodGoalsGet    = "goals.get"
+	MethodGoalsStop   = "goals.stop"
+	MethodGoalsResume = "goals.resume"
+
 	// Codebase (API.md §7.10) — the @codebase semantic index.
 	MethodCodebaseSearch  = "codebase.search"
 	MethodCodebaseStatus  = "codebase.status"
