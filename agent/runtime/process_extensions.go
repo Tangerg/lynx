@@ -33,16 +33,21 @@ func (p *Process) processExtensions() []core.Extension {
 // process that declared them. A child-declared listener with the same Name
 // wins, and duplicates are skipped so process extension validation remains
 // deterministic.
-func (p *Process) childExtensions(childExtensions []core.Extension) []core.Extension {
+func (p *Process) childExtensions(childExtensions []core.Extension) ([]core.Extension, error) {
 	childExtensions = slices.Clone(childExtensions)
 	if p == nil || p.options == nil || len(p.options.extensions) == 0 {
-		return childExtensions
+		return childExtensions, nil
 	}
 	seen := make(map[string]struct{}, len(childExtensions))
 	for _, extension := range childExtensions {
-		if !valueIsNil(extension) {
-			seen[extension.Name()] = struct{}{}
+		if valueIsNil(extension) {
+			continue
 		}
+		name, err := extensionName(extension)
+		if err != nil {
+			return nil, err
+		}
+		seen[name] = struct{}{}
 	}
 	for _, extension := range p.options.extensions {
 		if valueIsNil(extension) {
@@ -51,13 +56,17 @@ func (p *Process) childExtensions(childExtensions []core.Extension) []core.Exten
 		if _, ok := extension.(EventListener); !ok {
 			continue
 		}
-		if _, duplicate := seen[extension.Name()]; duplicate {
+		name, err := extensionName(extension)
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[name]; duplicate {
 			continue
 		}
 		childExtensions = append(childExtensions, extension)
-		seen[extension.Name()] = struct{}{}
+		seen[name] = struct{}{}
 	}
-	return childExtensions
+	return childExtensions, nil
 }
 
 // combinedExtensions returns engine extensions followed by process
