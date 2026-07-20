@@ -10,6 +10,15 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
+// EventListener is the [event.Event] subscriber extension. It lives in runtime
+// because event depends on core; placing this contract in core would create an
+// import cycle. Registered listeners are added directly to the event multicast.
+type EventListener interface {
+	core.Extension
+
+	OnEvent(ctx context.Context, event event.Event)
+}
+
 // extensionRegistry is the dedup-aware container the engine uses
 // to hold registered extensions. Insertion order is preserved
 // (drives onion / wrap chain ordering). Registration returns ordinary errors

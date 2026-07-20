@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"maps"
+	"reflect"
 	"slices"
 	"sync"
 
@@ -178,4 +180,130 @@ func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
 
 func (b *inMemoryBlackboard) Inspect(verbose bool) string {
 	return core.FormatBlackboard(b, verbose)
+}
+
+// Clone produces a child blackboard inheriting the parent's full state: named
+// keys, protected entries, conditions, the objects list, and the hidden
+// markers. Visibility is part of the inherited state for live child processes.
+func (b *inMemoryBlackboard) Clone() core.Blackboard {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	child := newInMemoryBlackboard()
+	maps.Copy(child.named, b.named)
+	maps.Copy(child.transientNamed, b.transientNamed)
+	maps.Copy(child.protected, b.protected)
+	maps.Copy(child.conditions, b.conditions)
+	child.objects = append(child.objects, b.objects...)
+	child.durableObjects = append(child.durableObjects, b.durableObjects...)
+	child.hidden = append(child.hidden, b.hidden...)
+	return child
+}
+
+// ClearWorkingState removes ordinary state while preserving protected entries.
+func (b *inMemoryBlackboard) ClearWorkingState() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	preserved := make(map[string]any, len(b.protected))
+	for key := range b.protected {
+		if value, ok := b.named[key]; ok {
+			preserved[key] = value
+		}
+	}
+
+	clear(b.named)
+	maps.Copy(b.named, preserved)
+	clear(b.transientNamed)
+	b.objects = b.objects[:0]
+	b.durableObjects = b.durableObjects[:0]
+	b.hidden = b.hidden[:0]
+	clear(b.conditions)
+}
+
+// Lookup resolves typed lookups:
+//
+//   - variable == "it" / empty: newest object whose stored type matches typeName.
+//   - variable == "last_result": newest object regardless of type.
+//   - explicit name: the value stored at that name, only if its type matches.
+func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	switch variable {
+	case "", core.DefaultBindingName:
+		return b.findLatestByType(typeName)
+	case core.LastResultBindingName:
+		return b.findLatestVisible()
+	}
+
+	value, ok := b.named[variable]
+	if !ok {
+		return nil, false
+	}
+	if typeName != "" && !b.typeMatches(value, typeName) {
+		return nil, false
+	}
+	return value, true
+}
+
+func (b *inMemoryBlackboard) HasValue(variable, typeName string) bool {
+	_, ok := b.Lookup(variable, typeName)
+	return ok
+}
+
+func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
+	for i := len(b.objects) - 1; i >= 0; i-- {
+		obj := b.objects[i]
+		if b.isHidden(obj) {
+			continue
+		}
+		if b.typeMatches(obj, typeName) {
+			return obj, true
+		}
+	}
+	return nil, false
+}
+
+func (b *inMemoryBlackboard) findLatestVisible() (any, bool) {
+	for i := len(b.objects) - 1; i >= 0; i-- {
+		if !b.isHidden(b.objects[i]) {
+			return b.objects[i], true
+		}
+	}
+	return nil, false
+}
+
+func (b *inMemoryBlackboard) isHidden(v any) bool {
+	for _, h := range b.hidden {
+		if reflect.DeepEqual(h, v) {
+			return true
+		}
+	}
+	return false
+}
+
+// typeMatches checks whether v matches typeName by walking the same rules
+// Binding uses: pointer types unwrap, then the concrete type's full
+// name is compared. Interface hierarchies are not walked; a binding matches
+// the stored value's concrete type only.
+func (b *inMemoryBlackboard) typeMatches(v any, typeName string) bool {
+	if typeName == "" {
+		return true
+	}
+	if v == nil {
+		return false
+	}
+
+	rt := reflect.TypeOf(v)
+	for rt != nil {
+		if core.TypeNameOf(rt) == typeName {
+			return true
+		}
+		if rt.Kind() != reflect.Pointer {
+			break
+		}
+		rt = rt.Elem()
+	}
+	return false
 }

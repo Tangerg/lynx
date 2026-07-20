@@ -163,3 +163,112 @@ func (g compiledGoalTool) result(child *Process) (any, error) {
 	}
 	return out, nil
 }
+
+// GoalToolsFor builds supervisor-flow tools for the named deployed agents. It
+// returns an error when an agent is missing or exposes no configured goal tool.
+func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.GoalToolsFor: engine is nil")
+	}
+
+	var out []tools.Tool
+	for _, name := range names {
+		deployment, ok := e.catalog.activeDeployment(name)
+		if !ok {
+			return nil, fmt.Errorf("runtime.Engine.GoalToolsFor: agent %q not deployed", name)
+		}
+		agent := deployment.agent
+
+		before := len(out)
+		for _, goal := range agent.Goals() {
+			if goal == nil || goal.Tool() == nil {
+				continue
+			}
+			tool, err := newGoalTool(e, deployment, goal, runChildDeployment)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, tool)
+		}
+		if len(out) == before {
+			return nil, fmt.Errorf("runtime.Engine.GoalToolsFor: agent %q exposes no goal tools (set GoalConfig.Tool)", name)
+		}
+	}
+	return out, nil
+}
+
+// NewAgentTool wraps a deployed agent as a typed tool for supervisor flows.
+// The child inherits protected ambient state, runs synchronously, and
+// contributes usage to its parent's budget.
+func NewAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error) {
+	deployment, err := engine.findDeployment("NewAgentTool", agentName)
+	if err != nil {
+		return nil, err
+	}
+	return newAgentTool[In, Out]("agent tool", engine, deployment, runChildDeployment)
+}
+
+// NewStandaloneAgentTool wraps a deployed agent as a top-level typed tool. A
+// call starts a fresh process and therefore requires no parent process context.
+func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error) {
+	deployment, err := engine.findDeployment("NewStandaloneAgentTool", agentName)
+	if err != nil {
+		return nil, err
+	}
+	return newAgentTool[In, Out]("standalone agent tool", engine, deployment, runDeploymentInput)
+}
+
+// runProcessFunc runs one exact compiled deployment. Tool construction
+// resolves an active route once and every call retains the captured identity.
+type runProcessFunc func(
+	ctx context.Context,
+	engine *Engine,
+	deployment *Deployment,
+	input any,
+) (*Process, error)
+
+func newAgentTool[In, Out any](
+	label string,
+	engine *Engine,
+	deployment *Deployment,
+	run runProcessFunc,
+) (tools.Tool, error) {
+	if deployment == nil || deployment.agent == nil {
+		return nil, errors.New("runtime.newAgentTool: deployment is nil")
+	}
+	agent := deployment.agent
+
+	var input In
+	inputSchema, err := schemaFor(input)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: %w", agent.Name(), err)
+	}
+	return &agentTool{
+		engine:     engine,
+		deployment: deployment,
+		definition: chat.ToolDefinition{
+			Name:        agent.Name(),
+			Description: agent.Description(),
+			InputSchema: json.RawMessage(inputSchema),
+		},
+		label: label,
+		decode: func(arguments string) (any, error) {
+			in, err := decodeToolArguments[In](agent.Name(), label, arguments)
+			if err != nil {
+				return nil, fmt.Errorf("parse input: %w", err)
+			}
+			return in, nil
+		},
+		run: func(ctx context.Context, input any) (*Process, error) {
+			return run(ctx, engine, deployment, input)
+		},
+		result: func(child *Process) (any, error) {
+			out, ok := core.Result[Out](child)
+			if !ok {
+				var zero Out
+				return nil, fmt.Errorf("completed but produced no %T", zero)
+			}
+			return out, nil
+		},
+	}, nil
+}
