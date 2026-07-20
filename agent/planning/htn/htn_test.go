@@ -180,7 +180,7 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
 	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
 	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{
-		ExcludedActions: map[string]struct{}{"primary": {}},
+		ExcludedActions: planning.NewExclusions("primary"),
 	})
 	if names(pl.Actions())[0] != "fallback" {
 		t.Fatalf("expected exclusion to drop 'primary', got %v", names(pl.Actions()))

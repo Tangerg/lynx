@@ -3,6 +3,7 @@ package planning
 import (
 	"context"
 	"errors"
+	"maps"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -43,8 +44,42 @@ func EffectivePlannerName(name string) string {
 // runtime's "ignore this recently-replanned action to avoid looping"
 // signal; MaxIterations caps internal search iteration count.
 type Options struct {
-	ExcludedActions map[string]struct{}
+	ExcludedActions Exclusions
 	MaxIterations   int
+}
+
+// Exclusions is an immutable set of action names a planner must ignore.
+// Its zero value excludes nothing.
+type Exclusions struct {
+	names map[string]struct{}
+}
+
+// NewExclusions returns an exclusion set containing names.
+func NewExclusions(names ...string) Exclusions {
+	if len(names) == 0 {
+		return Exclusions{}
+	}
+	set := make(map[string]struct{}, len(names))
+	for _, name := range names {
+		set[name] = struct{}{}
+	}
+	return Exclusions{names: set}
+}
+
+// Contains reports whether name is excluded.
+func (e Exclusions) Contains(name string) bool {
+	_, ok := e.names[name]
+	return ok
+}
+
+// With returns an independent set that also excludes name.
+func (e Exclusions) With(name string) Exclusions {
+	names := maps.Clone(e.names)
+	if names == nil {
+		names = make(map[string]struct{})
+	}
+	names[name] = struct{}{}
+	return Exclusions{names: names}
 }
 
 // Planner is a pure strategy: given a goal, return the action

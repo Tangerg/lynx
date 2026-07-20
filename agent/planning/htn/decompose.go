@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // decompose recursively expands task into a flat action list,
@@ -22,7 +23,7 @@ func (p *Planner) decompose(
 	ctx context.Context,
 	task *Task,
 	state core.WorldState,
-	excluded map[string]struct{},
+	excluded planning.Exclusions,
 	depth int,
 ) ([]core.Action, core.WorldState, bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -34,7 +35,7 @@ func (p *Planner) decompose(
 
 	if task.IsPrimitive() {
 		metadata := task.Action.Metadata()
-		if _, skip := excluded[metadata.Name]; skip {
+		if excluded.Contains(metadata.Name) {
 			return nil, state, false, nil
 		}
 		return []core.Action{task.Action}, state.Apply(metadata.Effects), true, nil
@@ -66,7 +67,7 @@ func (p *Planner) tryMethod(
 	ctx context.Context,
 	method Method,
 	state core.WorldState,
-	excluded map[string]struct{},
+	excluded planning.Exclusions,
 	depth int,
 ) ([]core.Action, core.WorldState, bool, error) {
 	actions := make([]core.Action, 0, len(method.Subtasks))

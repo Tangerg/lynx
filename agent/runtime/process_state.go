@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"slices"
 	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // processState owns a Process's lock-protected mutable state
@@ -27,7 +27,7 @@ type processState struct {
 	world             core.WorldState
 	history           []ActionRun
 	runErr            error
-	excludedActions   map[string]struct{}
+	excludedActions   planning.Exclusions
 	pendingSuspension *interaction.Suspension
 	revision          uint64
 }
@@ -58,8 +58,7 @@ func (s *processState) commitRevision(expected, revision uint64) bool {
 // NotStarted → Running transition.
 func newProcessState() processState {
 	return processState{
-		currentStatus:   core.StatusNotStarted,
-		excludedActions: map[string]struct{}{},
+		currentStatus: core.StatusNotStarted,
 	}
 }
 
@@ -258,19 +257,19 @@ func (s *processState) recordActionRun(run ActionRun) {
 func (s *processState) excludeAction(name string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.excludedActions[name] = struct{}{}
+	s.excludedActions = s.excludedActions.With(name)
 }
 
 func (s *processState) clearExclusions() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	clear(s.excludedActions)
+	s.excludedActions = planning.Exclusions{}
 }
 
-func (s *processState) snapshotExclusions() map[string]struct{} {
+func (s *processState) snapshotExclusions() planning.Exclusions {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return maps.Clone(s.excludedActions)
+	return s.excludedActions
 }
 
 // beginRun attempts to transition into StatusRunning.

@@ -219,13 +219,7 @@ func (g *Goal) SatisfiedBy(worldState WorldState) bool {
 	if g == nil || worldState == nil {
 		return false
 	}
-	state := worldState.Conditions()
-	for key, required := range g.Preconditions() {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
+	return worldState.Conditions().Satisfies(g.Preconditions())
 }
 
 // NewOutputGoal builds a Goal whose precondition is "an artifact of

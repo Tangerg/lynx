@@ -118,7 +118,7 @@ core: func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error)
 core: func (m *SessionMetadata) Delete(name string)
 core: func (m *SessionMetadata) Set(name string, value any) error
 core: func (m *SessionMetadata) UnmarshalJSON(data []byte) error
-core: func (m ActionMetadata) Applicable(state map[string]Truth) bool
+core: func (m ActionMetadata) Applicable(state ConditionSet) bool
 core: func (m ActionMetadata) RunCondition() string
 core: func (m SessionMetadata) Clone() SessionMetadata
 core: func (m SessionMetadata) Decode(name string, dst any) (bool, error)
@@ -177,6 +177,8 @@ core: func (s RetrySafety) String() string
 core: func (s RetrySafety) Valid() bool
 core: func (s Session) Validate() error
 core: func (s TerminationScope) String() string
+core: func (state ConditionSet) Satisfies(required ConditionSet) bool
+core: func (state ConditionSet) Unsatisfied(required ConditionSet) ConditionSet
 core: func (t *GoalTool) InputType() reflect.Type
 core: func (t Truth) And(other Truth) Truth
 core: func (t Truth) Not() Truth
@@ -478,10 +480,12 @@ planning: func (d *Domain) Actions() []core.Action
 planning: func (d *Domain) BestPlan( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Plan, error)
 planning: func (d *Domain) Conditions() []core.Condition
 planning: func (d *Domain) Goals() []*core.Goal
-planning: func (d *Domain) KnownConditions() map[string]struct{}
+planning: func (d *Domain) KnownConditions() iter.Seq[string]
 planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
 planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
 planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
+planning: func (e Exclusions) Contains(name string) bool
+planning: func (e Exclusions) With(name string) Exclusions
 planning: func (p *Plan) Actions() []core.Action
 planning: func (p *Plan) ActionsValue(worldState core.WorldState) float64
 planning: func (p *Plan) Complete() bool
@@ -497,10 +501,12 @@ planning: func DomainForAgent(agent *core.Agent) *Domain
 planning: func DomainForAgents(agents []*core.Agent) *Domain
 planning: func EffectivePlannerName(name string) string
 planning: func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) *Domain
+planning: func NewExclusions(names ...string) Exclusions
 planning: func NewPlan(actions []core.Action, goal *core.Goal) *Plan
 planning: func NewState(conditions core.ConditionSet) *State
 planning: type Domain struct { }
-planning: type Options struct { ExcludedActions map[string]struct{} MaxIterations int }
+planning: type Exclusions struct { }
+planning: type Options struct { ExcludedActions Exclusions MaxIterations int }
 planning: type Plan struct { }
 planning: type Planner interface { core.Extension PlanToGoal( ctx context.Context, state core.WorldState, domain *Domain, goal *core.Goal, options Options, ) (*Plan, error) }
 planning: type State struct { }

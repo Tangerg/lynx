@@ -90,13 +90,8 @@ func (m ActionMetadata) RunCondition() string {
 // Applicable reports whether every precondition holds in state.
 // Used by the concurrent runner to filter the plan's actions to those
 // currently runnable on this tick.
-func (m ActionMetadata) Applicable(state map[string]Truth) bool {
-	for key, required := range m.Preconditions {
-		if state[key] != required {
-			return false
-		}
-	}
-	return true
+func (m ActionMetadata) Applicable(state ConditionSet) bool {
+	return state.Satisfies(m.Preconditions)
 }
 
 func (m ActionMetadata) validate() error {
@@ -192,6 +187,32 @@ func (p RetryPolicy) validate() error {
 // It is used by action preconditions, action effects, goals, and world-state
 // transitions. A nil set is valid and means no conditions.
 type ConditionSet map[string]Truth
+
+// Satisfies reports whether state contains every required truth value.
+func (state ConditionSet) Satisfies(required ConditionSet) bool {
+	for key, truth := range required {
+		if state[key] != truth {
+			return false
+		}
+	}
+	return true
+}
+
+// Unsatisfied returns the requirements not currently satisfied by state.
+// A nil result means every requirement is satisfied.
+func (state ConditionSet) Unsatisfied(required ConditionSet) ConditionSet {
+	var missing ConditionSet
+	for key, truth := range required {
+		if state[key] == truth {
+			continue
+		}
+		if missing == nil {
+			missing = make(ConditionSet)
+		}
+		missing[key] = truth
+	}
+	return missing
+}
 
 // ActionConfig is the optional configuration bundle for [NewAction].
 // Every field is optional — pass a zero ActionConfig{} when defaults

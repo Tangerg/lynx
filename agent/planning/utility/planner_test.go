@@ -104,7 +104,7 @@ func TestUtility_ExcludedActionsSkipped(t *testing.T) {
 	domain := planning.NewDomain([]core.Action{a}, []*core.Goal{g}, nil)
 
 	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g,
-		planning.Options{ExcludedActions: map[string]struct{}{"a": {}}})
+		planning.Options{ExcludedActions: planning.NewExclusions("a")})
 	if pl != nil {
 		t.Errorf("excluded action should not be picked; got %#v", pl)
 	}

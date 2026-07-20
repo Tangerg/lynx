@@ -92,10 +92,10 @@ func (p *Planner) bestApplicable(
 	start core.WorldState,
 	actions []core.Action,
 	goal *core.Goal,
-	excluded map[string]struct{},
+	excluded planning.Exclusions,
 ) core.Action {
 	state := start.Conditions()
-	unsatisfied := p.unsatisfiedPreconditions(state, goal)
+	unsatisfied := state.Unsatisfied(goal.Preconditions())
 
 	var best core.Action
 	bestProgress := 0
@@ -106,7 +106,7 @@ func (p *Planner) bestApplicable(
 			continue
 		}
 		metadata := action.Metadata()
-		if _, skip := excluded[metadata.Name]; skip {
+		if excluded.Contains(metadata.Name) {
 			continue
 		}
 		if !metadata.Applicable(state) {
@@ -134,7 +134,7 @@ func (p *Planner) bestApplicable(
 
 // progressTowardsGoal counts how many still-unsatisfied goal
 // preconditions this effect map would establish.
-func (p *Planner) progressTowardsGoal(effects core.ConditionSet, unsatisfied map[string]core.Truth) int {
+func (p *Planner) progressTowardsGoal(effects, unsatisfied core.ConditionSet) int {
 	progress := 0
 	for key, required := range unsatisfied {
 		if effects[key] == required {
@@ -142,16 +142,4 @@ func (p *Planner) progressTowardsGoal(effects core.ConditionSet, unsatisfied map
 		}
 	}
 	return progress
-}
-
-// unsatisfiedPreconditions returns the subset of goal preconditions
-// not yet matched by state.
-func (p *Planner) unsatisfiedPreconditions(state map[string]core.Truth, goal *core.Goal) map[string]core.Truth {
-	out := make(map[string]core.Truth, len(goal.Preconditions()))
-	for key, required := range goal.Preconditions() {
-		if state[key] != required {
-			out[key] = required
-		}
-	}
-	return out
 }
