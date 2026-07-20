@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -22,6 +23,13 @@ import (
 type mutableDeploymentAction struct {
 	metadata core.ActionMetadata
 	run      func(*core.ProcessContext) core.ActionStatus
+}
+
+type panickingMetadataAction struct{ cause error }
+
+func (a panickingMetadataAction) Metadata() core.ActionMetadata { panic(a.cause) }
+func (panickingMetadataAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return core.ActionSucceeded, nil
 }
 
 func (a *mutableDeploymentAction) Metadata() core.ActionMetadata { return a.metadata }
@@ -135,6 +143,30 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	}
 }
 
+func TestCompileDeploymentRejectsInvalidFrozenDefinition(t *testing.T) {
+	source := core.NewAgent(core.AgentConfig{
+		Name:    "invalid-frozen",
+		Actions: []core.Action{&mutableDeploymentAction{metadata: core.ActionMetadata{Name: ""}}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	})
+	if _, err := (deploymentCompiler{}).compile(source); err == nil || !strings.Contains(err.Error(), "empty name") {
+		t.Fatalf("compile error = %v, want frozen-definition validation", err)
+	}
+}
+
+func TestCompileDeploymentContainsMetadataPanic(t *testing.T) {
+	cause := errors.New("metadata sentinel")
+	source := core.NewAgent(core.AgentConfig{
+		Name:    "panicking-metadata",
+		Actions: []core.Action{panickingMetadataAction{cause: cause}},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	})
+	_, err := (deploymentCompiler{}).compile(source)
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "snapshot agent definition panicked") {
+		t.Fatalf("compile error = %v, want wrapped metadata panic", err)
+	}
+}
+
 func TestCompileDeploymentCanonicalizesDefaultPlanner(t *testing.T) {
 	implicit := deploymentFixture("canonical-planner", core.ConditionSet{"finish": core.True}, nil)
 	implicit = reconfigureAgent(implicit, func(config *core.AgentConfig) {
@@ -158,10 +190,12 @@ func TestCompileDeploymentCanonicalizesDefaultPlanner(t *testing.T) {
 }
 
 func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
-	firstEffects := core.ConditionSet{"alpha": core.True, "beta": core.False}
+	firstEffects := core.ConditionSet{"alpha": core.True, "beta": core.False, "finish": core.True, "ready": core.True}
 	secondEffects := core.ConditionSet{}
 	secondEffects["beta"] = core.False
 	secondEffects["alpha"] = core.True
+	secondEffects["ready"] = core.True
+	secondEffects["finish"] = core.True
 
 	first := deploymentFixtureWith("writer", firstEffects, func(*core.ProcessContext) core.ActionStatus {
 		return core.ActionSucceeded
@@ -192,7 +226,7 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 		t.Fatalf("canonical definition is not JSON: %s", compiledFirst.definition)
 	}
 
-	changed := deploymentFixture("writer", core.ConditionSet{"alpha": core.False, "beta": core.False}, nil)
+	changed := deploymentFixture("writer", core.ConditionSet{"alpha": core.False, "beta": core.False, "finish": core.True}, nil)
 	compiledChanged, err := (deploymentCompiler{}).compile(changed)
 	if err != nil {
 		t.Fatal(err)
@@ -410,7 +444,7 @@ func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := (deploymentCompiler{}).compile(deploymentFixture("writer", core.ConditionSet{"finish": core.False}, nil))
+	second, err := (deploymentCompiler{}).compile(deploymentFixture("writer", core.ConditionSet{"finish": core.True, "replacement": core.True}, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -422,7 +456,7 @@ func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
 	}
 
 	active, ok := registry.activeDeployment("writer")
-	if !ok || active.agent.Actions()[0].Metadata().Effects["finish"] != core.False {
+	if !ok || active.agent.Actions()[0].Metadata().Effects["replacement"] != core.True {
 		t.Fatalf("active deployment = %#v, %v", active, ok)
 	}
 	if historical, ok := registry.lookup(first.Ref()); !ok || historical != first {

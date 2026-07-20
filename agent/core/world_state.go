@@ -26,7 +26,9 @@ type WorldState interface {
 // planner samples it during search so an action can be cheap or expensive
 // depending on what's already been observed. Implementations must be
 // deterministic and free of externally visible side effects because a planner
-// may evaluate alternatives that are never executed.
+// may evaluate alternatives that are never executed. Results must be finite;
+// functions used as costs must also be non-negative. A panic or invalid result
+// rejects the planning pass with an attributed error.
 //
 // Use [FixedScore] to lift a constant float into a ScoreFunc — that single shape
 // covers both static and dynamic uses, so the framework doesn't need parallel

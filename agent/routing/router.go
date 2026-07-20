@@ -54,8 +54,8 @@ func (c Candidate) String() string {
 	return name + ":" + c.goal.Name()
 }
 
-// Choice is a Candidate plus the Ranker's verdict on it. Confidence
-// lives in [0, 1]; 0 = irrelevant, 1 = perfect match. Rationale is
+// Choice is a Candidate plus the Ranker's verdict on it. Confidence is finite
+// and lives in [0, 1]; 0 = irrelevant, 1 = perfect match. Rationale is
 // optional human-readable text the Ranker may attach.
 type Choice struct {
 	Candidate
@@ -169,6 +169,9 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 			choices[i].Goal().Name() != candidates[i].Goal().Name() {
 			return Choice{}, fmt.Errorf("routing: ranker changed candidate at index %d", i)
 		}
+		if !validConfidence(choices[i].Confidence) {
+			return Choice{}, fmt.Errorf("routing: ranker returned invalid confidence %v at index %d; confidence must be finite and between 0 and 1", choices[i].Confidence, i)
+		}
 	}
 
 	best := choices[0]
@@ -181,6 +184,10 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 		return best, ErrNoMatch
 	}
 	return best, nil
+}
+
+func validConfidence(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= minimumConfidence && value <= maximumConfidence
 }
 
 // Run picks the best candidate for userInput and runs the chosen

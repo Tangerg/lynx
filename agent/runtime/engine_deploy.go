@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
-	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // ErrDeploymentConflict reports that Deploy was asked to change an existing
@@ -42,9 +41,10 @@ func (e *DeploymentConflictError) Unwrap() error { return ErrDeploymentConflict 
 // Deploy registers an agent after a multi-layer validation that reports
 // every problem at once rather than stopping at the first:
 //
-//  1. [core.Agent.Validate] checks structural invariants.
-//  2. Every [core.AgentValidator] extension runs; each error is collected
-//     (with the validator's Name attributed).
+//  1. Runtime freezes caller-owned SPI metadata into the execution snapshot.
+//  2. [core.Agent.Validate] checks that frozen snapshot's structural invariants.
+//  3. Every [core.AgentValidator] extension runs against that same snapshot;
+//     each error is collected with the validator's Name attributed.
 //
 // All collected problems are joined into a single error so a misconfigured
 // agent surfaces its full problem list in one deploy attempt.
@@ -68,9 +68,6 @@ func (e *Engine) deploy(agent *core.Agent, replace bool) (*Deployment, error) {
 	if replace {
 		operation = "Replace"
 	}
-	if err := e.validateForDeploy(agent); err != nil {
-		return nil, err
-	}
 	deployment, err := e.compileAgent(agent)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.%s: %w", operation, err)
@@ -89,17 +86,16 @@ func (e *Engine) deploy(agent *core.Agent, replace bool) (*Deployment, error) {
 	return active, nil
 }
 
-// validateForDeploy combines entity validation with host extension validators.
+// validateForDeploy validates the exact frozen definition that execution and
+// durable identity will use, then runs every host extension validator against
+// that same snapshot.
 func (e *Engine) validateForDeploy(agent *core.Agent) error {
 	if agent == nil {
 		return errors.New("runtime.Engine.validateForDeploy: deploy agent: agent is nil")
 	}
 
 	var problems []error
-	if err := agent.Validate(); err != nil {
-		problems = append(problems, err)
-	}
-	if _, err := planning.DomainForAgent(agent); err != nil {
+	if err := validateAgentDefinition(agent); err != nil {
 		problems = append(problems, err)
 	}
 	problems = append(problems, e.agentValidationErrors(agent)...)

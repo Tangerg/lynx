@@ -78,6 +78,14 @@
   可观察进展时确定性进入 Stuck，避免无界空转；`ProcessStuck` 事件新增可选 `reason`。
 - 同一 tick 边界前到达的终止请求按 scope 合并：Agent 终止稳定高于 Action 重规划，
   同级保留首个原因，消除并发到达顺序造成的控制语义漂移。
+- Deployment 改为“先冻结、后统一校验、再编码身份”：内建校验和 `AgentValidator` 都读取
+  最终执行快照，消除 source metadata 在校验与 digest 之间变化的 TOCTOU seam；SPI metadata
+  或 validator panic 被收敛为带归因的部署错误。
+- Agent/DeploymentRef 的非空版本只接受规范 `MAJOR.MINOR.PATCH` SemVer；Name/Digest
+  拒绝首尾空白，不再让语义等价但文本不同的身份进入 catalog/cache key。
+- GOAP、Utility、跨 goal 的 Plan 排序和 Router 统一拒绝 NaN/Inf；planning cost 还必须非负。
+  ScoreFunc panic 转为可追踪错误。`ModelRanker` 不再 clamp 越界 confidence，并拒绝重复或未知
+  candidate ID；自定义 Ranker 同样必须返回 `[0,1]` 内的有限 confidence。
 - Action 运行条件统一为 `ActionRunConditionPrefix` 与 `RunCondition()`。
 - process-wide candidate-action 并发删除；Process tick 始终稳定执行计划首步。业务 fan-out
   通过隔离 workflow branch 或 child Process。

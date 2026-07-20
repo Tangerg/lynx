@@ -56,9 +56,10 @@ type ToolMiddleware interface {
 	) tools.Tool
 }
 
-// AgentValidator runs as the last [Engine.Deploy] step after
-// [Agent.Validate]. A non-nil return
-// rejects the deployment, attributed to the validator's Name.
+// AgentValidator runs as the last [Engine.Deploy] validation step after
+// [Agent.Validate]. It receives the same frozen definition snapshot that the
+// runtime will execute and identify durably. A non-nil return rejects the
+// deployment, attributed to the validator's Name.
 type AgentValidator interface {
 	Extension
 

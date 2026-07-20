@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -139,11 +140,20 @@ func (e *Engine) agentValidationErrors(agent *core.Agent) []error {
 	validators := collectExtensions[core.AgentValidator](e.extensions.list)
 	var problems []error
 	for _, validator := range validators {
-		if err := validator.Validate(agent); err != nil {
+		if err := validateAgentWith(validator, agent); err != nil {
 			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", validator.Name(), err))
 		}
 	}
 	return problems
+}
+
+func validateAgentWith(validator core.AgentValidator, agent *core.Agent) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("agent validator panicked", recovered)
+		}
+	}()
+	return validator.Validate(agent)
 }
 
 // approvesGoal returns true only when every approver returns

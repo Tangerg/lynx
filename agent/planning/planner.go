@@ -158,7 +158,9 @@ func (d *Domain) Plans(
 		}
 		plans = append(plans, accepted)
 	}
-	sortByNetValueDesc(plans, state)
+	if err := sortByNetValueDesc(plans, state); err != nil {
+		return nil, fmt.Errorf("planning.Domain.Plans: rank plans: %w", err)
+	}
 	return plans, nil
 }
 

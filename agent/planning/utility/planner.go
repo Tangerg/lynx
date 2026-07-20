@@ -2,6 +2,7 @@ package utility
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"go.opentelemetry.io/otel"
@@ -9,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -121,7 +123,10 @@ func planUtility(
 		span.End()
 	}()
 
-	firstAction := topApplicable(start, domain.Actions(), options.ExcludedActions)
+	firstAction, err := topApplicable(start, domain.Actions(), options.ExcludedActions)
+	if err != nil {
+		return nil, err
+	}
 	span.SetAttributes(attribute.Bool(attrAnyApplicable, firstAction != nil))
 
 	if IsOpenEnded(goal) {
@@ -155,7 +160,7 @@ func topApplicable(
 	start core.WorldState,
 	actions []core.Action,
 	excluded planning.Exclusions,
-) core.Action {
+) (core.Action, error) {
 	state := start.Conditions()
 	var (
 		best      core.Action
@@ -172,33 +177,61 @@ func topApplicable(
 		if !metadata.Applicable(state) {
 			continue
 		}
-		value := netValue(start, metadata)
+		value, err := netValue(start, metadata)
+		if err != nil {
+			return nil, err
+		}
 		if value > bestValue {
 			best, bestValue = action, value
 		}
 	}
-	return best
+	return best, nil
 }
 
 // netValue computes Value(state) − Cost(state). nil Cost defaults to
 // 0 (no cost penalty), matching the convention that a missing cost
-// is "free"; nil Value defaults to 0. NaN / Inf are squashed to 0 so
-// a misbehaving value func can't poison the ordering.
-func netValue(state core.WorldState, metadata core.ActionMetadata) float64 {
-	value := safeScalar(metadata.Value, state)
-	cost := safeScalar(metadata.Cost, state)
-	return value - cost
+// is "free"; nil Value defaults to 0. Invalid scores fail planning rather
+// than being silently rewritten into a different ranking.
+func netValue(state core.WorldState, metadata core.ActionMetadata) (float64, error) {
+	value, err := finiteScore(metadata.Value, state, "value", metadata.Name)
+	if err != nil {
+		return 0, err
+	}
+	cost, err := finiteScore(metadata.Cost, state, "cost", metadata.Name)
+	if err != nil {
+		return 0, err
+	}
+	if cost < 0 {
+		return 0, fmt.Errorf("utility: action %q cost returned %v; cost must be non-negative", metadata.Name, cost)
+	}
+	net := value - cost
+	if math.IsInf(net, 0) {
+		return 0, fmt.Errorf("utility: action %q net value overflowed to %v", metadata.Name, net)
+	}
+	return net, nil
 }
 
-func safeScalar(score func(core.WorldState) float64, state core.WorldState) float64 {
+func finiteScore(score core.ScoreFunc, state core.WorldState, kind, action string) (float64, error) {
 	if score == nil {
-		return 0
+		return 0, nil
 	}
-	value := score(state)
+	value, err := evaluateScore(score, state)
+	if err != nil {
+		return 0, fmt.Errorf("utility: action %q %s: %w", action, kind, err)
+	}
 	if math.IsNaN(value) || math.IsInf(value, 0) {
-		return 0
+		return 0, fmt.Errorf("utility: action %q %s returned %v", action, kind, value)
 	}
-	return value
+	return value, nil
+}
+
+func evaluateScore(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("score function panicked", recovered)
+		}
+	}()
+	return score(state), nil
 }
 
 // Compile-time assertions that the planners satisfy [planning.Planner];

@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"math"
 	"strings"
 	"testing"
 
@@ -11,6 +12,15 @@ import (
 type fakeAction struct {
 	meta core.ActionMetadata
 }
+
+type fakeCondition struct {
+	name string
+	cost float64
+}
+
+func (c fakeCondition) Name() string                                          { return c.name }
+func (c fakeCondition) Cost() float64                                         { return c.cost }
+func (fakeCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth { return core.Unknown }
 
 func (f fakeAction) Metadata() core.ActionMetadata { return f.meta }
 func (f fakeAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
@@ -131,6 +141,34 @@ func TestValidateRejectsMalformedDefinitionIdentity(t *testing.T) {
 	for _, want := range []string{"name \" malformed \"", "contains ':'", "condition key \" ready \"", "invalid truth value 9", "condition key \" done \""} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("Validate error %q does not contain %q", err, want)
+		}
+	}
+}
+
+func TestValidateRejectsNonCanonicalVersion(t *testing.T) {
+	for _, version := range []string{"v1.2.3", "1.2", " 1.2.3"} {
+		agent := core.NewAgent(core.AgentConfig{
+			Name:    "versioned",
+			Version: version,
+			Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
+			Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+		})
+		if err := agent.Validate(); err == nil || !strings.Contains(err.Error(), "version") {
+			t.Errorf("Validate version %q = %v, want strict semantic-version error", version, err)
+		}
+	}
+}
+
+func TestValidateRejectsInvalidConditionCost(t *testing.T) {
+	for _, cost := range []float64{-1, math.NaN(), math.Inf(1), math.Inf(-1)} {
+		agent := core.NewAgent(core.AgentConfig{
+			Name:       "condition-cost",
+			Actions:    []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
+			Goals:      []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+			Conditions: []core.Condition{fakeCondition{name: "ready", cost: cost}},
+		})
+		if err := agent.Validate(); err == nil || !strings.Contains(err.Error(), "must be finite and non-negative") {
+			t.Errorf("Validate condition cost %v = %v", cost, err)
 		}
 	}
 }

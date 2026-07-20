@@ -1,9 +1,12 @@
 package planning
 
 import (
+	"fmt"
+	"math"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // Plan is an immutable planner output: an ordered action chain whose
@@ -111,9 +114,13 @@ func (p *Plan) NetValue(worldState core.WorldState) float64 {
 // Used by [Domain.Plans] to rank candidates;
 // hoisted here so the three implementations don't drift on the
 // (subtle) ranking semantics.
-func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) {
+func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) error {
 	if len(plans) < 2 {
-		return
+		if len(plans) == 1 {
+			_, err := plans[0].checkedNetValue(worldState)
+			return err
+		}
+		return nil
 	}
 	type keyed struct {
 		plan *Plan
@@ -121,10 +128,12 @@ func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) {
 	}
 	ranked := make([]keyed, len(plans))
 	for index, plan := range plans {
-		ranked[index] = keyed{plan: plan, net: plan.NetValue(worldState)}
+		net, err := plan.checkedNetValue(worldState)
+		if err != nil {
+			return err
+		}
+		ranked[index] = keyed{plan: plan, net: net}
 	}
-	// The switch comparator (not cmp.Compare) keeps NaN net values
-	// "equal", so the stable sort leaves them in place.
 	slices.SortStableFunc(ranked, func(left, right keyed) int {
 		switch {
 		case left.net > right.net:
@@ -137,4 +146,70 @@ func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) {
 	for index, item := range ranked {
 		plans[index] = item.plan
 	}
+	return nil
+}
+
+func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
+	if p == nil {
+		return 0, nil
+	}
+	goalValue := 0.0
+	if p.goal != nil {
+		var err error
+		goalValue, err = evaluatePlanScore(func(state core.WorldState) float64 { return p.goal.Value(state) }, worldState)
+		if err != nil {
+			return 0, fmt.Errorf("planning: goal %q value: %w", p.goal.Name(), err)
+		}
+		if !finite(goalValue) {
+			return 0, fmt.Errorf("planning: goal %q value returned %v", p.goal.Name(), goalValue)
+		}
+	}
+	total := goalValue
+	for _, action := range p.actions {
+		if action == nil {
+			continue
+		}
+		metadata := action.Metadata()
+		if metadata.Value != nil {
+			value, err := evaluatePlanScore(metadata.Value, worldState)
+			if err != nil {
+				return 0, fmt.Errorf("planning: action %q value: %w", metadata.Name, err)
+			}
+			if !finite(value) {
+				return 0, fmt.Errorf("planning: action %q value returned %v", metadata.Name, value)
+			}
+			total += value
+		}
+		if metadata.Cost != nil {
+			cost, err := evaluatePlanScore(metadata.Cost, worldState)
+			if err != nil {
+				return 0, fmt.Errorf("planning: action %q cost: %w", metadata.Name, err)
+			}
+			if !finite(cost) || cost < 0 {
+				return 0, fmt.Errorf("planning: action %q cost returned %v; cost must be finite and non-negative", metadata.Name, cost)
+			}
+			total -= cost
+		}
+	}
+	if !finite(total) {
+		goalName := "<nil>"
+		if p.goal != nil {
+			goalName = p.goal.Name()
+		}
+		return 0, fmt.Errorf("planning: plan for goal %q net value overflowed to %v", goalName, total)
+	}
+	return total, nil
+}
+
+func evaluatePlanScore(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("score function panicked", recovered)
+		}
+	}()
+	return score(state), nil
+}
+
+func finite(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

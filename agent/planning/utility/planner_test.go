@@ -2,6 +2,9 @@ package utility_test
 
 import (
 	"context"
+	"errors"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -116,6 +119,38 @@ func TestUtility_ExcludedActionsSkipped(t *testing.T) {
 		planning.Options{ExcludedActions: planning.NewExclusions("a")})
 	if pl != nil {
 		t.Errorf("excluded action should not be picked; got %#v", pl)
+	}
+}
+
+func TestUtilityRejectsInvalidActionScores(t *testing.T) {
+	panicCause := errors.New("utility score sentinel")
+	tests := []struct {
+		name     string
+		cost     core.ScoreFunc
+		value    core.ScoreFunc
+		contains string
+		cause    error
+	}{
+		{name: "negative cost", cost: core.FixedScore(-1), contains: "cost must be non-negative"},
+		{name: "nan value", value: core.FixedScore(math.NaN()), contains: "value returned NaN"},
+		{name: "infinite cost", cost: core.FixedScore(math.Inf(1)), contains: "cost returned +Inf"},
+		{name: "panic", value: func(core.WorldState) float64 { panic(panicCause) }, contains: "score function panicked", cause: panicCause},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			action := &fakeAction{meta: core.ActionMetadata{
+				Name: "invalid", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost, Value: test.value,
+			}}
+			goal := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
+			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+			_, err := utility.NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
+			if err == nil || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("PlanToGoal error = %v, want %q", err, test.contains)
+			}
+			if test.cause != nil && !errors.Is(err, test.cause) {
+				t.Fatalf("PlanToGoal error = %v, want cause %v", err, test.cause)
+			}
+		})
 	}
 }
 

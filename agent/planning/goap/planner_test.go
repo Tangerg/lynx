@@ -157,6 +157,19 @@ func TestPlannerRejectsInvalidActionCost(t *testing.T) {
 	}
 }
 
+func TestPlannerContainsPanickedActionCost(t *testing.T) {
+	cause := errors.New("cost sentinel")
+	action := newStubAction("panicked-cost", nil, core.ConditionSet{"done": core.True})
+	action.meta.Cost = func(core.WorldState) float64 { panic(cause) }
+	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+
+	_, err := NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
+	if !errors.Is(err, ErrInvalidActionCost) || !errors.Is(err, cause) {
+		t.Fatalf("PlanToGoal error = %v, want invalid-cost and panic causes", err)
+	}
+}
+
 type stubAction struct {
 	meta core.ActionMetadata
 }
