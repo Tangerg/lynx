@@ -126,6 +126,11 @@ func (d *Driver) drive(ctx context.Context, sessionID string) {
 // startNext launches the next run, waiting out the brief window in which the
 // previous run's pump is still releasing the session's admission slot.
 func (d *Driver) startNext(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
+	if err := ctx.Err(); err != nil {
+		// Stop/shutdown landed after the loop's top check: never launch a run the
+		// cancellation would immediately abandon.
+		return runs.StartResult{}, err
+	}
 	for attempt := 0; ; attempt++ {
 		result, err := d.runs.Start(ctx, cmd)
 		if !errors.Is(err, runs.ErrSessionBusy) || attempt >= maxBusyAttempts {
