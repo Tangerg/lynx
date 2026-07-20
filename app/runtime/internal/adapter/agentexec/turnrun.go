@@ -140,16 +140,12 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
-	process, done := e.runtime.Start(ctx, e.agent,
+	process, done, err := e.runtime.Start(ctx, e.agent,
 		core.Input(input),
 		processOptions,
 	)
-	if process == nil {
-		startErr, ok := <-done
-		if !ok || startErr == nil {
-			return nil, errors.New("engine: start chat: agent runtime returned nil process without a creation error")
-		}
-		return nil, fmt.Errorf("engine: start chat: %w", startErr)
+	if err != nil {
+		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
 	return &turnProcess{process: process, done: done, engine: e.runtime}, nil
 }

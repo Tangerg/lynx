@@ -85,7 +85,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	}
 
 	if resolver != nil {
-		if _, err := agentRuntime.Deploy(engine.buildSubtaskAgent()); err != nil {
+		if _, err := agentRuntime.Deploy(ctx, engine.buildSubtaskAgent()); err != nil {
 			return nil, fmt.Errorf("engine: deploy task agent: %w", err)
 		}
 		taskTool, err := runtime.NewAgentTool[taskInput, string](agentRuntime, "task")
@@ -96,7 +96,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	}
 
 	engine.agent = engine.buildTurnAgent()
-	if _, err := agentRuntime.Deploy(engine.agent); err != nil {
+	if _, err := agentRuntime.Deploy(ctx, engine.agent); err != nil {
 		return nil, fmt.Errorf("engine: deploy turn agent: %w", err)
 	}
 	return engine, nil
