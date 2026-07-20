@@ -21,15 +21,17 @@ import (
 // All access goes through methods that own the lock. processBudget shares mu
 // so accounting and action history remain one consistent aggregate.
 type processState struct {
-	mu                sync.RWMutex
-	currentStatus     core.ProcessStatus
-	currentGoal       *core.Goal
-	world             core.WorldState
-	history           []ActionRun
-	runErr            error
-	excludedActions   planning.Exclusions
-	pendingSuspension *interaction.Suspension
-	revision          uint64
+	mu                 sync.RWMutex
+	currentStatus      core.ProcessStatus
+	currentGoal        *core.Goal
+	world              core.WorldState
+	history            []ActionRun
+	runErr             error
+	excludedActions    planning.Exclusions
+	stuckReplanKey     string
+	stuckReplanPending bool
+	pendingSuspension  *interaction.Suspension
+	revision           uint64
 }
 
 func (s *processState) snapshotRevision() uint64 {
@@ -264,6 +266,27 @@ func (s *processState) clearExclusions() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.excludedActions = planning.Exclusions{}
+}
+
+// beginStuckReplan accepts one recovery attempt for an observed world state.
+// Seeing the same state stuck again proves that the policy made no observable
+// progress, so the runtime must stop instead of spinning forever.
+func (s *processState) beginStuckReplan(worldKey string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stuckReplanPending && s.stuckReplanKey == worldKey {
+		return false
+	}
+	s.stuckReplanKey = worldKey
+	s.stuckReplanPending = true
+	return true
+}
+
+func (s *processState) clearStuckReplan() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.stuckReplanKey = ""
+	s.stuckReplanPending = false
 }
 
 func (s *processState) snapshotExclusions() planning.Exclusions {

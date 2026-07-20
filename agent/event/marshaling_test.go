@@ -71,6 +71,27 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	}
 }
 
+func TestProcessStuckMarshalCarriesPolicyReason(t *testing.T) {
+	raw, err := json.Marshal(ProcessStuck{
+		Header: NewHeader("proc"),
+		Reason: "operator input is required",
+	})
+	if err != nil {
+		t.Fatalf("MarshalJSON: %v", err)
+	}
+	var got struct {
+		Payload struct {
+			Reason string `json:"reason"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if got.Payload.Reason != "operator input is required" {
+		t.Fatalf("reason = %q, want policy reason", got.Payload.Reason)
+	}
+}
+
 func TestProcessSnapshotFailedMarshalUsesEventEnvelope(t *testing.T) {
 	raw, err := json.Marshal(ProcessSnapshotFailed{
 		Header: NewHeader("proc"),

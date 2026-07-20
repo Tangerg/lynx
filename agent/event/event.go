@@ -104,7 +104,8 @@ func (ProcessFailed) Kind() Kind { return KindProcessFailed }
 // ProcessStuck fires when the planner returns no plan and no StuckPolicy resolves it.
 type ProcessStuck struct {
 	Header
-	State core.WorldState `json:"-"`
+	State  core.WorldState `json:"-"`
+	Reason string          `json:"-"`
 }
 
 func (ProcessStuck) Kind() Kind { return KindProcessStuck }

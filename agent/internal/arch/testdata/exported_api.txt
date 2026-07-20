@@ -102,6 +102,8 @@ core: func (d *Dependencies) Child() *Dependencies
 core: func (d *Dependencies) Freeze()
 core: func (d *Dependencies) Frozen() bool
 core: func (d *Dependencies) Parent() *Dependencies
+core: func (d StuckDecision) String() string
+core: func (d StuckDecision) Valid() bool
 core: func (e *RevisionConflictError) Error() string
 core: func (e *RevisionConflictError) Unwrap() error
 core: func (g *ChatGuardrails) Empty() bool
@@ -413,7 +415,7 @@ event: type ProcessCreated struct { Header Bindings core.Bindings `json:"binding
 event: type ProcessFailed struct { Header Err error `json:"-"` }
 event: type ProcessKilled struct { Header Reason string `json:"reason,omitempty"` }
 event: type ProcessSnapshotFailed struct { Header Policy core.SnapshotFailurePolicy `json:"-"` Err error `json:"-"` }
-event: type ProcessStuck struct { Header State core.WorldState `json:"-"` }
+event: type ProcessStuck struct { Header State core.WorldState `json:"-"` Reason string `json:"-"` }
 event: type ProcessTerminated struct { Header Reason string `json:"reason,omitempty"` Scope core.TerminationScope `json:"-"` }
 event: type ProcessWaiting struct { Header Suspension *interaction.Suspension `json:"suspension"` }
 event: type ReplanRequested struct { Header ActionName string `json:"action,omitempty"` Reason string `json:"reason,omitempty"` }

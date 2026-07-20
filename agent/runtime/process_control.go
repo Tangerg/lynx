@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -16,15 +17,14 @@ type processControl struct{ process *Process }
 // cancellation are delivered immediately through atomically owned cancel
 // functions.
 type processSignals struct {
-	terminate      chan core.TerminationSignal
+	terminationMu  sync.Mutex
+	termination    *core.TerminationSignal
 	runCancel      atomic.Pointer[context.CancelFunc]
 	toolCallCancel atomic.Pointer[context.CancelFunc]
 }
 
 func newProcessSignals() processSignals {
-	return processSignals{
-		terminate: make(chan core.TerminationSignal, 1),
-	}
+	return processSignals{}
 }
 
 var _ core.ProcessControl = processControl{}
@@ -69,23 +69,25 @@ func (c processControl) Suspend(ctx context.Context, suspension interaction.Susp
 	return core.ActionWaiting, nil
 }
 
-// queueTermination records at most one pending signal without blocking.
+// queueTermination merges a request into the pending signal. Agent-wide
+// termination always outranks action-level replanning; the first reason at the
+// winning scope is retained so concurrent callers cannot overwrite causality.
 func (s *processSignals) queueTermination(scope core.TerminationScope, reason string) {
 	signal := core.TerminationSignal{Scope: scope, Reason: reason}
-	select {
-	case s.terminate <- signal:
-	default:
+	s.terminationMu.Lock()
+	defer s.terminationMu.Unlock()
+	if s.termination == nil || (s.termination.Scope == core.TerminationScopeAction && scope == core.TerminationScopeAgent) {
+		s.termination = &signal
 	}
 }
 
-// drainTerminate returns the pending signal, if any, without blocking.
+// drainTerminate atomically claims the merged pending signal, if any.
 func (s *processSignals) drainTerminate() *core.TerminationSignal {
-	select {
-	case signal := <-s.terminate:
-		return &signal
-	default:
-		return nil
-	}
+	s.terminationMu.Lock()
+	defer s.terminationMu.Unlock()
+	signal := s.termination
+	s.termination = nil
+	return signal
 }
 
 // fireRunCancel cancels the active Run or Continue context, if any.

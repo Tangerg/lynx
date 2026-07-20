@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // TerminalError formats a non-completed terminal status as an error. Waiting
@@ -136,10 +137,26 @@ func (p *Process) translateActionStatus(action core.Action, status core.ActionSt
 // supplied a StuckPolicy that resolves the situation, re-loop;
 // otherwise, transition to Stuck.
 func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) error {
+	var reason string
 	if handler := p.agent().StuckPolicy(); handler != nil {
-		if result := handler.Recover(ctx, p, p.blackboard); result.Decision == core.StuckReplan {
-			p.state.clearExclusions()
+		result, err := p.recoverStuck(ctx, handler)
+		if err != nil {
+			p.failProcess(err)
 			return nil
+		}
+		if !result.Decision.Valid() {
+			p.failProcess(fmt.Errorf("runtime.Process.handleStuck: policy returned invalid decision %s", result.Decision))
+			return nil
+		}
+		reason = result.Reason
+		if result.Decision == core.StuckReplan {
+			if p.state.beginStuckReplan(worldState.Key()) {
+				p.state.clearExclusions()
+				return nil
+			}
+			if reason == "" {
+				reason = "stuck policy requested replanning without changing world state"
+			}
 		}
 	}
 
@@ -147,7 +164,17 @@ func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) e
 		p.publishEvent(ctx, event.ProcessStuck{
 			Header: p.eventHeader(),
 			State:  worldState,
+			Reason: reason,
 		})
 	}
 	return nil
+}
+
+func (p *Process) recoverStuck(ctx context.Context, policy core.StuckPolicy) (result core.StuckResult, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("runtime.Process.handleStuck: stuck policy panicked", recovered)
+		}
+	}()
+	return policy.Recover(ctx, p, p.blackboard), nil
 }
