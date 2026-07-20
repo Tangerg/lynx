@@ -13,7 +13,14 @@ import (
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
-var eventTracer = otel.Tracer("lynx/agent/event")
+const (
+	eventTracerName   = "lynx/agent/event"
+	spanListenerPanic = "agent.listener.panic"
+	attrListenerType  = "agent.listener"
+	attrEventType     = "agent.event"
+)
+
+var eventTracer = otel.Tracer(eventTracerName)
 
 // Listener is the subscriber surface. Implementations should be non-blocking;
 // Multicast delivers one event to listeners sequentially outside its lock.
@@ -154,11 +161,11 @@ func (m *Multicast) deliver(ctx context.Context, listener Listener, event Event)
 		if recovered == nil {
 			return
 		}
-		_, span := eventTracer.Start(ctx, "agent.listener.panic",
+		_, span := eventTracer.Start(ctx, spanListenerPanic,
 			trace.WithSpanKind(trace.SpanKindInternal),
 			trace.WithAttributes(
-				attribute.String("agent.listener", fmt.Sprintf("%T", listener)),
-				attribute.String("agent.event", fmt.Sprintf("%T", event)),
+				attribute.String(attrListenerType, fmt.Sprintf("%T", listener)),
+				attribute.String(attrEventType, fmt.Sprintf("%T", event)),
 			),
 		)
 		err := panicerr.New("event listener panicked", recovered)

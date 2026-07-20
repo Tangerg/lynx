@@ -11,14 +11,17 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 )
 
-var agentTracer = otel.Tracer("lynx/agent/runtime")
-
 // Attribute keys are telemetry schema; rename only with exporter/dashboard migration.
 const (
+	agentTracerName   = "lynx/agent/runtime"
+	spanRun           = "agent.run"
+	spanAutoSnapshot  = "agent.auto_snapshot"
 	attrAgentName     = "gen_ai.agent.name"
 	attrProcessID     = "agent.process.id"
 	attrProcessStatus = "agent.process.status"
 )
+
+var agentTracer = otel.Tracer(agentTracerName)
 
 // publishEvent dispatches to both engine and process listener scopes.
 func (p *Process) publishEvent(ctx context.Context, event event.Event) {

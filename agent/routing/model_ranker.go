@@ -79,7 +79,7 @@ func (r *ModelRanker) Rank(ctx context.Context, userInput string, candidates []C
 		choices[index] = Choice{Candidate: candidate}
 		key := candidate.String()
 		if entry, ok := scored[key]; ok {
-			choices[index].Confidence = max(0.0, min(1.0, entry.Confidence))
+			choices[index].Confidence = max(minimumConfidence, min(maximumConfidence, entry.Confidence))
 			choices[index].Rationale = entry.Rationale
 		}
 	}

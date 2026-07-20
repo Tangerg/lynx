@@ -9,6 +9,11 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
+const (
+	taskStartToolSuffix  = "_start"
+	taskResultToolSuffix = "_result"
+)
+
 // NewAgentTaskTools exposes an agent as start and result tools for background work.
 //
 // This is the non-blocking counterpart to [NewAgentTool]: the parent model can
@@ -32,11 +37,13 @@ func NewAgentTaskTools[In, Out any](engine *Engine, agentName string) (start too
 	agent := deployment.agent
 
 	toolset := &taskToolset[In, Out]{engine: engine, deployment: deployment}
+	startName := agent.Name() + taskStartToolSuffix
+	resultName := agent.Name() + taskResultToolSuffix
 
 	start, err = tools.New[In, string](
 		tools.Config{
-			Name:        agent.Name() + "_start",
-			Description: "Start " + agent.Name() + " as a background task. Returns a task_id immediately; read its result later with " + agent.Name() + "_result.",
+			Name:        startName,
+			Description: "Start " + agent.Name() + " as a background task. Returns a task_id immediately; read its result later with " + resultName + ".",
 		},
 		toolset.start,
 	)
@@ -46,7 +53,7 @@ func NewAgentTaskTools[In, Out any](engine *Engine, agentName string) (start too
 
 	result, err = tools.New[taskResultInput, string](
 		tools.Config{
-			Name:        agent.Name() + "_result",
+			Name:        resultName,
 			Description: "Read a background " + agent.Name() + " task by task_id. Reports status running|waiting|done|failed, with the result when done.",
 		},
 		toolset.result,

@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
+const minimumSequenceAgents = 2
+
 // Sequence compiles a deterministic chain a₁ → a₂ → ... → aₙ as a
 // single deployable agent. Each sub-agent runs as a child process via
 // [runtime.RunChildIsolated] in declared order; the typed output of step i
@@ -51,8 +53,8 @@ func Sequence[In, Out any](
 	if name == "" {
 		return nil, errors.New("workflow.Sequence: name must not be empty")
 	}
-	if len(agents) < 2 {
-		return nil, fmt.Errorf("workflow.Sequence: at least 2 agents required, got %d", len(agents))
+	if len(agents) < minimumSequenceAgents {
+		return nil, fmt.Errorf("workflow.Sequence: at least %d agents required, got %d", minimumSequenceAgents, len(agents))
 	}
 	for index, agent := range agents {
 		if agent == nil {

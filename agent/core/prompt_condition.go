@@ -9,7 +9,16 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const defaultPromptConditionCost = 1.0
+const (
+	defaultPromptConditionCost = 1.0
+	conditionInteractionPrefix = "condition:"
+)
+
+// ConditionInteractionID returns the stable managed-interaction identity for
+// a named condition.
+func ConditionInteractionID(name string) string {
+	return conditionInteractionPrefix + name
+}
 
 // PromptFunc builds a condition prompt from the current process state.
 type PromptFunc func(context.Context, *ConditionEnv) string
@@ -83,7 +92,7 @@ func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 		return Unknown
 	}
 	result, err := env.RunInteraction(ctx, Interaction{
-		ID:      "condition:" + c.name,
+		ID:      ConditionInteractionID(c.name),
 		Model:   c.model,
 		Request: request,
 	})

@@ -43,7 +43,7 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	if err == nil {
 		return nil
 	}
-	_, span := agentTracer.Start(ctx, "agent.auto_snapshot")
+	_, span := agentTracer.Start(ctx, spanAutoSnapshot)
 	span.SetAttributes(attribute.String(attrProcessID, p.id))
 	finishSpanWithError(span, err)
 	span.End()
