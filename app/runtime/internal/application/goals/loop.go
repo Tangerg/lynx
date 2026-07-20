@@ -30,9 +30,9 @@ const (
 // the loop only through update_goal, never by narrating completion.
 const autonomyNote = "\n\n(You are running autonomously toward this goal — you do not need to wait for the user. Take one concrete next step. Call update_goal(status=\"complete\") only when the whole goal is done and verified, or update_goal(status=\"blocked\", reason=\"...\") if you genuinely cannot proceed without the user. Otherwise just keep working.)"
 
-// launch spawns the loop for sessionID, cancelling any prior loop for the same
+// launch spawns the loop for sessionID, canceling any prior loop for the same
 // session first. The loop runs request-detached (task group) so it outlives the
-// call that started it and is cancelled by Stop or shutdown.
+// call that started it and is canceled by Stop or shutdown.
 func (d *Driver) launch(parent context.Context, sessionID string) {
 	ctx, release, ok := d.tasks.Attach(parent)
 	if !ok {
@@ -93,7 +93,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	))
 	defer span.End()
 	// Meter each turn under its own span (this defer runs before span.End) so the
-	// exemplar links to the turn; a "" disposition (cancelled / vanished goal) is
+	// exemplar links to the turn; a "" disposition (canceled / vanished goal) is
 	// not a completed turn and is not counted.
 	defer func() {
 		if disposition != "" {
@@ -245,7 +245,7 @@ func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
 	return costUSD, run.Result.Steps
 }
 
-// save / clear persist the loop's TERMINAL state even when ctx was cancelled by
+// save / clear persist the loop's TERMINAL state even when ctx was canceled by
 // Stop/shutdown (detached drops cancellation but keeps trace values). Best-effort:
 // a failed write leaves the goal for the boot reconcile to degrade, so it can
 // never corrupt into a resumed-but-lost loop — but the failure is recorded on the

@@ -15,10 +15,10 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	goalsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	goalsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"

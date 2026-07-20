@@ -263,7 +263,7 @@ func TestDriverEmitsTurnSpan(t *testing.T) {
 	}
 	attrs := map[string]string{}
 	for _, a := range span.Attributes {
-		attrs[string(a.Key)] = a.Value.Emit()
+		attrs[string(a.Key)] = a.Value.String()
 	}
 	if attrs["goal.session"] != "s1" || attrs["goal.turn"] != "1" || attrs["run.outcome"] != "completed" {
 		t.Fatalf("goal.turn span attributes = %v, want session s1 / turn 1 / outcome completed", attrs)

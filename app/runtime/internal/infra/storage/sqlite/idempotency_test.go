@@ -38,7 +38,7 @@ func TestIdempotencyStoreReplayConflictAndExpiry(t *testing.T) {
 	if err != nil || claimed || string(got.Payload) != string(first.Payload) {
 		t.Fatalf("completed claim: record=%+v claimed=%v err=%v", got, claimed, err)
 	}
-	conflicting := idempotency.Record{Key: first.Key, Fingerprint: "second", Payload: []byte(`{"result":2}`)}
+	conflicting := idempotency.Record{Key: first.Key, Fingerprint: "second"}
 	if _, _, err := store.Claim(ctx, conflicting.Key, conflicting.Fingerprint); !errors.Is(err, idempotency.ErrKeyConflict) {
 		t.Fatalf("claim conflicting record = %v, want ErrKeyConflict", err)
 	}
