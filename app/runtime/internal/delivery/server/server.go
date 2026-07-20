@@ -16,16 +16,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
 // Config bundles construction inputs.
@@ -91,6 +92,11 @@ type Config struct {
 	// makes goals.* report capability_not_negotiated.
 	Goals *goals.Driver
 
+	// AgentMemory is the HITL review surface over the agent's self-maintained
+	// memory (agentMemory.*). nil makes agentMemory.* report
+	// capability_not_negotiated.
+	AgentMemory agentmemory.Management
+
 	// Workspace is the application coordinator for the project developer surface
 	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
 	// (every dependency nil), so those workspace.* methods degrade gracefully.
@@ -148,6 +154,10 @@ type Server struct {
 	// goals drives the autonomous-execution loop (goals.* — Goal mode). Never nil
 	// after New (a disabled stub when Goal mode is off).
 	goals goalRunner
+
+	// agentMemory is the HITL review surface over agent memory (agentMemory.*).
+	// Never nil after New (a disabled stub when agent memory is off).
+	agentMemory agentmemory.Management
 
 	// workspace owns the project developer-surface use cases (memory / skills /
 	// recipes / hooks), injected by the composition root. Never nil after New.
@@ -244,6 +254,7 @@ func New(cfg Config) (*Server, error) {
 		wsHub:        newWorkspaceHub(),
 		schedules:    scheduleCoord,
 		goals:        goalRunnerOrDisabled(cfg.Goals),
+		agentMemory:  agentMemoryOrDisabled(cfg.AgentMemory),
 		workspace:    workspaceCoord,
 	}
 	// The run pump publishes live file-change nudges through the composition-root

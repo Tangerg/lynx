@@ -19,6 +19,10 @@ import (
 	"time"
 )
 
+// ErrNotFound is returned by the management operations when no item has the
+// given id.
+var ErrNotFound = errors.New("agentmemory: item not found")
+
 // Scope selects the breadth of a memory item.
 type Scope int
 
@@ -47,6 +51,45 @@ func ParseScope(s string) Scope {
 		return ScopeUser
 	}
 	return ScopeProject
+}
+
+// Status is a memory item's place in the human-in-the-loop review lifecycle.
+type Status int
+
+const (
+	// StatusActive — approved (or user-authored) memory: injected into the prompt
+	// and returned by search.
+	StatusActive Status = iota
+	// StatusPending — proposed by the extractor, awaiting the user's review. Not
+	// injected or searched until approved.
+	StatusPending
+	// StatusRejected — a tombstone for a proposal the user declined. Kept so the
+	// same fact is not proposed again; never injected, searched, or shown.
+	StatusRejected
+)
+
+// String renders the status as its stored token.
+func (s Status) String() string {
+	switch s {
+	case StatusPending:
+		return "pending"
+	case StatusRejected:
+		return "rejected"
+	default:
+		return "active"
+	}
+}
+
+// ParseStatus maps a stored token back to a Status, defaulting to StatusActive.
+func ParseStatus(s string) Status {
+	switch s {
+	case "pending":
+		return StatusPending
+	case "rejected":
+		return StatusRejected
+	default:
+		return StatusActive
+	}
 }
 
 // Origin records how an item entered memory — its provenance for the review
@@ -87,6 +130,7 @@ type Item struct {
 	Project   string // "" for ScopeUser
 	Content   string
 	Origin    Origin
+	Status    Status
 	Pinned    bool
 	SessionID string
 	Day       string
@@ -176,6 +220,8 @@ type Store interface {
 	// recently updated. Empty scope/project is valid (returns no items).
 	Items(ctx context.Context, scope Scope, project string) ([]Item, error)
 
+	Management
+
 	// ItemsForSearch lists the (scope, project) items with their Embedding
 	// populated, for the [Searcher] to rank. The corpus is small (a project's
 	// curated set), so the searcher scores in-process rather than in SQL.
@@ -187,6 +233,30 @@ type Store interface {
 
 	// SetEmbeddings stores a content vector for each item id.
 	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
+}
+
+// Management is the human-in-the-loop review surface over agent memory: the
+// operations the runtime protocol drives (list / approve / reject / edit / pin /
+// delete / add). Kept apart from the extraction-facing [Store] methods so the
+// delivery layer depends only on what it uses.
+type Management interface {
+	// List returns a (scope, project)'s active + pending items for review,
+	// pending first; rejected tombstones are hidden.
+	List(ctx context.Context, scope Scope, project string) ([]Item, error)
+	// Get returns one item by id (false when absent).
+	Get(ctx context.Context, id string) (Item, bool, error)
+	// SetStatus moves an item through the review lifecycle (approve → active,
+	// reject → rejected tombstone). ErrNotFound when the id is unknown.
+	SetStatus(ctx context.Context, id string, status Status, now time.Time) error
+	// SetPinned pins or unpins an item. ErrNotFound when the id is unknown.
+	SetPinned(ctx context.Context, id string, pinned bool, now time.Time) error
+	// UpdateContent edits an item's content (re-embedded on the next fold).
+	// ErrNotFound when the id is unknown.
+	UpdateContent(ctx context.Context, id, content string, now time.Time) error
+	// Delete removes an item. ErrNotFound when the id is unknown.
+	Delete(ctx context.Context, id string) error
+	// Add stores a user-authored active item, returning it.
+	Add(ctx context.Context, scope Scope, project, content string, now time.Time) (Item, error)
 }
 
 // NormalizeFacts converts an extraction response into stable markdown bullets.

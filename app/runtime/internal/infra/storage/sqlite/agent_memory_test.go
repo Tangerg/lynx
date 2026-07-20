@@ -1,7 +1,9 @@
 package sqlite_test
 
 import (
+	"errors"
 	"path/filepath"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -68,13 +70,17 @@ func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 	if err != nil || state.Watermark != through || !state.UpdatedAt.Equal(now) {
 		t.Fatalf("state = %+v, err=%v", state, err)
 	}
-	items, err := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
-	if err != nil || len(items) != 2 {
-		t.Fatalf("items = (%+v, %v)", items, err)
+	// Curated facts land as PENDING proposals — not injected until approved.
+	if active, err := store.Items(t.Context(), agentmemory.ScopeProject, "/repo"); err != nil || len(active) != 0 {
+		t.Fatalf("active items before approval = (%+v, %v), want none", active, err)
 	}
-	for _, item := range items {
-		if item.Origin != agentmemory.OriginAuto || item.Scope != agentmemory.ScopeProject {
-			t.Fatalf("item provenance = %+v", item)
+	listed, err := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(listed) != 2 {
+		t.Fatalf("listed = (%+v, %v)", listed, err)
+	}
+	for _, item := range listed {
+		if item.Status != agentmemory.StatusPending || item.Origin != agentmemory.OriginAuto {
+			t.Fatalf("proposal = %+v, want pending/auto", item)
 		}
 	}
 
@@ -84,9 +90,8 @@ func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 	if err != nil || stale {
 		t.Fatalf("stale reconcile = (%v, %v), want false, nil", stale, err)
 	}
-	items, _ = store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
-	if len(items) != 2 {
-		t.Fatalf("stale reconcile changed items: %+v", items)
+	if listed, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo"); len(listed) != 2 {
+		t.Fatalf("stale reconcile changed items: %+v", listed)
 	}
 	if pending, err := store.PendingLedger(t.Context(), "/repo", state.Watermark, 10); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after reconcile = (%+v, %v)", pending, err)
@@ -100,17 +105,17 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
 		t.Fatal(err)
 	}
-	before, _ := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	before, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	idByContent := make(map[string]string, len(before))
 	for _, item := range before {
 		idByContent[item.Content] = item.ID
 	}
 
-	// Drop "- two", keep "- one", add "- three".
+	// Drop "- two", keep "- one", add "- three" — all still pending proposals.
 	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, facts[2].Sequence, []string{"- one", "- three"}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
-	after, _ := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	after, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	got := make(map[string]string, len(after))
 	for _, item := range after {
 		got[item.Content] = item.ID
@@ -126,6 +131,85 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 	}
 }
 
+func TestAgentMemoryReviewLifecycle(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+		t.Fatal(err)
+	}
+	proposals, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	if len(proposals) != 2 {
+		t.Fatalf("proposals = %d, want 2", len(proposals))
+	}
+	approve, reject := proposals[0], proposals[1]
+	if err := store.SetStatus(t.Context(), approve.ID, agentmemory.StatusActive, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetStatus(t.Context(), reject.ID, agentmemory.StatusRejected, now); err != nil {
+		t.Fatal(err)
+	}
+
+	// Only the approved item is injected; List hides the rejected tombstone.
+	active, _ := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	if len(active) != 1 || active[0].ID != approve.ID {
+		t.Fatalf("active = %+v, want just the approved item", active)
+	}
+	if listed, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo"); len(listed) != 1 {
+		t.Fatalf("list should hide the rejected tombstone: %+v", listed)
+	}
+
+	// A later fold re-proposing the rejected fact must NOT resurrect it.
+	appendAgentFacts(t, store, "/repo", "2026-07-20", "three")
+	pending, _ := store.PendingLedger(t.Context(), "/repo", facts[1].Sequence, 10)
+	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, pending[len(pending)-1].Sequence,
+		[]string{"- one", "- two", "- three"}, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	listed, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	var contents []string
+	for _, item := range listed {
+		contents = append(contents, item.Content)
+	}
+	if slices.Contains(contents, "- two") {
+		t.Fatalf("rejected fact was re-proposed: %+v", listed)
+	}
+}
+
+func TestAgentMemoryManagementOps(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+
+	item, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "- always run make lint", now)
+	if err != nil || item.ID == "" || item.Origin != agentmemory.OriginUser || item.Status != agentmemory.StatusActive {
+		t.Fatalf("add = (%+v, %v)", item, err)
+	}
+	if err := store.SetEmbeddings(t.Context(), map[string][]float32{item.ID: {1, 2, 3}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SetPinned(t.Context(), item.ID, true, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpdateContent(t.Context(), item.ID, "- always run make lint before commit", now); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := store.Get(t.Context(), item.ID)
+	if err != nil || !ok || !got.Pinned || got.Content != "- always run make lint before commit" {
+		t.Fatalf("after edit = (%+v, %v, %v)", got, ok, err)
+	}
+	// Editing content clears the now-stale embedding.
+	forSearch, _ := store.ItemsForSearch(t.Context(), agentmemory.ScopeProject, "/repo")
+	if len(forSearch) != 1 || len(forSearch[0].Embedding) != 0 {
+		t.Fatalf("edit did not clear the stale embedding: %+v", forSearch)
+	}
+	if err := store.Delete(t.Context(), item.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(t.Context(), item.ID); !errors.Is(err, agentmemory.ErrNotFound) {
+		t.Fatalf("second delete = %v, want ErrNotFound", err)
+	}
+}
+
 func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
@@ -133,8 +217,15 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
 		t.Fatal(err)
 	}
+	// Only approved (active) items are embedded; approve the proposals first.
+	proposals, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
+	for _, item := range proposals {
+		if err := store.SetStatus(t.Context(), item.ID, agentmemory.StatusActive, now); err != nil {
+			t.Fatal(err)
+		}
+	}
 
-	// Fresh items carry no embedding.
+	// Approved items carry no embedding yet.
 	unembedded, err := store.UnembeddedItems(t.Context(), agentmemory.ScopeProject, "/repo")
 	if err != nil || len(unembedded) != 2 {
 		t.Fatalf("unembedded = (%+v, %v), want 2", unembedded, err)

@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 13
+const schemaVersion = 14
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -371,6 +371,10 @@ func installCurrentSchema(db *sql.DB) error {
 			content    TEXT    NOT NULL,
 			digest     TEXT    NOT NULL,
 			origin     TEXT    NOT NULL,
+			-- HITL review lifecycle: 'active' (approved/injected/searched),
+			-- 'pending' (proposed, awaiting review), 'rejected' (tombstone that
+			-- blocks the same fact from being re-proposed).
+			status     TEXT    NOT NULL DEFAULT 'active',
 			pinned     INTEGER NOT NULL DEFAULT 0,
 			session_id TEXT    NOT NULL DEFAULT '',
 			day        TEXT    NOT NULL DEFAULT '',

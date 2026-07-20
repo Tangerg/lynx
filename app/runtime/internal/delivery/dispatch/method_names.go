@@ -123,6 +123,13 @@ const (
 	MethodMemoryUpdate   = "memory.update"
 	MethodFeedbackCreate = "feedback.create"
 
+	// Agent memory (API.md §7.x) — HITL review of the agent's self-maintained memory.
+	MethodAgentMemoryList   = "agentMemory.list"
+	MethodAgentMemoryReview = "agentMemory.review"
+	MethodAgentMemoryUpdate = "agentMemory.update"
+	MethodAgentMemoryDelete = "agentMemory.delete"
+	MethodAgentMemoryAdd    = "agentMemory.add"
+
 	// Notifications (API.md §7.8) are server→client only.
 	NotificationRunEvent       = "notifications.run.event"
 	NotificationWorkspaceEvent = "notifications.workspace.event"

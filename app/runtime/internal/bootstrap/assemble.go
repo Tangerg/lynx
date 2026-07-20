@@ -53,6 +53,9 @@ type Stack struct {
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
 	Goals        *goals.Driver
+	// AgentMemory is the HITL review surface over the agent's self-maintained
+	// memory (agentMemory.*). Interface-nil when no memory store is wired.
+	AgentMemory agentmemory.Management
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
 	// per-run event journal, the segment pumps, and cancel. Built + owned by the
 	// Host (its pumps are joined by Host.Close); the delivery layer drives it as a
@@ -421,6 +424,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		toolClosers = append(toolClosers, goalDriver.Close)
 	}
 
+	// Interface-nil (not a typed-nil holding a nil pointer) when no store is wired,
+	// so the server's disabled-capability check fires correctly.
+	var agentMemoryMgmt agentmemory.Management
+	if cfg.AgentMemoryStore != nil {
+		agentMemoryMgmt = cfg.AgentMemoryStore
+	}
 	host := Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
@@ -446,8 +455,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
 			}),
-			Schedules: scheduleCoord,
-			Goals:     goalDriver,
+			Schedules:   scheduleCoord,
+			Goals:       goalDriver,
+			AgentMemory: agentMemoryMgmt,
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,
