@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
 // ToolResolver resolves the executable tool advertised by a model request.
-// Resolve must return a non-nil Tool whenever ok is true.
+// Resolve must return a non-nil Tool whenever ok is true. Resolver panics are
+// returned as runner errors attributed to the requested tool name.
 type ToolResolver interface {
 	Resolve(name string) (tools.Tool, bool)
 }
@@ -34,15 +36,41 @@ func (s *runnerState) validateInput() error {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInput)
 	}
 	for _, definition := range s.request.Tools {
-		tool, ok := s.resolver.Resolve(definition.Name)
+		tool, ok, err := resolveTool(s.resolver, definition.Name)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidInput, err)
+		}
 		if !ok || valueIsNil(tool) {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInput, definition.Name)
 		}
-		if !sameToolDefinition(definition, tool.Definition()) {
+		executableDefinition, err := toolDefinition(tool, definition.Name)
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidInput, err)
+		}
+		if !sameToolDefinition(definition, executableDefinition) {
 			return fmt.Errorf("%w: advertised tool %q definition does not match executable tool", ErrInvalidInput, definition.Name)
 		}
 	}
 	return nil
+}
+
+func resolveTool(resolver ToolResolver, name string) (tool tools.Tool, ok bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool resolver %T Resolve(%q) panicked", resolver, name), recovered)
+		}
+	}()
+	tool, ok = resolver.Resolve(name)
+	return tool, ok, nil
+}
+
+func toolDefinition(tool tools.Tool, name string) (definition chat.ToolDefinition, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %q Definition panicked", name), recovered)
+		}
+	}()
+	return tool.Definition(), nil
 }
 
 func toolsetDigest(definitions []chat.ToolDefinition) (string, error) {

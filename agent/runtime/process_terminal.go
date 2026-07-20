@@ -56,13 +56,16 @@ func (p *Process) markCancelled(ctx context.Context, err error) {
 // registered at engine or process scope — and terminates the
 // process at the first "yes". Returns true when the run loop should
 // exit.
-func (p *Process) checkStopPolicies(ctx context.Context) bool {
+func (p *Process) checkStopPolicies(ctx context.Context) (bool, error) {
 	policies := append(
 		[]core.StopPolicy{core.BudgetPolicy{Budget: p.options.budget}},
 		collectExtensions[core.StopPolicy](p.combinedExtensions())...,
 	)
 	for _, policy := range policies {
-		stop, reason := policy.Check(p)
+		stop, reason, err := checkStopPolicy(policy, p)
+		if err != nil {
+			return false, err
+		}
 		if !stop {
 			continue
 		}
@@ -72,9 +75,23 @@ func (p *Process) checkStopPolicies(ctx context.Context) bool {
 				Reason: reason,
 			})
 		}
-		return true
+		return true, nil
 	}
-	return false
+	return false, nil
+}
+
+func checkStopPolicy(policy core.StopPolicy, process core.ProcessView) (stop bool, reason string, err error) {
+	name, err := extensionName(policy)
+	if err != nil {
+		return false, "", err
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("stop policy %q panicked", name), recovered)
+		}
+	}()
+	stop, reason = policy.Check(process)
+	return stop, reason, nil
 }
 
 // publishTerminalEvent dispatches the terminal-state event matching the
@@ -173,7 +190,7 @@ func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) e
 func (p *Process) recoverStuck(ctx context.Context, policy core.StuckPolicy) (result core.StuckResult, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New("runtime.Process.handleStuck: stuck policy panicked", recovered)
+			err = panicerr.New(fmt.Sprintf("runtime.Process.handleStuck: stuck policy %T panicked", policy), recovered)
 		}
 	}()
 	return policy.Recover(ctx, p, p.blackboard), nil

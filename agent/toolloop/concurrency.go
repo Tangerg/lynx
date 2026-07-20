@@ -1,6 +1,9 @@
 package toolloop
 
 import (
+	"fmt"
+
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -23,6 +26,9 @@ type ConcurrentTool interface {
 	//     that do not implement ConcurrentTool.
 	//   - concurrent=true, key="": no known resource conflict.
 	//   - concurrent=true, key!="": calls with the same key serialize.
+	//
+	// A panic aborts the round as a scheduling error; it is never interpreted as
+	// permission to execute concurrently.
 	ConcurrencyKey(arguments string) (key string, concurrent bool)
 }
 
@@ -33,7 +39,7 @@ type callPlan struct {
 	direct     bool
 }
 
-func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool) {
+func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, error) {
 	plans := make([]callPlan, len(calls))
 	allDirect := len(calls) > 0
 	for index, call := range calls {
@@ -41,22 +47,39 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool) 
 			allDirect = false
 			continue
 		}
-		tool, ok := resolver.Resolve(call.Name)
+		tool, ok, err := resolveTool(resolver, call.Name)
+		if err != nil {
+			return nil, false, err
+		}
 		if !ok || valueIsNil(tool) {
 			allDirect = false
 			continue
 		}
-		plan := callPlan{
-			tool:   tool,
-			direct: returnsDirectRuntime(tool),
+		direct, err := returnsDirectRuntime(tool)
+		if err != nil {
+			return nil, false, fmt.Errorf("tool %q: %w", call.Name, err)
 		}
+		plan := callPlan{tool: tool, direct: direct}
 		if concurrent, ok := tool.(ConcurrentTool); ok {
-			plan.key, plan.concurrent = concurrent.ConcurrencyKey(call.Arguments)
+			plan.key, plan.concurrent, err = concurrencyKey(concurrent, call.Name, call.Arguments)
+			if err != nil {
+				return nil, false, err
+			}
 		}
 		plans[index] = plan
 		allDirect = allDirect && plan.direct
 	}
-	return plans, allDirect
+	return plans, allDirect, nil
+}
+
+func concurrencyKey(tool ConcurrentTool, name, arguments string) (key string, concurrent bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %q ConcurrencyKey panicked", name), recovered)
+		}
+	}()
+	key, concurrent = tool.ConcurrencyKey(arguments)
+	return key, concurrent, nil
 }
 
 // segmentEnd returns the exclusive end of the longest consecutive call range

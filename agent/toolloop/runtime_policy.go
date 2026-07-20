@@ -1,8 +1,10 @@
 package toolloop
 
 import (
+	"fmt"
 	"reflect"
 
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -48,9 +50,17 @@ func (t directRuntimeTool) MutationPaths(arguments string) ([]string, error) {
 	return nil, nil
 }
 
-func returnsDirectRuntime(tool tools.Tool) bool {
-	direct, ok := tool.(returnDirectMarker)
-	return ok && direct.ReturnsDirect()
+func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
+	marker, ok := tool.(returnDirectMarker)
+	if !ok {
+		return false, nil
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %T ReturnsDirect panicked", tool), recovered)
+		}
+	}()
+	return marker.ReturnsDirect(), nil
 }
 
 func valueIsNil(value any) bool {

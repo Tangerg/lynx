@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"strings"
 	"testing"
@@ -177,6 +178,13 @@ func (streamingOnlyProvider) Chat(core.ProcessView) core.ChatCapability {
 	}
 }
 
+type panickingChatProvider struct{ cause error }
+
+func (panickingChatProvider) Name() string { return "panic-chat" }
+func (p panickingChatProvider) Chat(core.ProcessView) core.ChatCapability {
+	panic(p.cause)
+}
+
 func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 	platformClient, _ := chatclient.New(newRecordingModel())
 	a := chatAgent(t)
@@ -196,5 +204,23 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 	failure := process.Failure()
 	if failure == nil || !strings.Contains(failure.Error(), "Streamer without a Model") {
 		t.Fatalf("process failure = %v", failure)
+	}
+}
+
+func TestChatProvider_PanicFailsProcess(t *testing.T) {
+	cause := errors.New("chat provider sentinel")
+	platformClient, _ := chatclient.New(newRecordingModel())
+	a := chatAgent(t)
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient}})
+	process, err := engine.Run(
+		t.Context(), a, core.Input(callIn{V: 1}),
+		core.ProcessOptions{Extensions: []core.Extension{panickingChatProvider{cause: cause}}},
+	)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) ||
+		!strings.Contains(process.Failure().Error(), `chat provider "panic-chat" panicked`) {
+		t.Fatalf("status/failure = %s/%v, want attributed chat provider panic", process.Status(), process.Failure())
 	}
 }

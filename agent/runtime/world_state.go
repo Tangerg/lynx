@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -52,10 +53,9 @@ func (r *worldStateReader) read(ctx context.Context) (core.WorldState, error) {
 	return planning.NewState(state), nil
 }
 
-// User-supplied Conditions run inside [safeEvaluateCondition] so a
-// panicking implementation degrades to Unknown rather than tearing down
-// the whole tick — mirrors the runtime action executor's panic guard
-// for action bodies.
+// User-supplied Conditions run inside [safeEvaluateCondition] so a panicking
+// implementation fails the process through the ordinary observation error
+// path rather than tearing down the host.
 func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.ConditionRef, env *core.ConditionEnv) (core.Truth, error) {
 	switch ref.Kind {
 	case planning.ConditionBinding:
@@ -69,7 +69,10 @@ func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.C
 		conditionEnv.RunInteraction = func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
 			return r.process.runInteraction(ctx, core.ConditionInteractionID(ref.Key), input)
 		}
-		truth := safeEvaluateCondition(ctx, condition, &conditionEnv)
+		truth, err := safeEvaluateCondition(ctx, condition, &conditionEnv)
+		if err != nil {
+			return core.Unknown, fmt.Errorf("runtime: condition %q: %w", ref.Key, err)
+		}
 		if !truth.Valid() {
 			return core.Unknown, fmt.Errorf("runtime: condition %q returned invalid truth value %d", ref.Key, truth)
 		}
@@ -88,15 +91,14 @@ func (r *worldStateReader) evaluateCondition(ctx context.Context, ref planning.C
 	}
 }
 
-// safeEvaluateCondition runs cond.Evaluate under a panic guard. A
-// panicking user condition becomes [core.Unknown] — GOAP treats Unknown
-// as "doesn't satisfy", so a misbehaving condition fails its actions
-// closed (planner picks something else) rather than crashing the tick.
-func safeEvaluateCondition(ctx context.Context, condition core.Condition, env *core.ConditionEnv) (result core.Truth) {
+// safeEvaluateCondition contains evaluator panics at the user-code boundary.
+// Unknown remains a valid explicit result; a panic is an execution failure and
+// must not be disguised as domain uncertainty.
+func safeEvaluateCondition(ctx context.Context, condition core.Condition, env *core.ConditionEnv) (result core.Truth, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			result = core.Unknown
+			err = panicerr.New("condition evaluator panicked", recovered)
 		}
 	}()
-	return condition.Evaluate(ctx, env)
+	return condition.Evaluate(ctx, env), nil
 }

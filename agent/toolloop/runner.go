@@ -290,7 +290,11 @@ func (r *Runner) callModel(ctx context.Context, state *runnerState, yield func(E
 }
 
 func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(Event, error) bool) (completed, direct bool) {
-	plans, allDirect := planCalls(state.resolver, state.calls)
+	plans, allDirect, err := planCalls(state.resolver, state.calls)
+	if err != nil {
+		yield(Event{}, fmt.Errorf("toolloop: plan tool calls: %w", err))
+		return false, false
+	}
 
 	if state.resume != nil {
 		position := state.nextResult
@@ -314,7 +318,11 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 	}
 
 	for {
-		published, paused := r.publishSettled(state, allDirect, yield)
+		published, paused, err := r.publishSettled(state, allDirect, yield)
+		if err != nil {
+			yield(Event{}, err)
+			return false, false
+		}
 		if !published {
 			return false, false
 		}
@@ -403,13 +411,15 @@ func (r *Runner) publishSettled(
 	state *runnerState,
 	allDirect bool,
 	yield func(Event, error) bool,
-) (published, paused bool) {
+) (published, paused bool, err error) {
 	// Fold any tools promoted by the segment just run into the advertised
 	// toolset before this call can build a pause checkpoint or the loop can
 	// build the continuation request: every runSegment is followed by a
 	// publishSettled, so this covers both the checkpoint and continuation paths
 	// with one merge point. request.Tools grows monotonically within a turn.
-	r.mergePromotions(state)
+	if err := r.mergePromotions(state); err != nil {
+		return false, false, fmt.Errorf("toolloop: merge promoted tools: %w", err)
+	}
 	for state.nextResult < len(state.callStates) {
 		callState := state.callStates[state.nextResult]
 		switch callState.Status {
@@ -422,14 +432,13 @@ func (r *Runner) publishSettled(
 				Final:      final,
 				ToolResult: &eventResult,
 			}, nil) {
-				return false, false
+				return false, false, nil
 			}
 			state.nextResult++
 		case CallPaused:
 			checkpoint, err := r.checkpoint(state)
 			if err != nil {
-				yield(Event{}, err)
-				return false, false
+				return false, false, err
 			}
 			pending := callState.Pending
 			yield(Event{Kind: EventPause, Round: state.round, Pause: &Pause{
@@ -439,15 +448,14 @@ func (r *Runner) publishSettled(
 				ResumeSchema: pending.ResumeSchema,
 				Checkpoint:   checkpoint,
 			}}, nil)
-			return true, true
+			return true, true, nil
 		case CallQueued:
-			return true, false
+			return true, false, nil
 		default:
-			yield(Event{}, fmt.Errorf("toolloop: invalid in-memory call status %q", callState.Status))
-			return false, false
+			return false, false, fmt.Errorf("toolloop: invalid in-memory call status %q", callState.Status)
 		}
 	}
-	return true, false
+	return true, false, nil
 }
 
 // mergePromotions drains the promotion sink and advertises each definition that
@@ -455,10 +463,10 @@ func (r *Runner) publishSettled(
 // tool — the same advertised⊆resolvable invariant validateInput enforces at
 // start/resume, applied here so a mid-loop growth of request.Tools can never
 // advertise a name the runner cannot execute (which would fail a later resume).
-func (r *Runner) mergePromotions(state *runnerState) {
+func (r *Runner) mergePromotions(state *runnerState) error {
 	promoted := state.promotions.drain()
 	if len(promoted) == 0 {
-		return
+		return nil
 	}
 	advertised := make(map[string]struct{}, len(state.request.Tools))
 	for _, def := range state.request.Tools {
@@ -472,13 +480,24 @@ func (r *Runner) mergePromotions(state *runnerState) {
 		if _, ok := advertised[def.Name]; ok {
 			continue
 		}
-		tool, ok := state.resolver.Resolve(def.Name)
-		if !ok || valueIsNil(tool) || !sameToolDefinition(def, tool.Definition()) {
+		tool, ok, err := resolveTool(state.resolver, def.Name)
+		if err != nil {
+			return err
+		}
+		if !ok || valueIsNil(tool) {
+			continue
+		}
+		executableDefinition, err := toolDefinition(tool, def.Name)
+		if err != nil {
+			return err
+		}
+		if !sameToolDefinition(def, executableDefinition) {
 			continue
 		}
 		advertised[def.Name] = struct{}{}
 		state.request.Tools = append(state.request.Tools, def)
 	}
+	return nil
 }
 
 func (s *runnerState) startedCalls() int {

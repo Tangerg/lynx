@@ -135,10 +135,14 @@ func (e *Engine) createChild(
 func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []core.Extension) (planning.Planner, error) {
 	name := planning.EffectivePlannerName(agent.PlannerName())
 
-	if planner := findPlannerByName(processExtensions, name); planner != nil {
+	if planner, err := findPlannerByName(processExtensions, name); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.resolvePlanner: process extensions: %w", err)
+	} else if planner != nil {
 		return planner, nil
 	}
-	if planner := findPlannerByName(e.extensions.list, name); planner != nil {
+	if planner, err := findPlannerByName(e.extensions.list, name); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.resolvePlanner: engine extensions: %w", err)
+	} else if planner != nil {
 		return planner, nil
 	}
 
@@ -147,17 +151,21 @@ func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []core.Exte
 
 // findPlannerByName walks extensions for a [planning.Planner] whose
 // Name() matches. Returns nil when none matches.
-func findPlannerByName(extensions []core.Extension, name string) planning.Planner {
+func findPlannerByName(extensions []core.Extension, name string) (planning.Planner, error) {
 	for _, extension := range extensions {
 		planner, ok := extension.(planning.Planner)
 		if !ok {
 			continue
 		}
-		if planner.Name() == name {
-			return planner
+		extensionName, err := extensionName(planner)
+		if err != nil {
+			return nil, err
+		}
+		if extensionName == name {
+			return planner, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // resolveBlackboard picks the [core.Blackboard] for a fresh process —
@@ -190,7 +198,10 @@ func validateProcessExtensions(extensions []core.Extension) error {
 		if valueIsNil(extension) {
 			return fmt.Errorf("ProcessOptions.Extensions[%d] is nil", index)
 		}
-		name := extension.Name()
+		name, err := extensionName(extension)
+		if err != nil {
+			return fmt.Errorf("ProcessOptions.Extensions[%d]: %w", index, err)
+		}
 		if name == "" {
 			return fmt.Errorf("ProcessOptions.Extensions[%d] (%T) returned empty Name()", index, extension)
 		}

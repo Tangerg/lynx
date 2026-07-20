@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -110,14 +111,27 @@ func (p *Process) toolResolverFor(action core.Action) func(context.Context, []co
 				continue
 			}
 
-			groupTools, err := group.Tools(ctx)
+			groupTools, err := loadToolGroup(ctx, group, requirement.Role)
 			if err != nil {
 				return nil, fmt.Errorf("load tools for role %q: %w", requirement.Role, err)
 			}
 			for _, tool := range groupTools {
-				resolved = append(resolved, p.wrapTool(middleware, action, tool))
+				wrapped, err := p.wrapTool(middleware, action, tool)
+				if err != nil {
+					return nil, fmt.Errorf("wrap tool for role %q: %w", requirement.Role, err)
+				}
+				resolved = append(resolved, wrapped)
 			}
 		}
 		return resolved, nil
 	}
+}
+
+func loadToolGroup(ctx context.Context, group core.ToolGroup, role string) (groupTools []tools.Tool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool group %q Tools panicked", role), recovered)
+		}
+	}()
+	return group.Tools(ctx)
 }

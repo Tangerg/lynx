@@ -47,6 +47,10 @@ type actionMiddlewareFunc struct {
 	run  func(func() (core.ActionStatus, error)) (core.ActionStatus, error)
 }
 
+type panickingNameExtension struct{ cause error }
+
+func (e panickingNameExtension) Name() string { panic(e.cause) }
+
 func (m actionMiddlewareFunc) Name() string { return m.name }
 func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	return m.run(next)
@@ -97,6 +101,14 @@ func TestEngineExtensionEmptyNamePanic(t *testing.T) {
 	agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{orderedInterceptor{name: "", recorder: &orderRecorder{}}},
 	})
+}
+
+func TestEngineExtensionNamePanicReturnsError(t *testing.T) {
+	cause := errors.New("name sentinel")
+	_, err := runtime.New(runtime.Config{Extensions: []core.Extension{panickingNameExtension{cause: cause}}})
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "Name panicked") {
+		t.Fatalf("New error = %v, want attributed Name panic", err)
+	}
 }
 
 // TestActionMiddlewareOnionOrdering verifies engine actionMiddleware form
@@ -245,7 +257,7 @@ func TestActionMiddlewarePanicFailsProcess(t *testing.T) {
 	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
 		t.Fatalf("status/failure = %s/%v", process.Status(), process.Failure())
 	}
-	if !strings.Contains(process.Failure().Error(), "action middleware panicked") {
+	if !strings.Contains(process.Failure().Error(), `action middleware "panic" panicked`) {
 		t.Fatalf("failure = %v, want middleware panic context", process.Failure())
 	}
 }
@@ -366,6 +378,20 @@ type vetoApprover struct{ name string }
 func (v vetoApprover) Name() string                                { return v.name }
 func (vetoApprover) Approve(_ core.ProcessView, _ *core.Goal) bool { return false }
 
+type panickingApprover struct{ cause error }
+
+func (panickingApprover) Name() string { return "panic-approver" }
+func (a panickingApprover) Approve(core.ProcessView, *core.Goal) bool {
+	panic(a.cause)
+}
+
+type panickingStopPolicy struct{ cause error }
+
+func (panickingStopPolicy) Name() string { return "panic-stop" }
+func (p panickingStopPolicy) Check(core.ProcessView) (bool, string) {
+	panic(p.cause)
+}
+
 // TestGoalApproverVetoesPlan — when an approver vetoes the only goal,
 // the planner sees no goals → process ends Stuck.
 func TestGoalApproverVetoesPlan(t *testing.T) {
@@ -387,6 +413,53 @@ func TestGoalApproverVetoesPlan(t *testing.T) {
 	}
 	if proc.Status() != core.StatusStuck {
 		t.Fatalf("status = %s, want Stuck", proc.Status())
+	}
+}
+
+func TestExtensionDecisionPanicsFailProcess(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		extension core.Extension
+		contains  string
+	}{
+		{name: "goal approver", extension: panickingApprover{cause: errors.New("approver sentinel")}, contains: `goal approver "panic-approver" panicked`},
+		{name: "stop policy", extension: panickingStopPolicy{cause: errors.New("stop sentinel")}, contains: `stop policy "panic-stop" panicked`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			definition := newExtensionTestAgent()
+			engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{test.extension}})
+			process, err := engine.Run(t.Context(), definition, core.Input(struct{}{}), core.ProcessOptions{})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if process.Status() != core.StatusFailed || !strings.Contains(process.Failure().Error(), test.contains) {
+				t.Fatalf("status/failure = %s/%v, want attributed extension panic", process.Status(), process.Failure())
+			}
+		})
+	}
+}
+
+func TestConditionPanicFailsObservation(t *testing.T) {
+	type output struct{}
+	cause := errors.New("condition sentinel")
+	definition := agent.New(agent.AgentConfig{
+		Name: "panic-condition",
+		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
+			return output{}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+		Conditions: []core.Condition{core.NewCondition("reachable", func(context.Context, *core.ConditionEnv) core.Truth {
+			panic(cause)
+		})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{})
+
+	process, err := engine.Run(t.Context(), definition, core.Input(struct{}{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want condition failure", process.Status(), process.Failure())
 	}
 }
 

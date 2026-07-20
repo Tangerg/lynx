@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -44,7 +45,7 @@ func runActionTools(t *testing.T, req core.ToolGroupRequirement) ([]tools.Tool, 
 	return runActionToolsWithResolver(t, req, privilegedWebGroup(t))
 }
 
-func runActionToolsWithResolver(t *testing.T, req core.ToolGroupRequirement, resolver core.ToolGroupResolver) ([]tools.Tool, error) {
+func runActionToolsWithResolver(t *testing.T, req core.ToolGroupRequirement, resolver core.ToolGroupResolver, additional ...core.Extension) ([]tools.Tool, error) {
 	t.Helper()
 
 	var (
@@ -56,9 +57,8 @@ func runActionToolsWithResolver(t *testing.T, req core.ToolGroupRequirement, res
 		return wordCount{Count: len(gotTools)}, nil
 	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{req}})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "done"})}})
 
-	engine := agent.MustNewEngine(runtime.Config{
-		Extensions: []core.Extension{resolver},
-	})
+	extensions := append([]core.Extension{resolver}, additional...)
+	engine := agent.MustNewEngine(runtime.Config{Extensions: extensions})
 	mustDeploy(t, engine, a)
 
 	if _, err := engine.Run(context.Background(), a,
@@ -81,6 +81,30 @@ type emptyInfoToolGroup struct{}
 func (emptyInfoToolGroup) Info() core.ToolGroupInfo { return core.ToolGroupInfo{} }
 func (emptyInfoToolGroup) Tools(context.Context) ([]tools.Tool, error) {
 	return nil, nil
+}
+
+type panickingToolGroup struct {
+	cause   error
+	info    core.ToolGroupInfo
+	panicIn string
+}
+
+func (g panickingToolGroup) Info() core.ToolGroupInfo {
+	if g.panicIn == "info" {
+		panic(g.cause)
+	}
+	return g.info
+}
+
+func (g panickingToolGroup) Tools(context.Context) ([]tools.Tool, error) {
+	panic(g.cause)
+}
+
+type panickingToolMiddleware struct{ cause error }
+
+func (panickingToolMiddleware) Name() string { return "panic-tools" }
+func (m panickingToolMiddleware) WrapTool(core.ProcessView, core.Action, tools.Tool) tools.Tool {
+	panic(m.cause)
 }
 
 // TestActionTools_PermissionOptInFlowsToResolver is the regression
@@ -120,6 +144,44 @@ func TestActionTools_MissingRoleFallsThrough(t *testing.T) {
 	}
 	if len(tools) != 0 {
 		t.Fatalf("resolved tools = %v, want none for missing role", tools)
+	}
+}
+
+func TestActionTools_ContainsExtensionPanics(t *testing.T) {
+	requirement := core.ToolGroupRequirement{
+		Role:               "web",
+		AllowedPermissions: []core.ToolGroupPermission{core.ToolGroupInternetAccess},
+	}
+	t.Run("resolver", func(t *testing.T) {
+		cause := errors.New("resolver sentinel")
+		_, err := runActionToolsWithResolver(t, requirement, toolGroupResolverFunc(func(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+			panic(cause)
+		}))
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), `resolver "malformed"`) {
+			t.Fatalf("ActionTools error = %v, want attributed resolver panic", err)
+		}
+	})
+	t.Run("middleware", func(t *testing.T) {
+		cause := errors.New("middleware sentinel")
+		_, err := runActionToolsWithResolver(t, requirement, privilegedWebGroup(t), panickingToolMiddleware{cause: cause})
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), `tool middleware "panic-tools" panicked`) {
+			t.Fatalf("ActionTools error = %v, want attributed middleware panic", err)
+		}
+	})
+	for _, method := range []string{"info", "tools"} {
+		t.Run("group "+method, func(t *testing.T) {
+			cause := errors.New(method + " sentinel")
+			resolver := toolGroupResolverFunc(func(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+				return panickingToolGroup{
+					cause: cause, panicIn: method,
+					info: core.ToolGroupInfo{Role: "web", Permissions: []core.ToolGroupPermission{core.ToolGroupInternetAccess}},
+				}, true, nil
+			})
+			_, err := runActionToolsWithResolver(t, requirement, resolver)
+			if !errors.Is(err, cause) || !strings.Contains(strings.ToLower(err.Error()), method) {
+				t.Fatalf("ActionTools error = %v, want group %s panic", err, method)
+			}
+		})
 	}
 }
 
