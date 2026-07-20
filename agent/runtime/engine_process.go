@@ -122,11 +122,7 @@ func (e *Engine) createChild(
 		return nil, errors.New("runtime.Engine.createChild: parent process is nil")
 	}
 	if options.Blackboard == nil {
-		blackboard, err := cloneBlackboard(parent.blackboard)
-		if err != nil {
-			return nil, fmt.Errorf("runtime.Engine.createChild: %w", err)
-		}
-		options.Blackboard = blackboard
+		return nil, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
 	// A child shares its parent's event stream: process-scope
 	// EventListener extensions propagate down so the whole delegation

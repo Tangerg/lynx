@@ -124,7 +124,7 @@ func (e *Engine) RunChildIsolated(
 	}.run()
 }
 
-type childBlackboardMode int
+type childBlackboardMode uint8
 
 const (
 	childCopiesParentState childBlackboardMode = iota
@@ -209,6 +209,12 @@ func (r childRun) parentProcess() (*Process, error) {
 func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.ProcessOptions, error) {
 	var options core.ProcessOptions
 	switch r.mode {
+	case childCopiesParentState:
+		blackboard, err := cloneBlackboard(parent.blackboard)
+		if err != nil {
+			return core.ProcessOptions{}, err
+		}
+		options.Blackboard = blackboard
 	case childCopiesAmbientState:
 		blackboard, err := ambientBlackboard(parent.blackboard)
 		if err != nil {
@@ -221,6 +227,8 @@ func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.
 			return core.ProcessOptions{}, err
 		}
 		options.Blackboard = blackboard
+	default:
+		return core.ProcessOptions{}, fmt.Errorf("invalid child blackboard mode %d", r.mode)
 	}
 	return configureChildProcessOptions(r.ctx, parent, deployment, options)
 }
