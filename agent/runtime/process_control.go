@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"sync/atomic"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -9,6 +10,22 @@ import (
 )
 
 type processControl struct{ process *Process }
+
+// processSignals owns asynchronous control signals for one Process. Queued
+// termination is observed at a process boundary; active run and tool-call
+// cancellation are delivered immediately through atomically owned cancel
+// functions.
+type processSignals struct {
+	terminate      chan core.TerminationSignal
+	runCancel      atomic.Pointer[context.CancelFunc]
+	toolCallCancel atomic.Pointer[context.CancelFunc]
+}
+
+func newProcessSignals() processSignals {
+	return processSignals{
+		terminate: make(chan core.TerminationSignal, 1),
+	}
+}
 
 var _ core.ProcessControl = processControl{}
 
@@ -50,4 +67,61 @@ func (c processControl) Suspend(ctx context.Context, suspension interaction.Susp
 	process.commitNestedSuspension(nested)
 	process.publishEvent(ctx, event.ProcessWaiting{Header: process.eventHeader(), Suspension: process.Suspension()})
 	return core.ActionWaiting, nil
+}
+
+// queueTermination records at most one pending signal without blocking.
+func (s *processSignals) queueTermination(scope core.TerminationScope, reason string) {
+	signal := core.TerminationSignal{Scope: scope, Reason: reason}
+	select {
+	case s.terminate <- signal:
+	default:
+	}
+}
+
+// drainTerminate returns the pending signal, if any, without blocking.
+func (s *processSignals) drainTerminate() *core.TerminationSignal {
+	select {
+	case signal := <-s.terminate:
+		return &signal
+	default:
+		return nil
+	}
+}
+
+// fireRunCancel cancels the active Run or Continue context, if any.
+func (s *processSignals) fireRunCancel() {
+	cancel := s.runCancel.Load()
+	if cancel == nil || *cancel == nil {
+		return
+	}
+	(*cancel)()
+}
+
+// registerRunCancel installs the cancel function for one active Run or
+// Continue invocation and returns an ownership-safe release closure.
+func (s *processSignals) registerRunCancel(cancel context.CancelFunc) (release func()) {
+	cell := &cancel
+	s.runCancel.Store(cell)
+	return func() {
+		s.runCancel.CompareAndSwap(cell, nil)
+	}
+}
+
+// fireToolCallCancel cancels the active tool call, if any.
+func (s *processSignals) fireToolCallCancel() {
+	cancel := s.toolCallCancel.Load()
+	if cancel == nil || *cancel == nil {
+		return
+	}
+	(*cancel)()
+}
+
+// registerToolCallCancel installs a fresh cancel function and returns a
+// release closure that clears it only while it still owns the slot.
+func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (release func()) {
+	cell := &cancel
+	s.toolCallCancel.Store(cell)
+	return func() {
+		s.toolCallCancel.CompareAndSwap(cell, nil)
+	}
 }

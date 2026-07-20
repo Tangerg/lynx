@@ -2,11 +2,29 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
+
+// TerminalError formats a non-completed terminal status as an error. Waiting
+// is also an error here; adapters that expose waiting as structured state must
+// branch on [core.ProcessStatus] before calling TerminalError.
+func (p *Process) TerminalError() error {
+	if p == nil {
+		return errors.New("process is nil")
+	}
+	status := p.Status()
+	if status == core.StatusCompleted {
+		return nil
+	}
+	if failure := p.Failure(); failure != nil {
+		return fmt.Errorf("ended in %s: %w", status, failure)
+	}
+	return fmt.Errorf("ended in %s", status)
+}
 
 // validateAgentForRun checks the agent definition against the configured
 // planner. The goap planner needs at least one goal to plan toward;

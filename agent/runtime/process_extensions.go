@@ -1,9 +1,12 @@
 package runtime
 
 import (
+	"context"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // engineExtensions exposes the engine-scoped extension list.
@@ -84,4 +87,37 @@ func mergeExtensions(first, second []core.Extension) []core.Extension {
 	merged = append(merged, first...)
 	merged = append(merged, second...)
 	return merged
+}
+
+// toolResolverFor builds the action-scoped resolver exposed by ProcessContext.
+// Process extensions resolve first, while middleware wraps engine-first so the
+// process-scoped decorator is outermost.
+func (p *Process) toolResolverFor(action core.Action) func(context.Context, []core.ToolGroupRequirement) ([]tools.Tool, error) {
+	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
+	middleware := collectExtensions[core.ToolMiddleware](p.combinedExtensions())
+	if len(resolvers) == 0 {
+		return nil
+	}
+	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]tools.Tool, error) {
+		var resolved []tools.Tool
+
+		for _, requirement := range requirements {
+			group, found, err := runToolGroupResolvers(ctx, resolvers, requirement)
+			if err != nil {
+				return nil, fmt.Errorf("resolve tools for role %q: %w", requirement.Role, err)
+			}
+			if !found {
+				continue
+			}
+
+			groupTools, err := group.Tools(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("load tools for role %q: %w", requirement.Role, err)
+			}
+			for _, tool := range groupTools {
+				resolved = append(resolved, p.wrapTool(middleware, action, tool))
+			}
+		}
+		return resolved, nil
+	}
 }

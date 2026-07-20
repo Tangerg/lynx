@@ -2,7 +2,10 @@ package runtime
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -214,4 +217,93 @@ func (e *Engine) discardProcessTree(ctx context.Context, processID string) {
 	if deleter, ok := e.ProcessStore().(core.SnapshotDeleter); ok {
 		_ = deleter.Delete(ctx, processID)
 	}
+}
+
+// decodeToolArguments decodes a tool argument payload into T. Empty payloads
+// yield the zero value, matching calls whose fields are all optional.
+func decodeToolArguments[T any](agentName, operation, arguments string) (T, error) {
+	var args T
+	if arguments == "" {
+		return args, nil
+	}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		return args, fmt.Errorf("%s: parse input for %s: %w", agentName, operation, err)
+	}
+	return args, nil
+}
+
+func decodeDynamicToolArguments(agentName, operation string, inputType reflect.Type, arguments string) (any, error) {
+	if inputType == nil {
+		return decodeToolArguments[any](agentName, operation, arguments)
+	}
+
+	value := reflect.New(inputType)
+	if arguments == "" {
+		return value.Elem().Interface(), nil
+	}
+	if err := json.Unmarshal([]byte(arguments), value.Interface()); err != nil {
+		return nil, fmt.Errorf("%s: parse input as %s for %s: %w", agentName, inputType.String(), operation, err)
+	}
+	return value.Elem().Interface(), nil
+}
+
+// encodeResult converts a finished child run into its tool result.
+func (t *agentTool) encodeResult(child *Process) (string, error) {
+	if child == nil {
+		return "", errors.New("runtime.agentTool.encodeResult: child process is nil")
+	}
+	agentName := t.deployment.agent.Name()
+
+	if child.Status() == core.StatusWaiting {
+		return child.waitingToolResult()
+	}
+	if err := child.TerminalError(); err != nil {
+		return "", fmt.Errorf("%s %q (process %q): %w", t.label, agentName, child.ID(), err)
+	}
+
+	out, err := t.result(child)
+	if err != nil {
+		return "", fmt.Errorf("%s %q: %w", t.label, agentName, err)
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		return "", fmt.Errorf("%s %q: marshal output: %w", t.label, agentName, err)
+	}
+	return string(encoded), nil
+}
+
+// waitingProcessResult is the host-facing state of a child parked on durable
+// input. Synchronous parent-child tools suspend their parent before this layer.
+type waitingProcessResult struct {
+	Status       taskStatus      `json:"status"`
+	Agent        string          `json:"agent"`
+	ProcessID    string          `json:"process_id"`
+	SuspensionID string          `json:"suspension_id,omitempty"`
+	Prompt       json.RawMessage `json:"prompt,omitzero"`
+	ResumeSchema json.RawMessage `json:"resume_schema,omitzero"`
+}
+
+func (p *Process) waitingToolResult() (string, error) {
+	if p == nil {
+		return "", errors.New("runtime: waiting tool result: process is nil")
+	}
+	agent := p.agent()
+	if agent == nil {
+		return "", errors.New("runtime: waiting tool result: process has no deployed agent")
+	}
+	result := waitingProcessResult{
+		Status:    taskStatusWaiting,
+		Agent:     agent.Name(),
+		ProcessID: p.ID(),
+	}
+	if suspension := p.Suspension(); suspension != nil {
+		result.SuspensionID = suspension.ID
+		result.Prompt = suspension.Prompt
+		result.ResumeSchema = suspension.ResumeSchema
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("runtime: marshal waiting process result: %w", err)
+	}
+	return string(encoded), nil
 }

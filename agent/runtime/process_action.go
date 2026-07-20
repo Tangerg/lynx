@@ -23,6 +23,34 @@ const (
 	attrActionAttempts = "agent.action.attempts"
 )
 
+// buildProcessContext assembles the action-scoped capabilities exposed to one
+// execution. A fresh value keeps tool requirements and interaction state from
+// leaking between actions.
+func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
+	maxToolRounds := 0
+	if guardrails := p.effectiveGuardrails(); guardrails != nil {
+		maxToolRounds = guardrails.MaxToolRounds
+	}
+	config := core.ProcessContextConfig{
+		Process:       p,
+		Control:       processControl{process: p},
+		Usage:         processUsage{process: p},
+		Blackboard:    p.blackboard,
+		Session:       p.options.session,
+		Dependencies:  p.dependencies.Child(),
+		Chat:          p.effectiveChat,
+		MaxToolRounds: maxToolRounds,
+		Emit:          p.publishAny,
+		ResolveTools:  p.toolResolverFor(action),
+		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
+			return p.runInteraction(ctx, action.Metadata().Name, input)
+		},
+		ToolCallCancel:   p.signals.registerToolCallCancel,
+		ActionToolGroups: actionToolGroups,
+	}
+	return core.NewProcessContext(config)
+}
+
 // executeAction runs a single Action with retry, panic recovery, and
 // post-action bookkeeping (history record, action-run condition, events). It
 // returns the final ActionStatus plus an optional ReplanRequest the action
