@@ -172,7 +172,7 @@ func (s ProcessSnapshot) Validate() error {
 		return fmt.Errorf("%w: own usage totals must be finite and non-negative", ErrInvalidSnapshot)
 	}
 	for i, run := range s.History {
-		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || run.Attempts < 1 || !validActionStatusString(run.Status) {
+		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || run.Attempts < 1 || !run.Status.Valid() {
 			return fmt.Errorf("%w: history[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
@@ -244,8 +244,53 @@ type ActionRunSnapshot struct {
 	ActionName string        `json:"action"`
 	StartedAt  time.Time     `json:"started_at"`
 	Duration   time.Duration `json:"duration_ns"`
+	Status     ActionStatus  `json:"-"`
+	Attempts   int           `json:"attempts"`
+}
+
+type actionRunSnapshotWire struct {
+	ActionName string        `json:"action"`
+	StartedAt  time.Time     `json:"started_at"`
+	Duration   time.Duration `json:"duration_ns"`
 	Status     string        `json:"status"`
 	Attempts   int           `json:"attempts"`
+}
+
+func (r ActionRunSnapshot) MarshalJSON() ([]byte, error) {
+	if !r.Status.Valid() {
+		return nil, fmt.Errorf("action run snapshot: unknown status %d", r.Status)
+	}
+	return json.Marshal(actionRunSnapshotWire{
+		ActionName: r.ActionName,
+		StartedAt:  r.StartedAt,
+		Duration:   r.Duration,
+		Status:     r.Status.String(),
+		Attempts:   r.Attempts,
+	})
+}
+
+func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("action run snapshot: nil receiver")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	var wire actionRunSnapshotWire
+	if err := decoder.Decode(&wire); err != nil {
+		return fmt.Errorf("action run snapshot: decode: %w", err)
+	}
+	status, err := parseActionStatus(wire.Status)
+	if err != nil {
+		return fmt.Errorf("action run snapshot: %w", err)
+	}
+	*r = ActionRunSnapshot{
+		ActionName: wire.ActionName,
+		StartedAt:  wire.StartedAt,
+		Duration:   wire.Duration,
+		Status:     status,
+		Attempts:   wire.Attempts,
+	}
+	return nil
 }
 
 // SnapshotReader loads the latest committed snapshot revision.
@@ -287,10 +332,6 @@ func parseProcessStatus(status string) (ProcessStatus, error) {
 		}
 	}
 	return 0, fmt.Errorf("%w: unknown status %q", ErrInvalidSnapshot, status)
-}
-
-func validActionStatusString(status string) bool {
-	return status == ActionSucceeded.String() || status == ActionFailed.String() || status == ActionWaiting.String() || status == ActionPaused.String()
 }
 
 // MemoryProcessStore is the strict reference ProcessStore. It applies the

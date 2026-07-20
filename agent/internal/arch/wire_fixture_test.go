@@ -115,7 +115,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			ActionName: "lookup",
 			StartedAt:  startedAt.Add(time.Minute),
 			Duration:   250 * time.Millisecond,
-			Status:     agentcore.ActionSucceeded.String(),
+			Status:     agentcore.ActionSucceeded,
 			Attempts:   2,
 		}},
 		Failure:   "awaiting approval",

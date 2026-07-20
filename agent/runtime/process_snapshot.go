@@ -294,7 +294,7 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 				ActionName: run.ActionName,
 				StartedAt:  run.StartedAt,
 				Duration:   run.Duration,
-				Status:     run.Status.String(),
+				Status:     run.Status,
 				Attempts:   run.Attempts,
 			}
 		}
@@ -409,7 +409,7 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 			ActionName: run.ActionName,
 			StartedAt:  run.StartedAt,
 			Duration:   run.Duration,
-			Status:     parseActionStatus(run.Status),
+			Status:     run.Status,
 			Attempts:   run.Attempts,
 		})
 	}
@@ -450,22 +450,4 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 		return nil, fmt.Errorf("runtime: cannot restore process %s: a live process with that id is already running", process.id)
 	}
 	return process, nil
-}
-
-// parseActionStatus maps the string form back to the enum. Unknown
-// values fall back to [core.ActionFailed] so the runtime treats them
-// conservatively rather than silently downgrading to Succeeded.
-func parseActionStatus(status string) core.ActionStatus {
-	switch status {
-	case core.ActionSucceeded.String():
-		return core.ActionSucceeded
-	case core.ActionFailed.String():
-		return core.ActionFailed
-	case core.ActionWaiting.String():
-		return core.ActionWaiting
-	case core.ActionPaused.String():
-		return core.ActionPaused
-	default:
-		return core.ActionFailed
-	}
 }

@@ -358,6 +358,8 @@ Framework 使用两层自动门禁：
 
 Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated` 等规范常量；listener
 不需要比较自由字符串。`event.Kind` 在 JSON 中仍编码为原有字符串，类型安全不会改变 wire。
+ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
+稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
 
 开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
 迁移文档一次性收口，不保留 alias/shim。`storetest` 是故意公开的外部实现 contract package，

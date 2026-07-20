@@ -29,6 +29,20 @@ func (s ActionStatus) String() string {
 	}
 }
 
+// Valid reports whether s is a framework-defined action outcome.
+func (s ActionStatus) Valid() bool {
+	return s >= ActionSucceeded && s <= ActionPaused
+}
+
+func parseActionStatus(text string) (ActionStatus, error) {
+	for status := ActionSucceeded; status <= ActionPaused; status++ {
+		if text == status.String() {
+			return status, nil
+		}
+	}
+	return 0, fmt.Errorf("unknown action status %q", text)
+}
+
 // ProcessStatus tracks the lifecycle of a single Process.
 type ProcessStatus int8
 

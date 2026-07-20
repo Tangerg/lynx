@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+const anyTypeName = "any"
+
 const (
 	// DefaultBindingName is the implicit variable name when callers
 	// don't supply one; the planner falls back to "the most recent
@@ -126,7 +128,7 @@ func ParseBinding(text string) Binding {
 // representation.
 func typeFullName(typ reflect.Type) string {
 	if typ == nil {
-		return "any"
+		return anyTypeName
 	}
 
 	for typ.Kind() == reflect.Pointer {
