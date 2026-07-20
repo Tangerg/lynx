@@ -53,7 +53,7 @@ type Engine struct {
 	processStore           core.ProcessStore    // optional snapshot backend
 	sessionStore           core.SessionStore    // optional root-session persistence
 	childSessionStore      core.SessionStore    // optional delegated-session persistence
-	sessionTurnSequencer   SessionTurnSequencer // orders turns sharing a session ID
+	sessionTurnSequencer   SessionTurnSequencer // sequences turns sharing a session ID
 	sessionFinalizeTimeout time.Duration        // bounds the post-dispatch session write
 	autoSnapshot           bool                 // snapshot every tick when a store is configured
 	snapshotFailurePolicy  SnapshotFailurePolicy
@@ -113,9 +113,10 @@ type Config struct {
 	// saved between turns.
 	SessionStore core.SessionStore
 
-	// SessionTurnSequencer orders concurrent turns for the same session ID. The
-	// default is process-local and still allows different sessions to run in
-	// parallel. Multi-node hosts should provide a distributed implementation.
+	// SessionTurnSequencer grants turns for the same session ID in arrival order.
+	// The default is process-local and still allows different sessions to run in
+	// parallel. Cross-node execution additionally requires Host-owned fencing;
+	// this interface alone cannot reject a stale owner.
 	SessionTurnSequencer SessionTurnSequencer
 
 	// SessionFinalizeTimeout bounds the post-dispatch SessionStore write. That

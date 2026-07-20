@@ -283,6 +283,10 @@ if err := storetest.TestSessionStore(t.Context(), sessionStore); err != nil {
 lineage 的 adapter 不能冒充 root store。SessionStore 的最小合同只有 Save/Load；管理面按需
 实现 `SessionDeleter` 与 `SessionLister`。
 
+同一进程内，默认 `SessionTurnSequencer` 按到达顺序串行执行相同 Session 的 turn，不同
+Session 仍可并发。跨节点执行还必须由 Host 提供带 fencing 的所有权协议；仅替换 sequencer
+不能阻止失效节点以陈旧身份写回。
+
 `Session.Metadata` 是零值可用的 `core.SessionMetadata`，不是运行时绑定 map。调用 `Set` 时值会
 立即验证并编码为自有 JSON；读取使用 `Decode`。因此函数、channel、循环引用等非法值在领域
 边界直接返回 `core.ErrInvalidSessionMetadata`，不会延迟到 SessionStore 提交时才失败。
