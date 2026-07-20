@@ -365,6 +365,7 @@ Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated`
 `toolloop` 只复用同一类型，不再维护一份可能漂移的平行协议。
 Suspension、Pause、Checkpoint 与 Resume 的稳定 ID 统一通过 `interaction.ValidateID` 校验；
 相关 Event 解码严格拒绝未知字段和 trailing value，协议版本漂移不会被静默吞掉。
+托管交互和 app/runtime 共享 `interaction.StopReason`，停止原因的值与 `Valid` 规则只有一个 owner。
 ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
 稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
 自动快照失败事件也携带 `core.SnapshotFailurePolicy`，只有 JSON adapter 输出规范字符串。

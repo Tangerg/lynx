@@ -434,6 +434,7 @@ interaction: func (e Event) Validate() error
 interaction: func (k EventKind) Valid() bool
 interaction: func (k SuspensionKind) Valid() bool
 interaction: func (r Resume) Validate() error
+interaction: func (r StopReason) Valid() bool
 interaction: func (s *Suspension) UnmarshalJSON(data []byte) error
 interaction: func (s Suspension) Clone() *Suspension
 interaction: func (s Suspension) MarshalJSON() ([]byte, error)
