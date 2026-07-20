@@ -13,6 +13,10 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
+// StaticToolGroupResolverName is the default extension identity selected by
+// [NewStaticToolGroupResolver] when its name is empty.
+const StaticToolGroupResolverName = "static-tool-group-resolver"
+
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
 // helpful so user-facing UIs can surface "this agent will need internet
 // access" before kicking off a long-running task, and so engine
@@ -240,7 +244,7 @@ type StaticToolGroupResolver struct {
 // default.
 func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver {
 	if name == "" {
-		name = "static-tool-group-resolver"
+		name = StaticToolGroupResolverName
 	}
 	return &StaticToolGroupResolver{name: name, groups: map[string]ToolGroup{}}
 }

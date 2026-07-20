@@ -19,6 +19,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+const derivedInteractionIDPrefix = "interaction:"
+
 func (p *Process) runInteraction(ctx context.Context, actionName string, input core.Interaction) (interaction.Result, error) {
 	if err := validateInteraction(input); err != nil {
 		return interaction.Result{}, err
@@ -203,7 +205,7 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 		return "", fmt.Errorf("runtime: derive interaction owner: %w", err)
 	}
 	sum := sha256.Sum256(data)
-	return "interaction:" + hex.EncodeToString(sum[:]), nil
+	return derivedInteractionIDPrefix + hex.EncodeToString(sum[:]), nil
 }
 
 func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
@@ -259,7 +261,7 @@ func (p *Process) recordInteractionUsage(ctx context.Context, actionName string,
 
 func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Suspension) interaction.Event {
 	event := interaction.Event{
-		Kind:       interaction.EventKind(boundary.Kind),
+		Kind:       boundary.Kind,
 		Round:      boundary.Round,
 		Final:      boundary.Final,
 		Request:    boundary.Request,

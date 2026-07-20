@@ -46,15 +46,15 @@ type processCreatedPayload struct {
 	Bindings bindingSummary `json:"bindings"`
 }
 
-type bindingSummary map[string]any
+type bindingSummary map[string]json.RawMessage
 
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
 	return emit(e, processCreatedPayload{Bindings: summarizeBindings(e.Bindings)})
 }
 
 type processCompletedPayload struct {
-	Goal   *goalSummary `json:"goal"`
-	Result any          `json:"result"`
+	Goal   *goalSummary    `json:"goal"`
+	Result json.RawMessage `json:"result"`
 }
 
 func (e ProcessCompleted) MarshalJSON() ([]byte, error) {
@@ -320,19 +320,15 @@ func summarizeWorldState(state core.WorldState) *worldStateSummary {
 	return &worldStateSummary{State: state.Conditions(), Timestamp: state.Timestamp()}
 }
 
-func summarizeValue(value any) any {
+func summarizeValue(value any) json.RawMessage {
 	if value == nil {
-		return nil
+		return json.RawMessage("null")
 	}
 	encoded, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Sprint(value)
+		encoded, _ = json.Marshal(fmt.Sprint(value))
 	}
-	var decoded any
-	if err := json.Unmarshal(encoded, &decoded); err != nil {
-		return fmt.Sprint(value)
-	}
-	return decoded
+	return encoded
 }
 
 func summarizeBindings(bindings core.Bindings) bindingSummary {

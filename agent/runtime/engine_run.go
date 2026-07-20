@@ -57,7 +57,7 @@ func (e *Engine) runDeployment(
 		return nil, err
 	}
 
-	ctx, span := agentTracer.Start(normalizeContext(ctx), "agent.run",
+	ctx, span := agentTracer.Start(normalizeContext(ctx), spanRun,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
 			attribute.String(attrAgentName, process.agent().Name()),

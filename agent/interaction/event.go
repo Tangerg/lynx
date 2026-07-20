@@ -72,6 +72,20 @@ type Resume struct {
 	Input json.RawMessage `json:"input"`
 }
 
+// Validate checks the continuation identity and input payload.
+func (r Resume) Validate() error {
+	if strings.TrimSpace(r.ID) == "" {
+		return fmt.Errorf("%w: resume ID must not be empty", ErrInvalidEvent)
+	}
+	if strings.TrimSpace(r.ID) != r.ID {
+		return fmt.Errorf("%w: resume ID has surrounding whitespace", ErrInvalidEvent)
+	}
+	if !json.Valid(r.Input) {
+		return fmt.Errorf("%w: resume input must be valid JSON", ErrInvalidEvent)
+	}
+	return nil
+}
+
 // Event is the framework-level model/tool boundary. Runtime publishes every
 // value with process and deployment ownership; drivers may have richer private
 // checkpoint events, but must project them onto this stable shape.
@@ -137,7 +151,10 @@ func (e Event) Validate() error {
 			return fmt.Errorf("%w: suspension: %w", ErrInvalidEvent, err)
 		}
 	case EventResume:
-		if e.Resume == nil || strings.TrimSpace(e.Resume.ID) == "" || strings.TrimSpace(e.Resume.ID) != e.Resume.ID || !json.Valid(e.Resume.Input) {
+		if e.Resume == nil {
+			return e.wrongPayload()
+		}
+		if err := e.Resume.Validate(); err != nil {
 			return e.wrongPayload()
 		}
 	}

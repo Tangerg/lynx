@@ -75,7 +75,7 @@ func (r *worldStateReader) evaluateCondition(ctx context.Context, key string, en
 	if condition, ok := r.namedConditions[key]; ok {
 		conditionEnv := *env
 		conditionEnv.RunInteraction = func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
-			return r.process.runInteraction(ctx, "condition:"+key, input)
+			return r.process.runInteraction(ctx, core.ConditionInteractionID(key), input)
 		}
 		return safeEvaluateCondition(ctx, condition, &conditionEnv)
 	}

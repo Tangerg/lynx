@@ -40,7 +40,6 @@ var agentWireFixtureCoverage = map[string]string{
 	"toolloop.Event":          "toolloop_events",
 	"toolloop.Pause":          "toolloop_events",
 	"toolloop.PendingCall":    "toolloop_checkpoint",
-	"toolloop.Resume":         "toolloop_events",
 }
 
 var agentWirePackages = map[string]struct{}{

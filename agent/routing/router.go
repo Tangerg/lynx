@@ -10,6 +10,12 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
+const (
+	minimumConfidence = 0.0
+	maximumConfidence = 1.0
+	invalidCandidate  = "<invalid candidate>"
+)
+
 // Candidate is one (agent, goal) pair a Router considers.
 // The engine produces these by walking every deployed agent and
 // pairing each with each of its goals.
@@ -36,14 +42,14 @@ func (c Candidate) Goal() *core.Goal { return c.goal }
 // human-readable logging.
 func (c Candidate) String() string {
 	if c.goal == nil {
-		return "<invalid candidate>"
+		return invalidCandidate
 	}
 	name := c.deployment.Name
 	if name == "" && c.agent != nil {
 		name = c.agent.Name()
 	}
 	if name == "" {
-		return "<invalid candidate>"
+		return invalidCandidate
 	}
 	return name + ":" + c.goal.Name()
 }
@@ -108,7 +114,7 @@ func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) 
 	if ranker == nil {
 		return nil, errors.New("routing: ranker is nil")
 	}
-	if math.IsNaN(config.MinConfidence) || config.MinConfidence < 0 || config.MinConfidence > 1 {
+	if math.IsNaN(config.MinConfidence) || config.MinConfidence < minimumConfidence || config.MinConfidence > maximumConfidence {
 		return nil, errors.New("routing: minimum confidence must be between 0 and 1")
 	}
 	return &Router{engine: engine, ranker: ranker, config: config}, nil

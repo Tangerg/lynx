@@ -6,40 +6,32 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 // ErrInvalidEvent reports an unknown event kind or an invalid tagged payload.
 var ErrInvalidEvent = errors.New("toolloop: invalid event")
 
-// EventKind identifies one boundary crossed by a tool-loop invocation.
-type EventKind string
+// EventKind identifies one boundary crossed by a tool-loop invocation. The
+// interaction package owns the shared model/tool boundary vocabulary.
+type EventKind = interaction.EventKind
 
 const (
 	// EventModelRequest records a provider request boundary.
-	EventModelRequest EventKind = "model_request"
+	EventModelRequest = interaction.EventModelRequest
 	// EventModelResponse records provider output without adding runtime fields
 	// to chat.Response.
-	EventModelResponse EventKind = "model_response"
+	EventModelResponse = interaction.EventModelResponse
 	// EventToolCall records a model-requested tool execution.
-	EventToolCall EventKind = "tool_call"
+	EventToolCall = interaction.EventToolCall
 	// EventToolResult records one completed tool execution.
-	EventToolResult EventKind = "tool_result"
+	EventToolResult = interaction.EventToolResult
 	// EventPause records a resumable control-flow boundary.
-	EventPause EventKind = "pause"
+	EventPause = interaction.EventPause
 	// EventResume records continuation from a matching pause.
-	EventResume EventKind = "resume"
+	EventResume = interaction.EventResume
 )
-
-// Valid reports whether k is a known event kind.
-func (k EventKind) Valid() bool {
-	switch k {
-	case EventModelRequest, EventModelResponse, EventToolCall, EventToolResult, EventPause, EventResume:
-		return true
-	default:
-		return false
-	}
-}
 
 // Pause identifies a resumable checkpoint and explains why execution stopped.
 type Pause struct {
@@ -73,23 +65,8 @@ func (p Pause) Validate() error {
 	return nil
 }
 
-// Resume identifies the checkpoint being continued. Input carries optional
-// operator data; an approval-only resume may leave it empty.
-type Resume struct {
-	ID    string          `json:"id"`
-	Input json.RawMessage `json:"input"`
-}
-
-// Validate verifies checkpoint identity.
-func (r Resume) Validate() error {
-	if strings.TrimSpace(r.ID) == "" {
-		return fmt.Errorf("%w: resume ID must not be empty", ErrInvalidEvent)
-	}
-	if !json.Valid(r.Input) {
-		return fmt.Errorf("%w: resume input must be valid JSON", ErrInvalidEvent)
-	}
-	return nil
-}
+// Resume is the shared interaction continuation payload.
+type Resume = interaction.Resume
 
 // Event is a serializable tagged value for model, tool, pause, and resume
 // boundaries. Kind selects exactly one payload field.
@@ -165,7 +142,7 @@ func (e Event) Validate() error {
 			return e.wrongPayload()
 		}
 		if err := e.Resume.Validate(); err != nil {
-			return err
+			return fmt.Errorf("%w: %w", ErrInvalidEvent, err)
 		}
 	}
 	return nil

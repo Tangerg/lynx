@@ -64,6 +64,7 @@ core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
 core: const BudgetPolicyName = "budget-policy"
 core: const ProcessSnapshotSchemaVersion uint16 = 2
+core: const StaticToolGroupResolverName = "static-tool-group-resolver"
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -189,6 +190,7 @@ core: func (t Truth) Or(other Truth) Truth
 core: func (t Truth) String() string
 core: func (tv TaggedValue) Validate() error
 core: func And(left, right Condition) Condition
+core: func ConditionInteractionID(name string) string
 core: func DefaultBudget() Budget
 core: func DefaultRetryPolicy() RetryPolicy
 core: func FixedScore(value float64) ScoreFunc
@@ -424,6 +426,7 @@ interaction: func (e Event) MarshalJSON() ([]byte, error)
 interaction: func (e Event) Validate() error
 interaction: func (k EventKind) Valid() bool
 interaction: func (k SuspensionKind) Valid() bool
+interaction: func (r Resume) Validate() error
 interaction: func (s *Suspension) UnmarshalJSON(data []byte) error
 interaction: func (s Suspension) Clone() *Suspension
 interaction: func (s Suspension) MarshalJSON() ([]byte, error)
@@ -620,7 +623,7 @@ runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot l
 storetest: func TestProcessStore(ctx context.Context, store core.ProcessStore) error
 storetest: func TestSessionStore(ctx context.Context, store core.SessionStore) error
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
-toolloop: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
+toolloop: const ( EventModelRequest = interaction.EventModelRequest EventModelResponse = interaction.EventModelResponse EventToolCall = interaction.EventToolCall EventToolResult = interaction.EventToolResult EventPause = interaction.EventPause EventResume = interaction.EventResume )
 toolloop: const CheckpointSchemaVersion uint16 = 2
 toolloop: const DefaultMaxConcurrentCalls = 8
 toolloop: const DefaultMaxRounds = 50
@@ -635,12 +638,10 @@ toolloop: func (e *Event) UnmarshalJSON(data []byte) error
 toolloop: func (e *PauseError) Error() string
 toolloop: func (e Event) MarshalJSON() ([]byte, error)
 toolloop: func (e Event) Validate() error
-toolloop: func (k EventKind) Valid() bool
 toolloop: func (p Pause) Validate() error
 toolloop: func (p PendingCall) Validate() error
 toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
-toolloop: func (r Resume) Validate() error
 toolloop: func (s CallStatus) Valid() bool
 toolloop: func Direct(tool tools.Tool) tools.Tool
 toolloop: func NewRunner(model chat.Model, config Config) (*Runner, error)
@@ -653,11 +654,11 @@ toolloop: type Checkpoint struct { SchemaVersion uint16 `json:"schema_version"` 
 toolloop: type ConcurrentTool interface { ConcurrencyKey(arguments string) (key string, concurrent bool) }
 toolloop: type Config struct { MaxRounds int MaxConcurrentCalls int }
 toolloop: type Event struct { Kind EventKind `json:"kind"` Round int `json:"round"` Final bool `json:"final,omitempty"` Request *chat.Request `json:"request,omitempty"` Response *chat.Response `json:"response,omitempty"` ToolCall *chat.ToolCall `json:"tool_call,omitempty"` ToolResult *chat.ToolResult `json:"tool_result,omitempty"` Pause *Pause `json:"pause,omitempty"` Resume *Resume `json:"resume,omitempty"` }
-toolloop: type EventKind string
+toolloop: type EventKind = interaction.EventKind
 toolloop: type Pause struct { ID string `json:"id"` Reason string `json:"reason"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` Checkpoint *Checkpoint `json:"checkpoint"` }
 toolloop: type PauseError struct { ID string Reason string Prompt json.RawMessage ResumeSchema json.RawMessage }
 toolloop: type PendingCall struct { ID string `json:"id"` Reason string `json:"reason"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` }
-toolloop: type Resume struct { ID string `json:"id"` Input json.RawMessage `json:"input"` }
+toolloop: type Resume = interaction.Resume
 toolloop: type Runner struct { }
 toolloop: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
 toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint") ErrAmbiguousToolCalls = errors.New("toolloop: ambiguous tool calls") )
