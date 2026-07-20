@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
@@ -68,8 +69,8 @@ func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
 
 func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T) {
 	store := &stubKnowledgeStore{user: "global", project: "human project rule"}
-	curated := stubCuratedMemory{content: "agent learned fact"}
-	got := composePrompt(context.Background(), store, curated, "/projects/alpha")
+	memory := stubAgentMemory{content: "agent learned fact"}
+	got := composePrompt(context.Background(), store, memory, "/projects/alpha")
 	curatedIndex := strings.Index(got, "## Agent-curated project memory")
 	projectIndex := strings.Index(got, "## Project knowledge")
 	if curatedIndex < 0 || projectIndex < 0 || curatedIndex > projectIndex {
@@ -90,10 +91,13 @@ type stubKnowledgeStore struct {
 	projectDir string
 }
 
-type stubCuratedMemory struct{ content string }
+type stubAgentMemory struct{ content string }
 
-func (s stubCuratedMemory) CuratedMemory(_ context.Context, _ string) (knowledge.Curated, error) {
-	return knowledge.Curated{Content: s.content}, nil
+func (s stubAgentMemory) Items(_ context.Context, _ agentmemory.Scope, _ string) ([]agentmemory.Item, error) {
+	if strings.TrimSpace(s.content) == "" {
+		return nil, nil
+	}
+	return []agentmemory.Item{{Content: s.content}}, nil
 }
 
 func (s *stubKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {

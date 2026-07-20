@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -13,10 +14,10 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 )
 
-// CuratedMemoryReader is the prompt assembler's project-scoped view of
-// agent-maintained memory.
-type CuratedMemoryReader interface {
-	CuratedMemory(ctx context.Context, project string) (knowledge.Curated, error)
+// AgentMemoryReader is the prompt assembler's view of agent-maintained memory
+// items — the addressable, curated projection injected into the system prompt.
+type AgentMemoryReader interface {
+	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
 }
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -57,10 +58,10 @@ type Config struct {
 	// remain independent. (Wire/API calls this "memory".)
 	Knowledge knowledge.Store
 
-	// CuratedMemory optionally supplies the agent-maintained project memory
-	// projection. It is read after user preferences and before project LYRA.md,
-	// so explicit project instructions remain authoritative. nil disables it.
-	CuratedMemory CuratedMemoryReader
+	// AgentMemory optionally supplies the agent-maintained memory items. They are
+	// injected after user preferences and before project LYRA.md, so explicit
+	// project instructions remain authoritative. nil disables the layer.
+	AgentMemory AgentMemoryReader
 
 	// Todos optionally supplies the per-session task list backing the
 	// todo_write tool: when set, the tool is registered and the session's

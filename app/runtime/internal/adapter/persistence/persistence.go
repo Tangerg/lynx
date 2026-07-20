@@ -27,7 +27,7 @@ import (
 // Bundle holds every persistence backend opened for one runtime process. All
 // durable stores share one SQLite database at $LYRA_HOME/lyra.db, except
 // Knowledge, which is the user-editable LYRA.md cascade. AgentMemory is the
-// separate SQLite ledger + curated projection.
+// separate SQLite fact ledger + curated memory items.
 type Bundle struct {
 	db        *sql.DB
 	closeOnce sync.Once

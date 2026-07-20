@@ -37,9 +37,9 @@ type Config struct {
 	Compactor turn.Compactor
 	Extractor turn.Extractor
 
-	// AgentMemoryStore is the SQLite append-only fact ledger and atomic curated
-	// projection used by the default Extractor. nil disables agent-maintained
-	// memory without affecting user-editable LYRA.md.
+	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
+	// used by the default Extractor and injected into the system prompt. nil
+	// disables agent-maintained memory without affecting user-editable LYRA.md.
 	AgentMemoryStore *sqlitestore.AgentMemoryStore
 
 	IdempotencyStore *sqlitestore.IdempotencyStore

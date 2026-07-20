@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 11
+const schemaVersion = 12
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -358,13 +358,35 @@ func installCurrentSchema(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_ledger_project
 			ON agent_memory_ledger(project, seq)`,
-		// Content and watermark share one row so publishing a complete curated
-		// generation is a single SQLite update, never a two-file half-state.
-		`CREATE TABLE IF NOT EXISTS agent_memory_curated (
-			project    TEXT    PRIMARY KEY,
+		// Curated memory items: the addressable projection folded from the ledger.
+		// digest is the content identity (a reconcile matches unchanged items by
+		// it to keep their id stable); the unique (scope, project, digest) index
+		// dedups a fact across auto/user/pinned rows. origin 'auto' | 'user',
+		// scope 'project' | 'user'. Pinned items are always injected and never
+		// auto-pruned. session_id/day carry provenance.
+		`CREATE TABLE IF NOT EXISTS agent_memory_items (
+			id         TEXT    PRIMARY KEY,
+			scope      TEXT    NOT NULL,
+			project    TEXT    NOT NULL DEFAULT '',
 			content    TEXT    NOT NULL,
-			watermark  INTEGER NOT NULL,
-			updated_at INTEGER NOT NULL
+			digest     TEXT    NOT NULL,
+			origin     TEXT    NOT NULL,
+			pinned     INTEGER NOT NULL DEFAULT 0,
+			session_id TEXT    NOT NULL DEFAULT '',
+			day        TEXT    NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL,
+			updated_at INTEGER NOT NULL,
+			UNIQUE(scope, project, digest)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_memory_items_scope
+			ON agent_memory_items(scope, project)`,
+		// Per-project curation watermark (the highest ledger seq already folded
+		// into items). Kept apart from the items so a reconcile advances it with a
+		// single compare-and-swap update.
+		`CREATE TABLE IF NOT EXISTS agent_memory_state (
+			project    TEXT    PRIMARY KEY,
+			watermark  INTEGER NOT NULL DEFAULT 0,
+			updated_at INTEGER NOT NULL DEFAULT 0
 		)`,
 	}
 	for _, stmt := range stmts {

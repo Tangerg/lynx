@@ -19,7 +19,7 @@ func TestRuntimeConfigInjectsDurableRuntimePolicy(t *testing.T) {
 	if got.Engine.SnapshotFailurePolicy != agentruntime.SnapshotFailureFailProcess {
 		t.Fatalf("SnapshotFailurePolicy = %s, want fail_process", got.Engine.SnapshotFailurePolicy)
 	}
-	if got.AgentMemoryStore != agentMemory || got.Engine.CuratedMemory != agentMemory {
+	if got.AgentMemoryStore != agentMemory || got.Engine.AgentMemory != agentMemory {
 		t.Fatal("agent memory was not wired to extraction and prompt composition")
 	}
 }

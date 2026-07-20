@@ -9,9 +9,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
+
+// agentMemoryInjectBudget bounds the always-on curated-memory block whole-inject
+// (pinned items first, then recent). The extractor already caps the auto item
+// set well under this; the headroom absorbs a few user-pinned items. Retrieval
+// (a later batch) surfaces anything beyond the budget on demand.
+const agentMemoryInjectBudget = 4096
 
 // basePrompt is the always-on identity / behavioral preamble. It
 // stays small on purpose — project-specific context lives in curated memory,
@@ -51,7 +58,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // Engines built without either memory source simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, e.curated, turnctx.TurnCwd(ctx, e.workdir))
+	prompt := composePrompt(ctx, e.knowledge, e.memory, turnctx.TurnCwd(ctx, e.workdir))
 	return appendTodos(ctx, prompt, e.todos)
 }
 
@@ -79,7 +86,7 @@ func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 // composePrompt is the pure form behind [Engine.systemPrompt],
 // exposed unexported so the unit tests (which build stub memory stores without
 // a full Engine) can exercise the cascade directly.
-func composePrompt(ctx context.Context, mem knowledge.Store, curated CuratedMemoryReader, cwd string) string {
+func composePrompt(ctx context.Context, mem knowledge.Store, memory AgentMemoryReader, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
@@ -91,12 +98,12 @@ func composePrompt(ctx context.Context, mem knowledge.Store, curated CuratedMemo
 		}
 	}
 
-	if curated != nil {
+	if memory != nil {
 		project := resolveCwd(cwd)
 		if project != "" {
 			project = filepath.Clean(project)
-			memory, _ := curated.CuratedMemory(ctx, project)
-			if s := strings.TrimSpace(memory.Content); s != "" {
+			items, _ := memory.Items(ctx, agentmemory.ScopeProject, project)
+			if s := agentmemory.Render(items, agentMemoryInjectBudget); s != "" {
 				b.WriteString("\n\n## Agent-curated project memory (managed by Lyra)\n\n")
 				b.WriteString(s)
 			}
