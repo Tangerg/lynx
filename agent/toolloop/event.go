@@ -1,9 +1,11 @@
 package toolloop
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -44,8 +46,8 @@ type Pause struct {
 
 // Validate verifies checkpoint identity and diagnostic context.
 func (p Pause) Validate() error {
-	if strings.TrimSpace(p.ID) == "" {
-		return fmt.Errorf("%w: pause ID must not be empty", ErrInvalidEvent)
+	if err := interaction.ValidateID(p.ID); err != nil {
+		return fmt.Errorf("%w: pause ID: %w", ErrInvalidEvent, err)
 	}
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pause reason must not be empty", ErrInvalidEvent)
@@ -185,8 +187,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	}
 	type wireEvent Event
 	var decoded wireEvent
-	if err := json.Unmarshal(data, &decoded); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&decoded); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("%w: trailing JSON value", ErrInvalidEvent)
 	}
 	candidate := Event(decoded)
 	if err := candidate.Validate(); err != nil {

@@ -442,6 +442,7 @@ interaction: func (s Suspension) SameResponse(response any) bool
 interaction: func (s Suspension) Validate() error
 interaction: func (s Suspension) ValidateResponse(response any) (json.RawMessage, error)
 interaction: func Commit(err error) error
+interaction: func ValidateID(id string) error
 interaction: type CommittedError struct { Err error }
 interaction: type Event struct { Kind EventKind `json:"kind"` Round int `json:"round"` Final bool `json:"final,omitempty"` Request *chat.Request `json:"request,omitempty"` Response *chat.Response `json:"response,omitempty"` ToolCall *chat.ToolCall `json:"tool_call,omitempty"` ToolResult *chat.ToolResult `json:"tool_result,omitempty"` Suspension *Suspension `json:"suspension,omitempty"` Resume *Resume `json:"resume,omitempty"` }
 interaction: type EventKind string
@@ -454,9 +455,9 @@ interaction: type SuspendedError struct { Suspension Suspension }
 interaction: type Suspension struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Kind SuspensionKind `json:"kind"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` Payload json.RawMessage `json:"payload,omitempty"` Response json.RawMessage `json:"response,omitempty"` CreatedAt time.Time `json:"created_at"` RespondedAt time.Time `json:"responded_at,omitzero"` }
 interaction: type SuspensionKind string
 interaction: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
+interaction: var ( ErrInvalidEvent = errors.New("interaction: invalid event") ErrInvalidID = errors.New("interaction: invalid ID") )
 interaction: var ( ErrInvalidSuspension = errors.New("interaction: invalid suspension") ErrSuspended = errors.New("interaction: suspended") ErrSuspensionConflict = errors.New("interaction: suspension conflict") ErrSuspensionStale = errors.New("interaction: stale suspension") )
 interaction: var ErrCommitted = errors.New("interaction: committed boundary failed")
-interaction: var ErrInvalidEvent = errors.New("interaction: invalid event")
 planning/goap: func (p *Planner) Name() string
 planning/goap: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (*planning.Plan, error)
 planning/goap: func NewPlanner() *Planner

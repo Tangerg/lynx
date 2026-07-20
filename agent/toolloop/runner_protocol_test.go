@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -304,6 +305,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 		{name: "cancel", err: fmt.Errorf("wrapped: %w", context.Canceled), want: context.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded},
 		{name: "invalid pause", err: &toolloop.PauseError{ID: "missing-reason"}, want: toolloop.ErrInvalidControlFlow},
+		{name: "unstable pause ID", err: &toolloop.PauseError{ID: " pause ", Reason: "wait", Prompt: json.RawMessage(`true`), ResumeSchema: json.RawMessage(`{}`)}, want: interaction.ErrInvalidID},
 		{name: "invalid abort", err: &toolloop.AbortError{}, want: toolloop.ErrInvalidControlFlow},
 	} {
 		t.Run(test.name, func(t *testing.T) {

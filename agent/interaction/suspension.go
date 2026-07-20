@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	"github.com/google/jsonschema-go/jsonschema"
@@ -52,8 +51,8 @@ func (s Suspension) Validate() error {
 	if s.SchemaVersion != SuspensionSchemaVersion {
 		return fmt.Errorf("%w: schema version %d is unsupported", ErrInvalidSuspension, s.SchemaVersion)
 	}
-	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
-		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSuspension)
+	if err := ValidateID(s.ID); err != nil {
+		return fmt.Errorf("%w: ID: %w", ErrInvalidSuspension, err)
 	}
 	if !s.Kind.Valid() {
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidSuspension, s.Kind)

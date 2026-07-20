@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -101,9 +102,20 @@ func TestEventUnmarshalDoesNotMutateOnFailure(t *testing.T) {
 	if err := json.Unmarshal([]byte(`{`), &event); err == nil {
 		t.Fatalf("malformed Unmarshal error = %v", err)
 	}
+	if err := json.Unmarshal([]byte(`{"kind":"resume","round":1,"resume":{"id":"approval-1","input":true},"future":true}`), &event); !errors.Is(err, toolloop.ErrInvalidEvent) {
+		t.Fatalf("unknown field error = %v", err)
+	}
 	var nilEvent *toolloop.Event
 	if err := nilEvent.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, toolloop.ErrInvalidEvent) {
 		t.Fatalf("nil receiver error = %v", err)
+	}
+}
+
+func TestCheckpointRejectsUnstablePauseID(t *testing.T) {
+	checkpoint := protocolCheckpoint(t)
+	checkpoint.ID = " approval-1 "
+	if err := checkpoint.Validate(); !errors.Is(err, interaction.ErrInvalidID) {
+		t.Fatalf("Validate error = %v", err)
 	}
 }
 

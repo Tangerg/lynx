@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -58,8 +59,8 @@ type PendingCall struct {
 
 // Validate verifies the stable resume identity and JSON protocol values.
 func (p PendingCall) Validate() error {
-	if strings.TrimSpace(p.ID) == "" {
-		return fmt.Errorf("%w: pending call ID must not be empty", ErrInvalidCheckpoint)
+	if err := interaction.ValidateID(p.ID); err != nil {
+		return fmt.Errorf("%w: pending call ID: %w", ErrInvalidCheckpoint, err)
 	}
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pending call reason must not be empty", ErrInvalidCheckpoint)
@@ -143,8 +144,8 @@ func (c *Checkpoint) Validate() error {
 	if c.SchemaVersion != CheckpointSchemaVersion {
 		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidCheckpoint, c.SchemaVersion)
 	}
-	if strings.TrimSpace(c.ID) == "" {
-		return fmt.Errorf("%w: ID must not be empty", ErrInvalidCheckpoint)
+	if err := interaction.ValidateID(c.ID); err != nil {
+		return fmt.Errorf("%w: ID: %w", ErrInvalidCheckpoint, err)
 	}
 	if c.Round < 1 {
 		return fmt.Errorf("%w: round must be positive", ErrInvalidCheckpoint)
