@@ -211,12 +211,14 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	for _, image := range images {
 		parts = append(parts, chat.NewMediaPart(image))
 	}
+	messages := []chat.Message{chat.NewSystemMessage(e.systemPrompt(ctx))}
+	if recall, ok := e.recalledMemories(ctx, message); ok {
+		messages = append(messages, recall)
+	}
+	messages = append(messages, chat.NewUserMessage(parts...))
 	request := &chat.Request{
-		Messages: []chat.Message{
-			chat.NewSystemMessage(e.systemPrompt(ctx)),
-			chat.NewUserMessage(parts...),
-		},
-		Tools: advertisedTools(actionTools, registry),
+		Messages: messages,
+		Tools:    advertisedTools(actionTools, registry),
 	}
 	if options != nil {
 		request.Options = options.Clone()

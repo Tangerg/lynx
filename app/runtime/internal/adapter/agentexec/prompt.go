@@ -99,14 +99,19 @@ func composePrompt(ctx context.Context, mem knowledge.Store, memory AgentMemoryR
 	}
 
 	if memory != nil {
-		project := resolveCwd(cwd)
-		if project != "" {
-			project = filepath.Clean(project)
-			items, _ := memory.Items(ctx, agentmemory.ScopeProject, project)
-			if s := agentmemory.Render(items, agentMemoryInjectBudget); s != "" {
-				b.WriteString("\n\n## Agent-curated project memory (managed by Lyra)\n\n")
-				b.WriteString(s)
-			}
+		// The always-on core is the PINNED items (project + user scope). Non-pinned
+		// approved memory is surfaced per turn by relevance (the recall block), so a
+		// growing corpus never bloats every prompt.
+		var pinned []agentmemory.Item
+		if project := resolveCwd(cwd); project != "" {
+			items, _ := memory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
+			pinned = appendPinned(pinned, items)
+		}
+		userItems, _ := memory.Items(ctx, agentmemory.ScopeUser, "")
+		pinned = appendPinned(pinned, userItems)
+		if s := agentmemory.Render(pinned, agentMemoryInjectBudget); s != "" {
+			b.WriteString("\n\n## Pinned memory (managed by Lyra)\n\n")
+			b.WriteString(s)
 		}
 	}
 
@@ -131,6 +136,16 @@ func composePrompt(ctx context.Context, mem knowledge.Store, memory AgentMemoryR
 	}
 
 	return b.String()
+}
+
+// appendPinned appends the pinned items of src to dst.
+func appendPinned(dst, src []agentmemory.Item) []agentmemory.Item {
+	for _, item := range src {
+		if item.Pinned {
+			dst = append(dst, item)
+		}
+	}
+	return dst
 }
 
 // resolveCwd falls back to the process cwd when the turn carried no

@@ -71,7 +71,7 @@ func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T
 	store := &stubKnowledgeStore{user: "global", project: "human project rule"}
 	memory := stubAgentMemory{content: "agent learned fact"}
 	got := composePrompt(context.Background(), store, memory, "/projects/alpha")
-	curatedIndex := strings.Index(got, "## Agent-curated project memory")
+	curatedIndex := strings.Index(got, "## Pinned memory")
 	projectIndex := strings.Index(got, "## Project knowledge")
 	if curatedIndex < 0 || projectIndex < 0 || curatedIndex > projectIndex {
 		t.Fatalf("prompt precedence is wrong:\n%s", got)
@@ -93,11 +93,12 @@ type stubKnowledgeStore struct {
 
 type stubAgentMemory struct{ content string }
 
-func (s stubAgentMemory) Items(_ context.Context, _ agentmemory.Scope, _ string) ([]agentmemory.Item, error) {
-	if strings.TrimSpace(s.content) == "" {
+func (s stubAgentMemory) Items(_ context.Context, scope agentmemory.Scope, _ string) ([]agentmemory.Item, error) {
+	if scope != agentmemory.ScopeProject || strings.TrimSpace(s.content) == "" {
 		return nil, nil
 	}
-	return []agentmemory.Item{{Content: s.content}}, nil
+	// Pinned so it reaches the always-on core (composePrompt injects pinned only).
+	return []agentmemory.Item{{Content: s.content, Pinned: true, Status: agentmemory.StatusActive}}, nil
 }
 
 func (s *stubKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
