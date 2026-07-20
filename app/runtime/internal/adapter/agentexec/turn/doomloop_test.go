@@ -83,6 +83,13 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	if !strings.Contains(strings.ToLower(pending.Approval.Reason), "loop") {
 		t.Fatalf("approval reason should name the loop: %q", pending.Approval.Reason)
 	}
+
+	// The streak resets as the brake fires: an in-memory resume reuses this same
+	// turnState, so without the reset the next identical call would re-trip the
+	// brake and the model would never get room to continue after approval.
+	if got := obs.st.repeatedNoProgress("read", args); got != 0 {
+		t.Fatalf("escalation should reset the streak, got %d", got)
+	}
 }
 
 // TestDoomLoopIgnoresProgressingPolls guards the false positive: a call repeated

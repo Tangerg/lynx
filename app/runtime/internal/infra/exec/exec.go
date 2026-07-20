@@ -95,9 +95,14 @@ type Shell struct {
 // runs until it exits or is killed).
 func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, timeout time.Duration) (string, error) {
 	base := context.WithoutCancel(ctx)
-	runCtx, cancel := context.WithCancel(base)
+	var (
+		runCtx context.Context
+		cancel context.CancelFunc
+	)
 	if timeout > 0 {
 		runCtx, cancel = context.WithTimeout(base, timeout)
+	} else {
+		runCtx, cancel = context.WithCancel(base)
 	}
 	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
 	cmd.Dir = cwd
