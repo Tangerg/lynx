@@ -1,6 +1,11 @@
 package htn
 
-import "github.com/Tangerg/lynx/agent/core"
+import (
+	"errors"
+	"fmt"
+
+	"github.com/Tangerg/lynx/agent/core"
+)
 
 // Task is one node in the HTN hierarchy. A task is either primitive
 // (Action set, Methods empty) or compound (Methods set, Action nil).
@@ -48,3 +53,45 @@ func (m Method) applicable(state map[string]core.Truth) bool {
 
 // IsPrimitive reports whether this task wraps a single core.Action.
 func (t *Task) IsPrimitive() bool { return t.Action != nil }
+
+// Library is the registry of named tasks the planner reasons over.
+type Library struct {
+	tasks map[string]*Task
+}
+
+// NewLibrary returns an empty library.
+func NewLibrary() *Library { return &Library{tasks: map[string]*Task{}} }
+
+// Add registers task, rejecting empty names, duplicates, and tasks that are
+// neither or both primitive and compound.
+func (l *Library) Add(t *Task) error {
+	if t == nil {
+		return errors.New("htn.Library.Add: task must not be nil")
+	}
+	if t.Name == "" {
+		return errors.New("htn.Library.Add: task name must not be empty")
+	}
+	if t.Action != nil && len(t.Methods) > 0 {
+		return fmt.Errorf("htn.Library.Add: task %q has both Action and Methods", t.Name)
+	}
+	if t.Action == nil && len(t.Methods) == 0 {
+		return fmt.Errorf("htn.Library.Add: task %q has neither Action nor Methods", t.Name)
+	}
+	if _, duplicate := l.tasks[t.Name]; duplicate {
+		return fmt.Errorf("htn.Library.Add: duplicate task name %q", t.Name)
+	}
+	l.tasks[t.Name] = t
+	return nil
+}
+
+// MustAdd is the panicking variant of [Library.Add] for static setup.
+func (l *Library) MustAdd(t *Task) {
+	if err := l.Add(t); err != nil {
+		panic(err)
+	}
+}
+
+func (l *Library) Lookup(name string) (*Task, bool) {
+	task, ok := l.tasks[name]
+	return task, ok
+}
