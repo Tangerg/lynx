@@ -27,7 +27,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 			Pricing:               pricing.Catalog(),
 			HistoryStore:          stores.ChatHistory,
 			Knowledge:             stores.Memory,
-			CuratedMemory:         stores.AgentMemory,
+			AgentMemory:           stores.AgentMemory,
 		},
 		AgentMemoryStore:       stores.AgentMemory,
 		IdempotencyStore:       stores.Idempotency,

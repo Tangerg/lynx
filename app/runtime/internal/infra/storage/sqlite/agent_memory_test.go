@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -21,9 +21,9 @@ func newAgentMemoryStore(t *testing.T) *sqlite.AgentMemoryStore {
 	return sqlite.NewAgentMemoryStore(db)
 }
 
-func appendAgentFacts(t *testing.T, store *sqlite.AgentMemoryStore, project, day string, facts ...string) []knowledge.LedgerFact {
+func appendAgentFacts(t *testing.T, store *sqlite.AgentMemoryStore, project, day string, facts ...string) []agentmemory.LedgerFact {
 	t.Helper()
-	inserted, err := store.AppendLedger(t.Context(), knowledge.FactBatch{
+	inserted, err := store.AppendLedger(t.Context(), agentmemory.FactBatch{
 		Project: project, SessionID: "ses_1", Day: day, Facts: facts,
 		CapturedAt: time.Date(2026, 7, 19, 3, 0, 0, 0, time.UTC),
 	})
@@ -55,58 +55,98 @@ func TestAgentMemoryLedgerIsDailyDeduplicatedAndProjectScoped(t *testing.T) {
 	}
 }
 
-func TestAgentMemoryPublishAtomicallyAdvancesWatermark(t *testing.T) {
+func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
 	through := facts[len(facts)-1].Sequence
-	updatedAt := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
-	published, err := store.PublishCuratedMemory(t.Context(), "/repo", 0, through, "# MEMORY\n\n- one", updatedAt)
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- one", "- two"}, now)
 	if err != nil || !published {
-		t.Fatalf("PublishCuratedMemory = (%v, %v)", published, err)
+		t.Fatalf("Reconcile = (%v, %v)", published, err)
 	}
-	memory, err := store.CuratedMemory(t.Context(), "/repo")
-	if err != nil {
-		t.Fatal(err)
+	state, err := store.State(t.Context(), "/repo")
+	if err != nil || state.Watermark != through || !state.UpdatedAt.Equal(now) {
+		t.Fatalf("state = %+v, err=%v", state, err)
 	}
-	if memory.Content != "# MEMORY\n\n- one" || memory.Watermark != through || !memory.UpdatedAt.Equal(updatedAt) {
-		t.Fatalf("curated memory = %+v", memory)
+	items, err := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("items = (%+v, %v)", items, err)
 	}
-	stale, err := store.PublishCuratedMemory(t.Context(), "/repo", 0, through, "stale", updatedAt.Add(time.Hour))
+	for _, item := range items {
+		if item.Origin != agentmemory.OriginAuto || item.Scope != agentmemory.ScopeProject {
+			t.Fatalf("item provenance = %+v", item)
+		}
+	}
+
+	// A second reconcile that expects watermark 0 again has lost the CAS: it must
+	// neither advance the watermark nor rewrite the item set.
+	stale, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- three"}, now.Add(time.Hour))
 	if err != nil || stale {
-		t.Fatalf("stale publish = (%v, %v), want false, nil", stale, err)
+		t.Fatalf("stale reconcile = (%v, %v), want false, nil", stale, err)
 	}
-	memory, _ = store.CuratedMemory(t.Context(), "/repo")
-	if memory.Content != "# MEMORY\n\n- one" || memory.Watermark != through {
-		t.Fatalf("stale publish changed memory: %+v", memory)
+	items, _ = store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	if len(items) != 2 {
+		t.Fatalf("stale reconcile changed items: %+v", items)
 	}
-	if pending, err := store.PendingLedger(t.Context(), "/repo", memory.Watermark, 10); err != nil || len(pending) != 0 {
-		t.Fatalf("pending after publish = (%+v, %v)", pending, err)
+	if pending, err := store.PendingLedger(t.Context(), "/repo", state.Watermark, 10); err != nil || len(pending) != 0 {
+		t.Fatalf("pending after reconcile = (%+v, %v)", pending, err)
 	}
 }
 
-func TestAgentMemoryPublishCASHasOneWinner(t *testing.T) {
+func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
+	store := newAgentMemoryStore(t)
+	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two", "three")
+	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	idByContent := make(map[string]string, len(before))
+	for _, item := range before {
+		idByContent[item.Content] = item.ID
+	}
+
+	// Drop "- two", keep "- one", add "- three".
+	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, facts[2].Sequence, []string{"- one", "- three"}, now.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := store.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	got := make(map[string]string, len(after))
+	for _, item := range after {
+		got[item.Content] = item.ID
+	}
+	if len(after) != 2 || got["- two"] != "" {
+		t.Fatalf("prune failed: %+v", after)
+	}
+	if got["- one"] == "" || got["- one"] != idByContent["- one"] {
+		t.Fatalf("unchanged item lost its stable id: %q -> %q", idByContent["- one"], got["- one"])
+	}
+	if got["- three"] == "" {
+		t.Fatal("new item was not inserted")
+	}
+}
+
+func TestAgentMemoryReconcileCASHasOneWinner(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one")
 	through := facts[0].Sequence
 	var winners atomic.Int32
 	var wg sync.WaitGroup
 	for range 2 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			published, err := store.PublishCuratedMemory(t.Context(), "/repo", 0, through, "body", time.Now())
+		wg.Go(func() {
+			published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- body"}, time.Now())
 			if err != nil {
-				t.Errorf("publish: %v", err)
+				t.Errorf("reconcile: %v", err)
 				return
 			}
 			if published {
 				winners.Add(1)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	if got := winners.Load(); got != 1 {
-		t.Fatalf("publish winners = %d, want 1", got)
+		t.Fatalf("reconcile winners = %d, want 1", got)
 	}
 }
 
@@ -114,17 +154,15 @@ func TestAgentMemoryConcurrentAppendDeduplicates(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			_, err := store.AppendLedger(t.Context(), knowledge.FactBatch{
+		wg.Go(func() {
+			_, err := store.AppendLedger(t.Context(), agentmemory.FactBatch{
 				Project: "/repo", SessionID: "ses_1", Day: "2026-07-19",
 				Facts: []string{"same fact"}, CapturedAt: time.Now(),
 			})
 			if err != nil {
 				t.Errorf("append: %v", err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	pending, err := store.PendingLedger(t.Context(), "/repo", 0, 10)

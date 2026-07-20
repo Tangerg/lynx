@@ -28,7 +28,7 @@ type Engine struct {
 
 	historyStore history.Store
 	knowledge    knowledge.Store
-	curated      CuratedMemoryReader
+	memory       AgentMemoryReader
 	todos        todo.Store
 	workdir      string
 	pricing      accounting.Pricing
@@ -70,7 +70,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		runtime:                agentRuntime,
 		dependencies:           agentRuntime.Dependencies(),
 		knowledge:              config.Knowledge,
-		curated:                config.CuratedMemory,
+		memory:                 config.AgentMemory,
 		historyStore:           config.HistoryStore,
 		todos:                  config.Todos,
 		workdir:                config.Workdir,

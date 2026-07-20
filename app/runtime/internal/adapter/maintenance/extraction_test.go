@@ -13,7 +13,7 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -71,20 +71,30 @@ func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sql
 	return extractor, memory, model
 }
 
-func TestExtractorAppendsDailyLedgerAndPublishesCuratedMemory(t *testing.T) {
+func TestExtractorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
 	extractor, memory, model := extractionFixture(t,
 		scriptedReply{text: "- use make test\n- prefer concise errors"},
-		scriptedReply{text: "# Project memory\n\n- Run `make test`.\n- Prefer concise errors."},
+		scriptedReply{text: "- Run `make test`.\n- Prefer concise errors."},
 	)
 	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
 	}
-	curated, err := memory.CuratedMemory(t.Context(), "/repo")
-	if err != nil {
-		t.Fatal(err)
+	state, err := memory.State(t.Context(), "/repo")
+	if err != nil || state.Watermark == 0 {
+		t.Fatalf("curation watermark = %+v, err=%v", state, err)
 	}
-	if curated.Watermark == 0 || !strings.Contains(curated.Content, "# Project memory") {
-		t.Fatalf("curated memory = %+v", curated)
+	items, err := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	if err != nil || len(items) != 2 {
+		t.Fatalf("curated items = (%+v, %v)", items, err)
+	}
+	found := false
+	for _, item := range items {
+		if strings.Contains(item.Content, "make test") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("curated items missing the make-test fact: %+v", items)
 	}
 	ledger, err := memory.PendingLedger(t.Context(), "/repo", 0, 10)
 	if err != nil || len(ledger) != 2 || ledger[0].Day != "2026-07-19" {
@@ -109,9 +119,12 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); !errors.Is(err, providerFailure) {
 		t.Fatalf("first extraction error = %v", err)
 	}
-	curated, err := memory.CuratedMemory(t.Context(), "/repo")
-	if err != nil || curated.Watermark != 0 || curated.Content != "" {
-		t.Fatalf("failed curation published half-state: (%+v, %v)", curated, err)
+	state, err := memory.State(t.Context(), "/repo")
+	if err != nil || state.Watermark != 0 {
+		t.Fatalf("failed curation advanced watermark: (%+v, %v)", state, err)
+	}
+	if items, err := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo"); err != nil || len(items) != 0 {
+		t.Fatalf("failed curation published items: (%+v, %v)", items, err)
 	}
 	pending, err := memory.PendingLedger(t.Context(), "/repo", 0, 10)
 	if err != nil || len(pending) != 1 {
@@ -124,26 +137,27 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
 	}
-	curated, _ = memory.CuratedMemory(t.Context(), "/repo")
-	if curated.Watermark != pending[0].Sequence || curated.Content != "- durable fact" {
-		t.Fatalf("recovered curation = %+v", curated)
+	state, _ = memory.State(t.Context(), "/repo")
+	items, _ := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	if state.Watermark != pending[0].Sequence || len(items) != 1 || items[0].Content != "- durable fact" {
+		t.Fatalf("recovered curation: state=%+v items=%+v", state, items)
 	}
 }
 
 func TestCurationGateAndTokenEstimate(t *testing.T) {
 	extractor := &Extractor{config: CurationConfig{MinPendingFacts: 3, MaxAge: time.Hour}}
 	now := time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
-	current := knowledge.Curated{Watermark: 1, UpdatedAt: now}
-	if extractor.curationDue(current, 2, now) {
+	state := agentmemory.State{Watermark: 1, UpdatedAt: now}
+	if extractor.curationDue(state, 2, now) {
 		t.Fatal("small fresh backlog should not curate")
 	}
-	if !extractor.curationDue(current, 3, now) {
+	if !extractor.curationDue(state, 3, now) {
 		t.Fatal("fact threshold should curate")
 	}
-	if !extractor.curationDue(current, 1, now.Add(time.Hour)) {
+	if !extractor.curationDue(state, 1, now.Add(time.Hour)) {
 		t.Fatal("age threshold should curate")
 	}
-	if !extractor.curationDue(knowledge.Curated{}, 1, now) {
+	if !extractor.curationDue(agentmemory.State{}, 1, now) {
 		t.Fatal("first generation should curate immediately")
 	}
 
@@ -161,9 +175,9 @@ func TestExtractorDoesNotAdvanceWatermarkForOversizedCuration(t *testing.T) {
 	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err == nil || !strings.Contains(err.Error(), "limit is 10") {
 		t.Fatalf("oversized curation error = %v", err)
 	}
-	curated, err := memory.CuratedMemory(t.Context(), "/repo")
-	if err != nil || curated.Watermark != 0 {
-		t.Fatalf("oversized curation advanced watermark: (%+v, %v)", curated, err)
+	state, err := memory.State(t.Context(), "/repo")
+	if err != nil || state.Watermark != 0 {
+		t.Fatalf("oversized curation advanced watermark: (%+v, %v)", state, err)
 	}
 	pending, err := memory.PendingLedger(t.Context(), "/repo", 0, 10)
 	if err != nil || len(pending) != 1 {
