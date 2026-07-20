@@ -3,6 +3,7 @@ package htn
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -24,18 +25,29 @@ var plannerTracer = otel.Tracer(planning.TracerName)
 // construction; the planner is otherwise stateless and safe to share
 // across goroutines.
 type Planner struct {
-	library      *Library
+	tasks        map[string]Task
 	maxRecursion int
 }
 
 // NewPlanner returns an HTN planner backed by library. maxRecursion
 // caps the decomposition depth to guard against cyclic task graphs.
-// Returns an error when library is nil.
+// The planner owns an immutable library snapshot. Construction rejects nil
+// libraries and unresolved subtask references.
 func NewPlanner(library *Library) (*Planner, error) {
 	if library == nil {
 		return nil, errors.New("htn.NewPlanner: library must not be nil")
 	}
-	return &Planner{library: library, maxRecursion: defaultMaxRecursion}, nil
+	tasks := library.snapshot()
+	for taskName, task := range tasks {
+		for methodIndex, method := range task.Methods {
+			for subtaskIndex, subtask := range method.Subtasks {
+				if _, ok := tasks[subtask]; !ok {
+					return nil, fmt.Errorf("htn.NewPlanner: task %q method[%d] subtask[%d] references unknown task %q", taskName, methodIndex, subtaskIndex, subtask)
+				}
+			}
+		}
+	}
+	return &Planner{tasks: tasks, maxRecursion: defaultMaxRecursion}, nil
 }
 
 // Name is the planner's extension identifier — the value an agent's
@@ -78,18 +90,41 @@ func (p *Planner) PlanToGoal(
 		}
 		span.End()
 	}()
+	if goal.SatisfiedBy(start) {
+		return planning.NewPlan(nil, goal), nil
+	}
 
-	root, ok := p.library.Lookup(goal.Name())
+	root, ok := p.tasks[goal.Name()]
 	if !ok {
 		return nil, nil
 	}
-	actions, _, ok, err := p.decompose(ctx, root, start, options.ExcludedActions, 0)
+	actions, finalState, ok, err := p.decompose(ctx, root, start, options.ExcludedActions, 0)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		return nil, nil
 	}
+	if !goal.SatisfiedBy(finalState) {
+		return nil, fmt.Errorf("htn: task %q decomposition does not satisfy its goal", root.Name)
+	}
+	for index, candidate := range actions {
+		name := candidate.Metadata().Name
+		canonical, found := domainAction(domain, name)
+		if !found {
+			return nil, fmt.Errorf("htn: task %q action[%d] %q is outside the planning domain", root.Name, index, name)
+		}
+		actions[index] = canonical
+	}
 	result = planning.NewPlan(actions, goal)
 	return result, nil
+}
+
+func domainAction(domain *planning.Domain, name string) (core.Action, bool) {
+	for _, action := range domain.Actions() {
+		if action != nil && action.Metadata().Name == name {
+			return action, true
+		}
+	}
+	return nil, false
 }

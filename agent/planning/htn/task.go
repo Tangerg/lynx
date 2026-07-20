@@ -3,6 +3,10 @@ package htn
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+	"strings"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -51,20 +55,23 @@ func (t *Task) IsPrimitive() bool { return t.Action != nil }
 
 // Library is the registry of named tasks the planner reasons over.
 type Library struct {
-	tasks map[string]*Task
+	mu    sync.RWMutex
+	tasks map[string]Task
 }
 
 // NewLibrary returns an empty library.
-func NewLibrary() *Library { return &Library{tasks: map[string]*Task{}} }
+func NewLibrary() *Library { return &Library{} }
 
-// Add registers task, rejecting empty names, duplicates, and tasks that are
-// neither or both primitive and compound.
+// Add snapshots task and rejects malformed names, methods, or task shapes.
 func (l *Library) Add(t *Task) error {
+	if l == nil {
+		return errors.New("htn.Library.Add: library must not be nil")
+	}
 	if t == nil {
 		return errors.New("htn.Library.Add: task must not be nil")
 	}
-	if t.Name == "" {
-		return errors.New("htn.Library.Add: task name must not be empty")
+	if strings.TrimSpace(t.Name) == "" || strings.TrimSpace(t.Name) != t.Name {
+		return fmt.Errorf("htn.Library.Add: task name %q must be non-empty without surrounding whitespace", t.Name)
 	}
 	if t.Action != nil && len(t.Methods) > 0 {
 		return fmt.Errorf("htn.Library.Add: task %q has both Action and Methods", t.Name)
@@ -72,10 +79,30 @@ func (l *Library) Add(t *Task) error {
 	if t.Action == nil && len(t.Methods) == 0 {
 		return fmt.Errorf("htn.Library.Add: task %q has neither Action nor Methods", t.Name)
 	}
+	for index, method := range t.Methods {
+		if err := method.Preconditions.Validate(); err != nil {
+			return fmt.Errorf("htn.Library.Add: task %q method[%d] preconditions: %w", t.Name, index, err)
+		}
+		if len(method.Subtasks) == 0 {
+			return fmt.Errorf("htn.Library.Add: task %q method[%d] has no subtasks", t.Name, index)
+		}
+		for subtaskIndex, subtask := range method.Subtasks {
+			if strings.TrimSpace(subtask) == "" || strings.TrimSpace(subtask) != subtask {
+				return fmt.Errorf("htn.Library.Add: task %q method[%d] subtask[%d] %q must be non-empty without surrounding whitespace", t.Name, index, subtaskIndex, subtask)
+			}
+		}
+	}
+
+	cloned := cloneTask(*t)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.tasks == nil {
+		l.tasks = make(map[string]Task)
+	}
 	if _, duplicate := l.tasks[t.Name]; duplicate {
 		return fmt.Errorf("htn.Library.Add: duplicate task name %q", t.Name)
 	}
-	l.tasks[t.Name] = t
+	l.tasks[t.Name] = cloned
 	return nil
 }
 
@@ -87,6 +114,34 @@ func (l *Library) MustAdd(t *Task) {
 }
 
 func (l *Library) Lookup(name string) (*Task, bool) {
+	if l == nil {
+		return nil, false
+	}
+	l.mu.RLock()
 	task, ok := l.tasks[name]
-	return task, ok
+	l.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	cloned := cloneTask(task)
+	return &cloned, true
+}
+
+func (l *Library) snapshot() map[string]Task {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	tasks := make(map[string]Task, len(l.tasks))
+	for name, task := range l.tasks {
+		tasks[name] = cloneTask(task)
+	}
+	return tasks
+}
+
+func cloneTask(task Task) Task {
+	task.Methods = slices.Clone(task.Methods)
+	for index := range task.Methods {
+		task.Methods[index].Preconditions = maps.Clone(task.Methods[index].Preconditions)
+		task.Methods[index].Subtasks = slices.Clone(task.Methods[index].Subtasks)
+	}
+	return task
 }

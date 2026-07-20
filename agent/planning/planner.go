@@ -3,10 +3,13 @@ package planning
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
+
+var errInvalidPlan = errors.New("planning: invalid plan")
 
 const (
 	// GOAPPlannerName selects the built-in goal-oriented planner.
@@ -139,17 +142,57 @@ func (d *Domain) Plans(
 	goals := d.Goals()
 	plans := make([]*Plan, 0, len(goals))
 	for _, goal := range goals {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		plan, err := planner.PlanToGoal(ctx, state, d, goal, options)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", planner.Name(), goal.Name(), err)
 		}
 		if plan == nil {
 			continue
 		}
-		plans = append(plans, plan)
+		accepted, err := d.acceptPlan(plan, goal, state, options)
+		if err != nil {
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", planner.Name(), goal.Name(), err)
+		}
+		plans = append(plans, accepted)
 	}
 	sortByNetValueDesc(plans, state)
 	return plans, nil
+}
+
+func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, options Options) (*Plan, error) {
+	if plan.Goal() != goal {
+		return nil, fmt.Errorf("%w: result targets a different goal", errInvalidPlan)
+	}
+
+	actions := plan.Actions()
+	canonical := make([]core.Action, len(actions))
+	cursor := state
+	for index, candidate := range actions {
+		if candidate == nil {
+			return nil, fmt.Errorf("%w: action[%d] is nil", errInvalidPlan, index)
+		}
+		name := candidate.Metadata().Name
+		action, ok := d.action(name)
+		if !ok {
+			return nil, fmt.Errorf("%w: action[%d] %q is outside the domain", errInvalidPlan, index, name)
+		}
+		if options.ExcludedActions.Contains(name) {
+			return nil, fmt.Errorf("%w: action[%d] %q is excluded", errInvalidPlan, index, name)
+		}
+		metadata := action.Metadata()
+		if !metadata.Applicable(cursor.Conditions()) {
+			return nil, fmt.Errorf("%w: action[%d] %q has unsatisfied preconditions", errInvalidPlan, index, name)
+		}
+		canonical[index] = action
+		cursor = cursor.Apply(metadata.Effects)
+	}
+	if !goal.SatisfiedBy(cursor) {
+		return nil, fmt.Errorf("%w: declared effects do not satisfy goal %q", errInvalidPlan, goal.Name())
+	}
+	return NewPlan(canonical, goal), nil
 }
 
 // BestPlan returns the highest-NetValue plan across all goals, honoring the
