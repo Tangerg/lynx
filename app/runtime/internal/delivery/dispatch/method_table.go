@@ -83,6 +83,12 @@ var methodTable = map[string]methodHandler{
 	MethodSchedulesDelete: (*Dispatcher).handleSchedulesDelete,
 	MethodSchedulesRunNow: (*Dispatcher).handleSchedulesRunNow,
 
+	// Goals.
+	MethodGoalsStart:  (*Dispatcher).handleGoalsStart,
+	MethodGoalsGet:    (*Dispatcher).handleGoalsGet,
+	MethodGoalsStop:   (*Dispatcher).handleGoalsStop,
+	MethodGoalsResume: (*Dispatcher).handleGoalsResume,
+
 	// Codebase.
 	MethodCodebaseSearch:  (*Dispatcher).handleCodebaseSearch,
 	MethodCodebaseStatus:  (*Dispatcher).handleCodebaseStatus,

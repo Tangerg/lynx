@@ -49,6 +49,11 @@ func buildToolEnvironment(
 	if cfg.ToolResultStore != nil {
 		bc.ToolResults = cfg.ToolResultStore
 	}
+	// update_goal + its active-gate come from the goal store (Goal mode). Set only
+	// when present, for the same nil-interface reason.
+	if cfg.GoalStore != nil {
+		bc.Goals = cfg.GoalStore
+	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {
 		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)

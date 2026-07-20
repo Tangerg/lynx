@@ -25,6 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
@@ -50,6 +51,7 @@ type Stack struct {
 	Queries      *queries.Coordinator
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
+	Goals        *goals.Driver
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
 	// per-run event journal, the segment pumps, and cancel. Built + owned by the
 	// Host (its pumps are joined by Host.Close); the delivery layer drives it as a
@@ -393,6 +395,22 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// disabled); it owns the background reindex task group, closed by the Host.
 	codebaseCoord := codebase.New(embeddingEnv.index)
 
+	// Goal mode: the autonomous-execution loop driver over the run coordinator.
+	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
+	// runs before serving so a goal left active by a crashed process degrades to
+	// paused rather than silently resuming and burning budget.
+	var goalDriver *goals.Driver
+	if cfg.GoalStore != nil {
+		goalDriver = goals.NewDriver(cfg.GoalStore, runCoord)
+		if err := goalDriver.Reconcile(ctx); err != nil {
+			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
+		}
+	}
+	toolClosers := slices.Clone(built.Closers)
+	if goalDriver != nil {
+		toolClosers = append(toolClosers, goalDriver.Close)
+	}
+
 	host := Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
@@ -419,6 +437,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
 			}),
 			Schedules: scheduleCoord,
+			Goals:     goalDriver,
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,
@@ -426,7 +445,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			coordinator:  runCoord,
 			dispatcher:   turnDispatcher,
 			effectsTasks: effectsTasks,
-			toolClosers:  slices.Clone(built.Closers),
+			toolClosers:  toolClosers,
 			resources:    slices.Clone(cfg.Resources),
 		},
 	}

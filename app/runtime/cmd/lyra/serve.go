@@ -92,6 +92,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		MCPStatus:   stack.MCPStatus,
 		Queries:     stack.Queries,
 		Schedules:   stack.Schedules,
+		Goals:       stack.Goals,
 		Workspace:   stack.Workspace,
 	})
 	if err != nil {

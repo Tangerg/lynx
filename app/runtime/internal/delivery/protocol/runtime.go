@@ -32,6 +32,7 @@ type Runtime interface {
 	Workspace
 	Approval
 	Schedules
+	Goals
 	Codebase
 	Providers
 	Models
