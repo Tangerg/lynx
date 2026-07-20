@@ -12,14 +12,14 @@ import (
 )
 
 const (
-	// busyBackoff / maxBusyAttempts bound the wait for the previous run's pump to
+	// busyBackoff / maxBusyRetries bound the wait for the previous run's pump to
 	// finish tearing down and free the session's single admission slot. The pump
 	// closes the event stream before it releases the slot, so the loop's drain can
 	// return a few milliseconds before a back-to-back launch is admissible. This is
 	// waiting for a local resource, keyed on the ErrSessionBusy sentinel — not a
 	// transient-error retry layer.
-	busyBackoff     = 100 * time.Millisecond
-	maxBusyAttempts = 20
+	busyBackoff    = 100 * time.Millisecond
+	maxBusyRetries = 20
 )
 
 // autonomyNote frames every autonomous turn: the model drives itself and ends
@@ -119,7 +119,14 @@ func (d *Driver) drive(ctx context.Context, sessionID string) {
 			d.save(ctx, g)
 			return
 		}
-		d.save(ctx, g) // still active, within budget — record usage and loop
+		// Still active, within budget: record this turn's usage and loop. This
+		// checkpoint MUST honor ctx (unlike the terminal saves above, which detach
+		// to survive shutdown): it re-affirms status=active, so if it detached it
+		// could commit after a concurrent Stop paused the goal and clobber the pause
+		// — wedging the goal active with no loop driving it. A Stop cancels this ctx
+		// before it writes paused, so the checkpoint is skipped (losing at most this
+		// turn's usage accounting) and the store converges on paused.
+		_ = d.goals.Save(ctx, g)
 	}
 }
 
@@ -131,9 +138,9 @@ func (d *Driver) startNext(ctx context.Context, cmd runs.StartCommand) (runs.Sta
 		// cancellation would immediately abandon.
 		return runs.StartResult{}, err
 	}
-	for attempt := 0; ; attempt++ {
+	for retry := 0; ; retry++ {
 		result, err := d.runs.Start(ctx, cmd)
-		if !errors.Is(err, runs.ErrSessionBusy) || attempt >= maxBusyAttempts {
+		if !errors.Is(err, runs.ErrSessionBusy) || retry >= maxBusyRetries {
 			return result, err
 		}
 		select {
@@ -180,6 +187,10 @@ func drainTerminal(events <-chan runs.Event) *transcript.Run {
 	return finished
 }
 
+// outcomeOf reads a terminal run's outcome. A SegmentFinished always carries a
+// non-nil outcome; the nil default is defensive only, and resolves to Completed
+// so a malformed terminal lets the loop continue (and hit a real stop — budget
+// or a model signal) rather than silently pausing on absent data.
 func outcomeOf(run *transcript.Run) execution.Outcome {
 	if run.Outcome == nil {
 		return execution.OutcomeCompleted

@@ -41,9 +41,9 @@ type goalUsed struct {
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT objective, status, reason, provider, model, budget, used, created_at, updated_at
+		`SELECT session_id, objective, status, reason, provider, model, budget, used, created_at, updated_at
 		 FROM goals WHERE session_id = ?`, sessionID)
-	g, err := scanGoal(sessionID, row)
+	g, err := scanGoal(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return goal.Goal{}, false, nil
 	}
@@ -93,12 +93,10 @@ func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	defer rows.Close()
 	var out []goal.Goal
 	for rows.Next() {
-		var sessionID string
-		g, err := scanGoalRow(rows, &sessionID)
+		g, err := scanGoal(rows)
 		if err != nil {
 			return nil, err
 		}
-		g.SessionID = sessionID
 		out = append(out, g)
 	}
 	if err := rows.Err(); err != nil {
@@ -107,36 +105,17 @@ func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	return out, nil
 }
 
-// scanner abstracts *sql.Row and *sql.Rows for the shared column decode.
-type scanner interface {
-	Scan(dest ...any) error
-}
-
-func scanGoal(sessionID string, row scanner) (goal.Goal, error) {
-	g, err := scanGoalRow(row, nil)
-	if err != nil {
-		return goal.Goal{}, err
-	}
-	g.SessionID = sessionID
-	return g, nil
-}
-
-// scanGoalRow decodes the goal columns. When sessionID is non-nil the first
-// column (session_id) is scanned into it (the List query); otherwise the caller
-// supplied the session id out of band (the Get query, keyed by it).
-func scanGoalRow(row scanner, sessionID *string) (goal.Goal, error) {
+// scanGoal decodes one row of the goals table. Both queries select the same ten
+// columns in the same order (session_id first), so [scanRow] covers *sql.Row
+// (Get) and *sql.Rows (List) alike.
+func scanGoal(row scanRow) (goal.Goal, error) {
 	var (
 		g                    goal.Goal
 		status               string
 		budgetJSON, usedJSON string
 		createdAt, updatedAt int64
-		dest                 []any
 	)
-	if sessionID != nil {
-		dest = append(dest, sessionID)
-	}
-	dest = append(dest, &g.Objective, &status, &g.Reason, &g.Provider, &g.Model, &budgetJSON, &usedJSON, &createdAt, &updatedAt)
-	if err := row.Scan(dest...); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &g.Reason, &g.Provider, &g.Model, &budgetJSON, &usedJSON, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}
