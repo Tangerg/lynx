@@ -83,12 +83,16 @@ func TestExtractorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
 	if err != nil || state.Watermark == 0 {
 		t.Fatalf("curation watermark = %+v, err=%v", state, err)
 	}
-	items, err := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	// Curated facts land as pending proposals awaiting review (not yet injected).
+	items, err := memory.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	if err != nil || len(items) != 2 {
 		t.Fatalf("curated items = (%+v, %v)", items, err)
 	}
 	found := false
 	for _, item := range items {
+		if item.Status != agentmemory.StatusPending {
+			t.Fatalf("proposal not pending: %+v", item)
+		}
 		if strings.Contains(item.Content, "make test") {
 			found = true
 		}
@@ -138,7 +142,7 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 		t.Fatal(err)
 	}
 	state, _ = memory.State(t.Context(), "/repo")
-	items, _ := memory.Items(t.Context(), agentmemory.ScopeProject, "/repo")
+	items, _ := memory.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	if state.Watermark != pending[0].Sequence || len(items) != 1 || items[0].Content != "- durable fact" {
 		t.Fatalf("recovered curation: state=%+v items=%+v", state, items)
 	}

@@ -65,11 +65,12 @@ turn 末 `Extractor.MaybeExtract`（`internal/adapter/maintenance/extraction.go`
 - `memory_search` 工具（`adapter/toolset/memorysearch`，照 codebasesearch 先例，两角色恒在——关键词不依赖 embedding）。全链路 wiring：`toolEnvironmentBuilder` 签名 + `BuildConfig.MemorySearch` + resolver 注册 + bootstrap 建 Searcher + 桥 embedder 进 extractor。
 - **挪批**：L1.5 每轮检索注入 → **B3**（与 pinning 一起，pinned=always-on L1 / 非 pinned=检索,分区才无重复注入/无 always-on 回归）；**session_search**（会话 transcript FTS5，大语料）→ 单列后续。
 
-**B3 · 捕获 + HITL 审阅队列 + 可见面**
-- cadence 自动挖掘 → 产出 **pending 提议**（复用/升级 Extractor；隔离 review fork 可选，先复用 inline）。
-- 审阅队列：pending 存储 + `memory.agent.*` RPC（list/get/approve/reject/delete/pin/edit）。RPC 全链路照 goal.go 那条（method_names/method_table/handlers_* → server/*.go → protocol/*.go → runtime.go；disabled→capability_not_negotiated）。
-- 桌面 Memory 视图 + pending 队列 UI（复用 B4 Skill Library 前端先例，`app/desktop/frontend/src`）。
-- **G5（从 B1 挪入）load 重扫→占位**：进 prompt 前每条 item 过威胁扫描，命中换 `[BLOCKED: …]`、raw 留 live state 供用户删（记忆是持久注入面）。
+**B3 · 捕获 + HITL 审阅队列 + RPC（✅ SHIPPED，后端+RPC，前端 defer）**
+- item 加 `Status`（active/pending/rejected 墓碑）+ schema 13→14。**捕获改 pending 默认**：`reconcileItems` 折叠成 **pending 提议**（不再 auto-active），且**尊重墓碑**（rejected digest 挡重提）+ **active 粘性**（approve 后不被下轮 curation 删）。注入/检索/嵌入（`Items`/`ItemsForSearch`/`UnembeddedItems`）全过滤 `status='active'`——未审不入 prompt（用户选的 HITL 语义）。
+- store 管理方法（concrete，经 consumer-side 窄接口用）：`List`/`Get`/`SetStatus`/`SetPinned`/`UpdateContent`(清陈旧 embedding)/`Delete`/`Add`。domain 加 `Management` 端口 + `ErrNotFound`。
+- `agentMemory.*` RPC（list/review/update/delete/add），全链路照 goal.go（method_names/method_table/handlers_agentmemory → server/agentmemory.go → protocol/agentmemory.go → runtime.go；disabled→capability_not_negotiated）。server 依赖 domain `agentmemory.Management`（不碰 infra）。pinning 经 update.pinned；Render 已 pinned 优先，**L1 即生效**。
+- 桌面 Memory 视图 **defer**（用户指定"只到 API 暴露"）。
+- **挪批**：G5 load 重扫占位 → **B4**（威胁扫描器随安全收尾）；**L1.5 每轮检索注入 → B4**（pinned=always-on L1 / 非 pinned 检索）。
 
 **B4 · user 全局域 + 冻结快照 + 可观测 + 测试 + 安全收尾**
 - scope 扩 user 全局（跨项目）。

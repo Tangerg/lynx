@@ -115,6 +115,13 @@ var methodTable = map[string]methodHandler{
 	MethodMemoryGet:    (*Dispatcher).handleMemoryGet,
 	MethodMemoryUpdate: (*Dispatcher).handleMemoryUpdate,
 
+	// Agent memory (HITL review).
+	MethodAgentMemoryList:   (*Dispatcher).handleAgentMemoryList,
+	MethodAgentMemoryReview: (*Dispatcher).handleAgentMemoryReview,
+	MethodAgentMemoryUpdate: (*Dispatcher).handleAgentMemoryUpdate,
+	MethodAgentMemoryDelete: (*Dispatcher).handleAgentMemoryDelete,
+	MethodAgentMemoryAdd:    (*Dispatcher).handleAgentMemoryAdd,
+
 	// Feedback.
 	MethodFeedbackCreate: (*Dispatcher).handleFeedbackCreate,
 }

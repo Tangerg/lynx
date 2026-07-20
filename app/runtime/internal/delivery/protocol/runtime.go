@@ -38,6 +38,7 @@ type Runtime interface {
 	Models
 	Tools
 	Memory
+	AgentMemory
 	Feedback
 	UsageReports
 }
