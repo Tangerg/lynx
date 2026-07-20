@@ -147,12 +147,14 @@ core: func (pc *ProcessContext) TerminateAction(reason string) error
 core: func (pc *ProcessContext) TerminateAgent(reason string) error
 core: func (pc *ProcessContext) TerminateToolCall() error
 core: func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc)
+core: func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error
 core: func (r *LazyToolGroupResolver) Name() string
 core: func (r *LazyToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
 core: func (r *ReplanRequest) Error() string
 core: func (r *StaticToolGroupResolver) Name() string
 core: func (r *StaticToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
 core: func (r *StaticToolGroupResolver) Set(role string, group ToolGroup)
+core: func (r ActionRunSnapshot) MarshalJSON() ([]byte, error)
 core: func (r DeploymentRef) String() string
 core: func (r DeploymentRef) Validate() error
 core: func (r ToolGroupRequirement) Allows(required []ToolGroupPermission) bool
@@ -169,6 +171,7 @@ core: func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error
 core: func (s *Session) BindAgent(agentName string) error
 core: func (s *Session) Touch()
 core: func (s ActionStatus) String() string
+core: func (s ActionStatus) Valid() bool
 core: func (s ProcessSnapshot) MarshalJSON() ([]byte, error)
 core: func (s ProcessSnapshot) Validate() error
 core: func (s ProcessStatus) IsTerminal() bool
@@ -234,7 +237,7 @@ core: type ActionConfig struct { Description string Preconditions []string Effec
 core: type ActionFunc[In, Out any] func(ctx context.Context, process *ProcessContext, input In) (Out, error)
 core: type ActionMetadata struct { Name string Description string Inputs []Binding Outputs []Binding Preconditions ConditionSet Effects ConditionSet Repeatable bool Retry RetryPolicy ToolGroups []ToolGroupRequirement Cost ScoreFunc Value ScoreFunc ClearWorkingState bool }
 core: type ActionMiddleware interface { Extension RunAction( ctx context.Context, process ProcessView, action Action, next func() (ActionStatus, error), ) (ActionStatus, error) }
-core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status string `json:"status"` Attempts int `json:"attempts"` }
+core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status ActionStatus `json:"-"` Attempts int `json:"attempts"` }
 core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition PlannerName string }

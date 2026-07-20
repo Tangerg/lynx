@@ -8,6 +8,8 @@ import (
 	"reflect"
 )
 
+const nullJSON = "null"
+
 // TaggedValue is one durable blackboard value with the exact Go type needed
 // to reconstruct it after a JSON round trip.
 type TaggedValue struct {
@@ -62,7 +64,7 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 
 func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, error) {
 	if value == nil {
-		return TaggedValue{Type: "any", Value: json.RawMessage("null")}, nil
+		return TaggedValue{Type: anyTypeName, Value: json.RawMessage(nullJSON)}, nil
 	}
 	typeName := typeFullName(reflect.TypeOf(value))
 	if _, ok := table[typeName]; !ok {
@@ -110,8 +112,8 @@ func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any
 	if err := tagged.Validate(); err != nil {
 		return nil, err
 	}
-	if tagged.Type == "any" {
-		if !bytes.Equal(bytes.TrimSpace(tagged.Value), []byte("null")) {
+	if tagged.Type == anyTypeName {
+		if !bytes.Equal(bytes.TrimSpace(tagged.Value), []byte(nullJSON)) {
 			return nil, errors.New("type any is reserved for null")
 		}
 		return nil, nil

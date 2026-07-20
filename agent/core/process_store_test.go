@@ -106,6 +106,37 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	}
 }
 
+func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
+	run := core.ActionRunSnapshot{
+		ActionName: "lookup",
+		StartedAt:  time.Now(),
+		Duration:   time.Second,
+		Status:     core.ActionSucceeded,
+		Attempts:   1,
+	}
+	body, err := json.Marshal(run)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire map[string]any
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire["status"] != "succeeded" {
+		t.Fatalf("status wire = %#v", wire["status"])
+	}
+	var decoded core.ActionRunSnapshot
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Status != core.ActionSucceeded {
+		t.Fatalf("decoded status = %v", decoded.Status)
+	}
+	if err := json.Unmarshal([]byte(`{"action":"lookup","started_at":"2026-07-16T08:00:00Z","duration_ns":1,"status":"invented","attempts":1}`), &decoded); err == nil {
+		t.Fatal("unknown action status was accepted")
+	}
+}
+
 func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	store := core.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
