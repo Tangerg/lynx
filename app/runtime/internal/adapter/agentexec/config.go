@@ -15,9 +15,15 @@ import (
 )
 
 // AgentMemoryReader is the prompt assembler's view of agent-maintained memory
-// items — the addressable, curated projection injected into the system prompt.
+// items — the always-on (pinned) core injected into the system prompt.
 type AgentMemoryReader interface {
 	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
+}
+
+// MemorySearcher retrieves the memory items most relevant to a turn's message,
+// for the per-turn "relevant memories" recall block (the non-pinned corpus).
+type MemorySearcher interface {
+	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
 // Config is the engine construction-time bundle. ChatClient is the
@@ -58,10 +64,16 @@ type Config struct {
 	// remain independent. (Wire/API calls this "memory".)
 	Knowledge knowledge.Store
 
-	// AgentMemory optionally supplies the agent-maintained memory items. They are
-	// injected after user preferences and before project LYRA.md, so explicit
-	// project instructions remain authoritative. nil disables the layer.
+	// AgentMemory optionally supplies the agent-maintained memory items. The
+	// pinned ones are injected as the always-on core after user preferences and
+	// before project LYRA.md, so explicit project instructions remain
+	// authoritative. nil disables the layer.
 	AgentMemory AgentMemoryReader
+
+	// MemorySearch optionally retrieves the memory items most relevant to each
+	// turn's message, injected as a separate "relevant memories" recall block. nil
+	// disables per-turn recall (only the pinned core is injected).
+	MemorySearch MemorySearcher
 
 	// Todos optionally supplies the per-session task list backing the
 	// todo_write tool: when set, the tool is registered and the session's

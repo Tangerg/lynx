@@ -267,6 +267,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		}
 	}()
 	attachToolEnvironment(&ecfg, built)
+	// Per-turn memory recall reuses the same searcher the memory_search tool does.
+	if memorySearcher != nil {
+		ecfg.MemorySearch = memorySearcher
+	}
 
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
