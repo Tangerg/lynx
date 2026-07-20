@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 // ErrDeploymentConflict reports that Deploy was asked to change an existing
@@ -96,6 +97,9 @@ func (e *Engine) validateForDeploy(agent *core.Agent) error {
 
 	var problems []error
 	if err := agent.Validate(); err != nil {
+		problems = append(problems, err)
+	}
+	if _, err := planning.DomainForAgent(agent); err != nil {
 		problems = append(problems, err)
 	}
 	problems = append(problems, e.agentValidationErrors(agent)...)

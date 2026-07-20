@@ -11,6 +11,15 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
+func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
+	t.Helper()
+	domain, err := planning.NewDomain(actions, goals, conditions)
+	if err != nil {
+		t.Fatalf("NewDomain: %v", err)
+	}
+	return domain
+}
+
 func TestPlannerFindsCheapestMultiEffectPlan(t *testing.T) {
 	combined := newStubAction(
 		"combined",
@@ -27,7 +36,7 @@ func TestPlannerFindsCheapestMultiEffectPlan(t *testing.T) {
 		Name:          "both",
 		Preconditions: []string{"a", "b"},
 	})
-	domain := planning.NewDomain(
+	domain := mustDomain(t,
 		[]core.Action{combined, setA, setB},
 		[]*core.Goal{goal},
 		nil,
@@ -70,7 +79,7 @@ func TestPlannerEvaluatesDynamicCostAgainstTransitionSource(t *testing.T) {
 	direct := newStubAction("direct", nil, core.ConditionSet{"done": core.True})
 	direct.meta.Cost = core.FixedScore(50)
 	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
-	domain := planning.NewDomain([]core.Action{prepare, finish, direct}, []*core.Goal{goal}, nil)
+	domain := mustDomain(t, []core.Action{prepare, finish, direct}, []*core.Goal{goal}, nil)
 
 	plan, err := NewPlanner().PlanToGoal(
 		t.Context(),
@@ -101,7 +110,7 @@ func TestPlannerPreservesActionsThatOnlyInfluenceLaterCost(t *testing.T) {
 		return 100
 	}
 	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
-	domain := planning.NewDomain([]core.Action{discount, finish}, []*core.Goal{goal}, nil)
+	domain := mustDomain(t, []core.Action{discount, finish}, []*core.Goal{goal}, nil)
 
 	plan, err := NewPlanner().PlanToGoal(
 		t.Context(),
@@ -132,7 +141,7 @@ func TestPlannerRejectsInvalidActionCost(t *testing.T) {
 			action := newStubAction("invalid-cost", nil, core.ConditionSet{"done": core.True})
 			action.meta.Cost = core.FixedScore(test.cost)
 			goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
-			domain := planning.NewDomain([]core.Action{action}, []*core.Goal{goal}, nil)
+			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 
 			_, err := NewPlanner().PlanToGoal(
 				t.Context(),

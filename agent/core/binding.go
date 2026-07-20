@@ -79,11 +79,16 @@ type Binding struct {
 // String renders the canonical "name:Type" form. An empty Name normalizes to
 // DefaultBindingName so equivalent bindings always serialize identically.
 func (b Binding) String() string {
-	name := b.Name
-	if name == "" {
-		name = DefaultBindingName
+	b = b.Canonical()
+	return b.Name + ":" + b.Type
+}
+
+// Canonical returns b with the conventional default name made explicit.
+func (b Binding) Canonical() Binding {
+	if b.Name == "" {
+		b.Name = DefaultBindingName
 	}
-	return name + ":" + b.Type
+	return b
 }
 
 // IsDefault reports whether the binding uses the conventional "it" name.

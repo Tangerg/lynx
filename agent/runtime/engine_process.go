@@ -60,7 +60,10 @@ func (e *Engine) createProcessFromDeployment(
 		return nil, err
 	}
 
-	domain := planning.DomainForAgent(agent)
+	domain, err := planning.DomainForAgent(agent)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.createProcessFromDeployment: domain: %w", err)
+	}
 	processID := e.idGenerator().Next()
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 

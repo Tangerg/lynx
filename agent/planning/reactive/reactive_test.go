@@ -9,6 +9,15 @@ import (
 	"github.com/Tangerg/lynx/agent/planning/reactive"
 )
 
+func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
+	t.Helper()
+	domain, err := planning.NewDomain(actions, goals, conditions)
+	if err != nil {
+		t.Fatalf("NewDomain: %v", err)
+	}
+	return domain
+}
+
 // fakeAction is a planner-only Action — Execute is never called by the
 // reactive planner, so we only need to satisfy the interface.
 type fakeAction struct {
@@ -35,7 +44,7 @@ func TestReactive_AlreadySatisfiedReturnsEmptyPlan(t *testing.T) {
 		"goalKey": core.True,
 	})
 	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"goalKey"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if err != nil {
@@ -53,7 +62,7 @@ func TestReactive_PicksHighestProgressAction(t *testing.T) {
 	weak := newAction("weak", nil, core.ConditionSet{"a": core.True}, 1)
 	strong := newAction("strong", nil, core.ConditionSet{"a": core.True, "b": core.True}, 5)
 
-	domain := planning.NewDomain([]core.Action{weak, strong}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{weak, strong}, []*core.Goal{g}, nil)
 	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
@@ -73,7 +82,7 @@ func TestReactive_TieBreaksByLowerCost(t *testing.T) {
 	cheap := newAction("cheap", nil, core.ConditionSet{"a": core.True}, 1)
 	expensive := newAction("expensive", nil, core.ConditionSet{"a": core.True}, 5)
 
-	domain := planning.NewDomain([]core.Action{expensive, cheap}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{expensive, cheap}, []*core.Goal{g}, nil)
 	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl.Actions()[0].Metadata().Name != "cheap" {
 		t.Fatalf("expected tie-break to cheaper action, got %q", pl.Actions()[0].Metadata().Name)
@@ -89,7 +98,7 @@ func TestReactive_SkipsInapplicable(t *testing.T) {
 		core.ConditionSet{"a": core.True}, 1)
 	open := newAction("open", nil, core.ConditionSet{"a": core.True}, 2)
 
-	domain := planning.NewDomain([]core.Action{blocked, open}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{blocked, open}, []*core.Goal{g}, nil)
 	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl == nil || pl.Actions()[0].Metadata().Name != "open" {
 		t.Fatalf("expected applicable action 'open', got %#v", pl)
@@ -101,7 +110,7 @@ func TestReactive_NoApplicableActionReturnsNil(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a"}})
 	junk := newAction("junk", nil, core.ConditionSet{"unrelated": core.True}, 1)
 
-	domain := planning.NewDomain([]core.Action{junk}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{junk}, []*core.Goal{g}, nil)
 	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if err != nil {
 		t.Fatalf("PlanToGoal: %v", err)
@@ -118,7 +127,7 @@ func TestReactive_RespectsExclusion(t *testing.T) {
 	preferred := newAction("preferred", nil, core.ConditionSet{"a": core.True}, 1)
 	fallback := newAction("fallback", nil, core.ConditionSet{"a": core.True}, 5)
 
-	domain := planning.NewDomain([]core.Action{preferred, fallback}, []*core.Goal{g}, nil)
+	domain := mustDomain(t, []core.Action{preferred, fallback}, []*core.Goal{g}, nil)
 	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{
 		ExcludedActions: planning.NewExclusions("preferred"),
 	})
@@ -136,7 +145,7 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	low := core.NewGoal(core.GoalConfig{Name: "low", Preconditions: []string{"x"}, Value: core.FixedScore(2)})
 	high := core.NewGoal(core.GoalConfig{Name: "high", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
-	domain := planning.NewDomain([]core.Action{a, b}, []*core.Goal{low, high}, nil)
+	domain := mustDomain(t, []core.Action{a, b}, []*core.Goal{low, high}, nil)
 	pl, _ := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
 	if pl == nil || pl.Goal().Name() != "high" {
 		t.Fatalf("expected high-value goal, got %#v", pl)

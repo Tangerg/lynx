@@ -9,6 +9,15 @@ import (
 	"github.com/Tangerg/lynx/agent/planning/htn"
 )
 
+func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
+	t.Helper()
+	domain, err := planning.NewDomain(actions, goals, conditions)
+	if err != nil {
+		t.Fatalf("NewDomain: %v", err)
+	}
+	return domain
+}
+
 // mustHTNPlanner is a tiny test helper for the (*Planner, error)
 // shape of htn.NewPlanner — fail the test on a non-nil error.
 func mustHTNPlanner(t *testing.T, lib *htn.Library) *htn.Planner {
@@ -51,7 +60,7 @@ func TestHTN_PrimitiveTaskEmitsAction(t *testing.T) {
 	lib.MustAdd(&htn.Task{Name: "do_thing", Action: newAction("thing", core.ConditionSet{"done": core.True})})
 
 	g := core.NewGoal(core.GoalConfig{Name: "do_thing", Preconditions: []string{"done"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if err != nil {
@@ -74,7 +83,7 @@ func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "build_thing", Preconditions: []string{"b_done"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if got := names(pl.Actions()); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected [a b], got %v", got)
@@ -92,7 +101,7 @@ func TestHTN_MethodPreconditionGate(t *testing.T) {
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "serve", Preconditions: []string{"served"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 	planner := mustHTNPlanner(t, lib)
 
 	// Without "ready" → falls back to slow.
@@ -114,7 +123,7 @@ func TestHTN_GoalWithoutMatchingTaskReturnsNil(t *testing.T) {
 	lib.MustAdd(&htn.Task{Name: "registered", Action: newAction("a", core.ConditionSet{"x": core.True})})
 
 	g := core.NewGoal(core.GoalConfig{Name: "unregistered", Preconditions: []string{"x"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if err != nil {
@@ -161,7 +170,7 @@ func TestHTN_BacktracksWhenFirstMethodSubtaskMissing(t *testing.T) {
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 	_, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
 	if err == nil {
 		t.Fatal("expected error when method references unknown subtask (no silent backtrack on missing names)")
@@ -178,7 +187,7 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 	}})
 
 	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
-	domain := planning.NewDomain(nil, []*core.Goal{g}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{
 		ExcludedActions: planning.NewExclusions("primary"),
 	})
@@ -195,7 +204,7 @@ func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	low := core.NewGoal(core.GoalConfig{Name: "low_goal", Preconditions: []string{"x"}, Value: core.FixedScore(2)})
 	high := core.NewGoal(core.GoalConfig{Name: "high_goal", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
-	domain := planning.NewDomain(nil, []*core.Goal{low, high}, nil)
+	domain := mustDomain(t, nil, []*core.Goal{low, high}, nil)
 	pl, _ := domain.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), planning.Options{})
 	if pl.Goal().Name() != "high_goal" {
 		t.Fatalf("expected high_goal, got %q", pl.Goal().Name())

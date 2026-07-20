@@ -372,7 +372,10 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	domain := planning.DomainForAgent(agent)
+	domain, err := planning.DomainForAgent(agent)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: domain: %w", err)
+	}
 
 	process := newProcess(snapshot.ID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 	// Wire the state reader + event multicast the same way createProcess

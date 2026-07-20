@@ -104,8 +104,9 @@ Process 时复制绑定容器，因此调用方后续增删绑定不会改写运
 Deployment digest 共用同一归一规则，避免执行语义和缓存身份漂移。
 
 `planning.Options.ExcludedActions` 使用零值可用的不可变 `planning.Exclusions`，通过
-`planning.NewExclusions` 构造；条件状态统一使用 `core.ConditionSet`。Domain 以稳定序列暴露
-`KnownConditions`，条件求值不依赖 Go map 的随机迭代顺序。
+`planning.NewExclusions` 构造；条件状态统一使用 `core.ConditionSet`。`planning.NewDomain` 在构造时
+校验条件来源冲突，并把每个条件编译为带 `ConditionKind` 的 `ConditionRef`；`KnownConditions`
+以稳定序列暴露这些引用，因此运行时不解析条件名，也不依赖 Go map 的随机迭代顺序。
 
 `AgentConfig` 是构造输入；`Agent` 是只读定义聚合。`Engine.Deploy` 会执行结构验证、扩展验证，
 并编译出不可变 `Deployment`：
