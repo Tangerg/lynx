@@ -20,6 +20,26 @@ type invalidStatusAction struct {
 	runs     int
 }
 
+type fixedResultAction struct {
+	metadata core.ActionMetadata
+	status   core.ActionStatus
+	err      error
+}
+
+func (a *fixedResultAction) Metadata() core.ActionMetadata { return a.metadata }
+func (a *fixedResultAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return a.status, a.err
+}
+
+type actionFinishedCapture struct{ event *event.ActionFinished }
+
+func (*actionFinishedCapture) Name() string { return "action-finished-capture" }
+func (c *actionFinishedCapture) OnEvent(_ context.Context, value event.Event) {
+	if finished, ok := value.(event.ActionFinished); ok {
+		c.event = &finished
+	}
+}
+
 func (a *invalidStatusAction) Metadata() core.ActionMetadata { return a.metadata }
 
 func (a *invalidStatusAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
@@ -133,6 +153,61 @@ func TestRunFailsOnceOnInvalidActionStatus(t *testing.T) {
 	}
 	if failure := process.Failure(); failure == nil || !strings.Contains(failure.Error(), "returned invalid status 9") {
 		t.Fatalf("failure = %v", failure)
+	}
+}
+
+func TestRunRejectsSuccessfulOrHaltedStatusWithError(t *testing.T) {
+	cause := errors.New("action result cause")
+	for _, status := range []core.ActionStatus{core.ActionSucceeded, core.ActionWaiting, core.ActionPaused} {
+		t.Run(status.String(), func(t *testing.T) {
+			action := &fixedResultAction{
+				metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}},
+				status:   status,
+				err:      cause,
+			}
+			a := agent.New(agent.AgentConfig{
+				Name:    "invalid-result-" + status.String(),
+				Actions: []agent.Action{action},
+				Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+			})
+			process, err := agent.MustNewEngine(runtime.Config{}).Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if process.Status() != core.StatusFailed {
+				t.Fatalf("status = %s, want failed", process.Status())
+			}
+			failure := process.Failure()
+			if !errors.Is(failure, cause) || !strings.Contains(failure.Error(), "returned invalid result") {
+				t.Fatalf("failure = %v, want cause and invalid-result context", failure)
+			}
+		})
+	}
+}
+
+func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
+	action := &fixedResultAction{
+		metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}},
+		status:   core.ActionFailed,
+	}
+	capture := &actionFinishedCapture{}
+	a := agent.New(agent.AgentConfig{
+		Name:    "missing-action-error",
+		Actions: []agent.Action{action},
+		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+	})
+	process, err := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{capture}}).Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || process.Failure() == nil {
+		t.Fatalf("status/failure = %s/%v", process.Status(), process.Failure())
+	}
+	if capture.event == nil || capture.event.Err == nil {
+		t.Fatal("ActionFinished did not carry the normalized failure")
+	}
+	if history := process.History(); len(history) != 1 || history[0].Attempts != 1 {
+		t.Fatalf("history = %#v, want one attempt", history)
 	}
 }
 
