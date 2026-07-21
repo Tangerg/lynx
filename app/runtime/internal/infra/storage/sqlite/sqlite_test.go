@@ -457,8 +457,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 14 {
-				t.Fatalf("schema version = %d, err=%v, want 14", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 15 {
+				t.Fatalf("schema version = %d, err=%v, want 15", version, err)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {

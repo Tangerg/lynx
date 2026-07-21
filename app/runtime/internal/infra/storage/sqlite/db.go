@@ -50,7 +50,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 14
+const schemaVersion = 15
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -84,10 +84,12 @@ func installCurrentSchema(db *sql.DB) error {
 			ON sessions(parent_id)`,
 		`CREATE TABLE IF NOT EXISTS process_snapshots (
 			id           TEXT    PRIMARY KEY,
-			revision     INTEGER NOT NULL,
+			parent_id    TEXT    NOT NULL,
 			snapshot     TEXT    NOT NULL,
 			captured_at  INTEGER NOT NULL
 		)`,
+		`CREATE INDEX IF NOT EXISTS idx_process_snapshots_parent
+			ON process_snapshots(parent_id)`,
 		// Authoritative Run admission state (§8.2): one row per Run. state is the
 		// coarse admission position — 'running' | 'interrupted' | 'terminal' — and
 		// the partial unique index below is the durable "one non-terminal Run per
