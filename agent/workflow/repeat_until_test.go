@@ -249,6 +249,14 @@ func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 				return ruOut{}, nil
 			},
 		}},
+		{"negative iterations", workflow.RepeatUntilConfig[ruIn, ruOut]{
+			Name:          "x",
+			MaxIterations: -1,
+			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+				return ruOut{}, nil
+			},
+			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

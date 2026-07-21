@@ -34,7 +34,7 @@ type SupervisorConfig[In, Out any] struct {
 
 	// Render builds the user prompt from the typed input. Optional —
 	// defaults to JSON-encoding the input.
-	Render func(In) string
+	Render func(In) (string, error)
 
 	// Parse turns the LLM's final reply into the typed Out. Required.
 	Parse func(text string) (Out, error)
@@ -74,11 +74,12 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 
 	render := config.Render
 	if render == nil {
-		render = func(input In) string {
-			if data, err := json.Marshal(input); err == nil {
-				return string(data)
+		render = func(input In) (string, error) {
+			data, err := json.Marshal(input)
+			if err != nil {
+				return "", fmt.Errorf("encode input as JSON: %w", err)
 			}
-			return fmt.Sprintf("%v", input)
+			return string(data), nil
 		}
 	}
 
@@ -86,7 +87,11 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 		config.Name+"-orchestrate",
 		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
 			var zero Out
-			text, err := process.Prompt(ctx, render(input), core.PromptConfig{
+			prompt, err := render(input)
+			if err != nil {
+				return zero, fmt.Errorf("workflow.Supervisor %q: render input: %w", config.Name, err)
+			}
+			text, err := process.Prompt(ctx, prompt, core.PromptConfig{
 				System:        config.Instructions,
 				Tools:         tools,
 				MaxToolRounds: config.MaxToolRounds,
@@ -94,7 +99,11 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 			if err != nil {
 				return zero, fmt.Errorf("workflow.Supervisor %q: %w", config.Name, err)
 			}
-			return config.Parse(text)
+			output, err := config.Parse(text)
+			if err != nil {
+				return zero, fmt.Errorf("workflow.Supervisor %q: parse response: %w", config.Name, err)
+			}
+			return output, nil
 		},
 		core.ActionConfig{
 			Description: config.Description,

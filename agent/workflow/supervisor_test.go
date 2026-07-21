@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -36,6 +37,19 @@ func fakeTextResponse(text string) *chat.Response {
 
 type supTopic struct{ Title string }
 type supAnswer struct{ Text string }
+
+var errRenderInput = errors.New("render input failed")
+
+type unrenderableInput struct{}
+
+func (unrenderableInput) MarshalJSON() ([]byte, error) { return nil, errRenderInput }
+
+type renderGuardModel struct{ calls int }
+
+func (m *renderGuardModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	m.calls++
+	return nil, errors.New("model must not be called")
+}
 
 func makeSubAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "worker", Actions: []agent.Action{agent.NewAction("work", func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
@@ -105,5 +119,29 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	}
 	if out.Text != "orchestrated result" {
 		t.Fatalf("output = %q, want %q", out.Text, "orchestrated result")
+	}
+}
+
+func TestSupervisor_DefaultRenderPropagatesJSONError(t *testing.T) {
+	model := new(renderGuardModel)
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
+	mustDeploy(t, engine, makeSubAgent())
+	supervisor, err := workflow.Supervisor(engine, workflow.SupervisorConfig[unrenderableInput, supAnswer]{
+		Name:   "render-error",
+		Agents: []string{"worker"},
+		Parse:  func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := engine.Run(t.Context(), supervisor, core.Input(unrenderableInput{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run control-flow error: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), errRenderInput) {
+		t.Fatalf("status/failure = %s/%v, want render error", process.Status(), process.Failure())
+	}
+	if model.calls != 0 {
+		t.Fatalf("model calls = %d, want none", model.calls)
 	}
 }

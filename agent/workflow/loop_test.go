@@ -205,3 +205,20 @@ func TestLoop_RejectsNilUntil(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+
+func TestLoopRejectsNegativeIterationsBeforeDeploy(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	body, _ := makeIncrementingBody()
+	_, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
+		Name:          "negative-iterations",
+		MaxIterations: -1,
+		Body:          body,
+		Until:         func(context.Context, loopIn, loopOut) bool { return true },
+	})
+	if err == nil {
+		t.Fatal("Loop succeeded with negative iterations")
+	}
+	if _, deployed := engine.ActiveDeployment(body.Name()); deployed {
+		t.Fatal("invalid Loop config deployed its body")
+	}
+}

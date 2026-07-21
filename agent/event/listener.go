@@ -3,6 +3,7 @@ package event
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sync"
 
 	"go.opentelemetry.io/otel"
@@ -131,7 +132,7 @@ func (m *Multicast) remove(id uint64) {
 		if current.id != id {
 			continue
 		}
-		m.subscriptions = append(m.subscriptions[:index], m.subscriptions[index+1:]...)
+		m.subscriptions = slices.Delete(m.subscriptions, index, index+1)
 		return
 	}
 }

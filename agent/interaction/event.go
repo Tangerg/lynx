@@ -166,7 +166,7 @@ func (e Event) Validate() error {
 			return e.wrongPayload()
 		}
 		if err := e.Resume.Validate(); err != nil {
-			return e.wrongPayload()
+			return fmt.Errorf("%w: resume: %w", ErrInvalidEvent, err)
 		}
 	}
 	return nil

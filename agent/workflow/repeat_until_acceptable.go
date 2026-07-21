@@ -38,13 +38,13 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxIterations bounds the loop. <=0 defaults to 3 (same as
-	// [RepeatUntilConfig]).
+	// MaxIterations bounds the loop. Zero defaults to 3 (same as
+	// [RepeatUntilConfig]); negative values are invalid.
 	MaxIterations int
 
 	// AcceptableScore is the [Feedback.Score] threshold; the loop
-	// terminates as soon as Evaluator returns Score ≥ this. <=0
-	// defaults to 0.7.
+	// terminates as soon as Evaluator returns Score ≥ this. Zero defaults to
+	// 0.7; negative values are invalid.
 	AcceptableScore float64
 
 	// Task produces a fresh attempt. Same shape as
@@ -72,10 +72,6 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // the best attempt so far. The "{Name}_acceptable" condition stops the loop
 // once the best score crosses the threshold or MaxIterations is reached.
 //
-// A nil/erroring Evaluator result for one attempt is recorded as score 0
-// (with the error in Feedback.Text) and the loop continues, so a transient
-// evaluation failure can't strand the workflow.
-//
 // Returns an error on missing Name / nil Task / nil Evaluator.
 func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
 	if config.Name == "" {
@@ -88,14 +84,17 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
 	threshold := config.AcceptableScore
-	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold > 1 {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be finite and at most 1", threshold)
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold < 0 || threshold > 1 {
+		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be finite and between 0 and 1", threshold)
 	}
-	if threshold <= 0 {
+	if threshold == 0 {
 		threshold = DefaultAcceptableScore
 	}
+	if config.MaxIterations < 0 {
+		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: MaxIterations %d must not be negative", config.MaxIterations)
+	}
 	maxIterations := config.MaxIterations
-	if maxIterations <= 0 {
+	if maxIterations == 0 {
 		maxIterations = DefaultRepeatIterations
 	}
 
@@ -142,12 +141,11 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 				return zero, err
 			}
 
-			feedback, evaluationErr := config.Evaluator(ctx, process, input, output)
-			if evaluationErr != nil {
-				// Keep the attempt (score 0) and keep looping rather than
-				// failing the whole workflow on a transient eval error.
-				feedback = Feedback{Score: 0, Text: fmt.Sprintf("evaluation failed: %v", evaluationErr)}
-			} else if err := feedback.Validate(); err != nil {
+			feedback, err := config.Evaluator(ctx, process, input, output)
+			if err != nil {
+				return zero, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluate attempt: %w", err)
+			}
+			if err := feedback.Validate(); err != nil {
 				return zero, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluator feedback: %w", err)
 			}
 			history.record(output, feedback)
