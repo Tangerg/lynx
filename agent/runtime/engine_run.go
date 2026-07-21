@@ -218,10 +218,6 @@ func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session)
 	return e.sessionStore.Save(ctx, *session)
 }
 
-// SessionStore returns the configured root-session persistence backend, or nil
-// when the engine was constructed without one.
-func (e *Engine) SessionStore() core.SessionStore { return e.sessionStore }
-
 // Start deploys/resolves the Agent definition and runs it in the background,
 // returning the process and a channel that delivers the final run error (or nil
 // on success). Definition resolution and process construction errors are

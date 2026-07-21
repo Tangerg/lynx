@@ -45,7 +45,7 @@ type ProcessOptions struct {
 	// ProcessOptions supplies a different non-nil ChildOptions, so one explicit
 	// host policy can cover the whole delegation tree. nil preserves the
 	// framework default: children inherit only their declared blackboard mode
-	// and process event listeners.
+	// and explicitly subtree-scoped event listeners.
 	ChildOptions ChildOptionsFunc
 
 	// Budget caps cumulative LLM spend (USD), action invocations, and
@@ -65,10 +65,9 @@ type ProcessOptions struct {
 	// tree cannot silently bypass engine composition.
 	Dependencies *Dependencies
 
-	// Session optionally binds this process to a multi-turn conversation. When
-	// Guardrails provides BindConversation, the runtime passes [Session.ID] to
-	// that host-owned context projection without serializing runtime scope into
-	// chat.Request.
+	// Session optionally binds this process to a multi-turn conversation. The
+	// runtime passes [Session.ID] to its host-owned conversation projection
+	// without serializing runtime scope into chat.Request.
 	//
 	// Typically set via [Engine.RunInSession]; the runtime fills
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.

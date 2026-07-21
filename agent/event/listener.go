@@ -37,11 +37,11 @@ type ListenerFunc func(context.Context, Event)
 func (f ListenerFunc) OnEvent(ctx context.Context, event Event) { f(ctx, event) }
 
 // NamedListener wraps a function as a [runtime.EventListener] — i.e.,
-// a [core.Extension] (it has Name) that observes every Event published
-// through the multicast.
+// a [core.Extension] (it has Name) that observes events published in its
+// registration scope.
 //
-// Drop into Config.Extensions or ProcessOptions.Extensions; the
-// runtime fans every event through fn. Use this when you want
+// Drop into Config.Extensions to observe every process, or into
+// ProcessOptions.Extensions to observe one process. Use this when you want
 // channel-backed / stream-style event consumption without writing a
 // full Listener struct: capture a channel in the closure, push from
 // fn, range from a consumer goroutine.
@@ -63,14 +63,20 @@ func (f ListenerFunc) OnEvent(ctx context.Context, event Event) { f(ctx, event) 
 //	}()
 //	for e := range ch { sseSend(e) }
 //
-// The same listener can be registered engine-scoped
-// (Config.Extensions) to observe every process; the fn closure
-// is responsible for any filtering by ProcessID(). nil fn makes
+// Use [NewNamedSubtreeListener] when a process-scoped listener must also
+// observe descendants. The fn closure is responsible for any filtering by
+// ProcessID(). nil fn makes
 // OnEvent a no-op — useful for tests that want to verify "registered
 // but did nothing".
 type NamedListener struct {
 	name string
 	fn   func(context.Context, Event)
+}
+
+// NamedSubtreeListener is the explicit descendant-observing variant of
+// [NamedListener] when registered in ProcessOptions.Extensions.
+type NamedSubtreeListener struct {
+	*NamedListener
 }
 
 // NewNamedListener returns a NamedListener with the given name and
@@ -80,6 +86,15 @@ type NamedListener struct {
 func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener {
 	return &NamedListener{name: name, fn: fn}
 }
+
+// NewNamedSubtreeListener returns a listener whose process-scoped registration
+// follows descendant processes created below that process.
+func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener {
+	return &NamedSubtreeListener{NamedListener: NewNamedListener(name, fn)}
+}
+
+// ObserveSubtree marks l as a runtime.SubtreeEventListener.
+func (*NamedSubtreeListener) ObserveSubtree() {}
 
 // Name implements [core.Extension].
 func (l *NamedListener) Name() string { return l.name }

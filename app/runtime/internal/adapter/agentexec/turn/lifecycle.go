@@ -18,7 +18,7 @@ import (
 // event after process.Done() to decide the TurnEnd reason.
 //
 // Sub-agent (subtask) processes now share this listener via runtime
-// EventListener inheritance — their events arrive here too, tagged with
+// SubtreeEventListener inheritance — their events arrive here too, tagged with
 // their own ProcessID. A subtask runs synchronously inside the root's
 // tool loop and therefore completes BEFORE the root, so its terminal
 // event would pre-empt the root's under earliest-wins. The listener binds the
@@ -52,8 +52,8 @@ func (l *turnLifecycle) setRoot(id string) {
 	l.mu.Unlock()
 }
 
-func (l *turnLifecycle) listener(turnID string) *event.NamedListener {
-	return event.NewNamedListener("turn-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
+func (l *turnLifecycle) listener(turnID string) *event.NamedSubtreeListener {
+	return event.NewNamedSubtreeListener("turn-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
 		if _, created := e.(event.ProcessCreated); created && l.bindRoot(e.ProcessID()) {
 			return
 		}

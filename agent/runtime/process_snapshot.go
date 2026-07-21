@@ -64,9 +64,7 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	case SnapshotFailureReportOnly:
 		return nil
 	case SnapshotFailurePauseProcess:
-		if p.state.pauseDurability() {
-			return nil
-		}
+		p.state.pauseDurability()
 		return err
 	default:
 		p.state.fail(err)

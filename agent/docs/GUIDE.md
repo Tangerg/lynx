@@ -175,7 +175,7 @@ engine, err := agent.NewEngine(agent.EngineConfig{
 
 `Chat.Model` 可为空；`Streamer` 只能与 `Model` 一起配置。每进程模型覆盖通过
 `core.ChatProvider` extension 完成。Runtime 只应用 `ChatGuardrails` 中显式提供的 middleware，
-并通过可选 `BindConversation` 把 conversation ID 交给 Host 定义的 context 协议；它不选择
+并通过可选 `runtime.Config.BindConversation` 把 conversation ID 交给 Host 定义的 context 协议；它不选择
 history store 或 middleware 实现。这些执行状态不会进入 provider Request/Response。
 
 Action 内的常用调用入口是：
@@ -305,7 +305,7 @@ type Extension interface { Name() string }
 
 Runtime 再按最小 capability interface 发现 `planning.Planner`、`ActionMiddleware`、
 `ToolMiddleware`、`AgentValidator`、`GoalApprover`、`ToolGroupResolver`、`ChatProvider`、
-`StopPolicy`、`IDGenerator`、`Blackboard` 和 `EventListener`。Engine scope 来自
+`StopPolicy`、`IDGenerator`、`Blackboard`、`EventListener` 和 `SubtreeEventListener`。Engine scope 来自
 `runtime.Config.Extensions`；Process scope 来自 `core.ProcessOptions.Extensions`，但只接受
 执行期能力。`AgentValidator`、`IDGenerator`、Blackboard prototype 仅属于 Engine scope；
 Process Blackboard 使用 `ProcessOptions.Blackboard`。扩展实例可能被不同 Process 并发调用，
@@ -342,8 +342,9 @@ Child API 的状态继承是明确契约：
 | `RunChildIsolated` | 全新状态，仅绑定显式 input | loop、pipeline、parallel branch |
 | `StartChild` | 与 `RunChild` 相同，后台执行 | 可稍后读取结果的任务 |
 
-Child 使用精确 Deployment、独立 Session、父预算子树，并继承父 Process 的 EventListener；
-其他 Process extension、guardrails 和 dependency override 不会被隐式复制。
+Child 使用精确 Deployment、独立 Session、父预算子树，并仅继承父 Process 显式注册的
+`SubtreeEventListener`；普通 `EventListener` 只观察注册它的 Process。其他 Process extension、
+guardrails 和 dependency override 不会被隐式复制。
 
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。需要在构造期部署

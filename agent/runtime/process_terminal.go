@@ -56,11 +56,14 @@ func (p *Process) markCancelled(ctx context.Context, err error) {
 // exit.
 func (p *Process) checkStopPolicies(ctx context.Context) (bool, error) {
 	policies := append(
-		[]core.StopPolicy{core.BudgetPolicy{Budget: p.options.budget}},
+		[]extensionCapability[core.StopPolicy]{{
+			name:  core.BudgetPolicyName,
+			value: core.BudgetPolicy{Budget: p.options.budget},
+		}},
 		collectExtensions[core.StopPolicy](p.combinedExtensions())...,
 	)
 	for _, policy := range policies {
-		stop, reason, err := checkStopPolicy(policy, p)
+		stop, reason, err := checkStopPolicy(policy.value, p, policy.name)
 		if err != nil {
 			return false, err
 		}
@@ -78,11 +81,7 @@ func (p *Process) checkStopPolicies(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func checkStopPolicy(policy core.StopPolicy, process core.ProcessView) (stop bool, reason string, err error) {
-	name, err := extensionName(policy)
-	if err != nil {
-		return false, "", err
-	}
+func checkStopPolicy(policy core.StopPolicy, process core.ProcessView, name string) (stop bool, reason string, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New(fmt.Sprintf("stop policy %q panicked", name), recovered)

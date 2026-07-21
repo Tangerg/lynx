@@ -57,14 +57,15 @@ type Engine struct {
 	dependencies            *core.Dependencies   // typed engine dependency scope
 	chat                    core.ChatCapability  // optional shared model and streamer
 	guardrails              *core.ChatGuardrails // optional global chat middlewares
-	processStore            core.ProcessStore    // optional snapshot backend
-	sessionStore            core.SessionStore    // optional root-session persistence
-	childSessionStore       core.SessionStore    // optional delegated-session persistence
-	sessionTurns            *localSequencer      // sequences turns sharing a session ID
-	processSaves            *localSequencer      // sequences persistence for one live process tree
-	sessionFinalizeTimeout  time.Duration        // bounds the post-dispatch session write
-	autoSnapshot            bool                 // snapshot every tick when a store is configured
-	snapshotFinalizeTimeout time.Duration        // bounds each request-independent automatic snapshot
+	bindConversation        func(context.Context, string) context.Context
+	processStore            core.ProcessStore // optional snapshot backend
+	sessionStore            core.SessionStore // optional root-session persistence
+	childSessionStore       core.SessionStore // optional delegated-session persistence
+	sessionTurns            *localSequencer   // sequences turns sharing a session ID
+	processSaves            *localSequencer   // sequences persistence for one live process tree
+	sessionFinalizeTimeout  time.Duration     // bounds the post-dispatch session write
+	autoSnapshot            bool              // snapshot every tick when a store is configured
+	snapshotFinalizeTimeout time.Duration     // bounds each request-independent automatic snapshot
 	snapshotFailurePolicy   SnapshotFailurePolicy
 	maxChildDepth           int
 	buildID                 string // stable host build identity included in deployment digests
@@ -96,6 +97,11 @@ type Config struct {
 	// Optional — nil / empty means "no global wrapping".
 	Guardrails *core.ChatGuardrails
 
+	// BindConversation projects a process conversation ID into the model-call
+	// context understood by Host middleware. It is engine infrastructure rather
+	// than a guardrail, so per-process Guardrails cannot replace it.
+	BindConversation func(context.Context, string) context.Context
+
 	// ProcessStore persists [Process] snapshots so a process
 	// can survive a runtime restart or be audited after termination. The store
 	// implementation owns its write coordination and failure semantics.
@@ -118,8 +124,10 @@ type Config struct {
 	SnapshotFinalizeTimeout time.Duration
 
 	// SnapshotFailurePolicy decides what an automatic snapshot failure does.
-	// The zero value fails the run. Pause keeps a non-terminal process resumable;
-	// ReportOnly emits a degradation event and continues explicitly non-durable.
+	// The zero value fails the run. Pause keeps a non-terminal process locally
+	// resumable and returns the write error so the Host cannot mistake it for a
+	// durable checkpoint. ReportOnly emits a degradation event and continues
+	// explicitly non-durable.
 	SnapshotFailurePolicy SnapshotFailurePolicy
 
 	// SessionStore persists multi-turn [core.Session] records so
@@ -218,6 +226,7 @@ func New(config Config) (*Engine, error) {
 		dependencies:            core.NewDependencies(),
 		chat:                    config.Chat,
 		guardrails:              guardrails,
+		bindConversation:        config.BindConversation,
 		processStore:            config.ProcessStore,
 		sessionStore:            config.SessionStore,
 		childSessionStore:       config.ChildSessionStore,
@@ -288,10 +297,6 @@ func (e *Engine) Process(id string) (*Process, bool) { return e.processes.get(id
 // Processes returns a snapshot of all currently registered
 // processes.
 func (e *Engine) Processes() []*Process { return e.processes.list() }
-
-// ProcessStore returns the configured snapshot backend, or nil when
-// the engine was constructed without one.
-func (e *Engine) ProcessStore() core.ProcessStore { return e.processStore }
 
 // publishContext is the runtime's engine-scoped event entry point.
 func (e *Engine) publishContext(ctx context.Context, published event.Event) {

@@ -25,17 +25,13 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 	providers := collectExtensions[core.ChatProvider](p.combinedExtensionsResolverFirst())
 	capability := core.ChatCapability{}
 	for _, provider := range providers {
-		name, err := extensionName(provider)
-		if err != nil {
-			return core.ChatCapability{}, err
-		}
-		candidate, err := chatFromProvider(provider, p, name)
+		candidate, err := chatFromProvider(provider.value, p, provider.name)
 		if err != nil {
 			return core.ChatCapability{}, err
 		}
 		if valueIsNil(candidate.Model) {
 			if !valueIsNil(candidate.Streamer) {
-				return core.ChatCapability{}, fmt.Errorf("runtime: ChatProvider %q returned a Streamer without a Model", name)
+				return core.ChatCapability{}, fmt.Errorf("runtime: ChatProvider %q returned a Streamer without a Model", provider.name)
 			}
 			continue
 		}
@@ -62,6 +58,7 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 		return core.ChatCapability{}, nil
 	}
 	guardrails := p.effectiveGuardrails()
+	bindConversation := p.engineConversationBinder()
 	callCapacity, streamCapacity := 1, 1
 	if guardrails != nil {
 		callCapacity += len(guardrails.CallMiddlewares)
@@ -70,9 +67,9 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 	callMiddleware := make([]chat.CallMiddleware, 0, callCapacity)
 	streamMiddleware := make([]chat.StreamMiddleware, 0, streamCapacity)
 	conversationID := p.conversationID()
-	if conversationID != "" && guardrails != nil && guardrails.BindConversation != nil {
-		callMiddleware = append(callMiddleware, bindCallConversation(conversationID, guardrails.BindConversation))
-		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID, guardrails.BindConversation))
+	if conversationID != "" && bindConversation != nil {
+		callMiddleware = append(callMiddleware, bindCallConversation(conversationID, bindConversation))
+		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID, bindConversation))
 	}
 	if !guardrails.Empty() {
 		callMiddleware = append(callMiddleware, guardrails.CallMiddlewares...)
@@ -127,6 +124,13 @@ func (p *Process) engineGuardrails() *core.ChatGuardrails {
 		return nil
 	}
 	return p.engine.guardrails
+}
+
+func (p *Process) engineConversationBinder() func(context.Context, string) context.Context {
+	if p == nil || p.engine == nil {
+		return nil
+	}
+	return p.engine.bindConversation
 }
 
 func (p *Process) effectiveGuardrails() *core.ChatGuardrails {

@@ -143,7 +143,7 @@ func (e *Engine) createChild(
 		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
 	// A child shares its parent's event stream: process-scope
-	// EventListener extensions propagate down so the whole delegation
+	// SubtreeEventListener extensions propagate down so the whole delegation
 	// subtree surfaces on the listener the parent registered (each event
 	// keeps its own ProcessID, so a consumer can tell parent from child).
 	// Listeners are the only capability inherited — blackboard / planner /
@@ -188,7 +188,7 @@ func (e *Engine) attachChild(parent, child *Process) error {
 // PlannerName resolves through [planning.DefaultPlannerName]. The runtime intentionally knows no
 // concrete planner — the composition root registers them as extensions
 // (agent.NewEngine registers goap + reactive by default).
-func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []core.Extension) (planning.Planner, error) {
+func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []extensionEntry) (planning.Planner, error) {
 	name := planning.EffectivePlannerName(agent.PlannerName())
 
 	if planner, err := findPlannerByName(processExtensions, name); err != nil {
@@ -207,17 +207,13 @@ func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []core.Exte
 
 // findPlannerByName walks extensions for a [planning.Planner] whose
 // Name() matches. Returns nil when none matches.
-func findPlannerByName(extensions []core.Extension, name string) (planning.Planner, error) {
+func findPlannerByName(extensions []extensionEntry, name string) (planning.Planner, error) {
 	for _, extension := range extensions {
-		planner, ok := extension.(planning.Planner)
+		planner, ok := extension.value.(planning.Planner)
 		if !ok {
 			continue
 		}
-		extensionName, err := extensionName(planner)
-		if err != nil {
-			return nil, err
-		}
-		if extensionName == name {
+		if extension.name == name {
 			return planner, nil
 		}
 	}
@@ -277,20 +273,16 @@ func cloneBlackboard(source core.Blackboard) (clone core.Blackboard, err error) 
 	return clone, nil
 }
 
-func nextProcessID(generator core.IDGenerator) (id string, err error) {
-	name, err := extensionName(generator)
-	if err != nil {
-		return "", err
-	}
+func nextProcessID(generator extensionCapability[core.IDGenerator]) (id string, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			id = ""
-			err = panicerr.New(fmt.Sprintf("ID generator %q Next panicked", name), recovered)
+			err = panicerr.New(fmt.Sprintf("ID generator %q Next panicked", generator.name), recovered)
 		}
 	}()
-	id = generator.Next()
+	id = generator.value.Next()
 	if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
-		return "", fmt.Errorf("%w: ID generator %q returned %q", ErrProcessIdentity, name, id)
+		return "", fmt.Errorf("%w: ID generator %q returned %q", ErrProcessIdentity, generator.name, id)
 	}
 	return id, nil
 }
@@ -298,31 +290,33 @@ func nextProcessID(generator core.IDGenerator) (id string, err error) {
 // validateProcessExtensions enforces identity and scope before a Process keeps
 // the extension instances. Process-scope Names may collide with engine-scope
 // Names; selection capabilities treat that as an explicit override.
-func validateProcessExtensions(extensions []core.Extension) error {
+func registerProcessExtensions(extensions []core.Extension) ([]extensionEntry, error) {
 	if len(extensions) == 0 {
-		return nil
+		return nil, nil
 	}
 	seen := make(map[string]struct{}, len(extensions))
+	registered := make([]extensionEntry, 0, len(extensions))
 	for index, extension := range extensions {
 		if valueIsNil(extension) {
-			return fmt.Errorf("ProcessOptions.Extensions[%d] is nil", index)
+			return nil, fmt.Errorf("ProcessOptions.Extensions[%d] is nil", index)
 		}
 		name, err := extensionName(extension)
 		if err != nil {
-			return fmt.Errorf("ProcessOptions.Extensions[%d]: %w", index, err)
+			return nil, fmt.Errorf("ProcessOptions.Extensions[%d]: %w", index, err)
 		}
 		if name == "" {
-			return fmt.Errorf("ProcessOptions.Extensions[%d] (%T) returned empty Name()", index, extension)
+			return nil, fmt.Errorf("ProcessOptions.Extensions[%d] (%T) returned empty Name()", index, extension)
 		}
 		if _, duplicate := seen[name]; duplicate {
-			return fmt.Errorf("ProcessOptions.Extensions: duplicate name %q", name)
+			return nil, fmt.Errorf("ProcessOptions.Extensions: duplicate name %q", name)
 		}
 		if err := validateProcessExtensionScope(extension); err != nil {
-			return fmt.Errorf("ProcessOptions.Extensions[%d] %q: %w", index, name, err)
+			return nil, fmt.Errorf("ProcessOptions.Extensions[%d] %q: %w", index, name, err)
 		}
 		seen[name] = struct{}{}
+		registered = append(registered, extensionEntry{name: name, value: extension})
 	}
-	return nil
+	return registered, nil
 }
 
 // bindBlackboardSeed applies the caller's initial bindings.

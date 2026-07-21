@@ -235,7 +235,7 @@ core: type BlackboardWriter interface { Store(key string, value any) StoreTransi
 core: type Budget struct { CostLimit float64 ActionLimit int TokenLimit int }
 core: type BudgetPolicy struct { Budget Budget }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
-core: type ChatGuardrails struct { BindConversation func(context.Context, string) context.Context CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware MaxToolRounds int }
+core: type ChatGuardrails struct { CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware MaxToolRounds int }
 core: type ChatProvider interface { Extension Chat(process ProcessView) ChatCapability }
 core: type ChildOptionsFunc func( ctx context.Context, parent ProcessView, child *Agent, ) (ProcessOptions, error)
 core: type Condition interface { Name() string Cost() float64 Evaluate(ctx context.Context, env *ConditionEnv) Truth }
@@ -315,6 +315,7 @@ core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch
 core: var ErrSessionNotFound = errSessionNotFound{}
 core: var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessSnapshotFailed Kind = "process_snapshot_failed" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" KindModelCallRecorded Kind = "model_call_recorded" KindEmbeddingCallRecorded Kind = "embedding_call_recorded" )
+event: func (*NamedSubtreeListener) ObserveSubtree()
 event: func (ActionFinished) Kind() Kind
 event: func (ActionStarted) Kind() Kind
 event: func (AgentDeployed) Kind() Kind
@@ -363,6 +364,7 @@ event: func (m *Multicast) OnEvent(ctx context.Context, event Event)
 event: func NewHeader(processID string) Header
 event: func NewMulticast() *Multicast
 event: func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener
+event: func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener
 event: type ActionFinished struct { Header Action core.Action `json:"-"` Status core.ActionStatus `json:"-"` Duration time.Duration `json:"-"` Err error `json:"-"` }
 event: type ActionStarted struct { Header Action core.Action `json:"-"` StartedAt time.Time `json:"-"` }
 event: type AgentDeployed struct { Header Deployment core.DeploymentRef `json:"deployment"` }
@@ -378,6 +380,7 @@ event: type ListenerFunc func(context.Context, Event)
 event: type ModelCallRecorded struct { Header Call core.ModelCall `json:"-"` }
 event: type Multicast struct { }
 event: type NamedListener struct { }
+event: type NamedSubtreeListener struct { *NamedListener }
 event: type PlanCreated struct { Header Plan *planning.Plan `json:"-"` }
 event: type PlanningStarted struct { Header State core.WorldState `json:"-"` }
 event: type ProcessCompleted struct { Header Goal *core.Goal `json:"-"` Result any `json:"-"` }
@@ -539,7 +542,6 @@ runtime: func (e *Engine) Kill(ctx context.Context, id string) error
 runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
 runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
-runtime: func (e *Engine) ProcessStore() core.ProcessStore
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) Prune() []string
 runtime: func (e *Engine) Remove(id string) error
@@ -556,7 +558,6 @@ runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *De
 runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) error
-runtime: func (e *Engine) SessionStore() core.SessionStore
 runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error, error)
 runtime: func (e *Engine) StartChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, <-chan error, error)
@@ -587,13 +588,14 @@ runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration 
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
-runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
+runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails BindConversation func(context.Context, string) context.Context ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
+runtime: type SubtreeEventListener interface { EventListener ObserveSubtree() }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")

@@ -32,7 +32,7 @@
 // replaying completed siblings. [Engine.RunChildWithState], [Engine.RunChild], and
 // [Engine.RunChildIsolated] bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
-// its process-scope [EventListener] extensions. Other process extensions,
+// its process-scope [SubtreeEventListener] extensions. Other process extensions,
 // guardrails, and dependency overrides remain scoped to the declaring process.
 //
 // OTel: every action invocation, planner replan, and engine run

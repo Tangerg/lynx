@@ -109,9 +109,9 @@ func (m *SessionMetadata) UnmarshalJSON(data []byte) error {
 }
 
 // Session models a multi-turn conversation against an agent. The session ID
-// is also the conversation identity passed to a host-provided
-// [ChatGuardrails.BindConversation] function. Sessions carry identity and
-// audit metadata only; message history and its persistence remain host-owned.
+// is also the conversation identity passed to a host-provided runtime context
+// projection. Sessions carry identity and audit metadata only; message history
+// and its persistence remain host-owned.
 //
 // Sessions are persisted through [SessionStore]. The core package defines the
 // contract only; hosts own concrete storage adapters.
