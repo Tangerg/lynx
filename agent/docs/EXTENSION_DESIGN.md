@@ -78,8 +78,9 @@ Runtime 在调用 `Tools` 前校验：
 3. group 所需权限是 `AllowedPermissions` 的子集；
 4. 返回工具均非 nil 且定义有效。
 
-小型静态装配可使用 `StaticToolGroupResolver`；远程 registry、plugin 或 MCP catalog 可使用
-`NewLazyToolGroupResolver` 或实现自己的最小 Resolver。可执行 Tool 不进入 provider wire DTO。
+Resolver 与 ToolGroup 的实现属于装配层：静态列表、远程 registry、plugin catalog 或 MCP
+session 各自决定发现、缓存、重试、并发和连接生命周期。Framework 不提供带 map 或
+`sync.Once` 策略的默认实现。可执行 Tool 不进入 provider wire DTO。
 
 ## 6. ChatProvider
 

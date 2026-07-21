@@ -6,16 +6,11 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/Masterminds/semver/v3"
 
 	"github.com/Tangerg/lynx/tools"
 )
-
-// StaticToolGroupResolverName is the default extension identity selected by
-// [NewStaticToolGroupResolver] when its name is empty.
-const StaticToolGroupResolverName = "static-tool-group-resolver"
 
 // ToolGroupPermission is the security/sensitivity flag on a ToolGroup —
 // helpful so user-facing UIs can surface "this agent will need internet
@@ -135,48 +130,13 @@ func validateToolGroupPermissions(permissions []ToolGroupPermission) error {
 	return nil
 }
 
-// ToolGroup is the lazy provider — Tools(ctx) is the entry point that
-// performs the (potentially expensive) MCP handshake / plugin load on first
-// access. Subsequent calls return the cached slice.
+// ToolGroup describes and supplies one resolved set of tools. Implementations
+// own loading, caching, retry, synchronization, and lifecycle policy. Runtime
+// may call Info and Tools concurrently and does not retain or coordinate an
+// implementation's mutable state.
 type ToolGroup interface {
 	Info() ToolGroupInfo
 	Tools(ctx context.Context) ([]tools.Tool, error)
-}
-
-// LazyToolGroup is a ready-made ToolGroup that resolves its tool list once
-// and caches the result. Most callers use this rather than building a fresh
-// implementation.
-type LazyToolGroup struct {
-	info ToolGroupInfo
-	load func(ctx context.Context) ([]tools.Tool, error)
-
-	once    sync.Once
-	tools   []tools.Tool
-	loadErr error
-}
-
-// NewLazyToolGroup wraps an info and loader pair. The loader runs at most
-// once per LazyToolGroup instance, on the first Tools() call.
-func NewLazyToolGroup(info ToolGroupInfo, load func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup {
-	info.Permissions = slices.Clone(info.Permissions)
-	return &LazyToolGroup{info: info, load: load}
-}
-
-// Info returns a defensive copy of the group description.
-func (l *LazyToolGroup) Info() ToolGroupInfo {
-	info := l.info
-	info.Permissions = slices.Clone(info.Permissions)
-	return info
-}
-
-func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
-	l.once.Do(func() {
-		if l.load == nil {
-			return
-		}
-		l.tools, l.loadErr = l.load(ctx)
-	})
-	return slices.Clone(l.tools), l.loadErr
 }
 
 // ToolGroupResolver maps a requirement to a concrete group. Registered
@@ -185,88 +145,11 @@ func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 // wins. Resolvers double as [Extension] so the dispatch site can
 // attribute hits / errors by Name. Panics from Resolve or from the returned
 // group's Info/Tools methods become attributed resolution errors. Valid at
-// engine and process scope.
+// engine and process scope. Implementations own source discovery, caching,
+// synchronization, retry, and connection lifecycle; Runtime only validates
+// and consumes the returned capability.
 type ToolGroupResolver interface {
 	Extension
 
 	Resolve(ctx context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
-}
-
-// LazyToolGroupResolver resolves one metadata-described role to a fresh
-// lazy group backed by load. It is the generic adapter for remote registries,
-// plug-in catalogs, MCP sessions, or any other dynamic tool source; transport
-// details remain in the caller-provided loader.
-type LazyToolGroupResolver struct {
-	name string
-	info ToolGroupInfo
-	load func(context.Context) ([]tools.Tool, error)
-}
-
-// NewLazyToolGroupResolver validates and constructs a one-role resolver.
-// Each successful Resolve returns an independent LazyToolGroup, whose loader
-// runs once on first use.
-func NewLazyToolGroupResolver(
-	name string,
-	info ToolGroupInfo,
-	load func(context.Context) ([]tools.Tool, error),
-) (*LazyToolGroupResolver, error) {
-	if name == "" {
-		return nil, errors.New("core.NewLazyToolGroupResolver: name must not be empty")
-	}
-	if err := info.Validate(); err != nil {
-		return nil, fmt.Errorf("core.NewLazyToolGroupResolver: info: %w", err)
-	}
-	if load == nil {
-		return nil, errors.New("core.NewLazyToolGroupResolver: loader must not be nil")
-	}
-	info.Permissions = slices.Clone(info.Permissions)
-	return &LazyToolGroupResolver{name: name, info: info, load: load}, nil
-}
-
-func (r *LazyToolGroupResolver) Name() string { return r.name }
-
-func (r *LazyToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error) {
-	if requirement.Role != r.info.Role {
-		return nil, false, nil
-	}
-	return NewLazyToolGroup(r.info, r.load), true, nil
-}
-
-// StaticToolGroupResolver is the in-process default — a map of role →
-// ToolGroup. It is sufficient for unit tests and small deployments; larger
-// fleets supply a custom resolver that talks to a registry.
-type StaticToolGroupResolver struct {
-	name   string
-	mu     sync.RWMutex
-	groups map[string]ToolGroup
-}
-
-// NewStaticToolGroupResolver returns an empty resolver with the supplied
-// extension name. Use Set to populate it. A blank name selects a stable
-// default.
-func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver {
-	if name == "" {
-		name = StaticToolGroupResolverName
-	}
-	return &StaticToolGroupResolver{name: name, groups: map[string]ToolGroup{}}
-}
-
-// Name implements [Extension].
-func (r *StaticToolGroupResolver) Name() string { return r.name }
-
-// Set binds group to role, replacing any previous binding.
-func (r *StaticToolGroupResolver) Set(role string, group ToolGroup) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.groups[role] = group
-}
-
-// Resolve returns (group, true, nil) for a known role.
-// (nil group, false, nil) reports a miss so the caller can continue to
-// the next resolver.
-func (r *StaticToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	group, ok := r.groups[requirement.Role]
-	return group, ok, nil
 }

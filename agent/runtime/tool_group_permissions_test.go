@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -15,7 +16,7 @@ import (
 // privilegedWebGroup returns a resolver pre-loaded with a tool group
 // that grants internet access — the shape a sandboxed deployment must
 // reject unless the action explicitly opts in.
-func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
+func privilegedWebGroup(t *testing.T) core.ToolGroupResolver {
 	t.Helper()
 
 	tool, err := tools.New[struct{}, string](
@@ -26,15 +27,42 @@ func privilegedWebGroup(t *testing.T) *core.StaticToolGroupResolver {
 		t.Fatalf("NewTool: %v", err)
 	}
 
-	resolver := core.NewStaticToolGroupResolver("privileged-web")
-	resolver.Set("web", core.NewLazyToolGroup(
-		core.ToolGroupInfo{
+	return fixedGroupResolver{
+		name: "privileged-web",
+		group: fixedToolGroup{info: core.ToolGroupInfo{
 			Role:        "web",
 			Permissions: []core.ToolGroupPermission{core.ToolGroupInternetAccess},
-		},
-		func(context.Context) ([]tools.Tool, error) { return []tools.Tool{tool}, nil },
-	))
-	return resolver
+		}, tools: []tools.Tool{tool}},
+	}
+}
+
+type fixedToolGroup struct {
+	info  core.ToolGroupInfo
+	tools []tools.Tool
+}
+
+func (g fixedToolGroup) Info() core.ToolGroupInfo {
+	info := g.info
+	info.Permissions = slices.Clone(info.Permissions)
+	return info
+}
+
+func (g fixedToolGroup) Tools(context.Context) ([]tools.Tool, error) {
+	return slices.Clone(g.tools), nil
+}
+
+type fixedGroupResolver struct {
+	name  string
+	group core.ToolGroup
+}
+
+func (r fixedGroupResolver) Name() string { return r.name }
+
+func (r fixedGroupResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	if requirement.Role != r.group.Info().Role {
+		return nil, false, nil
+	}
+	return r.group, true, nil
 }
 
 // runActionTools runs a single-action agent whose body calls
@@ -187,10 +215,7 @@ func TestActionTools_ContainsExtensionPanics(t *testing.T) {
 
 func TestActionTools_MalformedResolverReturnsError(t *testing.T) {
 	group := func(role string) core.ToolGroup {
-		return core.NewLazyToolGroup(
-			core.ToolGroupInfo{Role: role},
-			func(context.Context) ([]tools.Tool, error) { return nil, nil },
-		)
+		return fixedToolGroup{info: core.ToolGroupInfo{Role: role}}
 	}
 	tests := []struct {
 		name     string
@@ -228,13 +253,12 @@ func TestActionTools_MalformedResolverReturnsError(t *testing.T) {
 		{
 			name: "unknown permission",
 			resolve: func(context.Context, core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
-				return core.NewLazyToolGroup(
-					core.ToolGroupInfo{
+				return fixedToolGroup{
+					info: core.ToolGroupInfo{
 						Role:        "web",
 						Permissions: []core.ToolGroupPermission{99},
 					},
-					func(context.Context) ([]tools.Tool, error) { return nil, nil },
-				), true, nil
+				}, true, nil
 			},
 			contains: "unknown permission",
 		},

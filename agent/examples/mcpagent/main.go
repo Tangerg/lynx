@@ -27,6 +27,8 @@ type (
 	}
 )
 
+const researchToolRole = "research"
+
 func main() {
 	ctx := context.Background()
 
@@ -89,16 +91,9 @@ func main() {
 		}
 		_ = json.Unmarshal([]byte(text), &parsed)
 		return Brief{Topic: in.Title, Sources: parsed.Sources}, nil
-	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup("research")}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
-	resolver, err := core.NewLazyToolGroupResolver(
-		"mcp-research",
-		core.ToolGroupInfo{Role: "research"},
-		toolSource,
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+	resolver := mcpToolResolver{group: mcpToolGroup{load: toolSource}}
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
 		Extensions: []agent.Extension{resolver},
@@ -124,6 +119,33 @@ func main() {
 	fmt.Println("\n--- result ---")
 	fmt.Printf("topic:   %s\n", brief.Topic)
 	fmt.Printf("sources: %v\n", brief.Sources)
+}
+
+// mcpToolResolver owns the MCP-specific discovery policy. The framework only
+// consumes the ToolGroupResolver capability and does not cache MCP results.
+type mcpToolResolver struct {
+	group mcpToolGroup
+}
+
+func (mcpToolResolver) Name() string { return "mcp-research" }
+
+func (r mcpToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	if requirement.Role != researchToolRole {
+		return nil, false, nil
+	}
+	return r.group, true, nil
+}
+
+type mcpToolGroup struct {
+	load func(context.Context) ([]tools.Tool, error)
+}
+
+func (mcpToolGroup) Info() core.ToolGroupInfo {
+	return core.ToolGroupInfo{Role: researchToolRole}
+}
+
+func (g mcpToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
+	return g.load(ctx)
 }
 
 // ============================================================================
