@@ -60,6 +60,16 @@ func (s *ProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotCha
 	}
 
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		// Deletes run before writes so a captured tree always survives. When a
+		// delete root's recursive descendants overlap the written tree (e.g. a
+		// child's former durable location), the cascade removes the stale rows
+		// first and the upsert then re-persists the capture. Swapping the order
+		// would let a cascade delete a just-written node in the same change.
+		for _, rootID := range change.DeleteRoots {
+			if err := s.deleteTree(ctx, rootID); err != nil {
+				return err
+			}
+		}
 		for index, snapshot := range encoded {
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
 				`INSERT INTO process_snapshots(id, parent_id, snapshot, captured_at)
@@ -71,11 +81,6 @@ func (s *ProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotCha
 				snapshot.id, snapshot.parentID, string(snapshot.data), snapshot.capturedAt,
 			); err != nil {
 				return fmt.Errorf("sqlite: save process snapshots[%d] %q: %w", index, snapshot.id, err)
-			}
-		}
-		for _, rootID := range change.DeleteRoots {
-			if err := s.deleteTree(ctx, rootID); err != nil {
-				return err
 			}
 		}
 		return nil

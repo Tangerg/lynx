@@ -187,3 +187,36 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 		t.Fatalf("remaining snapshots = %v, want only unrelated", ids)
 	}
 }
+
+// A single change may re-capture a subtree while deleting an ancestor whose
+// recursive descendants still include it. The store must persist the capture:
+// deletes run before writes, so the cascade cannot remove a just-written node.
+func TestProcessStoreApplyKeepsWrittenTreeWhenDeletingAncestor(t *testing.T) {
+	ctx := t.Context()
+	store := newProcessStore(t)
+	ancestor := validStoredSnapshot("ancestor", core.StatusCompleted)
+	target := validStoredSnapshot("target", core.StatusCompleted)
+	target.ParentID = ancestor.ID
+	target.Depth = 1
+	if err := store.Apply(ctx, storedSnapshotChange(ancestor.ID, ancestor, target)); err != nil {
+		t.Fatalf("Apply seed tree: %v", err)
+	}
+
+	recaptured := validStoredSnapshot("target", core.StatusCompleted)
+	recaptured.ParentID = ancestor.ID
+	recaptured.Depth = 1
+	change := core.ProcessSnapshotChange{
+		Tree:        &core.ProcessSnapshotTree{RootID: recaptured.ID, Snapshots: []core.ProcessSnapshot{recaptured}},
+		DeleteRoots: []string{ancestor.ID},
+	}
+	if err := store.Apply(ctx, change); err != nil {
+		t.Fatalf("Apply recapture with ancestor delete: %v", err)
+	}
+
+	if _, err := store.Load(ctx, target.ID); err != nil {
+		t.Fatalf("recaptured target lost to ancestor cascade: %v", err)
+	}
+	if _, err := store.Load(ctx, ancestor.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("Load ancestor after delete = %v, want ErrSnapshotNotFound", err)
+	}
+}
