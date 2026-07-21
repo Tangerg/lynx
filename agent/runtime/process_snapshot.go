@@ -371,7 +371,7 @@ func (e *Engine) RestoreResumable(ctx context.Context, processID string, options
 			links[index].parent.budget.removeChild(links[index].child)
 		}
 		for index := len(restored) - 1; index >= 0; index-- {
-			e.processes.unregister(restored[index].process.ID())
+			e.processes.unregister(restored[index].process)
 			if restored[index].previous != nil {
 				e.processes.replace(restored[index].previous)
 			}

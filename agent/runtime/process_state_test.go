@@ -2,9 +2,11 @@ package runtime
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning/goap"
 )
 
 // TestProcessState_FirstTerminalWins pins the "first terminal wins" gate that
@@ -86,4 +88,64 @@ func TestProcessState_RestoredRunningAcquiresFreshOwnership(t *testing.T) {
 		t.Fatalf("overlapping beginRun = (%v, %v), want ErrProcessRunning", started, err)
 	}
 	s.endRun()
+}
+
+func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
+	for range 100 {
+		engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+		parentDef := deploymentFixture("atomic-parent", core.ConditionSet{"finish": core.True}, nil)
+		childDef := deploymentFixture("atomic-child", core.ConditionSet{"finish": core.True}, nil)
+		parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if started, err := parent.beginRun(); err != nil || !started {
+			t.Fatalf("begin parent run = (%v, %v)", started, err)
+		}
+		childDeployment, err := engine.Deploy(t.Context(), childDef)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, _, err := engine.buildProcessFromDeployment(childDeployment, core.Bindings{}, core.ProcessOptions{})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		start := make(chan struct{})
+		var (
+			attachErr error
+			killErr   error
+			wait      sync.WaitGroup
+		)
+		wait.Add(2)
+		go func() {
+			defer wait.Done()
+			<-start
+			attachErr = engine.attachChild(parent, child)
+		}()
+		go func() {
+			defer wait.Done()
+			<-start
+			killErr = engine.Kill(t.Context(), parent.ID())
+		}()
+		close(start)
+		wait.Wait()
+		parent.state.endRun()
+
+		if killErr != nil {
+			t.Fatal(killErr)
+		}
+		if attachErr == nil {
+			if child.Status() != core.StatusKilled {
+				t.Fatalf("admitted child status = %s, want killed", child.Status())
+			}
+			continue
+		}
+		if !errors.Is(attachErr, ErrChildParentInactive) {
+			t.Fatalf("attach error = %v, want ErrChildParentInactive", attachErr)
+		}
+		if _, exists := engine.Process(child.ID()); exists {
+			t.Fatal("rejected child was published")
+		}
+	}
 }

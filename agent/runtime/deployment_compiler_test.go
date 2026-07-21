@@ -780,6 +780,10 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if started, err := parent.beginRun(); err != nil || !started {
+		t.Fatalf("begin parent run = (%v, %v)", started, err)
+	}
+	defer parent.state.endRun()
 
 	// Child execution takes the immutable deployment handle; accessor snapshots
 	// cannot affect execution or derived session identity.
@@ -874,6 +878,10 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if started, err := parent.beginRun(); err != nil || !started {
+		t.Fatalf("begin parent run = (%v, %v)", started, err)
+	}
+	defer parent.state.endRun()
 	child, err := boundTool.run(
 		core.WithProcessView(t.Context(), parent),
 		deploymentRunInput{Value: 20},
@@ -935,6 +943,10 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if started, err := parent.beginRun(); err != nil || !started {
+		t.Fatalf("begin parent run = (%v, %v)", started, err)
+	}
+	defer parent.state.endRun()
 	ctx := core.WithProcessView(t.Context(), parent)
 
 	child, err := boundTool.run(ctx, deploymentRunInput{Value: 20})
