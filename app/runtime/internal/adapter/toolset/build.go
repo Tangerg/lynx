@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/memorysearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
@@ -70,6 +71,10 @@ type BuildConfig struct {
 	// MemorySearch backs memory_search (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
 	MemorySearch memorysearch.Search
+
+	// SessionSearch backs session_search (full-text search over past conversation
+	// transcripts). nil omits the tool.
+	SessionSearch sessionsearch.Search
 
 	// MCPToolDisabled reports whether an identified MCP tool is hidden. The
 	// runtime updates the underlying policy after every registry change.
@@ -193,6 +198,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build memory_search: %w", err)
 	}
+	// session_search recalls past conversation transcripts (full-text, all
+	// sessions). Working-directory independent, so built once for both roles.
+	// nil searcher → nil tool, simply omitted.
+	sessionSearchTool, err := sessionsearch.New(config.SessionSearch)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build session_search: %w", err)
+	}
 	// propose_skill lets the agent suggest a new reusable skill, gated behind a
 	// human approval before it joins the global library. Root/coding role only.
 	// nil / disabled authoring store → nil tool, simply omitted.
@@ -233,6 +245,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		Schedule:        scheduleTool,
 		ToolResult:      toolResultTool,
 		MemorySearch:    memorySearchTool,
+		SessionSearch:   sessionSearchTool,
 		SkillPropose:    skillProposeTool,
 		GoalUpdate:      goalTool,
 		GoalActive:      goalActive,
@@ -272,6 +285,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	if memorySearchTool != nil {
 		tools = append(tools, memorySearchTool)
+	}
+	if sessionSearchTool != nil {
+		tools = append(tools, sessionSearchTool)
 	}
 	if skillProposeTool != nil {
 		tools = append(tools, skillProposeTool)

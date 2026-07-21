@@ -57,6 +57,7 @@ type Resolver struct {
 	schedule        tools.Tool                                  // schedule management op-tool; coding role only, nil when no registry
 	toolResult      tools.Tool                                  // read_tool_result offloaded-output reader; both roles, nil when eviction is off
 	memorySearch    tools.Tool                                  // memory_search agent-memory reader; both roles, nil when agent memory is off
+	sessionSearch   tools.Tool                                  // session_search past-transcript reader; both roles, nil when no transcript store
 	skillPropose    tools.Tool                                  // propose_skill authoring tool; coding role only, nil when authoring is off
 	goalUpdate      tools.Tool                                  // update_goal loop-signal tool; coding role only, offered only while a goal is active
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
@@ -100,6 +101,7 @@ type Deps struct {
 	Schedule        tools.Tool                                  // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      tools.Tool                                  // read_tool_result offloaded-output reader (both roles); nil → omitted
 	MemorySearch    tools.Tool                                  // memory_search agent-memory reader (both roles); nil → omitted
+	SessionSearch   tools.Tool                                  // session_search past-transcript reader (both roles); nil → omitted
 	SkillPropose    tools.Tool                                  // propose_skill authoring tool (coding role only); nil → omitted
 	GoalUpdate      tools.Tool                                  // update_goal loop-signal tool (coding role only); nil → omitted
 	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
@@ -154,6 +156,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		schedule:        d.Schedule,
 		toolResult:      d.ToolResult,
 		memorySearch:    d.MemorySearch,
+		sessionSearch:   d.SessionSearch,
 		skillPropose:    d.SkillPropose,
 		goalUpdate:      d.GoalUpdate,
 		goalActive:      d.GoalActive,
@@ -329,6 +332,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	// search needs no embedding model.
 	if g.resolver.memorySearch != nil {
 		tools = append(tools, g.resolver.memorySearch)
+	}
+	// session_search (both roles): full-text recall over past conversation
+	// transcripts across all sessions. Working-directory independent, always
+	// offered when wired.
+	if g.resolver.sessionSearch != nil {
+		tools = append(tools, g.resolver.sessionSearch)
 	}
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the
