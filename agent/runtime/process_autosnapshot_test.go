@@ -104,6 +104,60 @@ func TestAutoSnapshot_DisabledByDefault(t *testing.T) {
 	}
 }
 
+func TestAutoSnapshotPersistsCancellationWithDetachedContext(t *testing.T) {
+	store := storetest.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:      "snapshot-cancellation",
+		ProcessStore: store,
+		AutoSnapshot: true,
+	})
+	a := autoSnapshotAgent()
+	mustDeploy(t, engine, a)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	proc, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run error = %v, want context.Canceled", err)
+	}
+	if proc.Status() != core.StatusKilled || !errors.Is(proc.Failure(), context.Canceled) {
+		t.Fatalf("process status=%s failure=%v", proc.Status(), proc.Failure())
+	}
+
+	snapshot, err := store.Load(t.Context(), proc.ID())
+	if err != nil {
+		t.Fatalf("Load canceled process: %v", err)
+	}
+	if snapshot.Status != core.StatusKilled {
+		t.Fatalf("snapshot status = %s, want killed", snapshot.Status)
+	}
+}
+
+func TestAutoSnapshotFailureDoesNotClobberTerminalCancellation(t *testing.T) {
+	storeErr := errors.New("snapshot unavailable")
+	store := newFlakyProcessStore(storeErr)
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:      "snapshot-cancellation-failure",
+		ProcessStore: store,
+		AutoSnapshot: true,
+	})
+	a := autoSnapshotAgent()
+	mustDeploy(t, engine, a)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	proc, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if !errors.Is(err, context.Canceled) || !errors.Is(err, storeErr) {
+		t.Fatalf("Run error = %v, want joined cancellation and snapshot failure", err)
+	}
+	if proc.Status() != core.StatusKilled {
+		t.Fatalf("process status = %s, want killed", proc.Status())
+	}
+	if !errors.Is(proc.Failure(), context.Canceled) || errors.Is(proc.Failure(), storeErr) {
+		t.Fatalf("process failure = %v, want cancellation only", proc.Failure())
+	}
+}
+
 func TestAutoSnapshotFailurePolicyFailProcess(t *testing.T) {
 	storeErr := errors.New("snapshot unavailable")
 	store := newFlakyProcessStore(storeErr)

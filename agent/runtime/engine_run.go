@@ -25,6 +25,10 @@ var (
 	// run loop. The lifecycle may also be StatusRunning after durable restore;
 	// only transient run ownership makes this error true.
 	ErrProcessRunning = errors.New("runtime: process is already running")
+
+	// ErrProcessActive reports an attempt to remove a process before it reaches
+	// a terminal state. Call Kill first when active work must be discarded.
+	ErrProcessActive = errors.New("runtime: process is active")
 )
 
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
@@ -385,15 +389,17 @@ func (e *Engine) Kill(ctx context.Context, id string) error {
 	if !ok {
 		return processNotFoundError("kill process", id)
 	}
-	if !process.state.markKilled() {
-		return nil
+	if process.state.markKilled() {
+		process.signals.fireRunCancel()
+		process.signals.fireToolCallCancel()
+		process.publishEvent(normalizeContext(ctx), event.ProcessKilled{
+			Header: event.NewHeader(id),
+			Reason: "kill requested",
+		})
 	}
-	process.signals.fireRunCancel()
-	process.signals.fireToolCallCancel()
-	process.publishEvent(normalizeContext(ctx), event.ProcessKilled{
-		Header: event.NewHeader(id),
-		Reason: "kill requested",
-	})
+	// Descendants have independent run ownership. Sweep them even when the
+	// target was already terminal: a completed parent may still own background
+	// children started with StartChild.
 	e.killChildren(ctx, id)
 	return nil
 }
@@ -408,23 +414,28 @@ func (e *Engine) KillChildren(ctx context.Context, parentID string) []string {
 func (e *Engine) killChildren(ctx context.Context, parentID string) []string {
 	var killed []string
 	for _, process := range e.processes.list() {
-		if process.ParentID() != parentID || process.Status().IsTerminal() {
+		if process.ParentID() != parentID {
 			continue
 		}
-		if err := e.Kill(ctx, process.ID()); err == nil {
+		wasTerminal := process.Status().IsTerminal()
+		if err := e.Kill(ctx, process.ID()); err == nil && !wasTerminal && process.Status() == core.StatusKilled {
 			killed = append(killed, process.ID())
 		}
 	}
 	return killed
 }
 
-// Remove deletes a process from the registry so long-running hosts can free
-// terminal-state processes they have already
-// drained. Returns an error when the id is unknown so callers can
-// detect typos.
+// Remove deletes a terminal process from the registry so long-running hosts
+// can free work they have drained. Active processes must be killed and allowed
+// to finish first; rejecting their removal keeps cancellation, child ownership,
+// and durable cleanup reachable through the Engine.
 func (e *Engine) Remove(id string) error {
-	if !e.processes.unregister(id) {
+	found, terminal := e.processes.unregisterTerminal(id)
+	if !found {
 		return processNotFoundError("remove process", id)
+	}
+	if !terminal {
+		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessActive)
 	}
 	return nil
 }

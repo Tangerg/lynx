@@ -177,7 +177,7 @@ func (r childRun) create() (*Process, error) {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
 	if err := r.linkSession(child, parent); err != nil {
-		_ = r.engine.Remove(child.ID())
+		r.engine.processes.unregister(child.ID())
 		parent.budget.removeChild(child)
 		return nil, fmt.Errorf("run child %q: link session: %w", agentName, err)
 	}

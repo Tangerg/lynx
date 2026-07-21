@@ -237,6 +237,9 @@ func (s *processState) recordFailure(err error) {
 func (s *processState) failDurability(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.currentStatus.IsTerminal() {
+		return
+	}
 	s.runErr = err
 	s.currentStatus = core.StatusFailed
 }
@@ -244,6 +247,9 @@ func (s *processState) failDurability(err error) {
 func (s *processState) pauseDurability() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.currentStatus.IsTerminal() {
+		return
+	}
 	s.currentStatus = core.StatusPaused
 }
 
