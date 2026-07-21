@@ -16,15 +16,25 @@ import (
 // neither directory exists, so a session that ships no skills gets no skill tool
 // at all rather than one that always lists nothing.
 //
+// decorateGlobal, when non-nil, wraps the GLOBAL source only (e.g. to record
+// loads for the idle-lifecycle curator). It must not wrap the project source:
+// only the global library is authored/curated, and merge resolves a shadowed
+// name to the project copy, so decorating the global source records exactly the
+// global-resolved loads and nothing else.
+//
 // Building a source just wraps an os.DirFS, so this is cheap enough to call per
 // tool resolution (the engine rebuilds the skill tool per turn cwd).
-func MergeSkillSource(projectDir, globalDir string) sdk.ResourceSource {
+func MergeSkillSource(projectDir, globalDir string, decorateGlobal func(sdk.ResourceSource) sdk.ResourceSource) sdk.ResourceSource {
 	var sources []sdk.ResourceSource
 	if dirExists(projectDir) {
 		sources = append(sources, sdk.Dir(projectDir))
 	}
 	if dirExists(globalDir) {
-		sources = append(sources, sdk.Dir(globalDir))
+		global := sdk.Dir(globalDir)
+		if decorateGlobal != nil {
+			global = decorateGlobal(global)
+		}
+		sources = append(sources, global)
 	}
 	if len(sources) == 0 {
 		return nil
