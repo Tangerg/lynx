@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
@@ -50,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 15
+const schemaVersion = 16
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -153,6 +154,23 @@ func installCurrentSchema(db *sql.DB) error {
 			ON history_items(session_id, seq)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_history_items_offload
 			ON history_items(offload_id) WHERE offload_id != ''`,
+		// Full-text index over past conversation transcripts (session_search):
+		// the human-readable user + agent message text, write-through from
+		// history_items and keyed by the same seq (the FTS rowid), so a search
+		// spans every session's conversation. The other columns are stored
+		// UNINDEXED for retrieval/provenance only. porter stemming over unicode61
+		// favors recall ("did we discuss X"); CJK runs tokenize coarsely (no ICU
+		// tokenizer in the pure-Go driver). This is the repo's first FTS5 table —
+		// discardSchema drops its shadow tables via the virtual table (see below).
+		`CREATE VIRTUAL TABLE IF NOT EXISTS transcript_search USING fts5(
+			text,
+			session_id UNINDEXED,
+			run_id UNINDEXED,
+			item_id UNINDEXED,
+			kind UNINDEXED,
+			created_at UNINDEXED,
+			tokenize = 'porter unicode61 remove_diacritics 2'
+		)`,
 		`CREATE TABLE IF NOT EXISTS history_runs (
 			run_id       TEXT    PRIMARY KEY,
 			session_id   TEXT    NOT NULL,
@@ -411,18 +429,28 @@ func installCurrentSchema(db *sql.DB) error {
 }
 
 func discardSchema(db *sql.DB) error {
-	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
+	rows, err := db.Query(`SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
 	if err != nil {
 		return fmt.Errorf("sqlite: list stale schema: %w", err)
 	}
-	var tables []string
+	// An FTS5 virtual table owns shadow tables (…_data, _idx, _docsize, …) that
+	// appear here as ordinary tables but cannot be dropped while their parent
+	// exists. Dropping the virtual table removes them, so virtual tables are
+	// dropped first and every drop is IF EXISTS — the pass over the remaining
+	// tables then no-ops on the vanished shadows.
+	var virtual, regular []string
 	for rows.Next() {
 		var table string
-		if err := rows.Scan(&table); err != nil {
+		var createSQL sql.NullString
+		if err := rows.Scan(&table, &createSQL); err != nil {
 			rows.Close()
 			return fmt.Errorf("sqlite: scan stale schema: %w", err)
 		}
-		tables = append(tables, table)
+		if createSQL.Valid && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(createSQL.String)), "CREATE VIRTUAL TABLE") {
+			virtual = append(virtual, table)
+		} else {
+			regular = append(regular, table)
+		}
 	}
 	if err := rows.Close(); err != nil {
 		return fmt.Errorf("sqlite: close stale schema rows: %w", err)
@@ -430,9 +458,9 @@ func discardSchema(db *sql.DB) error {
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("sqlite: list stale schema: %w", err)
 	}
-	for _, table := range tables {
+	for _, table := range slices.Concat(virtual, regular) {
 		quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
-		if _, err := db.Exec(`DROP TABLE ` + quoted); err != nil {
+		if _, err := db.Exec(`DROP TABLE IF EXISTS ` + quoted); err != nil {
 			return fmt.Errorf("sqlite: discard table %q: %w", table, err)
 		}
 	}

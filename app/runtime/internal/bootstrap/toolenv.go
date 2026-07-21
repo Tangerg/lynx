@@ -68,6 +68,12 @@ func buildToolEnvironment(
 	if memorySearcher != nil {
 		bc.MemorySearch = memorySearcher
 	}
+	// session_search recalls past conversation transcripts (the durable Item
+	// history). Set only when the concrete store is present, for the same
+	// nil-interface reason.
+	if cfg.TranscriptStore != nil {
+		bc.SessionSearch = cfg.TranscriptStore
+	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {
 		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)
