@@ -84,8 +84,6 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 		if request, ok := errors.AsType[*core.ReplanRequest](lastErr); ok {
 			replan = request
 		}
-	} else {
-		replan = nil
 	}
 	if aborted, cleanupErr := p.abortStagedNestedChildren(ctx); aborted > 0 {
 		if status != core.ActionFailed {

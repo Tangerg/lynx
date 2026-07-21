@@ -46,7 +46,9 @@ const (
 //   - engine_run.go     — Run / Start / Continue / Resume / Kill /
 //     Remove / Prune
 //   - engine_process.go — process construction + dependency wiring
-//   - process_snapshot.go — snapshot capture, persistence, and restoration
+//   - process_capture.go — snapshot serialization
+//   - process_save.go    — snapshot persistence + tree cleanup
+//   - process_restore.go — snapshot load + process restoration
 type Engine struct {
 	catalog   deploymentRegistry // immutable deployments and active routes
 	processes processRegistry    // created and restored processes
