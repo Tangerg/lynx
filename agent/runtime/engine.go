@@ -11,9 +11,16 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 )
 
-// DefaultSessionFinalizeTimeout bounds the durable session write performed
-// after a turn finishes. It is independent of request cancellation.
-const DefaultSessionFinalizeTimeout = 10 * time.Second
+const (
+	// DefaultSessionFinalizeTimeout bounds the durable session write performed
+	// after a turn finishes. It is independent of request cancellation.
+	DefaultSessionFinalizeTimeout = 10 * time.Second
+
+	// DefaultSnapshotFinalizeTimeout bounds each automatic process snapshot.
+	// Automatic durability is independent of request cancellation so a canceled
+	// caller cannot prevent the runtime from recording the resulting state.
+	DefaultSnapshotFinalizeTimeout = 10 * time.Second
+)
 
 // Engine is the agent runtime's top-level container — registers
 // agents, builds processes, dispatches events, and exposes the
@@ -42,18 +49,19 @@ type Engine struct {
 
 	extensions extensionRegistry // engine-scoped extensions
 
-	events                 *event.Multicast     // populated from EventListener extensions
-	dependencies           *core.Dependencies   // typed engine dependency scope
-	chat                   core.ChatCapability  // optional shared model and streamer
-	guardrails             *core.ChatGuardrails // optional global chat middlewares
-	processStore           core.ProcessStore    // optional snapshot backend
-	sessionStore           core.SessionStore    // optional root-session persistence
-	childSessionStore      core.SessionStore    // optional delegated-session persistence
-	sessionTurnSequencer   SessionTurnSequencer // sequences turns sharing a session ID
-	sessionFinalizeTimeout time.Duration        // bounds the post-dispatch session write
-	autoSnapshot           bool                 // snapshot every tick when a store is configured
-	snapshotFailurePolicy  SnapshotFailurePolicy
-	buildID                string // stable host build identity included in deployment digests
+	events                  *event.Multicast     // populated from EventListener extensions
+	dependencies            *core.Dependencies   // typed engine dependency scope
+	chat                    core.ChatCapability  // optional shared model and streamer
+	guardrails              *core.ChatGuardrails // optional global chat middlewares
+	processStore            core.ProcessStore    // optional snapshot backend
+	sessionStore            core.SessionStore    // optional root-session persistence
+	childSessionStore       core.SessionStore    // optional delegated-session persistence
+	sessionTurnSequencer    SessionTurnSequencer // sequences turns sharing a session ID
+	sessionFinalizeTimeout  time.Duration        // bounds the post-dispatch session write
+	autoSnapshot            bool                 // snapshot every tick when a store is configured
+	snapshotFinalizeTimeout time.Duration        // bounds each request-independent automatic snapshot
+	snapshotFailurePolicy   SnapshotFailurePolicy
+	buildID                 string // stable host build identity included in deployment digests
 }
 
 // Config is the construction-time configuration for
@@ -96,6 +104,12 @@ type Config struct {
 	// requiring an explicit [Engine.Save] call. Snapshot failures
 	// follow SnapshotFailurePolicy. Ignored when ProcessStore is nil.
 	AutoSnapshot bool
+
+	// SnapshotFinalizeTimeout bounds each automatic snapshot write. The write is
+	// detached from request cancellation so the final killed/terminal state can
+	// still be persisted. Zero uses [DefaultSnapshotFinalizeTimeout]; negative
+	// values are rejected. The value is only used when AutoSnapshot is true.
+	SnapshotFinalizeTimeout time.Duration
 
 	// SnapshotFailurePolicy decides what an automatic snapshot failure does.
 	// The zero value fails the run. Pause keeps a non-terminal process resumable;
@@ -152,6 +166,9 @@ func New(config Config) (*Engine, error) {
 	if !config.SnapshotFailurePolicy.Valid() {
 		return nil, errors.New("runtime.New: invalid SnapshotFailurePolicy")
 	}
+	if config.SnapshotFinalizeTimeout < 0 {
+		return nil, errors.New("runtime.New: SnapshotFinalizeTimeout must not be negative")
+	}
 	if config.ProcessStore != nil && valueIsNil(config.ProcessStore) {
 		return nil, errors.New("runtime.New: ProcessStore is typed nil")
 	}
@@ -182,23 +199,28 @@ func New(config Config) (*Engine, error) {
 	if finalizeTimeout == 0 {
 		finalizeTimeout = DefaultSessionFinalizeTimeout
 	}
+	snapshotFinalizeTimeout := config.SnapshotFinalizeTimeout
+	if snapshotFinalizeTimeout == 0 {
+		snapshotFinalizeTimeout = DefaultSnapshotFinalizeTimeout
+	}
 
 	engine := &Engine{
-		catalog:                newDeploymentRegistry(),
-		processes:              newProcessRegistry(),
-		extensions:             newExtensionRegistry(),
-		events:                 event.NewMulticast(),
-		dependencies:           core.NewDependencies(),
-		chat:                   config.Chat,
-		guardrails:             guardrails,
-		processStore:           config.ProcessStore,
-		sessionStore:           config.SessionStore,
-		childSessionStore:      config.ChildSessionStore,
-		sessionTurnSequencer:   turnSequencer,
-		sessionFinalizeTimeout: finalizeTimeout,
-		autoSnapshot:           config.AutoSnapshot,
-		snapshotFailurePolicy:  config.SnapshotFailurePolicy,
-		buildID:                config.BuildID,
+		catalog:                 newDeploymentRegistry(),
+		processes:               newProcessRegistry(),
+		extensions:              newExtensionRegistry(),
+		events:                  event.NewMulticast(),
+		dependencies:            core.NewDependencies(),
+		chat:                    config.Chat,
+		guardrails:              guardrails,
+		processStore:            config.ProcessStore,
+		sessionStore:            config.SessionStore,
+		childSessionStore:       config.ChildSessionStore,
+		sessionTurnSequencer:    turnSequencer,
+		sessionFinalizeTimeout:  finalizeTimeout,
+		autoSnapshot:            config.AutoSnapshot,
+		snapshotFinalizeTimeout: snapshotFinalizeTimeout,
+		snapshotFailurePolicy:   config.SnapshotFailurePolicy,
+		buildID:                 config.BuildID,
 	}
 	for _, extension := range config.Extensions {
 		if err := engine.extensions.register("Config.Extensions", extension); err != nil {

@@ -53,6 +53,28 @@ func (r *processRegistry) unregister(id string) bool {
 	return true
 }
 
+func (r *processRegistry) unregisterTerminal(id string) (found, terminal bool) {
+	r.mu.RLock()
+	process, ok := r.items[id]
+	r.mu.RUnlock()
+	if !ok {
+		return false, false
+	}
+	if !process.Status().IsTerminal() {
+		return true, false
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if current, ok := r.items[id]; !ok {
+		return false, false
+	} else if current != process {
+		return true, false
+	}
+	delete(r.items, id)
+	return true, true
+}
+
 func (r *processRegistry) pruneWhere(predicate func(*Process) bool) []string {
 	r.mu.Lock()
 	defer r.mu.Unlock()

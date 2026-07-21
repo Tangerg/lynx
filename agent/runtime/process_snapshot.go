@@ -37,7 +37,17 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 		return nil
 	}
 
-	_, err := p.engine.saveProcess(ctx, p)
+	// Persist runtime state independently of the request that drove it. In
+	// particular, cancellation is itself a state transition worth recording.
+	// The engine-owned deadline prevents a stuck store from retaining the run
+	// loop indefinitely.
+	snapshotCtx, cancel := context.WithTimeout(
+		context.WithoutCancel(normalizeContext(ctx)),
+		p.engine.snapshotFinalizeTimeout,
+	)
+	defer cancel()
+
+	_, err := p.engine.saveProcess(snapshotCtx, p)
 	if err == nil {
 		return nil
 	}

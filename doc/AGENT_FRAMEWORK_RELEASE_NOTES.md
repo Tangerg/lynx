@@ -16,13 +16,13 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 713 |
+| exported declaration | 726 |
 | root façade | 50 / 50 |
 | exported JSON struct | 15 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`c10883927005a9fbf77aee7829a4f718fbd9e16a92a23780cb2345617b7d2a86`
-- wire fixture SHA-256：`6e6ba3b76c9f4c06093984d8c897585de95e2e19b550690ec349ddd6c18b793b`
+- API baseline SHA-256：`796f9f550c1a4ec3ad2b66870b6ea02d1811bbcec0505a4d780052f217f3e004`
+- wire fixture SHA-256：`581d7a1542353b8cc24fe492acc23b064227bdc148662e195c286e24366ec3fb`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
 
@@ -103,6 +103,7 @@
 - `ProcessOptions.ChildOptions` 提供 Host 显式的逐 child 配置通路，并默认覆盖完整委派树；未配置时不改变 Agent 的最小继承策略。
 - `interaction.Limits.MaxModelCalls` 以 Process 子树的累计 model call ledger 约束应用级 step budget，同时保留 `MaxSteps` 的单次 interaction 语义。
 - `Engine.Kill` 会取消活动 Run / Continue context，并递归终止仍存活的 child Process，避免同步委派在 root kill 后成为 orphan。
+- `Engine.Kill` 即使面对已终态父进程也会继续清扫存活子树，覆盖 `StartChild` 后父进程先完成的后台任务；`Engine.Remove` 现在只接受终态 Process，活动进程返回 `ErrProcessActive`，避免从注册表移除后失去取消与回收路径。
 - 同步 `NewAgentTool` 的每个调用拥有隔离 child Process，可在同一 model round 并发启动。
   Runtime 用 exact `ToolCall.ID` 关联同名同参数调用；多个 waiting child 按 tool-call
   顺序持久化为 child forest，恢复不会重跑已完成的 parent model/tool 边界。
@@ -142,6 +143,7 @@
   Session 不再进入协调器，Host 实现的 acquire/release panic 会转为可归因错误。
 - ScatterGather 的并发槽位获取现在可被首个分支错误立即取消，不再继续提交排队分支；快照
   保存、自动保存和恢复实现收拢到同一文件，零散 schema helper 归入其直接调用方。
+- 自动快照使用独立于请求取消的有限时收尾上下文，`SnapshotFinalizeTimeout` 控制写入上限；取消状态也会持久化，且自动快照失败不再覆盖已经确定的 Completed、Killed 等终态。
 - `SessionStore` 从 Save/Load/Delete/List 收窄为 Runtime 真正消费的 Save/Load；删除与列表
   分别由可选 `SessionDeleter` / `SessionLister` 表达。
 - `runtime.Config.SessionStore` 与 `ChildSessionStore` 分别拥有 root multi-turn 和 delegated

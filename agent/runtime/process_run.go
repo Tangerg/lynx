@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -56,7 +57,10 @@ func (p *Process) runOwned(ctx context.Context) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			p.markCancelled(ctx, err)
-			return err
+			snapshotErr := p.maybeAutoSnapshot(ctx)
+			p.publishTerminalEvent(ctx)
+			p.recordRunExitMetric(ctx)
+			return errors.Join(err, snapshotErr)
 		}
 
 		stopped, stopErr := p.checkStopPolicies(ctx)
