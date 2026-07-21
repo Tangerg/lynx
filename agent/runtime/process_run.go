@@ -58,8 +58,7 @@ func (p *Process) runOwned(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			p.markCancelled(ctx, err)
 			snapshotErr := p.maybeAutoSnapshot(ctx)
-			p.publishTerminalEvent(ctx)
-			p.recordRunExitMetric(ctx)
+			p.finishRunLoop(ctx)
 			return errors.Join(err, snapshotErr)
 		}
 
@@ -70,12 +69,10 @@ func (p *Process) runOwned(ctx context.Context) error {
 		}
 		if stopped {
 			if err := p.maybeAutoSnapshot(ctx); err != nil {
-				p.publishTerminalEvent(ctx)
-				p.recordRunExitMetric(ctx)
+				p.finishRunLoop(ctx)
 				return err
 			}
-			p.publishTerminalEvent(ctx)
-			p.recordRunExitMetric(ctx)
+			p.finishRunLoop(ctx)
 			return nil
 		}
 
@@ -87,8 +84,7 @@ func (p *Process) runOwned(ctx context.Context) error {
 		// after Tick so it captures whatever status the tick produced —
 		// including the terminal / waiting one on the loop's last pass.
 		if err := p.maybeAutoSnapshot(ctx); err != nil {
-			p.publishTerminalEvent(ctx)
-			p.recordRunExitMetric(ctx)
+			p.finishRunLoop(ctx)
 			return err
 		}
 
@@ -96,11 +92,19 @@ func (p *Process) runOwned(ctx context.Context) error {
 		// terminal all release the loop so the host (HITL resume,
 		// stuck-handler, terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
-			p.publishTerminalEvent(ctx)
-			p.recordRunExitMetric(ctx)
+			p.finishRunLoop(ctx)
 			return nil
 		}
 	}
+}
+
+// finishRunLoop fires the side effects every non-tick-error run-loop exit
+// shares. The tick error path deliberately returns without them (its caller
+// owns the terminal handling), so this stays an explicit call at each exit
+// rather than a defer.
+func (p *Process) finishRunLoop(ctx context.Context) {
+	p.publishTerminalEvent(ctx)
+	p.recordRunExitMetric(ctx)
 }
 
 // Tracing attribute / span keys local to the tick loop.

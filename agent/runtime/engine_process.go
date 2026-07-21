@@ -74,25 +74,25 @@ func (e *Engine) buildProcessFromDeployment(
 	options core.ProcessOptions,
 ) (*Process, core.Bindings, error) {
 	if deployment == nil || deployment.agent == nil {
-		return nil, core.Bindings{}, errors.New("runtime.Engine.createProcessFromDeployment: deployment is nil")
+		return nil, core.Bindings{}, errors.New("runtime.Engine.buildProcessFromDeployment: deployment is nil")
 	}
 	agent := deployment.agent
 	processOptions, err := snapshotProcessOptions(options)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	bindings = bindings.Clone()
 
 	blackboard, err := e.resolveBlackboard(options.Blackboard)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	if err := bindBlackboardSeed(blackboard, bindings); err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
@@ -102,11 +102,11 @@ func (e *Engine) buildProcessFromDeployment(
 
 	domain, err := planning.DomainForAgent(agent)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: domain: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: domain: %w", err)
 	}
 	processID, err := nextProcessID(e.idGenerator())
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w", err)
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 
