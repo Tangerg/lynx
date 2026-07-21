@@ -108,6 +108,35 @@ func TestSweepIdleRestoredSkillGetsFreshGrace(t *testing.T) {
 	}
 }
 
+func TestManualArchiveThenRestoreGetsFreshGrace(t *testing.T) {
+	root := t.TempDir()
+	store := skillauthoring.NewStore(root)
+	installAgentActive(t, store, "agent-skill", "body")
+	// Seed a usage record with an old activity time.
+	if _, err := store.SweepIdle(t.Context(), sweepBase, sweepStale, sweepArchive); err != nil {
+		t.Fatal(err)
+	}
+	// A human archives then restores it much later. Archiving drops the usage
+	// record, so the restored skill starts a fresh grace floor.
+	if err := store.Archive(t.Context(), "agent-skill"); err != nil {
+		t.Fatalf("Archive: %v", err)
+	}
+	if err := store.Restore(t.Context(), "agent-skill"); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	later := sweepBase.Add(sweepArchive + time.Hour)
+	archived, err := store.SweepIdle(t.Context(), later, sweepStale, sweepArchive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(archived) != 0 {
+		t.Fatalf("re-archived a manually archived-then-restored skill: %v", archived)
+	}
+	if _, err := os.Stat(filepath.Join(root, "agent-skill", "SKILL.md")); err != nil {
+		t.Fatalf("restored skill should be active: %v", err)
+	}
+}
+
 func TestSweepIdleDisabledStoreNoOps(t *testing.T) {
 	store := skillauthoring.NewStore("")
 	archived, err := store.SweepIdle(t.Context(), sweepBase, sweepStale, sweepArchive)

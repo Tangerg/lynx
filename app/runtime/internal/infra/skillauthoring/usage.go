@@ -183,6 +183,34 @@ func activeSkillNames(root *os.Root) ([]string, error) {
 	return names, nil
 }
 
+// dropUsage removes a skill's usage record if present. Used when a skill leaves
+// the active set (archived), so a later restore is judged fresh rather than
+// inheriting a stale last-used time.
+func (s *Store) dropUsage(ctx context.Context, name string) error {
+	if !s.Enabled() {
+		return nil
+	}
+	if err := contextError(ctx, "drop skill usage"); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	usage, err := readUsage(root)
+	if err != nil {
+		return err
+	}
+	if _, ok := usage[name]; !ok {
+		return nil
+	}
+	delete(usage, name)
+	return writeUsage(root, usage)
+}
+
 func readUsage(root *os.Root) (map[string]usageRecord, error) {
 	data, err := root.ReadFile(usageFile)
 	if errors.Is(err, fs.ErrNotExist) {

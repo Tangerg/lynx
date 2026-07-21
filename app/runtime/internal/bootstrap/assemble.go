@@ -436,6 +436,15 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if cfg.AgentMemoryStore != nil {
 		agentMemoryMgmt = cfg.AgentMemoryStore
 	}
+	// Same discipline for the skill library: leave the ports interface-nil when
+	// authoring is disabled (empty skills dir), so the coordinator's nil-gate
+	// reports capability_not_negotiated instead of the store's bare disabled error.
+	var skillCurator workspace.SkillCurator
+	var skillDrafts workspace.SkillDrafts
+	if skillStore.Enabled() {
+		skillCurator = skillStore
+		skillDrafts = skillStore
+	}
 	host := Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
@@ -456,8 +465,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Workspace: workspace.New(workspace.Config{
 				Memory:  cfg.Engine.Knowledge,
 				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
-				Curator: skillStore,
-				Drafts:  skillStore,
+				Curator: skillCurator,
+				Drafts:  skillDrafts,
 				Hooks:   cfg.HooksResolver,
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
