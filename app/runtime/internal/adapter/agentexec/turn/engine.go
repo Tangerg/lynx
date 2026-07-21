@@ -49,3 +49,10 @@ type Extractor interface {
 type SkillMiner interface {
 	MaybeMine(ctx context.Context, sessionID, cwd string, toolCalls int) error
 }
+
+// SkillCurator runs the idle-skill lifecycle sweep at the turn boundary,
+// rate-limited internally. The skill library is global, so the sweep is global
+// (not per session); the turn boundary is just a convenient, always-live tick.
+type SkillCurator interface {
+	MaybeSweep(ctx context.Context) error
+}

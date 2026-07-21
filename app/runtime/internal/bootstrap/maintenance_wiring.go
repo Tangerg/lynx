@@ -20,6 +20,7 @@ type turnServices struct {
 	compactor turn.Compactor
 	extractor turn.Extractor
 	miner     turn.SkillMiner
+	curator   turn.SkillCurator
 }
 
 func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
@@ -28,6 +29,7 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 		compactor: cfg.Compactor,
 		extractor: cfg.Extractor,
 		miner:     cfg.Miner,
+		curator:   cfg.SkillCurator,
 	}
 	if services.steering == nil {
 		services.steering = messages.conversation
@@ -55,6 +57,9 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 			resolveUtility,
 			maintenance.MinerConfig{},
 		)
+	}
+	if services.curator == nil && skillStore.Enabled() {
+		services.curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
 	return services
 }
