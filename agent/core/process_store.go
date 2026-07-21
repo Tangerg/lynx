@@ -17,13 +17,38 @@ import (
 // ProcessSnapshotSchemaVersion is the only durable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 4
+const ProcessSnapshotSchemaVersion uint16 = 5
 
 var (
 	ErrSnapshotNotFound = errors.New("process store: snapshot not found")
 	ErrSnapshotSchema   = errors.New("process snapshot: unsupported schema")
 	ErrInvalidSnapshot  = errors.New("process snapshot: invalid")
 )
+
+// ProcessFailure is the portable failure representation stored in a process
+// snapshot. A live Go error may carry sentinel identity, an unwrap chain, and
+// implementation-specific fields that have no general wire representation;
+// snapshots therefore preserve only its human-readable message. After restore,
+// the process failure accessor returns a *ProcessFailure so callers can
+// distinguish this documented message-only value with [errors.As].
+type ProcessFailure struct {
+	Message string `json:"message"`
+}
+
+// Error implements error.
+func (f *ProcessFailure) Error() string {
+	if f == nil {
+		return ""
+	}
+	return f.Message
+}
+
+func (f ProcessFailure) validate() error {
+	if strings.TrimSpace(f.Message) == "" {
+		return fmt.Errorf("%w: failure message must not be empty", ErrInvalidSnapshot)
+	}
+	return nil
+}
 
 // ProcessSnapshot is the complete durable state required to inspect or resume
 // one process. OwnCost, OwnTokens, OwnModelCalls, and OwnEmbeddingCalls contain
@@ -46,7 +71,7 @@ type ProcessSnapshot struct {
 	Suspension *interaction.Suspension `json:"suspension,omitempty"`
 	GoalName   string                  `json:"goal_name,omitempty"`
 	History    []ActionRunSnapshot     `json:"history,omitempty"`
-	Failure    string                  `json:"failure,omitempty"`
+	Failure    *ProcessFailure         `json:"failure,omitempty"`
 
 	OwnCost   float64 `json:"own_cost"`
 	OwnTokens int     `json:"own_tokens"`
@@ -71,7 +96,7 @@ type processSnapshotWire struct {
 	Suspension        *interaction.Suspension `json:"suspension,omitempty"`
 	GoalName          string                  `json:"goal_name,omitempty"`
 	History           []ActionRunSnapshot     `json:"history,omitempty"`
-	Failure           string                  `json:"failure,omitempty"`
+	Failure           *ProcessFailure         `json:"failure,omitempty"`
 	OwnCost           float64                 `json:"own_cost"`
 	OwnTokens         int                     `json:"own_tokens"`
 	OwnModelCalls     []ModelCall             `json:"own_model_calls,omitempty"`
@@ -144,11 +169,16 @@ func (s ProcessSnapshot) Validate() error {
 	if s.Status != StatusWaiting && s.Suspension != nil {
 		return fmt.Errorf("%w: only waiting snapshot may carry suspension", ErrInvalidSnapshot)
 	}
-	if s.Status == StatusFailed && strings.TrimSpace(s.Failure) == "" {
+	if s.Status == StatusFailed && s.Failure == nil {
 		return fmt.Errorf("%w: failed snapshot requires failure", ErrInvalidSnapshot)
 	}
-	if s.Failure != "" && s.Status != StatusFailed && s.Status != StatusKilled {
+	if s.Failure != nil && s.Status != StatusFailed && s.Status != StatusKilled {
 		return fmt.Errorf("%w: only failed or killed snapshot may carry failure", ErrInvalidSnapshot)
+	}
+	if s.Failure != nil {
+		if err := s.Failure.validate(); err != nil {
+			return err
+		}
 	}
 	if s.Suspension != nil {
 		if err := s.Suspension.Validate(); err != nil {

@@ -16,13 +16,13 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 736 |
-| root façade | 50 / 50 |
-| exported JSON struct | 15 |
+| exported declaration | 707 |
+| root façade | 47 / 50 |
+| exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`d2d0b15783b6bd0805d3f33d1ce1b973f55d0ffcacdabb6ceef83d89ae503ea9`
-- wire fixture SHA-256：`581d7a1542353b8cc24fe492acc23b064227bdc148662e195c286e24366ec3fb`
+- API baseline SHA-256：`ad869099e09486113bf74f42f13fc655a60fcfc9e37616036c1bfed480ae24a0`
+- wire fixture SHA-256：`f2f6de44747d91ba41ac5eadc734357751e3a6b80e75b6e8876ef8c444e501f0`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
 
@@ -127,18 +127,20 @@
 - Resume interaction event 保留 `Resume.Validate` 的错误链；ProcessContext 在普通缺失 lifecycle owner 与 parallel branch 禁止控制之间返回不同 sentinel。
 - `Engine.Resume(parent)` 会沿 durable relation 响应当前顺序位置的 waiting child；
   `RestoreResumable` 递归恢复有序 child forest，未激活 sibling 保持 parked。
-- ProcessSnapshot schema v4 使用 strict decoder 与 exact DeploymentRef，并把
+- ProcessSnapshot schema v5 使用 strict decoder 与 exact DeploymentRef，并把
   `OwnCost`、`OwnTokens`、`OwnModelCalls`、`OwnEmbeddingCalls` 定义为当前 Process
-  的直接 ledger。聚合值通过恢复后的父子链接计算，不再做 child usage 后缀减法。
+  的直接 ledger。聚合值通过恢复后的父子链接计算，不再做 child usage 后缀减法。v5 还以
+  确定的 `ProcessFailure{Message}` wire 对象替代裸字符串；恢复后的错误明确是 message-only，
+  不伪装成仍保有 live sentinel/unwrap identity。
 - ToolLoop Checkpoint schema v2 使用逐 call 的 `CallStates` 与 `NextResult`，可持久化
   同一并发批次中多个 completed/paused call，并只暴露顺序上最早的 pause；
   `MaxConcurrentCalls` 也进入 checkpoint，恢复时拒绝与原执行宽度不同的 Runner。
 - durable Host 使用 `Engine.Resumable` 判断 stored continuation，并通过
   `Engine.RestoreResumable` 获得统一的 `ErrResumableSnapshotLost` 分类；Host
   不再读取或解释 `ProcessSnapshot`。
-- ProcessStore 收敛为 `Save([]ProcessSnapshot)`、`Load`、`Delete(rootID)`；管理面列表拆为
-  可选 `ProcessLister`。框架不再携带 revision/CAS、事务、幂等或分布式假设，具体 adapter
-  自行决定存储协调策略。
+- ProcessStore 收敛为 `Apply(ProcessSnapshotChange)` 与 `Load`；一次 change 明确表达完整
+  process tree replacement 和旧 root 清理意图，管理面列表拆为可选 `ProcessLister`。框架不再
+  携带 revision/CAS、事务、幂等或分布式假设，具体 adapter 自行决定存储协调策略。
 - Engine/Process 在构造边界把公开 Config/ProcessOptions 投影为私有快照，调用方后续修改
   Session identity、Extensions slice 或 Guardrails 不再改变运行中语义；typed-nil capability
   和负数工具轮数在边界返回归因错误，而不是执行期 panic/延迟失败。
@@ -152,7 +154,9 @@
   不同 Session 保持并发。协调器不再作为公开可替换 SPI。
 - ScatterGather 的并发槽位获取现在可被首个分支错误立即取消，不再继续提交排队分支；快照
   保存、自动保存和恢复实现收拢到同一文件，零散 schema helper 归入其直接调用方。
-- 自动快照使用独立于请求取消的有限时收尾上下文，`SnapshotFinalizeTimeout` 控制写入上限；取消状态也会持久化，且自动快照失败不再覆盖已经确定的 Completed、Killed 等终态。
+- 自动快照使用独立于请求取消的有限时收尾上下文，`SnapshotFinalizeTimeout` 控制写入上限；
+  取消状态也会持久化，且自动快照失败不再覆盖已经确定的 Completed、Killed 等终态。
+  Pause policy 会保留本地可恢复状态并把实际写错误返回 Host，不再把未落盘状态报告为成功。
 - `SessionStore` 从 Save/Load/Delete/List 收窄为 Runtime 真正消费的 Save/Load；删除与列表
   分别由可选 `SessionDeleter` / `SessionLister` 表达。
 - `runtime.Config.SessionStore` 与 `ChildSessionStore` 分别拥有 root multi-turn 和 delegated

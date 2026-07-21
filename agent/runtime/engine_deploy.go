@@ -169,13 +169,12 @@ func (e *Engine) idGenerator() extensionCapability[core.IDGenerator] {
 }
 
 // blackboardPrototype returns the most-recently-registered
-// [core.Blackboard] extension or nil. The runtime treats it as a
+// [core.Blackboard] extension. The runtime treats it as a
 // prototype: every new process gets its own instance via
 // [core.Blackboard.Clone] so per-process state stays isolated. Callers
-// fall back to the in-memory implementation when nil.
-func (e *Engine) blackboardPrototype() core.Blackboard {
-	prototype, _ := lastExtension[core.Blackboard](e.extensions.list)
-	return prototype.value
+// fall back to the in-memory implementation when no prototype is registered.
+func (e *Engine) blackboardPrototype() (extensionCapability[core.Blackboard], bool) {
+	return lastExtension[core.Blackboard](e.extensions.list)
 }
 
 // Built-in fallback for the IDGenerator singleton. Planner resolution

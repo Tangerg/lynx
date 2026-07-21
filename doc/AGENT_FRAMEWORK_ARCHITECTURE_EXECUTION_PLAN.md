@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：已完成（P15 纯能力抽象收口，123/123）
+> 状态：持续开发（P16 运行边界诚实性硬化完成，130/130）
 > 建立日期：2026-07-15
 > 最后更新：2026-07-21
 > 维护者：Lynx 仓库维护者
@@ -9,8 +9,8 @@
 
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
-P0–P14 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P15、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+P0–P15 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
+旧标识符只说明当时被删除的设计。当前合同以 P16、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md) 与 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -1772,6 +1772,38 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 缓存或 registry 实现，不公开 Action replay 防护标签；完整逻辑变更与并发要求只在接口中
 声明，由实现层选择具体保证方式。
 
+### P16：运行边界诚实性硬化
+
+目标：清除深挖后仍残留的锁边界、作用域、身份和 durable error 语义歧义；Framework 只保证
+本机执行顺序与一致 capture，不把未落盘状态、可变扩展身份或不可恢复的 Go error identity
+包装成更强承诺。
+
+- [x] **P16-01 缩短 checkpoint 临界区**（完成：2026-07-21）
+  - Process 只在一致 capture 与状态迁移期间持有 checkpoint ownership；extension callback、
+    listener、model/tool 调用和 ProcessStore I/O 均不在锁内，运行中显式返回 busy。
+- [x] **P16-02 固定本机持久化顺序**（完成：2026-07-21）
+  - Save/Discard 按 process-tree key 使用本机 sequencer 排序；顺序只保护同 Engine 的 cache/store
+    调用次序，不宣称底层事务、幂等、原子性或分布式 fencing。
+- [x] **P16-03 拆分 conversation projection 与 Guardrails**（完成：2026-07-21）
+  - `runtime.Config.BindConversation` 独立拥有 Host context 投影；每进程 Guardrails 只覆盖模型
+    middleware 和 tool-loop policy，不再意外关闭 conversation identity。
+- [x] **P16-04 收紧观察与存储边界**（完成：2026-07-21）
+  - 删除 Engine 的 raw Store accessor；普通 process EventListener 只观察本 Process，只有显式
+    `SubtreeEventListener` 沿委派树传播，App lifecycle 直接迁移到该能力。
+- [x] **P16-05 冻结 Extension 注册身份**（完成：2026-07-21）
+  - 注册时读取一次 Name，后续 dispatch、panic/error attribution、planner/ID/Blackboard prototype
+    选择全部使用冻结身份；可变实现不能在运行期重写 registry 语义。
+- [x] **P16-06 明确 snapshot failure 语义**（完成：2026-07-21）
+  - ProcessSnapshot 升级 schema v5，以 `ProcessFailure{Message}` 替代裸字符串；恢复结果明确为
+    message-only error，不伪造跨 JSON 的 sentinel/unwrap identity。Pause policy 保留本地状态但
+    仍返回真实写错误，Host 不会误判为 durable success。
+- [x] **P16-07 同步 consumer、合同与完整门禁**（完成：2026-07-21）
+  - App consumer、Guide、migration/release notes、API baseline 与 wire fixture 全部直接迁移；
+    Agent/App build/vet/test/lint、Agent full race、App 高风险 race、tidy 与 workspace 84 项门禁全绿。
+
+退出标准：运行锁不跨外部代码或 I/O；扩展 identity 与 listener scope 不漂移；持久化失败不被
+报告为成功；snapshot 只承诺真实可恢复的信息；无 alias、旧 decoder、wrapper 或 dual path。
+
 ---
 
 ## 15. 当前进度
@@ -1796,15 +1828,17 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | P13 Session 生命周期与持久化边界 | 完成 | 5/5 | Session self-validation、root/child ownership、typed App round-trip、SQLite v5 与完整门禁全部完成 |
 | P14 单机 Framework 边界收正 | 完成 | 4/4 | ProcessStore/Snapshot、Action execution、Session ordering 与 App SQLite adapter 全部按 implementation-owned 边界收口 |
 | P15 纯能力抽象收口 | 完成 | 6/6 | 完整 persistence change、extension ownership、原始错误、ToolGroup 与 history adapter 边界全部收口 |
-| **总计** | **完成** | **123/123（100%）** | **P0–P15 全部关闭；tag/release 仍是独立授权动作** |
+| P16 运行边界诚实性硬化 | 完成 | 7/7 | checkpoint、顺序、conversation、观察 scope、冻结 identity 与 durable failure 合同全部收口 |
+| **总计** | **完成** | **130/130（100%）** | **P0–P16 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P15 纯能力抽象收口，6/6，已关闭。
-- 下一任务：无；tag/release 仍是独立授权动作，本批不创建。
+- 当前阶段：P16 运行边界诚实性硬化，7/7，已关闭。
+- 下一任务：继续按开发期节奏审计真实新问题；本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：ProcessStore 完整变更、Extension 并发所有权、原始 interaction 错误、ToolGroup
-  纯接口与 Host-owned chat history 装配全部收口。
+- 最近完成：checkpoint 外部工作移出临界区、进程树持久化本机有序、conversation projection
+  独立、listener scope 显式、extension identity 冻结，以及 ProcessSnapshot v5 message-only
+  failure 合同。
 
 ### 15.3 进度更新规则
 
@@ -1898,7 +1932,8 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 ### ADR-AF-009：持久化先说真话，再扩展能力
 
 - 状态：已接受并实现。
-- 决策：Snapshot v4 删除 revision；`ProcessStore.Apply` 以 `ProcessSnapshotChange` 表达一次
+- 决策：Snapshot v5 删除 revision，并以 `ProcessFailure{Message}` 明确限定可持久化错误信息；
+  `ProcessStore.Apply` 以 `ProcessSnapshotChange` 表达一次
   完整逻辑变更，读取使用 `Load`，列表拆为可选 `ProcessLister`。CAS、事务、幂等和分布式
   协调属于 adapter，不进入 Framework 合同。
   Snapshot 只保存当前 Process 的 direct ledger，聚合由恢复后的 child linkage 计算。
@@ -1963,6 +1998,7 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-21 | 完成 P16：checkpoint 锁不再跨 extension/Store I/O；Save/Discard 本机有序；conversation projection 与 Guardrails 解耦；EventListener scope、Store 暴露与 Extension identity 收紧；ProcessSnapshot v5 使用确定的 message-only failure；consumer、合同与完整门禁收口，不封版 | Codex |
 | 2026-07-21 | 完成 P15：ProcessStore 使用完整领域变更；Extension scope/并发所有权显式化；删除 committed/retry 伪事务协议与 ToolGroup lazy/static 实现；chat history Store/middleware 完全移至 Host；消费者、API baseline、独立依赖和完整门禁收口 | Codex |
 | 2026-07-21 | 完成 P14：Framework 收正为单机能力整合层；移除 Snapshot CAS、Action retry 与公开 Session sequencer；ProcessStore 最小化，App SQLite v15 使用 parent_id + 递归 CTE；Agent/App 独立门禁与竞态验证全绿 | Codex |
 | 2026-07-21 | 完成 Agent runtime 深层硬化：取消后自动快照独立收尾、terminal parent 子树 Kill、active Remove 拒绝、Session 值所有权、Team durable schema、usage/budget/limits 校验与溢出保护、workflow 隐式 fallback 清除；Agent/App build/vet/test、相关 race 与独立 module `GOWORK=off` 门禁全绿，改动均分批提交并推送 | Codex |
@@ -2010,6 +2046,7 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-21 | P16-01 至 P16-07 | 分批提交 checkpoint/本机顺序、runtime boundary 与 durable failure；ProcessSnapshot schema v5、16 个 JSON struct/490 行 wire、707 declaration/root 47 baseline；Agent build/vet/test/lint 与 full race、App 全量普通门禁和 agentexec/runsegment/SQLite/bootstrap/arch race、两个模块 tidy、workspace `all green (84 checks)`、diff audit 全绿 | 130/130 当前计划项关闭；继续开发期审计，不封版、不 tag/release |
 | 2026-07-21 | P14-01 至 P14-04 | Agent 全量 test/vet/tidy、full race、API/wire/arch/deployment golden；App 全量 test/vet/tidy、高风险 race，并以 `GOWORK=off` 固定 Agent `v0.0.0-20260721053458-338f7a625fed` 全量验证；`git diff --check` 通过 | 无；117/117 关闭，不创建 tag/release |
 | 2026-07-17 | P13-05 | Agent `build/vet/test/lint` 与 full race；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/arch 高风险 race；两模块 tidy；API 654/root 48、wire 490、arch/diff；workspace 两次 `all green (105 checks)` | 无；113/113 关闭。当前批独立 commit/push，不 tag/release |
 | 2026-07-17 | P13-01 至 P13-04 | Session Validate/BindAgent、最小 reader/writer store 与 Session conformance；root/child store 分离、按 stored Agent dispatch、cancel-safe final save；App Subtask 完整 identity、SQLite v5 与 v3/v4 migration tests；Agent core/runtime/storetest、App session/sqlite/bootstrap/agentexec/server 定向测试和 API/wire/arch 通过 | P13-05 完整 Agent/App/workspace gate、提交并 push |

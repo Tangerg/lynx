@@ -232,8 +232,8 @@ func (e *Engine) resolveBlackboard(supplied core.Blackboard) (core.Blackboard, e
 		}
 		return supplied, nil
 	}
-	if prototype := e.blackboardPrototype(); prototype != nil {
-		return cloneBlackboard(prototype)
+	if prototype, ok := e.blackboardPrototype(); ok {
+		return cloneBlackboardNamed(prototype.name, prototype.value)
 	}
 	return newInMemoryBlackboard(), nil
 }
@@ -257,6 +257,10 @@ func cloneBlackboard(source core.Blackboard) (clone core.Blackboard, err error) 
 	if err != nil {
 		return nil, err
 	}
+	return cloneBlackboardNamed(name, source)
+}
+
+func cloneBlackboardNamed(name string, source core.Blackboard) (clone core.Blackboard, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			clone = nil

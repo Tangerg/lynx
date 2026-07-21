@@ -28,6 +28,7 @@ var agentWireFixtureCoverage = map[string]string{
 	"core.DeploymentRef":      "process_snapshot",
 	"core.EmbeddingCall":      "process_snapshot",
 	"core.ModelCall":          "process_snapshot",
+	"core.ProcessFailure":     "process_failure",
 	"core.ProcessSnapshot":    "process_snapshot",
 	"core.Session":            "session",
 	"core.ActionRunSnapshot":  "process_snapshot",
