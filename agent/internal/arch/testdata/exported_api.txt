@@ -418,6 +418,7 @@ interaction: func (s Suspension) Responded() bool
 interaction: func (s Suspension) SameResponse(response any) bool
 interaction: func (s Suspension) Validate() error
 interaction: func (s Suspension) ValidateResponse(response any) (json.RawMessage, error)
+interaction: func StreamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, onDelta func(*chat.Response)) (*chat.Response, error)
 interaction: func ValidateID(id string) error
 interaction: type Event struct { Kind EventKind `json:"kind"` Round int `json:"round"` Final bool `json:"final,omitempty"` Request *chat.Request `json:"request,omitempty"` Response *chat.Response `json:"response,omitempty"` ToolCall *chat.ToolCall `json:"tool_call,omitempty"` ToolResult *chat.ToolResult `json:"tool_result,omitempty"` Suspension *Suspension `json:"suspension,omitempty"` Resume *Resume `json:"resume,omitempty"` }
 interaction: type EventKind string
