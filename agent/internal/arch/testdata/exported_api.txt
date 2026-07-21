@@ -626,9 +626,10 @@ runtime: type EventListener interface { core.Extension OnEvent(ctx context.Conte
 runtime: type Process struct { }
 runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sessionID string) (release func(), err error) }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
-runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessActive = errors.New("runtime: process is active") )
+runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
 runtime: var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
+runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
 runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")

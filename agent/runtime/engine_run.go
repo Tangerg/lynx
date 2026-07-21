@@ -1,9 +1,11 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -29,6 +31,10 @@ var (
 	// ErrProcessActive reports an attempt to remove a process before it reaches
 	// a terminal state. Call Kill first when active work must be discarded.
 	ErrProcessActive = errors.New("runtime: process is active")
+
+	// ErrProcessHasChildren reports that registry cleanup would detach a process
+	// from descendants that still belong to its execution tree.
+	ErrProcessHasChildren = errors.New("runtime: process still owns registered children")
 )
 
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
@@ -425,12 +431,15 @@ func (e *Engine) killChildren(ctx context.Context, parentID string) []string {
 // to finish first; rejecting their removal keeps cancellation, child ownership,
 // and durable cleanup reachable through the Engine.
 func (e *Engine) Remove(id string) error {
-	found, terminal := e.processes.unregisterTerminal(id)
+	found, terminal, hasChildren := e.processes.unregisterTerminalLeaf(id)
 	if !found {
 		return processNotFoundError("remove process", id)
 	}
 	if !terminal {
 		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessActive)
+	}
+	if hasChildren {
+		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessHasChildren)
 	}
 	return nil
 }
@@ -439,9 +448,27 @@ func (e *Engine) Remove(id string) error {
 // status satisfies [core.ProcessStatus.IsTerminal] and returns
 // the removed ids. Convenient cleanup for long-lived hosts.
 func (e *Engine) Prune() []string {
-	return e.processes.pruneWhere(func(process *Process) bool {
-		return process.Status().IsTerminal()
-	})
+	var removed []string
+	for {
+		processes := e.Processes()
+		slices.SortFunc(processes, func(left, right *Process) int {
+			return cmp.Or(
+				cmp.Compare(right.depth, left.depth),
+				cmp.Compare(left.id, right.id),
+			)
+		})
+		pruned := 0
+		for _, process := range processes {
+			found, terminal, hasChildren := e.processes.unregisterTerminalLeaf(process.ID())
+			if found && terminal && !hasChildren {
+				removed = append(removed, process.ID())
+				pruned++
+			}
+		}
+		if pruned == 0 {
+			return removed
+		}
+	}
 }
 
 type processNotFound struct {

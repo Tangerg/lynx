@@ -58,6 +58,21 @@ func (e *Engine) registerProcessFromDeployment(
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, core.Bindings, error) {
+	process, eventBindings, err := e.buildProcessFromDeployment(deployment, bindings, options)
+	if err != nil {
+		return nil, core.Bindings{}, err
+	}
+	if !e.processes.insert(process) {
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, process.id)
+	}
+	return process, eventBindings, nil
+}
+
+func (e *Engine) buildProcessFromDeployment(
+	deployment *Deployment,
+	bindings core.Bindings,
+	options core.ProcessOptions,
+) (*Process, core.Bindings, error) {
 	if deployment == nil || deployment.agent == nil {
 		return nil, core.Bindings{}, errors.New("runtime.Engine.createProcessFromDeployment: deployment is nil")
 	}
@@ -98,10 +113,6 @@ func (e *Engine) registerProcessFromDeployment(
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
 	process.wireRuntimeDeps(processOptions.extensions)
-
-	if !e.processes.insert(process) {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, processID)
-	}
 	return process, bindings, nil
 }
 
@@ -146,14 +157,29 @@ func (e *Engine) createChild(
 	}
 	options.Extensions = extensions
 
-	child, eventBindings, err := e.registerProcessFromDeployment(deployment, bindings, options)
+	child, eventBindings, err := e.buildProcessFromDeployment(deployment, bindings, options)
 	if err != nil {
 		return nil, core.Bindings{}, err
 	}
+	if err := e.attachChild(parent, child); err != nil {
+		return nil, core.Bindings{}, err
+	}
+	return child, eventBindings, nil
+}
+
+func (e *Engine) attachChild(parent, child *Process) error {
+	parent.state.mu.Lock()
+	defer parent.state.mu.Unlock()
+	if parent.state.currentStatus != core.StatusRunning || !parent.state.runOwned {
+		return fmt.Errorf("%w: parent process %q is %s", ErrChildParentInactive, parent.id, parent.state.currentStatus)
+	}
 	child.parentID = parent.id
 	child.depth = parent.depth + 1
-	parent.budget.addChild(child)
-	return child, eventBindings, nil
+	if !e.processes.insert(child) {
+		return fmt.Errorf("runtime.Engine.createChild: %w: duplicate ID %q", ErrProcessIdentity, child.id)
+	}
+	parent.budget.children = append(parent.budget.children, child)
+	return nil
 }
 
 // resolvePlanner finds the [planning.Planner] for agent by matching

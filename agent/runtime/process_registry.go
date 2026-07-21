@@ -34,59 +34,65 @@ func (r *processRegistry) insert(process *Process) bool {
 
 // registerNew refuses to replace a live process with a restored copy.
 func (r *processRegistry) registerNew(process *Process) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if existing, ok := r.items[process.id]; ok && !existing.Status().IsTerminal() {
-		return false
-	}
-	r.items[process.id] = process
-	return true
-}
-
-func (r *processRegistry) unregister(id string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if _, ok := r.items[id]; !ok {
-		return false
-	}
-	delete(r.items, id)
-	return true
-}
-
-func (r *processRegistry) unregisterTerminal(id string) (found, terminal bool) {
-	r.mu.RLock()
-	process, ok := r.items[id]
-	r.mu.RUnlock()
-	if !ok {
-		return false, false
-	}
-	if !process.Status().IsTerminal() {
-		return true, false
-	}
-
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if current, ok := r.items[id]; !ok {
-		return false, false
-	} else if current != process {
-		return true, false
-	}
-	delete(r.items, id)
-	return true, true
-}
-
-func (r *processRegistry) pruneWhere(predicate func(*Process) bool) []string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	var removed []string
-	for id, process := range r.items {
-		if predicate(process) {
-			delete(r.items, id)
-			removed = append(removed, id)
+	for {
+		r.mu.RLock()
+		existing, exists := r.items[process.id]
+		r.mu.RUnlock()
+		if exists && !existing.Status().IsTerminal() {
+			return false
 		}
+
+		r.mu.Lock()
+		current, currentExists := r.items[process.id]
+		if currentExists == exists && (!exists || current == existing) {
+			r.items[process.id] = process
+			r.mu.Unlock()
+			return true
+		}
+		r.mu.Unlock()
 	}
-	return removed
+}
+
+func (r *processRegistry) unregister(process *Process) bool {
+	if process == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.items[process.id] != process {
+		return false
+	}
+	delete(r.items, process.id)
+	return true
+}
+
+func (r *processRegistry) unregisterTerminalLeaf(id string) (found, terminal, hasChildren bool) {
+	for {
+		r.mu.RLock()
+		process, exists := r.items[id]
+		r.mu.RUnlock()
+		if !exists {
+			return false, false, false
+		}
+		if !process.Status().IsTerminal() {
+			return true, false, false
+		}
+
+		r.mu.Lock()
+		if r.items[id] != process {
+			r.mu.Unlock()
+			continue
+		}
+		for _, candidate := range r.items {
+			if candidate.parentID == id {
+				r.mu.Unlock()
+				return true, true, true
+			}
+		}
+		delete(r.items, id)
+		r.mu.Unlock()
+		return true, true, false
+	}
 }
 
 func (r *processRegistry) get(id string) (*Process, bool) {

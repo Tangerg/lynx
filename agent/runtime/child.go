@@ -12,9 +12,15 @@ import (
 // ErrChildDepth reports that a child would exceed the delegation depth limit.
 var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 
+// ErrChildParentInactive reports an attempt to create a child outside the
+// owning parent's active run loop.
+var ErrChildParentInactive = errors.New("run child: parent process is not running")
+
 // StartChild starts a child in the background and returns immediately. Like
 // [Engine.RunChild], it copies only the parent's protected ambient state. The
-// returned channel receives the terminal run error, if any.
+// returned channel receives the terminal run error, if any. The parent must be
+// the active process attached to ctx; terminal, idle, and foreign processes are
+// rejected.
 //
 // The child outlives cancellation of the calling action. Callers own its
 // lifecycle through [Engine.Process], [Engine.Kill], or [Engine.KillChildren].
@@ -76,8 +82,8 @@ func (e *Engine) RunChildWithState(
 
 // RunChild runs a child with a clean blackboard containing only the parent's
 // protected ambient state. This is the safe default for self-contained
-// delegation. The parent process must be attached to ctx with
-// [core.WithProcessView].
+// delegation. The active parent process owned by this Engine must be attached
+// to ctx with [core.WithProcessView].
 func (e *Engine) RunChild(
 	ctx context.Context,
 	deployment *Deployment,
@@ -174,7 +180,7 @@ func (r childRun) create() (*Process, error) {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
 	if err := r.linkSession(child, parent); err != nil {
-		r.engine.processes.unregister(child.ID())
+		r.engine.processes.unregister(child)
 		parent.budget.removeChild(child)
 		return nil, fmt.Errorf("run child %q: link session: %w", agentName, err)
 	}
@@ -196,15 +202,19 @@ func (r childRun) parentProcess() (*Process, error) {
 	if r.deployment == nil {
 		return nil, errors.New("run child: deployment is nil")
 	}
-	parent := core.ProcessViewFrom(r.ctx)
-	if parent == nil {
+	view := core.ProcessViewFrom(r.ctx)
+	if view == nil {
 		return nil, errors.New("run child: no parent process in ctx (use core.WithProcessView to inject one)")
 	}
-	parentProcess, ok := r.engine.Process(parent.ID())
-	if !ok {
-		return nil, fmt.Errorf("run child: parent process %q not registered on engine", parent.ID())
+	parent, ok := view.(*Process)
+	if !ok || parent.engine != r.engine {
+		return nil, fmt.Errorf("run child: parent process %q is not owned by this engine", view.ID())
 	}
-	return parentProcess, nil
+	registered, ok := r.engine.Process(parent.ID())
+	if !ok || registered != parent {
+		return nil, fmt.Errorf("run child: parent process %q is not registered on this engine", parent.ID())
+	}
+	return parent, nil
 }
 
 func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.ProcessOptions, error) {

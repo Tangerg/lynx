@@ -86,6 +86,53 @@ func TestKillTerminalParentStillKillsLiveDescendants(t *testing.T) {
 	}
 	<-childDone
 	close(release)
+	if err := engine.Remove(parent.ID()); !errors.Is(err, runtime.ErrProcessHasChildren) {
+		t.Fatalf("Remove parent error = %v, want ErrProcessHasChildren", err)
+	}
+	if err := engine.Remove(child.ID()); err != nil {
+		t.Fatalf("Remove child: %v", err)
+	}
+	if err := engine.Remove(parent.ID()); err != nil {
+		t.Fatalf("Remove parent: %v", err)
+	}
+}
+
+func TestPrunePreservesTerminalParentWithActiveChild(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	release := make(chan struct{})
+	childAgent := blockingChild("prune-live-child", release)
+	childDeployment, err := engine.Deploy(t.Context(), childAgent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var childDone <-chan error
+	parentAgent := agent.New(agent.AgentConfig{
+		Name: "prune-parent",
+		Actions: []agent.Action{agent.NewAction("start", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
+			_, childDone, err = engine.StartChild(ctx, childDeployment, input)
+			return parentOutput{Final: 1}, err
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})},
+	})
+	parent, err := engine.Run(t.Context(), parentAgent, core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed := engine.Prune(); len(removed) != 0 {
+		t.Fatalf("Prune removed %v while child was active", removed)
+	}
+	if _, exists := engine.Process(parent.ID()); !exists {
+		t.Fatal("Prune detached terminal parent from active child")
+	}
+	if err := engine.Kill(t.Context(), parent.ID()); err != nil {
+		t.Fatal(err)
+	}
+	<-childDone
+	close(release)
+	removed := engine.Prune()
+	if len(removed) != 2 {
+		t.Fatalf("Prune removed %v, want child and parent", removed)
+	}
 }
 
 func TestRemoveRejectsActiveProcess(t *testing.T) {
