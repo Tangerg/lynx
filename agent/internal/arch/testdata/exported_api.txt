@@ -61,7 +61,6 @@ core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
 core: const BudgetPolicyName = "budget-policy"
 core: const ProcessSnapshotSchemaVersion uint16 = 4
-core: const StaticToolGroupResolverName = "static-tool-group-resolver"
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -119,8 +118,6 @@ core: func (g *Goal) Value(worldState WorldState) float64
 core: func (g *UUIDGenerator) Name() string
 core: func (i ToolGroupInfo) Validate() error
 core: func (k DependencyKey[T]) Name() string
-core: func (l *LazyToolGroup) Info() ToolGroupInfo
-core: func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error)
 core: func (m *SessionMetadata) Delete(name string)
 core: func (m *SessionMetadata) Set(name string, value any) error
 core: func (m *SessionMetadata) UnmarshalJSON(data []byte) error
@@ -154,12 +151,7 @@ core: func (pc *ProcessContext) TerminateAgent(reason string) error
 core: func (pc *ProcessContext) TerminateToolCall() error
 core: func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc)
 core: func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error
-core: func (r *LazyToolGroupResolver) Name() string
-core: func (r *LazyToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
 core: func (r *ReplanRequest) Error() string
-core: func (r *StaticToolGroupResolver) Name() string
-core: func (r *StaticToolGroupResolver) Resolve(_ context.Context, requirement ToolGroupRequirement) (ToolGroup, bool, error)
-core: func (r *StaticToolGroupResolver) Set(role string, group ToolGroup)
 core: func (r ActionRunSnapshot) MarshalJSON() ([]byte, error)
 core: func (r DeploymentRef) String() string
 core: func (r DeploymentRef) Validate() error
@@ -205,13 +197,10 @@ core: func NewDependencies() *Dependencies
 core: func NewDependencyKey[T any](name string) (DependencyKey[T], error)
 core: func NewGoal(config GoalConfig) *Goal
 core: func NewGoalTool[In any](config GoalToolConfig) *GoalTool
-core: func NewLazyToolGroup(info ToolGroupInfo, load func(ctx context.Context) ([]tools.Tool, error)) *LazyToolGroup
-core: func NewLazyToolGroupResolver( name string, info ToolGroupInfo, load func(context.Context) ([]tools.Tool, error), ) (*LazyToolGroupResolver, error)
 core: func NewOutputGoal[T any](config GoalConfig) *Goal
 core: func NewProcessContext(config ProcessContextConfig) *ProcessContext
 core: func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error)
 core: func NewSession(id, userID, agentName string) Session
-core: func NewStaticToolGroupResolver(name string) *StaticToolGroupResolver
 core: func NewUUIDGenerator(name string) *UUIDGenerator
 core: func Not(inner Condition) Condition
 core: func Objects[T any](blackboard BlackboardReader) []T
@@ -267,8 +256,6 @@ core: type GoalTool struct { Standalone bool Description string }
 core: type GoalToolConfig struct { Standalone bool Description string }
 core: type IDGenerator interface { Extension Next() string }
 core: type Interaction struct { ID string Model chat.Model Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Observe interaction.Observer Attribute ModelAttributionFunc }
-core: type LazyToolGroup struct { }
-core: type LazyToolGroupResolver struct { }
 core: type ModelAttribution struct { Provider string CostUSD float64 }
 core: type ModelAttributionFunc func(response *chat.Response) ModelAttribution
 core: type ModelCall struct { Timestamp time.Time `json:"timestamp"` Model string `json:"model"` Provider string `json:"provider,omitempty"` CostUSD float64 `json:"cost_usd"` PromptTokens int64 `json:"prompt_tokens"` CompletionTokens int64 `json:"completion_tokens"` ReasoningTokens int64 `json:"reasoning_tokens,omitempty"` CacheReadInputTokens int64 `json:"cache_read_input_tokens,omitempty"` CacheWriteInputTokens int64 `json:"cache_write_input_tokens,omitempty"` Duration time.Duration `json:"duration_ns"` ActionName string `json:"action,omitempty"` }
@@ -299,7 +286,6 @@ core: type SessionReader interface { Load(ctx context.Context, id string) (Sessi
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
 core: type SnapshotFailurePolicy uint8
-core: type StaticToolGroupResolver struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8
 core: type StuckPolicy interface { Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) StuckResult }

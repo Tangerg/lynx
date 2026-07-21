@@ -27,14 +27,15 @@ type (
 	}
 )
 
+const researchToolRole = "research"
+
 func main() {
 	chatClient, err := chatclient.New(newStubModel())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	resolver := core.NewStaticToolGroupResolver("static")
-	resolver.Set("research", newResearchToolGroup())
+	resolver := researchToolResolver{group: newResearchToolGroup()}
 
 	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. "+"Use the `research_search` tool to gather sources first; "+"then summarise. Reply with JSON: "+`{"summary":"...","sources":["..."]}`, in.Title)
@@ -52,7 +53,7 @@ func main() {
 			parsed.Summary = strings.TrimSpace(text)
 		}
 		return Brief{Topic: in.Title, Sources: parsed.Sources, Summary: parsed.Summary}, nil
-	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup("research")}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
@@ -138,6 +139,19 @@ type researchToolGroup struct {
 	tools []tools.Tool
 }
 
+type researchToolResolver struct {
+	group *researchToolGroup
+}
+
+func (researchToolResolver) Name() string { return "research-tools" }
+
+func (r researchToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+	if requirement.Role != researchToolRole {
+		return nil, false, nil
+	}
+	return r.group, true, nil
+}
+
 type researchSearchInput struct {
 	Query string `json:"query" jsonschema:"required"`
 }
@@ -160,7 +174,7 @@ func newResearchToolGroup() *researchToolGroup {
 }
 
 func (g *researchToolGroup) Info() core.ToolGroupInfo {
-	return core.ToolGroupInfo{Role: "research"}
+	return core.ToolGroupInfo{Role: researchToolRole}
 }
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {

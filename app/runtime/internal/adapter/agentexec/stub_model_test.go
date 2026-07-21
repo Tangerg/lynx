@@ -522,6 +522,19 @@ type fixedToolResolver struct {
 	tool tools.Tool
 }
 
+type fixedToolGroup struct {
+	role string
+	tool tools.Tool
+}
+
+func (g fixedToolGroup) Info() core.ToolGroupInfo {
+	return core.ToolGroupInfo{Role: g.role}
+}
+
+func (g fixedToolGroup) Tools(context.Context) ([]tools.Tool, error) {
+	return []tools.Tool{g.tool}, nil
+}
+
 func (*fixedToolResolver) Name() string { return "agentexec-test-tools" }
 
 func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
@@ -529,10 +542,7 @@ func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
 func (r *fixedToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
 	switch requirement.Role {
 	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
-		info := core.ToolGroupInfo{Role: requirement.Role}
-		return core.NewLazyToolGroup(info, func(context.Context) ([]tools.Tool, error) {
-			return []tools.Tool{r.tool}, nil
-		}), true, nil
+		return fixedToolGroup{role: requirement.Role, tool: r.tool}, true, nil
 	default:
 		return nil, false, nil
 	}

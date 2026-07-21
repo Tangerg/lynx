@@ -1,11 +1,9 @@
 package core_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/tools"
 )
 
 func TestToolGroupRequirementAllows(t *testing.T) {
@@ -102,73 +100,6 @@ func TestToolGroupContractsValidate(t *testing.T) {
 	}
 }
 
-func TestLazyToolGroupResolver(t *testing.T) {
-	loads := 0
-	tool, err := tools.New[struct{}, string](
-		tools.Config{Name: "dynamic"},
-		func(context.Context, struct{}) (string, error) { return "ok", nil },
-	)
-	if err != nil {
-		t.Fatalf("tools.New: %v", err)
-	}
-	info := core.ToolGroupInfo{Role: "research"}
-	resolver, err := core.NewLazyToolGroupResolver("remote-research", info, func(context.Context) ([]tools.Tool, error) {
-		loads++
-		return []tools.Tool{tool}, nil
-	})
-	if err != nil {
-		t.Fatalf("NewLazyToolGroupResolver: %v", err)
-	}
-	if resolver.Name() != "remote-research" {
-		t.Fatalf("Name = %q", resolver.Name())
-	}
-	if group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: "other"}); err != nil || ok || group != nil {
-		t.Fatalf("miss = %#v, %v, %v", group, ok, err)
-	}
-	group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: "research"})
-	if err != nil || !ok || group == nil {
-		t.Fatalf("Resolve = %#v, %v, %v", group, ok, err)
-	}
-	for range 2 {
-		got, loadErr := group.Tools(t.Context())
-		if loadErr != nil || len(got) != 1 {
-			t.Fatalf("Tools = %v, %v", got, loadErr)
-		}
-	}
-	if loads != 1 {
-		t.Fatalf("loader calls = %d, want 1", loads)
-	}
-}
-
-func TestLazyToolGroupResolverRejectsInvalidConfig(t *testing.T) {
-	info := core.ToolGroupInfo{Role: "role"}
-	loader := func(context.Context) ([]tools.Tool, error) { return nil, nil }
-	cases := []struct {
-		name     string
-		resolver func() error
-	}{
-		{"empty name", func() error {
-			_, err := core.NewLazyToolGroupResolver("", info, loader)
-			return err
-		}},
-		{"empty role", func() error {
-			_, err := core.NewLazyToolGroupResolver("name", core.ToolGroupInfo{}, loader)
-			return err
-		}},
-		{"nil loader", func() error {
-			_, err := core.NewLazyToolGroupResolver("name", info, nil)
-			return err
-		}},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := tc.resolver(); err == nil {
-				t.Fatal("expected error")
-			}
-		})
-	}
-}
-
 func TestToolGroupPermissionString(t *testing.T) {
 	cases := []struct {
 		p    core.ToolGroupPermission
@@ -182,22 +113,5 @@ func TestToolGroupPermissionString(t *testing.T) {
 		if got := tc.p.String(); got != tc.want {
 			t.Errorf("(%d).String() = %q, want %q", tc.p, got, tc.want)
 		}
-	}
-}
-
-func TestLazyToolGroupCopiesInfo(t *testing.T) {
-	info := core.ToolGroupInfo{
-		Role:        "web",
-		Permissions: []core.ToolGroupPermission{core.ToolGroupInternetAccess},
-	}
-	group := core.NewLazyToolGroup(info, nil)
-	info.Permissions[0] = core.ToolGroupHostAccess
-	got := group.Info()
-	if len(got.Permissions) != 1 || got.Permissions[0] != core.ToolGroupInternetAccess {
-		t.Fatalf("Info().Permissions = %v, want [internet_access]", got.Permissions)
-	}
-	got.Permissions[0] = core.ToolGroupHostAccess
-	if again := group.Info(); again.Permissions[0] != core.ToolGroupInternetAccess {
-		t.Errorf("Info returned mutable permissions: %v", again.Permissions)
 	}
 }
