@@ -8,7 +8,12 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"strings"
 	"time"
+
+	skillspec "github.com/Tangerg/lynx/skills"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 // usageFile is the store-root sidecar holding per-skill usage. Its dot-prefixed
@@ -22,7 +27,10 @@ const usageFile = ".usage.json"
 // effect (the skill moves to _archive); Active/Stale are informational.
 type usageState string
 
-const usageActive usageState = "active"
+const (
+	usageActive usageState = "active"
+	usageStale  usageState = "stale"
+)
 
 // usageRecord tracks one skill's activity for the idle-lifecycle curator.
 // FirstSeen anchors the grace floor for a never-used skill; LastUsed drives the
@@ -32,6 +40,16 @@ type usageRecord struct {
 	LastUsed  int64      `json:"lastUsed,omitempty"`
 	Uses      int        `json:"uses"`
 	State     usageState `json:"state,omitempty"`
+}
+
+// lastActivity is the most recent signal of relevance — a load if the skill has
+// been used, else when the store first saw it (so a brand-new, never-used skill
+// gets the grace floor before it can be judged idle).
+func (r usageRecord) lastActivity() int64 {
+	if r.LastUsed > r.FirstSeen {
+		return r.LastUsed
+	}
+	return r.FirstSeen
 }
 
 // RecordUse marks a skill loaded at now: it bumps the use count and last-used
@@ -67,6 +85,102 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	record.State = usageActive
 	usage[name] = record
 	return writeUsage(root, usage)
+}
+
+// SweepIdle archives agent-authored skills idle past archiveAfter and marks
+// those idle past staleAfter (but not yet archived) stale, for observability. It
+// returns the names it archived. It is provenance-gated: only skills whose
+// frontmatter created_by is [skills.CreatedByAgent] are ever auto-curated — a
+// human-authored skill is left untouched. Archiving moves the skill to _archive
+// (never deletes) and drops its usage record, so a later restore starts with a
+// fresh grace floor rather than being re-archived on the next sweep. A skill with
+// no record yet is seeded at now, giving it the full archiveAfter grace before it
+// can be judged idle. now is explicit so the policy stays testable.
+func (s *Store) SweepIdle(ctx context.Context, now time.Time, staleAfter, archiveAfter time.Duration) ([]string, error) {
+	if !s.Enabled() {
+		return nil, nil
+	}
+	if err := contextError(ctx, "sweep skills"); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	names, err := activeSkillNames(root)
+	if err != nil {
+		return nil, err
+	}
+	usage, err := readUsage(root)
+	if err != nil {
+		return nil, err
+	}
+	var archived []string
+	for _, name := range names {
+		content, found, err := readSkill(root, name)
+		if err != nil {
+			return archived, err
+		}
+		if !found {
+			continue
+		}
+		front, _, err := skillspec.Parse(content)
+		if err != nil {
+			continue
+		}
+		if front.Metadata[skills.MetadataCreatedBy] != skills.CreatedByAgent {
+			continue // provenance gate: only agent-authored skills auto-curate
+		}
+		record := usage[name]
+		if record.FirstSeen == 0 {
+			record.FirstSeen = now.Unix()
+		}
+		idle := now.Sub(time.Unix(record.lastActivity(), 0))
+		switch {
+		case idle >= archiveAfter:
+			if err := s.archiveActive(root, name); err != nil {
+				return archived, err
+			}
+			delete(usage, name)
+			archived = append(archived, name)
+		case idle >= staleAfter:
+			record.State = usageStale
+			usage[name] = record
+		default:
+			record.State = usageActive
+			usage[name] = record
+		}
+	}
+	if err := writeUsage(root, usage); err != nil {
+		return archived, err
+	}
+	return archived, nil
+}
+
+// activeSkillNames lists the active skill directories directly under the store
+// root — every directory that isn't the reserved _drafts/_archive area or a
+// dotfile.
+func activeSkillNames(root *os.Root) ([]string, error) {
+	entries, err := fs.ReadDir(root.FS(), ".")
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("skillauthoring: list active skills: %w", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !entry.IsDir() || strings.HasPrefix(name, "_") || strings.HasPrefix(name, ".") {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names, nil
 }
 
 func readUsage(root *os.Root) (map[string]usageRecord, error) {

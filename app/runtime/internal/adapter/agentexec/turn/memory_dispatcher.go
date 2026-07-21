@@ -56,6 +56,10 @@ type Dependencies struct {
 	// boundary, independent of compaction. nil disables skill mining.
 	Miner SkillMiner
 
+	// SkillCurator sweeps idle agent-authored skills into the archive at the turn
+	// boundary (rate-limited internally). nil disables idle curation.
+	SkillCurator SkillCurator
+
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
 	Approval approval.Policy
@@ -111,6 +115,7 @@ func New(deps Dependencies) (Dispatcher, error) {
 		compactor:           deps.Compactor,
 		extractor:           deps.Extractor,
 		miner:               deps.Miner,
+		curator:             deps.SkillCurator,
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
 		todos:               deps.Todos,
@@ -130,6 +135,7 @@ type memoryDispatcher struct {
 	compactor Compactor
 	extractor Extractor
 	miner     SkillMiner      // optional — nil = no skill mining
+	curator   SkillCurator    // optional — nil = no idle-skill curation
 	approval  approval.Policy // optional — nil = auto-approve every tool
 	resolver  clientResolver  // optional — nil = always use the default model
 	todos     todoLister      // optional — nil = no state.snapshot{todos} projection

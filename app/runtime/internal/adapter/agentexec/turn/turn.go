@@ -233,6 +233,17 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 			})
 		}
 	}
+	// Idle-skill curation is global (not tied to this session/cwd) and
+	// rate-limited inside the curator; the turn boundary is just a live tick.
+	if s.curator != nil {
+		if err := s.curator.MaybeSweep(ctx); err != nil {
+			s.emit(st, ErrorEvent{
+				Message: "skill curation failed: " + err.Error(),
+				Code:    ErrorCodeSkillMaintenance,
+				Problem: internalRunProblem(),
+			})
+		}
+	}
 
 	if s.compactor == nil {
 		return

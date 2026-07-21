@@ -199,19 +199,30 @@ func (s *Store) replaceActive(ctx context.Context, root *os.Root, handle skills.
 		return err
 	}
 	if exists {
-		archiveDir := s.archiveDir(handle.Name)
-		if err := root.RemoveAll(archiveDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("skillauthoring: clear archive slot for %q: %w", handle.Name, err)
-		}
-		if err := root.MkdirAll(skills.ArchivedSubdir, 0o755); err != nil {
-			return fmt.Errorf("skillauthoring: create archive area: %w", err)
-		}
-		if err := root.Rename(activeDir, archiveDir); err != nil {
-			return fmt.Errorf("skillauthoring: archive superseded skill %q: %w", handle.Name, err)
+		if err := s.archiveActive(root, handle.Name); err != nil {
+			return err
 		}
 	}
 	if err := root.Rename(draftDir, activeDir); err != nil {
 		return fmt.Errorf("skillauthoring: install revised skill %q: %w", handle.Name, err)
+	}
+	return nil
+}
+
+// archiveActive moves the active skill <name> into _archive/<name>, OVERWRITING
+// any older archived version — the single history slot the module keeps. The
+// caller holds s.mu and owns root. Shared by the revision-replace path and the
+// idle-lifecycle sweep.
+func (s *Store) archiveActive(root *os.Root, name string) error {
+	archiveDir := s.archiveDir(name)
+	if err := root.RemoveAll(archiveDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("skillauthoring: clear archive slot for %q: %w", name, err)
+	}
+	if err := root.MkdirAll(skills.ArchivedSubdir, 0o755); err != nil {
+		return fmt.Errorf("skillauthoring: create archive area: %w", err)
+	}
+	if err := root.Rename(s.activeDir(name), archiveDir); err != nil {
+		return fmt.Errorf("skillauthoring: archive skill %q: %w", name, err)
 	}
 	return nil
 }

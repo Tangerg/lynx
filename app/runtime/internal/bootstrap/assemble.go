@@ -291,6 +291,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Compactor:           turnServices.compactor,
 		Extractor:           turnServices.extractor,
 		Miner:               turnServices.miner,
+		SkillCurator:        turnServices.curator,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,
