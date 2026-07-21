@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/core"
-	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -35,10 +34,6 @@ type Config struct {
 	// runtimes require the exact "sha256:<hex>" value so process snapshots
 	// cannot be restored against different executable behavior.
 	BuildID string
-
-	// SnapshotFailurePolicy is fixed by the application to fail the process.
-	// A durable Runtime must never continue after losing snapshot durability.
-	SnapshotFailurePolicy agentruntime.SnapshotFailurePolicy
 
 	// ChatClient is the LLM client used by every action. Built from
 	// a lynx model adapter (anthropic, openai, ...) at startup.

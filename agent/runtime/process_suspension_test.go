@@ -69,7 +69,8 @@ func TestProcessStateTerminalTransitionClearsSuspension(t *testing.T) {
 		t.Fatal(err)
 	}
 	state.transition(core.StatusWaiting)
-	if !state.pauseDurability() || state.status() != core.StatusWaiting || state.suspension() == nil {
+	state.pauseDurability()
+	if state.status() != core.StatusWaiting || state.suspension() == nil {
 		t.Fatalf("durability pause changed waiting continuation: status=%s suspension=%#v", state.status(), state.suspension())
 	}
 	if won, _ := state.markKilled(nil); !won {

@@ -144,7 +144,7 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
 - `Kill`、`Remove`、`Prune`：显式生命周期管理；
 - `Process`、`Processes`：读取当前 registry 快照；
-- `Save`、`Restore`、`RestoreSnapshot`：durable process 协调。
+- `Save`、`Discard`、`Restore`、`Resumable`、`RestoreResumable`、`RestoreSnapshot`：durable process 协调。
 
 `Continue`、`Resume`、`Kill` 或 `Remove` 指向已不存在的 Process 时，错误可通过
 `errors.Is(err, runtime.ErrProcessNotFound)` 稳定分类；调用方不得解析错误文本。

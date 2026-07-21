@@ -291,7 +291,7 @@ func nextProcessID(generator extensionCapability[core.IDGenerator]) (id string, 
 	return id, nil
 }
 
-// validateProcessExtensions enforces identity and scope before a Process keeps
+// registerProcessExtensions enforces identity and scope before a Process keeps
 // the extension instances. Process-scope Names may collide with engine-scope
 // Names; selection capabilities treat that as an explicit override.
 func registerProcessExtensions(extensions []core.Extension) ([]extensionEntry, error) {

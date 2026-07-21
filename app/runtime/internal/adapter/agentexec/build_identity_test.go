@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -37,16 +36,6 @@ func TestNewRequiresContentBuildIdentityForDurableRuntime(t *testing.T) {
 			name:   "development fallback",
 			config: Config{ChatClient: client, ProcessStore: newJSONProcessStore(), BuildID: "dev"},
 			want:   "BuildID",
-		},
-		{
-			name: "non fail process policy",
-			config: Config{
-				ChatClient:            client,
-				ProcessStore:          newJSONProcessStore(),
-				BuildID:               testBuildID,
-				SnapshotFailurePolicy: agentruntime.SnapshotFailureReportOnly,
-			},
-			want: "SnapshotFailurePolicy",
 		},
 	}
 
