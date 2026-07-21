@@ -172,6 +172,13 @@ type Config struct {
 
 // New validates config atomically and returns a fresh Engine. A
 // failed construction never returns a partially initialized engine.
+//
+// New registers no planners — the runtime resolves them purely through the
+// [planning.Planner] interface, so an agent requesting a planner (including the
+// default "goap") fails at run unless a matching planner is in config.Extensions.
+// Most hosts want the batteries-included composition root [agent.NewEngine],
+// which installs the built-in goap/reactive planners; call New directly only to
+// supply your own.
 func New(config Config) (*Engine, error) {
 	if config.BuildID != strings.TrimSpace(config.BuildID) {
 		return nil, errors.New("runtime.New: BuildID must not have leading or trailing whitespace")

@@ -19,7 +19,14 @@ import (
 var updateAgentAPI = flag.Bool("update-api", false, "replace the reviewed Agent exported API baseline")
 
 const agentExportedAPIBaseline = "testdata/exported_api.txt"
-const agentRootFacadeBudget = 50
+
+// agentRootFacadeBudget caps the curated root-package surface so the facade
+// stays a discoverable common-path entry point, not a mirror of every
+// sub-package. Raised from 50 to cover the common tool-using-agent authoring
+// path end to end (Chat, RequireToolGroup + ToolGroup* declaration/resolution,
+// Get, RequireType) so a typical agent needs only the `agent` import; advanced
+// SPI (tool-group permissions, Objects/Last) deliberately stays in core.
+const agentRootFacadeBudget = 58
 
 // agentPublicPackages is the complete non-internal, non-example surface of the
 // Agent module. One module has one SemVer contract: planners, workflows,

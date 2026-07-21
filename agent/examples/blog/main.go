@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
 
@@ -40,10 +39,10 @@ func main() {
 	}, agent.ActionConfig{}), agent.NewAction("outline", func(ctx context.Context, pc *agent.ProcessContext, t Topic) (Outline, error) {
 		return Outline{Sections: []string{"intro", t.Title, "conclusion"}}, nil
 	}, agent.ActionConfig{}), agent.NewAction("write", func(ctx context.Context, pc *agent.ProcessContext, outline Outline) (BlogPost, error) {
-		topic, _ := core.Get[Topic](pc.Blackboard(), core.DefaultBindingName)
-		research, _ := core.Get[Research](pc.Blackboard(), core.DefaultBindingName)
+		topic, _ := agent.Get[Topic](pc.Blackboard(), agent.DefaultBindingName)
+		research, _ := agent.Get[Research](pc.Blackboard(), agent.DefaultBindingName)
 		return BlogPost{Topic: topic, Outline: outline, Research: research, Body: "Blog about " + topic.Title + " using " + strings.Join(outline.Sections, ", ")}, nil
-	}, agent.ActionConfig{Preconditions: []string{"it:" + core.TypeName[Research]()}})}, Goals: []*agent.Goal{agent.NewOutputGoal[BlogPost](agent.GoalConfig{Description: "blog post produced"})}})
+	}, agent.ActionConfig{Preconditions: []string{agent.RequireType[Research]()}})}, Goals: []*agent.Goal{agent.NewOutputGoal[BlogPost](agent.GoalConfig{Description: "blog post produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Extensions: []agent.Extension{stubLogger{}},

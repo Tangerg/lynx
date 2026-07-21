@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 708 |
-| root façade | 47 / 50 |
+| exported declaration | 716 |
+| root façade | 55 / 58 |
 | exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`0bd27d46de3a99b5db19007dc47db2378393edc511daa6aaf039e83672b6984e`
+- API baseline SHA-256：`2e7cc746d38939d9b29f68e513db0920908ecf8e2647db22313a1e01f6c76d8c`
 - wire fixture SHA-256：`f2f6de44747d91ba41ac5eadc734357751e3a6b80e75b6e8876ef8c444e501f0`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -49,6 +49,12 @@
 
 ### Go API ergonomics
 
+- 根 facade 覆盖常用 tool-using-agent 作者路径,单 `agent` import 即可:`Chat(model)`
+  (自动按能力开启流式,免去 `ChatCapability{Model:c,Streamer:c}` 双写)、
+  `RequireToolGroup` + `ToolGroupRequirement`/`ToolGroup`/`ToolGroupInfo`/`ToolGroupResolver`
+  声明与解析、`Get` 读黑板、`RequireType[T]()` 生成类型 precondition(取代手写 `"it:"+TypeName`)。
+  facade budget 50→58 以容纳;权限枚举与 `Objects`/`Last` 等高级/低频 SPI 仍留 core。
+  `runtime.New` 明确文档为不注册 planner 的底层构造器,默认路径用 `agent.NewEngine`。
 - 根入口为 `NewEngine`、`MustNewEngine`、`Engine.Run`、`Engine.Start`。
 - Engine 生命周期方法统一为 context-first 单入口；删除所有无 context / `FooContext` 双轨 API。
 - `Start` 与 `ContinueAsync` 立即返回 admission error，完成 channel 只表示已启动的后台执行。

@@ -4,6 +4,8 @@
 
 .: const ( DefaultBindingName = core.DefaultBindingName Unknown = core.Unknown True = core.True False = core.False StatusNotStarted = core.StatusNotStarted StatusRunning = core.StatusRunning StatusCompleted = core.StatusCompleted StatusFailed = core.StatusFailed StatusStuck = core.StatusStuck StatusWaiting = core.StatusWaiting StatusPaused = core.StatusPaused StatusTerminated = core.StatusTerminated StatusKilled = core.StatusKilled )
 .: const ( SuspensionSchemaVersion = interaction.SuspensionSchemaVersion SuspensionHuman = interaction.SuspensionHuman SuspensionTool = interaction.SuspensionTool InteractionEventModelRequest = interaction.EventModelRequest InteractionEventModelResponse = interaction.EventModelResponse InteractionEventToolCall = interaction.EventToolCall InteractionEventToolResult = interaction.EventToolResult InteractionEventPause = interaction.EventPause InteractionEventResume = interaction.EventResume InteractionStopNone = interaction.StopNone InteractionStopBudget = interaction.StopBudget InteractionStopSteps = interaction.StopSteps )
+.: func Chat(model chat.Model) ChatCapability
+.: func Get[T any](blackboard core.BlackboardReader, name string) (T, bool)
 .: func Input(value any) Bindings
 .: func MustNewEngine(config EngineConfig) *Engine
 .: func New(config AgentConfig) *Agent
@@ -14,6 +16,8 @@
 .: func NewOutputGoal[T any](config GoalConfig) *Goal
 .: func NewSession(id, userID, agentName string) Session
 .: func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error)
+.: func RequireToolGroup(role string, allowed ...core.ToolGroupPermission) ToolGroupRequirement
+.: func RequireType[T any]() string
 .: func Result[T any](process ProcessView) (T, bool)
 .: func ToolCallFromContext(ctx context.Context) (chat.ToolCall, bool)
 .: type Action = core.Action
@@ -48,6 +52,10 @@
 .: type StuckPolicy = core.StuckPolicy
 .: type Suspension = interaction.Suspension
 .: type SuspensionKind = interaction.SuspensionKind
+.: type ToolGroup = core.ToolGroup
+.: type ToolGroupInfo = core.ToolGroupInfo
+.: type ToolGroupRequirement = core.ToolGroupRequirement
+.: type ToolGroupResolver = core.ToolGroupResolver
 .: type Truth = core.Truth
 core: const ( ActionSucceeded ActionStatus = iota ActionFailed ActionWaiting ActionPaused )
 core: const ( DefaultBindingName = "it" LastResultBindingName = "last_result" )
