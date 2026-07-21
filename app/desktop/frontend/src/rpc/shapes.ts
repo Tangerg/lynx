@@ -726,6 +726,40 @@ export interface AgentMemoryItem {
 export interface AgentMemoryList {
   items: AgentMemoryItem[];
 }
+
+// goals.* — Goal mode, an autonomous loop that drives runs toward an objective
+// until the model signals complete/blocked (update_goal tool), an opt-in
+// cross-turn budget is spent, or the user stops it. A session has at most one
+// goal; a completed goal is cleared (never appears). status is
+// active | paused | blocked.
+export type GoalStatus = "active" | "paused" | "blocked";
+
+// The opt-in cross-turn cap. A zero/omitted field is unbounded on that axis
+// (all unset = uncapped, an explicit choice).
+export interface GoalBudget {
+  maxTurns?: number;
+  maxCostUsd?: number;
+  maxSteps?: number;
+}
+
+export interface GoalUsage {
+  turns: number;
+  costUsd: number;
+  steps: number;
+}
+
+export interface Goal {
+  sessionId: string;
+  objective: string;
+  status: GoalStatus;
+  reason?: string;
+  provider?: string;
+  model?: string;
+  budget: GoalBudget;
+  used: GoalUsage;
+  createdAt: string;
+  updatedAt: string;
+}
 // A recipe is a user-invoked, parameterized prompt template (recipes.
 // list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
 // and sends the result as a turn; body travels with the listing (recipes are

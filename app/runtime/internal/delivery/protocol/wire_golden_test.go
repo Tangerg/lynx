@@ -125,6 +125,7 @@ var wireSamples = []struct {
 	{"hooksList.json", func() any { return new(HooksListResult) }},
 	{"memoryEntry.json", func() any { return new(MemoryEntry) }},
 	{"agentMemoryItem.json", func() any { return new(AgentMemoryItem) }},
+	{"goal.json", func() any { return new(Goal) }},
 	{"problemData.json", func() any { return new(ProblemData) }},
 	{"feedback.req.json", func() any { return new(FeedbackRequest) }},
 }

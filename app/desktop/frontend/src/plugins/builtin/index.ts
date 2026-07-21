@@ -60,6 +60,7 @@ import {
   messageRegenerate,
 } from "./chat/message-actions";
 import planProgress from "./chat/plan-progress";
+import goalMode from "./chat/goal";
 import recipesSlash from "./chat/recipes";
 import pluginsPane from "./settings/plugins-pane";
 import providersPane from "./settings/providers";
@@ -247,6 +248,7 @@ const overlays: PluginSpec[] = [
   globalKeymap,
   iconGallery,
   planProgress,
+  goalMode,
   sessionUsage,
   conversationExport,
 ];

@@ -65,6 +65,8 @@ import type {
   AgentMemoryItem,
   AgentMemoryList,
   AgentMemoryScope,
+  Goal,
+  GoalBudget,
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
@@ -376,6 +378,23 @@ export interface Methods {
       content: string;
     }) => Promise<AgentMemoryItem>;
   };
+  // goals.* (§7.14, capability-gated): Goal mode — the autonomous execution
+  // loop. get returns the session's goal or null (no goal); start opens one
+  // (session_busy if one is already actively driving); stop pauses the loop;
+  // resume re-activates a paused/blocked goal. Omitting provider/model runs the
+  // loop on the runtime default.
+  goals: {
+    get: (sessionId: SessionId) => Promise<Goal | null>;
+    start: (params: {
+      sessionId: SessionId;
+      objective: string;
+      provider?: string;
+      model?: string;
+      budget?: GoalBudget;
+    }) => Promise<Goal>;
+    stop: (sessionId: SessionId) => Promise<Goal>;
+    resume: (sessionId: SessionId) => Promise<Goal>;
+  };
   feedback: {
     create: (params: FeedbackRequest) => Promise<void>;
   };
@@ -576,6 +595,12 @@ export function createMethods(client: RpcClient): Methods {
       update: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.update", params),
       delete: (id) => mutate<void, { id: string }>("agentMemory.delete", { id }),
       add: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.add", params),
+    },
+    goals: {
+      get: (sessionId) => client.call<Goal | null>("goals.get", { sessionId }),
+      start: (params) => mutate<Goal, typeof params>("goals.start", params),
+      stop: (sessionId) => mutate<Goal, { sessionId: SessionId }>("goals.stop", { sessionId }),
+      resume: (sessionId) => mutate<Goal, { sessionId: SessionId }>("goals.resume", { sessionId }),
     },
     feedback: {
       create: (params) => mutate<void, FeedbackRequest>("feedback.create", params),
