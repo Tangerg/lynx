@@ -2,13 +2,62 @@ package skill
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
+
+type recordingProbe struct{ names []string }
+
+func (p *recordingProbe) RecordUse(_ context.Context, name string, _ time.Time) error {
+	p.names = append(p.names, name)
+	return nil
+}
+
+type stubResourceSource struct{ loadErr error }
+
+func (stubResourceSource) List(context.Context) ([]skillspec.Summary, error) { return nil, nil }
+
+func (s stubResourceSource) Load(_ context.Context, name string) (*skillspec.Skill, error) {
+	if s.loadErr != nil {
+		return nil, s.loadErr
+	}
+	return &skillspec.Skill{Frontmatter: skillspec.Frontmatter{Name: name, Description: "d"}, Body: "b"}, nil
+}
+
+func (stubResourceSource) OpenResource(context.Context, string, string) (fs.File, error) {
+	return nil, errors.New("not implemented")
+}
+
+func TestRecordingSourceRecordsOnSuccessfulLoad(t *testing.T) {
+	probe := &recordingProbe{}
+	src := recordingSource{ResourceSource: stubResourceSource{}, recorder: probe}
+	if _, err := src.Load(context.Background(), "run-tests"); err != nil {
+		t.Fatal(err)
+	}
+	if len(probe.names) != 1 || probe.names[0] != "run-tests" {
+		t.Fatalf("recorded = %v, want [run-tests]", probe.names)
+	}
+}
+
+func TestRecordingSourceSkipsUseOnLoadError(t *testing.T) {
+	probe := &recordingProbe{}
+	src := recordingSource{ResourceSource: stubResourceSource{loadErr: errors.New("absent")}, recorder: probe}
+	if _, err := src.Load(context.Background(), "ghost"); err == nil {
+		t.Fatal("expected a load error")
+	}
+	if len(probe.names) != 0 {
+		t.Fatalf("recorded a use for a failed load: %v", probe.names)
+	}
+}
 
 func writeSkill(t *testing.T, root, name, desc string) {
 	t.Helper()
@@ -34,7 +83,7 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 
-	tool := Build(workdir, global)
+	tool := Build(workdir, global, nil)
 	if tool == nil {
 		t.Fatal("Build returned nil despite existing skills dirs")
 	}
@@ -62,7 +111,7 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 // neither the project nor the global skills directory exists — no empty skill
 // tool cluttering the model's tool list.
 func TestBuild_AbsentWhenNoDirs(t *testing.T) {
-	if tool := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing")); tool != nil {
+	if tool := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil); tool != nil {
 		t.Error("Build should return nil when no skills directory exists")
 	}
 }
