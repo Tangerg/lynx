@@ -218,13 +218,13 @@ func TestPromoteRejectsChangedDraftWithoutTouchingActiveSet(t *testing.T) {
 		t.Fatalf("tamper draft: %v", err)
 	}
 
-	if err := store.Promote(t.Context(), handle); !errors.Is(err, skillauthoring.ErrDraftChanged) {
+	if err := store.Promote(t.Context(), handle); !errors.Is(err, skills.ErrDraftChanged) {
 		t.Fatalf("Promote() error = %v, want ErrDraftChanged", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, draft.Name)); !os.IsNotExist(err) {
 		t.Fatal("a changed draft reached the active set")
 	}
-	if err := store.DiscardDraft(t.Context(), handle); !errors.Is(err, skillauthoring.ErrDraftChanged) {
+	if err := store.DiscardDraft(t.Context(), handle); !errors.Is(err, skills.ErrDraftChanged) {
 		t.Fatalf("DiscardDraft() error = %v, want ErrDraftChanged", err)
 	}
 }
@@ -267,7 +267,7 @@ func TestLifecycleConflictsPreserveBothStates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft: %v", err)
 	}
-	if err := store.Promote(t.Context(), handle); !errors.Is(err, skillauthoring.ErrConflict) {
+	if err := store.Promote(t.Context(), handle); !errors.Is(err, skills.ErrConflict) {
 		t.Fatalf("Promote() error = %v, want ErrConflict", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, skills.ArchivedSubdir, draft.Name, "SKILL.md")); err != nil {
@@ -306,7 +306,7 @@ func TestConcurrentPromotionsPublishOneRevisionWithoutLosingTheOther(t *testing.
 		switch {
 		case err == nil:
 			succeeded++
-		case errors.Is(err, skillauthoring.ErrConflict):
+		case errors.Is(err, skills.ErrConflict):
 			conflicted++
 		default:
 			t.Fatalf("unexpected promotion error: %v", err)

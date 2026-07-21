@@ -456,6 +456,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Memory:  cfg.Engine.Knowledge,
 				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
 				Curator: skillStore,
+				Drafts:  skillStore,
 				Hooks:   cfg.HooksResolver,
 				Trust:   cfg.HookTrustStore,
 				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},

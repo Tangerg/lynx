@@ -18,6 +18,11 @@ import (
 // ErrMemoryUnavailable reports that this runtime was built without a knowledge store.
 var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 
+// ErrSkillDraftsUnavailable reports that this runtime was built without a skill
+// authoring store, so the offline draft-review surface is not negotiated.
+// Delivery maps it to capability_not_negotiated.
+var ErrSkillDraftsUnavailable = errors.New("workspace: skill drafts unavailable")
+
 // SkillCatalog enumerates the skills visible from a working directory (project
 // over global). The composition root supplies promptsource-backed discovery.
 type SkillCatalog interface {
@@ -32,6 +37,19 @@ type SkillCurator interface {
 	List(ctx context.Context) ([]skills.Entry, error)
 	Archive(ctx context.Context, name string) error
 	Restore(ctx context.Context, name string) error
+}
+
+// SkillDrafts is the offline review surface for agent-mined skill proposals:
+// enumerate the pending drafts, promote one into the active library, or discard
+// (reject) it. The method set matches the file-backed authoring store the
+// composition root supplies; nil disables the surface (the review methods report
+// [ErrSkillDraftsUnavailable] rather than silently no-op, so the client can
+// negotiate the capability off). Distinct from [SkillCurator] — reviewing
+// proposals is a different capability from curating the active library.
+type SkillDrafts interface {
+	ListDrafts(ctx context.Context) ([]skills.DraftInfo, error)
+	Promote(ctx context.Context, handle skills.DraftHandle) error
+	DiscardDraft(ctx context.Context, handle skills.DraftHandle) error
 }
 
 // HookInspector resolves the lifecycle hooks discovered for a cwd plus the
@@ -61,6 +79,7 @@ type Coordinator struct {
 	memory  knowledge.Store
 	skills  SkillCatalog
 	curator SkillCurator
+	drafts  SkillDrafts
 	hooks   HookInspector
 	trust   HookTrustStore
 	recipes RecipeLister
@@ -71,6 +90,7 @@ type Config struct {
 	Memory  knowledge.Store
 	Skills  SkillCatalog
 	Curator SkillCurator
+	Drafts  SkillDrafts
 	Hooks   HookInspector
 	Trust   HookTrustStore
 	// Recipes discovers the prompt recipes visible from a working directory. The
@@ -85,6 +105,7 @@ func New(cfg Config) *Coordinator {
 		memory:  cfg.Memory,
 		skills:  cfg.Skills,
 		curator: cfg.Curator,
+		drafts:  cfg.Drafts,
 		hooks:   cfg.Hooks,
 		trust:   cfg.Trust,
 		recipes: cfg.Recipes,
@@ -153,6 +174,35 @@ func (c *Coordinator) RestoreSkill(ctx context.Context, name string) error {
 		return nil
 	}
 	return c.curator.Restore(ctx, name)
+}
+
+// ListSkillDrafts enumerates the agent-mined skill proposals awaiting offline
+// review (skills.drafts.list). Reports [ErrSkillDraftsUnavailable] when no
+// authoring store is wired.
+func (c *Coordinator) ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
+	if c.drafts == nil {
+		return nil, ErrSkillDraftsUnavailable
+	}
+	return c.drafts.ListDrafts(ctx)
+}
+
+// PromoteSkillDraft publishes a reviewed draft into the active skill library
+// (skills.drafts.promote). Reports [ErrSkillDraftsUnavailable] when no authoring
+// store is wired.
+func (c *Coordinator) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
+	if c.drafts == nil {
+		return ErrSkillDraftsUnavailable
+	}
+	return c.drafts.Promote(ctx, handle)
+}
+
+// RejectSkillDraft discards a reviewed draft (skills.drafts.reject). Reports
+// [ErrSkillDraftsUnavailable] when no authoring store is wired.
+func (c *Coordinator) RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
+	if c.drafts == nil {
+		return ErrSkillDraftsUnavailable
+	}
+	return c.drafts.DiscardDraft(ctx, handle)
 }
 
 // ListRecipes enumerates the prompt recipes visible from cwd — project recipes

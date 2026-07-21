@@ -20,6 +20,12 @@ type Workspace interface {
 	WorkspaceListManagedSkills(ctx context.Context, q PageQuery) (*Page[ManagedSkill], error)
 	WorkspaceArchiveSkill(ctx context.Context, in SkillNameRequest) error
 	WorkspaceRestoreSkill(ctx context.Context, in SkillNameRequest) error
+	// Agent-mined skill-draft review (skills.drafts.*): list the proposals the
+	// background miner staged, then promote one into the active library or reject
+	// it. Not negotiated (capability_not_negotiated) when authoring is disabled.
+	WorkspaceListSkillDrafts(ctx context.Context, q PageQuery) (*Page[SkillDraft], error)
+	WorkspacePromoteSkillDraft(ctx context.Context, in SkillDraftRef) error
+	WorkspaceRejectSkillDraft(ctx context.Context, in SkillDraftRef) error
 	WorkspaceListRecipes(ctx context.Context, in WorkspaceListQuery) (*Page[Recipe], error)
 	WorkspaceListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
 	WorkspaceMCPListServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)

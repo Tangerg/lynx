@@ -124,6 +124,31 @@ func (d *Dispatcher) handleSkillsLibraryRestore(ctx context.Context, msg *transp
 	return replyDone(msg, d.api.WorkspaceRestoreSkill(ctx, in))
 }
 
+func (d *Dispatcher) handleSkillsDraftsList(ctx context.Context, msg *transport.Request) HandleResult {
+	q, bad := decode[protocol.PageQuery](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	out, err := d.api.WorkspaceListSkillDrafts(ctx, q)
+	return reply(msg, out, err)
+}
+
+func (d *Dispatcher) handleSkillsDraftsPromote(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SkillDraftRef](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	return replyDone(msg, d.api.WorkspacePromoteSkillDraft(ctx, in))
+}
+
+func (d *Dispatcher) handleSkillsDraftsReject(ctx context.Context, msg *transport.Request) HandleResult {
+	in, bad := decode[protocol.SkillDraftRef](msg)
+	if bad != nil {
+		return responseError(msg.ID, bad)
+	}
+	return replyDone(msg, d.api.WorkspaceRejectSkillDraft(ctx, in))
+}
+
 func (d *Dispatcher) handleRecipesList(ctx context.Context, msg *transport.Request) HandleResult {
 	in, bad := decode[protocol.WorkspaceListQuery](msg)
 	if bad != nil {
