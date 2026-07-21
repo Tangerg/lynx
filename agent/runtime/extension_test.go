@@ -155,6 +155,30 @@ func TestEngineExtensionNamePanicReturnsError(t *testing.T) {
 	}
 }
 
+func TestEngineFreezesExtensionNameAtRegistration(t *testing.T) {
+	middleware := &actionMiddlewareFunc{
+		name: "registered-name",
+		run: func(func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+			panic("middleware failure")
+		},
+	}
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{middleware}})
+	middleware.name = "mutated-name"
+
+	a := extensionBoundaryAgent()
+	process, err := engine.Run(t.Context(), a, core.Input("input"), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure := process.Failure()
+	if failure == nil || !strings.Contains(failure.Error(), `action middleware "registered-name" panicked`) {
+		t.Fatalf("failure = %v, want frozen extension name", failure)
+	}
+	if strings.Contains(failure.Error(), "mutated-name") {
+		t.Fatalf("failure used mutable extension name: %v", failure)
+	}
+}
+
 func extensionBoundaryAgent() *core.Agent {
 	type output struct{ Value string }
 	return agent.New(agent.AgentConfig{

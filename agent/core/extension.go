@@ -6,10 +6,11 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// Extension is the marker every plug-in capability shares. Name is used for
-// dedup, logging / tracing attribution, and introspection. Framework
-// construction reports nil, empty, or duplicate registrations as errors; its
-// explicit Must constructor is the panic-on-error convenience.
+// Extension is the marker every plug-in capability shares. Name is read once
+// and frozen at its registration boundary for dedup, logging / tracing
+// attribution, and introspection. Framework construction reports nil, empty,
+// or duplicate registrations as errors; its explicit Must constructor is the
+// panic-on-error convenience.
 //
 // A type that wants to be plugged in implements Extension plus any
 // subset of the capability interfaces below — the runtime detects

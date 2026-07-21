@@ -161,11 +161,11 @@ func (e *Engine) ActiveDeployments() []*Deployment { return e.catalog.listActive
 // idGenerator returns the most-recently-registered IDGenerator
 // extension, falling back to a UUID-v4 generator when none is
 // registered.
-func (e *Engine) idGenerator() core.IDGenerator {
-	if generator := lastExtension[core.IDGenerator](e.extensions.list); generator != nil {
+func (e *Engine) idGenerator() extensionCapability[core.IDGenerator] {
+	if generator, ok := lastExtension[core.IDGenerator](e.extensions.list); ok {
 		return generator
 	}
-	return defaultIDGenerator
+	return extensionCapability[core.IDGenerator]{name: core.UUIDGeneratorName, value: defaultIDGenerator}
 }
 
 // blackboardPrototype returns the most-recently-registered
@@ -174,7 +174,8 @@ func (e *Engine) idGenerator() core.IDGenerator {
 // [core.Blackboard.Clone] so per-process state stays isolated. Callers
 // fall back to the in-memory implementation when nil.
 func (e *Engine) blackboardPrototype() core.Blackboard {
-	return lastExtension[core.Blackboard](e.extensions.list)
+	prototype, _ := lastExtension[core.Blackboard](e.extensions.list)
+	return prototype.value
 }
 
 // Built-in fallback for the IDGenerator singleton. Planner resolution

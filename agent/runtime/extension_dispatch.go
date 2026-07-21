@@ -17,13 +17,22 @@ import (
 
 // EventListener is the [event.Event] subscriber extension. It lives in runtime
 // because event depends on core; placing this contract in core would create an
-// import cycle. Valid at engine and process scope. The same listener may receive
-// events from different processes concurrently and owns its synchronization and
-// backpressure policy.
+// import cycle. Valid at engine and process scope. A process-scoped listener
+// receives only that process's events. The same listener instance may still be
+// called concurrently when registered in multiple scopes and owns its
+// synchronization and backpressure policy.
 type EventListener interface {
 	core.Extension
 
 	OnEvent(ctx context.Context, event event.Event)
+}
+
+// SubtreeEventListener explicitly extends a process-scoped [EventListener] to
+// every descendant created from that process. Engine-scoped listeners already
+// observe every process and do not need this marker.
+type SubtreeEventListener interface {
+	EventListener
+	ObserveSubtree()
 }
 
 // extensionRegistry is the dedup-aware container the engine uses
@@ -31,12 +40,22 @@ type EventListener interface {
 // (drives onion / wrap chain ordering). Registration returns ordinary errors
 // so dynamic host configuration never has to recover from a panic.
 type extensionRegistry struct {
-	list   []core.Extension
-	byName map[string]core.Extension
+	list   []extensionEntry
+	byName map[string]struct{}
+}
+
+type extensionEntry struct {
+	name  string
+	value core.Extension
+}
+
+type extensionCapability[T any] struct {
+	name  string
+	value T
 }
 
 func newExtensionRegistry() extensionRegistry {
-	return extensionRegistry{byName: map[string]core.Extension{}}
+	return extensionRegistry{byName: map[string]struct{}{}}
 }
 
 // register adds extension to the registry. It rejects nil (including typed nil),
@@ -58,8 +77,8 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 	if !supportsEngineScope(extension) {
 		return fmt.Errorf("runtime: extension %q in %s has no engine-scoped capability", name, scope)
 	}
-	r.byName[name] = extension
-	r.list = append(r.list, extension)
+	r.byName[name] = struct{}{}
+	r.list = append(r.list, extensionEntry{name: name, value: extension})
 	return nil
 }
 
@@ -137,11 +156,11 @@ func valueIsNil(value any) bool {
 // collectExtensions returns every extension that implements T, in
 // registration order. Used for fan-out / chain capabilities
 // (interceptor, decorator, validator, approver, resolver).
-func collectExtensions[T any](extensions []core.Extension) []T {
-	var matched []T
+func collectExtensions[T any](extensions []extensionEntry) []extensionCapability[T] {
+	var matched []extensionCapability[T]
 	for _, extension := range extensions {
-		if capability, ok := extension.(T); ok {
-			matched = append(matched, capability)
+		if capability, ok := extension.value.(T); ok {
+			matched = append(matched, extensionCapability[T]{name: extension.name, value: capability})
 		}
 	}
 	return matched
@@ -152,14 +171,13 @@ func collectExtensions[T any](extensions []core.Extension) []T {
 // for last-wins singletons (IDGenerator, Blackboard prototype) where
 // a process-scope override beats an engine-scope baseline. Planners
 // have their own name-based dispatch in [Engine.resolvePlanner].
-func lastExtension[T any](extensions []core.Extension) T {
+func lastExtension[T any](extensions []extensionEntry) (extensionCapability[T], bool) {
 	for index := len(extensions) - 1; index >= 0; index-- {
-		if capability, ok := extensions[index].(T); ok {
-			return capability
+		if capability, ok := extensions[index].value.(T); ok {
+			return extensionCapability[T]{name: extensions[index].name, value: capability}, true
 		}
 	}
-	var zero T
-	return zero
+	return extensionCapability[T]{}, false
 }
 
 // runActionChain executes the process's action-middleware onion chain. The first
@@ -190,29 +208,25 @@ func (p *Process) runActionChain(
 
 func runActionMiddleware(
 	ctx context.Context,
-	middleware core.ActionMiddleware,
+	middleware extensionCapability[core.ActionMiddleware],
 	process core.ProcessView,
 	action core.Action,
 	next func() (core.ActionStatus, error),
 ) (status core.ActionStatus, err error) {
-	name, err := extensionName(middleware)
-	if err != nil {
-		return core.ActionFailed, err
-	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			status = core.ActionFailed
-			err = panicerr.New(fmt.Sprintf("action middleware %q panicked", name), recovered)
+			err = panicerr.New(fmt.Sprintf("action middleware %q panicked", middleware.name), recovered)
 		}
 	}()
-	return middleware.RunAction(ctx, process, action, next)
+	return middleware.value.RunAction(ctx, process, action, next)
 }
 
 // wrapTool wraps tool through every supplied decorator in
 // registration order. First decorator is innermost; a decorator may
 // return its input unchanged to no-op.
 func (p *Process) wrapTool(
-	toolMiddleware []core.ToolMiddleware,
+	toolMiddleware []extensionCapability[core.ToolMiddleware],
 	action core.Action,
 	tool tools.Tool,
 ) (tools.Tool, error) {
@@ -222,11 +236,7 @@ func (p *Process) wrapTool(
 			return nil, err
 		}
 		if valueIsNil(wrapped) {
-			name, nameErr := extensionName(middleware)
-			if nameErr != nil {
-				return nil, nameErr
-			}
-			return nil, fmt.Errorf("tool middleware %q returned nil", name)
+			return nil, fmt.Errorf("tool middleware %q returned nil", middleware.name)
 		}
 		tool = wrapped
 	}
@@ -234,21 +244,17 @@ func (p *Process) wrapTool(
 }
 
 func wrapToolWith(
-	middleware core.ToolMiddleware,
+	middleware extensionCapability[core.ToolMiddleware],
 	process core.ProcessView,
 	action core.Action,
 	tool tools.Tool,
 ) (wrapped tools.Tool, err error) {
-	name, err := extensionName(middleware)
-	if err != nil {
-		return nil, err
-	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool middleware %q panicked", name), recovered)
+			err = panicerr.New(fmt.Sprintf("tool middleware %q panicked", middleware.name), recovered)
 		}
 	}()
-	return middleware.WrapTool(process, action, tool), nil
+	return middleware.value.WrapTool(process, action, tool), nil
 }
 
 // agentValidationErrors runs every engine validator and collects all errors
@@ -258,13 +264,8 @@ func (e *Engine) agentValidationErrors(agent *core.Agent) []error {
 	validators := collectExtensions[core.AgentValidator](e.extensions.list)
 	var problems []error
 	for _, validator := range validators {
-		if err := validateAgentWith(validator, agent); err != nil {
-			name, nameErr := extensionName(validator)
-			if nameErr != nil {
-				problems = append(problems, nameErr)
-				continue
-			}
-			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", name, err))
+		if err := validateAgentWith(validator.value, agent); err != nil {
+			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", validator.name, err))
 		}
 	}
 	return problems
@@ -282,7 +283,7 @@ func validateAgentWith(validator core.AgentValidator, agent *core.Agent) (err er
 // approvesGoal returns true only when every approver returns
 // true (conjunction — any false vetoes). Empty approver list
 // trivially approves.
-func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) (bool, error) {
+func (p *Process) approvesGoal(approvers []extensionCapability[core.GoalApprover], goal *core.Goal) (bool, error) {
 	for _, approver := range approvers {
 		approved, err := approveGoalWith(approver, p, goal)
 		if err != nil {
@@ -295,17 +296,13 @@ func (p *Process) approvesGoal(approvers []core.GoalApprover, goal *core.Goal) (
 	return true, nil
 }
 
-func approveGoalWith(approver core.GoalApprover, process core.ProcessView, goal *core.Goal) (approved bool, err error) {
-	name, err := extensionName(approver)
-	if err != nil {
-		return false, err
-	}
+func approveGoalWith(approver extensionCapability[core.GoalApprover], process core.ProcessView, goal *core.Goal) (approved bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("goal approver %q panicked", name), recovered)
+			err = panicerr.New(fmt.Sprintf("goal approver %q panicked", approver.name), recovered)
 		}
 	}()
-	return approver.Approve(process, goal), nil
+	return approver.value.Approve(process, goal), nil
 }
 
 // runToolGroupResolvers walks resolvers in order; the first resolver
@@ -317,43 +314,39 @@ func approveGoalWith(approver core.GoalApprover, process core.ProcessView, goal 
 // resolver implementation that quietly upgrades the privilege set.
 func runToolGroupResolvers(
 	ctx context.Context,
-	resolvers []core.ToolGroupResolver,
+	resolvers []extensionCapability[core.ToolGroupResolver],
 	requirement core.ToolGroupRequirement,
 ) (core.ToolGroup, bool, error) {
 	if err := requirement.Validate(); err != nil {
 		return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: invalid requirement: %w", err)
 	}
 	for _, resolver := range resolvers {
-		name, err := extensionName(resolver)
+		group, ok, err := resolveToolGroupWith(ctx, resolver.value, requirement, resolver.name)
 		if err != nil {
-			return nil, false, err
-		}
-		group, ok, err := resolveToolGroupWith(ctx, resolver, requirement, name)
-		if err != nil {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", name, err)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", resolver.name, err)
 		}
 		if !ok {
 			if !valueIsNil(group) {
-				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned a group for a miss", name)
+				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned a group for a miss", resolver.name)
 			}
 			continue
 		}
 		if valueIsNil(group) {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", name, requirement.Role)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.name, requirement.Role)
 		}
-		info, err := toolGroupInfo(group, name)
+		info, err := toolGroupInfo(group, resolver.name)
 		if err != nil {
 			return nil, false, err
 		}
 		if err := info.Validate(); err != nil {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", name, err)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", resolver.name, err)
 		}
 		if info.Role != requirement.Role {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", name, requirement.Role, info.Role)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", resolver.name, requirement.Role, info.Role)
 		}
 		if !requirement.Allows(info.Permissions) {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q requires permissions %v, allowed %v",
-				name, info.Role, info.Permissions, requirement.AllowedPermissions)
+				resolver.name, info.Role, info.Permissions, requirement.AllowedPermissions)
 		}
 		return group, true, nil
 	}
@@ -386,9 +379,9 @@ func toolGroupInfo(group core.ToolGroup, resolverName string) (info core.ToolGro
 // addEventListenerExtensions adds every extension implementing
 // EventListener to the multicast. EventListener satisfies
 // [event.Listener] directly.
-func addEventListenerExtensions(multicast *event.Multicast, extensions []core.Extension) {
+func addEventListenerExtensions(multicast *event.Multicast, extensions []extensionEntry) {
 	for _, extension := range extensions {
-		if listener, ok := extension.(EventListener); ok {
+		if listener, ok := extension.value.(EventListener); ok {
 			multicast.Add(listener)
 		}
 	}

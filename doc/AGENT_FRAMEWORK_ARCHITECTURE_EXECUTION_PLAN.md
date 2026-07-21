@@ -1762,8 +1762,8 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
   - 删除 lazy/static resolver 与 `sync.Once`/map 缓存；core 只保留 `ToolGroup` 和
     `ToolGroupResolver` 能力接口，静态列表与 MCP discovery 均由装配层实现。
 - [x] **P15-05 移出 chat history adapter**（完成：2026-07-21）
-  - Agent 不再 import `chathistory` 或选择内存 Store；`BindConversation` 只把会话身份交给
-    Host context 协议，App 自行组合 history middleware 与存储。
+  - Agent 不再 import `chathistory` 或选择内存 Store；`runtime.Config.BindConversation` 只把
+    会话身份交给 Host context 协议，App 自行组合 history middleware 与存储。
 - [x] **P15-06 同步消费者、合同与完整门禁**（完成：2026-07-21）
   - 所有调用方直接迁移，无 alias、wrapper、deprecated 或 dual path；API baseline、文档、
     Agent/App 常规与 race 门禁、App `GOWORK=off` 独立模块门禁全部通过。

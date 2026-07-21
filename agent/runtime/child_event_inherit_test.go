@@ -24,7 +24,8 @@ type pidCapture struct {
 	completed []event.ProcessCompleted
 }
 
-func (*pidCapture) Name() string { return "pid-capture" }
+func (*pidCapture) Name() string    { return "pid-capture" }
+func (*pidCapture) ObserveSubtree() {}
 
 func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 	c.mu.Lock()
@@ -50,7 +51,7 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 }
 
 // TestChildEventsReachParentProcessListener verifies the runtime
-// propagates a parent's process-scope EventListener onto the child
+// propagates a parent's process-scope SubtreeEventListener onto the child
 // processes it spawns: a listener registered ONLY via
 // ProcessOptions.Extensions (not engine-scope) sees events from the
 // subtask the parent delegates to, each carrying the child's own
@@ -80,11 +81,15 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	}
 
 	capture := &pidCapture{engine: engine}
+	localIDs := make(map[string]int)
+	local := event.NewNamedListener("local-capture", func(_ context.Context, published event.Event) {
+		localIDs[published.ProcessID()]++
+	})
 	proc, err := engine.Run(
 		t.Context(), parent,
 		core.Input(subInput{Value: 21}),
 		// Process-scope ONLY — the listener is not on Config.
-		core.ProcessOptions{Extensions: []core.Extension{capture}},
+		core.ProcessOptions{Extensions: []core.Extension{capture, local}},
 	)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -109,6 +114,9 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	}
 	if !sawChild {
 		t.Fatalf("process-scope listener saw only the parent (%v); expected child events too", capture.ids)
+	}
+	if len(localIDs) != 1 || localIDs[proc.ID()] == 0 {
+		t.Fatalf("process-local listener crossed into child scope: %v", localIDs)
 	}
 	childID := ""
 	for _, ev := range capture.created {

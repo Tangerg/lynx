@@ -17,7 +17,7 @@ type processOptions struct {
 	childOptions core.ChildOptionsFunc
 	budget       core.Budget
 	session      *core.Session
-	extensions   []core.Extension
+	extensions   []extensionEntry
 	guardrails   *core.ChatGuardrails
 }
 
@@ -29,7 +29,8 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 	if options.Blackboard != nil && valueIsNil(options.Blackboard) {
 		return processOptions{}, errors.New("ProcessOptions.Blackboard is typed nil")
 	}
-	if err := validateProcessExtensions(options.Extensions); err != nil {
+	extensions, err := registerProcessExtensions(options.Extensions)
+	if err != nil {
 		return processOptions{}, err
 	}
 	guardrails, err := snapshotChatGuardrails("ProcessOptions.Guardrails", options.Guardrails)
@@ -57,7 +58,7 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 		childOptions: options.ChildOptions,
 		budget:       budget,
 		session:      session,
-		extensions:   slices.Clone(options.Extensions),
+		extensions:   extensions,
 		guardrails:   guardrails,
 	}, nil
 }

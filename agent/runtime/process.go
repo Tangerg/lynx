@@ -117,7 +117,7 @@ func (p *Process) agent() *core.Agent {
 // that builds a process — createProcess for fresh runs, Restore
 // for snapshots re-entering the tick loop. A restored process that
 // skips this panics on its first observe (nil state reader).
-func (p *Process) wireRuntimeDeps(extensions []core.Extension) {
+func (p *Process) wireRuntimeDeps(extensions []extensionEntry) {
 	p.stateReader = newWorldStateReader(p.domain, p.blackboard, p)
 	p.processEvents = event.NewMulticast()
 	addEventListenerExtensions(p.processEvents, extensions)

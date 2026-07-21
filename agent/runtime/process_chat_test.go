@@ -13,10 +13,8 @@ type conversationContextKey struct{}
 
 func TestProcessChatProjectsConversationThroughHostBinder(t *testing.T) {
 	const conversationID = "conversation-1"
-	guardrails := &core.ChatGuardrails{
-		BindConversation: func(ctx context.Context, id string) context.Context {
-			return context.WithValue(ctx, conversationContextKey{}, id)
-		},
+	binder := func(ctx context.Context, id string) context.Context {
+		return context.WithValue(ctx, conversationContextKey{}, id)
 	}
 	model := chat.ModelFunc(func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
 		if got, _ := ctx.Value(conversationContextKey{}).(string); got != conversationID {
@@ -27,7 +25,8 @@ func TestProcessChatProjectsConversationThroughHostBinder(t *testing.T) {
 	})
 	process := &Process{
 		id:      conversationID,
-		options: &processOptions{guardrails: guardrails},
+		engine:  &Engine{bindConversation: binder},
+		options: &processOptions{guardrails: &core.ChatGuardrails{MaxToolRounds: 3}},
 	}
 
 	scoped, err := process.scopeChat(core.ChatCapability{Model: model})
@@ -44,10 +43,11 @@ func TestProcessChatProjectsConversationThroughHostBinder(t *testing.T) {
 }
 
 func TestProcessChatRejectsNilBoundContext(t *testing.T) {
-	guardrails := &core.ChatGuardrails{
-		BindConversation: func(context.Context, string) context.Context { return nil },
+	process := &Process{
+		id:      "conversation-1",
+		engine:  &Engine{bindConversation: func(context.Context, string) context.Context { return nil }},
+		options: &processOptions{},
 	}
-	process := &Process{id: "conversation-1", options: &processOptions{guardrails: guardrails}}
 	scoped, err := process.scopeChat(core.ChatCapability{Model: chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return nil, nil
 	})})

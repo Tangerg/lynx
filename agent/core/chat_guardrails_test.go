@@ -1,7 +1,6 @@
 package core_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -16,10 +15,9 @@ func TestGuardrailsEmpty(t *testing.T) {
 		t.Fatal("zero ChatGuardrails must be empty")
 	}
 	for name, guardrails := range map[string]*core.ChatGuardrails{
-		"conversation": {BindConversation: func(ctx context.Context, _ string) context.Context { return ctx }},
-		"call":         {CallMiddlewares: []chat.CallMiddleware{passthroughCall}},
-		"stream":       {StreamMiddlewares: []chat.StreamMiddleware{passthroughStream}},
-		"tools":        {MaxToolRounds: 2},
+		"call":   {CallMiddlewares: []chat.CallMiddleware{passthroughCall}},
+		"stream": {StreamMiddlewares: []chat.StreamMiddleware{passthroughStream}},
+		"tools":  {MaxToolRounds: 2},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if guardrails.Empty() {

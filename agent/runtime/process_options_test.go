@@ -48,7 +48,7 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	guardrails.StreamMiddlewares[0] = nil
 	guardrails.MaxToolRounds = 99
 
-	if len(snapshot.extensions) != 1 || snapshot.extensions[0] != firstExtension {
+	if len(snapshot.extensions) != 1 || snapshot.extensions[0].value != firstExtension {
 		t.Fatalf("extensions = %#v, want original extension", snapshot.extensions)
 	}
 	if snapshot.session == nil || snapshot.session.ID != "session-1" {
@@ -100,7 +100,7 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 	go func() {
 		defer group.Done()
 		for range 1_000 {
-			_ = snapshot.extensions[0]
+			_ = snapshot.extensions[0].value
 			_ = snapshot.session.ID
 			_ = snapshot.guardrails.MaxToolRounds
 			_ = snapshot.guardrails.CallMiddlewares[0]
@@ -108,7 +108,7 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 	}()
 	group.Wait()
 
-	if snapshot.extensions[0] != firstExtension || snapshot.session.ID != "session-1" ||
+	if snapshot.extensions[0].value != firstExtension || snapshot.session.ID != "session-1" ||
 		snapshot.guardrails.MaxToolRounds != 2 || snapshot.guardrails.CallMiddlewares[0] == nil {
 		t.Fatalf("snapshot changed with caller state: %#v", snapshot)
 	}

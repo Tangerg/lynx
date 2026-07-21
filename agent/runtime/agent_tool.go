@@ -139,7 +139,7 @@ func (t *agentTool) continueNestedChild(
 	// calls need this eager clear before their typed action can complete.
 	parent.state.clearRespondedSuspension()
 	output, err := t.encodeResult(child)
-	if t.engine.ProcessStore() == nil {
+	if t.engine.processStore == nil {
 		err = errors.Join(err, t.discard(ctx, child))
 	} else {
 		parent.deferNestedChildCleanup(child.ID())

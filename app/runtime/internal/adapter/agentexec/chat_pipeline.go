@@ -35,6 +35,7 @@ func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentrunti
 	return agent.NewEngine(agentruntime.Config{
 		BuildID:               config.BuildID,
 		Chat:                  core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
+		BindConversation:      history.WithConversationID,
 		Extensions:            extensions,
 		Guardrails:            guardrails,
 		ProcessStore:          config.ProcessStore,
@@ -61,8 +62,7 @@ func newChatGuardrailsWithBeforeRound(
 		return nil, fmt.Errorf("agentexec: build chat history middleware: %w", err)
 	}
 	guardrails := &core.ChatGuardrails{
-		BindConversation: history.WithConversationID,
-		CallMiddlewares:  []chat.CallMiddleware{middleware.Call},
+		CallMiddlewares: []chat.CallMiddleware{middleware.Call},
 		StreamMiddlewares: []chat.StreamMiddleware{
 			middleware.Stream,
 		},

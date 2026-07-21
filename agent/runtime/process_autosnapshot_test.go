@@ -200,7 +200,7 @@ func TestAutoSnapshotFailurePolicyPauseAndRetry(t *testing.T) {
 	a := autoSnapshotAgent()
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
-	if err != nil || proc.Status() != core.StatusPaused {
+	if !errors.Is(err, store.err) || proc.Status() != core.StatusPaused {
 		t.Fatalf("paused run status=%s err=%v", proc.Status(), err)
 	}
 	store.fail.Store(false)
@@ -224,8 +224,8 @@ func TestAutoSnapshotFailurePolicyPreservesWaitingContinuation(t *testing.T) {
 	})
 	a := autoSnapshotWaitingAgent()
 	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
-	if err != nil {
-		t.Fatal(err)
+	if !errors.Is(err, store.err) {
+		t.Fatalf("waiting snapshot error = %v, want %v", err, store.err)
 	}
 	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil {
 		t.Fatalf("process status=%s suspension=%#v", proc.Status(), proc.Suspension())
