@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,23 +26,12 @@ func buildSessionAgent() *core.Agent {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[srWordCount](core.GoalConfig{Description: "counted in session"})}})
 }
 
-func TestEngine_RunInSession_NilSession(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	a := buildSessionAgent()
-	mustDeploy(t, engine, a)
-
-	_, err := engine.RunInSession(context.Background(), a, nil, core.Bindings{}, core.ProcessOptions{})
-	if err == nil {
-		t.Error("expected error for nil session")
-	}
-}
-
 func TestEngine_RunInSession_EmptyID(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a := buildSessionAgent()
 	mustDeploy(t, engine, a)
 
-	sess := &core.Session{} // ID empty
+	sess := core.Session{} // ID empty
 	_, err := engine.RunInSession(context.Background(), a, sess, core.Bindings{}, core.ProcessOptions{})
 	if err == nil {
 		t.Error("expected error for empty session ID")
@@ -68,7 +58,7 @@ func TestEngine_RunInSession_ValidatesBeforeAcquiringTurn(t *testing.T) {
 	a := buildSessionAgent()
 	invalid := core.NewSession("", "user-1", a.Name())
 
-	_, err := engine.RunInSession(t.Context(), a, &invalid, core.Bindings{}, core.ProcessOptions{})
+	_, err := engine.RunInSession(t.Context(), a, invalid, core.Bindings{}, core.ProcessOptions{})
 	if !errors.Is(err, core.ErrInvalidSession) {
 		t.Fatalf("RunInSession error = %v, want ErrInvalidSession", err)
 	}
@@ -88,7 +78,7 @@ func TestEngine_RunInSession_ReturnsReleasePanicAsError(t *testing.T) {
 	process, err := engine.RunInSession(
 		t.Context(),
 		a,
-		&session,
+		session,
 		core.Input(srWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
@@ -110,7 +100,7 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	sess.StartedAt = previousUpdate
 	sess.UpdatedAt = previousUpdate
 	proc, err := engine.RunInSession(
-		context.Background(), a, &sess,
+		context.Background(), a, sess,
 		core.Input(srWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
@@ -126,8 +116,8 @@ func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	if !ok || seen != "conv-123" {
 		t.Errorf("session not propagated; got blackboard value %v", seen)
 	}
-	if !sess.UpdatedAt.After(previousUpdate) {
-		t.Errorf("UpdatedAt should advance without a SessionStore; got %v after %v",
+	if !sess.UpdatedAt.Equal(previousUpdate) {
+		t.Errorf("RunInSession mutated caller session UpdatedAt: got %v, want %v",
 			sess.UpdatedAt, previousUpdate)
 	}
 }
@@ -142,7 +132,7 @@ func TestEngine_RunInSession_WithStore_PersistsSession(t *testing.T) {
 
 	sess := core.NewSession("conv-A", "bob", "session-agent")
 	_, err := engine.RunInSession(
-		context.Background(), a, &sess,
+		context.Background(), a, sess,
 		core.Input(srWord{Text: "x"}),
 		core.ProcessOptions{},
 	)
@@ -159,22 +149,60 @@ func TestEngine_RunInSession_WithStore_PersistsSession(t *testing.T) {
 	}
 }
 
+func TestEngine_RunInSession_OwnsConcurrentSessionValues(t *testing.T) {
+	store := storetest.NewMemorySessionStore()
+	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
+	a := buildSessionAgent()
+	mustDeploy(t, engine, a)
+	session := core.NewSession("shared-session", "user-1", a.Name())
+	if err := session.Metadata.Set("source", "caller"); err != nil {
+		t.Fatal(err)
+	}
+
+	var wait sync.WaitGroup
+	errorsFound := make(chan error, 2)
+	for range 2 {
+		wait.Go(func() {
+			_, err := engine.RunInSession(t.Context(), a, session, core.Input(srWord{Text: "lynx"}), core.ProcessOptions{})
+			errorsFound <- err
+		})
+	}
+	wait.Wait()
+	close(errorsFound)
+	for err := range errorsFound {
+		if err != nil {
+			t.Fatalf("RunInSession: %v", err)
+		}
+	}
+	if session.Metadata.Len() != 1 {
+		t.Fatalf("caller metadata fields = %d, want 1", session.Metadata.Len())
+	}
+}
+
 func TestEngine_RunInSession_DerivesAgentName(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
+	store := storetest.NewMemorySessionStore()
+	engine := agent.MustNewEngine(runtime.Config{SessionStore: store})
 	a := buildSessionAgent()
 	mustDeploy(t, engine, a)
 
 	sess := core.NewSession("c-1", "", "")
 	_, err := engine.RunInSession(
-		context.Background(), a, &sess,
+		context.Background(), a, sess,
 		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sess.AgentName != "session-agent" {
-		t.Errorf("AgentName: want auto-derived 'session-agent', got %q", sess.AgentName)
+	if sess.AgentName != "" {
+		t.Errorf("RunInSession mutated caller AgentName: got %q", sess.AgentName)
+	}
+	saved, err := store.Load(t.Context(), sess.ID)
+	if err != nil {
+		t.Fatalf("Load derived session: %v", err)
+	}
+	if saved.AgentName != "session-agent" {
+		t.Errorf("saved AgentName: want auto-derived 'session-agent', got %q", saved.AgentName)
 	}
 }
 
@@ -185,7 +213,7 @@ func TestEngine_RunInSession_UsesSessionAgentWhenDefinitionIsNil(t *testing.T) {
 	session := core.NewSession("c-1", "user-1", a.Name())
 
 	process, err := engine.RunInSession(
-		t.Context(), nil, &session,
+		t.Context(), nil, session,
 		core.Input(srWord{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
@@ -202,7 +230,7 @@ func TestEngine_RunInSession_RejectsAgentIdentityConflict(t *testing.T) {
 	a := buildSessionAgent()
 	session := core.NewSession("c-1", "user-1", "other-agent")
 
-	_, err := engine.RunInSession(t.Context(), a, &session, core.Bindings{}, core.ProcessOptions{})
+	_, err := engine.RunInSession(t.Context(), a, session, core.Bindings{}, core.ProcessOptions{})
 	if !errors.Is(err, core.ErrInvalidSession) {
 		t.Fatalf("RunInSession error = %v, want ErrInvalidSession", err)
 	}
@@ -253,7 +281,7 @@ func TestEngine_RunInSession_FinalSaveSurvivesCancellation(t *testing.T) {
 	mustDeploy(t, engine, a)
 	session := core.NewSession("c-1", "user-1", a.Name())
 
-	_, _ = engine.RunInSession(ctx, a, &session, core.Input(
+	_, _ = engine.RunInSession(ctx, a, session, core.Input(
 		srWord{Text: "lynx"}),
 
 		core.ProcessOptions{})
@@ -277,7 +305,7 @@ func TestEngine_RunInSession_PreservesRunAndFinalSaveErrors(t *testing.T) {
 	mustDeploy(t, engine, a)
 	session := core.NewSession("c-1", "user-1", a.Name())
 
-	_, err := engine.RunInSession(ctx, a, &session, core.Input(
+	_, err := engine.RunInSession(ctx, a, session, core.Input(
 		srWord{Text: "lynx"}),
 
 		core.ProcessOptions{})
@@ -313,7 +341,7 @@ func TestEngine_RunInSession_BoundsFinalSave(t *testing.T) {
 	mustDeploy(t, engine, a)
 	session := core.NewSession("c-1", "user-1", a.Name())
 
-	process, err := engine.RunInSession(t.Context(), a, &session, core.Input(
+	process, err := engine.RunInSession(t.Context(), a, session, core.Input(
 		srWord{Text: "lynx"}),
 		core.ProcessOptions{})
 	if process == nil || process.Status() != core.StatusCompleted {
@@ -357,7 +385,7 @@ func TestRunChildLinksSessionToParent(t *testing.T) {
 
 	sess := core.NewSession("parent-conv", "alice", "lineage-parent")
 	proc, err := engine.RunInSession(
-		context.Background(), parent, &sess,
+		context.Background(), parent, sess,
 		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)
@@ -394,7 +422,7 @@ func TestRunChildPersistsSession(t *testing.T) {
 
 	sess := core.NewSession("root-conv", "alice", "lineage-parent")
 	proc, err := engine.RunInSession(
-		context.Background(), parent, &sess,
+		context.Background(), parent, sess,
 		core.Input(srWord{Text: "hi"}),
 		core.ProcessOptions{},
 	)

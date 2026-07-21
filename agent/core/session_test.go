@@ -41,6 +41,18 @@ func TestSessionTouchRefreshesUpdatedAt(t *testing.T) {
 	}
 }
 
+func TestSessionCloneOwnsMetadata(t *testing.T) {
+	session := core.NewSession("s-1", "user-1", "demo")
+	setSessionMetadata(t, &session, "channel", "desktop")
+	clone := session.Clone()
+	if err := clone.Metadata.Set("channel", "web"); err != nil {
+		t.Fatal(err)
+	}
+	if got := decodeSessionMetadata[string](t, session.Metadata, "channel"); got != "desktop" {
+		t.Fatalf("source metadata = %q, want desktop", got)
+	}
+}
+
 func TestSessionBindAgent(t *testing.T) {
 	session := core.NewSession("s-1", "user-1", "")
 	if err := session.BindAgent("demo"); err != nil {

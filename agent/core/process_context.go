@@ -323,28 +323,29 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 	}
 }
 
-// RecordUsage attributes aggregate model usage to the running process.
-func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int) {
+// RecordUsage attributes aggregate model usage to the running process. It
+// returns [ErrUsageUnavailable] when the context has no accounting owner.
+func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int) error {
 	if pc == nil || pc.usage == nil {
-		return
+		return ErrUsageUnavailable
 	}
-	pc.usage.RecordUsage(contextOrBackground(ctx), cost, tokens)
+	return pc.usage.RecordUsage(contextOrBackground(ctx), cost, tokens)
 }
 
-// RecordModelCall attributes one model call to the running process.
-func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall) {
+// RecordModelCall attributes one validated model call to the running process.
+func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall) error {
 	if pc == nil || pc.usage == nil {
-		return
+		return ErrUsageUnavailable
 	}
-	pc.usage.RecordModelCall(contextOrBackground(ctx), call)
+	return pc.usage.RecordModelCall(contextOrBackground(ctx), call)
 }
 
-// RecordEmbeddingCall attributes one embedding call to the running process.
-func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) {
+// RecordEmbeddingCall attributes one validated embedding call to the running process.
+func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error {
 	if pc == nil || pc.usage == nil {
-		return
+		return ErrUsageUnavailable
 	}
-	pc.usage.RecordEmbeddingCall(contextOrBackground(ctx), call)
+	return pc.usage.RecordEmbeddingCall(contextOrBackground(ctx), call)
 }
 
 func contextOrBackground(ctx context.Context) context.Context {

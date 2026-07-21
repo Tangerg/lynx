@@ -92,12 +92,15 @@ core: func (b Bindings) All() iter.Seq2[string, any]
 core: func (b Bindings) Clone() Bindings
 core: func (b Bindings) Get(name string) (any, bool)
 core: func (b Bindings) Len() int
+core: func (b Budget) Validate() error
 core: func (c *FuncCondition) Cost() float64
 core: func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 core: func (c *FuncCondition) Name() string
 core: func (c *PromptCondition) Cost() float64
 core: func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 core: func (c *PromptCondition) Name() string
+core: func (c EmbeddingCall) Validate() error
+core: func (c ModelCall) Validate() error
 core: func (conditions ConditionSet) Validate() error
 core: func (d *Dependencies) Child() *Dependencies
 core: func (d *Dependencies) Freeze()
@@ -146,9 +149,9 @@ core: func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error)
 core: func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error)
 core: func (pc *ProcessContext) Process() ProcessView
 core: func (pc *ProcessContext) Prompt(ctx context.Context, text string, config PromptConfig) (string, error)
-core: func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall)
-core: func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall)
-core: func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int)
+core: func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error
+core: func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall) error
+core: func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int) error
 core: func (pc *ProcessContext) Session() (session SessionInfo, ok bool)
 core: func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
 core: func (pc *ProcessContext) TerminateAction(reason string) error
@@ -178,6 +181,7 @@ core: func (s ProcessStatus) IsTerminal() bool
 core: func (s ProcessStatus) String() string
 core: func (s RetrySafety) String() string
 core: func (s RetrySafety) Valid() bool
+core: func (s Session) Clone() Session
 core: func (s Session) Validate() error
 core: func (s TerminationScope) String() string
 core: func (state ConditionSet) Satisfies(required ConditionSet) bool
@@ -324,14 +328,17 @@ core: type ToolGroupResolver interface { Extension Resolve(ctx context.Context, 
 core: type ToolMiddleware interface { Extension WrapTool( process ProcessView, action Action, tool tools.Tool, ) tools.Tool }
 core: type Truth int8
 core: type UUIDGenerator struct{}
-core: type UsageRecorder interface { RecordUsage(ctx context.Context, cost float64, tokens int) RecordModelCall(ctx context.Context, call ModelCall) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) }
+core: type UsageRecorder interface { RecordUsage(ctx context.Context, cost float64, tokens int) error RecordModelCall(ctx context.Context, call ModelCall) error RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error }
 core: type WorldState interface { Conditions() ConditionSet Timestamp() time.Time Key() string Apply(effects ConditionSet) WorldState }
 core: var ( ErrInvalidDependencyKey = errors.New("agent: invalid dependency key") ErrDependencyNotFound = errors.New("agent: dependency not found") ErrDependencyTypeMismatch = errors.New("agent: dependency type mismatch") ErrDependencyExists = errors.New("agent: dependency already registered") ErrDependenciesFrozen = errors.New("agent: dependencies are frozen") ErrNilDependency = errors.New("agent: nil dependency") )
+core: var ( ErrInvalidModelCall = errors.New("model call: invalid") ErrInvalidEmbeddingCall = errors.New("embedding call: invalid") )
 core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found") ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") ErrRevisionConflict = errors.New("process store: revision conflict") )
+core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidSession = errors.New("session: invalid")
 core: var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrSessionNotFound = errSessionNotFound{}
+core: var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessSnapshotFailed Kind = "process_snapshot_failed" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" KindModelCallRecorded Kind = "model_call_recorded" KindEmbeddingCallRecorded Kind = "embedding_call_recorded" )
 event: func (ActionFinished) Kind() Kind
 event: func (ActionStarted) Kind() Kind
@@ -423,6 +430,7 @@ interaction: func (e Event) MarshalJSON() ([]byte, error)
 interaction: func (e Event) Validate() error
 interaction: func (k EventKind) Valid() bool
 interaction: func (k SuspensionKind) Valid() bool
+interaction: func (l Limits) Validate() error
 interaction: func (r Resume) Validate() error
 interaction: func (r StopReason) Valid() bool
 interaction: func (s *Suspension) UnmarshalJSON(data []byte) error
@@ -449,6 +457,7 @@ interaction: type ToolResolver interface { Resolve(name string) (tools.Tool, boo
 interaction: var ( ErrInvalidEvent = errors.New("interaction: invalid event") ErrInvalidID = errors.New("interaction: invalid ID") )
 interaction: var ( ErrInvalidSuspension = errors.New("interaction: invalid suspension") ErrSuspended = errors.New("interaction: suspended") ErrSuspensionConflict = errors.New("interaction: suspension conflict") ErrSuspensionStale = errors.New("interaction: stale suspension") )
 interaction: var ErrCommitted = errors.New("interaction: committed boundary failed")
+interaction: var ErrInvalidLimits = errors.New("interaction limits: invalid")
 planning/goap: func (p *Planner) Name() string
 planning/goap: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (*planning.Plan, error)
 planning/goap: func NewPlanner() *Planner
@@ -538,7 +547,7 @@ routing: type ModelRanker struct { }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
-runtime: const ( DefaultSessionFinalizeTimeout = 10 * time.Second DefaultSnapshotFinalizeTimeout = 10 * time.Second )
+runtime: const ( DefaultSessionFinalizeTimeout = 10 * time.Second DefaultSnapshotFinalizeTimeout = 10 * time.Second DefaultMaxChildDepth = 8 )
 runtime: const ( SnapshotFailureFailProcess = core.SnapshotFailureFailProcess SnapshotFailurePauseProcess = core.SnapshotFailurePauseProcess SnapshotFailureReportOnly = core.SnapshotFailureReportOnly )
 runtime: func (d *Deployment) Agent() *core.Agent
 runtime: func (d *Deployment) Ref() core.DeploymentRef
@@ -573,7 +582,7 @@ runtime: func (e *Engine) RunChild( ctx context.Context, deployment *Deployment,
 runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
-runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session *core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
+runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
 runtime: func (e *Engine) SessionStore() core.SessionStore
 runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
@@ -608,7 +617,7 @@ runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
 runtime: type ChatGuardrailsConfig struct { HistoryStore chathistory.Store MaxToolRounds int }
-runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionTurnSequencer SessionTurnSequencer SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore Extensions []core.Extension }
+runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionTurnSequencer SessionTurnSequencer SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }

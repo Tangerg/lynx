@@ -12,7 +12,8 @@ import (
 // TestRunChildLimitsDepth verifies that recursive delegation fails before an
 // over-depth child is registered.
 func TestRunChildLimitsDepth(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
+	const limit = 2
+	engine := agent.MustNewEngine(runtime.Config{MaxChildDepth: limit})
 	def := childAgent()
 	deployment, err := engine.Deploy(t.Context(), def)
 	if err != nil {
@@ -42,7 +43,7 @@ func TestRunChildLimitsDepth(t *testing.T) {
 		}
 	}
 
-	if depth < 2 {
-		t.Fatalf("cap tripped at depth %d — nesting past depth 1 should be allowed", depth)
+	if depth != limit {
+		t.Fatalf("successful child depth = %d, want configured limit %d", depth, limit)
 	}
 }

@@ -141,6 +141,57 @@ func TestTeamBuildsDefinition(t *testing.T) {
 	}
 }
 
+func TestTeamPreservesMemberDurableState(t *testing.T) {
+	first := teamAgentA()
+	firstWithState := agent.New(agent.AgentConfig{
+		Name:         first.Name(),
+		Actions:      first.Actions(),
+		DurableState: []core.Binding{core.NewBinding[int]("team_first_state")},
+	})
+	second := teamAgentB()
+	secondWithState := agent.New(agent.AgentConfig{
+		Name:         second.Name(),
+		Actions:      second.Actions(),
+		Goals:        second.Goals(),
+		DurableState: []core.Binding{core.NewBinding[string]("team_second_state")},
+	})
+
+	definition, err := workflow.Team(workflow.TeamConfig{
+		Name:   "team:durable",
+		Agents: []*core.Agent{firstWithState, secondWithState},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := definition.DurableState()
+	if len(state) != 2 || state[0].Name != "team_first_state" || state[1].Name != "team_second_state" {
+		t.Fatalf("durable state = %#v", state)
+	}
+}
+
+func TestTeamRejectsDuplicateMemberDurableState(t *testing.T) {
+	first := teamAgentA()
+	firstWithState := agent.New(agent.AgentConfig{
+		Name:         first.Name(),
+		Actions:      first.Actions(),
+		DurableState: []core.Binding{core.NewBinding[int]("shared_state")},
+	})
+	second := teamAgentB()
+	secondWithState := agent.New(agent.AgentConfig{
+		Name:         second.Name(),
+		Actions:      second.Actions(),
+		Goals:        second.Goals(),
+		DurableState: []core.Binding{core.NewBinding[int]("shared_state")},
+	})
+	definition, err := workflow.Team(workflow.TeamConfig{
+		Name:   "team:duplicate-durable",
+		Agents: []*core.Agent{firstWithState, secondWithState},
+	})
+	if definition != nil || err == nil || !strings.Contains(err.Error(), "duplicate durable state") {
+		t.Fatalf("Team = %#v, %v; want duplicate durable-state error", definition, err)
+	}
+}
+
 func TestTeamBuildsDefaultDescription(t *testing.T) {
 	definition, err := workflow.Team(workflow.TeamConfig{
 		Name:   "auto",

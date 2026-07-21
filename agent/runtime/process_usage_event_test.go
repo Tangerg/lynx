@@ -38,8 +38,12 @@ func TestModelCallsPublishEvents(t *testing.T) {
 	capture := &modelCallCapture{}
 
 	definition := agent.New(agent.AgentConfig{Name: "usage", Actions: []agent.Action{agent.NewAction("spend", func(ctx context.Context, process *core.ProcessContext, input word) (wordCount, error) {
-		process.RecordModelCall(ctx, core.ModelCall{Model: "claude-x", Provider: "anthropic", CostUSD: 0.01, PromptTokens: 100, CompletionTokens: 20})
-		process.RecordEmbeddingCall(ctx, core.EmbeddingCall{Model: "embed-x", CostUSD: 0.001, InputTokens: 50, InputCount: 2})
+		if err := process.RecordModelCall(ctx, core.ModelCall{Model: "claude-x", Provider: "anthropic", CostUSD: 0.01, PromptTokens: 100, CompletionTokens: 20}); err != nil {
+			return wordCount{}, err
+		}
+		if err := process.RecordEmbeddingCall(ctx, core.EmbeddingCall{Model: "embed-x", CostUSD: 0.001, InputTokens: 50, InputCount: 2}); err != nil {
+			return wordCount{}, err
+		}
 		return wordCount{Count: len(input.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "done"})}})
 

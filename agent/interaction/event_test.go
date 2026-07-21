@@ -3,6 +3,7 @@ package interaction_test
 import (
 	"encoding/json"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -47,5 +48,13 @@ func TestStopReasonValid(t *testing.T) {
 	}
 	if interaction.StopReason("budget+steps").Valid() {
 		t.Fatal("unknown stop reason is valid")
+	}
+}
+
+func TestLimitsValidateRejectsNonFiniteCost(t *testing.T) {
+	for _, cost := range []float64{-1, math.NaN(), math.Inf(1)} {
+		if err := (interaction.Limits{MaxCostUSD: cost}).Validate(); !errors.Is(err, interaction.ErrInvalidLimits) {
+			t.Fatalf("Validate cost %v error = %v, want ErrInvalidLimits", cost, err)
+		}
 	}
 }

@@ -92,8 +92,10 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 
 		switch boundary.Kind {
 		case toolloop.EventModelResponse:
-			p.recordInteractionUsage(ctx, actionName, boundary.Response, time.Since(modelStarted[boundary.Round]), input.Attribute)
 			unsafeToRetry = true
+			if err := p.recordInteractionUsage(ctx, actionName, boundary.Response, time.Since(modelStarted[boundary.Round]), input.Attribute); err != nil {
+				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: record interaction usage: %w", err))
+			}
 		case toolloop.EventToolResult:
 			unsafeToRetry = true
 			if resuming {
@@ -176,14 +178,8 @@ func validateInteraction(input core.Interaction) error {
 	if strings.TrimSpace(input.ID) != input.ID {
 		return errors.New("runtime: managed interaction ID has surrounding whitespace")
 	}
-	limits := input.Limits
-	if limits.MaxRounds < 0 ||
-		limits.MaxConcurrentToolCalls < 0 ||
-		limits.MaxSteps < 0 ||
-		limits.MaxModelCalls < 0 ||
-		limits.MaxTokens < 0 ||
-		limits.MaxCostUSD < 0 {
-		return errors.New("runtime: managed interaction limits must not be negative")
+	if err := input.Limits.Validate(); err != nil {
+		return fmt.Errorf("runtime: managed interaction: %w", err)
 	}
 	return nil
 }
@@ -226,17 +222,13 @@ func (p *Process) interactionStopReason(round int, limits interaction.Limits) in
 	return interaction.StopNone
 }
 
-func (p *Process) recordInteractionUsage(ctx context.Context, actionName string, response *chat.Response, duration time.Duration, attributionFunc core.ModelAttributionFunc) {
+func (p *Process) recordInteractionUsage(ctx context.Context, actionName string, response *chat.Response, duration time.Duration, attributionFunc core.ModelAttributionFunc) error {
 	if response == nil {
-		return
+		return nil
 	}
 	usage := response.Usage
-	model := response.Model
-	if model == "" {
-		model = "unknown"
-	}
 	call := core.ModelCall{
-		Model:            model,
+		Model:            response.Model,
 		PromptTokens:     usage.InputTokens,
 		CompletionTokens: usage.OutputTokens,
 		Duration:         duration,
@@ -256,7 +248,7 @@ func (p *Process) recordInteractionUsage(ctx context.Context, actionName string,
 		call.Provider = attribution.Provider
 		call.CostUSD = attribution.CostUSD
 	}
-	processUsage{process: p}.RecordModelCall(ctx, call)
+	return processUsage{process: p}.RecordModelCall(ctx, call)
 }
 
 func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Suspension) interaction.Event {

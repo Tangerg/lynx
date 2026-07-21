@@ -154,6 +154,13 @@ type Session struct {
 	Metadata SessionMetadata `json:"metadata,omitzero"`
 }
 
+// Clone returns an ownership-isolated session value. Identity and audit fields
+// copy by value; Metadata is recursively detached from the source.
+func (s Session) Clone() Session {
+	s.Metadata = s.Metadata.Clone()
+	return s
+}
+
 // SessionInfo is the immutable identity/audit subset actions may inspect.
 // Mutable host metadata and the Session pointer itself stay outside
 // ProcessContext so an action cannot rewrite routing or persistence state.

@@ -106,8 +106,8 @@ func finishAgentRunSpan(span trace.Span, process *Process, err error) {
 // turn) and re-saved with refreshed [core.Session.UpdatedAt] after the
 // dispatch completes — successful or failed.
 //
-// Passing a nil or invalid session is rejected; build a session via
-// [core.NewSession] (or load one via the configured store) before calling. If
+// The runtime takes an ownership-isolated copy of session. Build it via
+// [core.NewSession] (or load it from the configured store) before calling. If
 // agent is nil, the active deployment named by [core.Session.AgentName] is
 // used. If agent is non-nil, an empty AgentName is bound to its compiled
 // deployment and a conflicting name is rejected.
@@ -116,7 +116,7 @@ func finishAgentRunSpan(span trace.Span, process *Process, err error) {
 func (e *Engine) RunInSession(
 	ctx context.Context,
 	agent *core.Agent,
-	session *core.Session,
+	session core.Session,
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (*Process, error) {
@@ -126,13 +126,11 @@ func (e *Engine) RunInSession(
 func (e *Engine) runInSession(
 	ctx context.Context,
 	agent *core.Agent,
-	session *core.Session,
+	session core.Session,
 	bindings core.Bindings,
 	options core.ProcessOptions,
 ) (process *Process, err error) {
-	if session == nil {
-		return nil, errors.New("runtime.Engine.RunInSession: session must not be nil")
-	}
+	session = session.Clone()
 	deployment, err := e.sessionDeployment(ctx, agent, session)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
@@ -150,20 +148,17 @@ func (e *Engine) runInSession(
 		}
 	}()
 
-	if session.ID != sessionID {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w: session ID changed while waiting for turn ownership", core.ErrInvalidSession)
-	}
 	if err := session.BindAgent(deployment.agent.Name()); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
 	}
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
 	}
-	options.Session = session
+	options.Session = &session
 
 	// Pre-dispatch save so concurrent readers see the active turn
 	// (UpdatedAt = "now") even if dispatch is long-running.
-	if err := e.touchAndSaveSession(ctx, session); err != nil {
+	if err := e.touchAndSaveSession(ctx, &session); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: save before dispatch: %w", err)
 	}
 
@@ -174,16 +169,16 @@ func (e *Engine) runInSession(
 	// but detach cancellation from the store write.
 	postContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.sessionFinalizeTimeout)
 	defer cancel()
-	if saveErr := e.touchAndSaveSession(postContext, session); saveErr != nil {
+	if saveErr := e.touchAndSaveSession(postContext, &session); saveErr != nil {
 		saveErr = fmt.Errorf("runtime.Engine.RunInSession: save after dispatch: %w", saveErr)
 		return process, errors.Join(runErr, saveErr)
 	}
 	return process, runErr
 }
 
-func (e *Engine) sessionDeployment(ctx context.Context, agent *core.Agent, session *core.Session) (*Deployment, error) {
+func (e *Engine) sessionDeployment(ctx context.Context, agent *core.Agent, session core.Session) (*Deployment, error) {
 	if agent != nil {
-		candidate := *session
+		candidate := session
 		if err := candidate.BindAgent(agent.Name()); err != nil {
 			return nil, err
 		}

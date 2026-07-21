@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -239,6 +240,23 @@ type Limits struct {
 	MaxModelCalls int
 	MaxTokens     int64
 	MaxCostUSD    float64
+}
+
+// ErrInvalidLimits identifies malformed managed-interaction limits.
+var ErrInvalidLimits = errors.New("interaction limits: invalid")
+
+// Validate checks that every configured limit is finite and non-negative.
+// Zero leaves the dimension unbounded, except MaxConcurrentToolCalls where it
+// selects the tool-loop default.
+func (l Limits) Validate() error {
+	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 || l.MaxSteps < 0 ||
+		l.MaxModelCalls < 0 || l.MaxTokens < 0 {
+		return fmt.Errorf("%w: integer limits must not be negative", ErrInvalidLimits)
+	}
+	if math.IsNaN(l.MaxCostUSD) || math.IsInf(l.MaxCostUSD, 0) || l.MaxCostUSD < 0 {
+		return fmt.Errorf("%w: cost limit must be finite and non-negative", ErrInvalidLimits)
+	}
+	return nil
 }
 
 type StopReason string

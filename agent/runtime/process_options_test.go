@@ -134,6 +134,11 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 			}},
 			contains: "MaxToolRounds must not be negative",
 		},
+		{
+			name:     "negative action budget",
+			options:  core.ProcessOptions{Budget: core.Budget{ActionLimit: -1}},
+			contains: "action limit must not be negative",
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := snapshotProcessOptions(test.options)

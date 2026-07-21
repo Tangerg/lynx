@@ -175,13 +175,13 @@ func (s ProcessSnapshot) Validate() error {
 		}
 	}
 	for i, call := range s.OwnModelCalls {
-		if !call.valid() {
-			return fmt.Errorf("%w: own_model_calls[%d] is invalid", ErrInvalidSnapshot, i)
+		if err := call.Validate(); err != nil {
+			return fmt.Errorf("%w: own_model_calls[%d]: %w", ErrInvalidSnapshot, i, err)
 		}
 	}
 	for i, call := range s.OwnEmbeddingCalls {
-		if !call.valid() {
-			return fmt.Errorf("%w: own_embedding_calls[%d] is invalid", ErrInvalidSnapshot, i)
+		if err := call.Validate(); err != nil {
+			return fmt.Errorf("%w: own_embedding_calls[%d]: %w", ErrInvalidSnapshot, i, err)
 		}
 	}
 	for key, value := range s.Blackboard {
