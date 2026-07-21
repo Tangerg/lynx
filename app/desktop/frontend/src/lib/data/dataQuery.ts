@@ -22,10 +22,20 @@ export function createDataQuery<T>(key: string): () => UseQueryResult<T> {
   return () => useQuery({ queryKey: [key], queryFn: resolve<T>(key), ...STATIC_QUERY_OPTIONS });
 }
 
+export interface ParameterizedQueryOptions<T> {
+  /** Poll cadence derived from the latest data — return a ms interval to keep
+   *  refetching, or false to stop. Use for server state with no push signal
+   *  (e.g. an autonomous goal loop whose server-launched runs the client can't
+   *  observe): poll only while it's live, idle otherwise. */
+  refetchInterval?: (data: T | undefined) => number | false;
+}
+
 /** Build a cached read hook whose parameters are part of the cache identity. */
 export function createParameterizedDataQuery<P, T>(
   key: string,
+  options?: ParameterizedQueryOptions<T>,
 ): (params: P | undefined) => UseQueryResult<T> {
+  const interval = options?.refetchInterval;
   return (params) =>
     useQuery({
       queryKey: [key, params],
@@ -33,5 +43,6 @@ export function createParameterizedDataQuery<P, T>(
       enabled: params !== undefined,
       placeholderData: keepPreviousData,
       ...STATIC_QUERY_OPTIONS,
+      refetchInterval: interval ? (query) => interval(query.state.data) : undefined,
     });
 }

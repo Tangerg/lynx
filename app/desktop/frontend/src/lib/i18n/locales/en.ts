@@ -602,6 +602,9 @@ export const en: Record<string, string> = {
   "agentMemory.empty.title": "No memory yet",
   "agentMemory.empty.sub":
     "Facts the agent mines from your sessions wait here for review; approved ones are recalled in future turns.",
+  "agentMemory.noProject.title": "No project session",
+  "agentMemory.noProject.sub":
+    "Open or select a session to review its project memory. Switch to User for cross-project memory.",
   "agentMemory.error": "Couldn't update memory.",
   "goal.setGoal": "Set a goal for this session",
   "goal.startTitle": "Goal mode",
