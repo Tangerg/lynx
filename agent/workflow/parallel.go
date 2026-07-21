@@ -9,6 +9,14 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
+// ChildRuntime is the deployment and isolated-child execution surface used by
+// sub-agent workflows. The interface is defined by the consumer so workflow
+// builders do not depend on unrelated Engine lifecycle or persistence APIs.
+type ChildRuntime interface {
+	Deploy(context.Context, *core.Agent) (*runtime.Deployment, error)
+	RunChildIsolated(context.Context, *runtime.Deployment, any) (*runtime.Process, error)
+}
+
 // ParallelConfig configures a fan-out across N sub-agents that all
 // consume the same In type and produce the same Element type, then a
 // single Joiner consolidates the per-agent outputs into Result.
@@ -59,11 +67,11 @@ type ParallelConfig[In, Element, Result any] struct {
 // or panic.
 func Parallel[In, Element, Result any](
 	ctx context.Context,
-	engine *runtime.Engine,
+	childRuntime ChildRuntime,
 	config ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
-	if engine == nil {
-		return nil, errors.New("workflow.Parallel: engine must not be nil")
+	if childRuntime == nil {
+		return nil, errors.New("workflow.Parallel: child runtime must not be nil")
 	}
 	if config.Name == "" {
 		return nil, errors.New("workflow.Parallel: Name must not be empty")
@@ -81,7 +89,7 @@ func Parallel[In, Element, Result any](
 	}
 	deployments := make([]*runtime.Deployment, len(config.Agents))
 	for index, agent := range config.Agents {
-		deployment, err := engine.Deploy(ctx, agent)
+		deployment, err := childRuntime.Deploy(ctx, agent)
 		if err != nil {
 			return nil, fmt.Errorf("workflow.Parallel: deploy Agents[%d] %q: %w", index, agent.Name(), err)
 		}
@@ -96,7 +104,7 @@ func Parallel[In, Element, Result any](
 		generators[index] = func(ctx context.Context, _ *core.ProcessContext, input In) (Element, error) {
 			var zero Element
 			name := deployment.Ref().Name
-			child, err := engine.RunChildIsolated(ctx, deployment, input)
+			child, err := childRuntime.RunChildIsolated(ctx, deployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}

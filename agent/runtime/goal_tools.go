@@ -70,7 +70,7 @@ func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error) {
 	if e == nil {
 		return nil, errors.New("runtime.Engine.StandaloneGoalTools: engine is nil")
 	}
-	return e.collectGoalTools(true, runDeploymentInput)
+	return e.collectGoalTools(true, runRootToolDeployment)
 }
 
 func (e *Engine) collectGoalTools(standaloneOnly bool, run runProcessFunc) ([]tools.Tool, error) {
@@ -227,7 +227,20 @@ func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tool
 	if err != nil {
 		return nil, err
 	}
-	return newAgentTool[In, Out]("standalone agent tool", engine, deployment, runDeploymentInput)
+	return newAgentTool[In, Out]("standalone agent tool", engine, deployment, runRootToolDeployment)
+}
+
+func runRootToolDeployment(
+	ctx context.Context,
+	engine *Engine,
+	deployment *Deployment,
+	input any,
+) (*Process, error) {
+	var bindings core.Bindings
+	if input != nil {
+		bindings = core.Input(input)
+	}
+	return engine.RunDeployment(ctx, deployment, bindings, core.ProcessOptions{})
 }
 
 // runProcessFunc runs one exact compiled deployment. Tool construction

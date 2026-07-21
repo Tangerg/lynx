@@ -204,6 +204,16 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("missing error = %v", err)
 	}
+	rootWithDepth := validSnapshot("root-with-depth")
+	rootWithDepth.Depth = 1
+	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{rootWithDepth}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("root with depth error = %v", err)
+	}
+	childWithoutDepth := validSnapshot("child-without-depth")
+	childWithoutDepth.ParentID = "parent"
+	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{childWithoutDepth}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("child without depth error = %v", err)
+	}
 	invalidModelCall := validSnapshot("invalid-model-call")
 	invalidModelCall.OwnModelCalls = []core.ModelCall{{
 		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,

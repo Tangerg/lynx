@@ -44,12 +44,12 @@ const minimumSequenceAgents = 2
 // agent — caller decides whether to surface, retry, or panic.
 func Sequence[In, Out any](
 	ctx context.Context,
-	engine *runtime.Engine,
+	childRuntime ChildRuntime,
 	name string,
 	agents ...*core.Agent,
 ) (*core.Agent, error) {
-	if engine == nil {
-		return nil, errors.New("workflow.Sequence: engine must not be nil")
+	if childRuntime == nil {
+		return nil, errors.New("workflow.Sequence: child runtime must not be nil")
 	}
 	if name == "" {
 		return nil, errors.New("workflow.Sequence: name must not be empty")
@@ -64,7 +64,7 @@ func Sequence[In, Out any](
 	}
 	deployments := make([]*runtime.Deployment, len(agents))
 	for index, agent := range agents {
-		deployment, err := engine.Deploy(ctx, agent)
+		deployment, err := childRuntime.Deploy(ctx, agent)
 		if err != nil {
 			return nil, fmt.Errorf("workflow.Sequence: deploy agents[%d] %q: %w", index, agent.Name(), err)
 		}
@@ -80,7 +80,7 @@ func Sequence[In, Out any](
 			var lastChild *runtime.Process
 			for index, deployment := range deployments {
 				agentName := deployment.Ref().Name
-				child, err := engine.RunChildIsolated(ctx, deployment, current)
+				child, err := childRuntime.RunChildIsolated(ctx, deployment, current)
 				if err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", index, agentName, err)
 				}

@@ -143,6 +143,12 @@ func (s ProcessSnapshot) Validate() error {
 	if s.Depth < 0 {
 		return fmt.Errorf("%w: depth must not be negative", ErrInvalidSnapshot)
 	}
+	if s.ParentID == "" && s.Depth != 0 {
+		return fmt.Errorf("%w: root snapshot depth must be zero", ErrInvalidSnapshot)
+	}
+	if s.ParentID != "" && s.Depth == 0 {
+		return fmt.Errorf("%w: child snapshot depth must be positive", ErrInvalidSnapshot)
+	}
 	if err := s.Deployment.Validate(); err != nil {
 		return fmt.Errorf("%w: deployment: %w", ErrInvalidSnapshot, err)
 	}

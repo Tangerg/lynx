@@ -535,7 +535,7 @@ routing: func (r *ModelRanker) Rank(ctx context.Context, userInput string, candi
 routing: func (r *Router) Candidates() []Candidate
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
 routing: func (r *Router) Run( ctx context.Context, input string, bindings core.Bindings, options core.ProcessOptions, ) (Choice, *runtime.Process, error)
-routing: func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error)
+routing: func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error)
 routing: func NewModelRanker(model chat.Model, config ModelConfig) (*ModelRanker, error)
 routing: type Candidate struct { }
 routing: type Choice struct { Candidate Confidence float64 Rationale string }
@@ -544,6 +544,7 @@ routing: type ModelConfig struct { SystemPrompt string PromptHeader string }
 routing: type ModelRanker struct { }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
+routing: type Runtime interface { ActiveDeployments() []*runtime.Deployment Deployment(core.DeploymentRef) (*runtime.Deployment, bool) RunDeployment(context.Context, *runtime.Deployment, core.Bindings, core.ProcessOptions) (*runtime.Process, error) }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 runtime: const ( DefaultSessionFinalizeTimeout = 10 * time.Second DefaultSnapshotFinalizeTimeout = 10 * time.Second DefaultMaxChildDepth = 8 )
 runtime: const ( SnapshotFailureFailProcess = core.SnapshotFailureFailProcess SnapshotFailurePauseProcess = core.SnapshotFailurePauseProcess SnapshotFailureReportOnly = core.SnapshotFailureReportOnly )
@@ -580,7 +581,7 @@ runtime: func (e *Engine) Run( ctx context.Context, agent *core.Agent, bindings 
 runtime: func (e *Engine) RunChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
-runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
+runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
 runtime: func (e *Engine) SessionStore() core.SessionStore
@@ -712,19 +713,21 @@ workflow: func (h AttemptHistory[Out]) MarshalJSON() ([]byte, error)
 workflow: func (h History[T]) MarshalJSON() ([]byte, error)
 workflow: func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error)
 workflow: func DefaultKey[Element ~string](element Element) string
-workflow: func Loop[In, Out any]( ctx context.Context, engine *runtime.Engine, config LoopConfig[In, Out], ) (*core.Agent, error)
-workflow: func Parallel[In, Element, Result any]( ctx context.Context, engine *runtime.Engine, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
+workflow: func Loop[In, Out any]( ctx context.Context, childRuntime ChildRuntime, config LoopConfig[In, Out], ) (*core.Agent, error)
+workflow: func Parallel[In, Element, Result any]( ctx context.Context, childRuntime ChildRuntime, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
 workflow: func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error)
 workflow: func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error)
 workflow: func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error)
-workflow: func Sequence[In, Out any]( ctx context.Context, engine *runtime.Engine, name string, agents ...*core.Agent, ) (*core.Agent, error)
-workflow: func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In, Out]) (*core.Agent, error)
+workflow: func Sequence[In, Out any]( ctx context.Context, childRuntime ChildRuntime, name string, agents ...*core.Agent, ) (*core.Agent, error)
+workflow: func Supervisor[In, Out any](provider GoalToolProvider, config SupervisorConfig[In, Out]) (*core.Agent, error)
 workflow: func Team(config TeamConfig) (*core.Agent, error)
 workflow: type AttemptHistory[Out any] struct { }
 workflow: type Attempt[Out any] struct { Output Out Feedback Feedback }
+workflow: type ChildRuntime interface { Deploy(context.Context, *core.Agent) (*runtime.Deployment, error) RunChildIsolated(context.Context, *runtime.Deployment, any) (*runtime.Process, error) }
 workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Key func(Element) string }
 workflow: type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessContext, input In, latest Out) (Feedback, error)
 workflow: type Feedback struct { Score float64 Text string }
+workflow: type GoalToolProvider interface { GoalToolsFor(names ...string) ([]tools.Tool, error) }
 workflow: type History[T any] struct { }
 workflow: type LoopConfig[In, Out any] struct { Name string Description string MaxIterations int Body *core.Agent Until func(ctx context.Context, input In, latest Out) bool }
 workflow: type ParallelConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Agents []*core.Agent Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
