@@ -124,12 +124,23 @@ func (s *nestedChildState) queueCleanup(childID string) {
 	}
 }
 
-func (s *nestedChildState) takeCleanup() []string {
+func (s *nestedChildState) cleanupSnapshot() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	cleanup := slices.Clone(s.cleanup)
-	s.cleanup = nil
-	return cleanup
+	return slices.Clone(s.cleanup)
+}
+
+func (s *nestedChildState) acknowledgeCleanup(childIDs []string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, childID := range childIDs {
+		s.cleanup = slices.DeleteFunc(s.cleanup, func(candidate string) bool {
+			return candidate == childID
+		})
+	}
+	if len(s.cleanup) == 0 {
+		s.cleanup = nil
+	}
 }
 
 func (p *Process) stageNestedChild(relation *nestedChildRelation) error {
@@ -221,19 +232,21 @@ func (p *Process) unstageNestedChild(toolCallID, childID string) bool {
 	return p.nested.unstage(toolCallID, childID)
 }
 
-func (p *Process) abortStagedNestedChildren(ctx context.Context) int {
+func (p *Process) abortStagedNestedChildren(ctx context.Context) (int, error) {
 	if p == nil {
-		return 0
+		return 0, nil
 	}
 	childIDs := p.nested.takeStagedChildIDs()
 	if p.engine == nil {
-		return len(childIDs)
+		return len(childIDs), nil
 	}
+	var cleanupErrs []error
 	for _, childID := range childIDs {
-		_ = p.engine.Kill(ctx, childID)
-		p.engine.discardProcessTree(ctx, childID)
+		if err := p.engine.Discard(ctx, childID); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("discard staged child %q: %w", childID, err))
+		}
 	}
-	return len(childIDs)
+	return len(childIDs), errors.Join(cleanupErrs...)
 }
 
 func (p *Process) deferNestedChildCleanup(childID string) {
@@ -243,9 +256,15 @@ func (p *Process) deferNestedChildCleanup(childID string) {
 	p.nested.queueCleanup(childID)
 }
 
-func (p *Process) takeNestedChildCleanup() []string {
+func (p *Process) nestedChildCleanupSnapshot() []string {
 	if p == nil {
 		return nil
 	}
-	return p.nested.takeCleanup()
+	return p.nested.cleanupSnapshot()
+}
+
+func (p *Process) acknowledgeNestedChildCleanup(childIDs []string) {
+	if p != nil {
+		p.nested.acknowledgeCleanup(childIDs)
+	}
 }

@@ -32,13 +32,15 @@ func (r *processRegistry) insert(process *Process) bool {
 	return true
 }
 
-// registerNew refuses to replace a live process with a restored copy.
+// registerNew refuses to replace a process until its terminal run has released
+// finalization ownership. Otherwise the displaced run could persist after the
+// restored copy and overwrite its durable revision.
 func (r *processRegistry) registerNew(process *Process) bool {
 	for {
 		r.mu.RLock()
 		existing, exists := r.items[process.id]
 		r.mu.RUnlock()
-		if exists && !existing.Status().IsTerminal() {
+		if exists && !existing.state.removable() {
 			return false
 		}
 
@@ -66,33 +68,22 @@ func (r *processRegistry) unregister(process *Process) bool {
 	return true
 }
 
-func (r *processRegistry) unregisterTerminalLeaf(id string) (found, terminal, hasChildren bool) {
-	for {
-		r.mu.RLock()
-		process, exists := r.items[id]
-		r.mu.RUnlock()
-		if !exists {
-			return false, false, false
-		}
-		if !process.Status().IsTerminal() {
-			return true, false, false
-		}
-
-		r.mu.Lock()
-		if r.items[id] != process {
-			r.mu.Unlock()
-			continue
-		}
-		for _, candidate := range r.items {
-			if candidate.parentID == id {
-				r.mu.Unlock()
-				return true, true, true
-			}
-		}
-		delete(r.items, id)
-		r.mu.Unlock()
-		return true, true, false
+func (r *processRegistry) unregisterClaimedLeaf(process *Process) (found, hasChildren bool) {
+	if process == nil {
+		return false, false
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.items[process.id] != process {
+		return false, false
+	}
+	for _, candidate := range r.items {
+		if candidate.parentID == process.id {
+			return true, true
+		}
+	}
+	delete(r.items, process.id)
+	return true, false
 }
 
 func (r *processRegistry) get(id string) (*Process, bool) {

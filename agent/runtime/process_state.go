@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -33,6 +34,8 @@ type processState struct {
 	pendingSuspension  *interaction.Suspension
 	revision           uint64
 	runOwned           bool
+	runDone            chan struct{}
+	removalClaimed     bool
 }
 
 func (s *processState) snapshotRevision() uint64 {
@@ -323,13 +326,57 @@ func (s *processState) beginRun() (bool, error) {
 		return false, nil
 	}
 	s.runOwned = true
+	s.runDone = make(chan struct{})
 	s.currentStatus = core.StatusRunning
 	return true, nil
 }
 
 func (s *processState) endRun() {
 	s.mu.Lock()
+	done := s.runDone
 	s.runOwned = false
+	s.runDone = nil
+	s.mu.Unlock()
+	if done != nil {
+		close(done)
+	}
+}
+
+func (s *processState) waitRun(ctx context.Context) error {
+	s.mu.RLock()
+	done := s.runDone
+	runOwned := s.runOwned
+	s.mu.RUnlock()
+	if !runOwned || done == nil {
+		return nil
+	}
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *processState) removable() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.currentStatus.IsTerminal() && !s.runOwned && !s.removalClaimed
+}
+
+func (s *processState) claimRemoval() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.currentStatus.IsTerminal() || s.runOwned || s.removalClaimed {
+		return false
+	}
+	s.removalClaimed = true
+	return true
+}
+
+func (s *processState) releaseRemoval() {
+	s.mu.Lock()
+	s.removalClaimed = false
 	s.mu.Unlock()
 }
 

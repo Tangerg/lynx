@@ -297,45 +297,78 @@ func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// SnapshotReader loads the latest committed snapshot revision.
-type SnapshotReader interface {
-	Load(context.Context, string) (ProcessSnapshot, error)
+// SnapshotMutation is one atomic durable change set. Writes use Revision as a
+// compare-and-swap expectation: revision zero creates a process, and every
+// successful write stores Revision+1. Each DeleteTrees entry idempotently
+// deletes that root and every durable descendant. Implementations reject a
+// write whose lineage enters a deleted tree. A process ID may occur exactly
+// once across the mutation roots and writes.
+type SnapshotMutation struct {
+	Writes      []ProcessSnapshot
+	DeleteTrees []string
 }
 
-// SnapshotWriter atomically writes snapshot only when Snapshot.Revision is the
-// currently stored revision. A new process uses revision 0; every successful
-// write commits revision Snapshot.Revision+1.
-type SnapshotWriter interface {
-	Save(context.Context, ProcessSnapshot) error
+// Validate checks mutation shape and every snapshot without consulting a
+// store. An empty mutation is a valid no-op.
+func (m SnapshotMutation) Validate() error {
+	seen := make(map[string]string, len(m.Writes)+len(m.DeleteTrees))
+	pending := make(map[string]ProcessSnapshot, len(m.Writes))
+	for index, snapshot := range m.Writes {
+		if snapshot.Revision == math.MaxUint64 {
+			return fmt.Errorf("%w: writes[%d] process %q revision is exhausted", ErrInvalidSnapshot, index, snapshot.ID)
+		}
+		if err := snapshot.Validate(); err != nil {
+			return fmt.Errorf("writes[%d]: %w", index, err)
+		}
+		if previous, duplicate := seen[snapshot.ID]; duplicate {
+			return fmt.Errorf("%w: process ID %q occurs in %s and writes[%d]", ErrInvalidSnapshot, snapshot.ID, previous, index)
+		}
+		seen[snapshot.ID] = fmt.Sprintf("writes[%d]", index)
+		pending[snapshot.ID] = snapshot
+	}
+	deleteRoots := make(map[string]struct{}, len(m.DeleteTrees))
+	for index, id := range m.DeleteTrees {
+		if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
+			return fmt.Errorf("%w: delete_trees[%d] must be non-empty without surrounding whitespace", ErrInvalidSnapshot, index)
+		}
+		if previous, duplicate := seen[id]; duplicate {
+			return fmt.Errorf("%w: process ID %q occurs in %s and delete_trees[%d]", ErrInvalidSnapshot, id, previous, index)
+		}
+		seen[id] = fmt.Sprintf("delete_trees[%d]", index)
+		deleteRoots[id] = struct{}{}
+	}
+	for index, snapshot := range m.Writes {
+		visited := map[string]struct{}{snapshot.ID: {}}
+		for parentID := snapshot.ParentID; parentID != ""; {
+			if _, deleted := deleteRoots[parentID]; deleted {
+				return fmt.Errorf("%w: writes[%d] process %q descends from deleted tree %q", ErrInvalidSnapshot, index, snapshot.ID, parentID)
+			}
+			if _, duplicate := visited[parentID]; duplicate {
+				return fmt.Errorf("%w: writes[%d] process %q has cyclic pending lineage", ErrInvalidSnapshot, index, snapshot.ID)
+			}
+			visited[parentID] = struct{}{}
+			parent, exists := pending[parentID]
+			if !exists {
+				break
+			}
+			parentID = parent.ParentID
+		}
+	}
+	return nil
 }
 
-// SnapshotBatchWriter atomically applies a set of snapshot writes.
-// Each snapshot's Revision is its compare-and-swap expectation. Implementations
-// must validate every snapshot and expected revision before mutating durable
-// state. An error leaves every snapshot in the batch unchanged.
-type SnapshotBatchWriter interface {
-	SaveBatch(context.Context, []ProcessSnapshot) error
-}
-
-// ProcessStore is the minimum persistence capability required by Engine.
+// ProcessStore owns durable process snapshots. Apply validates every write and
+// compare-and-swap expectation before changing storage, then commits all writes
+// and tree deletions atomically. An error leaves the entire mutation unapplied.
+// Load returns [ErrSnapshotNotFound] for an unknown ID. List returns every
+// stored ID; callers that need ordering must sort the result themselves.
+//
 // CAS prevents lost snapshot updates; it does not grant execution ownership.
-// The framework assumes one active owner drives a process at a time. Hosts
-// that hand processes across nodes must add a lease or fencing protocol before
-// allowing another worker to execute the same process. Engine.Save requires
-// [SnapshotBatchWriter] when the captured process owns nested child snapshots;
-// it never degrades an atomic tree save into independent writes.
+// Hosts that hand processes across nodes must add a lease or fencing protocol
+// before another worker executes the same process.
 type ProcessStore interface {
-	SnapshotReader
-	SnapshotWriter
-}
-
-// SnapshotDeleter is the optional idempotent cleanup capability.
-type SnapshotDeleter interface {
-	Delete(context.Context, string) error
-}
-
-// SnapshotLister is the optional administrative listing capability.
-type SnapshotLister interface {
+	Apply(context.Context, SnapshotMutation) error
+	Load(context.Context, string) (ProcessSnapshot, error)
 	List(context.Context) ([]string, error)
 }
 

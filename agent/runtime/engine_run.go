@@ -449,12 +449,17 @@ func (e *Engine) killChildren(ctx context.Context, parentID string) ([]string, e
 // to finish first; rejecting their removal keeps cancellation, child ownership,
 // and durable cleanup reachable through the Engine.
 func (e *Engine) Remove(id string) error {
-	found, terminal, hasChildren := e.processes.unregisterTerminalLeaf(id)
+	process, found := e.processes.get(id)
 	if !found {
 		return processNotFoundError("remove process", id)
 	}
-	if !terminal {
+	if !process.state.claimRemoval() {
 		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessActive)
+	}
+	defer process.state.releaseRemoval()
+	found, hasChildren := e.processes.unregisterClaimedLeaf(process)
+	if !found {
+		return processNotFoundError("remove process", id)
 	}
 	if hasChildren {
 		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessHasChildren)
@@ -477,8 +482,12 @@ func (e *Engine) Prune() []string {
 		})
 		pruned := 0
 		for _, process := range processes {
-			found, terminal, hasChildren := e.processes.unregisterTerminalLeaf(process.ID())
-			if found && terminal && !hasChildren {
+			if !process.state.claimRemoval() {
+				continue
+			}
+			found, hasChildren := e.processes.unregisterClaimedLeaf(process)
+			process.state.releaseRemoval()
+			if found && !hasChildren {
 				removed = append(removed, process.ID())
 				pruned++
 			}

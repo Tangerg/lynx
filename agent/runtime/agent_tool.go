@@ -30,7 +30,7 @@ func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone
 // isolated child process. ToolLoop still commits their results in model order.
 func (t *agentTool) ConcurrencyKey(string) (string, bool) { return "", true }
 
-func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *agentTool) Call(ctx context.Context, arguments string) (result string, err error) {
 	agentName := t.deployment.agent.Name()
 	in, err := t.decode(arguments)
 	if err != nil {
@@ -68,7 +68,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	process, err := t.run(ctx, in)
 	if err != nil {
 		if process != nil {
-			t.abortNestedChild(ctx, process)
+			err = errors.Join(err, t.abortNestedChild(ctx, process))
 		}
 		return "", fmt.Errorf("%s %q: %w", t.label, agentName, err)
 	}
@@ -76,7 +76,12 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 		return "", t.suspendForNestedChild(ctx, parent, process, toolCallID, arguments)
 	}
 
-	defer t.discard(ctx, process)
+	defer func() {
+		if cleanupErr := t.discard(ctx, process); cleanupErr != nil {
+			result = ""
+			err = errors.Join(err, cleanupErr)
+		}
+	}()
 	return t.encodeResult(process)
 }
 
@@ -115,8 +120,11 @@ func (t *agentTool) continueNestedChild(
 			return "", fmt.Errorf("%w: nested child suspension %q has no response", interaction.ErrSuspensionStale, relation.SuspensionID)
 		}
 		if err := t.engine.Continue(ctx, child.ID()); err != nil {
-			t.abortNestedChild(ctx, child)
-			return "", fmt.Errorf("%s %q (process %q): continue nested child: %w", t.label, t.deployment.agent.Name(), child.ID(), err)
+			cleanupErr := t.abortNestedChild(ctx, child)
+			return "", errors.Join(
+				fmt.Errorf("%s %q (process %q): continue nested child: %w", t.label, t.deployment.agent.Name(), child.ID(), err),
+				cleanupErr,
+			)
 		}
 	}
 	if child.Status() == core.StatusWaiting {
@@ -132,7 +140,7 @@ func (t *agentTool) continueNestedChild(
 	parent.state.clearRespondedSuspension()
 	output, err := t.encodeResult(child)
 	if t.engine.ProcessStore() == nil {
-		t.discard(ctx, child)
+		err = errors.Join(err, t.discard(ctx, child))
 	} else {
 		parent.deferNestedChildCleanup(child.ID())
 	}
@@ -148,12 +156,10 @@ func (t *agentTool) suspendForNestedChild(
 ) error {
 	relation, childSuspension, err := nestedRelationForChild(toolCallID, t.definition.Name, arguments, child)
 	if err != nil {
-		t.abortNestedChild(ctx, child)
-		return err
+		return errors.Join(err, t.abortNestedChild(ctx, child))
 	}
 	if err := parent.stageNestedChild(relation); err != nil {
-		t.abortNestedChild(ctx, child)
-		return err
+		return errors.Join(err, t.abortNestedChild(ctx, child))
 	}
 	payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
 		SchemaVersion:  suspensionCheckpointSchemaVersion,
@@ -162,61 +168,27 @@ func (t *agentTool) suspendForNestedChild(
 	})
 	if err != nil {
 		parent.unstageNestedChild(toolCallID, child.ID())
-		t.abortNestedChild(ctx, child)
-		return err
+		return errors.Join(err, t.abortNestedChild(ctx, child))
 	}
 	suspension := *childSuspension
 	suspension.Payload = payload
 	return &interaction.SuspendedError{Suspension: suspension}
 }
 
-func (t *agentTool) abortNestedChild(ctx context.Context, child *Process) {
+func (t *agentTool) abortNestedChild(ctx context.Context, child *Process) error {
 	if t == nil || t.engine == nil || child == nil {
-		return
+		return nil
 	}
-	if !child.Status().IsTerminal() {
-		_ = t.engine.Kill(ctx, child.ID())
-	}
-	t.engine.discardProcessTree(ctx, child.ID())
+	return t.engine.Discard(ctx, child.ID())
 }
 
 // discard releases a terminal child from memory and durable storage. Waiting
 // children remain registered so a host can resume them.
-func (t *agentTool) discard(ctx context.Context, child *Process) {
+func (t *agentTool) discard(ctx context.Context, child *Process) error {
 	if t.engine == nil || child == nil || !child.Status().IsTerminal() {
-		return
+		return nil
 	}
-	t.engine.discardProcessTree(ctx, child.ID())
-}
-
-func (e *Engine) discardProcessTree(ctx context.Context, processID string) {
-	if e == nil || processID == "" {
-		return
-	}
-	ctx = normalizeContext(ctx)
-	for _, candidate := range e.Processes() {
-		if candidate.ParentID() != processID {
-			continue
-		}
-		if !candidate.Status().IsTerminal() {
-			_ = e.Kill(ctx, candidate.ID())
-		}
-		e.discardProcessTree(ctx, candidate.ID())
-	}
-	process, ok := e.Process(processID)
-	if !ok {
-		if deleter, supported := e.ProcessStore().(core.SnapshotDeleter); supported {
-			_ = deleter.Delete(ctx, processID)
-		}
-		return
-	}
-	if !process.Status().IsTerminal() {
-		return
-	}
-	_ = e.Remove(processID)
-	if deleter, ok := e.ProcessStore().(core.SnapshotDeleter); ok {
-		_ = deleter.Delete(ctx, processID)
-	}
+	return t.engine.Discard(ctx, child.ID())
 }
 
 // decodeToolArguments decodes a tool argument payload into T. Empty payloads

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"sync"
 
@@ -20,46 +19,33 @@ type MemoryProcessStore struct {
 	snapshots map[string]core.ProcessSnapshot
 }
 
-var _ core.SnapshotBatchWriter = (*MemoryProcessStore)(nil)
+var _ core.ProcessStore = (*MemoryProcessStore)(nil)
 
 // NewMemoryProcessStore returns an empty process-store test double.
 func NewMemoryProcessStore() *MemoryProcessStore {
 	return &MemoryProcessStore{snapshots: make(map[string]core.ProcessSnapshot)}
 }
 
-// Save implements [core.SnapshotWriter].
-func (s *MemoryProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
-	return s.SaveBatch(ctx, []core.ProcessSnapshot{snapshot})
-}
-
-// SaveBatch implements [core.SnapshotBatchWriter].
-func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []core.ProcessSnapshot) error {
+// Apply implements [core.ProcessStore].
+func (s *MemoryProcessStore) Apply(ctx context.Context, mutation core.SnapshotMutation) error {
 	if s == nil {
 		return errors.New("storetest.MemoryProcessStore: nil receiver")
 	}
 	if err := contextError(ctx); err != nil {
 		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
 	}
-	if len(snapshots) == 0 {
+	if err := mutation.Validate(); err != nil {
+		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
+	}
+	if len(mutation.Writes) == 0 && len(mutation.DeleteTrees) == 0 {
 		return nil
 	}
 
-	candidates := make([]core.ProcessSnapshot, len(snapshots))
-	seen := make(map[string]struct{}, len(snapshots))
-	for index, snapshot := range snapshots {
-		if snapshot.Revision == math.MaxUint64 {
-			return fmt.Errorf("storetest.MemoryProcessStore: snapshot[%d]: %w: revision is exhausted", index, core.ErrInvalidSnapshot)
-		}
-		if err := snapshot.Validate(); err != nil {
-			return fmt.Errorf("storetest.MemoryProcessStore: snapshot[%d]: %w", index, err)
-		}
-		if _, duplicate := seen[snapshot.ID]; duplicate {
-			return fmt.Errorf("storetest.MemoryProcessStore: snapshot[%d]: %w: duplicate process ID %q", index, core.ErrInvalidSnapshot, snapshot.ID)
-		}
-		seen[snapshot.ID] = struct{}{}
+	candidates := make([]core.ProcessSnapshot, len(mutation.Writes))
+	for index, snapshot := range mutation.Writes {
 		candidate, err := cloneJSON(snapshot)
 		if err != nil {
-			return fmt.Errorf("storetest.MemoryProcessStore: snapshot[%d]: clone: %w", index, err)
+			return fmt.Errorf("storetest.MemoryProcessStore: writes[%d]: clone: %w", index, err)
 		}
 		candidates[index] = candidate
 	}
@@ -69,7 +55,7 @@ func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []core.Pro
 	if err := contextError(ctx); err != nil {
 		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
 	}
-	for _, snapshot := range snapshots {
+	for _, snapshot := range mutation.Writes {
 		actualRevision := uint64(0)
 		if current, ok := s.snapshots[snapshot.ID]; ok {
 			actualRevision = current.Revision
@@ -82,14 +68,86 @@ func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []core.Pro
 			}
 		}
 	}
-	for index, snapshot := range snapshots {
+	deleteSet := processTreeDeleteSet(s.snapshots, mutation.DeleteTrees)
+	if err := validateMutationWriteLineage(s.snapshots, candidates, deleteSet); err != nil {
+		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
+	}
+	for id := range deleteSet {
+		delete(s.snapshots, id)
+	}
+	for index, snapshot := range mutation.Writes {
 		candidates[index].Revision++
 		s.snapshots[snapshot.ID] = candidates[index]
 	}
 	return nil
 }
 
-// Load implements [core.SnapshotReader].
+func processTreeDeleteSet(snapshots map[string]core.ProcessSnapshot, roots []string) map[string]struct{} {
+	if len(roots) == 0 {
+		return nil
+	}
+	children := make(map[string][]string)
+	for id, snapshot := range snapshots {
+		if snapshot.ParentID != "" {
+			children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+		}
+	}
+	deleted := make(map[string]struct{})
+	var walk func(string)
+	walk = func(id string) {
+		if _, visited := deleted[id]; visited {
+			return
+		}
+		deleted[id] = struct{}{}
+		for _, childID := range children[id] {
+			walk(childID)
+		}
+	}
+	for _, root := range roots {
+		walk(root)
+	}
+	return deleted
+}
+
+func validateMutationWriteLineage(
+	stored map[string]core.ProcessSnapshot,
+	writes []core.ProcessSnapshot,
+	deleted map[string]struct{},
+) error {
+	if len(deleted) == 0 {
+		return nil
+	}
+	pending := make(map[string]core.ProcessSnapshot, len(writes))
+	for _, snapshot := range writes {
+		pending[snapshot.ID] = snapshot
+	}
+	for _, snapshot := range writes {
+		if _, removed := deleted[snapshot.ID]; removed {
+			return fmt.Errorf("%w: write process %q belongs to a deleted tree", core.ErrInvalidSnapshot, snapshot.ID)
+		}
+		visited := map[string]struct{}{snapshot.ID: {}}
+		for parentID := snapshot.ParentID; parentID != ""; {
+			if _, removed := deleted[parentID]; removed {
+				return fmt.Errorf("%w: write process %q descends from deleted process %q", core.ErrInvalidSnapshot, snapshot.ID, parentID)
+			}
+			if _, duplicate := visited[parentID]; duplicate {
+				return fmt.Errorf("%w: write process %q has cyclic lineage", core.ErrInvalidSnapshot, snapshot.ID)
+			}
+			visited[parentID] = struct{}{}
+			parent, ok := pending[parentID]
+			if !ok {
+				parent, ok = stored[parentID]
+			}
+			if !ok {
+				break
+			}
+			parentID = parent.ParentID
+		}
+	}
+	return nil
+}
+
+// Load implements [core.ProcessStore].
 func (s *MemoryProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error) {
 	if s == nil {
 		return core.ProcessSnapshot{}, errors.New("storetest.MemoryProcessStore: nil receiver")
@@ -110,18 +168,7 @@ func (s *MemoryProcessStore) Load(_ context.Context, id string) (core.ProcessSna
 	return cloned, nil
 }
 
-// Delete implements [core.SnapshotDeleter].
-func (s *MemoryProcessStore) Delete(_ context.Context, id string) error {
-	if s == nil {
-		return nil
-	}
-	s.mu.Lock()
-	delete(s.snapshots, id)
-	s.mu.Unlock()
-	return nil
-}
-
-// List implements [core.SnapshotLister].
+// List implements [core.ProcessStore].
 func (s *MemoryProcessStore) List(_ context.Context) ([]string, error) {
 	if s == nil {
 		return nil, nil

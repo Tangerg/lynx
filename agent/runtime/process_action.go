@@ -102,10 +102,13 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	} else {
 		replan = nil
 	}
-	if p.abortStagedNestedChildren(ctx) > 0 && status != core.ActionFailed {
-		status = core.ActionFailed
-		lastErr = errors.New("runtime: action returned without committing its staged nested child suspensions")
-		replan = nil
+	if aborted, cleanupErr := p.abortStagedNestedChildren(ctx); aborted > 0 {
+		if status != core.ActionFailed {
+			status = core.ActionFailed
+			lastErr = errors.New("runtime: action returned without committing its staged nested child suspensions")
+			replan = nil
+		}
+		lastErr = errors.Join(lastErr, cleanupErr)
 	}
 
 	duration := time.Since(startedAt)

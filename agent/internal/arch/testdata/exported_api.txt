@@ -136,6 +136,7 @@ core: func (m SessionMetadata) Decode(name string, dst any) (bool, error)
 core: func (m SessionMetadata) IsZero() bool
 core: func (m SessionMetadata) Len() int
 core: func (m SessionMetadata) MarshalJSON() ([]byte, error)
+core: func (m SnapshotMutation) Validate() error
 core: func (p BudgetPolicy) Check(process ProcessView) (bool, string)
 core: func (p BudgetPolicy) Name() string
 core: func (p SnapshotFailurePolicy) String() string
@@ -286,7 +287,7 @@ core: type ProcessControl interface { TerminateAgent(reason string) TerminateAct
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Session *Session Extensions []Extension Guardrails *ChatGuardrails }
 core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` Revision uint64 `json:"revision"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure string `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessStatus int8
-core: type ProcessStore interface { SnapshotReader SnapshotWriter }
+core: type ProcessStore interface { Apply(context.Context, SnapshotMutation) error Load(context.Context, string) (ProcessSnapshot, error) List(context.Context) ([]string, error) }
 core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() (cost float64, tokens int, actions int) ModelCalls() []ModelCall EmbeddingCalls() []EmbeddingCall }
 core: type PromptCondition struct { }
 core: type PromptConditionConfig struct { Name string Model chat.Model Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
@@ -305,12 +306,8 @@ core: type SessionMetadata struct { }
 core: type SessionReader interface { Load(ctx context.Context, id string) (Session, error) }
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
-core: type SnapshotBatchWriter interface { SaveBatch(context.Context, []ProcessSnapshot) error }
-core: type SnapshotDeleter interface { Delete(context.Context, string) error }
 core: type SnapshotFailurePolicy uint8
-core: type SnapshotLister interface { List(context.Context) ([]string, error) }
-core: type SnapshotReader interface { Load(context.Context, string) (ProcessSnapshot, error) }
-core: type SnapshotWriter interface { Save(context.Context, ProcessSnapshot) error }
+core: type SnapshotMutation struct { Writes []ProcessSnapshot DeleteTrees []string }
 core: type StaticToolGroupResolver struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8
@@ -562,6 +559,7 @@ runtime: func (e *Engine) Dependencies() *core.Dependencies
 runtime: func (e *Engine) Deploy(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
+runtime: func (e *Engine) Discard(ctx context.Context, processID string) error
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
@@ -627,7 +625,6 @@ runtime: type Process struct { }
 runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sessionID string) (release func(), err error) }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
-runtime: var ErrAtomicSnapshotUnsupported = errors.New("runtime: process store does not support atomic process-tree snapshots")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")
@@ -635,11 +632,9 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
 runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
-storetest: func (s *MemoryProcessStore) Delete(_ context.Context, id string) error
+storetest: func (s *MemoryProcessStore) Apply(ctx context.Context, mutation core.SnapshotMutation) error
 storetest: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
 storetest: func (s *MemoryProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error)
-storetest: func (s *MemoryProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error
-storetest: func (s *MemoryProcessStore) SaveBatch(ctx context.Context, snapshots []core.ProcessSnapshot) error
 storetest: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
 storetest: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
 storetest: func (s *MemorySessionStore) Load(_ context.Context, id string) (core.Session, error)

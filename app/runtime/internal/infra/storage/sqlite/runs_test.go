@@ -77,7 +77,7 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	snapshot := validStoredSnapshot("proc_"+runID, core.StatusWaiting)
 	snapshot.StartedAt = createdAt
 	snapshot.CapturedAt = parkedAt
-	if err := processes.Save(t.Context(), snapshot); err != nil {
+	if err := processes.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
 		t.Fatalf("put parked process snapshot: %v", err)
 	}
 }
@@ -367,7 +367,7 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	if err := processes.Delete(ctx, "proc_run_park"); err != nil {
+	if err := processes.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{"proc_run_park"}}); err != nil {
 		t.Fatalf("delete process snapshot: %v", err)
 	}
 
@@ -464,7 +464,7 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	}); err != nil {
 		t.Fatalf("put transcript: %v", err)
 	}
-	if err := processStore.Save(ctx, validStoredSnapshot("proc_stale", core.StatusWaiting)); err != nil {
+	if err := processStore.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{validStoredSnapshot("proc_stale", core.StatusWaiting)}}); err != nil {
 		t.Fatalf("put stale process snapshot: %v", err)
 	}
 	if err := interruptStore.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1", ProcessID: "proc_stale", CreatedAt: time.Unix(0, 0)}); err != nil {
