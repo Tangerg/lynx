@@ -40,6 +40,27 @@ func TestDraftRenderEmitsProvenanceMetadata(t *testing.T) {
 	}
 }
 
+func TestDraftRenderEmitsRevisesMarker(t *testing.T) {
+	draft := Draft{
+		Name:        "run-project-tests",
+		Description: "A revised version of an existing skill.",
+		Body:        "Run `go test ./...` from the module root.",
+		CreatedBy:   CreatedByAgent,
+		Revises:     true,
+	}
+	content, err := draft.Render()
+	if err != nil {
+		t.Fatal(err)
+	}
+	front, _, err := skillspec.Parse([]byte(content))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if front.Metadata[MetadataRevises] != MetadataTrue {
+		t.Fatalf("metadata[%q] = %q, want %q", MetadataRevises, front.Metadata[MetadataRevises], MetadataTrue)
+	}
+}
+
 func TestDraftRenderOmitsEmptyProvenance(t *testing.T) {
 	draft := Draft{
 		Name:        "no-provenance",

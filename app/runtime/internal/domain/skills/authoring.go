@@ -45,7 +45,16 @@ const ArchivedSubdir = "_archive"
 const (
 	MetadataCreatedBy     = "created_by"
 	MetadataSourceSession = "source_session"
+	// MetadataRevises marks a draft as a new version of the already-active skill
+	// of the same name (value "true"). Promotion of a marked draft replaces the
+	// active skill — archiving the superseded version — instead of conflicting;
+	// an unmarked draft never overwrites an existing skill, so a mined new skill
+	// that happens to collide can't silently clobber one.
+	MetadataRevises = "revises"
 )
+
+// MetadataTrue is the value MetadataRevises carries when set.
+const MetadataTrue = "true"
 
 // CreatedByAgent marks a skill whose content an agent authored through the
 // draft flow (background trajectory mining or propose_skill), as distinct from
@@ -84,6 +93,12 @@ type Draft struct {
 	// the curator can gate automatic archival on provenance.
 	CreatedBy     string
 	SourceSession string
+
+	// Revises marks this draft as a new version of the already-active skill of
+	// the same name — a feedback-driven refinement rather than a new skill.
+	// Promotion of a revising draft replaces the active skill (archiving the old
+	// version) instead of conflicting. See [MetadataRevises].
+	Revises bool
 }
 
 // DraftHandle identifies the immutable bytes staged for one proposal. Name is
@@ -136,6 +151,7 @@ type DraftInfo struct {
 	Description   string
 	CreatedBy     string
 	SourceSession string
+	Revises       bool
 }
 
 // Validate checks a proposed skill against the SKILL.md spec — the same
@@ -161,6 +177,9 @@ func (d Draft) provenance() map[string]string {
 	}
 	if d.SourceSession != "" {
 		meta[MetadataSourceSession] = d.SourceSession
+	}
+	if d.Revises {
+		meta[MetadataRevises] = MetadataTrue
 	}
 	if len(meta) == 0 {
 		return nil

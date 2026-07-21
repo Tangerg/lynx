@@ -84,8 +84,10 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 }
 
 // Promote publishes exactly the immutable draft represented by handle. A
-// different active skill is a conflict; an identical active skill is treated
-// as an idempotent replay and the redundant draft is removed.
+// different active skill is a conflict UNLESS the draft is marked as a revision
+// (frontmatter revises: "true"), in which case it replaces the active skill via
+// [Store.replaceActive]. An identical active skill is an idempotent replay and
+// the redundant draft is removed.
 func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	if err := s.validateHandle(handle); err != nil {
 		return err
@@ -111,6 +113,14 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	}
 	if err := validateSkill(handle.Name, content); err != nil {
 		return err
+	}
+	// A revision replaces the active skill of the same name (archiving the old
+	// version) rather than conflicting; it also handles its own archive slot, so
+	// it runs before the archived-conflict guard below.
+	if revises, err := draftRevises(content); err != nil {
+		return err
+	} else if revises {
+		return s.replaceActive(ctx, root, handle, content, draftDir)
 	}
 	if _, statErr := root.Lstat(s.archiveDir(handle.Name)); statErr == nil {
 		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, handle.Name)
@@ -153,6 +163,55 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
 		}
 		return fmt.Errorf("skillauthoring: promote draft %q: %w", handle.Name, err)
+	}
+	return nil
+}
+
+// draftRevises reports whether staged content is marked as a revision of the
+// active skill of the same name (frontmatter metadata revises: "true").
+func draftRevises(content []byte) (bool, error) {
+	front, _, err := skillspec.Parse(content)
+	if err != nil {
+		return false, fmt.Errorf("skillauthoring: parse draft frontmatter: %w", err)
+	}
+	return front.Metadata[skills.MetadataRevises] == skills.MetadataTrue, nil
+}
+
+// replaceActive installs a revising draft as the active skill, archiving the
+// version it supersedes. It OVERWRITES any older archived version of the same
+// name — the single-slot history the module keeps by design (no per-version
+// archive; that would be the semver theater the skill model rejects). An
+// identical active skill is an idempotent no-op; a revision whose target has
+// since vanished simply installs as the current version.
+func (s *Store) replaceActive(ctx context.Context, root *os.Root, handle skills.DraftHandle, content []byte, draftDir string) error {
+	activeDir := s.activeDir(handle.Name)
+	active, exists, err := readSkill(root, activeDir)
+	if err != nil {
+		return err
+	}
+	if exists && bytes.Equal(active, content) {
+		if err := root.RemoveAll(draftDir); err != nil {
+			return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, err)
+		}
+		return nil
+	}
+	if err := contextError(ctx, "replace skill"); err != nil {
+		return err
+	}
+	if exists {
+		archiveDir := s.archiveDir(handle.Name)
+		if err := root.RemoveAll(archiveDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("skillauthoring: clear archive slot for %q: %w", handle.Name, err)
+		}
+		if err := root.MkdirAll(skills.ArchivedSubdir, 0o755); err != nil {
+			return fmt.Errorf("skillauthoring: create archive area: %w", err)
+		}
+		if err := root.Rename(activeDir, archiveDir); err != nil {
+			return fmt.Errorf("skillauthoring: archive superseded skill %q: %w", handle.Name, err)
+		}
+	}
+	if err := root.Rename(draftDir, activeDir); err != nil {
+		return fmt.Errorf("skillauthoring: install revised skill %q: %w", handle.Name, err)
 	}
 	return nil
 }
@@ -337,6 +396,7 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 			Description:   front.Description,
 			CreatedBy:     front.Metadata[skills.MetadataCreatedBy],
 			SourceSession: front.Metadata[skills.MetadataSourceSession],
+			Revises:       front.Metadata[skills.MetadataRevises] == skills.MetadataTrue,
 		})
 	}
 	return out, nil
