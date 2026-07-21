@@ -700,9 +700,10 @@ export const en: Record<string, string> = {
 
   // ── Command palette ──
   "commandPalette.label": "Command palette",
-  "commandPalette.placeholder": "Type a command…",
+  "commandPalette.placeholder": "Type a command or search sessions…",
   "commandPalette.empty": "No commands match",
   "commandPalette.open": "Open command palette",
+  "commandPalette.sessions": "Sessions",
 
   // ── Keyboard shortcuts ──
   "shortcuts.title": "Keyboard shortcuts",
