@@ -1544,6 +1544,40 @@ embedding-capable provider 由 `providers.list` 的 `Provider.embeddingCapable` 
 
 ---
 
+### 7.14 goals.*
+
+**Goal mode** —— 一个自主执行环:显式 opt-in 起一个目标后,runtime **自己**背靠背发 run 驱动它前进,直到模型经 `update_goal` 工具 signal 完成/阻塞、opt-in 的跨轮预算耗尽、或用户停止。**一个 session 至多一个 goal**;完成的 goal 会被清除(不再出现)。capability-gated(store 未装配时 `capability_not_negotiated`)。
+
+| method         | params                                                                       | result        | 备注                                                        |
+| -------------- | ---------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------- |
+| `goals.get`    | `{ sessionId }`                                                              | `Goal \| null` | 无 goal 时返 `null`                                        |
+| `goals.start`  | `{ sessionId; objective; provider?; model?; budget?: GoalBudget }`           | `Goal`        | 已有 active goal → `session_busy`;provider/model 缺用默认 |
+| `goals.stop`   | `{ sessionId }`                                                              | `Goal`        | 暂停(paused);在飞的 run 自行跑完                         |
+| `goals.resume` | `{ sessionId }`                                                              | `Goal`        | paused/blocked → active,重新驱动                          |
+
+```ts
+type GoalStatus = "active" | "paused" | "blocked"; // 完成即清除,不出现
+interface GoalBudget {
+  maxTurns?: number;
+  maxCostUsd?: number;
+  maxSteps?: number;
+} // 零/缺 = 该轴无界;全缺 = 完全无界(显式选择)
+interface Goal {
+  sessionId: string;
+  objective: string;
+  status: GoalStatus;
+  reason?: string; // blocked 时的原因
+  provider?: string;
+  model?: string;
+  budget: GoalBudget;
+  used: { turns: number; costUsd: number; steps: number };
+  createdAt: string; // RFC3339
+  updatedAt: string;
+}
+```
+
+---
+
 ## 8. 错误
 
 ### 8.1 投递通道（流式场景必读）+ 落点决策表

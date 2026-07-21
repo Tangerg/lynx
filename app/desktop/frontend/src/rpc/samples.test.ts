@@ -25,6 +25,7 @@ import type {
   McpServerConfig,
   MemoryEntry,
   AgentMemoryItem,
+  Goal,
   Model,
   Page,
   ProblemData,
@@ -85,6 +86,7 @@ import mcpServer from "./samples/mcpServer.json";
 import mcpServerConfig from "./samples/mcpServerConfig.json";
 import memoryEntry from "./samples/memoryEntry.json";
 import agentMemoryItem from "./samples/agentMemoryItem.json";
+import goal from "./samples/goal.json";
 import getDiffReq from "./samples/method.getDiff.req.json";
 import grepReq from "./samples/method.grep.req.json";
 import discoverResp from "./samples/method.discover.resp.json";
@@ -276,6 +278,7 @@ const samples: unknown[] = [
   wire<HooksListResult>(hooksList),
   wire<MemoryEntry>(memoryEntry),
   wire<AgentMemoryItem>(agentMemoryItem),
+  wire<Goal>(goal),
   wire<ProblemData>(problemData),
   wire<FeedbackRequest>(feedbackReq),
 ];

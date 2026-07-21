@@ -5,6 +5,7 @@ import {
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { AGENT_SESSIONS_KEY } from "@/plugins/builtin/agent/public/session";
 import { RECIPES_KEY, type RecipesQuery } from "@/plugins/builtin/chat/recipes/public/data";
+import { GOAL_KEY, type GoalQuery, type GoalState } from "@/plugins/builtin/chat/goal/public/data";
 import { HOOKS_KEY, type HooksQuery } from "@/plugins/builtin/settings/hooks/public/data";
 import {
   MCP_CONFIGS_KEY,
@@ -52,7 +53,7 @@ import type { DataProviderSpec, Host } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { asSessionId } from "@/rpc";
+import { asSessionId, isErrorType } from "@/rpc";
 import {
   emptyPageIfUngated,
   emptyItemsIfUngated,
@@ -221,6 +222,41 @@ export function registerDefaultDataProviders(host: Host): void {
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       }));
+    },
+  });
+  contribute({
+    key: GOAL_KEY,
+    fetcher: async (params) => {
+      const { sessionId } = requiredParams<GoalQuery>(GOAL_KEY, params);
+      try {
+        const goal = await client().goals.get(asSessionId(sessionId));
+        return {
+          available: true,
+          goal: goal
+            ? {
+                sessionId: goal.sessionId,
+                objective: goal.objective,
+                status: goal.status,
+                reason: goal.reason ?? "",
+                budget: {
+                  maxTurns: goal.budget.maxTurns ?? 0,
+                  maxCostUsd: goal.budget.maxCostUsd ?? 0,
+                  maxSteps: goal.budget.maxSteps ?? 0,
+                },
+                used: {
+                  turns: goal.used.turns,
+                  costUsd: goal.used.costUsd,
+                  steps: goal.used.steps,
+                },
+              }
+            : null,
+        } satisfies GoalState;
+      } catch (err) {
+        if (isErrorType(err, "capability_not_negotiated")) {
+          return { available: false, goal: null } satisfies GoalState;
+        }
+        throw err;
+      }
     },
   });
   contribute({

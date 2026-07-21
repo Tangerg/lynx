@@ -1,0 +1,11 @@
+{
+  "sessionId": "sess_01HZY7K9Q3",
+  "objective": "Refactor the auth module and add tests.",
+  "status": "active",
+  "provider": "anthropic",
+  "model": "claude-opus-4-8",
+  "budget": { "maxTurns": 10, "maxCostUsd": 5, "maxSteps": 200 },
+  "used": { "turns": 3, "costUsd": 0.42, "steps": 47 },
+  "createdAt": "2026-07-22T09:30:00Z",
+  "updatedAt": "2026-07-22T09:34:00Z"
+}
