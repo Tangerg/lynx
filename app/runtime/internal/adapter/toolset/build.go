@@ -60,6 +60,7 @@ type BuildConfig struct {
 	Schedules       *schedules.Coordinator // backs the schedule tool; nil → omitted
 	ToolResults     toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillAuthoring  skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
+	SkillUsage      skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
 	Goals           goal.Store             // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
@@ -206,6 +207,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 
 	resolver, err := NewResolver(Deps{
+		SkillUsage:      config.SkillUsage,
 		DefaultWorkdir:  config.Workdir,
 		SkillsGlobalDir: config.SkillsGlobalDir,
 		Online:          online,
@@ -243,7 +245,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
 	tools = append(tools, askUserTool)
-	if skillTool := skill.Build(config.Workdir, config.SkillsGlobalDir); skillTool != nil {
+	if skillTool := skill.Build(config.Workdir, config.SkillsGlobalDir, config.SkillUsage); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 	if todoTool != nil {

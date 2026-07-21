@@ -42,6 +42,9 @@ func buildToolEnvironment(
 		// propose_skill writes to the global skills dir; an empty dir yields a
 		// disabled store (Enabled() false), which omits the tool.
 		SkillAuthoring: skillStore,
+		// The same store records skill loads for the idle-lifecycle curator; a
+		// disabled store no-ops RecordUse.
+		SkillUsage: skillStore,
 	}
 	if cfg.ScheduleRegistry != nil {
 		bc.Schedules = scheduleCoord

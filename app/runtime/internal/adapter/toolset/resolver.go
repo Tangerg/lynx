@@ -42,6 +42,7 @@ type Resolver struct {
 
 	defaultWorkdir  string
 	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
+	skillUsage      skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
 	online          []tools.Tool                                // working-directory-independent network tools
 	a2a             []tools.Tool                                // working-directory-independent remote A2A agents
 	lsp             []tools.Tool                                // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
@@ -88,6 +89,7 @@ type Resolver struct {
 type Deps struct {
 	DefaultWorkdir  string
 	SkillsGlobalDir string
+	SkillUsage      skill.UsageRecorder
 	Online          []tools.Tool                                // network tools (webfetch/websearch/httpreq)
 	A2A             []tools.Tool                                // remote A2A delegation tools
 	LSP             []tools.Tool                                // code-intelligence tools
@@ -141,6 +143,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	return &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
 		skillsGlobalDir: d.SkillsGlobalDir,
+		skillUsage:      d.SkillUsage,
 		online:          slices.Clone(d.Online),
 		a2a:             slices.Clone(d.A2A),
 		lsp:             slices.Clone(d.LSP),
@@ -306,7 +309,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	// The skill tool is working-directory scoped (project skills live under
 	// the turn's cwd), so it is built per resolution like fs/shell and is
 	// available to both coding and subtask roles. nil when no skills exist.
-	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir); skillTool != nil {
+	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
 	// todo_write is working-directory independent (it keys off the session id,

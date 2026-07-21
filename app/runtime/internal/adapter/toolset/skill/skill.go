@@ -4,6 +4,10 @@
 package skill
 
 import (
+	"context"
+	"time"
+
+	skillspec "github.com/Tangerg/lynx/skills"
 	"github.com/Tangerg/lynx/tools"
 	skillstool "github.com/Tangerg/lynx/tools/skills"
 
@@ -11,18 +15,29 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
+// UsageRecorder records that a skill was loaded, feeding the idle-lifecycle
+// curator's last-used signal. The composition root supplies the authoring store;
+// nil disables use recording (a session that ships no authoring store).
+type UsageRecorder interface {
+	RecordUse(ctx context.Context, name string, now time.Time) error
+}
+
 // Build assembles the working-directory-scoped skill tool over the merged skill
 // source (project <workdir>/.lyra/skills layered over the global dir, project
 // winning). It returns nil when neither directory exists, so a session that
-// ships no skills gets no skill tool at all.
+// ships no skills gets no skill tool at all. When recorder is non-nil, loading a
+// skill records a use so the curator can tell active skills from idle ones.
 //
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func Build(workdir, globalDir string) tools.Tool {
+func Build(workdir, globalDir string, recorder UsageRecorder) tools.Tool {
 	source := promptsource.MergeSkillSource(skills.ProjectDir(workdir), globalDir)
 	if source == nil {
 		return nil
+	}
+	if recorder != nil {
+		source = recordingSource{ResourceSource: source, recorder: recorder}
 	}
 	// source is non-nil, so NewTool cannot fail; the error is checked only to
 	// satisfy the signature.
@@ -31,4 +46,19 @@ func Build(workdir, globalDir string) tools.Tool {
 		return nil
 	}
 	return tool
+}
+
+// recordingSource records a use each time a skill loads, then delegates. The
+// record is best-effort: a usage-write failure never fails the skill load.
+type recordingSource struct {
+	skillspec.ResourceSource
+	recorder UsageRecorder
+}
+
+func (r recordingSource) Load(ctx context.Context, name string) (*skillspec.Skill, error) {
+	skill, err := r.ResourceSource.Load(ctx, name)
+	if err == nil {
+		_ = r.recorder.RecordUse(ctx, name, time.Now())
+	}
+	return skill, err
 }
