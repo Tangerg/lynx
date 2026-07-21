@@ -100,18 +100,11 @@ core.ActionConfig{
 
 不要恢复重复的 `InputBinding` / `OutputBinding` 快捷字段。
 
-## 4. Retry、stuck 与并发
+## 4. Action 执行、stuck 与并发
 
-`RetryPolicy{}` 与 `DefaultRetryPolicy()` 都只执行一次。多次尝试必须显式声明副作用安全性：
-
-```go
-core.RetryPolicy{
-    MaxAttempts: 3,
-    BaseDelay:   100 * time.Millisecond,
-    MaxDelay:    time.Second,
-    Safety:      core.RetrySafetyIdempotent,
-}
-```
+删除 `ActionConfig.Retry`、`ActionMetadata.Retry`、`RetryPolicy`、`RetrySafety` 与
+`DefaultRetryPolicy`。Framework 每次调度只调用 Action 一次；需要 retry 的 provider、tool
+或业务写入应在对应实现内部配置，并自行承担幂等、事务或补偿语义。
 
 `StuckDecision` 的零值是 `StuckStop`；需要重新规划时返回 `StuckReplan`。不要依赖“未设置等于继续”的危险语义。
 策略返回值可以用 `StuckDecision.Valid` 校验或用 `String` 记录。runtime 会拒绝未知值，
@@ -426,9 +419,9 @@ type SessionStore interface {
 以 `ErrInvalidSession` 失败。最终 Session save 使用保留 context value 但脱离 request
 cancel 的 context，并用 `errors.Join` 同时保留运行错误和持久化错误。
 
-默认 Session turn 协调器现在显式按到达顺序授权，同一 Session 串行、不同 Session 并行，
-等待取消不会阻塞后续 turn。自定义 `SessionTurnSequencer` 也必须提供 FIFO 语义。该端口不
-携带 fencing token，因此不能单独充当跨节点执行租约；分布式 Host 必须在外层拒绝陈旧 owner。
+Engine 内部的 Session turn 协调器按到达顺序授权，同一 Session 串行、不同 Session 并行，
+等待取消不会阻塞后续 turn。删除公开 `SessionTurnSequencer` 与对应 Config 字段；它是单机
+运行时正确性机制，不是 Host 扩展点或分布式租约。
 
 自定义 Session 后端运行公共契约：
 
@@ -445,18 +438,21 @@ if err := storetest.TestSessionStore(t.Context(), store); err != nil {
 
 ```go
 type ProcessStore interface {
+    Save(context.Context, []ProcessSnapshot) error
     Load(context.Context, string) (ProcessSnapshot, error)
-    Save(context.Context, ProcessSnapshot) error
+    Delete(context.Context, string) error
 }
 ```
+
+需要管理面列表时额外实现 `ProcessLister`；Runtime 不要求该能力。
 
 `core` 不再导出具体内存 Store。测试代码把 `core.NewMemoryProcessStore` 和
 `core.NewMemorySessionStore` 分别替换为 `storetest.NewMemoryProcessStore` 和
 `storetest.NewMemorySessionStore`；生产 Host 应继续注入自己的适配器。
 
-`ProcessSnapshot.Revision` 是 CAS 的唯一 expected revision；新 Process 使用 0，成功提交
-持久化为 `Revision+1`。包含嵌套子进程的原子树快照额外要求实现
-`SaveBatch(context.Context, []ProcessSnapshot) error`。
+删除 `ProcessSnapshot.Revision`、`SnapshotMutation`、`RevisionConflictError` 和
+`ErrRevisionConflict`。`Save` 接收一次完整 process-tree capture，`Delete(rootID)` 删除对应
+持久化树；adapter 自行决定遍历、覆盖写、事务、并发控制与部分失败策略。
 
 自定义实现运行公共契约：
 
@@ -468,7 +464,8 @@ if err := storetest.TestProcessStore(t.Context(), store); err != nil {
 
 `storetest` 保持公开；`providertest` 已移除。ChatProvider 与 ToolGroupResolver 在真实 Engine dispatch 测试中验证，不为测试对称性扩大公共 API。
 
-ProcessSnapshot 已升级到 schema v2，并只持久化当前 Process 的直接 ledger：
+ProcessSnapshot 当前升级到 schema v4。v2 起只持久化当前 Process 的直接 ledger；v4 删除
+revision 与 Action history attempts，不读取旧 schema，也不增加兼容 wrapper：
 
 | schema v1 | schema v2 |
 |---|---|
@@ -515,7 +512,7 @@ JSON shape 增加双写或兼容 wrapper。
 3. 迁移 ChatCapability、Prompt/Interact 与 ToolLoop 调用。
 4. 迁移 HITL suspension 与 Resume/Continue。
 5. 迁移 Dependencies、child、workflow 和 agent tools。
-6. 升级 ProcessStore CAS 与 snapshot 数据。
+6. 升级 ProcessStore 能力接口与 schema v4 snapshot 数据。
 7. 删除旧 wrapper、alias、旧文件和旧数据路径。
 8. 运行 Agent 与 App 的 build、vet、test、race、lint、tidy、API/wire/architecture gate。
 

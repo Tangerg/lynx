@@ -131,9 +131,6 @@ func TestSessionStore(ctx context.Context, store core.SessionStore) error {
 		if err := deleter.Delete(ctx, id); err != nil {
 			return fmt.Errorf("storetest: Delete: %w", err)
 		}
-		if err := deleter.Delete(ctx, id); err != nil {
-			return fmt.Errorf("storetest: idempotent Delete: %w", err)
-		}
 		if _, err := store.Load(ctx, id); !errors.Is(err, core.ErrSessionNotFound) {
 			return fmt.Errorf("storetest: Load after Delete: %w", err)
 		}

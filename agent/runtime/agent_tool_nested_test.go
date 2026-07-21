@@ -666,43 +666,6 @@ func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T)
 	}
 }
 
-func TestAgentToolNestedSuspensionBatchConflictDoesNotPartiallySaveChild(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	var beforeCalls atomic.Int32
-	var childCompletions atomic.Int32
-	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-atomic-conflict", ProcessStore: store})
-	parent := deployNestedAgents(t, engine, false, &childCompletions, &nestedParentModel{}, &beforeCalls)
-	process := runNestedParent(t, engine, parent)
-	child := nestedChildProcess(t, engine, process.ID())
-
-	parentSnapshot, err := process.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{parentSnapshot}}); err != nil {
-		t.Fatalf("seed conflicting parent revision: %v", err)
-	}
-	if _, err := engine.Save(t.Context(), process.ID()); !errors.Is(err, core.ErrRevisionConflict) {
-		t.Fatalf("Save error = %v, want parent revision conflict", err)
-	}
-	if _, err := store.Load(t.Context(), child.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Fatalf("child was partially committed before parent conflict: %v", err)
-	}
-	storedParent, err := store.Load(t.Context(), process.ID())
-	if err != nil || storedParent.Revision != 1 {
-		t.Fatalf("seeded parent = revision %d, %v, want unchanged revision 1", storedParent.Revision, err)
-	}
-	for _, candidate := range []*runtime.Process{child, process} {
-		snapshot, err := candidate.Snapshot()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if snapshot.Revision != 0 {
-			t.Fatalf("process %q in-memory revision = %d after rejected batch, want 0", candidate.ID(), snapshot.Revision)
-		}
-	}
-}
-
 func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	var childCompletions atomic.Int32
@@ -927,7 +890,7 @@ func TestAgentToolNestedSuspensionMissingChildSnapshotIsLost(t *testing.T) {
 	parent1 := deployNestedAgents(t, engine1, false, nil, model1, &beforeCalls)
 	process1 := runNestedParent(t, engine1, parent1)
 	child1 := nestedChildProcess(t, engine1, process1.ID())
-	if err := store.Apply(t.Context(), core.SnapshotMutation{DeleteTrees: []string{child1.ID()}}); err != nil {
+	if err := store.Delete(t.Context(), child1.ID()); err != nil {
 		t.Fatalf("delete child snapshot: %v", err)
 	}
 
@@ -1031,7 +994,7 @@ func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t
 	parent := deployNestedAgents(t, engine, false, nil, &nestedParentModel{}, &beforeCalls)
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
-	if _, err := engine.Save(t.Context(), process.ID()); err != nil {
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save waiting process tree: %v", err)
 	}
 
@@ -1047,7 +1010,7 @@ func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t
 	if err := engine.Remove(child.ID()); err != nil {
 		t.Fatalf("Remove terminal child: %v", err)
 	}
-	if _, err := engine.Save(t.Context(), process.ID()); err != nil {
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save completed parent: %v", err)
 	}
 	ids, err := store.List(t.Context())
@@ -1059,16 +1022,16 @@ func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t
 	}
 }
 
-func TestAgentToolNestedCleanupRetriesAsOneAtomicMutation(t *testing.T) {
-	storeErr := errors.New("process mutation unavailable")
+func TestAgentToolNestedCleanupRetriesAfterStoreFailure(t *testing.T) {
+	storeErr := errors.New("process store unavailable")
 	store := newFlakyProcessStore(storeErr)
 	store.fail.Store(false)
 	var beforeCalls atomic.Int32
-	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-atomic-cleanup", ProcessStore: store})
+	engine := agent.MustNewEngine(runtime.Config{BuildID: "nested-cleanup", ProcessStore: store})
 	parent := deployNestedAgents(t, engine, false, nil, &nestedParentModel{}, &beforeCalls)
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
-	if _, err := engine.Save(t.Context(), process.ID()); err != nil {
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save waiting process tree: %v", err)
 	}
 	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
@@ -1079,18 +1042,18 @@ func TestAgentToolNestedCleanupRetriesAsOneAtomicMutation(t *testing.T) {
 	}
 
 	store.fail.Store(true)
-	if _, err := engine.Save(t.Context(), process.ID()); !errors.Is(err, storeErr) {
+	if err := engine.Save(t.Context(), process.ID()); !errors.Is(err, storeErr) {
 		t.Fatalf("failed cleanup save error = %v, want store failure", err)
 	}
 	if _, err := store.inner.Load(t.Context(), child.ID()); err != nil {
 		t.Fatalf("failed parent write partially deleted child snapshot: %v", err)
 	}
 	if _, ok := engine.Process(child.ID()); !ok {
-		t.Fatal("failed mutation released child from registry")
+		t.Fatal("failed save released child from registry")
 	}
 
 	store.fail.Store(false)
-	if _, err := engine.Save(t.Context(), process.ID()); err != nil {
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("retry completed cleanup: %v", err)
 	}
 	if _, err := store.inner.Load(t.Context(), child.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {

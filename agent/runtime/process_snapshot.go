@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"math"
 	"slices"
 	"strings"
 	"time"
@@ -46,7 +45,7 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	)
 	defer cancel()
 
-	_, err := p.engine.saveProcess(snapshotCtx, p)
+	err := p.engine.saveProcess(snapshotCtx, p)
 	if err == nil {
 		return nil
 	}
@@ -75,32 +74,30 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	}
 }
 
-// Save captures the named process into the configured
-// [core.ProcessStore] under its current id. Errors when no store is
-// configured, the process id is unknown, or the store rejects the write. A
-// process tree and any deferred child cleanup commit as one store mutation.
-func (e *Engine) Save(ctx context.Context, processID string) (uint64, error) {
+// Save captures the named process tree into the configured [core.ProcessStore].
+// It returns an error when no store is configured, the process id is unknown,
+// or the store rejects the capture.
+func (e *Engine) Save(ctx context.Context, processID string) error {
 	if e.processStore == nil {
-		return 0, errors.New("runtime.Engine.Save: no ProcessStore configured")
+		return errors.New("runtime.Engine.Save: no ProcessStore configured")
 	}
 	process, ok := e.processes.get(processID)
 	if !ok {
-		return 0, fmt.Errorf("runtime.Engine.Save: id %q not registered", processID)
+		return fmt.Errorf("runtime.Engine.Save: id %q not registered", processID)
 	}
 	return e.saveProcess(ctx, process)
 }
 
 // Discard terminates a process tree, waits for every active run to release its
-// final-snapshot ownership, atomically deletes all durable snapshots, and then
-// removes the live processes from the registry in descendant-first order.
-// Unknown durable rows are harmless; malformed lineage or an incomplete
-// cleanup is returned without partially deleting the tree.
+// final-snapshot ownership, asks the configured store to delete its durable
+// tree, and removes the live processes from the registry in descendant-first
+// order.
 func (e *Engine) Discard(ctx context.Context, processID string) error {
 	if e == nil {
 		return errors.New("runtime.Engine.Discard: nil Engine")
 	}
 	ctx = normalizeContext(ctx)
-	tree, err := e.discoverProcessTrees([]string{processID})
+	tree, err := e.discoverProcessTrees(ctx, []string{processID})
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Discard: %w", err)
 	}
@@ -121,7 +118,7 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	if e.processStore != nil {
-		if err := e.processStore.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{processID}}); err != nil {
+		if err := e.processStore.Delete(ctx, processID); err != nil {
 			tree.releaseClaims()
 			return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err))
 		}
@@ -130,48 +127,48 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	return errors.Join(terminateErrs...)
 }
 
-func (e *Engine) saveProcess(ctx context.Context, process *Process) (uint64, error) {
+func (e *Engine) saveProcess(ctx context.Context, process *Process) error {
 	if e.processStore == nil {
-		return 0, errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
+		return errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
 	}
 	ctx = normalizeContext(ctx)
 	tree, err := e.lockProcessTree(process, map[string]struct{}{})
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	if err := captureLockedProcessTree(tree); err != nil {
 		unlockProcessTree(tree)
-		return 0, err
+		return err
 	}
 	var cleanup []deferredProcessCleanup
 	collectNestedChildCleanup(tree, &cleanup)
 	cleanupRoots := cleanupProcessRoots(cleanup)
-	cleanupTree, err := e.discoverProcessTrees(cleanupRoots)
+	cleanupTree, err := e.discoverProcessTrees(ctx, cleanupRoots)
 	if err != nil {
 		unlockProcessTree(tree)
-		return 0, err
+		return err
 	}
 	if err := cleanupTree.wait(ctx); err != nil {
 		unlockProcessTree(tree)
-		return 0, err
+		return err
 	}
 	if err := cleanupTree.claim(); err != nil {
 		unlockProcessTree(tree)
-		return 0, err
+		return err
 	}
-	revision, err := e.saveLockedProcessTree(ctx, tree, cleanupRoots)
+	err = e.saveLockedProcessTree(ctx, tree, cleanupRoots)
 	if err != nil {
 		cleanupTree.releaseClaims()
 		unlockProcessTree(tree)
-		return 0, err
+		return err
 	}
 	for _, pending := range cleanup {
 		pending.owner.acknowledgeNestedChildCleanup(pending.roots)
 	}
 	unlockProcessTree(tree)
 	cleanupTree.release()
-	return revision, nil
+	return nil
 }
 
 type lockedProcessTree struct {
@@ -241,60 +238,34 @@ func captureLockedProcessTree(tree *lockedProcessTree) error {
 	return nil
 }
 
-type lockedSnapshotWrite struct {
-	tree     *lockedProcessTree
-	snapshot core.ProcessSnapshot
-}
-
-func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree, deletes []string) (uint64, error) {
-	var writes []lockedSnapshotWrite
-	collectLockedSnapshotWrites(tree, &writes)
-	if len(writes) == 0 {
-		return 0, errors.New("runtime.Engine.saveProcess: captured process tree is empty")
+func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree, deletes []string) error {
+	var snapshots []core.ProcessSnapshot
+	collectLockedSnapshots(tree, &snapshots)
+	if len(snapshots) == 0 {
+		return errors.New("runtime.Engine.saveProcess: captured process tree is empty")
 	}
-	for _, pending := range writes {
-		actual := pending.tree.process.state.snapshotRevision()
-		if actual != pending.snapshot.Revision {
-			return 0, &core.RevisionConflictError{
-				ProcessID: pending.snapshot.ID,
-				Expected:  pending.snapshot.Revision,
-				Actual:    actual,
-			}
-		}
-		if pending.snapshot.Revision == math.MaxUint64 {
-			return 0, fmt.Errorf("runtime.Engine.saveProcess: %w: process %q revision is exhausted",
-				core.ErrInvalidSnapshot, pending.snapshot.ID)
+	if err := e.processStore.Save(ctx, snapshots); err != nil {
+		return err
+	}
+	if len(deletes) == 0 {
+		return nil
+	}
+	for _, rootID := range deletes {
+		if err := e.processStore.Delete(ctx, rootID); err != nil {
+			return fmt.Errorf("delete stale process tree %q: %w", rootID, err)
 		}
 	}
-
-	if err := e.commitSnapshotMutation(ctx, writes, deletes); err != nil {
-		return 0, err
-	}
-	for _, pending := range writes {
-		pending.tree.process.state.commitRevision(pending.snapshot.Revision + 1)
-	}
-	return tree.snapshot.Revision + 1, nil
+	return nil
 }
 
-func collectLockedSnapshotWrites(tree *lockedProcessTree, writes *[]lockedSnapshotWrite) {
+func collectLockedSnapshots(tree *lockedProcessTree, snapshots *[]core.ProcessSnapshot) {
 	if tree == nil {
 		return
 	}
 	for _, child := range tree.children {
-		collectLockedSnapshotWrites(child, writes)
+		collectLockedSnapshots(child, snapshots)
 	}
-	*writes = append(*writes, lockedSnapshotWrite{
-		tree:     tree,
-		snapshot: tree.snapshot,
-	})
-}
-
-func (e *Engine) commitSnapshotMutation(ctx context.Context, writes []lockedSnapshotWrite, deletes []string) error {
-	batch := make([]core.ProcessSnapshot, len(writes))
-	for index, pending := range writes {
-		batch[index] = pending.snapshot
-	}
-	return e.processStore.Apply(ctx, core.SnapshotMutation{Writes: batch, DeleteTrees: deletes})
+	*snapshots = append(*snapshots, tree.snapshot)
 }
 
 type deferredProcessCleanup struct {
@@ -331,22 +302,23 @@ type discoveredProcessTrees struct {
 	claimed []*Process
 }
 
-func (e *Engine) discoverProcessTrees(roots []string) (*discoveredProcessTrees, error) {
+func (e *Engine) discoverProcessTrees(ctx context.Context, roots []string) (*discoveredProcessTrees, error) {
+	ctx = normalizeContext(ctx)
 	discovered := &discoveredProcessTrees{engine: e, live: make(map[string]*Process)}
 	if len(roots) == 0 {
 		return discovered, nil
 	}
 	children := make(map[string]map[string]struct{})
 	parents := make(map[string]string)
-	addChild := func(source, parentID, childID string) error {
+	addChild := func(parentID, childID string) error {
 		if parentID == "" {
 			return nil
 		}
 		if parentID == childID {
-			return fmt.Errorf("runtime: discover process cleanup: %s process %q is its own parent", source, childID)
+			return fmt.Errorf("runtime: discover process cleanup: process %q is its own parent", childID)
 		}
 		if previous, exists := parents[childID]; exists && previous != parentID {
-			return fmt.Errorf("runtime: discover process cleanup: %s process %q has parent %q, already linked to %q", source, childID, parentID, previous)
+			return fmt.Errorf("runtime: discover process cleanup: process %q has parent %q, already linked to %q", childID, parentID, previous)
 		}
 		parents[childID] = parentID
 		if children[parentID] == nil {
@@ -360,7 +332,7 @@ func (e *Engine) discoverProcessTrees(roots []string) (*discoveredProcessTrees, 
 			return nil, errors.New("runtime: discover process cleanup: registry contains nil process")
 		}
 		discovered.live[process.ID()] = process
-		if err := addChild("live", process.ParentID(), process.ID()); err != nil {
+		if err := addChild(process.ParentID(), process.ID()); err != nil {
 			return nil, err
 		}
 	}
@@ -649,8 +621,8 @@ func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core
 		}
 		return core.ProcessSnapshot{}, nil, fmt.Errorf("runtime.Engine.Resumable: load process %q: %w", processID, err)
 	}
-	if snapshot.ID != processID || snapshot.Revision == 0 {
-		return core.ProcessSnapshot{}, fmt.Errorf("%w: stored snapshot identity/revision does not match process %q", core.ErrInvalidSnapshot, processID), nil
+	if snapshot.ID != processID {
+		return core.ProcessSnapshot{}, fmt.Errorf("%w: stored snapshot identity does not match process %q", core.ErrInvalidSnapshot, processID), nil
 	}
 	if err := snapshot.Validate(); err != nil {
 		return core.ProcessSnapshot{}, err, nil
@@ -750,7 +722,6 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 	state := p.captureDurableState()
 	snapshot := core.ProcessSnapshot{
 		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
-		Revision:          state.revision,
 		ID:                p.ID(),
 		ParentID:          p.ParentID(),
 		Depth:             p.depth,
@@ -780,7 +751,6 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 				StartedAt:  run.StartedAt,
 				Duration:   run.Duration,
 				Status:     run.Status,
-				Attempts:   run.Attempts,
 			}
 		}
 	}
@@ -801,7 +771,6 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 }
 
 type durableProcessState struct {
-	revision       uint64
 	status         core.ProcessStatus
 	goal           *core.Goal
 	failure        error
@@ -821,7 +790,6 @@ func (p *Process) captureDurableState() durableProcessState {
 		suspension = p.state.pendingSuspension.Clone()
 	}
 	return durableProcessState{
-		revision:       p.state.revision,
 		status:         p.state.currentStatus,
 		goal:           p.state.currentGoal,
 		failure:        p.state.runErr,
@@ -907,7 +875,6 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 
 	// Re-populate state.
 	process.state.transition(snapshot.Status)
-	process.state.restoreRevision(snapshot.Revision)
 	if err := process.state.restoreSuspension(snapshot.Suspension); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: suspension: %w", err)
 	}
@@ -931,7 +898,6 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 			StartedAt:  run.StartedAt,
 			Duration:   run.Duration,
 			Status:     run.Status,
-			Attempts:   run.Attempts,
 		})
 	}
 

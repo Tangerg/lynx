@@ -26,11 +26,11 @@ func newFlakyProcessStore(err error) *flakyProcessStore {
 	return store
 }
 
-func (s *flakyProcessStore) Apply(ctx context.Context, mutation core.SnapshotMutation) error {
+func (s *flakyProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapshot) error {
 	if s.fail.Load() {
 		return s.err
 	}
-	return s.inner.Apply(ctx, mutation)
+	return s.inner.Save(ctx, snapshots)
 }
 
 func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
@@ -39,6 +39,13 @@ func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSn
 
 func (s *flakyProcessStore) List(ctx context.Context) ([]string, error) {
 	return s.inner.List(ctx)
+}
+
+func (s *flakyProcessStore) Delete(ctx context.Context, rootID string) error {
+	if s.fail.Load() {
+		return s.err
+	}
+	return s.inner.Delete(ctx, rootID)
 }
 
 func autoSnapshotAgent() *core.Agent {
@@ -211,7 +218,7 @@ func TestAutoSnapshotFailurePolicyPauseAndRetry(t *testing.T) {
 		t.Fatalf("resumed status=%s failure=%v", proc.Status(), proc.Failure())
 	}
 	loaded, err := store.Load(t.Context(), proc.ID())
-	if err != nil || loaded.Revision != 1 || loaded.Status != core.StatusCompleted {
+	if err != nil || loaded.Status != core.StatusCompleted {
 		t.Fatalf("loaded = %#v, err %v", loaded, err)
 	}
 }
@@ -231,7 +238,7 @@ func TestAutoSnapshotFailurePolicyPreservesWaitingContinuation(t *testing.T) {
 		t.Fatalf("process status=%s suspension=%#v", proc.Status(), proc.Suspension())
 	}
 	store.fail.Store(false)
-	if _, err := engine.Save(t.Context(), proc.ID()); err != nil {
+	if err := engine.Save(t.Context(), proc.ID()); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := store.Load(t.Context(), proc.ID())
@@ -260,7 +267,7 @@ func TestKillWaitingProcessPersistsTerminalSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Status != core.StatusKilled || snapshot.Suspension != nil || snapshot.Revision != 2 {
+	if snapshot.Status != core.StatusKilled || snapshot.Suspension != nil {
 		t.Fatalf("killed snapshot = %#v", snapshot)
 	}
 }
@@ -288,8 +295,8 @@ func TestKillWaitingProcessReportsTerminalSnapshotFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Status != core.StatusWaiting || snapshot.Revision != 1 {
-		t.Fatalf("last durable snapshot = %#v, want original waiting revision", snapshot)
+	if snapshot.Status != core.StatusWaiting {
+		t.Fatalf("last durable snapshot = %#v, want original waiting state", snapshot)
 	}
 }
 

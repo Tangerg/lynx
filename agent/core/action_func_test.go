@@ -103,16 +103,6 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 	}
 }
 
-func TestNewActionDefaultsToOneAttempt(t *testing.T) {
-	action := core.NewAction("once",
-		func(context.Context, *core.ProcessContext, string) (int, error) { return 1, nil },
-		core.ActionConfig{},
-	)
-	if got := action.Metadata().Retry; got != core.DefaultRetryPolicy() || got.MaxAttempts != 1 {
-		t.Fatalf("default retry policy = %#v, want one attempt", got)
-	}
-}
-
 type fakeBlackboard struct {
 	value any
 	ok    bool

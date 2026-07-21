@@ -362,7 +362,7 @@ func (m *managedFinalModel) Calls() int {
 	return m.calls
 }
 
-func TestManagedInteractionDoesNotRetryActionAfterCommittedBoundary(t *testing.T) {
+func TestManagedInteractionSurfacesCommittedBoundaryFailure(t *testing.T) {
 	model := &managedFinalModel{}
 	registry, err := tools.NewRegistry()
 	if err != nil {
@@ -381,7 +381,7 @@ func TestManagedInteractionDoesNotRetryActionAfterCommittedBoundary(t *testing.T
 			return nil
 		}})
 		return "", err
-	}, core.ActionConfig{Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
@@ -393,7 +393,7 @@ func TestManagedInteractionDoesNotRetryActionAfterCommittedBoundary(t *testing.T
 		t.Fatalf("process failure = %v", proc.Failure())
 	}
 	if model.Calls() != 1 {
-		t.Fatalf("model calls = %d, want 1 despite MaxAttempts=3", model.Calls())
+		t.Fatalf("model calls = %d, want one action execution", model.Calls())
 	}
 }
 
@@ -524,7 +524,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 			return nil
 		}})
 		return "", err
-	}, core.ActionConfig{Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 

@@ -144,15 +144,11 @@ func (e *Engine) runInSession(
 	sessionID := session.ID
 
 	ctx = normalizeContext(ctx)
-	release, err := acquireSessionTurn(ctx, e.sessionTurnSequencer, sessionID)
+	release, err := e.sessionTurns.acquire(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: acquire session turn %q: %w", sessionID, err)
 	}
-	defer func() {
-		if releaseErr := releaseSessionTurn(release); releaseErr != nil {
-			err = errors.Join(err, fmt.Errorf("runtime.Engine.RunInSession: release session turn %q: %w", sessionID, releaseErr))
-		}
-	}()
+	defer release()
 
 	if err := session.BindAgent(deployment.agent.Name()); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)

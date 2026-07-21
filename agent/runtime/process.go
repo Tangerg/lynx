@@ -67,9 +67,6 @@ type ActionRun struct {
 	StartedAt  time.Time
 	Duration   time.Duration
 	Status     core.ActionStatus
-	// Attempts counts executions of the action chain. A middleware short-circuit
-	// is one attempt; when the action body runs, its retry count is recorded.
-	Attempts int
 }
 
 // newProcess assembles a process from its inputs. Internal — users

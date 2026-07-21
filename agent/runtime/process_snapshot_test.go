@@ -109,7 +109,7 @@ func TestEngine_SaveProcess_NoStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := engine.Save(context.Background(), proc.ID()); err == nil {
+	if err := engine.Save(context.Background(), proc.ID()); err == nil {
 		t.Error("expected error when no ProcessStore configured")
 	}
 }
@@ -135,12 +135,8 @@ func TestEngine_SaveAndRestore_RoundTrip(t *testing.T) {
 		t.Fatalf("expected completed, got %s; failure=%v", proc.Status(), proc.Failure())
 	}
 
-	revision, err := engine.Save(context.Background(), proc.ID())
-	if err != nil {
+	if err := engine.Save(context.Background(), proc.ID()); err != nil {
 		t.Fatalf("save: %v", err)
-	}
-	if revision != 1 {
-		t.Fatalf("save revision = %d, want 1", revision)
 	}
 
 	// Verify snapshot in store.
@@ -172,8 +168,8 @@ func TestEngine_SaveAndRestore_RoundTrip(t *testing.T) {
 	if len(restored.History()) != len(snap.History) {
 		t.Errorf("history len mismatch: want %d, got %d", len(snap.History), len(restored.History()))
 	}
-	if revision, err := engine2.Save(context.Background(), restored.ID()); err != nil || revision != 2 {
-		t.Fatalf("save restored process = revision %d, err %v", revision, err)
+	if err := engine2.Save(context.Background(), restored.ID()); err != nil {
+		t.Fatalf("save restored process: %v", err)
 	}
 
 	// The restored process's blackboard should still hold the word count.
@@ -221,7 +217,7 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 
 	// Persist the WAITING process, then walk away from the original
 	// engine entirely.
-	if _, err := engine.Save(ctx, proc.ID()); err != nil {
+	if err := engine.Save(ctx, proc.ID()); err != nil {
 		t.Fatalf("save: %v", err)
 	}
 
@@ -281,7 +277,7 @@ func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *test
 	if err := <-done; err != nil {
 		t.Fatalf("start waiting process: %v", err)
 	}
-	if _, err := first.Save(t.Context(), process.ID()); err != nil {
+	if err := first.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save waiting process: %v", err)
 	}
 
@@ -380,14 +376,14 @@ func TestEngine_RestoreProcess_AgentNotDeployed(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-missing-agent-test", ProcessStore: store})
 
 	started := time.Now().Add(-time.Second)
-	_ = store.Apply(context.Background(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{{
+	_ = store.Save(context.Background(), []core.ProcessSnapshot{{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "orphan",
 		Deployment:    core.DeploymentRef{Name: "never-deployed", Digest: "missing"},
 		StartedAt:     started,
 		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
-	}}})
+	}})
 
 	if _, err := engine.Restore(context.Background(), "orphan", core.ProcessOptions{}); err == nil {
 		t.Error("expected error when agent not deployed")
@@ -443,7 +439,7 @@ func TestSnapshotRejectsDeclaredButUnencodableDurableValue(t *testing.T) {
 	}
 }
 
-func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
+func TestEngineConcurrentSaveProcessCapturesValidSnapshots(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "concurrent-save", ProcessStore: store})
 	a := buildSnapshotAgent()
@@ -455,7 +451,6 @@ func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
 	}
 
 	start := make(chan struct{})
-	revisions := make(chan uint64, 2)
 	errorsOut := make(chan error, 2)
 	var wait sync.WaitGroup
 	for range 2 {
@@ -463,14 +458,11 @@ func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			<-start
-			revision, saveErr := engine.Save(t.Context(), proc.ID())
-			revisions <- revision
-			errorsOut <- saveErr
+			errorsOut <- engine.Save(t.Context(), proc.ID())
 		}()
 	}
 	close(start)
 	wait.Wait()
-	close(revisions)
 	close(errorsOut)
 
 	for saveErr := range errorsOut {
@@ -478,16 +470,9 @@ func TestEngineConcurrentSaveProcessSerializesRevisions(t *testing.T) {
 			t.Fatalf("concurrent Save: %v", saveErr)
 		}
 	}
-	seen := map[uint64]bool{}
-	for revision := range revisions {
-		seen[revision] = true
-	}
-	if !seen[1] || !seen[2] || len(seen) != 2 {
-		t.Fatalf("committed revisions = %v, want 1 and 2", seen)
-	}
 	latest, err := store.Load(t.Context(), proc.ID())
-	if err != nil || latest.Revision != 2 {
-		t.Fatalf("latest snapshot revision = %d, err %v", latest.Revision, err)
+	if err != nil || latest.ID != proc.ID() || latest.Status != core.StatusCompleted {
+		t.Fatalf("latest snapshot = %#v, err %v", latest, err)
 	}
 }
 
@@ -610,7 +595,7 @@ func TestEngineContinueReportsOverlappingRun(t *testing.T) {
 	}
 }
 
-func TestEngineDiscardDeletesDurableOnlyTreeAtomically(t *testing.T) {
+func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 	started := time.Now().UTC().Add(-time.Second)
 	snapshot := func(id, parentID string, depth int) core.ProcessSnapshot {
 		return core.ProcessSnapshot{
@@ -628,7 +613,7 @@ func TestEngineDiscardDeletesDurableOnlyTreeAtomically(t *testing.T) {
 		snapshot("grandchild", "child-a", 2),
 		snapshot("outside", "", 0),
 	}
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: writes}); err != nil {
+	if err := store.Save(t.Context(), writes); err != nil {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
@@ -658,7 +643,7 @@ func TestEngineDiscardStoreFailurePreservesWholeDurableTree(t *testing.T) {
 			StartedAt:  started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
 		},
 	}
-	if err := store.inner.Apply(t.Context(), core.SnapshotMutation{Writes: writes}); err != nil {
+	if err := store.inner.Save(t.Context(), writes); err != nil {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})

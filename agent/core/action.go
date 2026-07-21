@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"time"
 )
-
-const defaultMaxAttempts = 1
 
 // Action is the agent's smallest planning unit. Implementations are
 // typically produced via [NewAction] so the framework keeps type
@@ -38,7 +35,6 @@ type ActionMetadata struct {
 	Preconditions ConditionSet
 	Effects       ConditionSet
 	Repeatable    bool
-	Retry         RetryPolicy
 	ToolGroups    []ToolGroupRequirement
 
 	// Cost defaults to [FixedScore](1.0) so the planner doesn't pick
@@ -109,91 +105,12 @@ func (m ActionMetadata) validate() error {
 	if err := m.Effects.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("effects: %w", err))
 	}
-	if err := m.Retry.validate(); err != nil {
-		problems = append(problems, fmt.Errorf("retry policy: %w", err))
-	}
 	for index, requirement := range m.ToolGroups {
 		if err := requirement.Validate(); err != nil {
 			problems = append(problems, fmt.Errorf("tool group %d (%q): %w", index, requirement.Role, err))
 		}
 	}
 	return errors.Join(problems...)
-}
-
-// RetrySafety states why replaying an action after failure is safe. It is a
-// declaration by the action author, not an error classification performed by
-// the framework.
-type RetrySafety uint8
-
-const (
-	// RetrySafetyUnspecified is the zero value and permits only one attempt.
-	RetrySafetyUnspecified RetrySafety = iota
-	// RetrySafetyIdempotent means repeated execution with the same input has
-	// the same externally observable effect as one execution.
-	RetrySafetyIdempotent
-	// RetrySafetyCompensated means a failed attempt has undone every external
-	// effect before returning its error.
-	RetrySafetyCompensated
-)
-
-func (s RetrySafety) String() string {
-	switch s {
-	case RetrySafetyUnspecified:
-		return "unspecified"
-	case RetrySafetyIdempotent:
-		return "idempotent"
-	case RetrySafetyCompensated:
-		return "compensated"
-	default:
-		return "unknown"
-	}
-}
-
-// Valid reports whether s is a framework-defined retry safety value.
-func (s RetrySafety) Valid() bool {
-	return s >= RetrySafetyUnspecified && s <= RetrySafetyCompensated
-}
-
-// RetryPolicy governs replay of one action. The zero value and
-// [DefaultRetryPolicy] both mean one attempt. Setting MaxAttempts above one is
-// rejected at deployment unless Safety explicitly declares why replay is
-// safe. The framework never guesses from an error whether a side effect is
-// retryable.
-type RetryPolicy struct {
-	// MaxAttempts caps total tries (initial + retries). 0 means one attempt.
-	MaxAttempts int
-	// BaseDelay is the initial wait; successive attempts grow ×2 up
-	// to MaxDelay with jitter.
-	BaseDelay time.Duration
-	// MaxDelay caps the per-attempt wait. 0 means uncapped.
-	MaxDelay time.Duration
-	// Safety is required when MaxAttempts is greater than one.
-	Safety RetrySafety
-}
-
-// DefaultRetryPolicy returns the side-effect-safe framework default: exactly
-// one attempt and no replay declaration.
-func DefaultRetryPolicy() RetryPolicy {
-	return RetryPolicy{MaxAttempts: defaultMaxAttempts}
-}
-
-func (p RetryPolicy) validate() error {
-	if p.MaxAttempts < 0 {
-		return errors.New("max attempts must not be negative")
-	}
-	if p.BaseDelay < 0 || p.MaxDelay < 0 {
-		return errors.New("retry delays must not be negative")
-	}
-	if p.MaxDelay > 0 && p.BaseDelay > p.MaxDelay {
-		return fmt.Errorf("base delay %s exceeds max delay %s", p.BaseDelay, p.MaxDelay)
-	}
-	if !p.Safety.Valid() {
-		return fmt.Errorf("unknown retry safety %d", p.Safety)
-	}
-	if p.MaxAttempts > defaultMaxAttempts && p.Safety == RetrySafetyUnspecified {
-		return fmt.Errorf("max attempts %d requires idempotent or compensated retry safety", p.MaxAttempts)
-	}
-	return nil
 }
 
 // ActionConfig is the optional configuration bundle for [NewAction].
@@ -220,11 +137,6 @@ type ActionConfig struct {
 	// Repeatable allows the planner to select the action more than once in one
 	// process. The zero value preserves once-per-process execution.
 	Repeatable bool
-
-	// Retry explicitly opts this action into replay after failure. The zero
-	// value means one attempt. MaxAttempts above one also requires a Safety
-	// declaration; invalid policies are rejected when the Agent is deployed.
-	Retry RetryPolicy
 
 	// Cost is the per-tick planning cost probe; nil means [FixedScore](1.0).
 	Cost ScoreFunc

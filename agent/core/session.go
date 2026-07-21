@@ -273,10 +273,8 @@ type SessionStore interface {
 	SessionWriter
 }
 
-// SessionDeleter is the optional idempotent cleanup capability.
+// SessionDeleter is the optional cleanup capability.
 type SessionDeleter interface {
-	// Delete is idempotent — removing an unknown id is not an
-	// error.
 	Delete(ctx context.Context, id string) error
 }
 
