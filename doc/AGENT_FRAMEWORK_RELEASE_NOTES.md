@@ -21,7 +21,7 @@
 | exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`953fa77672a95172689a747d4a7ee86c293e09d37105794d71a22151b13fe3fa`
+- API baseline SHA-256：`0bd27d46de3a99b5db19007dc47db2378393edc511daa6aaf039e83672b6984e`
 - wire fixture SHA-256：`f2f6de44747d91ba41ac5eadc734357751e3a6b80e75b6e8876ef8c444e501f0`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。

@@ -191,14 +191,10 @@ func (e *Engine) attachChild(parent, child *Process) error {
 func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []extensionEntry) (planning.Planner, error) {
 	name := planning.EffectivePlannerName(agent.PlannerName())
 
-	if planner, err := findPlannerByName(processExtensions, name); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.resolvePlanner: process extensions: %w", err)
-	} else if planner != nil {
+	if planner := findPlannerByName(processExtensions, name); planner != nil {
 		return planner, nil
 	}
-	if planner, err := findPlannerByName(e.extensions.list, name); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.resolvePlanner: engine extensions: %w", err)
-	} else if planner != nil {
+	if planner := findPlannerByName(e.extensions.list, name); planner != nil {
 		return planner, nil
 	}
 
@@ -207,17 +203,17 @@ func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []extension
 
 // findPlannerByName walks extensions for a [planning.Planner] whose
 // Name() matches. Returns nil when none matches.
-func findPlannerByName(extensions []extensionEntry, name string) (planning.Planner, error) {
+func findPlannerByName(extensions []extensionEntry, name string) planning.Planner {
 	for _, extension := range extensions {
 		planner, ok := extension.value.(planning.Planner)
 		if !ok {
 			continue
 		}
 		if extension.name == name {
-			return planner, nil
+			return planner
 		}
 	}
-	return nil, nil
+	return nil
 }
 
 // resolveBlackboard picks the [core.Blackboard] for a fresh process —

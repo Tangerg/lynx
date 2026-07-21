@@ -162,22 +162,22 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 			r.maxConcurrentCalls,
 		)
 	}
-	copy, err := snapshot(checkpoint)
+	captured, err := snapshot(checkpoint)
 	if err != nil {
 		return nil, fmt.Errorf("%w: snapshot checkpoint: %w", ErrInvalidInput, err)
 	}
-	calls, err := responseToolCalls(copy.Response)
+	calls, err := responseToolCalls(captured.Response)
 	if err != nil {
 		return nil, fmt.Errorf("%w: checkpoint calls: %w", ErrInvalidInput, err)
 	}
 	state := &runnerState{
-		request:    copy.Request,
+		request:    captured.Request,
 		resolver:   resolver,
-		round:      copy.Round,
-		response:   copy.Response,
+		round:      captured.Round,
+		response:   captured.Response,
 		calls:      calls,
-		callStates: cloneCallStates(copy.CallStates),
-		nextResult: copy.NextResult,
+		callStates: cloneCallStates(captured.CallStates),
+		nextResult: captured.NextResult,
 	}
 	if err := state.validateInput(); err != nil {
 		return nil, fmt.Errorf("%w: resumed request: %w", ErrInvalidInput, err)
@@ -511,12 +511,12 @@ func (s *runnerState) startedCalls() int {
 
 func (s *runnerState) settled(index int, result chat.ToolResult, pending *PendingCall) {
 	if pending != nil {
-		copy := *pending
-		s.callStates[index] = CallCheckpoint{Status: CallPaused, Pending: &copy}
+		cloned := *pending
+		s.callStates[index] = CallCheckpoint{Status: CallPaused, Pending: &cloned}
 		return
 	}
-	copy := result
-	s.callStates[index] = CallCheckpoint{Status: CallCompleted, Result: &copy}
+	cloned := result
+	s.callStates[index] = CallCheckpoint{Status: CallCompleted, Result: &cloned}
 }
 
 func invokeTool(
@@ -672,9 +672,9 @@ func snapshot[T any](value *T) (*T, error) {
 	if err != nil {
 		return nil, err
 	}
-	var copy T
-	if err := json.Unmarshal(body, &copy); err != nil {
+	var cloned T
+	if err := json.Unmarshal(body, &cloned); err != nil {
 		return nil, err
 	}
-	return &copy, nil
+	return &cloned, nil
 }

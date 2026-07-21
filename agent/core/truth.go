@@ -116,9 +116,9 @@ func validateConditionKey(key string) error {
 }
 
 // Satisfies reports whether state contains every required truth value.
-func (state ConditionSet) Satisfies(required ConditionSet) bool {
+func (conditions ConditionSet) Satisfies(required ConditionSet) bool {
 	for key, truth := range required {
-		if state[key] != truth {
+		if conditions[key] != truth {
 			return false
 		}
 	}
@@ -127,10 +127,10 @@ func (state ConditionSet) Satisfies(required ConditionSet) bool {
 
 // Unsatisfied returns the requirements not currently satisfied by state.
 // A nil result means every requirement is satisfied.
-func (state ConditionSet) Unsatisfied(required ConditionSet) ConditionSet {
+func (conditions ConditionSet) Unsatisfied(required ConditionSet) ConditionSet {
 	var missing ConditionSet
 	for key, truth := range required {
-		if state[key] == truth {
+		if conditions[key] == truth {
 			continue
 		}
 		if missing == nil {

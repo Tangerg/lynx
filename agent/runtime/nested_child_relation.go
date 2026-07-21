@@ -52,10 +52,10 @@ func (r *nestedChildRelation) clone() *nestedChildRelation {
 	if r == nil {
 		return nil
 	}
-	copy := *r
-	copy.Prompt = bytes.Clone(r.Prompt)
-	copy.ResumeSchema = bytes.Clone(r.ResumeSchema)
-	return &copy
+	cloned := *r
+	cloned.Prompt = bytes.Clone(r.Prompt)
+	cloned.ResumeSchema = bytes.Clone(r.ResumeSchema)
+	return &cloned
 }
 
 func (r *nestedChildRelation) validate() error {
