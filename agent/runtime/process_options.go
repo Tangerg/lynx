@@ -40,6 +40,9 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 	if budget == (core.Budget{}) {
 		budget = core.DefaultBudget()
 	}
+	if err := budget.Validate(); err != nil {
+		return processOptions{}, fmt.Errorf("ProcessOptions.Budget: %w", err)
+	}
 
 	var session *core.Session
 	if options.Session != nil {

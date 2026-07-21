@@ -2,10 +2,14 @@ package core
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/interaction"
 )
+
+// ErrUsageUnavailable reports that a ProcessContext has no accounting owner.
+var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
 
 // ProcessView is the read-only process capability used by conditions,
 // policies, listeners, middleware, and action bodies. Blackboard returns only
@@ -65,19 +69,21 @@ type UsageRecorder interface {
 	// ModelCall whose only populated fields are Cost and
 	// PromptTokens (PromptTokens stands in for the lumped token
 	// count). Prefer the typed Record* methods when per-call audit
-	// is required.
-	RecordUsage(ctx context.Context, cost float64, tokens int)
+	// is required. Invalid or overflowing usage is rejected without
+	// mutating the ledger.
+	RecordUsage(ctx context.Context, cost float64, tokens int) error
 
 	// RecordModelCall appends an LLM call to this process's
 	// invocation history and contributes to subtree budget
 	// aggregation. Integration code (chat middleware, per-vendor
-	// adapter) calls this once per LLM response.
-	RecordModelCall(ctx context.Context, call ModelCall)
+	// adapter) calls this once per LLM response. A zero Timestamp is
+	// populated at the recording boundary before validation.
+	RecordModelCall(ctx context.Context, call ModelCall) error
 
 	// RecordEmbeddingCall appends an embedding call to this
 	// process's history. Mirrors RecordModelCall for the
-	// embeddings path.
-	RecordEmbeddingCall(ctx context.Context, call EmbeddingCall)
+	// embeddings path. A zero Timestamp is populated before validation.
+	RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error
 }
 
 // processViewCtxKey is the unexported context key for embedding a read-only

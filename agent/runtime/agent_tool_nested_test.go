@@ -165,13 +165,15 @@ func nestedSingleSuspensionAgent(name string, completed *atomic.Int32) *core.Age
 		Description: "child with durable nested suspension",
 		Actions: []agent.Action{
 			agent.NewAction("prepare", func(ctx context.Context, pc *core.ProcessContext, input nestedAgentInput) (nestedAgentStage, error) {
-				pc.RecordModelCall(ctx, core.ModelCall{
+				if err := pc.RecordModelCall(ctx, core.ModelCall{
 					Model:            "nested-fixture",
 					Provider:         "test",
 					CostUSD:          0.25,
 					PromptTokens:     2,
 					CompletionTokens: 1,
-				})
+				}); err != nil {
+					return nestedAgentStage{}, err
+				}
 				return nestedAgentStage(input), nil
 			}, core.ActionConfig{}),
 			agent.NewAction("answer", func(ctx context.Context, _ *core.ProcessContext, input nestedAgentStage) (nestedAgentOutput, error) {
@@ -859,7 +861,7 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	root1, err := engine1.RunInSession(
 		t.Context(),
 		parent1,
-		&rootSession,
+		rootSession,
 		core.Input(struct{}{}),
 		core.ProcessOptions{},
 	)

@@ -1,6 +1,11 @@
 package core
 
-import "context"
+import (
+	"context"
+	"errors"
+	"fmt"
+	"math"
+)
 
 // ChildOptionsFunc supplies explicit per-child process configuration. It runs
 // only when a parent ProcessOptions installs it, so the framework's default
@@ -96,6 +101,25 @@ type Budget struct {
 	CostLimit   float64
 	ActionLimit int
 	TokenLimit  int
+}
+
+// ErrInvalidBudget identifies a malformed process budget.
+var ErrInvalidBudget = errors.New("budget: invalid")
+
+// Validate checks that every configured limit is finite and non-negative.
+// Zero leaves that dimension unbounded; the all-zero Budget selects runtime
+// defaults at the ProcessOptions boundary.
+func (b Budget) Validate() error {
+	if math.IsNaN(b.CostLimit) || math.IsInf(b.CostLimit, 0) || b.CostLimit < 0 {
+		return fmt.Errorf("%w: cost limit must be finite and non-negative", ErrInvalidBudget)
+	}
+	if b.ActionLimit < 0 {
+		return fmt.Errorf("%w: action limit must not be negative", ErrInvalidBudget)
+	}
+	if b.TokenLimit < 0 {
+		return fmt.Errorf("%w: token limit must not be negative", ErrInvalidBudget)
+	}
+	return nil
 }
 
 const (

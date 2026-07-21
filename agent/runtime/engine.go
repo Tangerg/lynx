@@ -20,6 +20,10 @@ const (
 	// Automatic durability is independent of request cancellation so a canceled
 	// caller cannot prevent the runtime from recording the resulting state.
 	DefaultSnapshotFinalizeTimeout = 10 * time.Second
+
+	// DefaultMaxChildDepth limits recursive delegation. A root process has
+	// depth zero, so this value permits eight nested child levels.
+	DefaultMaxChildDepth = 8
 )
 
 // Engine is the agent runtime's top-level container — registers
@@ -61,6 +65,7 @@ type Engine struct {
 	autoSnapshot            bool                 // snapshot every tick when a store is configured
 	snapshotFinalizeTimeout time.Duration        // bounds each request-independent automatic snapshot
 	snapshotFailurePolicy   SnapshotFailurePolicy
+	maxChildDepth           int
 	buildID                 string // stable host build identity included in deployment digests
 }
 
@@ -142,6 +147,10 @@ type Config struct {
 	// lifecycles.
 	ChildSessionStore core.SessionStore
 
+	// MaxChildDepth limits recursive child-process delegation. Zero uses
+	// [DefaultMaxChildDepth]; negative values are rejected.
+	MaxChildDepth int
+
 	// Extensions are the engine-scoped plug-ins. Each value must
 	// implement [core.Extension] and may additionally implement any
 	// subset of capability interfaces (EventListener,
@@ -184,6 +193,9 @@ func New(config Config) (*Engine, error) {
 	if config.ChildSessionStore != nil && valueIsNil(config.ChildSessionStore) {
 		return nil, errors.New("runtime.New: ChildSessionStore is typed nil")
 	}
+	if config.MaxChildDepth < 0 {
+		return nil, errors.New("runtime.New: MaxChildDepth must not be negative")
+	}
 	if valueIsNil(config.Chat.Model) && !valueIsNil(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
@@ -203,6 +215,10 @@ func New(config Config) (*Engine, error) {
 	if snapshotFinalizeTimeout == 0 {
 		snapshotFinalizeTimeout = DefaultSnapshotFinalizeTimeout
 	}
+	maxChildDepth := config.MaxChildDepth
+	if maxChildDepth == 0 {
+		maxChildDepth = DefaultMaxChildDepth
+	}
 
 	engine := &Engine{
 		catalog:                 newDeploymentRegistry(),
@@ -220,6 +236,7 @@ func New(config Config) (*Engine, error) {
 		autoSnapshot:            config.AutoSnapshot,
 		snapshotFinalizeTimeout: snapshotFinalizeTimeout,
 		snapshotFailurePolicy:   config.SnapshotFailurePolicy,
+		maxChildDepth:           maxChildDepth,
 		buildID:                 config.BuildID,
 	}
 	for _, extension := range config.Extensions {

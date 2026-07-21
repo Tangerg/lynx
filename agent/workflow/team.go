@@ -29,9 +29,10 @@ func Team(config TeamConfig) (*core.Agent, error) {
 	}
 
 	var (
-		actions    []core.Action
-		goals      []*core.Goal
-		conditions []core.Condition
+		actions      []core.Action
+		goals        []*core.Goal
+		conditions   []core.Condition
+		durableState []core.Binding
 	)
 	for index, agent := range config.Agents {
 		if agent == nil {
@@ -40,6 +41,7 @@ func Team(config TeamConfig) (*core.Agent, error) {
 		actions = append(actions, agent.Actions()...)
 		goals = append(goals, agent.Goals()...)
 		conditions = append(conditions, agent.Conditions()...)
+		durableState = append(durableState, agent.DurableState()...)
 	}
 
 	description := config.Description
@@ -47,12 +49,13 @@ func Team(config TeamConfig) (*core.Agent, error) {
 		description = fmt.Sprintf("synthetic team across %d agents", len(config.Agents))
 	}
 	team := core.NewAgent(core.AgentConfig{
-		Name:        config.Name,
-		Description: description,
-		Actions:     actions,
-		Goals:       goals,
-		Conditions:  conditions,
-		PlannerName: config.PlannerName,
+		Name:         config.Name,
+		Description:  description,
+		Actions:      actions,
+		Goals:        goals,
+		Conditions:   conditions,
+		DurableState: durableState,
+		PlannerName:  config.PlannerName,
 	})
 	if err := team.Validate(); err != nil {
 		return nil, fmt.Errorf("workflow.Team: %w", err)

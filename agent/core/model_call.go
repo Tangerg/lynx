@@ -1,8 +1,19 @@
 package core
 
 import (
+	"errors"
+	"fmt"
 	"math"
+	"strings"
 	"time"
+)
+
+var (
+	// ErrInvalidModelCall identifies malformed model usage records.
+	ErrInvalidModelCall = errors.New("model call: invalid")
+
+	// ErrInvalidEmbeddingCall identifies malformed embedding usage records.
+	ErrInvalidEmbeddingCall = errors.New("embedding call: invalid")
 )
 
 // ModelCall captures the metadata of one LLM call attributed to
@@ -80,16 +91,49 @@ type EmbeddingCall struct {
 	ActionName string        `json:"action,omitempty"`
 }
 
-func (c ModelCall) valid() bool {
-	return !c.Timestamp.IsZero() &&
-		!math.IsNaN(c.CostUSD) && !math.IsInf(c.CostUSD, 0) && c.CostUSD >= 0 &&
-		c.PromptTokens >= 0 && c.CompletionTokens >= 0 && c.ReasoningTokens >= 0 &&
-		c.CacheReadInputTokens >= 0 && c.CacheWriteInputTokens >= 0 &&
-		c.ReasoningTokens <= c.CompletionTokens && c.Duration >= 0
+// Validate checks whether c can enter the process usage ledger.
+func (c ModelCall) Validate() error {
+	if c.Timestamp.IsZero() {
+		return fmt.Errorf("%w: timestamp must not be zero", ErrInvalidModelCall)
+	}
+	if math.IsNaN(c.CostUSD) || math.IsInf(c.CostUSD, 0) || c.CostUSD < 0 {
+		return fmt.Errorf("%w: cost must be finite and non-negative", ErrInvalidModelCall)
+	}
+	if c.PromptTokens < 0 || c.CompletionTokens < 0 || c.ReasoningTokens < 0 ||
+		c.CacheReadInputTokens < 0 || c.CacheWriteInputTokens < 0 {
+		return fmt.Errorf("%w: token counts must not be negative", ErrInvalidModelCall)
+	}
+	if c.ReasoningTokens > c.CompletionTokens {
+		return fmt.Errorf("%w: reasoning tokens exceed completion tokens", ErrInvalidModelCall)
+	}
+	if c.CacheReadInputTokens > c.PromptTokens || c.CacheWriteInputTokens > c.PromptTokens {
+		return fmt.Errorf("%w: cache tokens exceed prompt tokens", ErrInvalidModelCall)
+	}
+	if c.Duration < 0 {
+		return fmt.Errorf("%w: duration must not be negative", ErrInvalidModelCall)
+	}
+	if c.Model != strings.TrimSpace(c.Model) || c.Provider != strings.TrimSpace(c.Provider) || c.ActionName != strings.TrimSpace(c.ActionName) {
+		return fmt.Errorf("%w: names must not have surrounding whitespace", ErrInvalidModelCall)
+	}
+	return nil
 }
 
-func (c EmbeddingCall) valid() bool {
-	return !c.Timestamp.IsZero() &&
-		!math.IsNaN(c.CostUSD) && !math.IsInf(c.CostUSD, 0) && c.CostUSD >= 0 &&
-		c.InputTokens >= 0 && c.InputCount >= 0 && c.Duration >= 0
+// Validate checks whether c can enter the process usage ledger.
+func (c EmbeddingCall) Validate() error {
+	if c.Timestamp.IsZero() {
+		return fmt.Errorf("%w: timestamp must not be zero", ErrInvalidEmbeddingCall)
+	}
+	if math.IsNaN(c.CostUSD) || math.IsInf(c.CostUSD, 0) || c.CostUSD < 0 {
+		return fmt.Errorf("%w: cost must be finite and non-negative", ErrInvalidEmbeddingCall)
+	}
+	if c.InputTokens < 0 || c.InputCount < 0 {
+		return fmt.Errorf("%w: input counts must not be negative", ErrInvalidEmbeddingCall)
+	}
+	if c.Duration < 0 {
+		return fmt.Errorf("%w: duration must not be negative", ErrInvalidEmbeddingCall)
+	}
+	if c.Model != strings.TrimSpace(c.Model) || c.Provider != strings.TrimSpace(c.Provider) || c.ActionName != strings.TrimSpace(c.ActionName) {
+		return fmt.Errorf("%w: names must not have surrounding whitespace", ErrInvalidEmbeddingCall)
+	}
+	return nil
 }

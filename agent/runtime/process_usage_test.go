@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"errors"
+	"math"
 	"sync"
 	"testing"
 	"time"
@@ -17,8 +19,10 @@ func newTestBudget() *processBudget {
 
 func TestProcessBudgetRecordModelCallAggregatesCostAndTokens(t *testing.T) {
 	b := newTestBudget()
+	now := time.Now()
 
 	b.recordModelCall(core.ModelCall{
+		Timestamp:        now,
 		Model:            "claude-sonnet-4-5",
 		Provider:         "anthropic",
 		CostUSD:          0.012,
@@ -26,6 +30,7 @@ func TestProcessBudgetRecordModelCallAggregatesCostAndTokens(t *testing.T) {
 		CompletionTokens: 500,
 	})
 	b.recordModelCall(core.ModelCall{
+		Timestamp:        now,
 		Model:            "gpt-4o",
 		Provider:         "openai",
 		CostUSD:          0.008,
@@ -55,8 +60,10 @@ func TestProcessBudgetRecordModelCallAggregatesCostAndTokens(t *testing.T) {
 
 func TestProcessBudgetRecordEmbeddingCall(t *testing.T) {
 	b := newTestBudget()
+	now := time.Now()
 
 	b.recordEmbeddingCall(core.EmbeddingCall{
+		Timestamp:   now,
 		Model:       "voyage-3",
 		Provider:    "voyage",
 		CostUSD:     0.001,
@@ -64,6 +71,7 @@ func TestProcessBudgetRecordEmbeddingCall(t *testing.T) {
 		InputCount:  10,
 	})
 	b.recordEmbeddingCall(core.EmbeddingCall{
+		Timestamp:   now,
 		Model:       "text-embedding-3-small",
 		Provider:    "openai",
 		CostUSD:     0.0005,
@@ -91,7 +99,7 @@ func TestProcessBudgetRecordUsageAppendsToModelCallHistory(t *testing.T) {
 	// ModelCall so per-call audit code sees a record even when the
 	// integration layer doesn't know model / provider.
 	b := newTestBudget()
-	b.recordModelCall(core.ModelCall{CostUSD: 0.005, PromptTokens: 250})
+	b.recordModelCall(core.ModelCall{Timestamp: time.Now(), CostUSD: 0.005, PromptTokens: 250})
 
 	history := b.modelCallHistory()
 	if len(history) != 1 {
@@ -117,5 +125,31 @@ func TestProcessBudgetPreservesModelCallTimestamp(t *testing.T) {
 	history := b.modelCallHistory()
 	if !history[0].Timestamp.Equal(explicit) {
 		t.Errorf("explicit timestamp not preserved: got %v", history[0].Timestamp)
+	}
+}
+
+func TestProcessBudgetRejectsInvalidAndOverflowingUsage(t *testing.T) {
+	b := newTestBudget()
+	now := time.Now()
+	if err := b.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: -1}); !errors.Is(err, core.ErrInvalidModelCall) {
+		t.Fatalf("invalid call error = %v, want ErrInvalidModelCall", err)
+	}
+	if err := b.recordModelCall(core.ModelCall{Timestamp: now, CostUSD: math.MaxFloat64}); err != nil {
+		t.Fatalf("first cost: %v", err)
+	}
+	if err := b.recordModelCall(core.ModelCall{Timestamp: now, CostUSD: math.MaxFloat64}); err == nil {
+		t.Fatal("overflowing cost was accepted")
+	}
+	if calls := b.modelCallHistory(); len(calls) != 1 {
+		t.Fatalf("model call history length = %d, want one committed call", len(calls))
+	}
+
+	tokens := newTestBudget()
+	maxInt := int64(math.MaxInt)
+	if err := tokens.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: maxInt}); err != nil {
+		t.Fatalf("max token count: %v", err)
+	}
+	if err := tokens.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: 1}); err == nil {
+		t.Fatal("overflowing token total was accepted")
 	}
 }

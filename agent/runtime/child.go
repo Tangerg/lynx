@@ -9,9 +9,6 @@ import (
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
-// maxChildDepth limits recursive delegation. A root process has depth zero.
-const maxChildDepth = 8
-
 // ErrChildDepth reports that a child would exceed the delegation depth limit.
 var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 
@@ -164,8 +161,8 @@ func (r childRun) create() (*Process, error) {
 		return nil, err
 	}
 	agentName := deployment.agent.Name()
-	if parent.depth+1 > maxChildDepth {
-		return nil, fmt.Errorf("run child %q: %w (depth %d > max %d)", agentName, ErrChildDepth, parent.depth+1, maxChildDepth)
+	if parent.depth+1 > r.engine.maxChildDepth {
+		return nil, fmt.Errorf("run child %q: %w (depth %d > max %d)", agentName, ErrChildDepth, parent.depth+1, r.engine.maxChildDepth)
 	}
 
 	options, err := r.processOptions(parent, deployment)

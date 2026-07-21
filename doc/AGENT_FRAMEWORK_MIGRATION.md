@@ -356,9 +356,25 @@ blackboard 模式。不要使用全局变量或私有 context key 偷渡 Run 策
 `MaxModelCalls` 限制当前 Process 及其后代已经记录的累计模型调用数，适合由
 Host 将一个应用级 step budget 覆盖到完整委派树。`MaxConcurrentToolCalls`
 只限制一次 model round 中 conflict-free tool call 的执行宽度，不改变结果提交顺序。
+所有 Limits 必须是有限非负值；`Limits.Validate` 会拒绝负数、NaN 和 Inf。
+
+usage 记账现在显式返回错误：
+
+```go
+if err := process.RecordModelCall(ctx, call); err != nil {
+    return Output{}, err
+}
+```
+
+`ModelCall.Validate`、`EmbeddingCall.Validate` 和 `Budget.Validate` 是同一领域不变量的公开
+入口。运行时会补齐零 Timestamp，再在写入账本前校验；非法值或累计 cost/token 溢出不会
+产生事件，也不会部分修改账本。迁移时不要再忽略 `RecordUsage` / `RecordModelCall` /
+`RecordEmbeddingCall` 的返回值。
 
 `Engine.Kill` 现在会取消目标 Process 的活动 Run / Continue 上下文并递归终止
 其存活后代；Action、provider 调用和同步 child 应始终监听传入的 context。
+递归委派深度通过 `runtime.Config.MaxChildDepth` 明确配置，零值使用
+`runtime.DefaultMaxChildDepth`；不再依赖包内隐藏常量。
 
 同步 `runtime.NewAgentTool` 的 waiting 语义已改为真正的 nested suspension：
 parent Process 进入 Waiting，Host 对 parent ID 调用 `Resume` / `Continue`，Runtime
@@ -388,7 +404,10 @@ type SessionStore interface {
 - 一个后端确实拥有两类生命周期时，可以把同一实现显式配置到两个字段。
 
 不要再把“只保存 subtask lineage”的产品 adapter 塞进 `SessionStore` 并伪造完整 CRUD。
-`RunInSession` 现在先调用 `Session.Validate`，用显式 Agent 时通过 `BindAgent` 固定 identity；
+`RunInSession` 现在按值接收 `Session`，入口通过 `Session.Clone` 取得 metadata 所有权，
+因此并发 turn 不再共享调用方的可变 Session 指针。运行时派生的 AgentName 与 UpdatedAt
+写入配置的 SessionStore，不会反向修改调用方值；需要最新状态时从 store 读取。
+它会先调用 `Session.Validate`，用显式 Agent 时通过 `BindAgent` 固定 identity；
 传 nil Agent 时按 `Session.AgentName` 查找 active Deployment。Agent 名称冲突在部署/运行前
 以 `ErrInvalidSession` 失败。最终 Session save 使用保留 context value 但脱离 request
 cancel 的 context，并用 `errors.Join` 同时保留运行错误和持久化错误。

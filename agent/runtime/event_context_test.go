@@ -222,7 +222,9 @@ func TestProcessContextRecordModelCallKeepsActionTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
 	a := agent.New(agent.AgentConfig{Name: "model-call-event-trace", Actions: []agent.Action{agent.NewAction("record", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-		pc.RecordModelCall(ctx, core.ModelCall{Model: "ctx-model", Provider: "test", PromptTokens: int64(len(in.Text))})
+		if err := pc.RecordModelCall(ctx, core.ModelCall{Model: "ctx-model", Provider: "test", PromptTokens: int64(len(in.Text))}); err != nil {
+			return wordCount{}, err
+		}
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 

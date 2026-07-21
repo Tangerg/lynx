@@ -2,6 +2,9 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -25,11 +28,14 @@ type processUsage struct{ process *Process }
 
 var _ core.UsageRecorder = processUsage{}
 
-func (recorder processUsage) RecordUsage(ctx context.Context, cost float64, tokens int) {
-	recorder.RecordModelCall(ctx, core.ModelCall{CostUSD: cost, PromptTokens: int64(tokens)})
+func (recorder processUsage) RecordUsage(ctx context.Context, cost float64, tokens int) error {
+	return recorder.RecordModelCall(ctx, core.ModelCall{CostUSD: cost, PromptTokens: int64(tokens)})
 }
 
-func (recorder processUsage) RecordModelCall(ctx context.Context, call core.ModelCall) {
+func (recorder processUsage) RecordModelCall(ctx context.Context, call core.ModelCall) error {
+	if recorder.process == nil {
+		return core.ErrUsageUnavailable
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -37,14 +43,20 @@ func (recorder processUsage) RecordModelCall(ctx context.Context, call core.Mode
 		call.Timestamp = time.Now()
 	}
 	process := recorder.process
-	process.budget.recordModelCall(call)
+	if err := process.budget.recordModelCall(call); err != nil {
+		return err
+	}
 	process.publishEvent(ctx, event.ModelCallRecorded{
 		Header: process.eventHeader(),
 		Call:   call,
 	})
+	return nil
 }
 
-func (recorder processUsage) RecordEmbeddingCall(ctx context.Context, call core.EmbeddingCall) {
+func (recorder processUsage) RecordEmbeddingCall(ctx context.Context, call core.EmbeddingCall) error {
+	if recorder.process == nil {
+		return core.ErrUsageUnavailable
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -52,11 +64,14 @@ func (recorder processUsage) RecordEmbeddingCall(ctx context.Context, call core.
 		call.Timestamp = time.Now()
 	}
 	process := recorder.process
-	process.budget.recordEmbeddingCall(call)
+	if err := process.budget.recordEmbeddingCall(call); err != nil {
+		return err
+	}
 	process.publishEvent(ctx, event.EmbeddingCallRecorded{
 		Header: process.eventHeader(),
 		Call:   call,
 	})
+	return nil
 }
 
 // ModelCalls returns the subtree-aggregated model-call history in
@@ -94,20 +109,62 @@ func (b *processBudget) ownSnapshot() (
 	return b.ownCost, b.ownTokens, slices.Clone(b.modelCalls), slices.Clone(b.embeddingCalls)
 }
 
-func (b *processBudget) recordModelCall(call core.ModelCall) {
+func (b *processBudget) recordModelCall(call core.ModelCall) error {
+	if err := call.Validate(); err != nil {
+		return err
+	}
+	tokens, err := usageTokenCount(call.PromptTokens, call.CompletionTokens)
+	if err != nil {
+		return fmt.Errorf("record model call: %w", err)
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += call.CostUSD
-	b.ownTokens += int(call.PromptTokens + call.CompletionTokens)
+	if err := b.addUsage(call.CostUSD, tokens); err != nil {
+		return fmt.Errorf("record model call: %w", err)
+	}
 	b.modelCalls = append(b.modelCalls, call)
+	return nil
 }
 
-func (b *processBudget) recordEmbeddingCall(call core.EmbeddingCall) {
+func (b *processBudget) recordEmbeddingCall(call core.EmbeddingCall) error {
+	if err := call.Validate(); err != nil {
+		return err
+	}
+	tokens, err := usageTokenCount(call.InputTokens)
+	if err != nil {
+		return fmt.Errorf("record embedding call: %w", err)
+	}
 	b.lock.Lock()
 	defer b.lock.Unlock()
-	b.ownCost += call.CostUSD
-	b.ownTokens += int(call.InputTokens)
+	if err := b.addUsage(call.CostUSD, tokens); err != nil {
+		return fmt.Errorf("record embedding call: %w", err)
+	}
 	b.embeddingCalls = append(b.embeddingCalls, call)
+	return nil
+}
+
+func usageTokenCount(values ...int64) (int, error) {
+	var total int64
+	for _, value := range values {
+		if value < 0 || value > int64(math.MaxInt)-total {
+			return 0, errors.New("token count exceeds int capacity")
+		}
+		total += value
+	}
+	return int(total), nil
+}
+
+func (b *processBudget) addUsage(cost float64, tokens int) error {
+	nextCost := b.ownCost + cost
+	if math.IsInf(nextCost, 0) {
+		return errors.New("cost total exceeds float64 capacity")
+	}
+	if tokens > math.MaxInt-b.ownTokens {
+		return errors.New("token total exceeds int capacity")
+	}
+	b.ownCost = nextCost
+	b.ownTokens += tokens
+	return nil
 }
 
 // restore atomically reinstalls direct usage from a durable snapshot.

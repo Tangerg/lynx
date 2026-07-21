@@ -66,6 +66,7 @@ func TestNewEngineReturnsConfigErrors(t *testing.T) {
 		{name: "whitespace build id", config: Config{BuildID: " build "}, contains: "BuildID"},
 		{name: "auto snapshot without store", config: Config{AutoSnapshot: true}, contains: "requires ProcessStore"},
 		{name: "negative snapshot finalize timeout", config: Config{SnapshotFinalizeTimeout: -1}, contains: "SnapshotFinalizeTimeout"},
+		{name: "negative child depth", config: Config{MaxChildDepth: -1}, contains: "MaxChildDepth"},
 		{name: "typed nil process store", config: Config{ProcessStore: processStore}, contains: "ProcessStore is typed nil"},
 		{name: "typed nil session store", config: Config{SessionStore: sessionStore}, contains: "SessionStore is typed nil"},
 		{name: "typed nil child session store", config: Config{ChildSessionStore: sessionStore}, contains: "ChildSessionStore is typed nil"},

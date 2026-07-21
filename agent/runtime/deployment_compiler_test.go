@@ -828,7 +828,7 @@ func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 	process, err := engine.RunInSession(
 		t.Context(),
 		source,
-		&session,
+		session,
 		core.Input(deploymentRunInput{Value: 20}),
 		core.ProcessOptions{},
 	)
@@ -838,8 +838,8 @@ func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 	if process.deployment != deployment {
 		t.Fatal("session process did not bind the catalog deployment")
 	}
-	if got := session.AgentName; got != "replaceable" {
-		t.Fatalf("session AgentName = %q, want frozen deployment name", got)
+	if got := process.options.session.AgentName; got != "replaceable" {
+		t.Fatalf("process session AgentName = %q, want frozen deployment name", got)
 	}
 }
 
