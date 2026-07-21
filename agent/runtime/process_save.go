@@ -156,17 +156,22 @@ func (e *Engine) saveProcess(ctx context.Context, process *Process, allowActiveR
 		return fmt.Errorf("runtime.Engine.saveProcess: sequence persistence: %w", err)
 	}
 	defer releaseSave()
+	// Capture is already done: tree.snapshot holds immutable copies. Drop the
+	// checkpoint claims now so the processes may resume while the store write is
+	// in flight; from here tree is a pure data carrier and must not be captured
+	// again or read for live state. The processSaves lock (held via releaseSave)
+	// still serializes concurrent writes of this same tree.
 	releaseProcessTree(tree)
 
 	cleanupTree, err := e.discoverProcessTrees(cleanupRoots)
 	if err != nil {
-		return err
+		return fmt.Errorf("runtime.Engine.saveProcess: %w", err)
 	}
 	if err := cleanupTree.wait(ctx); err != nil {
-		return err
+		return fmt.Errorf("runtime.Engine.saveProcess: %w", err)
 	}
 	if err := cleanupTree.claim(); err != nil {
-		return err
+		return fmt.Errorf("runtime.Engine.saveProcess: %w", err)
 	}
 	err = e.saveCapturedProcessTree(ctx, tree, cleanupRoots)
 	if err != nil {

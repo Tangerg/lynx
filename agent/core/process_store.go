@@ -192,8 +192,8 @@ func (s ProcessSnapshot) Validate() error {
 		return fmt.Errorf("%w: own usage totals must be finite and non-negative", ErrInvalidSnapshot)
 	}
 	for i, run := range s.History {
-		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || !run.Status.Valid() {
-			return fmt.Errorf("%w: history[%d] is invalid", ErrInvalidSnapshot, i)
+		if err := run.validate(); err != nil {
+			return fmt.Errorf("%w: history[%d]: %w", ErrInvalidSnapshot, i, err)
 		}
 	}
 	for i, call := range s.OwnModelCalls {
@@ -275,8 +275,8 @@ type actionRunSnapshotWire struct {
 }
 
 func (r ActionRunSnapshot) MarshalJSON() ([]byte, error) {
-	if !r.Status.Valid() {
-		return nil, fmt.Errorf("action run snapshot: unknown status %d", r.Status)
+	if err := r.validate(); err != nil {
+		return nil, err
 	}
 	return json.Marshal(actionRunSnapshotWire{
 		ActionName: r.ActionName,
@@ -305,6 +305,25 @@ func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
 		StartedAt:  wire.StartedAt,
 		Duration:   wire.Duration,
 		Status:     status,
+	}
+	return nil
+}
+
+// validate is the single source of truth for a history row's invariant,
+// shared by MarshalJSON and ProcessSnapshot.Validate so the two paths cannot
+// disagree about which rows are well-formed.
+func (r ActionRunSnapshot) validate() error {
+	if strings.TrimSpace(r.ActionName) == "" {
+		return errors.New("action run snapshot: action name is empty")
+	}
+	if r.StartedAt.IsZero() {
+		return errors.New("action run snapshot: started_at is zero")
+	}
+	if r.Duration < 0 {
+		return errors.New("action run snapshot: duration is negative")
+	}
+	if !r.Status.Valid() {
+		return fmt.Errorf("action run snapshot: unknown status %d", r.Status)
 	}
 	return nil
 }

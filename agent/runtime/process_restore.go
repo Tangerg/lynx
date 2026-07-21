@@ -132,6 +132,11 @@ type resumableProcessTree struct {
 	children []*resumableProcessTree
 }
 
+// loadResumableTree returns (tree, loss, err). loss reports a permanent reason
+// the continuation is unusable (missing/incompatible snapshot, cycle, unknown
+// deployment, non-resumable status) — an expected answer, mapped to
+// ErrResumableSnapshotLost by callers. err reports a transient failure (e.g. the
+// store was unreachable) to propagate. At most one of loss/err is non-nil.
 func (e *Engine) loadResumableTree(
 	ctx context.Context,
 	processID string,
@@ -176,6 +181,9 @@ func (e *Engine) loadResumableTree(
 	return tree, nil, nil
 }
 
+// loadStoredSnapshot returns (snapshot, loss, err) with the same contract as
+// [Engine.loadResumableTree]: loss is a permanent "snapshot gone/invalid"
+// answer, err is a transient store failure. At most one of loss/err is non-nil.
 func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
 	if e == nil {
 		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: nil engine")
