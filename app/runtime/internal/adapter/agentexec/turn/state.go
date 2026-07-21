@@ -140,6 +140,15 @@ type turnState struct {
 	// complexity signal (a turn that drove many tools is a candidate to distill
 	// into a reusable skill). Incremented once per completed call in
 	// recordToolOutcome; read at the turn boundary via toolCallCount.
+	//
+	// KNOWN LIMITATION: a subagent's child tool calls fire on this same shared
+	// observer (child_execution reuses the parent target), so a turn that
+	// delegates to subagents over-counts — the count includes child tools the
+	// miner's root transcript never sees. This only makes mining slightly
+	// over-eager on subagent-heavy turns (a cadence-bounded utility call that
+	// usually returns NO_SKILL); excluding child tools would need process
+	// identity threaded through the observer contract, deferred as not worth that
+	// change for a bounded-efficiency effect.
 	toolCalls int
 }
 
