@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/models/catalog"
+	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
@@ -47,7 +48,13 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
 	}
 	if services.miner == nil && skillStore.Enabled() {
-		services.miner = maintenance.NewSkillMiner(messages.store, skillStore, resolveUtility, maintenance.MinerConfig{})
+		services.miner = maintenance.NewSkillMiner(
+			messages.store,
+			skillStore,
+			skillspec.Dir(cfg.SkillsGlobalDir),
+			resolveUtility,
+			maintenance.MinerConfig{},
+		)
 	}
 	return services
 }

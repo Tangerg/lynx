@@ -55,6 +55,15 @@ type draftStore interface {
 	SaveDraft(ctx context.Context, draft skills.Draft) (skills.DraftHandle, error)
 }
 
+// skillSource loads the current on-disk body of an active skill. The miner uses
+// it for the read-before-write guard on the feedback-refinement path: a revision
+// is generated against the skill's REAL current content, never against a body
+// merely inferred from the transcript. Load returns an fs.ErrNotExist-wrapped
+// error when the named skill is absent.
+type skillSource interface {
+	Load(ctx context.Context, name string) (*skillspec.Skill, error)
+}
+
 // SkillMiner distills a complex turn's trajectory into a proposed skill draft.
 // It runs at the turn boundary — after a clean finish, before compaction — and
 // takes the Hermes learning-loop's "mine automatically" idea but grounds it in
@@ -65,6 +74,7 @@ type draftStore interface {
 type SkillMiner struct {
 	history messageReader
 	store   draftStore
+	source  skillSource
 	client  ClientFunc
 	config  MinerConfig
 	minMsgs int
@@ -77,11 +87,13 @@ type SkillMiner struct {
 }
 
 // NewSkillMiner builds the turn-boundary skill miner over the conversation
-// history reader, the authoring store, and the utility-model client resolver.
-func NewSkillMiner(history messageReader, store draftStore, client ClientFunc, config MinerConfig) *SkillMiner {
+// history reader, the authoring store, the active-skill source (for the
+// read-before-write refinement guard), and the utility-model client resolver.
+func NewSkillMiner(history messageReader, store draftStore, source skillSource, client ClientFunc, config MinerConfig) *SkillMiner {
 	return &SkillMiner{
 		history:      history,
 		store:        store,
+		source:       source,
 		client:       client,
 		config:       config.normalized(),
 		minMsgs:      minerMinMessages,
@@ -111,24 +123,74 @@ func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolC
 	if len(messages) < m.minMsgs {
 		return nil
 	}
-	document, err := m.askForSkill(ctx, messages)
+	verdict, err := m.askForSkill(ctx, messages)
 	if err != nil {
 		return fmt.Errorf("skill mining: distill skill: %w", err)
 	}
-	if document == "" {
+	if verdict == "" {
 		return nil
 	}
-	front, body, err := skillspec.Parse([]byte(document))
+	if name, ok := reviseTarget(verdict); ok {
+		return m.mineRevision(ctx, name, messages, sessionID)
+	}
+	return m.mineNew(ctx, verdict, sessionID)
+}
+
+// mineNew stages a freshly distilled skill as a new (non-revising) draft.
+func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID string) error {
+	front, body, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
 	}
-	draft := skills.Draft{
+	return m.saveDraft(ctx, skills.Draft{
 		Name:          front.Name,
 		Description:   front.Description,
 		Body:          body,
 		CreatedBy:     skills.CreatedByAgent,
 		SourceSession: sessionID,
+	})
+}
+
+// mineRevision refines an existing skill from the conversation's corrections.
+// The read-before-write guard: it loads the skill's REAL current body and feeds
+// it to the model, so the revision edits the actual file rather than a body
+// inferred from the transcript. A skill that can't be loaded (absent/invalid) is
+// skipped. The draft keeps the target name and is marked as a revision so
+// promotion replaces the active skill.
+func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID string) error {
+	if m.source == nil {
+		return nil
 	}
+	current, err := m.source.Load(ctx, name)
+	if err != nil || current == nil {
+		return nil
+	}
+	document, err := m.askForRevision(ctx, current, messages)
+	if err != nil {
+		return fmt.Errorf("skill mining: revise skill %q: %w", name, err)
+	}
+	if document == "" {
+		return nil
+	}
+	front, body, err := skillspec.Parse([]byte(unfence(document)))
+	if err != nil {
+		return nil
+	}
+	return m.saveDraft(ctx, skills.Draft{
+		Name:          name, // a revision is OF this skill; never let the model rename it
+		Description:   front.Description,
+		Body:          body,
+		CreatedBy:     skills.CreatedByAgent,
+		SourceSession: sessionID,
+		Revises:       true,
+	})
+}
+
+// saveDraft validates + scans a distilled draft and stages it. An unusable or
+// obviously-dangerous draft is dropped silently; only a real store failure is an
+// error. Validation/scan mirror the propose_skill gate so an auto-mined draft
+// meets the same bar as a human-proposed one.
+func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft) error {
 	if err := draft.Validate(); err != nil {
 		return nil
 	}
@@ -139,6 +201,18 @@ func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolC
 		return fmt.Errorf("skill mining: save draft %q: %w", draft.Name, err)
 	}
 	return nil
+}
+
+// reviseTarget reads a "REVISE: <name>" phase-one directive, reporting the named
+// skill the model wants to refine. Any other text is a new-skill document.
+func reviseTarget(text string) (string, bool) {
+	first, _, _ := strings.Cut(text, "\n")
+	rest, ok := strings.CutPrefix(strings.TrimSpace(first), "REVISE:")
+	if !ok {
+		return "", false
+	}
+	name := strings.TrimSpace(rest)
+	return name, name != ""
 }
 
 // due advances the session's complex-turn counter and reports whether a mining
@@ -170,17 +244,21 @@ Do NOT propose a skill for any of these:
 - a one-off task narrative with no reusable procedure
 - anything already obvious from reading the project's source or its standard docs
 
-If nothing in the conversation deserves a saved skill, respond with exactly NO_SKILL.
+If instead the conversation shows that a skill the agent LOADED this session was wrong, outdated, or corrected by the user, respond with a single line and nothing else:
+REVISE: <the exact name of that loaded skill>
 
-Otherwise output a complete SKILL.md and nothing else — no preamble, no code fence:
+If nothing in the conversation deserves a saved or revised skill, respond with exactly NO_SKILL.
+
+Otherwise output a complete SKILL.md for a NEW skill and nothing else — no preamble, no code fence:
 ---
 name: <lowercase-hyphenated-identifier>
 description: <what the skill does and WHEN to use it, one or two sentences>
 ---
 <the skill body: concise, imperative instructions the agent will follow next time>`
 
-// askForSkill queries the utility model directly, outside conversation
-// middleware, and returns its rendered SKILL.md — or "" when it declines.
+// askForSkill runs the phase-one distillation directly on the utility model,
+// outside conversation middleware. It returns "" for NO_SKILL, a "REVISE: <name>"
+// directive, or a new-skill SKILL.md; the caller interprets which.
 func (m *SkillMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
 	transcript := renderTranscript(messages, uncappedToolResults)
 	text, err := askDirect(ctx, m.resolveClient(ctx), skillMinerPrompt, transcript)
@@ -191,7 +269,46 @@ func (m *SkillMiner) askForSkill(ctx context.Context, messages []chat.Message) (
 	if strings.EqualFold(trimmed, "NO_SKILL") {
 		return "", nil
 	}
-	return unfence(trimmed), nil
+	return trimmed, nil
+}
+
+// skillRevisePrompt drives the read-before-write refinement: the model is given
+// the skill's REAL current SKILL.md plus the conversation and returns the
+// complete corrected document, changing only what the conversation justifies.
+const skillRevisePrompt = `You are revising an existing skill because the conversation shows it was wrong, outdated, or corrected by the user.
+
+You are given the skill's CURRENT SKILL.md and the CONVERSATION. Produce the COMPLETE corrected SKILL.md: keep the same name, preserve everything still correct, and change only what the conversation shows is wrong. Do not invent changes the conversation does not justify.
+
+If the current skill needs no change, respond with exactly NO_SKILL.
+
+Otherwise output only the corrected SKILL.md — no preamble, no code fence:
+---
+name: <the same lowercase-hyphenated name>
+description: <what it does and WHEN to use it>
+---
+<the corrected body>`
+
+// askForRevision runs phase two against the loaded skill's real content.
+func (m *SkillMiner) askForRevision(ctx context.Context, current *skillspec.Skill, messages []chat.Message) (string, error) {
+	var input strings.Builder
+	input.WriteString("CURRENT SKILL.md\n---\n")
+	input.WriteString("name: ")
+	input.WriteString(current.Name)
+	input.WriteString("\ndescription: ")
+	input.WriteString(current.Description)
+	input.WriteString("\n\n")
+	input.WriteString(current.Body)
+	input.WriteString("\n\nCONVERSATION\n---\n")
+	input.WriteString(renderTranscript(messages, uncappedToolResults))
+	text, err := askDirect(ctx, m.resolveClient(ctx), skillRevisePrompt, input.String())
+	if err != nil {
+		return "", err
+	}
+	trimmed := strings.TrimSpace(text)
+	if strings.EqualFold(trimmed, "NO_SKILL") {
+		return "", nil
+	}
+	return trimmed, nil
 }
 
 func (m *SkillMiner) resolveClient(ctx context.Context) *chatclient.Client {
