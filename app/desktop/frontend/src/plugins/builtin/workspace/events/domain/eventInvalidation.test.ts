@@ -10,6 +10,7 @@ describe("workspaceInvalidations", () => {
     expect(workspaceInvalidations({ type: "skills.changed", sequence: 2 })).toEqual([
       "skills",
       "managedSkills",
+      "skillDrafts",
     ]);
     expect(workspaceInvalidations({ type: "mcp.serverChanged", sequence: 3 })).toEqual([
       "mcpServers",

@@ -118,6 +118,7 @@ var wireSamples = []struct {
 	{"recipe.json", func() any { return new(Recipe) }},
 	{"skill.json", func() any { return new(Skill) }},
 	{"managedSkill.json", func() any { return new(ManagedSkill) }},
+	{"skillDraft.json", func() any { return new(SkillDraft) }},
 	{"agentDoc.json", func() any { return new(AgentDoc) }},
 	{"mcpServer.json", func() any { return new(McpServer) }},
 	{"mcpServerConfig.json", func() any { return new(McpServerConfig) }},

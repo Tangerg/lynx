@@ -39,6 +39,17 @@ export interface ManagedSkillInfo {
   lifecycle: "active" | "archived";
 }
 
+// One agent-mined skill proposal awaiting offline review (skills.drafts.list).
+// name+revision is the content-addressed handle a promote/reject decision
+// carries; createdBy/sourceSession is the provenance shown to the reviewer.
+export interface SkillDraftInfo {
+  name: string;
+  revision: string;
+  description: string;
+  createdBy: string;
+  sourceSession: string;
+}
+
 export interface WorkspaceAgentDoc {
   path: string;
   title: string;
@@ -149,6 +160,7 @@ export const WORKSPACE_FILES_CHANGED_KEY = "files-changed";
 export const WORKSPACE_DIFF_KEY = "diff";
 export const WORKSPACE_SKILLS_KEY = "skills";
 export const WORKSPACE_MANAGED_SKILLS_KEY = "managed-skills";
+export const WORKSPACE_SKILL_DRAFTS_KEY = "skill-drafts";
 export const WORKSPACE_MEMORY_KEY = "memory";
 export const WORKSPACE_BUILTIN_TOOLS_KEY = "builtin-tools";
 export const WORKSPACE_GREP_KEY = "grep";
@@ -179,6 +191,7 @@ export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolInfo[]>(
 );
 export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
 export const useManagedSkills = createDataQuery<ManagedSkillInfo[]>(WORKSPACE_MANAGED_SKILLS_KEY);
+export const useSkillDrafts = createDataQuery<SkillDraftInfo[]>(WORKSPACE_SKILL_DRAFTS_KEY);
 export const useWorkspaceMemory = createParameterizedDataQuery<
   WorkspaceMemoryQuery,
   WorkspaceMemoryEntry[]

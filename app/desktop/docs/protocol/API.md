@@ -1243,6 +1243,9 @@ interface SessionArtifact {
 | `workspace.grep`               | `WorkspaceQuery & { query: string; path?: string; limit?: number }`                     | `GrepResult`                                                       | `{ matches, total }`（total 反映截断）                                                                                                          |
 | `workspace.listProjects`       | `{ cursor?; limit? }`                                                                   | `Page<Project>`                                                    | distinct-cwd 派生视图                                                                                                                           |
 | `skills.discovered.list`       | `WorkspaceQuery & { cursor?; limit? }`                                                  | `Page<Skill>`                                                      | 项目 + 全局的有效 skill 视图                                                                                                                    |
+| `skills.library.list`          | `{ cursor?; limit? }`                                                                   | `Page<ManagedSkill>`                                              | 全局自撰 skill 库（active + archived，各带 lifecycle）；无 authoring store 时空                                                                 |
+| `skills.library.archive`       | `{ name: string }`                                                                      | 无                                                                | 归档（移出 active，不删）；发 `skills.changed`                                                                                                  |
+| `skills.library.restore`       | `{ name: string }`                                                                      | 无                                                                | 恢复归档的 skill 到 active；发 `skills.changed`                                                                                                 |
 | `recipes.list`                 | `WorkspaceQuery`                                                                        | `Page<Recipe>`                                                     | 该 cwd 发现的提示 recipe（全局 + 项目，项目同名胜）；客户端展开 body 后作为一个 turn 发送；见下                                                 |
 | `agentDocs.list`               | `WorkspaceQuery & { cursor?; limit? }`                                                  | `Page<AgentDoc>`                                                   | 从 cwd 向上发现的 AGENTS.md                                                                                                                     |
 | `mcp.servers.list`             | `{ cursor?; limit? }`                                                                   | `Page<McpServer>`                                                  | MCP 全局，不收 cwd；含 boot 失败的 server（status:"failed" + error）                                                                            |
@@ -1442,7 +1445,12 @@ interface HooksListResult {
 | `memory.list`     | `WorkspaceQuery & { cursor?; limit? }`                                    | `Page<MemoryEntry>` | `memory` |
 | `memory.get`      | `{ scope: "cwd"\|"projectRoot"\|"home"; cwd?: string }`                   | `MemoryEntry`       | `memory` |
 | `memory.update`   | `{ scope; cwd?; content: string }`                                        | 无                  | `memory` |
+| `skills.drafts.list`    | `{ cursor?; limit? }` | `Page<SkillDraft>` | `skills`（authoring） |
+| `skills.drafts.promote` | `SkillDraftRef`       | 无                 | `skills`（authoring） |
+| `skills.drafts.reject`  | `SkillDraftRef`       | 无                 | `skills`（authoring） |
 | `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无                  | ——       |
+
+> **`skills.drafts.*` = 自撰 skill 的离线 HITL 审阅队列**：agent 在 turn 边界从会话里蒸馏出 skill 提案，落 `_drafts/`（模型不可见），人经此队列 `promote`（发布进 active 库）/ `reject`（丢弃）。`SkillDraft`（`{ name, revision, description?, createdBy?, sourceSession? }`）的 `name+revision` 是内容寻址 handle；`promote`/`reject` 带 `SkillDraftRef`（`{ name, revision }`），`revision` 把决定绑到审阅时的确切字节（撞名冲突返 `invalid_params`）。仅在 authoring store 装配时可用，否则 `capability_not_negotiated`。
 
 > **图片输入不走上传域**：图片随 `runs.start.input` 的 image ContentBlock 内联（mime + base64 data）传入——对照八家 agent（opencode / Claude Code / codex …）一致做法，无独立 attachment 上传/引用子系统。`unsupported_mime` 仍用于校验 image block 的 mime（非图片类型或不可解析）。
 
@@ -1651,7 +1659,7 @@ interface ClientCapabilities {
 | `fileWatch`     | `workspace.subscribe.watches` 监视 `.git` 状态信号；agent 文件工具另发精确路径事件 |
 | `lsp`           | 模型可用 `lsp_*` 代码导航工具                                                      |
 | `subagents`     | 子 Run / run 树                                                                    |
-| `skills`        | `skills.discovered.list` / `skills.library.*`                                      |
+| `skills`        | `skills.discovered.list` / `skills.library.*` / `skills.drafts.*`（drafts 另需 authoring store） |
 | `sessionExport` | `sessions.export`                                                                  |
 | `memory`        | `memory.*`                                                                         |
 | `relocate`      | `sessions.update` 改 cwd                                                           |

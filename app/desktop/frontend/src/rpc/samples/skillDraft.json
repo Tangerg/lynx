@@ -1,0 +1,7 @@
+{
+  "name": "git-bisect-helper",
+  "revision": "3f9a2c1b8e5d",
+  "description": "Walk a git bisect to find the commit that introduced a regression.",
+  "createdBy": "agent",
+  "sourceSession": "sess_01HZY7K9Q3"
+}

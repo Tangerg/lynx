@@ -12,6 +12,7 @@ export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
   { viewId: "codebase", scope: "workspace", order: 50 },
   { viewId: "tools", scope: "workspace", order: 60 },
   { viewId: "skills", scope: "workspace", order: 70 },
+  { viewId: "skill-drafts", scope: "workspace", order: 75 },
   { viewId: "recipes", scope: "workspace", order: 80 },
   { viewId: "memory", scope: "workspace", order: 90 },
   { viewId: "agent-docs", scope: "workspace", order: 100 },
