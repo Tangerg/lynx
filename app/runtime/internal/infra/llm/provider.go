@@ -92,6 +92,24 @@ func (p Provider) RequiresBaseURL() bool {
 	return providerInfo[p].requiresBaseURL
 }
 
+// DefaultBaseURL returns a provider's built-in endpoint used for live model
+// discovery when the caller configured none — non-empty only for the local
+// Ollama daemon (hosted vendors encode their endpoint inside the adapter, and
+// the generic passthroughs have no default at all).
+func (p Provider) DefaultBaseURL() string {
+	return providerInfo[p].defaultBaseURL
+}
+
+// ProbeModels reports whether p's available models are defined by its live
+// endpoint rather than the static catalog — true exactly for the providers
+// whose model id is user-supplied (no catalog default): Ollama, Azure, and the
+// generic OpenAI-/Anthropic-compatible passthroughs. models.list probes their
+// /v1/models instead of serving the embedded catalog for these.
+func (p Provider) ProbeModels() bool {
+	entry, ok := providerInfo[p]
+	return ok && entry.defaultModel == ""
+}
+
 // EnvKeys reads the environment once and returns the API keys present for the
 // providers a key alone makes usable — keyed by provider id, value the key. It
 // backs the provider registry's stored>env credential fallback (a developer

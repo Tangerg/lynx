@@ -36,6 +36,7 @@ func providerMetadata(p llm.Provider) provider.Metadata {
 		RequiresBaseURL:       p.RequiresBaseURL(),
 		EmbeddingCapable:      p.EmbeddingCapable(),
 		DefaultEmbeddingModel: p.DefaultEmbeddingModel(),
+		ProbeModels:           p.ProbeModels(),
 	}
 }
 
@@ -62,4 +63,24 @@ func (providerProber) Probe(ctx context.Context, entry provider.Provider) error 
 		Options:  chat.Options{MaxTokens: &maxTokens},
 	})
 	return err
+}
+
+// providerModelLister discovers a provider's live model list by probing its
+// OpenAI-compatible /v1/models endpoint. It resolves the endpoint from the
+// configured base URL, falling back to the provider's built-in default (the
+// local Ollama daemon); a provider with neither has no endpoint to probe.
+// Lives here because the composition root owns endpoint resolution against the
+// infra provider table.
+type providerModelLister struct{}
+
+func (providerModelLister) ListModels(ctx context.Context, entry provider.Provider) ([]string, error) {
+	p := llm.Provider(entry.ID)
+	baseURL := entry.BaseURL
+	if baseURL == "" {
+		baseURL = p.DefaultBaseURL()
+	}
+	if baseURL == "" {
+		return nil, nil
+	}
+	return llm.ListRemoteModels(ctx, baseURL, entry.APIKey)
 }

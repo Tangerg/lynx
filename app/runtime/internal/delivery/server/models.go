@@ -10,10 +10,28 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// ListModels enumerates the models a provider offers, from the embedded
-// catalog with full metadata (context window, capabilities, pricing). Served
-// straight from the static catalog — no key required (API.md §7.6).
-func (s *Server) ListModels(_ context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+// ListModels enumerates the models a provider offers (API.md §7.6). For most
+// providers this is the embedded catalog with full metadata (context window,
+// capabilities, pricing), served straight — no key required. For providers whose
+// model set is user-defined rather than cataloged (a local Ollama daemon, a
+// bring-your-own-endpoint compat passthrough), it live-probes the provider's
+// /v1/models and enriches each id from the catalog when known, falling back to
+// the static catalog if the probe fails or returns nothing.
+func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
+	if meta, ok := s.models.ProviderMetadata(in.Provider); ok && meta.ProbeModels {
+		if ids, err := s.models.ListRemoteModels(ctx, in.Provider); err == nil && len(ids) > 0 {
+			out := make([]protocol.Model, 0, len(ids))
+			for _, id := range ids {
+				if m, found := catalog.Lookup(in.Provider, id); found {
+					out = append(out, modelToWire(in.Provider, m))
+				} else {
+					out = append(out, protocol.Model{ID: id, Provider: in.Provider})
+				}
+			}
+			return protocol.NewPage(out), nil
+		}
+		// Probe unwired, failed, or empty — fall back to the static catalog.
+	}
 	models := catalog.Models(in.Provider)
 	out := make([]protocol.Model, 0, len(models))
 	for _, m := range models {

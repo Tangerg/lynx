@@ -32,6 +32,15 @@ type ProviderProber interface {
 	Probe(ctx context.Context, entry provider.Provider) error
 }
 
+// ProviderModelLister discovers a provider's available models by probing its
+// live endpoint — used for local / bring-your-own-endpoint providers whose model
+// set is not in the static catalog (models.list of an Ollama daemon or a compat
+// passthrough). The composition root supplies it (it owns endpoint resolution +
+// the outbound probe). A nil lister disables live discovery (static catalog only).
+type ProviderModelLister interface {
+	ListModels(ctx context.Context, entry provider.Provider) ([]string, error)
+}
+
 // ChatModelValidator verifies that a chat client can be built for
 // (provider, model) without exposing the concrete client to Application.
 type ChatModelValidator interface {
@@ -62,6 +71,7 @@ type Coordinator struct {
 	providers provider.Registry
 	catalog   ProviderCatalog
 	prober    ProviderProber
+	lister    ProviderModelLister
 
 	// utility / embedding model roles: the live cell (shared with the maintenance
 	// titler / codebase index that read it), the resolver that validates a new
@@ -85,6 +95,7 @@ type Config struct {
 	Providers provider.Registry
 	Catalog   ProviderCatalog
 	Prober    ProviderProber
+	Lister    ProviderModelLister
 
 	UtilityCell      *atomic.Pointer[modelrole.Role]
 	UtilityValidator ChatModelValidator
@@ -104,6 +115,7 @@ func New(cfg Config) *Coordinator {
 		providers:         cfg.Providers,
 		catalog:           cfg.Catalog,
 		prober:            cfg.Prober,
+		lister:            cfg.Lister,
 		utilityCell:       cfg.UtilityCell,
 		utilityValidator:  cfg.UtilityValidator,
 		utilityStore:      cfg.UtilityStore,
