@@ -148,7 +148,7 @@ func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID string) er
 		Body:          body,
 		CreatedBy:     skills.CreatedByAgent,
 		SourceSession: sessionID,
-	})
+	}, "new")
 }
 
 // mineRevision refines an existing skill from the conversation's corrections.
@@ -183,14 +183,14 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 		CreatedBy:     skills.CreatedByAgent,
 		SourceSession: sessionID,
 		Revises:       true,
-	})
+	}, "revise")
 }
 
 // saveDraft validates + scans a distilled draft and stages it. An unusable or
 // obviously-dangerous draft is dropped silently; only a real store failure is an
 // error. Validation/scan mirror the propose_skill gate so an auto-mined draft
 // meets the same bar as a human-proposed one.
-func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft) error {
+func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft, kind string) error {
 	if err := draft.Validate(); err != nil {
 		return nil
 	}
@@ -200,6 +200,7 @@ func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft) error {
 	if _, err := m.store.SaveDraft(ctx, draft); err != nil {
 		return fmt.Errorf("skill mining: save draft %q: %w", draft.Name, err)
 	}
+	recordMinedSkill(ctx, kind)
 	return nil
 }
 

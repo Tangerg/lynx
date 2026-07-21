@@ -84,6 +84,7 @@ func (c *SkillCurator) MaybeSweep(ctx context.Context) error {
 	}
 	c.lastSweep = now
 	c.mu.Unlock()
-	_, err := c.sweeper.SweepIdle(ctx, now, c.config.StaleAfter, c.config.ArchiveAfter)
+	archived, err := c.sweeper.SweepIdle(ctx, now, c.config.StaleAfter, c.config.ArchiveAfter)
+	recordArchivedSkills(ctx, len(archived))
 	return err
 }
