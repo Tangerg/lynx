@@ -12,13 +12,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
-import {
-  resumeGoal,
-  startGoal,
-  stopGoal,
-  useGoal,
-  useGoalLiveRefetch,
-} from "../application/goalConfig";
+import { resumeGoal, startGoal, stopGoal, useGoal } from "../application/goalConfig";
 import type { GoalInfo } from "../application/goalData";
 
 function useAction(): { busy: boolean; run: (op: () => Promise<void>) => void } {
@@ -48,7 +42,6 @@ export function GoalBanner() {
   const sessionId = useActiveSessionId();
   const { data } = useGoal(Boolean(sessionId), sessionId ?? undefined);
   const goal = data?.goal ?? null;
-  useGoalLiveRefetch(goal?.status === "active");
 
   if (!sessionId || !data?.available) return null;
   return (
@@ -168,11 +161,22 @@ function StartGoal({ sessionId }: { sessionId: string }) {
 
   const start = () => {
     if (!canStart) return;
-    const num = (v: string) => {
+    const positive = (v: string) => {
       const n = Number.parseFloat(v);
       return Number.isFinite(n) && n > 0 ? n : undefined;
     };
-    const budget = { maxTurns: num(maxTurns), maxCostUsd: num(maxCost), maxSteps: num(maxSteps) };
+    // maxTurns/maxSteps are integer axes on the wire (Go int) — a fractional
+    // value would make the whole goals.start request fail to decode. maxCostUsd
+    // is a float.
+    const positiveInt = (v: string) => {
+      const n = positive(v);
+      return n === undefined ? undefined : Math.floor(n);
+    };
+    const budget = {
+      maxTurns: positiveInt(maxTurns),
+      maxCostUsd: positive(maxCost),
+      maxSteps: positiveInt(maxSteps),
+    };
     const hasBudget = budget.maxTurns || budget.maxCostUsd || budget.maxSteps;
     run(async () => {
       await startGoal({
@@ -209,9 +213,9 @@ function StartGoal({ sessionId }: { sessionId: string }) {
         className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-[1.5] text-fg-soft")}
       />
       <div className="grid grid-cols-3 gap-2">
-        <BudgetField label={t("goal.maxTurns")} value={maxTurns} onChange={setMaxTurns} />
+        <BudgetField label={t("goal.maxTurns")} value={maxTurns} onChange={setMaxTurns} step="1" />
         <BudgetField label={t("goal.maxCost")} value={maxCost} onChange={setMaxCost} step="0.5" />
-        <BudgetField label={t("goal.maxSteps")} value={maxSteps} onChange={setMaxSteps} />
+        <BudgetField label={t("goal.maxSteps")} value={maxSteps} onChange={setMaxSteps} step="1" />
       </div>
       <div className="flex items-center gap-2">
         <PillButton size="sm" variant="accent" disabled={!canStart || busy} onClick={start}>

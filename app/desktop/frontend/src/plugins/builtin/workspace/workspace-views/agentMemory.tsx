@@ -288,17 +288,24 @@ function AgentMemoryTab() {
       scrollClassName="py-1"
     >
       <ScopeToggle scope={scope} onChange={setScope} />
-      <AddMemory scope={scope} cwd={cwd} />
+      {/* The project scope can't resolve (or add) without a session cwd — hide the
+          add affordance so it can't post an unresolvable write, and show a distinct
+          "select a session" empty state rather than a misleading "no memory yet". */}
+      {enabled && <AddMemory scope={scope} cwd={cwd} />}
       <DataView
         items={items}
         isLoading={enabled && isLoading}
         isError={isError}
         skeletonCount={3}
-        empty={{
-          icon: "book",
-          title: t("agentMemory.empty.title"),
-          sub: t("agentMemory.empty.sub"),
-        }}
+        empty={
+          enabled
+            ? { icon: "book", title: t("agentMemory.empty.title"), sub: t("agentMemory.empty.sub") }
+            : {
+                icon: "book",
+                title: t("agentMemory.noProject.title"),
+                sub: t("agentMemory.noProject.sub"),
+              }
+        }
       >
         {() => (
           <div className="flex flex-col gap-4">
