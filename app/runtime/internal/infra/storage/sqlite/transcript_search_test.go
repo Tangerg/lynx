@@ -1,10 +1,12 @@
 package sqlite_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 func msgItem(sessionID, id string, kind transcript.ItemKind, text string) transcript.Item {
@@ -72,6 +74,43 @@ func TestTranscriptSearchIndexesConversationAndExcludesNoise(t *testing.T) {
 	must(err)
 	if len(empty) != 0 {
 		t.Fatalf("empty query returned %d hits", len(empty))
+	}
+}
+
+// TestOpenDiscardsSchemaContainingFTS5Table exercises the discard path a future
+// schema bump will hit: an existing DB holds the transcript_search virtual table
+// (and its shadow tables), and a version mismatch must drop it cleanly and
+// rebuild. Regression guard for the FTS5-aware discardSchema.
+func TestOpenDiscardsSchemaContainingFTS5Table(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	tr := sqlite.NewTranscriptStore(db)
+	if err := tr.AppendItem(t.Context(), msgItem("s1", "u1", transcript.UserMessage, "sapphire indexed row")); err != nil {
+		t.Fatalf("seed indexed row: %v", err)
+	}
+	// Force a version mismatch so the next Open discards the FTS5-bearing schema.
+	if _, err := db.Exec(`PRAGMA user_version = 1`); err != nil {
+		t.Fatalf("bump version: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	db2, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("reopen with stale FTS5 schema: %v", err)
+	}
+	t.Cleanup(func() { _ = db2.Close() })
+	// The rebuilt search table exists and is empty (old data discarded).
+	hits, err := sqlite.NewTranscriptStore(db2).SearchTranscript(t.Context(), "sapphire", 10)
+	if err != nil {
+		t.Fatalf("search after rebuild: %v", err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("rebuilt index has %d stale hits, want 0", len(hits))
 	}
 }
 
