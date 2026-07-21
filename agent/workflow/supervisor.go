@@ -7,8 +7,15 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/tools"
 )
+
+// GoalToolProvider supplies the exact sub-agent tools a Supervisor exposes.
+// Keeping this port local avoids coupling orchestration configuration to the
+// complete runtime Engine.
+type GoalToolProvider interface {
+	GoalToolsFor(names ...string) ([]tools.Tool, error)
+}
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
 // that delegates to other deployed agents.
@@ -50,12 +57,12 @@ type SupervisorConfig[In, Out any] struct {
 // into Out. Sub-agents run as child processes, so their cost rolls up into
 // the supervisor's budget.
 //
-// Requires a chat client on the engine (the action errors at runtime
-// otherwise). Returns an error on invalid config or an un-callable
-// sub-agent (not deployed / no exported goal).
-func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In, Out]) (*core.Agent, error) {
-	if engine == nil {
-		return nil, errors.New("workflow.Supervisor: engine must not be nil")
+// At execution, the compiled agent requires a chat capability on its runtime.
+// Returns an error on invalid config or an un-callable sub-agent (not deployed
+// or no exported goal).
+func Supervisor[In, Out any](provider GoalToolProvider, config SupervisorConfig[In, Out]) (*core.Agent, error) {
+	if provider == nil {
+		return nil, errors.New("workflow.Supervisor: goal tool provider must not be nil")
 	}
 	if config.Name == "" {
 		return nil, errors.New("workflow.Supervisor: Name must not be empty")
@@ -67,7 +74,7 @@ func Supervisor[In, Out any](engine *runtime.Engine, config SupervisorConfig[In,
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
 
-	tools, err := engine.GoalToolsFor(config.Agents...)
+	tools, err := provider.GoalToolsFor(config.Agents...)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: %w", err)
 	}

@@ -71,6 +71,15 @@ type Ranker interface {
 	Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error)
 }
 
+// Runtime is the execution surface Router consumes. Implementations enumerate
+// active immutable deployments, resolve the exact ranked identity, and run that
+// identity without reselecting by agent name.
+type Runtime interface {
+	ActiveDeployments() []*runtime.Deployment
+	Deployment(core.DeploymentRef) (*runtime.Deployment, bool)
+	RunDeployment(context.Context, *runtime.Deployment, core.Bindings, core.ProcessOptions) (*runtime.Process, error)
+}
+
 // ErrNoMatch is returned by [Router.Choose] / [Router.Run]
 // when the highest-scored candidate falls below
 // [Config.MinConfidence]. Callers typically translate
@@ -99,17 +108,17 @@ type Config struct {
 
 // Router is the orchestrator. Construct with [New].
 type Router struct {
-	engine *runtime.Engine
-	ranker Ranker
-	config Config
+	runtime Runtime
+	ranker  Ranker
+	config  Config
 }
 
-// New returns an orchestrator backed by ranker. Both engine and
+// New returns an orchestrator backed by ranker. Both runtime and
 // ranker are required; nil returns an error — caller decides whether
 // to surface or panic.
-func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) {
-	if engine == nil {
-		return nil, errors.New("routing: engine is nil")
+func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
+	if agentRuntime == nil {
+		return nil, errors.New("routing: runtime is nil")
 	}
 	if ranker == nil {
 		return nil, errors.New("routing: ranker is nil")
@@ -117,7 +126,7 @@ func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) 
 	if math.IsNaN(config.MinConfidence) || config.MinConfidence < minimumConfidence || config.MinConfidence > maximumConfidence {
 		return nil, errors.New("routing: minimum confidence must be between 0 and 1")
 	}
-	return &Router{engine: engine, ranker: ranker, config: config}, nil
+	return &Router{runtime: agentRuntime, ranker: ranker, config: config}, nil
 }
 
 // Candidates enumerates the (agent, goal) pool currently visible to
@@ -126,7 +135,7 @@ func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) 
 // debugging or UI.
 func (r *Router) Candidates() []Candidate {
 	var candidates []Candidate
-	for _, deployment := range r.engine.ActiveDeployments() {
+	for _, deployment := range r.runtime.ActiveDeployments() {
 		agent := deployment.Agent()
 		if agent == nil {
 			continue
@@ -216,11 +225,11 @@ func (r *Router) Run(
 	})
 
 	deploymentRef := choice.Deployment()
-	deployment, ok := r.engine.Deployment(deploymentRef)
+	deployment, ok := r.runtime.Deployment(deploymentRef)
 	if !ok {
 		return choice, nil, fmt.Errorf("routing: deployment %s is no longer available", deploymentRef)
 	}
-	process, err := r.engine.Run(ctx, deployment.Agent(), bindings, options)
+	process, err := r.runtime.RunDeployment(ctx, deployment, bindings, options)
 	if process != nil && process.Deployment() != deploymentRef {
 		return choice, process, fmt.Errorf("routing: process bound %s, want %s", process.Deployment(), deploymentRef)
 	}

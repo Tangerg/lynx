@@ -751,7 +751,7 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 			return err
 		}},
 		{"RunDeployment", func() error {
-			_, err := engine.RunDeployment(t.Context(), foreign, nil)
+			_, err := engine.RunDeployment(t.Context(), foreign, core.Bindings{}, core.ProcessOptions{})
 			return err
 		}},
 	}
