@@ -45,6 +45,9 @@ func buildToolEnvironment(
 		// The same store records skill loads for the idle-lifecycle curator; a
 		// disabled store no-ops RecordUse.
 		SkillUsage: skillStore,
+		// Opt-in per-command OS isolation for the shell tools (off by default).
+		SandboxShell:         cfg.SandboxShell,
+		SandboxReadOnlyPaths: cfg.SandboxReadOnlyPaths,
 	}
 	if cfg.ScheduleRegistry != nil {
 		bc.Schedules = scheduleCoord

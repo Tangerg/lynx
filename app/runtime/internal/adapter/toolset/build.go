@@ -74,6 +74,16 @@ type BuildConfig struct {
 	// MCPToolDisabled reports whether an identified MCP tool is hidden. The
 	// runtime updates the underlying policy after every registry change.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
+
+	// SandboxShell opts the shell tools into per-command OS isolation: each
+	// command runs in an in-place jail rooted at its own cwd (workspace-write
+	// only, network denied, $HOME hidden, env scrubbed). Off by default; on a
+	// host with no isolation backend an enabled sandbox fails commands closed.
+	SandboxShell bool
+	// SandboxReadOnlyPaths re-opens declared toolchain roots below the hidden
+	// home for reads (e.g. a language toolchain or dependency cache under $HOME).
+	// Ignored unless SandboxShell is set.
+	SandboxReadOnlyPaths []string
 }
 
 // Built is the assembled tool environment handed to the composition root: the
@@ -121,7 +131,10 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	tracker := editguard.NewTracker()
 
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{
+		Enabled:       config.SandboxShell,
+		ReadOnlyPaths: config.SandboxReadOnlyPaths,
+	})
 	shellTools, err := shell.Build(shells, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)

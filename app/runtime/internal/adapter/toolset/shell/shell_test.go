@@ -39,7 +39,7 @@ func cleanupShells(t *testing.T, shells *exec.Shells) {
 // finishes within the auto-background window and returns its output + exit code
 // inline (not as a background job).
 func TestShell_CompletesInline(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
@@ -63,7 +63,7 @@ func TestShell_CompletesInline(t *testing.T) {
 // TestShell_RunInBackground checks the explicit-background path: the command
 // returns a shell id immediately, and shell_output reads its output.
 func TestShell_RunInBackground(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
@@ -91,7 +91,7 @@ func TestShell_RunInBackground(t *testing.T) {
 // returns its output + a finished status in a single call (the crush wait
 // design — event-driven, no sleep poll loop).
 func TestShellOutput_Wait(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
@@ -113,7 +113,7 @@ func TestShellOutput_Wait(t *testing.T) {
 // TestShellOutput_WaitTimeout returns the current still-running output (not an
 // error) when timeout_seconds elapses before the command exits.
 func TestShellOutput_WaitTimeout(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "shell_output")
@@ -134,7 +134,7 @@ func TestShellOutput_WaitTimeout(t *testing.T) {
 // after auto_background_after seconds is moved to the background and stays
 // addressable by its shell id.
 func TestShell_AutoBackground(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
@@ -149,7 +149,7 @@ func TestShell_AutoBackground(t *testing.T) {
 
 // TestShellOutput_UnknownShell reports an unknown id gracefully (not an error).
 func TestShellOutput_UnknownShell(t *testing.T) {
-	shells := exec.NewShells()
+	shells := exec.NewShells(exec.Sandbox{})
 	cleanupShells(t, shells)
 	output := shellTool(t, shells, "shell_output")
 

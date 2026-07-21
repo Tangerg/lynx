@@ -10,10 +10,11 @@
 // mechanism backs both the synchronous shell result and the shell_output /
 // shell_kill tools — the auto-background design.
 //
-// No PTY: plain pipes into a bounded ring buffer. Cross-platform with
-// no platform-specific features — kill is a plain process kill, so a command
-// that itself forks grandchildren may leave them, acceptable for the local
-// single-user runtime.
+// No PTY: plain pipes into a bounded ring buffer. Kill is a plain process kill,
+// so a command that itself forks grandchildren may leave them, acceptable for
+// the local single-user runtime. The base path is cross-platform; an opt-in
+// [Sandbox] wraps each command in an in-place OS jail (macOS Seatbelt today,
+// fail-closed elsewhere).
 package exec
 
 import (
@@ -27,11 +28,25 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
 )
 
 // maxBuffer caps a background shell's retained output; once exceeded the
 // oldest bytes are dropped (a poll that fell behind is told output was lost).
 const maxBuffer = 256 * 1024
+
+// Sandbox configures optional per-command OS isolation for launched shells.
+// When Enabled, each command runs in an in-place [sandbox] jail rooted at its
+// own cwd (workspace-write-only, network denied, $HOME hidden, env scrubbed);
+// ReadOnlyPaths re-opens declared toolchain roots below the hidden home for
+// reads. The zero value leaves shells unconfined (a plain /bin/sh -c). On a
+// host with no isolation backend an enabled sandbox fails closed at launch —
+// running unconfined despite an opt-in would be worse than refusing.
+type Sandbox struct {
+	Enabled       bool
+	ReadOnlyPaths []string
+}
 
 // Shells owns background shell commands and lets callers poll their output or
 // stop them. The process handles and output buffers live here. The zero value is
@@ -43,6 +58,7 @@ type Shells struct {
 	closed    bool
 	closeOnce sync.Once
 	closeErr  error
+	sandbox   Sandbox
 }
 
 var (
@@ -52,9 +68,22 @@ var (
 	ErrShellNotFound = errors.New("exec: shell not found")
 )
 
-// NewShells creates an empty background-shell set.
-func NewShells() *Shells {
-	return &Shells{shells: map[string]*Shell{}}
+// NewShells creates an empty background-shell set. sandbox opts commands into
+// per-command OS isolation; the zero value runs them unconfined.
+func NewShells(sandbox Sandbox) *Shells {
+	return &Shells{shells: map[string]*Shell{}, sandbox: sandbox}
+}
+
+// command returns the program, args, and environment to spawn for a shell
+// command in cwd. Unconfined it is the plain `/bin/sh -c command` with a nil
+// env (the child inherits the parent's). With the sandbox enabled it is the
+// in-place jail's argv + scrubbed env rooted at cwd, which fails closed on a
+// host with no isolation backend rather than silently running unconfined.
+func (s *Shells) command(cwd, command string) (name string, args, env []string, err error) {
+	if !s.sandbox.Enabled {
+		return "/bin/sh", []string{"-c", command}, nil, nil
+	}
+	return sandbox.ConfineShellCommand(cwd, s.sandbox.ReadOnlyPaths, command)
 }
 
 // Shell is one background process: its handle, the tail of its combined
@@ -104,8 +133,16 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 	} else {
 		runCtx, cancel = context.WithCancel(base)
 	}
-	cmd := exec.CommandContext(runCtx, "/bin/sh", "-c", command)
+	name, args, env, err := s.command(cwd, command)
+	if err != nil {
+		cancel()
+		return "", err
+	}
+	cmd := exec.CommandContext(runCtx, name, args...)
 	cmd.Dir = cwd
+	// env is nil when unconfined (inherit the parent environment); the sandbox
+	// jail supplies a scrubbed environment instead.
+	cmd.Env = env
 	// On kill/timeout, force-close the pipes shortly after so the Wait goroutine
 	// (and thus Done) returns promptly even when a child the shell spawned still
 	// holds them — otherwise Wait blocks until that child exits.

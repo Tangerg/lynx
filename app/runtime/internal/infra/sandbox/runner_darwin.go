@@ -26,11 +26,62 @@ type seatbeltRunner struct {
 }
 
 func platformRunner(readOnlyPaths []string) (commandRunner, error) {
-	if _, err := os.Stat(sandboxExecPath); err != nil {
-		return nil, fmt.Errorf("%w: %s: %v", ErrUnavailable, sandboxExecPath, err)
+	if err := checkSandboxExec(); err != nil {
+		return nil, err
 	}
-	paths := make([]string, 0, len(readOnlyPaths))
-	for _, value := range readOnlyPaths {
+	paths, err := resolveReadOnlyPaths(readOnlyPaths)
+	if err != nil {
+		return nil, err
+	}
+	return seatbeltRunner{readOnlyPaths: paths, hiddenPaths: hiddenHomePaths()}, nil
+}
+
+// ConfineShellCommand rewrites a shell command into the argv and scrubbed
+// environment that run it under a Seatbelt jail confining writes to
+// writableRoot: writableRoot is the only writable subtree, all networking is
+// denied, the real $HOME is hidden (except any readOnlyPaths re-opened for
+// reads), and the process runs with a minimal environment (HOME/TMPDIR pinned
+// to writableRoot). The returned name/args build the exec.Cmd; the caller still
+// owns process lifecycle (start, wait, cancel, streaming) and sets cmd.Dir to
+// writableRoot itself.
+//
+// It is the in-place counterpart to [Workspace], which runs commands inside an
+// isolated copy: a jail leaves the caller's working tree in place. It fails
+// closed with [ErrUnavailable] when the host has no supported backend (only
+// macOS Seatbelt exists today — see runner_other.go).
+func ConfineShellCommand(writableRoot string, readOnlyPaths []string, command string) (name string, args []string, env []string, err error) {
+	if command == "" {
+		return "", nil, nil, errors.New("sandbox: command is required")
+	}
+	if err := checkSandboxExec(); err != nil {
+		return "", nil, nil, err
+	}
+	realRoot, err := filepath.EvalSymlinks(writableRoot)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("sandbox: resolve workspace: %w", err)
+	}
+	readable, err := resolveReadOnlyPaths(readOnlyPaths)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	profile := seatbeltProfile(realRoot, readable, hiddenHomePaths())
+	return sandboxExecPath, []string{"-p", profile, "/bin/sh", "-c", command}, scrubbedEnv(realRoot), nil
+}
+
+func checkSandboxExec() error {
+	if _, err := os.Stat(sandboxExecPath); err != nil {
+		return fmt.Errorf("%w: %s: %v", ErrUnavailable, sandboxExecPath, err)
+	}
+	return nil
+}
+
+// resolveReadOnlyPaths canonicalizes the caller-declared read-only roots
+// (absolute + symlink-resolved) that the jail re-opens for reads below the
+// hidden home. A non-resolvable entry is an error — an unreachable path in a
+// security policy is a configuration mistake, not something to silently drop.
+func resolveReadOnlyPaths(in []string) ([]string, error) {
+	paths := make([]string, 0, len(in))
+	for _, value := range in {
 		if value == "" {
 			continue
 		}
@@ -44,13 +95,30 @@ func platformRunner(readOnlyPaths []string) (commandRunner, error) {
 		}
 		paths = append(paths, realPath)
 	}
-	var hiddenPaths []string
+	return paths, nil
+}
+
+// hiddenHomePaths returns the resolved real home directory to hide from reads,
+// or nil when it can't be resolved (non-fatal: the env is scrubbed regardless).
+func hiddenHomePaths() []string {
 	if home, err := os.UserHomeDir(); err == nil && home != "" {
 		if realHome, err := filepath.EvalSymlinks(home); err == nil {
-			hiddenPaths = append(hiddenPaths, realHome)
+			return []string{realHome}
 		}
 	}
-	return seatbeltRunner{readOnlyPaths: paths, hiddenPaths: hiddenPaths}, nil
+	return nil
+}
+
+// scrubbedEnv is the minimal environment a jailed command runs with. HOME and
+// TMPDIR are pinned to the writable root so tools that key off them land inside
+// the jail; every other parent variable (credentials, tokens) is dropped.
+func scrubbedEnv(root string) []string {
+	return []string{
+		"HOME=" + root,
+		"TMPDIR=" + root,
+		"PATH=" + cmp.Or(os.Getenv("PATH"), "/usr/bin:/bin"),
+		"LANG=" + cmp.Or(os.Getenv("LANG"), "C.UTF-8"),
+	}
 }
 
 func (r seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Input) (toolshell.Output, error) {
@@ -67,15 +135,10 @@ func (r seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Inp
 		runCtx, cancel = context.WithTimeout(ctx, input.Timeout)
 		defer cancel()
 	}
-	profile := r.profile(realDir)
+	profile := seatbeltProfile(realDir, r.readOnlyPaths, r.hiddenPaths)
 	cmd := exec.CommandContext(runCtx, sandboxExecPath, "-p", profile, "/bin/sh", "-c", input.Cmd)
 	cmd.Dir = realDir
-	cmd.Env = []string{
-		"HOME=" + realDir,
-		"TMPDIR=" + realDir,
-		"PATH=" + cmp.Or(os.Getenv("PATH"), "/usr/bin:/bin"),
-		"LANG=" + cmp.Or(os.Getenv("LANG"), "C.UTF-8"),
-	}
+	cmd.Env = scrubbedEnv(realDir)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process == nil {
@@ -121,28 +184,30 @@ func killProcessGroup(cmd *exec.Cmd) error {
 	return fmt.Errorf("sandbox: stop command descendants: %w", err)
 }
 
-func (r seatbeltRunner) profile(dir string) string {
+// seatbeltProfile builds the SBPL policy confining writes to writableRoot.
+// Later rules win in SBPL, so the ordering is deliberate: permit host reads,
+// deny the user's home, re-open declared toolchain roots, then grant read+write
+// to the workspace last — a workspace nested under home is therefore re-opened
+// read+write by the final rule. Network is denied by omission (deny default +
+// no network rule). Writes remain workspace-only.
+func seatbeltProfile(writableRoot string, readOnlyPaths, hiddenPaths []string) string {
 	var profile strings.Builder
 	profile.WriteString("(version 1)\n(deny default)\n")
 	profile.WriteString("(allow process*)\n(allow signal (target self))\n")
 	profile.WriteString("(allow sysctl-read)\n(allow mach-lookup)\n")
-	// macOS command startup reads a broad and OS-version-dependent set of
-	// system resources. Permit host reads, then carve out the user's home and
-	// selectively re-open only declared toolchain roots plus this workspace.
-	// Writes remain workspace-only, and the process receives a scrubbed env.
 	profile.WriteString("(allow file-read*)\n")
-	for _, value := range r.hiddenPaths {
+	for _, value := range hiddenPaths {
 		profile.WriteString("(deny file-read* (subpath ")
 		profile.WriteString(strconv.Quote(value))
 		profile.WriteString(") )\n")
 	}
-	for _, value := range r.readOnlyPaths {
+	for _, value := range readOnlyPaths {
 		profile.WriteString("(allow file-read* (subpath ")
 		profile.WriteString(strconv.Quote(value))
 		profile.WriteString(") )\n")
 	}
 	profile.WriteString("(allow file-read* file-write* (subpath ")
-	profile.WriteString(strconv.Quote(dir))
+	profile.WriteString(strconv.Quote(writableRoot))
 	profile.WriteString(") )\n")
 	return profile.String()
 }

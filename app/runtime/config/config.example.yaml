@@ -37,6 +37,21 @@ baseURL: ""
 # toolResultOffload:
 #   threshold: 50000
 
+# Opt-in OS sandbox for the shell tool family. When enabled, each shell command
+# runs in an in-place jail rooted at its working directory: only the workspace
+# is writable, all networking is denied, the real $HOME is hidden, and the
+# environment is scrubbed of inherited credentials. Off by default (a plain
+# /bin/sh -c). Only macOS (Seatbelt) has a backend today — on any other host an
+# enabled sandbox fails shell commands closed rather than running them
+# unconfined. readOnlyPaths re-opens toolchain roots under $HOME the build needs
+# (e.g. a language toolchain or dependency cache). Overridable by
+# LYRA_SANDBOX_SHELL.
+# sandbox:
+#   shell: false
+#   readOnlyPaths:
+#     - "~/go"
+#     - "~/.cache"
+
 # Runtime HTTP transport settings. Each is overridable by the matching
 # LYRA_SERVER_* env var.
 server:

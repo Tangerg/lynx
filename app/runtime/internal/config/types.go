@@ -100,6 +100,20 @@ type Config struct {
 	// to disable eviction.
 	ToolResultOffloadThreshold int
 
+	// SandboxShell opts the shell tool family into per-command OS isolation:
+	// each command runs in an in-place jail rooted at its cwd (workspace-write
+	// only, network denied, $HOME hidden, env scrubbed). Off by default (a plain
+	// /bin/sh -c). Sourced from `sandbox.shell` / LYRA_SANDBOX_SHELL. On a host
+	// with no isolation backend (only macOS Seatbelt today) an enabled sandbox
+	// fails shell commands closed rather than running them unconfined.
+	SandboxShell bool
+
+	// SandboxReadOnlyPaths re-opens declared toolchain roots below the hidden
+	// home for reads under the sandbox (e.g. a language toolchain or dependency
+	// cache under $HOME that a build needs). Sourced from `sandbox.readOnlyPaths`.
+	// Ignored unless SandboxShell is set.
+	SandboxReadOnlyPaths []string
+
 	// Server holds the HTTP serve settings.
 	Server ServerConfig
 }
