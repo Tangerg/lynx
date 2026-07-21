@@ -53,6 +53,10 @@ type providerEntry struct {
 	// compat passthroughs + Azure's per-resource URL): a base URL is mandatory,
 	// validated at client build.
 	requiresBaseURL bool
+	// defaultBaseURL is a built-in endpoint used for live model discovery
+	// (models.list) when the caller configured none — set only for the local
+	// Ollama daemon (hosted vendors encode their endpoint inside the adapter).
+	defaultBaseURL string
 }
 
 // providerInfo is the data-driven provider table — the single place that knows
@@ -113,8 +117,9 @@ var providerInfo = map[Provider]providerEntry{
 		return zhipu.NewOpenAIChat(zhipu.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 
-	// Local daemon (base URL defaults to localhost; model id is user-pulled).
-	ProviderOllama: {apiKeyEnv: "OLLAMA_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
+	// Local daemon (base URL defaults to localhost; model id is user-pulled —
+	// models.list probes the daemon's /v1/models for what's actually installed).
+	ProviderOllama: {apiKeyEnv: "OLLAMA_API_KEY", defaultBaseURL: "http://localhost:11434/v1", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return ollama.NewOpenAIChat(ollama.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 

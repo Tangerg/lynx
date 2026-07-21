@@ -53,6 +53,10 @@ type Metadata struct {
 	RequiresBaseURL       bool
 	EmbeddingCapable      bool
 	DefaultEmbeddingModel string
+	// ProbeModels marks a provider whose available models are defined by its live
+	// endpoint, not the static catalog — models.list probes /v1/models for these
+	// (local / bring-your-own-endpoint providers whose model id is user-supplied).
+	ProbeModels bool
 }
 
 // KeySource is where a provider's effective API key came from. It rides on the

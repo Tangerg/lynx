@@ -46,3 +46,24 @@ func (c *Coordinator) ProviderMetadata(id string) (provider.Metadata, bool) {
 func (c *Coordinator) ProbeProvider(ctx context.Context, entry provider.Provider) error {
 	return c.prober.Probe(ctx, entry)
 }
+
+// ListRemoteModels probes a provider's live endpoint for the model ids it
+// advertises — models.list for providers whose model set is user-defined rather
+// than in the static catalog (a local Ollama daemon, a compat passthrough). It
+// uses the configured registry entry's endpoint + key, and the port falls back
+// to the provider's built-in endpoint when none is configured (e.g. Ollama's
+// localhost). A nil lister (unwired) yields an empty list, so the caller falls
+// back to the static catalog.
+func (c *Coordinator) ListRemoteModels(ctx context.Context, providerID string) ([]string, error) {
+	if c.lister == nil {
+		return nil, nil
+	}
+	entry, ok, err := c.providers.Get(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		entry = provider.Provider{ID: providerID}
+	}
+	return c.lister.ListModels(ctx, entry)
+}
