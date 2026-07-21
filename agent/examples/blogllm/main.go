@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -39,7 +38,7 @@ func main() {
 
 	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. "+"Use the `research_search` tool to gather sources first; "+"then summarise. Reply with JSON: "+`{"summary":"...","sources":["..."]}`, in.Title)
-		text, err := pc.Prompt(ctx, prompt, core.PromptConfig{
+		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{
 			System: "You are a research analyst. Cite sources you used.",
 		})
 		if err != nil {
@@ -53,10 +52,10 @@ func main() {
 			parsed.Summary = strings.TrimSpace(text)
 		}
 		return Brief{Topic: in.Title, Sources: parsed.Sources, Summary: parsed.Summary}, nil
-	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolGroups: []agent.ToolGroupRequirement{agent.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
-		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
+		Chat:       agent.Chat(chatClient),
 		Extensions: []agent.Extension{resolver, &eventLogger{}},
 	})
 	if _, err := engine.Deploy(context.Background(), a); err != nil {
@@ -145,7 +144,7 @@ type researchToolResolver struct {
 
 func (researchToolResolver) Name() string { return "research-tools" }
 
-func (r researchToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+func (r researchToolResolver) Resolve(_ context.Context, requirement agent.ToolGroupRequirement) (agent.ToolGroup, bool, error) {
 	if requirement.Role != researchToolRole {
 		return nil, false, nil
 	}
@@ -173,8 +172,8 @@ func newResearchToolGroup() *researchToolGroup {
 	return &researchToolGroup{tools: []tools.Tool{tool}}
 }
 
-func (g *researchToolGroup) Info() core.ToolGroupInfo {
-	return core.ToolGroupInfo{Role: researchToolRole}
+func (g *researchToolGroup) Info() agent.ToolGroupInfo {
+	return agent.ToolGroupInfo{Role: researchToolRole}
 }
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {

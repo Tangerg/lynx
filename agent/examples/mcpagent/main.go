@@ -11,7 +11,6 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
@@ -82,7 +81,7 @@ func main() {
 		}
 		ctx = lynxmcp.WithMeta(ctx, sdkmcp.Meta{"lynx.process_id": pc.Process().ID(), "lynx.action": "brief"})
 		prompt := fmt.Sprintf("Use research_search to gather sources on %q, then reply with JSON: "+`{"sources":["..."]}`, in.Title)
-		text, err := pc.Prompt(ctx, prompt, core.PromptConfig{System: systemPrompt.String()})
+		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{System: systemPrompt.String()})
 		if err != nil {
 			return Brief{}, err
 		}
@@ -91,11 +90,11 @@ func main() {
 		}
 		_ = json.Unmarshal([]byte(text), &parsed)
 		return Brief{Topic: in.Title, Sources: parsed.Sources}, nil
-	}, agent.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolGroups: []agent.ToolGroupRequirement{agent.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	resolver := mcpToolResolver{group: mcpToolGroup{load: toolSource}}
 	engine := agent.MustNewEngine(agent.EngineConfig{
-		Chat:       agent.ChatCapability{Model: chatClient, Streamer: chatClient},
+		Chat:       agent.Chat(chatClient),
 		Extensions: []agent.Extension{resolver},
 	})
 	if _, err := engine.Deploy(context.Background(), a); err != nil {
@@ -129,7 +128,7 @@ type mcpToolResolver struct {
 
 func (mcpToolResolver) Name() string { return "mcp-research" }
 
-func (r mcpToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
+func (r mcpToolResolver) Resolve(_ context.Context, requirement agent.ToolGroupRequirement) (agent.ToolGroup, bool, error) {
 	if requirement.Role != researchToolRole {
 		return nil, false, nil
 	}
@@ -140,8 +139,8 @@ type mcpToolGroup struct {
 	load func(context.Context) ([]tools.Tool, error)
 }
 
-func (mcpToolGroup) Info() core.ToolGroupInfo {
-	return core.ToolGroupInfo{Role: researchToolRole}
+func (mcpToolGroup) Info() agent.ToolGroupInfo {
+	return agent.ToolGroupInfo{Role: researchToolRole}
 }
 
 func (g mcpToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {

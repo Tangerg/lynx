@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 // Standard-path aliases keep Agent definition and lifecycle discoverable from
@@ -35,6 +36,11 @@ type (
 	Extension        = core.Extension
 	Session          = core.Session
 	Bindings         = core.Bindings
+
+	ToolGroupRequirement = core.ToolGroupRequirement
+	ToolGroup            = core.ToolGroup
+	ToolGroupInfo        = core.ToolGroupInfo
+	ToolGroupResolver    = core.ToolGroupResolver
 
 	Suspension            = interaction.Suspension
 	SuspensionKind        = interaction.SuspensionKind
@@ -123,4 +129,35 @@ func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string
 // NewSession returns a session initialized for a multi-turn Agent run.
 func NewSession(id, userID, agentName string) Session {
 	return core.NewSession(id, userID, agentName)
+}
+
+// Chat wires one model into a [ChatCapability], enabling streaming when the
+// model also implements [chat.Streamer] — the usual case for a single client.
+// Build the struct directly only to pair a distinct Model and Streamer.
+func Chat(model chat.Model) ChatCapability {
+	capability := ChatCapability{Model: model}
+	if streamer, ok := model.(chat.Streamer); ok {
+		capability.Streamer = streamer
+	}
+	return capability
+}
+
+// RequireToolGroup declares that an action needs the tool group bound to role,
+// optionally constrained to the given [core.ToolGroupPermission]s. Use it in
+// [ActionConfig].ToolGroups.
+func RequireToolGroup(role string, allowed ...core.ToolGroupPermission) ToolGroupRequirement {
+	return core.RequireToolGroup(role, allowed...)
+}
+
+// RequireType returns the precondition key for "a value of type T is present on
+// the default binding", for use in [ActionConfig].Preconditions or
+// [GoalConfig].Preconditions. It replaces hand-built binding-key strings.
+func RequireType[T any]() string {
+	return core.NewBinding[T]("").String()
+}
+
+// Get returns the most recent value of type T stored under name on the process
+// blackboard. Pass [DefaultBindingName] for the conventional input slot.
+func Get[T any](blackboard core.BlackboardReader, name string) (T, bool) {
+	return core.Get[T](blackboard, name)
 }
