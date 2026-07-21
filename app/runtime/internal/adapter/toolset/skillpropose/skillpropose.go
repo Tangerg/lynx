@@ -40,6 +40,12 @@ load) to be saved to the user's global skill library. Use this when you've worke
 out a repeatable procedure worth keeping for future sessions — not for one-off
 work.
 
+Propose a class-level, reusable procedure ("how to do X in this kind of project"),
+and prefer a general umbrella skill over a narrow one-off. Do NOT propose a skill
+for: environment/dependency failures or their workarounds, negative assertions
+about tools ("tool X doesn't work"), errors already resolved in this session, or
+anything obvious from the project's source or standard docs.
+
 The proposal is NOT applied automatically: it is shown to the user for approval.
 Only if they approve is the skill added; otherwise it is discarded. Provide a
 lowercase-hyphenated name, a one-line description of what the skill does and when
