@@ -198,82 +198,25 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 type jsonProcessStore struct {
 	mu        sync.Mutex
 	snapshots map[string]json.RawMessage
-	revisions map[string]uint64
 }
 
 func newJSONProcessStore() *jsonProcessStore {
-	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}, revisions: map[string]uint64{}}
+	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}}
 }
 
-func (s *jsonProcessStore) Apply(_ context.Context, mutation core.SnapshotMutation) error {
-	if err := mutation.Validate(); err != nil {
-		return err
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, snapshot := range mutation.Writes {
-		actual := s.revisions[snapshot.ID]
-		if actual != snapshot.Revision {
-			return &core.RevisionConflictError{ProcessID: snapshot.ID, Expected: snapshot.Revision, Actual: actual}
-		}
-	}
-	prepared := make(map[string]json.RawMessage, len(mutation.Writes))
-	for _, snapshot := range mutation.Writes {
-		snapshot.Revision++
+func (s *jsonProcessStore) Save(_ context.Context, snapshots []core.ProcessSnapshot) error {
+	prepared := make(map[string]json.RawMessage, len(snapshots))
+	for _, snapshot := range snapshots {
 		raw, err := json.Marshal(snapshot)
 		if err != nil {
 			return err
 		}
 		prepared[snapshot.ID] = raw
 	}
-	stored := make(map[string]core.ProcessSnapshot, len(s.snapshots))
-	children := make(map[string][]string)
-	for id, raw := range s.snapshots {
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal(raw, &snapshot); err != nil {
-			return err
-		}
-		stored[id] = snapshot
-		if snapshot.ParentID != "" {
-			children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
-		}
-	}
-	deleted := make(map[string]struct{})
-	var deleteTree func(string)
-	deleteTree = func(id string) {
-		if _, visited := deleted[id]; visited {
-			return
-		}
-		deleted[id] = struct{}{}
-		for _, childID := range children[id] {
-			deleteTree(childID)
-		}
-	}
-	for _, root := range mutation.DeleteTrees {
-		deleteTree(root)
-	}
-	for _, snapshot := range mutation.Writes {
-		if _, removed := deleted[snapshot.ID]; removed {
-			return core.ErrInvalidSnapshot
-		}
-		for parentID := snapshot.ParentID; parentID != ""; {
-			if _, removed := deleted[parentID]; removed {
-				return core.ErrInvalidSnapshot
-			}
-			parent, ok := stored[parentID]
-			if !ok {
-				break
-			}
-			parentID = parent.ParentID
-		}
-	}
-	for id := range deleted {
-		delete(s.snapshots, id)
-		delete(s.revisions, id)
-	}
-	for _, snapshot := range mutation.Writes {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, snapshot := range snapshots {
 		s.snapshots[snapshot.ID] = prepared[snapshot.ID]
-		s.revisions[snapshot.ID] = snapshot.Revision + 1
 	}
 	return nil
 }
@@ -300,6 +243,30 @@ func (s *jsonProcessStore) List(context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+func (s *jsonProcessStore) Delete(_ context.Context, rootID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	children := make(map[string][]string)
+	for id, raw := range s.snapshots {
+		var snapshot core.ProcessSnapshot
+		if err := json.Unmarshal(raw, &snapshot); err != nil {
+			return fmt.Errorf("json process store: decode %q for delete: %w", id, err)
+		}
+		if snapshot.ParentID != "" {
+			children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+		}
+	}
+	var remove func(string)
+	remove = func(id string) {
+		delete(s.snapshots, id)
+		for _, childID := range children[id] {
+			remove(childID)
+		}
+	}
+	remove(rootID)
+	return nil
 }
 
 type optionToolStub struct {
