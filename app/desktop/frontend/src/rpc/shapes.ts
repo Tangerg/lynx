@@ -680,6 +680,26 @@ export interface ManagedSkill {
   description?: string;
   lifecycle: SkillLifecycle;
 }
+
+// One agent-mined skill proposal awaiting offline review (skills.drafts.list).
+// name+revision form the content-addressed handle a promote/reject call carries;
+// createdBy/sourceSession are the provenance read from the draft's frontmatter
+// (createdBy is "agent" for a mined draft).
+export interface SkillDraft {
+  name: string;
+  revision: string;
+  description?: string;
+  createdBy?: string;
+  sourceSession?: string;
+}
+
+// Identifies the exact staged draft a skills.drafts.promote / reject call acts
+// on. revision binds the name to the immutable bytes so a decision cannot act on
+// a different revision than the one reviewed.
+export interface SkillDraftRef {
+  name: string;
+  revision: string;
+}
 // A recipe is a user-invoked, parameterized prompt template (recipes.
 // list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
 // and sends the result as a turn; body travels with the listing (recipes are

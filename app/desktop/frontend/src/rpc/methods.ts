@@ -60,6 +60,8 @@ import type {
   SessionArtifact,
   Skill,
   ManagedSkill,
+  SkillDraft,
+  SkillDraftRef,
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
@@ -270,15 +272,22 @@ export interface Methods {
     list: (cwd?: string) => Promise<HooksListResult>;
     setTrust: (projectRoot: string, trusted: boolean) => Promise<void>;
   };
-  // Self-authored skill-library management (§7.5): the global library with each
-  // skill's lifecycle, plus archive/restore (never deleting). Distinct from
-  // listSkills — that is the agent's project+global discovery view; this is the
-  // curator surface and also lists archived skills.
+  // Self-authored skill management (§7.7). listDiscovered is the agent's
+  // project+global discovery view; the library surface adds archived skills and
+  // archive/restore (never deleting); the drafts surface is the offline HITL
+  // review queue for agent-mined proposals — promote publishes one into the
+  // active library, reject discards it. listDrafts/promote/reject are
+  // capability-gated (reject with capability_not_negotiated when authoring is
+  // disabled). promoteDraft/rejectDraft carry the content-addressed ref so a
+  // decision acts on the exact revision that was reviewed.
   skills: {
     listDiscovered: (cwd?: string) => Promise<Page<Skill>>;
     listLibrary: () => Promise<Page<ManagedSkill>>;
     archive: (name: string) => Promise<void>;
     restore: (name: string) => Promise<void>;
+    listDrafts: () => Promise<Page<SkillDraft>>;
+    promoteDraft: (ref: SkillDraftRef) => Promise<void>;
+    rejectDraft: (ref: SkillDraftRef) => Promise<void>;
   };
   agentDocs: {
     list: (cwd?: string) => Promise<Page<AgentDoc>>;
@@ -478,6 +487,9 @@ export function createMethods(client: RpcClient): Methods {
       listLibrary: () => client.call<Page<ManagedSkill>>("skills.library.list"),
       archive: (name) => mutate<void, { name: string }>("skills.library.archive", { name }),
       restore: (name) => mutate<void, { name: string }>("skills.library.restore", { name }),
+      listDrafts: () => client.call<Page<SkillDraft>>("skills.drafts.list"),
+      promoteDraft: (ref) => mutate<void, SkillDraftRef>("skills.drafts.promote", ref),
+      rejectDraft: (ref) => mutate<void, SkillDraftRef>("skills.drafts.reject", ref),
     },
     agentDocs: {
       list: (cwd) => client.call<Page<AgentDoc>>("agentDocs.list", { cwd }),

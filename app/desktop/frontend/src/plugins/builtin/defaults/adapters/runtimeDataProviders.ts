@@ -44,6 +44,7 @@ import {
   WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
+  WORKSPACE_SKILL_DRAFTS_KEY,
 } from "@/plugins/builtin/workspace/public/data";
 import type { DataProviderSpec, Host } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
@@ -163,6 +164,17 @@ export function registerDefaultDataProviders(host: Host): void {
         name: s.name,
         description: s.description ?? "",
         lifecycle: s.lifecycle,
+      })),
+  });
+  contribute({
+    key: WORKSPACE_SKILL_DRAFTS_KEY,
+    fetcher: async () =>
+      (await client().skills.listDrafts().catch(emptyPageIfUngated)).data.map((d) => ({
+        name: d.name,
+        revision: d.revision,
+        description: d.description ?? "",
+        createdBy: d.createdBy ?? "",
+        sourceSession: d.sourceSession ?? "",
       })),
   });
   contribute({
