@@ -32,28 +32,9 @@ type processState struct {
 	stuckReplanKey     string
 	stuckReplanPending bool
 	pendingSuspension  *interaction.Suspension
-	revision           uint64
 	runOwned           bool
 	runDone            chan struct{}
 	removalClaimed     bool
-}
-
-func (s *processState) snapshotRevision() uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.revision
-}
-
-func (s *processState) restoreRevision(revision uint64) {
-	s.mu.Lock()
-	s.revision = revision
-	s.mu.Unlock()
-}
-
-func (s *processState) commitRevision(revision uint64) {
-	s.mu.Lock()
-	s.revision = revision
-	s.mu.Unlock()
 }
 
 // newProcessState returns a fresh state block ready for the

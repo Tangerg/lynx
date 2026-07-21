@@ -148,7 +148,6 @@ func TestRunFailsOnceOnInvalidActionStatus(t *testing.T) {
 		Name:    "invalid-status",
 		Inputs:  []core.Binding{input},
 		Outputs: []core.Binding{output},
-		Retry:   core.DefaultRetryPolicy(),
 	}
 	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.RunCondition(): core.False}
 	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.RunCondition(): core.True}
@@ -221,8 +220,8 @@ func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
 	if capture.event == nil || capture.event.Err == nil {
 		t.Fatal("ActionFinished did not carry the normalized failure")
 	}
-	if history := process.History(); len(history) != 1 || history[0].Attempts != 1 {
-		t.Fatalf("history = %#v, want one attempt", history)
+	if history := process.History(); len(history) != 1 {
+		t.Fatalf("history = %#v, want one action run", history)
 	}
 }
 
@@ -464,7 +463,7 @@ func TestRunMarksCancelledDuringActionAsKilled(t *testing.T) {
 		attempts++
 		cancel()
 		return out{}, actionErr
-	}, core.ActionConfig{Retry: core.RetryPolicy{MaxAttempts: 3, Safety: core.RetrySafetyIdempotent}})}, Goals: []*agent.Goal{agent.NewOutputGoal[out](core.GoalConfig{Description: "canceled"})}})
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[out](core.GoalConfig{Description: "canceled"})}})
 
 	engine := agent.MustNewEngine(runtime.Config{})
 	proc, err := engine.Run(

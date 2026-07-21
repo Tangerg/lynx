@@ -243,18 +243,10 @@ type canonicalAction struct {
 	Preconditions     map[string]string          `json:"preconditions,omitempty"`
 	Effects           map[string]string          `json:"effects,omitempty"`
 	Repeatable        bool                       `json:"can_rerun,omitempty"`
-	Retry             canonicalRetryPolicy       `json:"retry"`
 	ToolGroups        []canonicalToolRequirement `json:"tool_groups,omitempty"`
 	CostConfigured    bool                       `json:"cost_configured"`
 	ValueConfigured   bool                       `json:"value_configured"`
 	ClearWorkingState bool                       `json:"clear_working_state,omitempty"`
-}
-
-type canonicalRetryPolicy struct {
-	MaxAttempts int    `json:"max_attempts"`
-	BaseDelayNS int64  `json:"base_delay_ns"`
-	MaxDelayNS  int64  `json:"max_delay_ns"`
-	Safety      string `json:"safety"`
 }
 
 type canonicalBinding struct {
@@ -308,20 +300,14 @@ func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, erro
 	for _, action := range agent.Actions() {
 		metadata := action.Metadata()
 		definition.Actions = append(definition.Actions, canonicalAction{
-			Name:           metadata.Name,
-			Description:    metadata.Description,
-			Implementation: c.actionImplementation(action),
-			Inputs:         c.canonicalBindings(metadata.Inputs),
-			Outputs:        c.canonicalBindings(metadata.Outputs),
-			Preconditions:  c.canonicalConditions(metadata.Preconditions),
-			Effects:        c.canonicalConditions(metadata.Effects),
-			Repeatable:     metadata.Repeatable,
-			Retry: canonicalRetryPolicy{
-				MaxAttempts: metadata.Retry.MaxAttempts,
-				BaseDelayNS: int64(metadata.Retry.BaseDelay),
-				MaxDelayNS:  int64(metadata.Retry.MaxDelay),
-				Safety:      metadata.Retry.Safety.String(),
-			},
+			Name:              metadata.Name,
+			Description:       metadata.Description,
+			Implementation:    c.actionImplementation(action),
+			Inputs:            c.canonicalBindings(metadata.Inputs),
+			Outputs:           c.canonicalBindings(metadata.Outputs),
+			Preconditions:     c.canonicalConditions(metadata.Preconditions),
+			Effects:           c.canonicalConditions(metadata.Effects),
+			Repeatable:        metadata.Repeatable,
 			ToolGroups:        c.canonicalToolGroups(metadata.ToolGroups),
 			CostConfigured:    metadata.Cost != nil,
 			ValueConfigured:   metadata.Value != nil,

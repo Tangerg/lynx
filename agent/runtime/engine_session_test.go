@@ -38,58 +38,6 @@ func TestEngine_RunInSession_EmptyID(t *testing.T) {
 	}
 }
 
-type recordingSessionTurnSequencer struct {
-	acquisitions int
-	releasePanic error
-}
-
-func (s *recordingSessionTurnSequencer) Acquire(context.Context, string) (func(), error) {
-	s.acquisitions++
-	return func() {
-		if s.releasePanic != nil {
-			panic(s.releasePanic)
-		}
-	}, nil
-}
-
-func TestEngine_RunInSession_ValidatesBeforeAcquiringTurn(t *testing.T) {
-	sequencer := new(recordingSessionTurnSequencer)
-	engine := agent.MustNewEngine(runtime.Config{SessionTurnSequencer: sequencer})
-	a := buildSessionAgent()
-	invalid := core.NewSession("", "user-1", a.Name())
-
-	_, err := engine.RunInSession(t.Context(), a, invalid, core.Bindings{}, core.ProcessOptions{})
-	if !errors.Is(err, core.ErrInvalidSession) {
-		t.Fatalf("RunInSession error = %v, want ErrInvalidSession", err)
-	}
-	if sequencer.acquisitions != 0 {
-		t.Fatalf("sequencer acquisitions = %d, want none for an invalid session", sequencer.acquisitions)
-	}
-}
-
-func TestEngine_RunInSession_ReturnsReleasePanicAsError(t *testing.T) {
-	cause := errors.New("release failed")
-	sequencer := &recordingSessionTurnSequencer{releasePanic: cause}
-	engine := agent.MustNewEngine(runtime.Config{SessionTurnSequencer: sequencer})
-	a := buildSessionAgent()
-	mustDeploy(t, engine, a)
-	session := core.NewSession("release-panic", "user-1", a.Name())
-
-	process, err := engine.RunInSession(
-		t.Context(),
-		a,
-		session,
-		core.Input(srWord{Text: "lynx"}),
-		core.ProcessOptions{},
-	)
-	if process == nil || process.Status() != core.StatusCompleted {
-		t.Fatalf("process = %#v, want completed process", process)
-	}
-	if !errors.Is(err, cause) {
-		t.Fatalf("RunInSession error = %v, want release panic cause", err)
-	}
-}
-
 func TestEngine_RunInSession_NoStore_PropagatesSession(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a := buildSessionAgent()

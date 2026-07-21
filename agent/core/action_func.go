@@ -34,9 +34,8 @@ func (a *FuncAction[In, Out]) Metadata() ActionMetadata {
 
 // Execute is the runtime entry point. It pulls the In value from the
 // blackboard (using the bound input variable name + type), invokes the typed
-// function, and writes the output back. Retries are NOT handled here — that
-// is the runtime's executeAction loop, which understands ActionStatus and
-// the explicit RetryPolicy.
+// function, and writes the output back. The framework invokes an action once;
+// implementations that own retryable operations also own their retry policy.
 func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessContext) (ActionStatus, error) {
 	if process == nil {
 		return ActionFailed, errors.New("agent.Action.Execute: process context is nil")
@@ -146,11 +145,6 @@ func NewAction[In, Out any](
 	if value == nil {
 		value = FixedScore(0)
 	}
-	retry := config.Retry
-	if retry == (RetryPolicy{}) {
-		retry = DefaultRetryPolicy()
-	}
-
 	inputs := slices.Clone(config.Inputs)
 	if len(inputs) == 0 {
 		inputs = []Binding{NewBinding[In]("")}
@@ -167,7 +161,6 @@ func NewAction[In, Out any](
 		Inputs:            inputs,
 		Outputs:           outputs,
 		Repeatable:        config.Repeatable,
-		Retry:             retry,
 		ToolGroups:        cloneToolGroupRequirements(config.ToolGroups),
 		Cost:              cost,
 		Value:             value,

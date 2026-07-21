@@ -317,12 +317,6 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		Preconditions: core.ConditionSet{"authorized": core.True, "blocked": core.False, "reviewed": core.Unknown},
 		Effects:       core.ConditionSet{"complete": core.True, "stale": core.False},
 		Repeatable:    true,
-		Retry: core.RetryPolicy{
-			MaxAttempts: 3,
-			BaseDelay:   2 * time.Second,
-			MaxDelay:    9 * time.Second,
-			Safety:      core.RetrySafetyIdempotent,
-		},
 		ToolGroups: []core.ToolGroupRequirement{
 			{
 				Role: "search",
@@ -363,7 +357,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 	if !bytes.Equal(compiled.definition, bytes.TrimSpace(want)) {
 		t.Fatalf("canonical definition changed\nwant:\n%s\ngot:\n%s", bytes.TrimSpace(want), compiled.definition)
 	}
-	const wantDigest = "18ba9546b065bdd91d4b777b7e18cf92179523df070eacaaa0436c558c0cf529"
+	const wantDigest = "7d16780b9aba11cd649f195525298a6c63ab3ab026f2cbdaa964657bf1d5a3d2"
 	if compiled.ref.Digest != wantDigest {
 		t.Fatalf("definition digest = %s, want %s", compiled.ref.Digest, wantDigest)
 	}
@@ -379,10 +373,7 @@ func TestCanonicalDefinitionFieldInventory(t *testing.T) {
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Agent](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.ActionMetadata](), []string{
-		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "Retry", "ToolGroups", "Cost", "Value", "ClearWorkingState",
-	})
-	assertExportedFields(t, reflect.TypeFor[core.RetryPolicy](), []string{
-		"MaxAttempts", "BaseDelay", "MaxDelay", "Safety",
+		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "ToolGroups", "Cost", "Value", "ClearWorkingState",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.GoalConfig](), []string{
 		"Name", "Description", "Preconditions", "Inputs", "Value", "Tags", "Examples", "Tool",
@@ -1157,7 +1148,6 @@ func deploymentActionMetadata(effect string) core.ActionMetadata {
 		Outputs:       []core.Binding{{Name: "output", Type: "string"}},
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Effects:       core.ConditionSet{effect: core.True},
-		Retry:         core.DefaultRetryPolicy(),
 		ToolGroups: []core.ToolGroupRequirement{{
 			Role:               "filesystem",
 			AllowedPermissions: []core.ToolGroupPermission{core.ToolGroupHostAccess},

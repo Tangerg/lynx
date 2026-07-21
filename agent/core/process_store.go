@@ -17,31 +17,13 @@ import (
 // ProcessSnapshotSchemaVersion is the only durable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 3
+const ProcessSnapshotSchemaVersion uint16 = 4
 
 var (
 	ErrSnapshotNotFound = errors.New("process store: snapshot not found")
 	ErrSnapshotSchema   = errors.New("process snapshot: unsupported schema")
 	ErrInvalidSnapshot  = errors.New("process snapshot: invalid")
-	ErrRevisionConflict = errors.New("process store: revision conflict")
 )
-
-// RevisionConflictError reports the compare-and-swap values that prevented a
-// snapshot write. It matches [ErrRevisionConflict].
-type RevisionConflictError struct {
-	ProcessID string
-	Expected  uint64
-	Actual    uint64
-}
-
-func (e *RevisionConflictError) Error() string {
-	if e == nil {
-		return ErrRevisionConflict.Error()
-	}
-	return fmt.Sprintf("%s for process %q: expected %d, actual %d", ErrRevisionConflict, e.ProcessID, e.Expected, e.Actual)
-}
-
-func (e *RevisionConflictError) Unwrap() error { return ErrRevisionConflict }
 
 // ProcessSnapshot is the complete durable state required to inspect or resume
 // one process. OwnCost, OwnTokens, OwnModelCalls, and OwnEmbeddingCalls contain
@@ -51,7 +33,6 @@ func (e *RevisionConflictError) Unwrap() error { return ErrRevisionConflict }
 // intentionally absent.
 type ProcessSnapshot struct {
 	SchemaVersion uint16 `json:"schema_version"`
-	Revision      uint64 `json:"revision"`
 
 	ID       string `json:"id"`
 	ParentID string `json:"parent_id,omitempty"`
@@ -80,7 +61,6 @@ type ProcessSnapshot struct {
 
 type processSnapshotWire struct {
 	SchemaVersion     uint16                  `json:"schema_version"`
-	Revision          uint64                  `json:"revision"`
 	ID                string                  `json:"id"`
 	ParentID          string                  `json:"parent_id,omitempty"`
 	Depth             int                     `json:"depth,omitempty"`
@@ -103,8 +83,8 @@ type processSnapshotWire struct {
 
 func (s ProcessSnapshot) wire() processSnapshotWire {
 	return processSnapshotWire{
-		SchemaVersion: s.SchemaVersion, Revision: s.Revision,
-		ID: s.ID, ParentID: s.ParentID, Depth: s.Depth,
+		SchemaVersion: s.SchemaVersion,
+		ID:            s.ID, ParentID: s.ParentID, Depth: s.Depth,
 		Deployment: s.Deployment, StartedAt: s.StartedAt, CapturedAt: s.CapturedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
 		History: s.History, Failure: s.Failure, OwnCost: s.OwnCost, OwnTokens: s.OwnTokens,
@@ -119,8 +99,8 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 		return ProcessSnapshot{}, err
 	}
 	return ProcessSnapshot{
-		SchemaVersion: w.SchemaVersion, Revision: w.Revision,
-		ID: w.ID, ParentID: w.ParentID, Depth: w.Depth,
+		SchemaVersion: w.SchemaVersion,
+		ID:            w.ID, ParentID: w.ParentID, Depth: w.Depth,
 		Deployment: w.Deployment, StartedAt: w.StartedAt, CapturedAt: w.CapturedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
 		History: w.History, Failure: w.Failure, OwnCost: w.OwnCost, OwnTokens: w.OwnTokens,
@@ -182,7 +162,7 @@ func (s ProcessSnapshot) Validate() error {
 		return fmt.Errorf("%w: own usage totals must be finite and non-negative", ErrInvalidSnapshot)
 	}
 	for i, run := range s.History {
-		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || run.Attempts < 1 || !run.Status.Valid() {
+		if strings.TrimSpace(run.ActionName) == "" || run.StartedAt.IsZero() || run.Duration < 0 || !run.Status.Valid() {
 			return fmt.Errorf("%w: history[%d] is invalid", ErrInvalidSnapshot, i)
 		}
 	}
@@ -255,7 +235,6 @@ type ActionRunSnapshot struct {
 	StartedAt  time.Time     `json:"started_at"`
 	Duration   time.Duration `json:"duration_ns"`
 	Status     ActionStatus  `json:"-"`
-	Attempts   int           `json:"attempts"`
 }
 
 type actionRunSnapshotWire struct {
@@ -263,7 +242,6 @@ type actionRunSnapshotWire struct {
 	StartedAt  time.Time     `json:"started_at"`
 	Duration   time.Duration `json:"duration_ns"`
 	Status     string        `json:"status"`
-	Attempts   int           `json:"attempts"`
 }
 
 func (r ActionRunSnapshot) MarshalJSON() ([]byte, error) {
@@ -275,7 +253,6 @@ func (r ActionRunSnapshot) MarshalJSON() ([]byte, error) {
 		StartedAt:  r.StartedAt,
 		Duration:   r.Duration,
 		Status:     r.Status.String(),
-		Attempts:   r.Attempts,
 	})
 }
 
@@ -298,83 +275,23 @@ func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
 		StartedAt:  wire.StartedAt,
 		Duration:   wire.Duration,
 		Status:     status,
-		Attempts:   wire.Attempts,
 	}
 	return nil
 }
 
-// SnapshotMutation is one atomic durable change set. Writes use Revision as a
-// compare-and-swap expectation: revision zero creates a process, and every
-// successful write stores Revision+1. Each DeleteTrees entry idempotently
-// deletes that root and every durable descendant. Implementations reject a
-// write whose lineage enters a deleted tree. A process ID may occur exactly
-// once across the mutation roots and writes.
-type SnapshotMutation struct {
-	Writes      []ProcessSnapshot
-	DeleteTrees []string
-}
-
-// Validate checks mutation shape and every snapshot without consulting a
-// store. An empty mutation is a valid no-op.
-func (m SnapshotMutation) Validate() error {
-	seen := make(map[string]string, len(m.Writes)+len(m.DeleteTrees))
-	pending := make(map[string]ProcessSnapshot, len(m.Writes))
-	for index, snapshot := range m.Writes {
-		if snapshot.Revision == math.MaxUint64 {
-			return fmt.Errorf("%w: writes[%d] process %q revision is exhausted", ErrInvalidSnapshot, index, snapshot.ID)
-		}
-		if err := snapshot.Validate(); err != nil {
-			return fmt.Errorf("writes[%d]: %w", index, err)
-		}
-		if previous, duplicate := seen[snapshot.ID]; duplicate {
-			return fmt.Errorf("%w: process ID %q occurs in %s and writes[%d]", ErrInvalidSnapshot, snapshot.ID, previous, index)
-		}
-		seen[snapshot.ID] = fmt.Sprintf("writes[%d]", index)
-		pending[snapshot.ID] = snapshot
-	}
-	deleteRoots := make(map[string]struct{}, len(m.DeleteTrees))
-	for index, id := range m.DeleteTrees {
-		if strings.TrimSpace(id) == "" || strings.TrimSpace(id) != id {
-			return fmt.Errorf("%w: delete_trees[%d] must be non-empty without surrounding whitespace", ErrInvalidSnapshot, index)
-		}
-		if previous, duplicate := seen[id]; duplicate {
-			return fmt.Errorf("%w: process ID %q occurs in %s and delete_trees[%d]", ErrInvalidSnapshot, id, previous, index)
-		}
-		seen[id] = fmt.Sprintf("delete_trees[%d]", index)
-		deleteRoots[id] = struct{}{}
-	}
-	for index, snapshot := range m.Writes {
-		visited := map[string]struct{}{snapshot.ID: {}}
-		for parentID := snapshot.ParentID; parentID != ""; {
-			if _, deleted := deleteRoots[parentID]; deleted {
-				return fmt.Errorf("%w: writes[%d] process %q descends from deleted tree %q", ErrInvalidSnapshot, index, snapshot.ID, parentID)
-			}
-			if _, duplicate := visited[parentID]; duplicate {
-				return fmt.Errorf("%w: writes[%d] process %q has cyclic pending lineage", ErrInvalidSnapshot, index, snapshot.ID)
-			}
-			visited[parentID] = struct{}{}
-			parent, exists := pending[parentID]
-			if !exists {
-				break
-			}
-			parentID = parent.ParentID
-		}
-	}
-	return nil
-}
-
-// ProcessStore owns durable process snapshots. Apply validates every write and
-// compare-and-swap expectation before changing storage, then commits all writes
-// and tree deletions atomically. An error leaves the entire mutation unapplied.
-// Load returns [ErrSnapshotNotFound] for an unknown ID. List returns every
-// stored ID; callers that need ordering must sort the result themselves.
-//
-// CAS prevents lost snapshot updates; it does not grant execution ownership.
-// Hosts that hand processes across nodes must add a lease or fencing protocol
-// before another worker executes the same process.
+// ProcessStore persists process snapshots for the runtime. Save receives one
+// logical process-tree capture. Delete removes the durable tree rooted at the
+// supplied process ID. Implementations own traversal, write coordination,
+// transaction, and partial-failure behavior. Load returns [ErrSnapshotNotFound]
+// for an unknown ID.
 type ProcessStore interface {
-	Apply(context.Context, SnapshotMutation) error
+	Save(context.Context, []ProcessSnapshot) error
 	Load(context.Context, string) (ProcessSnapshot, error)
+	Delete(context.Context, string) error
+}
+
+// ProcessLister is the optional administrative listing capability.
+type ProcessLister interface {
 	List(context.Context) ([]string, error)
 }
 

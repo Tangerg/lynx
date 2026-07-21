@@ -35,8 +35,6 @@ type (
 	Extension        = core.Extension
 	Session          = core.Session
 	Bindings         = core.Bindings
-	RetryPolicy      = core.RetryPolicy
-	RetrySafety      = core.RetrySafety
 
 	Suspension            = interaction.Suspension
 	SuspensionKind        = interaction.SuspensionKind
@@ -69,10 +67,6 @@ const (
 	StatusPaused     = core.StatusPaused
 	StatusTerminated = core.StatusTerminated
 	StatusKilled     = core.StatusKilled
-
-	RetrySafetyUnspecified = core.RetrySafetyUnspecified
-	RetrySafetyIdempotent  = core.RetrySafetyIdempotent
-	RetrySafetyCompensated = core.RetrySafetyCompensated
 )
 
 const (
@@ -130,6 +124,3 @@ func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string
 func NewSession(id, userID, agentName string) Session {
 	return core.NewSession(id, userID, agentName)
 }
-
-// DefaultRetryPolicy returns the safe one-attempt Action policy.
-func DefaultRetryPolicy() RetryPolicy { return core.DefaultRetryPolicy() }

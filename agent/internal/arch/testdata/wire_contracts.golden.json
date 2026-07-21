@@ -108,8 +108,7 @@
     }
   ],
   "process_snapshot": {
-    "schema_version": 3,
-    "revision": 7,
+    "schema_version": 4,
     "id": "process-1",
     "parent_id": "process-root",
     "depth": 1,
@@ -142,8 +141,7 @@
         "action": "lookup",
         "started_at": "2026-07-15T08:31:00.123Z",
         "duration_ns": 250000000,
-        "status": "succeeded",
-        "attempts": 2
+        "status": "succeeded"
       }
     ],
     "own_cost": 0.0125,

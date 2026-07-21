@@ -24,18 +24,18 @@ func validSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
-func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
+func TestMemoryProcessStoreReplacementAndDefensiveLoad(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	snapshot := validSnapshot("p-1")
 	snapshot.OwnTokens = 1500
 
-	err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}})
+	err := store.Save(ctx, []core.ProcessSnapshot{snapshot})
 	if err != nil {
 		t.Fatalf("first Save: %v", err)
 	}
 	loaded, err := store.Load(ctx, snapshot.ID)
-	if err != nil || loaded.Revision != 1 || loaded.OwnTokens != 1500 {
+	if err != nil || loaded.OwnTokens != 1500 {
 		t.Fatalf("Load = %#v, err %v", loaded, err)
 	}
 	loaded.OwnTokens = 99
@@ -44,76 +44,13 @@ func TestMemoryProcessStoreCASAndDefensiveLoad(t *testing.T) {
 		t.Fatal("Load returned mutable stored state")
 	}
 
-	snapshot.Revision = 1
 	snapshot.OwnTokens = 2000
-	if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
+	if err := store.Save(ctx, []core.ProcessSnapshot{snapshot}); err != nil {
 		t.Fatalf("second Save: %v", err)
 	}
-	stale := snapshot
-	stale.Revision = 1
-	if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{stale}}); !errors.Is(err, core.ErrRevisionConflict) {
-		t.Fatalf("stale Save error = %v", err)
-	} else {
-		var conflict *core.RevisionConflictError
-		if !errors.As(err, &conflict) || conflict.Expected != 1 || conflict.Actual != 2 {
-			t.Fatalf("conflict = %#v", conflict)
-		}
-	}
-}
-
-func TestMemoryProcessStoreMutationIsAtomic(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	first := validSnapshot("first")
-	first.OwnTokens = 1
-	second := validSnapshot("second")
-	second.OwnTokens = 2
-
-	err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{first, second}})
-	if err != nil {
-		t.Fatalf("first mutation: %v", err)
-	}
-
-	first.Revision = 1
-	first.OwnTokens = 10
-	second.Revision = 0 // stale: durable revision is already 1.
-	second.OwnTokens = 20
-	err = store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{first, second}})
-	if !errors.Is(err, core.ErrRevisionConflict) {
-		t.Fatalf("stale mutation error = %v, want revision conflict", err)
-	}
-	storedFirst, err := store.Load(t.Context(), first.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	storedSecond, err := store.Load(t.Context(), second.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if storedFirst.Revision != 1 || storedFirst.OwnTokens != 1 || storedSecond.Revision != 1 || storedSecond.OwnTokens != 2 {
-		t.Fatalf("stored batch after rejected CAS = %#v / %#v, want both original revisions", storedFirst, storedSecond)
-	}
-}
-
-func TestMemoryProcessStoreMutationRejectsDuplicateIdentity(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	snapshot := validSnapshot("duplicate")
-	err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot, snapshot}})
-	if !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("duplicate mutation error = %v, want invalid snapshot", err)
-	}
-	if _, err := store.Load(t.Context(), snapshot.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Fatalf("duplicate mutation changed store: %v", err)
-	}
-}
-
-func TestSnapshotMutationRejectsWriteDeleteOverlap(t *testing.T) {
-	snapshot := validSnapshot("overlap")
-	err := (core.SnapshotMutation{
-		Writes:      []core.ProcessSnapshot{snapshot},
-		DeleteTrees: []string{snapshot.ID},
-	}).Validate()
-	if !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("overlapping mutation error = %v, want invalid snapshot", err)
+	updated, err := store.Load(ctx, snapshot.ID)
+	if err != nil || updated.OwnTokens != 2000 {
+		t.Fatalf("updated Load = %#v, err %v", updated, err)
 	}
 }
 
@@ -121,7 +58,7 @@ func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	for _, id := range []string{"c", "a", "b"} {
-		if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{validSnapshot(id)}}); err != nil {
+		if err := store.Save(ctx, []core.ProcessSnapshot{validSnapshot(id)}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -129,11 +66,8 @@ func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	if err != nil || len(ids) != 3 || ids[0] != "a" || ids[2] != "c" {
 		t.Fatalf("List = %v, err %v", ids, err)
 	}
-	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{"a"}}); err != nil {
+	if err := store.Delete(ctx, "a"); err != nil {
 		t.Fatal(err)
-	}
-	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{"a"}}); err != nil {
-		t.Fatalf("idempotent Delete: %v", err)
 	}
 	if _, err := store.Load(ctx, "a"); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("Load deleted error = %v", err)
@@ -153,7 +87,7 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	if decoded["status"] != "running" {
 		t.Fatalf("status wire = %#v", decoded["status"])
 	}
-	for _, version := range []float64{0, 1, 2, 4} {
+	for _, version := range []float64{0, 1, 2, 3, 5} {
 		decoded["schema_version"] = version
 		invalid, _ := json.Marshal(decoded)
 		var target core.ProcessSnapshot
@@ -169,7 +103,6 @@ func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
 		StartedAt:  time.Now(),
 		Duration:   time.Second,
 		Status:     core.ActionSucceeded,
-		Attempts:   1,
 	}
 	body, err := json.Marshal(run)
 	if err != nil {
@@ -189,7 +122,7 @@ func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
 	if decoded.Status != core.ActionSucceeded {
 		t.Fatalf("decoded status = %v", decoded.Status)
 	}
-	if err := json.Unmarshal([]byte(`{"action":"lookup","started_at":"2026-07-16T08:00:00Z","duration_ns":1,"status":"invented","attempts":1}`), &decoded); err == nil {
+	if err := json.Unmarshal([]byte(`{"action":"lookup","started_at":"2026-07-16T08:00:00Z","duration_ns":1,"status":"invented"}`), &decoded); err == nil {
 		t.Fatal("unknown action status was accepted")
 	}
 }
@@ -198,7 +131,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
 	invalid.Status = core.StatusWaiting
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{invalid}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{invalid}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting without suspension error = %v", err)
 	}
 	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -206,24 +139,24 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	}
 	rootWithDepth := validSnapshot("root-with-depth")
 	rootWithDepth.Depth = 1
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{rootWithDepth}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{rootWithDepth}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("root with depth error = %v", err)
 	}
 	childWithoutDepth := validSnapshot("child-without-depth")
 	childWithoutDepth.ParentID = "parent"
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{childWithoutDepth}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{childWithoutDepth}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("child without depth error = %v", err)
 	}
 	invalidModelCall := validSnapshot("invalid-model-call")
 	invalidModelCall.OwnModelCalls = []core.ModelCall{{
 		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,
 	}}
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{invalidModelCall}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{invalidModelCall}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("invalid model call error = %v", err)
 	}
 	failedWithoutCause := validSnapshot("failed-without-cause")
 	failedWithoutCause.Status = core.StatusFailed
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{failedWithoutCause}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{failedWithoutCause}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("failed without cause error = %v", err)
 	}
 	waitingWithFailure := validSnapshot("waiting-with-failure")
@@ -234,7 +167,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 		Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
 	}
 	waitingWithFailure.Failure = "must not survive"
-	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{waitingWithFailure}}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Save(t.Context(), []core.ProcessSnapshot{waitingWithFailure}); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting with failure error = %v", err)
 	}
 }

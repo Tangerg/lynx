@@ -89,7 +89,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 	capturedAt := startedAt.Add(5 * time.Minute)
 	processSnapshot := agentcore.ProcessSnapshot{
 		SchemaVersion: agentcore.ProcessSnapshotSchemaVersion,
-		Revision:      7,
 		ID:            "process-1",
 		ParentID:      "process-root",
 		Depth:         1,
@@ -116,7 +115,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			StartedAt:  startedAt.Add(time.Minute),
 			Duration:   250 * time.Millisecond,
 			Status:     agentcore.ActionSucceeded,
-			Attempts:   2,
 		}},
 		OwnCost:   0.0125,
 		OwnTokens: 321,

@@ -413,8 +413,8 @@ func TestActionMiddlewareShortCircuitProducesDurableHistory(t *testing.T) {
 	if !errors.Is(process.Failure(), middlewareErr) {
 		t.Fatalf("failure = %v, want middleware error", process.Failure())
 	}
-	if history := process.History(); len(history) != 1 || history[0].Attempts != 1 {
-		t.Fatalf("history = %#v, want one chain attempt", history)
+	if history := process.History(); len(history) != 1 {
+		t.Fatalf("history = %#v, want one action run", history)
 	}
 	if _, err := process.Snapshot(); err != nil {
 		t.Fatalf("Snapshot after short circuit: %v", err)

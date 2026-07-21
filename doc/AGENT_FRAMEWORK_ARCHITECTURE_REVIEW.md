@@ -71,7 +71,7 @@ host application and adapters
 | `core.ProcessContext` | runtime | 只向当前 Action 暴露必要的写、交互和控制能力 |
 | `interaction.Suspension` | Process | JSON-safe、可验证、不保存闭包 |
 | `toolloop.Checkpoint` | interaction | 保存逐 tool call 的可恢复协议状态与稳定提交游标 |
-| `core.ProcessSnapshot` | ProcessStore | schema、revision、部署身份、进程自身 ledger 和 durable state 的唯一事实 |
+| `core.ProcessSnapshot` | ProcessStore | schema、部署身份、进程自身 ledger 和 durable state 的唯一事实 |
 
 `Engine.Deploy` 对 Agent 做验证和编译。相同定义重复部署幂等；同名不同定义必须 `Replace`。历史 Deployment 保留，已运行 Process 和 snapshot 不随活动路由漂移。child、workflow 和 agent-as-tool 都捕获同一 Engine 中的精确 Deployment，而不是在执行时按名称重新猜测定义。
 
@@ -83,7 +83,7 @@ host application and adapters
 
 ### 5.2 让零值有安全含义
 
-- `RetryPolicy{}` 表示只尝试一次；
+- `ActionConfig{}` 不启用框架级 replay；
 - `StuckDecision` 的零值是停止，而不是隐式继续；
 - `toolloop.Config{}` 使用受限默认轮数和并发宽度；
 - 可选 capability 为 nil 时要么明确禁用，要么回退，不能形成半有效状态。
@@ -107,7 +107,7 @@ host application and adapters
 
 ## 6. 执行、交互与恢复
 
-`Action.Execute` 返回 `(ActionStatus, error)`：status 表达生命周期结果，error 表达失败、replan 或 suspension。Runtime 统一持有 panic recovery、retry、事件和状态迁移，不通过 Context scratch 或 Blackboard 旁路传错。
+`Action.Execute` 返回 `(ActionStatus, error)`：status 表达生命周期结果，error 表达失败、replan 或 suspension。Runtime 统一持有 panic recovery、事件和状态迁移，不通过 Context scratch 或 Blackboard 旁路传错，也不自动 replay Action。
 
 Action 内模型调用走 `ProcessContext.Prompt`、`PromptJSON` 或 `Interact`。Framework 负责：
 
@@ -161,11 +161,11 @@ sibling 继续完成，任一插件 goroutine 都不能击穿 Host。
 
 ## 8. 持久化边界
 
-`ProcessSnapshot` 是唯一 durable Process 事实，其 `Revision` 直接作为 `ProcessStore.Save` 的
-CAS 前置版本，避免参数与 snapshot 携带两份版本事实。CAS 不负责跨节点执行所有权；分布式
-handoff 仍需 Host lease/fencing。
+`ProcessSnapshot` 是唯一 durable Process 事实。`ProcessStore` 只表达保存完整树快照、按 ID
+读取和按根删除树；列表是可选 `ProcessLister`。revision、CAS、事务、幂等和分布式协调均不
+进入 framework 合同，由具体 adapter 根据自己的存储系统决定。
 
-Snapshot schema v2 的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
+当前 Snapshot schema 为 v4；v2 引入的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
 `OwnEmbeddingCalls` 只保存当前 Process 的直接 ledger。Child 各自保存自己的 snapshot；
 Restore 建立 parent-child budget linkage 后自然恢复聚合，不从父级 aggregate 中猜测或
 扣除 child suffix。ToolLoop checkpoint schema v2 以 `CallStates` 保存每个调用的

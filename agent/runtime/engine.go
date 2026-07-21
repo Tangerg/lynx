@@ -53,17 +53,17 @@ type Engine struct {
 
 	extensions extensionRegistry // engine-scoped extensions
 
-	events                  *event.Multicast     // populated from EventListener extensions
-	dependencies            *core.Dependencies   // typed engine dependency scope
-	chat                    core.ChatCapability  // optional shared model and streamer
-	guardrails              *core.ChatGuardrails // optional global chat middlewares
-	processStore            core.ProcessStore    // optional snapshot backend
-	sessionStore            core.SessionStore    // optional root-session persistence
-	childSessionStore       core.SessionStore    // optional delegated-session persistence
-	sessionTurnSequencer    SessionTurnSequencer // sequences turns sharing a session ID
-	sessionFinalizeTimeout  time.Duration        // bounds the post-dispatch session write
-	autoSnapshot            bool                 // snapshot every tick when a store is configured
-	snapshotFinalizeTimeout time.Duration        // bounds each request-independent automatic snapshot
+	events                  *event.Multicast           // populated from EventListener extensions
+	dependencies            *core.Dependencies         // typed engine dependency scope
+	chat                    core.ChatCapability        // optional shared model and streamer
+	guardrails              *core.ChatGuardrails       // optional global chat middlewares
+	processStore            core.ProcessStore          // optional snapshot backend
+	sessionStore            core.SessionStore          // optional root-session persistence
+	childSessionStore       core.SessionStore          // optional delegated-session persistence
+	sessionTurns            *localSessionTurnSequencer // sequences turns sharing a session ID
+	sessionFinalizeTimeout  time.Duration              // bounds the post-dispatch session write
+	autoSnapshot            bool                       // snapshot every tick when a store is configured
+	snapshotFinalizeTimeout time.Duration              // bounds each request-independent automatic snapshot
 	snapshotFailurePolicy   SnapshotFailurePolicy
 	maxChildDepth           int
 	buildID                 string // stable host build identity included in deployment digests
@@ -94,11 +94,9 @@ type Config struct {
 	Guardrails *core.ChatGuardrails
 
 	// ProcessStore persists [Process] snapshots so a process
-	// can survive a single-owner runtime restart or be audited after
-	// termination. CAS prevents lost updates but does not elect an execution
-	// owner; cross-node handoff requires Host-provided lease/fencing outside
-	// this contract. Optional — nil means "no
-	// persistence" (historical in-memory-only behavior).
+	// can survive a runtime restart or be audited after termination. The store
+	// implementation owns its write coordination and failure semantics.
+	// Optional — nil means in-memory-only execution.
 	// See [Process.Snapshot] / [Engine.Restore] /
 	// [Engine.RestoreSnapshot] for the surface.
 	ProcessStore core.ProcessStore
@@ -127,12 +125,6 @@ type Config struct {
 	// [Engine.RunInSession] still works, but the session is not
 	// saved between turns.
 	SessionStore core.SessionStore
-
-	// SessionTurnSequencer grants turns for the same session ID in arrival order.
-	// The default is process-local and still allows different sessions to run in
-	// parallel. Cross-node execution additionally requires Host-owned fencing;
-	// this interface alone cannot reject a stale owner.
-	SessionTurnSequencer SessionTurnSequencer
 
 	// SessionFinalizeTimeout bounds the post-dispatch SessionStore write. That
 	// write is detached from request cancellation so audit state can survive a
@@ -184,9 +176,6 @@ func New(config Config) (*Engine, error) {
 	if config.SessionStore != nil && valueIsNil(config.SessionStore) {
 		return nil, errors.New("runtime.New: SessionStore is typed nil")
 	}
-	if config.SessionTurnSequencer != nil && valueIsNil(config.SessionTurnSequencer) {
-		return nil, errors.New("runtime.New: SessionTurnSequencer is typed nil")
-	}
 	if config.SessionFinalizeTimeout < 0 {
 		return nil, errors.New("runtime.New: SessionFinalizeTimeout must not be negative")
 	}
@@ -202,10 +191,6 @@ func New(config Config) (*Engine, error) {
 	guardrails, err := snapshotChatGuardrails("runtime.New: Guardrails", config.Guardrails)
 	if err != nil {
 		return nil, err
-	}
-	turnSequencer := config.SessionTurnSequencer
-	if turnSequencer == nil {
-		turnSequencer = newLocalSessionTurnSequencer()
 	}
 	finalizeTimeout := config.SessionFinalizeTimeout
 	if finalizeTimeout == 0 {
@@ -231,7 +216,7 @@ func New(config Config) (*Engine, error) {
 		processStore:            config.ProcessStore,
 		sessionStore:            config.SessionStore,
 		childSessionStore:       config.ChildSessionStore,
-		sessionTurnSequencer:    turnSequencer,
+		sessionTurns:            newLocalSessionTurnSequencer(),
 		sessionFinalizeTimeout:  finalizeTimeout,
 		autoSnapshot:            config.AutoSnapshot,
 		snapshotFinalizeTimeout: snapshotFinalizeTimeout,

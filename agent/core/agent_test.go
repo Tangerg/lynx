@@ -95,31 +95,6 @@ func TestValidateRejectsInvalidDurableState(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresExplicitRetrySafety(t *testing.T) {
-	base := core.AgentConfig{
-		Name: "retry-policy",
-		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
-			Name:  "act",
-			Retry: core.RetryPolicy{MaxAttempts: 2},
-		}}},
-		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
-	}
-	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "requires idempotent or compensated") {
-		t.Fatalf("missing retry safety error = %v", err)
-	}
-
-	base.Actions = []core.Action{fakeAction{meta: core.ActionMetadata{
-		Name: "act",
-		Retry: core.RetryPolicy{
-			MaxAttempts: 2,
-			Safety:      core.RetrySafetyCompensated,
-		},
-	}}}
-	if err := core.NewAgent(base).Validate(); err != nil {
-		t.Fatalf("compensated retry policy rejected: %v", err)
-	}
-}
-
 func TestValidateRejectsInvalidToolGroupRequirement(t *testing.T) {
 	config := core.AgentConfig{
 		Name: "tool-policy",

@@ -2,9 +2,8 @@
 # Packages: every non-internal, non-example package in the agent module.
 # Regenerate: go test ./internal/arch -run TestExportedAPIMatchesBaseline -update-api
 
-.: const ( DefaultBindingName = core.DefaultBindingName Unknown = core.Unknown True = core.True False = core.False StatusNotStarted = core.StatusNotStarted StatusRunning = core.StatusRunning StatusCompleted = core.StatusCompleted StatusFailed = core.StatusFailed StatusStuck = core.StatusStuck StatusWaiting = core.StatusWaiting StatusPaused = core.StatusPaused StatusTerminated = core.StatusTerminated StatusKilled = core.StatusKilled RetrySafetyUnspecified = core.RetrySafetyUnspecified RetrySafetyIdempotent = core.RetrySafetyIdempotent RetrySafetyCompensated = core.RetrySafetyCompensated )
+.: const ( DefaultBindingName = core.DefaultBindingName Unknown = core.Unknown True = core.True False = core.False StatusNotStarted = core.StatusNotStarted StatusRunning = core.StatusRunning StatusCompleted = core.StatusCompleted StatusFailed = core.StatusFailed StatusStuck = core.StatusStuck StatusWaiting = core.StatusWaiting StatusPaused = core.StatusPaused StatusTerminated = core.StatusTerminated StatusKilled = core.StatusKilled )
 .: const ( SuspensionSchemaVersion = interaction.SuspensionSchemaVersion SuspensionHuman = interaction.SuspensionHuman SuspensionTool = interaction.SuspensionTool InteractionEventModelRequest = interaction.EventModelRequest InteractionEventModelResponse = interaction.EventModelResponse InteractionEventToolCall = interaction.EventToolCall InteractionEventToolResult = interaction.EventToolResult InteractionEventPause = interaction.EventPause InteractionEventResume = interaction.EventResume InteractionStopNone = interaction.StopNone InteractionStopBudget = interaction.StopBudget InteractionStopSteps = interaction.StopSteps )
-.: func DefaultRetryPolicy() RetryPolicy
 .: func Input(value any) Bindings
 .: func MustNewEngine(config EngineConfig) *Engine
 .: func New(config AgentConfig) *Agent
@@ -45,8 +44,6 @@
 .: type ProcessStatus = core.ProcessStatus
 .: type ProcessView = core.ProcessView
 .: type PromptConfig = core.PromptConfig
-.: type RetryPolicy = core.RetryPolicy
-.: type RetrySafety = core.RetrySafety
 .: type Session = core.Session
 .: type StuckPolicy = core.StuckPolicy
 .: type Suspension = interaction.Suspension
@@ -55,7 +52,6 @@
 core: const ( ActionSucceeded ActionStatus = iota ActionFailed ActionWaiting ActionPaused )
 core: const ( DefaultBindingName = "it" LastResultBindingName = "last_result" )
 core: const ( DefaultBudgetCostLimit = 2.0 DefaultBudgetActionLimit = 50 DefaultBudgetTokenLimit = 1_000_000 )
-core: const ( RetrySafetyUnspecified RetrySafety = iota RetrySafetyIdempotent RetrySafetyCompensated )
 core: const ( SnapshotFailureFailProcess SnapshotFailurePolicy = iota SnapshotFailurePauseProcess SnapshotFailureReportOnly )
 core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusCompleted StatusFailed StatusStuck StatusWaiting StatusPaused StatusTerminated StatusKilled )
 core: const ( StuckStop StuckDecision = iota StuckReplan )
@@ -64,7 +60,7 @@ core: const ( ToolGroupHostAccess ToolGroupPermission = iota ToolGroupInternetAc
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
 core: const BudgetPolicyName = "budget-policy"
-core: const ProcessSnapshotSchemaVersion uint16 = 3
+core: const ProcessSnapshotSchemaVersion uint16 = 4
 core: const StaticToolGroupResolverName = "static-tool-group-resolver"
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
@@ -108,8 +104,6 @@ core: func (d *Dependencies) Frozen() bool
 core: func (d *Dependencies) Parent() *Dependencies
 core: func (d StuckDecision) String() string
 core: func (d StuckDecision) Valid() bool
-core: func (e *RevisionConflictError) Error() string
-core: func (e *RevisionConflictError) Unwrap() error
 core: func (g *ChatGuardrails) Empty() bool
 core: func (g *Goal) Description() string
 core: func (g *Goal) Examples() []string
@@ -136,7 +130,6 @@ core: func (m SessionMetadata) Decode(name string, dst any) (bool, error)
 core: func (m SessionMetadata) IsZero() bool
 core: func (m SessionMetadata) Len() int
 core: func (m SessionMetadata) MarshalJSON() ([]byte, error)
-core: func (m SnapshotMutation) Validate() error
 core: func (p BudgetPolicy) Check(process ProcessView) (bool, string)
 core: func (p BudgetPolicy) Name() string
 core: func (p SnapshotFailurePolicy) String() string
@@ -180,8 +173,6 @@ core: func (s ProcessSnapshot) MarshalJSON() ([]byte, error)
 core: func (s ProcessSnapshot) Validate() error
 core: func (s ProcessStatus) IsTerminal() bool
 core: func (s ProcessStatus) String() string
-core: func (s RetrySafety) String() string
-core: func (s RetrySafety) Valid() bool
 core: func (s Session) Clone() Session
 core: func (s Session) Validate() error
 core: func (s TerminationScope) String() string
@@ -197,7 +188,6 @@ core: func (tv TaggedValue) Validate() error
 core: func And(left, right Condition) Condition
 core: func ConditionInteractionID(name string) string
 core: func DefaultBudget() Budget
-core: func DefaultRetryPolicy() RetryPolicy
 core: func FixedScore(value float64) ScoreFunc
 core: func FormatBlackboard(blackboard BlackboardReader, verbose bool) string
 core: func Get[T any](blackboard BlackboardReader, name string) (T, bool)
@@ -237,11 +227,11 @@ core: func TypeNameOf(typ reflect.Type) string
 core: func TypeName[T any]() string
 core: func WithProcessView(ctx context.Context, process ProcessView) context.Context
 core: type Action interface { Metadata() ActionMetadata Execute(ctx context.Context, process *ProcessContext) (ActionStatus, error) }
-core: type ActionConfig struct { Description string Preconditions []string Effects []string Repeatable bool Retry RetryPolicy Cost ScoreFunc Value ScoreFunc ToolGroups []ToolGroupRequirement Inputs []Binding Outputs []Binding ClearWorkingState bool }
+core: type ActionConfig struct { Description string Preconditions []string Effects []string Repeatable bool Cost ScoreFunc Value ScoreFunc ToolGroups []ToolGroupRequirement Inputs []Binding Outputs []Binding ClearWorkingState bool }
 core: type ActionFunc[In, Out any] func(ctx context.Context, process *ProcessContext, input In) (Out, error)
-core: type ActionMetadata struct { Name string Description string Inputs []Binding Outputs []Binding Preconditions ConditionSet Effects ConditionSet Repeatable bool Retry RetryPolicy ToolGroups []ToolGroupRequirement Cost ScoreFunc Value ScoreFunc ClearWorkingState bool }
+core: type ActionMetadata struct { Name string Description string Inputs []Binding Outputs []Binding Preconditions ConditionSet Effects ConditionSet Repeatable bool ToolGroups []ToolGroupRequirement Cost ScoreFunc Value ScoreFunc ClearWorkingState bool }
 core: type ActionMiddleware interface { Extension RunAction( ctx context.Context, process ProcessView, action Action, next func() (ActionStatus, error), ) (ActionStatus, error) }
-core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status ActionStatus `json:"-"` Attempts int `json:"attempts"` }
+core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status ActionStatus `json:"-"` }
 core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition DurableState []Binding PlannerName string }
@@ -284,19 +274,17 @@ core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
 core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Usage UsageRecorder Blackboard Blackboard Session *Session Dependencies *Dependencies Chat func() (ChatCapability, error) MaxToolRounds int ActionTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []ToolGroupRequirement }
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
+core: type ProcessLister interface { List(context.Context) ([]string, error) }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Session *Session Extensions []Extension Guardrails *ChatGuardrails }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` Revision uint64 `json:"revision"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure string `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure string `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessStatus int8
-core: type ProcessStore interface { Apply(context.Context, SnapshotMutation) error Load(context.Context, string) (ProcessSnapshot, error) List(context.Context) ([]string, error) }
+core: type ProcessStore interface { Save(context.Context, []ProcessSnapshot) error Load(context.Context, string) (ProcessSnapshot, error) Delete(context.Context, string) error }
 core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() (cost float64, tokens int, actions int) ModelCalls() []ModelCall EmbeddingCalls() []EmbeddingCall }
 core: type PromptCondition struct { }
 core: type PromptConditionConfig struct { Name string Model chat.Model Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
 core: type PromptConfig struct { System string Options *chat.Options Tools []tools.Tool DisableActionTools bool MaxToolRounds int }
 core: type PromptFunc func(context.Context, *ConditionEnv) string
 core: type ReplanRequest struct { Reason string Update func(Blackboard) }
-core: type RetryPolicy struct { MaxAttempts int BaseDelay time.Duration MaxDelay time.Duration Safety RetrySafety }
-core: type RetrySafety uint8
-core: type RevisionConflictError struct { ProcessID string Expected uint64 Actual uint64 }
 core: type ScoreFunc func(WorldState) float64
 core: type Session struct { ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` UserID string `json:"user_id,omitempty"` AgentName string `json:"agent_name"` StartedAt time.Time `json:"started_at"` UpdatedAt time.Time `json:"updated_at"` Metadata SessionMetadata `json:"metadata,omitzero"` }
 core: type SessionDeleter interface { Delete(ctx context.Context, id string) error }
@@ -307,7 +295,6 @@ core: type SessionReader interface { Load(ctx context.Context, id string) (Sessi
 core: type SessionStore interface { SessionReader SessionWriter }
 core: type SessionWriter interface { Save(ctx context.Context, session Session) error }
 core: type SnapshotFailurePolicy uint8
-core: type SnapshotMutation struct { Writes []ProcessSnapshot DeleteTrees []string }
 core: type StaticToolGroupResolver struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8
@@ -329,7 +316,7 @@ core: type UsageRecorder interface { RecordUsage(ctx context.Context, cost float
 core: type WorldState interface { Conditions() ConditionSet Timestamp() time.Time Key() string Apply(effects ConditionSet) WorldState }
 core: var ( ErrInvalidDependencyKey = errors.New("agent: invalid dependency key") ErrDependencyNotFound = errors.New("agent: dependency not found") ErrDependencyTypeMismatch = errors.New("agent: dependency type mismatch") ErrDependencyExists = errors.New("agent: dependency already registered") ErrDependenciesFrozen = errors.New("agent: dependencies are frozen") ErrNilDependency = errors.New("agent: nil dependency") )
 core: var ( ErrInvalidModelCall = errors.New("model call: invalid") ErrInvalidEmbeddingCall = errors.New("embedding call: invalid") )
-core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found") ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") ErrRevisionConflict = errors.New("process store: revision conflict") )
+core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found") ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") )
 core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidSession = errors.New("session: invalid")
 core: var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
@@ -583,7 +570,7 @@ runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Dep
 runtime: func (e *Engine) RunChildWithState( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunDeployment( ctx context.Context, deployment *Deployment, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunInSession( ctx context.Context, agent *core.Agent, session core.Session, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
-runtime: func (e *Engine) Save(ctx context.Context, processID string) (uint64, error)
+runtime: func (e *Engine) Save(ctx context.Context, processID string) error
 runtime: func (e *Engine) SessionStore() core.SessionStore
 runtime: func (e *Engine) StandaloneGoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, <-chan error, error)
@@ -612,18 +599,17 @@ runtime: func NewAgentTool[In, Out any](engine *Engine, agentName string) (tools
 runtime: func NewChatGuardrails(config ChatGuardrailsConfig) (*core.ChatGuardrails, error)
 runtime: func NewStandaloneAgentTool[In, Out any](engine *Engine, agentName string) (tools.Tool, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
-runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration time.Duration Status core.ActionStatus Attempts int }
+runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration time.Duration Status core.ActionStatus }
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
 runtime: type ChatGuardrailsConfig struct { HistoryStore chathistory.Store MaxToolRounds int }
-runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionTurnSequencer SessionTurnSequencer SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
+runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }
-runtime: type SessionTurnSequencer interface { Acquire(ctx context.Context, sessionID string) (release func(), err error) }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
@@ -633,9 +619,10 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
 runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 runtime: var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
-storetest: func (s *MemoryProcessStore) Apply(ctx context.Context, mutation core.SnapshotMutation) error
+storetest: func (s *MemoryProcessStore) Delete(ctx context.Context, rootID string) error
 storetest: func (s *MemoryProcessStore) List(_ context.Context) ([]string, error)
-storetest: func (s *MemoryProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error)
+storetest: func (s *MemoryProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error)
+storetest: func (s *MemoryProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapshot) error
 storetest: func (s *MemorySessionStore) Delete(_ context.Context, id string) error
 storetest: func (s *MemorySessionStore) List(_ context.Context) ([]string, error)
 storetest: func (s *MemorySessionStore) Load(_ context.Context, id string) (core.Session, error)
