@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -379,14 +380,14 @@ func TestEngine_RestoreProcess_AgentNotDeployed(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-missing-agent-test", ProcessStore: store})
 
 	started := time.Now().Add(-time.Second)
-	_ = store.Save(context.Background(), core.ProcessSnapshot{
+	_ = store.Apply(context.Background(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "orphan",
 		Deployment:    core.DeploymentRef{Name: "never-deployed", Digest: "missing"},
 		StartedAt:     started,
 		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
-	})
+	}}})
 
 	if _, err := engine.Restore(context.Background(), "orphan", core.ProcessOptions{}); err == nil {
 		t.Error("expected error when agent not deployed")
@@ -606,5 +607,66 @@ func TestEngineContinueReportsOverlappingRun(t *testing.T) {
 	close(action.release)
 	if err := <-done; err != nil {
 		t.Fatalf("owning Continue: %v", err)
+	}
+}
+
+func TestEngineDiscardDeletesDurableOnlyTreeAtomically(t *testing.T) {
+	started := time.Now().UTC().Add(-time.Second)
+	snapshot := func(id, parentID string, depth int) core.ProcessSnapshot {
+		return core.ProcessSnapshot{
+			SchemaVersion: core.ProcessSnapshotSchemaVersion,
+			ID:            id, ParentID: parentID, Depth: depth,
+			Deployment: core.DeploymentRef{Name: "discard", Digest: "discard-digest"},
+			StartedAt:  started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
+		}
+	}
+	store := storetest.NewMemoryProcessStore()
+	writes := []core.ProcessSnapshot{
+		snapshot("root", "", 0),
+		snapshot("child-b", "root", 1),
+		snapshot("child-a", "root", 1),
+		snapshot("grandchild", "child-a", 2),
+		snapshot("outside", "", 0),
+	}
+	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: writes}); err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
+	if err := engine.Discard(t.Context(), "root"); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := store.List(t.Context())
+	if err != nil || len(ids) != 1 || ids[0] != "outside" {
+		t.Fatalf("remaining snapshots = %v, err=%v", ids, err)
+	}
+}
+
+func TestEngineDiscardStoreFailurePreservesWholeDurableTree(t *testing.T) {
+	storeErr := errors.New("delete unavailable")
+	store := newFlakyProcessStore(storeErr)
+	started := time.Now().UTC().Add(-time.Second)
+	writes := []core.ProcessSnapshot{
+		{
+			SchemaVersion: core.ProcessSnapshotSchemaVersion,
+			ID:            "root", Deployment: core.DeploymentRef{Name: "discard", Digest: "discard-digest"},
+			StartedAt: started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
+		},
+		{
+			SchemaVersion: core.ProcessSnapshotSchemaVersion,
+			ID:            "child", ParentID: "root", Depth: 1,
+			Deployment: core.DeploymentRef{Name: "discard", Digest: "discard-digest"},
+			StartedAt:  started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
+		},
+	}
+	if err := store.inner.Apply(t.Context(), core.SnapshotMutation{Writes: writes}); err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
+	if err := engine.Discard(t.Context(), "root"); !errors.Is(err, storeErr) {
+		t.Fatalf("Discard error = %v, want store failure", err)
+	}
+	ids, err := store.inner.List(t.Context())
+	if err != nil || !slices.Equal(ids, []string{"child", "root"}) {
+		t.Fatalf("preserved snapshots = %v, err=%v", ids, err)
 	}
 }

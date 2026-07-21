@@ -71,12 +71,16 @@ func TestNestedChildStateQueuesCleanupOnce(t *testing.T) {
 	state.queueCleanup("child-1")
 	state.queueCleanup("child-2")
 
-	cleanup := state.takeCleanup()
+	cleanup := state.cleanupSnapshot()
 	if len(cleanup) != 2 || cleanup[0] != "child-1" || cleanup[1] != "child-2" {
 		t.Fatalf("cleanup = %v, want [child-1 child-2]", cleanup)
 	}
-	if cleanup := state.takeCleanup(); cleanup != nil {
-		t.Fatalf("drained cleanup = %v, want nil", cleanup)
+	if cleanup := state.cleanupSnapshot(); len(cleanup) != 2 {
+		t.Fatalf("unacknowledged cleanup = %v, want retained entries", cleanup)
+	}
+	state.acknowledgeCleanup([]string{"child-1", "child-2"})
+	if cleanup := state.cleanupSnapshot(); cleanup != nil {
+		t.Fatalf("acknowledged cleanup = %v, want nil", cleanup)
 	}
 }
 

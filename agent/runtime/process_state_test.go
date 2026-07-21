@@ -67,6 +67,45 @@ func TestProcessStateLosingTerminalDoesNotChangeFailure(t *testing.T) {
 	}
 }
 
+func TestProcessStateCannotBeRemovedBeforeRunReleasesOwnership(t *testing.T) {
+	state := newProcessState()
+	if started, err := state.beginRun(); err != nil || !started {
+		t.Fatalf("beginRun = (%v, %v)", started, err)
+	}
+	if won, owned := state.markKilled(nil); !won || !owned {
+		t.Fatalf("markKilled = (%v, %v), want winning run-owned kill", won, owned)
+	}
+	if state.removable() {
+		t.Fatal("terminal process remained removable while its run owned finalization")
+	}
+	state.endRun()
+	if !state.removable() {
+		t.Fatal("terminal process was not removable after run finalization")
+	}
+}
+
+func TestProcessRegistryCannotReplaceTerminalRunDuringFinalization(t *testing.T) {
+	registry := newProcessRegistry()
+	existing := &Process{id: "process", state: newProcessState()}
+	if started, err := existing.state.beginRun(); err != nil || !started {
+		t.Fatalf("beginRun = (%v, %v)", started, err)
+	}
+	if won, _ := existing.state.markKilled(nil); !won {
+		t.Fatal("kill did not win")
+	}
+	if !registry.insert(existing) {
+		t.Fatal("insert existing process")
+	}
+	replacement := &Process{id: existing.id, state: newProcessState()}
+	if registry.registerNew(replacement) {
+		t.Fatal("registry replaced a terminal process before its run finalized")
+	}
+	existing.state.endRun()
+	if !registry.registerNew(replacement) {
+		t.Fatal("registry did not accept replacement after finalization")
+	}
+}
+
 // TestProcessState_NonTerminalTransitions confirms the gate doesn't impede the
 // normal Running ↔ Waiting cycle (HITL park / resume): a non-terminal status
 // sets cleanly while not terminal, and beginRun re-enters from Waiting.

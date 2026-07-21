@@ -55,17 +55,17 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 	snapshot := validStoredSnapshot("proc-1", core.StatusWaiting)
 	snapshot.Conditions = map[string]bool{"k": true}
 
-	if err := store.Save(ctx, snapshot); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
 		t.Fatalf("first Save: %v", err)
 	}
 	stale := snapshot
-	if err := store.Save(ctx, stale); !errors.Is(err, core.ErrRevisionConflict) {
+	if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{stale}}); !errors.Is(err, core.ErrRevisionConflict) {
 		t.Fatalf("stale Save error = %v", err)
 	}
 	snapshot.Revision = 1
 	snapshot.Status = core.StatusCompleted
 	snapshot.Suspension = nil
-	if err := store.Save(ctx, snapshot); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
 		t.Fatalf("second Save: %v", err)
 	}
 
@@ -83,7 +83,7 @@ func TestProcessStoreSaveLoadCAS(t *testing.T) {
 		go func() {
 			defer wait.Done()
 			<-start
-			results <- store.Save(ctx, candidate)
+			results <- store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{candidate}})
 		}()
 	}
 	close(start)
@@ -110,6 +110,26 @@ func TestProcessStoreContract(t *testing.T) {
 	}
 }
 
+func TestProcessStoreMixedMutationRollsBackDeleteOnWriteConflict(t *testing.T) {
+	store := newProcessStore(t)
+	first := validStoredSnapshot("first", core.StatusCompleted)
+	second := validStoredSnapshot("second", core.StatusCompleted)
+	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{first, second}}); err != nil {
+		t.Fatal(err)
+	}
+	first.OwnTokens = 10 // Revision zero is now stale.
+	err := store.Apply(t.Context(), core.SnapshotMutation{
+		Writes:      []core.ProcessSnapshot{first},
+		DeleteTrees: []string{second.ID},
+	})
+	if !errors.Is(err, core.ErrRevisionConflict) {
+		t.Fatalf("mixed mutation error = %v, want revision conflict", err)
+	}
+	if stored, err := store.Load(t.Context(), second.ID); err != nil || stored.Revision != 1 {
+		t.Fatalf("delete escaped rolled-back mutation: snapshot=%#v err=%v", stored, err)
+	}
+}
+
 func TestProcessStoreLoadMissingIsSentinel(t *testing.T) {
 	store := newProcessStore(t)
 	if _, err := store.Load(context.Background(), "nope"); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -125,7 +145,7 @@ func TestProcessStoreLoadCorruptSnapshotIsInvalidSentinel(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewProcessStore(db)
 	snapshot := validStoredSnapshot("proc-corrupt", core.StatusCompleted)
-	if err := store.Save(t.Context(), snapshot); err != nil {
+	if err := store.Apply(t.Context(), core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, snapshot.ID); err != nil {
@@ -140,7 +160,7 @@ func TestProcessStoreListDeleteIdempotent(t *testing.T) {
 	ctx := context.Background()
 	store := newProcessStore(t)
 	for _, id := range []string{"a", "b"} {
-		if err := store.Save(ctx, validStoredSnapshot(id, core.StatusCompleted)); err != nil {
+		if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{validStoredSnapshot(id, core.StatusCompleted)}}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -148,10 +168,10 @@ func TestProcessStoreListDeleteIdempotent(t *testing.T) {
 	if err != nil || len(ids) != 2 {
 		t.Fatalf("List = %v, err %v", ids, err)
 	}
-	if err := store.Delete(ctx, "a"); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{"a"}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Delete(ctx, "a"); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{"a"}}); err != nil {
 		t.Fatalf("idempotent Delete: %v", err)
 	}
 	if ids, _ = store.List(ctx); len(ids) != 1 || ids[0] != "b" {
@@ -171,12 +191,12 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	grandchild.Depth = 2
 	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
 	for _, snapshot := range []core.ProcessSnapshot{root, child, grandchild, unrelated} {
-		if err := store.Save(ctx, snapshot); err != nil {
+		if err := store.Apply(ctx, core.SnapshotMutation{Writes: []core.ProcessSnapshot{snapshot}}); err != nil {
 			t.Fatalf("Save(%s): %v", snapshot.ID, err)
 		}
 	}
 
-	if err := store.DeleteTree(ctx, root.ID); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{root.ID}}); err != nil {
 		t.Fatalf("DeleteTree: %v", err)
 	}
 	ids, err := store.List(ctx)
@@ -186,7 +206,7 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	if len(ids) != 1 || ids[0] != unrelated.ID {
 		t.Fatalf("remaining snapshots = %v, want only unrelated", ids)
 	}
-	if err := store.DeleteTree(ctx, root.ID); err != nil {
+	if err := store.Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{root.ID}}); err != nil {
 		t.Fatalf("idempotent DeleteTree: %v", err)
 	}
 }

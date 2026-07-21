@@ -121,7 +121,7 @@ type failingProcessStore struct {
 	err   error
 }
 
-func (s *failingProcessStore) Save(context.Context, core.ProcessSnapshot) error {
+func (s *failingProcessStore) Apply(context.Context, core.SnapshotMutation) error {
 	s.saves.Add(1)
 	return s.err
 }
@@ -129,3 +129,5 @@ func (s *failingProcessStore) Save(context.Context, core.ProcessSnapshot) error 
 func (*failingProcessStore) Load(context.Context, string) (core.ProcessSnapshot, error) {
 	return core.ProcessSnapshot{}, core.ErrSnapshotNotFound
 }
+
+func (*failingProcessStore) List(context.Context) ([]string, error) { return nil, nil }

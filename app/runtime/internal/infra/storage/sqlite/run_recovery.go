@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -69,7 +70,7 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot P
 				if err := s.recoverLostRun(ctx, run, now); err != nil {
 					return err
 				}
-				if err := NewProcessStore(s.db).DeleteTree(ctx, pendingInterrupt.ProcessID); err != nil {
+				if err := NewProcessStore(s.db).Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{pendingInterrupt.ProcessID}}); err != nil {
 					return fmt.Errorf("sqlite: delete unusable process snapshot for run %q: %w", run.runID, err)
 				}
 				reconciled++
@@ -85,7 +86,7 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot P
 				continue
 			}
 			if interrupt.ProcessID != "" {
-				if err := NewProcessStore(s.db).DeleteTree(ctx, interrupt.ProcessID); err != nil {
+				if err := NewProcessStore(s.db).Apply(ctx, core.SnapshotMutation{DeleteTrees: []string{interrupt.ProcessID}}); err != nil {
 					return fmt.Errorf("sqlite: reconcile orphan process snapshot: %w", err)
 				}
 			}

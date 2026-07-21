@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -22,7 +22,6 @@ type ProcessStore struct {
 }
 
 var _ core.ProcessStore = (*ProcessStore)(nil)
-var _ core.SnapshotBatchWriter = (*ProcessStore)(nil)
 
 // NewProcessStore binds the SQLite process-store to a database opened via
 // [Open].
@@ -30,31 +29,147 @@ func NewProcessStore(db *sql.DB) *ProcessStore {
 	return &ProcessStore{db: db}
 }
 
-// Save commits one compare-and-swap revision.
-func (s *ProcessStore) Save(ctx context.Context, snapshot core.ProcessSnapshot) error {
-	return s.SaveBatch(ctx, []core.ProcessSnapshot{snapshot})
-}
-
-// SaveBatch commits every compare-and-swap revision in one transaction.
-func (s *ProcessStore) SaveBatch(ctx context.Context, snapshots []core.ProcessSnapshot) error {
-	prepared, err := prepareSnapshotWrites(snapshots)
+// Apply commits one validated process-snapshot mutation in one transaction.
+func (s *ProcessStore) Apply(ctx context.Context, mutation core.SnapshotMutation) error {
+	if err := mutation.Validate(); err != nil {
+		return fmt.Errorf("sqlite: process snapshot mutation: %w", err)
+	}
+	prepared, err := prepareSnapshotWrites(mutation.Writes)
 	if err != nil {
 		return err
 	}
-	if len(prepared) == 0 {
+	if len(prepared) == 0 && len(mutation.DeleteTrees) == 0 {
 		return nil
 	}
 
 	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
+		var stored map[string]core.ProcessSnapshot
+		if len(mutation.DeleteTrees) > 0 {
+			stored, err = s.loadStoredSnapshots(ctx)
+			if err != nil {
+				return err
+			}
+		}
+		deleteSet := processTreeDeleteSet(stored, mutation.DeleteTrees)
+		if err := validateProcessMutationLineage(stored, mutation.Writes, deleteSet); err != nil {
+			return err
+		}
 		for index := range prepared {
 			if err := s.savePreparedSnapshot(ctx, prepared[index]); err != nil {
-				return fmt.Errorf("sqlite: save snapshot batch write[%d]: %w", index, err)
+				return fmt.Errorf("sqlite: process snapshot mutation write[%d]: %w", index, err)
+			}
+		}
+		deleteIDs := make([]string, 0, len(deleteSet))
+		for id := range deleteSet {
+			deleteIDs = append(deleteIDs, id)
+		}
+		slices.Sort(deleteIDs)
+		for index, id := range deleteIDs {
+			if _, err := conn(ctx, s.db).ExecContext(ctx,
+				`DELETE FROM process_snapshots WHERE id = ?`, id,
+			); err != nil {
+				return fmt.Errorf("sqlite: process snapshot mutation tree delete[%d] %q: %w", index, id, err)
 			}
 		}
 		return nil
 	})
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (s *ProcessStore) loadStoredSnapshots(ctx context.Context) (map[string]core.ProcessSnapshot, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx, `SELECT id, snapshot FROM process_snapshots`)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: load process snapshot graph: %w", err)
+	}
+	defer rows.Close()
+	stored := make(map[string]core.ProcessSnapshot)
+	for rows.Next() {
+		var id, data string
+		if err := rows.Scan(&id, &data); err != nil {
+			return nil, fmt.Errorf("sqlite: scan process snapshot graph: %w", err)
+		}
+		var snapshot core.ProcessSnapshot
+		if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
+			return nil, fmt.Errorf("sqlite: parse process tree snapshot %q: %w: %w", id, core.ErrInvalidSnapshot, err)
+		}
+		if snapshot.ID != id {
+			return nil, fmt.Errorf("sqlite: process tree snapshot id %q != row id %q: %w", snapshot.ID, id, core.ErrInvalidSnapshot)
+		}
+		stored[id] = snapshot
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: iterate process snapshot graph: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("sqlite: close process snapshot graph: %w", err)
+	}
+	return stored, nil
+}
+
+func processTreeDeleteSet(stored map[string]core.ProcessSnapshot, roots []string) map[string]struct{} {
+	if len(roots) == 0 {
+		return nil
+	}
+	children := make(map[string][]string)
+	for id, snapshot := range stored {
+		if snapshot.ParentID != "" {
+			children[snapshot.ParentID] = append(children[snapshot.ParentID], id)
+		}
+	}
+	deleted := make(map[string]struct{})
+	var walk func(string)
+	walk = func(id string) {
+		if _, visited := deleted[id]; visited {
+			return
+		}
+		deleted[id] = struct{}{}
+		for _, childID := range children[id] {
+			walk(childID)
+		}
+	}
+	for _, root := range roots {
+		walk(root)
+	}
+	return deleted
+}
+
+func validateProcessMutationLineage(
+	stored map[string]core.ProcessSnapshot,
+	writes []core.ProcessSnapshot,
+	deleted map[string]struct{},
+) error {
+	if len(deleted) == 0 {
+		return nil
+	}
+	pending := make(map[string]core.ProcessSnapshot, len(writes))
+	for _, snapshot := range writes {
+		pending[snapshot.ID] = snapshot
+	}
+	for _, snapshot := range writes {
+		if _, removed := deleted[snapshot.ID]; removed {
+			return fmt.Errorf("sqlite: process snapshot mutation: %w: write process %q belongs to a deleted tree", core.ErrInvalidSnapshot, snapshot.ID)
+		}
+		visited := map[string]struct{}{snapshot.ID: {}}
+		for parentID := snapshot.ParentID; parentID != ""; {
+			if _, removed := deleted[parentID]; removed {
+				return fmt.Errorf("sqlite: process snapshot mutation: %w: write process %q descends from deleted process %q", core.ErrInvalidSnapshot, snapshot.ID, parentID)
+			}
+			if _, duplicate := visited[parentID]; duplicate {
+				return fmt.Errorf("sqlite: process snapshot mutation: %w: write process %q has cyclic lineage", core.ErrInvalidSnapshot, snapshot.ID)
+			}
+			visited[parentID] = struct{}{}
+			parent, ok := pending[parentID]
+			if !ok {
+				parent, ok = stored[parentID]
+			}
+			if !ok {
+				break
+			}
+			parentID = parent.ParentID
+		}
 	}
 	return nil
 }
@@ -67,24 +182,12 @@ type preparedSnapshotWrite struct {
 
 func prepareSnapshotWrites(snapshots []core.ProcessSnapshot) ([]preparedSnapshotWrite, error) {
 	prepared := make([]preparedSnapshotWrite, len(snapshots))
-	seen := make(map[string]struct{}, len(snapshots))
 	for index, snapshot := range snapshots {
-		if snapshot.Revision == math.MaxUint64 {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: revision is exhausted", index, core.ErrInvalidSnapshot)
-		}
-		if err := snapshot.Validate(); err != nil {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w", index, err)
-		}
-		if _, duplicate := seen[snapshot.ID]; duplicate {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: %w: duplicate process ID %q", index, core.ErrInvalidSnapshot, snapshot.ID)
-		}
-		seen[snapshot.ID] = struct{}{}
-
 		candidate := snapshot
 		candidate.Revision++
 		data, err := json.Marshal(candidate)
 		if err != nil {
-			return nil, fmt.Errorf("sqlite: snapshot batch write[%d]: marshal: %w", index, err)
+			return nil, fmt.Errorf("sqlite: process snapshot mutation write[%d]: marshal: %w", index, err)
 		}
 		prepared[index] = preparedSnapshotWrite{
 			snapshot:         candidate,
@@ -164,80 +267,6 @@ func (s *ProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapsho
 		return core.ProcessSnapshot{}, fmt.Errorf("sqlite: snapshot %q revision mismatch: %w", id, core.ErrInvalidSnapshot)
 	}
 	return snap, nil
-}
-
-// Delete removes the snapshot for id. Idempotent — unknown id is not an
-// error.
-func (s *ProcessStore) Delete(ctx context.Context, id string) error {
-	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM process_snapshots WHERE id = ?`, id,
-	); err != nil {
-		return fmt.Errorf("sqlite: delete snapshot: %w", err)
-	}
-	return nil
-}
-
-// DeleteTree removes root and every snapshot whose ParentID descends from it.
-// It is idempotent and joins the caller's transaction through conn(ctx, s.db).
-// Nested Runtime turns persist each process independently, so deleting only the
-// root would leave child snapshots orphaned after parked cancel/run_lost.
-func (s *ProcessStore) DeleteTree(ctx context.Context, rootID string) error {
-	if rootID == "" {
-		return nil
-	}
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT id, snapshot FROM process_snapshots`)
-	if err != nil {
-		return fmt.Errorf("sqlite: list process tree: %w", err)
-	}
-	defer rows.Close()
-
-	children := make(map[string][]string)
-	for rows.Next() {
-		var id, data string
-		if err := rows.Scan(&id, &data); err != nil {
-			return fmt.Errorf("sqlite: scan process tree: %w", err)
-		}
-		var snapshot core.ProcessSnapshot
-		if err := json.Unmarshal([]byte(data), &snapshot); err != nil {
-			return fmt.Errorf("sqlite: parse process tree snapshot %q: %w: %w", id, core.ErrInvalidSnapshot, err)
-		}
-		if snapshot.ID != id {
-			return fmt.Errorf("sqlite: process tree snapshot id %q != row id %q: %w", snapshot.ID, id, core.ErrInvalidSnapshot)
-		}
-		if snapshot.ParentID != "" {
-			children[snapshot.ParentID] = append(children[snapshot.ParentID], snapshot.ID)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("sqlite: iterate process tree: %w", err)
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("sqlite: close process tree rows: %w", err)
-	}
-
-	visited := make(map[string]struct{})
-	var order []string
-	var walk func(string)
-	walk = func(id string) {
-		if _, seen := visited[id]; seen {
-			return
-		}
-		visited[id] = struct{}{}
-		for _, childID := range children[id] {
-			walk(childID)
-		}
-		order = append(order, id)
-	}
-	walk(rootID)
-	for _, id := range order {
-		if _, err := conn(ctx, s.db).ExecContext(ctx,
-			`DELETE FROM process_snapshots WHERE id = ?`, id,
-		); err != nil {
-			return fmt.Errorf("sqlite: delete process tree snapshot %q: %w", id, err)
-		}
-	}
-	return nil
 }
 
 // List returns every stored process id, most-recently-captured first.
