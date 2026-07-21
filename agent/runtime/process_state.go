@@ -222,29 +222,27 @@ func (s *processState) restoreFailure(err error) {
 	s.runErr = err
 }
 
-func (s *processState) fail(err error) bool {
+func (s *processState) fail(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return false
+		return
 	}
 	s.runErr = err
 	s.currentStatus = core.StatusFailed
 	s.pendingSuspension = nil
-	return true
 }
 
-func (s *processState) pauseDurability() bool {
+func (s *processState) pauseDurability() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return false
+		return
 	}
 	if s.currentStatus == core.StatusWaiting || s.currentStatus == core.StatusPaused {
-		return true
+		return
 	}
 	s.currentStatus = core.StatusPaused
-	return true
 }
 
 func (s *processState) recordActionRun(run ActionRun) {

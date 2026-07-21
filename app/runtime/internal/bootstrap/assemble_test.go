@@ -15,7 +15,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -133,7 +132,9 @@ type basicHistoryStore struct{ history.Store }
 
 func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
-	cfg.Engine.SnapshotFailurePolicy = agentruntime.SnapshotFailureReportOnly
+	// Force engine construction to fail after the tool environment is built, so
+	// the reclamation path runs; an invalid BuildID is rejected inside New.
+	cfg.Engine.BuildID = "dev"
 	var (
 		toolClosed     atomic.Int32
 		resourceClosed atomic.Int32
@@ -164,7 +165,7 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		})
 		return built, nil
 	})
-	if err == nil || !strings.Contains(err.Error(), "SnapshotFailurePolicy") {
+	if err == nil || !strings.Contains(err.Error(), "BuildID") {
 		t.Fatalf("assemble error = %v, want engine construction failure", err)
 	}
 	if got := toolClosed.Load(); got != 1 {

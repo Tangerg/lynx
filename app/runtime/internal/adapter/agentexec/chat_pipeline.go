@@ -33,14 +33,16 @@ func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentrunti
 	}
 
 	return agent.NewEngine(agentruntime.Config{
-		BuildID:               config.BuildID,
-		Chat:                  core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
-		BindConversation:      history.WithConversationID,
-		Extensions:            extensions,
-		Guardrails:            guardrails,
-		ProcessStore:          config.ProcessStore,
-		AutoSnapshot:          config.ProcessStore != nil,
-		SnapshotFailurePolicy: config.SnapshotFailurePolicy,
+		BuildID:          config.BuildID,
+		Chat:             core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
+		BindConversation: history.WithConversationID,
+		Extensions:       extensions,
+		Guardrails:       guardrails,
+		ProcessStore:     config.ProcessStore,
+		AutoSnapshot:     config.ProcessStore != nil,
+		// A durable Runtime must never continue after losing snapshot durability,
+		// so the failure policy is fixed rather than exposed as a knob.
+		SnapshotFailurePolicy: agentruntime.SnapshotFailureFailProcess,
 		ChildSessionStore:     config.ChildSessionStore,
 	})
 }

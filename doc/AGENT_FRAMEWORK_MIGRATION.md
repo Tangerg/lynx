@@ -438,9 +438,8 @@ if err := storetest.TestSessionStore(t.Context(), store); err != nil {
 
 ```go
 type ProcessStore interface {
-    Save(context.Context, []ProcessSnapshot) error
+    Apply(context.Context, ProcessSnapshotChange) error
     Load(context.Context, string) (ProcessSnapshot, error)
-    Delete(context.Context, string) error
 }
 ```
 
@@ -451,7 +450,8 @@ type ProcessStore interface {
 `storetest.NewMemorySessionStore`；生产 Host 应继续注入自己的适配器。
 
 删除 `ProcessSnapshot.Revision`、`SnapshotMutation`、`RevisionConflictError` 和
-`ErrRevisionConflict`。`Save` 接收一次完整 process-tree capture，`Delete(rootID)` 删除对应
+`ErrRevisionConflict`。`Apply` 接收一次 `ProcessSnapshotChange{Tree, DeleteRoots}`：`Tree`
+是一棵连通的 process-tree capture（`RootID` + `Snapshots`），`DeleteRoots` 递归删除已废弃的
 持久化树；adapter 自行决定遍历、覆盖写、事务、并发控制与部分失败策略。
 
 自定义实现运行公共契约：

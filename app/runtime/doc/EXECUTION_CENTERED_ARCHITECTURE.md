@@ -145,7 +145,7 @@ Runtime 只供应 model stream wrapper、`tools.Registry`、limits、attribution
 
 ### 3.3 Snapshot 与 Build identity
 
-Process checkpoint 的结构、revision、deployment compatibility 和 nested relation 都由
+Process checkpoint 的结构、deployment compatibility 和 nested relation 都由
 Agent framework 解释。Runtime 只按 process ID 调用 `Resumable` / `RestoreResumable`，
 不读取 checkpoint payload 来推断可恢复性。
 

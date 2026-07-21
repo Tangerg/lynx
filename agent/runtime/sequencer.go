@@ -5,6 +5,9 @@ import (
 	"sync"
 )
 
+// localSequencer grants FIFO, single-owner access per opaque key within one
+// Engine. It backs both session-turn ordering and process-tree save ordering;
+// the key is a session id or a process-tree root id depending on the caller.
 type localSequencer struct {
 	mu    sync.Mutex
 	gates map[string]*sequenceGate
@@ -44,7 +47,7 @@ func (s *localSequencer) acquire(ctx context.Context, key string) (func(), error
 	}
 
 	// Cancellation and ownership can become ready together. Do not let an
-	// already-canceled waiter start a turn merely because select chose ready.
+	// already-canceled waiter start work merely because select chose ready.
 	if err := ctx.Err(); err != nil {
 		s.release(key, gate)
 		return nil, err
@@ -53,7 +56,7 @@ func (s *localSequencer) acquire(ctx context.Context, key string) (func(), error
 }
 
 // enqueue defines arrival order at the sequencer's mutex boundary. A nil
-// waiter means the caller acquired an idle session immediately.
+// waiter means the caller acquired an idle key immediately.
 func (s *localSequencer) enqueue(key string) (*sequenceGate, *sequenceWaiter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

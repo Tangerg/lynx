@@ -259,7 +259,7 @@ func (e *Engine) claimProcessTree(process *Process, visited map[string]struct{},
 
 func captureClaimedProcessTree(tree *claimedProcessTree) error {
 	if tree == nil || tree.process == nil {
-		return errors.New("runtime.Engine.saveProcess: locked process tree is incomplete")
+		return errors.New("runtime.Engine.saveProcess: claimed process tree is incomplete")
 	}
 	snapshot, err := tree.process.snapshotClaimed()
 	if err != nil {

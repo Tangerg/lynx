@@ -4,7 +4,6 @@ import (
 	"io"
 	"path/filepath"
 
-	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
@@ -21,13 +20,12 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		Resources:       []io.Closer{stores},
 		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 		Engine: agentexec.Config{
-			BuildID:               buildID,
-			SnapshotFailurePolicy: agentruntime.SnapshotFailureFailProcess,
-			ChatClient:            client,
-			Pricing:               pricing.Catalog(),
-			HistoryStore:          stores.ChatHistory,
-			Knowledge:             stores.Memory,
-			AgentMemory:           stores.AgentMemory,
+			BuildID:      buildID,
+			ChatClient:   client,
+			Pricing:      pricing.Catalog(),
+			HistoryStore: stores.ChatHistory,
+			Knowledge:    stores.Memory,
+			AgentMemory:  stores.AgentMemory,
 		},
 		AgentMemoryStore:       stores.AgentMemory,
 		IdempotencyStore:       stores.Idempotency,

@@ -54,9 +54,6 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	if config.ProcessStore != nil && config.BuildID == "" {
 		return nil, errors.New("engine: BuildID is required when ProcessStore is configured")
 	}
-	if config.SnapshotFailurePolicy != runtime.SnapshotFailureFailProcess {
-		return nil, errors.New("engine: SnapshotFailurePolicy must be fail_process")
-	}
 	if config.HistoryStore == nil {
 		config.HistoryStore = history.NewInMemoryStore()
 	}
