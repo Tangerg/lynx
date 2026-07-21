@@ -25,6 +25,21 @@ const DraftsSubdir = "_drafts"
 // discovery, same as _drafts) and can be restored. Never a valid skill name.
 const ArchivedSubdir = "_archive"
 
+// Skill provenance is recorded under these SKILL.md frontmatter metadata keys.
+// The curator reads them back (through the loader's
+// [skillspec.Frontmatter.Metadata]) to tell an agent-authored skill — eligible
+// for automatic idle archival — from one a human wrote by hand.
+const (
+	MetadataCreatedBy     = "created_by"
+	MetadataSourceSession = "source_session"
+)
+
+// CreatedByAgent marks a skill whose content an agent authored through the
+// draft flow (background trajectory mining or propose_skill), as distinct from
+// a hand-written one. Only agent-authored skills are subject to automatic idle
+// curation; a human-authored skill is never auto-archived.
+const CreatedByAgent = "agent"
+
 // Lifecycle is a skill's curator state in the management surface.
 type Lifecycle string
 
@@ -49,6 +64,13 @@ type Draft struct {
 	Name        string
 	Description string
 	Body        string
+
+	// CreatedBy records who authored the draft's content (e.g. [CreatedByAgent]);
+	// empty for a human-hand-authored skill. SourceSession is the session it was
+	// mined from, or empty. Both render into the SKILL.md frontmatter metadata so
+	// the curator can gate automatic archival on provenance.
+	CreatedBy     string
+	SourceSession string
 }
 
 // DraftHandle identifies the immutable bytes staged for one proposal. Name is
@@ -106,11 +128,34 @@ func (d Draft) Validate() error {
 	return nil
 }
 
-// Render produces the on-disk SKILL.md content: a YAML frontmatter block
-// (name + description) followed by the body. yaml.Marshal quotes/escapes the
-// fields so a description with special characters can't break the block.
+// provenance builds the frontmatter metadata map from the draft's provenance
+// fields, or nil when none is set (so Render omits an empty metadata block).
+func (d Draft) provenance() map[string]string {
+	meta := make(map[string]string, 2)
+	if d.CreatedBy != "" {
+		meta[MetadataCreatedBy] = d.CreatedBy
+	}
+	if d.SourceSession != "" {
+		meta[MetadataSourceSession] = d.SourceSession
+	}
+	if len(meta) == 0 {
+		return nil
+	}
+	return meta
+}
+
+// Render produces the on-disk SKILL.md content: a YAML frontmatter block (name,
+// description, and any provenance metadata) followed by the body. Marshalling
+// the canonical [skillspec.Frontmatter] — rather than a hand-built map — keeps
+// the emitted shape identical to what the read-only loader parses, so
+// provenance round-trips. yaml.Marshal quotes/escapes the fields so a
+// description with special characters can't break the block.
 func (d Draft) Render() (string, error) {
-	front, err := yaml.Marshal(map[string]string{"name": d.Name, "description": d.Description})
+	front, err := yaml.Marshal(skillspec.Frontmatter{
+		Name:        d.Name,
+		Description: d.Description,
+		Metadata:    d.provenance(),
+	})
 	if err != nil {
 		return "", fmt.Errorf("skills: render frontmatter: %w", err)
 	}

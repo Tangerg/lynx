@@ -33,4 +33,5 @@ const (
 	ErrorCodeSteering          = runs.ErrorCodeSteering
 	ErrorCodeCompaction        = runs.ErrorCodeCompaction
 	ErrorCodeMemoryMaintenance = runs.ErrorCodeMemoryMaintenance
+	ErrorCodeSkillMaintenance  = runs.ErrorCodeSkillMaintenance
 )

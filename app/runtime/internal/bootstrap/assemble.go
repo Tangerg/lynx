@@ -275,7 +275,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
 	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.Shells, utilityEnv.resolve, memoryEmbed)
+	turnServices := buildTurnServices(cfg, messages, built.Shells, skillStore, utilityEnv.resolve, memoryEmbed)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -290,6 +290,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Steering:            turnServices.steering,
 		Compactor:           turnServices.compactor,
 		Extractor:           turnServices.extractor,
+		Miner:               turnServices.miner,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,

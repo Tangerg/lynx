@@ -39,3 +39,13 @@ type Compactor interface {
 type Extractor interface {
 	MaybeExtract(ctx context.Context, sessionID, cwd string) error
 }
+
+// SkillMiner distills a complex turn's trajectory into a proposed skill draft.
+// It runs at the turn boundary independent of compaction — a complex turn is
+// worth capturing whether or not history needed folding — and owns its own
+// complexity threshold and cadence, so it decides whether to mine from the
+// reported signal. toolCalls is the just-finished turn's completed tool-call
+// count, the complexity signal.
+type SkillMiner interface {
+	MaybeMine(ctx context.Context, sessionID, cwd string, toolCalls int) error
+}

@@ -204,20 +204,36 @@ func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
 	return pending, true
 }
 
-// postTurnMaintenance runs the compact + (conditional) extract pair
-// after the turn's real LLM round completed cleanly. Errors at
-// this stage surface through ErrorEvent but don't abort the turn —
-// the user's reply is already on screen.
+// postTurnMaintenance runs turn-boundary housekeeping after the turn's real LLM
+// round completed cleanly: skill mining, then the compact + (conditional)
+// extract pair. Errors at this stage surface through ErrorEvent but don't abort
+// the turn — the user's reply is already on screen.
+//
+// Skill mining runs FIRST and independent of compaction: a complex turn is
+// worth distilling into a reusable skill whether or not history needed folding,
+// and mining before compaction reads the turn's full (un-summarized)
+// trajectory. The miner owns its own complexity threshold + cadence, so this
+// reports the turn's tool-call count and lets it decide whether to mine.
 //
 // A fired compaction emits [CompactBoundary] with before/after message counts.
 // Memory extraction writes its durable ledger/curated state internally; it has
 // no client event because no application projection consumes one. Maintenance
 // failures remain visible through [ErrorEvent].
 //
-// Memory maintenance is gated on compaction firing: extraction and any due
-// curation add model calls, so we amortize them onto the moments where the
-// runtime had to summarize anyway.
+// Memory maintenance (extraction/curation) is gated on compaction firing: those
+// add model calls, so we amortize them onto the moments where the runtime had
+// to summarize anyway. Mining is NOT so gated — its own cadence bounds its cost.
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+	if s.miner != nil {
+		if err := s.miner.MaybeMine(ctx, sessionID, st.cwd, st.toolCallCount()); err != nil {
+			s.emit(st, ErrorEvent{
+				Message: "skill mining failed: " + err.Error(),
+				Code:    ErrorCodeSkillMaintenance,
+				Problem: internalRunProblem(),
+			})
+		}
+	}
+
 	if s.compactor == nil {
 		return
 	}
