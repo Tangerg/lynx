@@ -78,7 +78,8 @@ type StuckResult struct {
 // StopPolicy decides whether a running process should terminate at the current
 // tick boundary. Registered policies are checked alongside the implicit
 // budget-derived policy. A policy panic fails the process rather than escaping
-// the runtime or being interpreted as a termination decision.
+// the runtime or being interpreted as a termination decision. Valid at engine
+// and process scope.
 type StopPolicy interface {
 	Extension
 

@@ -83,7 +83,9 @@ type Config struct {
 	// Chat is the shared model capability every action body reaches through
 	// [core.ProcessContext.Chat] or [core.ProcessContext.Prompt]. Model is
 	// optional; Streamer may only be set when Model is also set. Hosts can pass
-	// any implementation of the provider-neutral chat interfaces.
+	// any implementation of the provider-neutral chat interfaces. Different
+	// processes may call the shared implementations concurrently; they own any
+	// synchronization required by mutable provider state.
 	Chat core.ChatCapability
 
 	// Guardrails are engine-wide chat middlewares applied to every
@@ -151,7 +153,9 @@ type Config struct {
 	// the runtime detects each via type assertion at dispatch time.
 	//
 	// [core.Extension.Name] must be unique within Extensions; an empty or
-	// duplicate Name makes [New] return an error.
+	// duplicate Name, or a value with no engine-scoped capability, makes [New]
+	// return an error. Registered instances may be called concurrently as
+	// described by [core.Extension].
 	Extensions []core.Extension
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	agentevent "github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -21,7 +22,8 @@ type startFailureOutput struct {
 
 type namedStartExtension string
 
-func (e namedStartExtension) Name() string { return string(e) }
+func (e namedStartExtension) Name() string                            { return string(e) }
+func (namedStartExtension) OnEvent(context.Context, agentevent.Event) {}
 
 func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) {
 	tests := []struct {

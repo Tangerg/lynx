@@ -112,6 +112,10 @@ func finishAgentRunSpan(span trace.Span, process *Process, err error) {
 // turn) and re-saved with refreshed [core.Session.UpdatedAt] after the
 // dispatch completes — successful or failed.
 //
+// Calls sharing a session ID are ordered only within this Engine instance. The
+// framework makes no cross-process or distributed coordination guarantee;
+// hosts that need one must provide it outside the Engine boundary.
+//
 // The runtime takes an ownership-isolated copy of session. Build it via
 // [core.NewSession] (or load it from the configured store) before calling. If
 // agent is nil, the active deployment named by [core.Session.AgentName] is

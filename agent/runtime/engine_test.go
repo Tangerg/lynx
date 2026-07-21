@@ -49,6 +49,13 @@ func TestAsyncEntryPointsReturnAdmissionErrorsSynchronously(t *testing.T) {
 type constructorExtension struct{ name string }
 
 func (e *constructorExtension) Name() string { return e.name }
+func (*constructorExtension) Check(core.ProcessView) (bool, string) {
+	return false, ""
+}
+
+type nameOnlyExtension struct{ name string }
+
+func (e nameOnlyExtension) Name() string { return e.name }
 
 func TestNewEngineReturnsConfigErrors(t *testing.T) {
 	duplicate := &constructorExtension{name: "duplicate"}
@@ -63,6 +70,7 @@ func TestNewEngineReturnsConfigErrors(t *testing.T) {
 		{name: "typed nil extension", config: Config{Extensions: []core.Extension{(*constructorExtension)(nil)}}, contains: "nil extension"},
 		{name: "empty extension name", config: Config{Extensions: []core.Extension{&constructorExtension{}}}, contains: "empty Name"},
 		{name: "duplicate extension", config: Config{Extensions: []core.Extension{duplicate, duplicate}}, contains: "already registered"},
+		{name: "extension without capability", config: Config{Extensions: []core.Extension{nameOnlyExtension{name: "empty"}}}, contains: "no engine-scoped capability"},
 		{name: "whitespace build id", config: Config{BuildID: " build "}, contains: "BuildID"},
 		{name: "auto snapshot without store", config: Config{AutoSnapshot: true}, contains: "requires ProcessStore"},
 		{name: "negative snapshot finalize timeout", config: Config{SnapshotFinalizeTimeout: -1}, contains: "SnapshotFinalizeTimeout"},

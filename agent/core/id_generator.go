@@ -5,10 +5,9 @@ import "github.com/google/uuid"
 // UUIDGeneratorName is the default UUID generator's extension identifier.
 const UUIDGeneratorName = "uuid"
 
-// IDGenerator produces stable, unique IDs for processes. It also acts as an
-// engine-level [Extension] — the runtime registers one through
-// Config.Extensions and falls back to a built-in UUID generator
-// when none is registered.
+// IDGenerator produces non-empty IDs that are unique within an Engine's live
+// process registry. It is valid only at engine scope; runtime falls back to a
+// built-in UUID generator when Config.Extensions contains none.
 type IDGenerator interface {
 	Extension
 

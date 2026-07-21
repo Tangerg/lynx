@@ -295,10 +295,9 @@ func nextProcessID(generator core.IDGenerator) (id string, err error) {
 	return id, nil
 }
 
-// validateProcessExtensions enforces the per-process invariants:
-// nil rejected, empty Names rejected, no duplicate Names within the
-// slice. Process-scope Names ARE allowed to collide with
-// engine-scope Names — that's the explicit override mechanism.
+// validateProcessExtensions enforces identity and scope before a Process keeps
+// the extension instances. Process-scope Names may collide with engine-scope
+// Names; selection capabilities treat that as an explicit override.
 func validateProcessExtensions(extensions []core.Extension) error {
 	if len(extensions) == 0 {
 		return nil
@@ -317,6 +316,9 @@ func validateProcessExtensions(extensions []core.Extension) error {
 		}
 		if _, duplicate := seen[name]; duplicate {
 			return fmt.Errorf("ProcessOptions.Extensions: duplicate name %q", name)
+		}
+		if err := validateProcessExtensionScope(extension); err != nil {
+			return fmt.Errorf("ProcessOptions.Extensions[%d] %q: %w", index, name, err)
 		}
 		seen[name] = struct{}{}
 	}

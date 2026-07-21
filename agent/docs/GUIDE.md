@@ -305,7 +305,10 @@ type Extension interface { Name() string }
 Runtime 再按最小 capability interface 发现 `planning.Planner`、`ActionMiddleware`、
 `ToolMiddleware`、`AgentValidator`、`GoalApprover`、`ToolGroupResolver`、`ChatProvider`、
 `StopPolicy`、`IDGenerator`、`Blackboard` 和 `EventListener`。Engine scope 来自
-`runtime.Config.Extensions`；Process scope 来自 `core.ProcessOptions.Extensions`。
+`runtime.Config.Extensions`；Process scope 来自 `core.ProcessOptions.Extensions`，但只接受
+执行期能力。`AgentValidator`、`IDGenerator`、Blackboard prototype 仅属于 Engine scope；
+Process Blackboard 使用 `ProcessOptions.Blackboard`。扩展实例可能被不同 Process 并发调用，
+实现自行保护可变状态；Runtime 不为扩展调用提供串行、重试或分布式协调。
 
 动态领域依赖使用 typed `Dependencies`，而不是全局 service locator：
 

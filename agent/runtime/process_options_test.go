@@ -9,6 +9,11 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+type engineOnlyValidator struct{}
+
+func (engineOnlyValidator) Name() string               { return "validator" }
+func (engineOnlyValidator) Validate(*core.Agent) error { return nil }
+
 func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	firstExtension := &constructorExtension{name: "first"}
 	secondExtension := &constructorExtension{name: "second"}
@@ -126,6 +131,26 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 			name:     "typed nil extension",
 			options:  core.ProcessOptions{Extensions: []core.Extension{nilExtension}},
 			contains: "Extensions[0] is nil",
+		},
+		{
+			name:     "extension without process capability",
+			options:  core.ProcessOptions{Extensions: []core.Extension{nameOnlyExtension{name: "empty"}}},
+			contains: "no process-scoped capability",
+		},
+		{
+			name:     "engine ID generator",
+			options:  core.ProcessOptions{Extensions: []core.Extension{core.NewUUIDGenerator("ids")}},
+			contains: "engine-only capabilities: IDGenerator",
+		},
+		{
+			name:     "engine blackboard prototype",
+			options:  core.ProcessOptions{Extensions: []core.Extension{newInMemoryBlackboard()}},
+			contains: "engine-only capabilities: Blackboard",
+		},
+		{
+			name:     "engine agent validator",
+			options:  core.ProcessOptions{Extensions: []core.Extension{engineOnlyValidator{}}},
+			contains: "engine-only capabilities: AgentValidator",
 		},
 		{
 			name: "negative tool rounds",

@@ -23,8 +23,10 @@ const (
 
 var eventTracer = otel.Tracer(eventTracerName)
 
-// Listener is the subscriber surface. Implementations should be non-blocking;
-// Multicast delivers one event to listeners sequentially outside its lock.
+// Listener is the subscriber surface. Implementations should be non-blocking.
+// One Multicast delivery visits its listener snapshot sequentially, but separate
+// publishers may call the same Listener concurrently; implementations own
+// synchronization and backpressure.
 type Listener interface {
 	OnEvent(ctx context.Context, event Event)
 }

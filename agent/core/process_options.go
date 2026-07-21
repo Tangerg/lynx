@@ -9,7 +9,9 @@ import (
 
 // ChildOptionsFunc supplies explicit per-child process configuration. It runs
 // only when a parent ProcessOptions installs it, so the framework's default
-// minimal child inheritance remains unchanged.
+// minimal child inheritance remains unchanged. Parallel child creation may call
+// the same function concurrently; the implementation owns synchronization for
+// captured mutable state.
 type ChildOptionsFunc func(
 	ctx context.Context,
 	parent ProcessView,
@@ -72,12 +74,14 @@ type ProcessOptions struct {
 	// the field and refreshes [Session.UpdatedAt] on every dispatch.
 	Session *Session
 
-	// Extensions are session-scoped plug-ins active for the lifetime of
+	// Extensions are process-scoped plug-ins active for the lifetime of
 	// this single process. They merge with engine-scoped extensions at
-	// dispatch time — process extensions take inner / higher priority
-	// (e.g. a process-scope IDGenerator overrides the engine default;
-	// a process-scope ActionMiddleware sits inside any engine-scope
-	// interceptor in the onion chain). Within Extensions, each
+	// dispatch time — process extensions take inner / higher priority; for
+	// example, a process ActionMiddleware sits inside every engine middleware.
+	// Only capabilities documented for process scope are accepted; deploy-time
+	// AgentValidator, IDGenerator, and Blackboard prototype capabilities belong
+	// to engine scope. Use Blackboard above for an explicit process override.
+	// Within Extensions, each
 	// [Extension.Name] must be unique; the runtime returns an error
 	// from Run / Start / Continue when this constraint
 	// is violated. Process-scope Names may collide with engine-scope

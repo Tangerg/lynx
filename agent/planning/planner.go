@@ -94,7 +94,7 @@ func (e Exclusions) With(name string) Exclusions {
 // Planner is also an engine [core.Extension]: register one (or
 // several) and the runtime resolves which one to use for a given
 // process by matching the agent's [core.AgentConfig.PlannerName]
-// against [core.Extension.Name].
+// against [core.Extension.Name]. Valid at engine and process scope.
 type Planner interface {
 	core.Extension
 

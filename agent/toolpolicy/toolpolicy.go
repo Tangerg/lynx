@@ -28,7 +28,8 @@ var ErrLocked = errors.New("toolpolicy: tool call blocked by condition")
 //
 // Without a scope, the allowance belongs to the returned decorator instance:
 // its first call succeeds and all later calls reject for that instance's
-// lifetime. Returns an error when tool is nil.
+// lifetime. This is local admission policy, not external-effect idempotency or
+// cross-process coordination. Returns an error when tool is nil.
 func Once(tool tools.Tool) (tools.Tool, error) {
 	if tool == nil {
 		return nil, errors.New("toolpolicy.Once: tool must not be nil")
