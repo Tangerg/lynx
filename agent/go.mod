@@ -4,12 +4,12 @@ go 1.26.5
 
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/Tangerg/lynx/chatclient v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/core v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/mcp v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/pkg v0.0.0-20260715080233-229e06c8ed2f
-	github.com/Tangerg/lynx/tools v0.0.0-20260715080233-229e06c8ed2f
+	github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4
+	github.com/Tangerg/lynx/chathistory v0.0.0-20260721023422-b01ee95543a4
+	github.com/Tangerg/lynx/core v0.0.0-20260721023422-b01ee95543a4
+	github.com/Tangerg/lynx/mcp v0.0.0-20260721023422-b01ee95543a4
+	github.com/Tangerg/lynx/pkg v0.0.0-20260721023422-b01ee95543a4
+	github.com/Tangerg/lynx/tools v0.0.0-20260721023422-b01ee95543a4
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.6.1
