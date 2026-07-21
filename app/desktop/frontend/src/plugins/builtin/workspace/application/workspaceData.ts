@@ -50,6 +50,29 @@ export interface SkillDraftInfo {
   sourceSession: string;
 }
 
+// The (scope, cwd) key an agentMemory read is bound to. The user scope ignores
+// cwd; the project scope resolves it to the session's project.
+export interface AgentMemoryQuery {
+  scope: "project" | "user";
+  cwd?: string;
+}
+
+// One addressable agent-memory item (agentMemory.list). status is
+// active | pending (pending items await review); origin is auto (mined) | user
+// (authored). Distinct from WorkspaceMemoryEntry (the LYRA.md file cascade).
+export interface AgentMemoryItemInfo {
+  id: string;
+  scope: "project" | "user";
+  content: string;
+  origin: "auto" | "user";
+  status: "active" | "pending";
+  pinned: boolean;
+  sessionId: string;
+  day: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WorkspaceAgentDoc {
   path: string;
   title: string;
@@ -161,6 +184,7 @@ export const WORKSPACE_DIFF_KEY = "diff";
 export const WORKSPACE_SKILLS_KEY = "skills";
 export const WORKSPACE_MANAGED_SKILLS_KEY = "managed-skills";
 export const WORKSPACE_SKILL_DRAFTS_KEY = "skill-drafts";
+export const WORKSPACE_AGENT_MEMORY_KEY = "agent-memory";
 export const WORKSPACE_MEMORY_KEY = "memory";
 export const WORKSPACE_BUILTIN_TOOLS_KEY = "builtin-tools";
 export const WORKSPACE_GREP_KEY = "grep";
@@ -192,6 +216,9 @@ export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolInfo[]>(
 export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
 export const useManagedSkills = createDataQuery<ManagedSkillInfo[]>(WORKSPACE_MANAGED_SKILLS_KEY);
 export const useSkillDrafts = createDataQuery<SkillDraftInfo[]>(WORKSPACE_SKILL_DRAFTS_KEY);
+export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryItemInfo[]>(
+  WORKSPACE_AGENT_MEMORY_KEY,
+);
 export const useWorkspaceMemory = createParameterizedDataQuery<
   WorkspaceMemoryQuery,
   WorkspaceMemoryEntry[]

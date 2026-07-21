@@ -62,6 +62,9 @@ import type {
   ManagedSkill,
   SkillDraft,
   SkillDraftRef,
+  AgentMemoryItem,
+  AgentMemoryList,
+  AgentMemoryScope,
   StartRunRequest,
   StartRunResponse,
   SubscribeWorkspaceRequest,
@@ -353,6 +356,26 @@ export interface Methods {
     get: (scope: MemoryScope, cwd?: string) => Promise<MemoryEntry>;
     update: (params: { scope: MemoryScope; cwd?: string; content: string }) => Promise<void>;
   };
+  // agentMemory.* (§7.7, capability-gated): the HITL review surface over the
+  // agent's self-maintained memory — list active + pending items (pending
+  // first), approve/reject a proposal, edit content / pin an item, delete one,
+  // or add a user-authored active item. Distinct from `memory` (the LYRA.md
+  // cascade). capability_not_negotiated when the store is not wired.
+  agentMemory: {
+    list: (params?: { scope?: AgentMemoryScope; cwd?: string }) => Promise<AgentMemoryList>;
+    review: (id: string, decision: "approve" | "reject") => Promise<void>;
+    update: (params: {
+      id: string;
+      content?: string;
+      pinned?: boolean;
+    }) => Promise<AgentMemoryItem>;
+    delete: (id: string) => Promise<void>;
+    add: (params: {
+      scope?: AgentMemoryScope;
+      cwd?: string;
+      content: string;
+    }) => Promise<AgentMemoryItem>;
+  };
   feedback: {
     create: (params: FeedbackRequest) => Promise<void>;
   };
@@ -542,6 +565,17 @@ export function createMethods(client: RpcClient): Methods {
       list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),
       get: (scope, cwd) => client.call<MemoryEntry>("memory.get", { scope, cwd }),
       update: (params) => mutate<void, typeof params>("memory.update", params),
+    },
+    agentMemory: {
+      list: (params) => client.call<AgentMemoryList>("agentMemory.list", params ?? {}),
+      review: (id, decision) =>
+        mutate<void, { id: string; decision: "approve" | "reject" }>("agentMemory.review", {
+          id,
+          decision,
+        }),
+      update: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.update", params),
+      delete: (id) => mutate<void, { id: string }>("agentMemory.delete", { id }),
+      add: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.add", params),
     },
     feedback: {
       create: (params) => mutate<void, FeedbackRequest>("feedback.create", params),

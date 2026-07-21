@@ -2,6 +2,7 @@ import { definePlugin } from "@/plugins/sdk";
 import { installCodebaseGateway } from "./adapters/runtimeCodebaseGateway";
 import { installConversationArchiveGateway } from "./adapters/runtimeConversationArchiveGateway";
 import { installWorkspaceMemoryGateway } from "./adapters/runtimeMemoryGateway";
+import { installAgentMemoryGateway } from "./adapters/runtimeAgentMemoryGateway";
 import { installSkillLibraryGateway } from "./adapters/runtimeSkillLibraryGateway";
 import { installSkillDraftsGateway } from "./adapters/runtimeSkillDraftsGateway";
 import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
@@ -16,6 +17,7 @@ export default definePlugin({
       installCodebaseGateway(),
       installConversationArchiveGateway(),
       installWorkspaceMemoryGateway(),
+      installAgentMemoryGateway(),
       installSkillLibraryGateway(),
       installSkillDraftsGateway(),
       installToolCatalogGateway(),

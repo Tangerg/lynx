@@ -30,6 +30,7 @@ import type {
   WorkspaceMemoryQuery,
   WorkspaceReadFileQuery,
   WorkspaceDiff,
+  AgentMemoryQuery,
 } from "@/plugins/builtin/workspace/public/data";
 import {
   WORKSPACE_AGENT_DOCS_KEY,
@@ -45,6 +46,7 @@ import {
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILL_DRAFTS_KEY,
+  WORKSPACE_AGENT_MEMORY_KEY,
 } from "@/plugins/builtin/workspace/public/data";
 import type { DataProviderSpec, Host } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
@@ -53,6 +55,7 @@ import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
 import { asSessionId } from "@/rpc";
 import {
   emptyPageIfUngated,
+  emptyItemsIfUngated,
   toMcpConfigInfo,
   toWorkspaceFileChangeSummary,
   toMcpServerStatusSummary,
@@ -199,6 +202,26 @@ export function registerDefaultDataProviders(host: Host): void {
         content: m.content,
         updatedAt: m.updatedAt,
       })),
+  });
+  contribute({
+    key: WORKSPACE_AGENT_MEMORY_KEY,
+    fetcher: async (params) => {
+      const q = requiredParams<AgentMemoryQuery>(WORKSPACE_AGENT_MEMORY_KEY, params);
+      return (
+        await client().agentMemory.list({ scope: q.scope, cwd: q.cwd }).catch(emptyItemsIfUngated)
+      ).items.map((m) => ({
+        id: m.id,
+        scope: m.scope,
+        content: m.content,
+        origin: m.origin,
+        status: m.status,
+        pinned: m.pinned,
+        sessionId: m.sessionId ?? "",
+        day: m.day ?? "",
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      }));
+    },
   });
   contribute({
     key: WORKSPACE_AGENT_DOCS_KEY,
