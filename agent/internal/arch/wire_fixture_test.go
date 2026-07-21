@@ -118,7 +118,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			Status:     agentcore.ActionSucceeded,
 			Attempts:   2,
 		}},
-		Failure:   "awaiting approval",
 		OwnCost:   0.0125,
 		OwnTokens: 321,
 		OwnModelCalls: []agentcore.ModelCall{{

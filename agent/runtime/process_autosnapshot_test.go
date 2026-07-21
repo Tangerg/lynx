@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/storetest"
 )
@@ -40,6 +41,19 @@ func autoSnapshotAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "auto-snapshot-policy", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
+}
+
+func autoSnapshotWaitingAgent() *core.Agent {
+	return agent.New(agent.AgentConfig{Name: "auto-snapshot-waiting", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, _ *core.ProcessContext, _ word) (wordCount, error) {
+		approved, err := hitl.Interrupt[bool](ctx, "approval", "approve?")
+		if err != nil {
+			return wordCount{}, err
+		}
+		if !approved {
+			return wordCount{Count: -1}, nil
+		}
+		return wordCount{Count: 1}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "approved"})}})
 }
 
 // TestAutoSnapshot_PersistsTerminalState verifies that with AutoSnapshot on
@@ -195,6 +209,83 @@ func TestAutoSnapshotFailurePolicyPauseAndRetry(t *testing.T) {
 	loaded, err := store.Load(t.Context(), proc.ID())
 	if err != nil || loaded.Revision != 1 || loaded.Status != core.StatusCompleted {
 		t.Fatalf("loaded = %#v, err %v", loaded, err)
+	}
+}
+
+func TestAutoSnapshotFailurePolicyPreservesWaitingContinuation(t *testing.T) {
+	store := newFlakyProcessStore(errors.New("snapshot unavailable"))
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "snapshot-waiting-pause", ProcessStore: store, AutoSnapshot: true,
+		SnapshotFailurePolicy: runtime.SnapshotFailurePauseProcess,
+	})
+	a := autoSnapshotWaitingAgent()
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil {
+		t.Fatalf("process status=%s suspension=%#v", proc.Status(), proc.Suspension())
+	}
+	store.fail.Store(false)
+	if _, err := engine.Save(t.Context(), proc.ID()); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := store.Load(t.Context(), proc.ID())
+	if err != nil || snapshot.Status != core.StatusWaiting || snapshot.Suspension == nil {
+		t.Fatalf("snapshot status=%s suspension=%#v err=%v", snapshot.Status, snapshot.Suspension, err)
+	}
+}
+
+func TestKillWaitingProcessPersistsTerminalSnapshot(t *testing.T) {
+	store := storetest.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "snapshot-waiting-kill", ProcessStore: store, AutoSnapshot: true,
+	})
+	a := autoSnapshotWaitingAgent()
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil || proc.Status() != core.StatusWaiting {
+		t.Fatalf("waiting run status=%s err=%v", proc.Status(), err)
+	}
+	if err := engine.Kill(t.Context(), proc.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if proc.Status() != core.StatusKilled || proc.Suspension() != nil {
+		t.Fatalf("killed process status=%s suspension=%#v", proc.Status(), proc.Suspension())
+	}
+	snapshot, err := store.Load(t.Context(), proc.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Status != core.StatusKilled || snapshot.Suspension != nil || snapshot.Revision != 2 {
+		t.Fatalf("killed snapshot = %#v", snapshot)
+	}
+}
+
+func TestKillWaitingProcessReportsTerminalSnapshotFailure(t *testing.T) {
+	storeErr := errors.New("snapshot unavailable")
+	store := newFlakyProcessStore(storeErr)
+	store.fail.Store(false)
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "snapshot-waiting-kill-failure", ProcessStore: store, AutoSnapshot: true,
+	})
+	a := autoSnapshotWaitingAgent()
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil || proc.Status() != core.StatusWaiting {
+		t.Fatalf("waiting run status=%s err=%v", proc.Status(), err)
+	}
+	store.fail.Store(true)
+	if err := engine.Kill(t.Context(), proc.ID()); !errors.Is(err, storeErr) {
+		t.Fatalf("Kill error = %v, want snapshot failure", err)
+	}
+	if proc.Status() != core.StatusKilled || proc.Suspension() != nil || proc.Failure() != nil {
+		t.Fatalf("killed process status=%s suspension=%#v failure=%v", proc.Status(), proc.Suspension(), proc.Failure())
+	}
+	snapshot, err := store.Load(t.Context(), proc.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Status != core.StatusWaiting || snapshot.Revision != 1 {
+		t.Fatalf("last durable snapshot = %#v, want original waiting revision", snapshot)
 	}
 }
 

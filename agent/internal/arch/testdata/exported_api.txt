@@ -565,7 +565,7 @@ runtime: func (e *Engine) Deployments() []*Deployment
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
-runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) []string
+runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
 runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) ProcessStore() core.ProcessStore

@@ -158,6 +158,12 @@ func (s ProcessSnapshot) Validate() error {
 	if s.Status != StatusWaiting && s.Suspension != nil {
 		return fmt.Errorf("%w: only waiting snapshot may carry suspension", ErrInvalidSnapshot)
 	}
+	if s.Status == StatusFailed && strings.TrimSpace(s.Failure) == "" {
+		return fmt.Errorf("%w: failed snapshot requires failure", ErrInvalidSnapshot)
+	}
+	if s.Failure != "" && s.Status != StatusFailed && s.Status != StatusKilled {
+		return fmt.Errorf("%w: only failed or killed snapshot may carry failure", ErrInvalidSnapshot)
+	}
 	if s.Suspension != nil {
 		if err := s.Suspension.Validate(); err != nil {
 			return fmt.Errorf("%w: suspension: %w", ErrInvalidSnapshot, err)

@@ -33,8 +33,7 @@ func (p *Process) TerminalError() error {
 // publisher of terminal events (publishing here too double-fired
 // ProcessFailed on planner errors).
 func (p *Process) failProcess(err error) {
-	p.state.recordFailure(err)
-	p.state.transition(core.StatusFailed)
+	p.state.fail(err)
 }
 
 // markCancelled records context cancellation as a kill. Publishes ProcessKilled
@@ -42,8 +41,7 @@ func (p *Process) failProcess(err error) {
 // ctx-cancel path must not double-publish (transition is the first-terminal-wins
 // gate).
 func (p *Process) markCancelled(ctx context.Context, err error) {
-	p.state.recordFailure(err)
-	if p.state.transition(core.StatusKilled) {
+	if won, _ := p.state.markKilled(err); won {
 		p.publishEvent(ctx, event.ProcessKilled{
 			Header: p.eventHeader(),
 			Reason: err.Error(),
@@ -131,18 +129,15 @@ func (p *Process) completeForGoal(ctx context.Context, goal *core.Goal) {
 // translateActionStatus maps the per-action ActionStatus to the
 // process-level status. ActionSucceeded is a no-op (the next tick keeps
 // running).
-func (p *Process) translateActionStatus(action core.Action, status core.ActionStatus) {
+func (p *Process) translateActionStatus(action core.Action, status core.ActionStatus, actionErr error) {
 	switch status {
 	case core.ActionSucceeded:
 		// Stay running — the next tick re-plans.
 	case core.ActionFailed:
-		if p.state.transition(core.StatusFailed) {
-			// Don't overwrite a failure already recorded by an earlier action
-			// — the first failure is the root cause worth surfacing.
-			if p.Failure() == nil {
-				p.state.recordFailure(p.actionFailure(action.Metadata().Name))
-			}
+		if actionErr == nil {
+			actionErr = p.actionFailure(action.Metadata().Name)
 		}
+		p.state.fail(actionErr)
 	case core.ActionWaiting:
 		p.state.transition(core.StatusWaiting)
 	case core.ActionPaused:

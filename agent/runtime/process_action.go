@@ -61,7 +61,7 @@ func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequireme
 // The full retry loop (not each attempt) is wrapped by every registered
 // [core.ActionMiddleware] — actionMiddleware fire once per action, not per
 // retry, matching standard agent-process callback semantics.
-func (p *Process) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest) {
+func (p *Process) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest, error) {
 	metadata := action.Metadata()
 	startedAt := time.Now()
 
@@ -139,11 +139,7 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 		Err:      lastErr,
 	})
 
-	if status == core.ActionFailed && replan == nil {
-		p.recordActionFailure(metadata.Name, lastErr)
-	}
-
-	return status, replan
+	return status, replan, lastErr
 }
 
 // haltSignal is the sentinel error sent to [pkg/retry] when an action
@@ -304,17 +300,4 @@ func shouldRetryAction(err error) bool {
 		return false
 	}
 	return true
-}
-
-// recordActionFailure surfaces the underlying error onto the process so
-// callers can read it from p.Failure() once the process terminates.
-func (p *Process) recordActionFailure(actionName string, err error) {
-	if err != nil {
-		p.state.recordFailure(err)
-		return
-	}
-
-	if p.Failure() == nil {
-		p.state.recordFailure(p.actionFailure(actionName))
-	}
 }

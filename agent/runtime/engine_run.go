@@ -382,15 +382,19 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 // Kill terminates a process and its live descendants. It transitions the
 // target to [core.StatusKilled], cancels its active Run / Continue context and
 // current tool call, publishes [event.ProcessKilled], then recursively kills
-// children. Idempotent and safe on any process — an already-terminal one is
-// left untouched, so a kill racing natural completion cannot clobber a clean
-// terminal state or publish a duplicate event.
+// children. When automatic snapshots are enabled, Kill persists idle targets
+// itself; an active run remains responsible for its final snapshot. Kill
+// returns any descendant or snapshot failures. It is idempotent and safe on
+// any process: an already-terminal one is left untouched, so a kill racing
+// natural completion cannot clobber a clean terminal state or publish a
+// duplicate event.
 func (e *Engine) Kill(ctx context.Context, id string) error {
 	process, ok := e.Process(id)
 	if !ok {
 		return processNotFoundError("kill process", id)
 	}
-	if process.state.markKilled() {
+	won, runOwned := process.state.markKilled(nil)
+	if won {
 		process.signals.fireRunCancel()
 		process.signals.fireToolCallCancel()
 		process.publishEvent(normalizeContext(ctx), event.ProcessKilled{
@@ -401,29 +405,43 @@ func (e *Engine) Kill(ctx context.Context, id string) error {
 	// Descendants have independent run ownership. Sweep them even when the
 	// target was already terminal: a completed parent may still own background
 	// children started with StartChild.
-	e.killChildren(ctx, id)
-	return nil
+	_, childErr := e.killChildren(ctx, id)
+	var snapshotErr error
+	if won && !runOwned {
+		snapshotErr = process.maybeAutoSnapshot(ctx)
+	}
+	return errors.Join(childErr, snapshotErr)
 }
 
 // KillChildren terminates every non-terminal direct child whose ParentID
-// matches parentID and returns those direct child ids (order unspecified).
-// Each child Kill recursively terminates its own descendants.
-func (e *Engine) KillChildren(ctx context.Context, parentID string) []string {
+// matches parentID and returns the ids it changed in lexical order. Each child
+// Kill recursively terminates its own descendants. The returned error joins
+// every descendant or snapshot failure without abandoning the remaining
+// children.
+func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error) {
 	return e.killChildren(normalizeContext(ctx), parentID)
 }
 
-func (e *Engine) killChildren(ctx context.Context, parentID string) []string {
+func (e *Engine) killChildren(ctx context.Context, parentID string) ([]string, error) {
+	processes := e.processes.list()
+	slices.SortFunc(processes, func(left, right *Process) int {
+		return cmp.Compare(left.ID(), right.ID())
+	})
 	var killed []string
-	for _, process := range e.processes.list() {
+	var killErrs []error
+	for _, process := range processes {
 		if process.ParentID() != parentID {
 			continue
 		}
 		wasTerminal := process.Status().IsTerminal()
-		if err := e.Kill(ctx, process.ID()); err == nil && !wasTerminal && process.Status() == core.StatusKilled {
+		if err := e.Kill(ctx, process.ID()); err != nil {
+			killErrs = append(killErrs, fmt.Errorf("kill child process %q: %w", process.ID(), err))
+		}
+		if !wasTerminal && process.Status() == core.StatusKilled {
 			killed = append(killed, process.ID())
 		}
 	}
-	return killed
+	return killed, errors.Join(killErrs...)
 }
 
 // Remove deletes a terminal process from the registry so long-running hosts

@@ -263,7 +263,10 @@ func TestKillChildren_SweepsOutstandingBackgroundChildren(t *testing.T) {
 		t.Fatalf("child should still be running, got %s", bg.Status())
 	}
 
-	killed := engine.KillChildren(t.Context(), proc.ID())
+	killed, err := engine.KillChildren(t.Context(), proc.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(killed) != 1 || killed[0] != taskID {
 		t.Fatalf("KillChildren = %v, want [%s]", killed, taskID)
 	}

@@ -184,7 +184,7 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) er
 
 	actions := planResult.Actions()
 	action := actions[0]
-	status, replan := p.executeAction(ctx, action)
+	status, replan, actionErr := p.executeAction(ctx, action)
 	if err := ctx.Err(); err != nil {
 		p.markCancelled(ctx, err)
 		return nil
@@ -195,7 +195,7 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) er
 		return nil
 	}
 
-	p.translateActionStatus(action, status)
+	p.translateActionStatus(action, status, actionErr)
 	if status != core.ActionWaiting {
 		p.state.clearRespondedSuspension()
 	}

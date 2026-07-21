@@ -97,18 +97,6 @@ type processBudget struct {
 	embeddingCalls []core.EmbeddingCall
 }
 
-// ownSnapshot returns one consistent copy of this process's direct usage.
-func (b *processBudget) ownSnapshot() (
-	cost float64,
-	tokens int,
-	modelCalls []core.ModelCall,
-	embeddingCalls []core.EmbeddingCall,
-) {
-	b.lock.RLock()
-	defer b.lock.RUnlock()
-	return b.ownCost, b.ownTokens, slices.Clone(b.modelCalls), slices.Clone(b.embeddingCalls)
-}
-
 func (b *processBudget) recordModelCall(call core.ModelCall) error {
 	if err := call.Validate(); err != nil {
 		return err

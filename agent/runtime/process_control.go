@@ -57,11 +57,9 @@ func (c processControl) Suspend(ctx context.Context, suspension interaction.Susp
 	process := c.process
 	nested, err := process.prepareNestedSuspension(suspension)
 	if err != nil {
-		process.state.recordFailure(err)
 		return core.ActionFailed, err
 	}
 	if err := process.state.parkSuspension(suspension); err != nil {
-		process.state.recordFailure(err)
 		return core.ActionFailed, err
 	}
 	process.commitNestedSuspension(nested)

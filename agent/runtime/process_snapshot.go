@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -66,10 +67,12 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	case SnapshotFailureReportOnly:
 		return nil
 	case SnapshotFailurePauseProcess:
-		p.state.pauseDurability()
-		return nil
+		if p.state.pauseDurability() {
+			return nil
+		}
+		return err
 	default:
-		p.state.failDurability(err)
+		p.state.fail(err)
 		return err
 	}
 }
@@ -544,31 +547,31 @@ func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
 }
 
 func (p *Process) snapshot() (core.ProcessSnapshot, error) {
-	ownCost, ownTokens, ownModelCalls, ownEmbeddingCalls := p.budget.ownSnapshot()
+	state := p.captureDurableState()
 	snapshot := core.ProcessSnapshot{
 		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
-		Revision:          p.state.snapshotRevision(),
+		Revision:          state.revision,
 		ID:                p.ID(),
 		ParentID:          p.ParentID(),
 		Depth:             p.depth,
 		Deployment:        p.Deployment(),
 		StartedAt:         p.StartedAt(),
 		CapturedAt:        time.Now(),
-		Status:            p.Status(),
-		Suspension:        p.Suspension(),
-		OwnCost:           ownCost,
-		OwnTokens:         ownTokens,
-		OwnModelCalls:     ownModelCalls,
-		OwnEmbeddingCalls: ownEmbeddingCalls,
+		Status:            state.status,
+		Suspension:        state.suspension,
+		OwnCost:           state.ownCost,
+		OwnTokens:         state.ownTokens,
+		OwnModelCalls:     state.modelCalls,
+		OwnEmbeddingCalls: state.embeddingCalls,
 	}
 
-	if goal := p.Goal(); goal != nil {
+	if goal := state.goal; goal != nil {
 		snapshot.GoalName = goal.Name()
 	}
-	if err := p.Failure(); err != nil {
-		snapshot.Failure = err.Error()
+	if state.failure != nil {
+		snapshot.Failure = state.failure.Error()
 	}
-	history := p.History()
+	history := state.history
 	if len(history) > 0 {
 		snapshot.History = make([]core.ActionRunSnapshot, len(history))
 		for i, run := range history {
@@ -595,6 +598,40 @@ func (p *Process) snapshot() (core.ProcessSnapshot, error) {
 		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
 	}
 	return snapshot, nil
+}
+
+type durableProcessState struct {
+	revision       uint64
+	status         core.ProcessStatus
+	goal           *core.Goal
+	failure        error
+	suspension     *interaction.Suspension
+	history        []ActionRun
+	ownCost        float64
+	ownTokens      int
+	modelCalls     []core.ModelCall
+	embeddingCalls []core.EmbeddingCall
+}
+
+func (p *Process) captureDurableState() durableProcessState {
+	p.state.mu.RLock()
+	defer p.state.mu.RUnlock()
+	var suspension *interaction.Suspension
+	if p.state.pendingSuspension != nil {
+		suspension = p.state.pendingSuspension.Clone()
+	}
+	return durableProcessState{
+		revision:       p.state.revision,
+		status:         p.state.currentStatus,
+		goal:           p.state.currentGoal,
+		failure:        p.state.runErr,
+		suspension:     suspension,
+		history:        slices.Clone(p.state.history),
+		ownCost:        p.budget.ownCost,
+		ownTokens:      p.budget.ownTokens,
+		modelCalls:     slices.Clone(p.budget.modelCalls),
+		embeddingCalls: slices.Clone(p.budget.embeddingCalls),
+	}
 }
 
 // RestoreSnapshot rebuilds a [Process] from a snapshot the
@@ -686,7 +723,7 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 		}
 	}
 	if snapshot.Failure != "" {
-		process.state.recordFailure(errors.New(snapshot.Failure))
+		process.state.restoreFailure(errors.New(snapshot.Failure))
 	}
 	for _, run := range snapshot.History {
 		process.state.recordActionRun(ActionRun{
