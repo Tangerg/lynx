@@ -227,9 +227,17 @@ func (s *Store) archiveActive(root *os.Root, name string) error {
 	return nil
 }
 
-// Archive moves an active skill out of discovery without deleting it.
+// Archive moves an active skill out of discovery without deleting it, and drops
+// its usage record. Dropping the record — the same thing the idle sweep does on
+// auto-archive — makes "a restored skill starts with a fresh grace floor" hold
+// no matter which path archived it: without it, a manually archived-then-restored
+// agent-authored skill would carry a stale last-used time and be re-archived on
+// the next sweep.
 func (s *Store) Archive(ctx context.Context, name string) error {
-	return s.move(ctx, name, s.activeDir(name), s.archiveDir(name), "archive")
+	if err := s.move(ctx, name, s.activeDir(name), s.archiveDir(name), "archive"); err != nil {
+		return err
+	}
+	return s.dropUsage(ctx, name)
 }
 
 // Restore moves an archived skill back into the active set.

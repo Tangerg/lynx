@@ -2,7 +2,9 @@ package maintenance
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"strings"
 	"sync"
 
@@ -162,8 +164,11 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 		return nil
 	}
 	current, err := m.source.Load(ctx, name)
-	if err != nil || current == nil {
-		return nil
+	if errors.Is(err, fs.ErrNotExist) || current == nil {
+		return nil // no such skill (or one the library doesn't manage) — drop, don't revise
+	}
+	if err != nil {
+		return fmt.Errorf("skill mining: load skill %q for revision: %w", name, err)
 	}
 	document, err := m.askForRevision(ctx, current, messages)
 	if err != nil {
