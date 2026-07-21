@@ -34,6 +34,8 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		MCPRegistry:            stores.MCPServers,
 		A2AAgents:              runtimeA2AAgents(cfg.A2AAgents),
 		LSPServers:             runtimeLSPServers(cfg.LSPServers),
+		SandboxShell:           cfg.SandboxShell,
+		SandboxReadOnlyPaths:   cfg.SandboxReadOnlyPaths,
 		SessionStore:           stores.Session,
 		RunStore:               stores.Runs,
 		ProcessStore:           stores.Process,

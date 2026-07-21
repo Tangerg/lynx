@@ -94,6 +94,9 @@ func Load() (Config, error) {
 
 		ToolResultOffloadThreshold: v.GetInt("toolResultOffload.threshold"),
 
+		SandboxShell:         v.GetBool("sandbox.shell"),
+		SandboxReadOnlyPaths: v.GetStringSlice("sandbox.readOnlyPaths"),
+
 		Server: ServerConfig{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
