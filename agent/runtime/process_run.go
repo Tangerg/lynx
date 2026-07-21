@@ -76,9 +76,7 @@ func (p *Process) runOwned(ctx context.Context) error {
 			return nil
 		}
 
-		if err := p.tick(ctx); err != nil {
-			return err
-		}
+		p.tick(ctx)
 
 		// Persist the post-tick state when auto-snapshot is on. Placed
 		// after Tick so it captures whatever status the tick produced —
@@ -98,10 +96,8 @@ func (p *Process) runOwned(ctx context.Context) error {
 	}
 }
 
-// finishRunLoop fires the side effects every non-tick-error run-loop exit
-// shares. The tick error path deliberately returns without them (its caller
-// owns the terminal handling), so this stays an explicit call at each exit
-// rather than a defer.
+// finishRunLoop fires the terminal event and exit metric that every run-loop
+// exit shares.
 func (p *Process) finishRunLoop(ctx context.Context) {
 	p.publishTerminalEvent(ctx)
 	p.recordRunExitMetric(ctx)
@@ -117,12 +113,13 @@ const (
 // loop in run drives it; production callers go through
 // [Engine.Run] / [Engine.Start] / [Engine.Continue]
 // which run the full loop.
-func (p *Process) tick(ctx context.Context) error {
+func (p *Process) tick(ctx context.Context) {
 	ctx = normalizeContext(ctx)
 	ctx = core.WithProcessView(ctx, p)
 
 	if signal := p.signals.drainTerminate(); signal != nil {
-		return p.handleTerminationSignal(ctx, *signal)
+		p.handleTerminationSignal(ctx, *signal)
+		return
 	}
 
 	ctx, span := p.startTickSpan(ctx, spanTick)
@@ -132,10 +129,10 @@ func (p *Process) tick(ctx context.Context) error {
 	worldState, err := p.observe(ctx, span)
 	if err != nil {
 		p.failProcess(err)
-		return nil
+		return
 	}
 
-	return p.tickSimple(ctx, worldState)
+	p.tickSimple(ctx, worldState)
 }
 
 // observe runs the state reader and publishes the PlanningStarted event.
@@ -157,7 +154,7 @@ func (p *Process) observe(ctx context.Context, span trace.Span) (core.WorldState
 // handleTerminationSignal processes a queued termination request. AGENT-
 // scope signals stop the process; ACTION-scope signals trigger a re-plan
 // without running an action this tick.
-func (p *Process) handleTerminationSignal(ctx context.Context, sig core.TerminationSignal) error {
+func (p *Process) handleTerminationSignal(ctx context.Context, sig core.TerminationSignal) {
 	switch sig.Scope {
 	case core.TerminationScopeAgent:
 		if p.state.transition(core.StatusTerminated) {
@@ -174,14 +171,13 @@ func (p *Process) handleTerminationSignal(ctx context.Context, sig core.Terminat
 			Reason: sig.Reason,
 		})
 	}
-	return nil
 }
 
 // tickSimple runs the first applicable action of the best plan.
-func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) error {
-	planResult, done, err := p.planForTick(ctx, worldState)
-	if err != nil || done {
-		return err
+func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) {
+	planResult, done := p.planForTick(ctx, worldState)
+	if done {
+		return
 	}
 
 	actions := planResult.Actions()
@@ -189,49 +185,48 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) er
 	status, replan, actionErr := p.executeAction(ctx, action)
 	if err := ctx.Err(); err != nil {
 		p.markCancelled(ctx, err)
-		return nil
+		return
 	}
 	if replan != nil {
 		p.state.clearRespondedSuspension()
 		p.applyReplan(ctx, action, replan)
-		return nil
+		return
 	}
 
 	p.translateActionStatus(action, status, actionErr)
 	if status != core.ActionWaiting {
 		p.state.clearRespondedSuspension()
 	}
-	return nil
 }
 
-// planForTick is the shared prelude both tickSimple and tickConcurrent
-// run before they decide which action(s) to execute. It plans, handles
-// the three "no action this tick" outcomes (planner error → fail,
-// no plan → stuck, plan complete → goal achieved), and on success sets
-// the process goal and publishes [event.PlanCreated].
+// planForTick is the prelude tickSimple runs before deciding which action to
+// execute. It plans and handles the three "no action this tick" outcomes
+// (planner error → fail, no plan → stuck, plan complete → goal achieved), and
+// on success sets the process goal and publishes [event.PlanCreated]. Every
+// tick-ending outcome is applied to process state here, so the boolean is the
+// only signal the caller needs.
 //
 // Return shape:
 //
-//   - planResult, false, nil  — caller should proceed to execute the plan
-//   - nil,        true,  nil  — caller should return immediately (process
+//   - planResult, false — caller should proceed to execute the plan
+//   - nil,        true  — caller should return immediately (process
 //     transitioned via failProcess / handleStuck / completeForGoal)
-//   - nil,        true,  err  — Tick should propagate err (handleStuck
-//     can't currently produce one but the contract leaves room)
-func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool, error) {
+func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool) {
 	planStart := time.Now()
 	planResult, err := p.formulatePlan(ctx, worldState)
 	p.recordPlanMetric(ctx, time.Since(planStart))
 	if err != nil {
 		p.failProcess(err)
-		return nil, true, nil
+		return nil, true
 	}
 	if planResult == nil {
-		return nil, true, p.handleStuck(ctx, worldState)
+		p.handleStuck(ctx, worldState)
+		return nil, true
 	}
 	p.state.clearStuckReplan()
 	if planResult.Complete() {
 		p.completeForGoal(ctx, planResult.Goal())
-		return nil, true, nil
+		return nil, true
 	}
 
 	p.state.pursue(planResult.Goal())
@@ -239,7 +234,7 @@ func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (
 		Header: p.eventHeader(),
 		Plan:   planResult,
 	})
-	return planResult, false, nil
+	return planResult, false
 }
 
 // formulatePlan runs the configured planner against the current world
