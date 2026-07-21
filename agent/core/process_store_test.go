@@ -167,6 +167,19 @@ func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
 	}
 }
 
+// MarshalJSON and ProcessSnapshot.Validate must agree on what a well-formed
+// history row is: a row Validate would reject must not marshal clean.
+func TestActionRunSnapshotMarshalRejectsInvalidRow(t *testing.T) {
+	noName := core.ActionRunSnapshot{StartedAt: time.Now(), Duration: time.Second, Status: core.ActionSucceeded}
+	if _, err := json.Marshal(noName); err == nil {
+		t.Fatal("marshal accepted a history row with no action name")
+	}
+	zeroStart := core.ActionRunSnapshot{ActionName: "lookup", Duration: time.Second, Status: core.ActionSucceeded}
+	if _, err := json.Marshal(zeroStart); err == nil {
+		t.Fatal("marshal accepted a history row with a zero start time")
+	}
+}
+
 func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
