@@ -135,6 +135,12 @@ type turnState struct {
 	doomKey    string
 	doomResult uint64
 	doomRepeat int
+
+	// toolCalls counts the completed tool calls this turn — the skill miner's
+	// complexity signal (a turn that drove many tools is a candidate to distill
+	// into a reusable skill). Incremented once per completed call in
+	// recordToolOutcome; read at the turn boundary via toolCallCount.
+	toolCalls int
 }
 
 func (st *turnState) prepareStart(request StartTurnRequest) {
@@ -217,6 +223,9 @@ func (st *turnState) recordToolOutcome(toolName, arguments, output string) {
 	digest := hashOutput(output)
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	// Count every completed call for the miner's complexity signal, independent
+	// of the doom-loop no-progress fold below.
+	st.toolCalls++
 	if key == st.doomKey && digest == st.doomResult {
 		st.doomRepeat++
 		return
@@ -249,6 +258,14 @@ func (st *turnState) resetDoomLoop() {
 	st.mu.Lock()
 	st.doomRepeat = 0
 	st.mu.Unlock()
+}
+
+// toolCallCount reports how many tool calls have completed this turn — the
+// skill miner's complexity signal, read once at the turn boundary.
+func (st *turnState) toolCallCount() int {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.toolCalls
 }
 
 // hashOutput is a cheap, allocation-free fingerprint of a tool result. Only

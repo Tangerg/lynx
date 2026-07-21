@@ -52,6 +52,10 @@ type Dependencies struct {
 	Compactor Compactor
 	Extractor Extractor
 
+	// Miner distills complex turns into proposed skill drafts at the turn
+	// boundary, independent of compaction. nil disables skill mining.
+	Miner SkillMiner
+
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
 	Approval approval.Policy
@@ -106,6 +110,7 @@ func New(deps Dependencies) (Dispatcher, error) {
 		steering:            deps.Steering,
 		compactor:           deps.Compactor,
 		extractor:           deps.Extractor,
+		miner:               deps.Miner,
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
 		todos:               deps.Todos,
@@ -124,6 +129,7 @@ type memoryDispatcher struct {
 	steering  SteeringSink
 	compactor Compactor
 	extractor Extractor
+	miner     SkillMiner      // optional — nil = no skill mining
 	approval  approval.Policy // optional — nil = auto-approve every tool
 	resolver  clientResolver  // optional — nil = always use the default model
 	todos     todoLister      // optional — nil = no state.snapshot{todos} projection

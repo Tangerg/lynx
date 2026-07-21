@@ -11,19 +11,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
 type turnServices struct {
 	steering  turn.SteeringSink
 	compactor turn.Compactor
 	extractor turn.Extractor
+	miner     turn.SkillMiner
 }
 
-func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
+func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
 	services := turnServices{
 		steering:  cfg.Steering,
 		compactor: cfg.Compactor,
 		extractor: cfg.Extractor,
+		miner:     cfg.Miner,
 	}
 	if services.steering == nil {
 		services.steering = messages.conversation
@@ -42,6 +45,9 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 	}
 	if services.extractor == nil && cfg.AgentMemoryStore != nil {
 		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
+	}
+	if services.miner == nil && skillStore.Enabled() {
+		services.miner = maintenance.NewSkillMiner(messages.store, skillStore, resolveUtility, maintenance.MinerConfig{})
 	}
 	return services
 }

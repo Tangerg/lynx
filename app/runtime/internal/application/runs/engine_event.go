@@ -119,6 +119,7 @@ const (
 	ErrorCodeSteering          ErrorCode = "STEERING_ERROR"
 	ErrorCodeCompaction        ErrorCode = "COMPACTION_ERROR"
 	ErrorCodeMemoryMaintenance ErrorCode = "MEMORY_MAINTENANCE_ERROR"
+	ErrorCodeSkillMaintenance  ErrorCode = "SKILL_MAINTENANCE_ERROR"
 )
 
 type ErrorEvent struct {
