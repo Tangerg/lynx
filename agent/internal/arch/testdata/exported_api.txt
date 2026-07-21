@@ -410,8 +410,6 @@ interaction: const ( EventModelRequest EventKind = "model_request" EventModelRes
 interaction: const ( StopNone StopReason = "" StopBudget StopReason = "budget" StopSteps StopReason = "steps" )
 interaction: const ( SuspensionHuman SuspensionKind = "human" SuspensionTool SuspensionKind = "tool" )
 interaction: const SuspensionSchemaVersion uint16 = 1
-interaction: func (e *CommittedError) Error() string
-interaction: func (e *CommittedError) Unwrap() []error
 interaction: func (e *Event) UnmarshalJSON(data []byte) error
 interaction: func (e *SuspendedError) Error() string
 interaction: func (e *SuspendedError) Unwrap() error
@@ -429,9 +427,7 @@ interaction: func (s Suspension) Responded() bool
 interaction: func (s Suspension) SameResponse(response any) bool
 interaction: func (s Suspension) Validate() error
 interaction: func (s Suspension) ValidateResponse(response any) (json.RawMessage, error)
-interaction: func Commit(err error) error
 interaction: func ValidateID(id string) error
-interaction: type CommittedError struct { Err error }
 interaction: type Event struct { Kind EventKind `json:"kind"` Round int `json:"round"` Final bool `json:"final,omitempty"` Request *chat.Request `json:"request,omitempty"` Response *chat.Response `json:"response,omitempty"` ToolCall *chat.ToolCall `json:"tool_call,omitempty"` ToolResult *chat.ToolResult `json:"tool_result,omitempty"` Suspension *Suspension `json:"suspension,omitempty"` Resume *Resume `json:"resume,omitempty"` }
 interaction: type EventKind string
 interaction: type Limits struct { MaxRounds int MaxConcurrentToolCalls int MaxSteps int MaxModelCalls int MaxTokens int64 MaxCostUSD float64 }
@@ -445,7 +441,6 @@ interaction: type SuspensionKind string
 interaction: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
 interaction: var ( ErrInvalidEvent = errors.New("interaction: invalid event") ErrInvalidID = errors.New("interaction: invalid ID") )
 interaction: var ( ErrInvalidSuspension = errors.New("interaction: invalid suspension") ErrSuspended = errors.New("interaction: suspended") ErrSuspensionConflict = errors.New("interaction: suspension conflict") ErrSuspensionStale = errors.New("interaction: stale suspension") )
-interaction: var ErrCommitted = errors.New("interaction: committed boundary failed")
 interaction: var ErrInvalidLimits = errors.New("interaction limits: invalid")
 planning/goap: func (p *Planner) Name() string
 planning/goap: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (*planning.Plan, error)

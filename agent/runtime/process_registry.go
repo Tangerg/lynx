@@ -33,8 +33,8 @@ func (r *processRegistry) insert(process *Process) bool {
 }
 
 // registerNew refuses to replace a process until its terminal run has released
-// finalization ownership. Otherwise the displaced run could persist after the
-// restored copy and overwrite its durable revision.
+// finalization ownership. Otherwise the displaced run could publish state or
+// persist snapshots after the restored copy becomes active.
 func (r *processRegistry) registerNew(process *Process) bool {
 	for {
 		r.mu.RLock()

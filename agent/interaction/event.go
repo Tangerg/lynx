@@ -27,39 +27,6 @@ func ValidateID(id string) error {
 	return nil
 }
 
-// ErrCommitted marks a failure after observable model output or a tool result
-// was committed. Retrying the enclosing action could duplicate cost or side
-// effects.
-var ErrCommitted = errors.New("interaction: committed boundary failed")
-
-// CommittedError retains the boundary failure while matching ErrCommitted.
-type CommittedError struct {
-	Err error
-}
-
-func (e *CommittedError) Error() string {
-	if e == nil || e.Err == nil {
-		return ErrCommitted.Error()
-	}
-	return fmt.Sprintf("%s: %v", ErrCommitted, e.Err)
-}
-
-func (e *CommittedError) Unwrap() []error {
-	if e == nil || e.Err == nil {
-		return []error{ErrCommitted}
-	}
-	return []error{ErrCommitted, e.Err}
-}
-
-// Commit marks err as occurring after an externally observable interaction
-// boundary so the process runtime does not replay the whole action.
-func Commit(err error) error {
-	if err == nil || errors.Is(err, ErrCommitted) {
-		return err
-	}
-	return &CommittedError{Err: err}
-}
-
 type EventKind string
 
 const (

@@ -742,18 +742,18 @@ sequenceDiagram
 
 对不在 ToolLoop 内的普通 typed HITL，框架保证 Resume 不需要一次额外的“重建 closure tick”；Continue 仍从普通 Go action 入口重入。action 在 interrupt 之前的前缀必须无副作用、幂等，或自行使用 Blackboard 状态跳过已完成步骤。
 
-#### 10.3.1 崩溃、挂起与重试矩阵
+#### 10.3.1 崩溃、挂起与继续执行矩阵
 
-| 边界 | Framework 行为 | 恢复/重试保证 |
+| 边界 | Framework 行为 | 恢复/继续执行保证 |
 |---|---|---|
-| 首个 model response 前失败或取消 | 尚无可观察模型结果 | 可由显式 Action retry 重新进入；在 model request observer 取消时不会调用 provider |
-| model response 已产生 | 先记录 framework usage，再发布完整边界 | 后续错误带 `interaction.ErrCommitted`，禁止整 Action retry，避免重复计费 |
+| 首个 model response 前失败或取消 | 尚无可观察模型结果 | 直接返回原始错误；是否重新调用属于上层或 provider 实现的策略；在 model request observer 取消时不会调用 provider |
+| model response 已产生 | 先记录 framework usage，再发布完整边界 | 后续错误直接返回，Framework 不重放 Action |
 | ToolLoop 发出 pause | Checkpoint 保存 request、response、已完成 results、pending call、round policy 和 toolset digest；Suspension envelope 额外绑定 owner 与 DeploymentRef | JSON snapshot 可在新 Engine 精确恢复；模型轮次和已完成工具不重跑 |
 | `Resume` 记录回答 | 校验 process 状态、Suspension ID 和 JSON Schema | 相同回答幂等；不同回答 conflict；过期 ID stale；未回答不能 Continue |
-| pending tool 返回 result | 清除已消费的 responded Suspension，并把 tool result 视为已提交边界 | 后续错误禁止整 Action retry；旧 checkpoint 不可再次执行 |
-| 任意外部工具副作用完成、但结果边界尚未持久化时宿主硬崩溃 | Framework 无法与任意外部系统建立原子事务 | 不承诺 exactly-once；有副作用的工具必须使用业务幂等键、事务或补偿。Framework 只承诺 checkpoint 内已确认步骤不重放 |
+| pending tool 返回 result | 清除已消费的 responded Suspension | 后续继续执行不会再次消费旧 checkpoint |
+| 任意外部工具副作用完成、但结果边界尚未持久化时宿主硬崩溃 | Framework 只保存自身 continuation 状态 | 外部效果一致性完全属于工具及其依赖实现；Framework 不声明事务、幂等或 exactly-once |
 
-取消、observer early-stop、pause/resume 事件顺序和跨 JSON snapshot 的恢复均由 P2 contract/integration tests 锁定。P3 在此基础上增加 snapshot revision、CAS 和 owner/fencing，不回退上述边界语义。
+取消、observer early-stop、pause/resume 事件顺序和跨 JSON snapshot 的恢复均由 contract/integration tests 锁定。持久化 adapter 自行定义写入一致性，不改变上述 Framework 边界语义。
 
 ### 10.4 应用与框架的最终分工
 
@@ -1276,7 +1276,7 @@ flowchart LR
 - [x] **P2-09 完成 crash/pause/resume 测试矩阵**（完成：2026-07-16）
   - pause 前后 crash；completed tool 不重跑；model 不重调；resume mismatch；ctx cancel；observer early-stop。
 
-完成结果：Framework 独立完成带工具、HITL、usage、budget 和 checkpoint 的交互生命周期；app 不再构造 ToolLoop Runner 或保存框架 checkpoint。跨 Engine JSON snapshot 恢复证明已完成模型/工具不重跑；已提交边界后的错误禁止整 Action retry。硬崩溃跨外部副作用的 exactly-once 限制见 10.3.1。
+完成结果：Framework 独立完成带工具、HITL、usage、budget 和 checkpoint 的交互生命周期；app 不再构造 ToolLoop Runner 或保存框架 checkpoint。跨 Engine JSON snapshot 恢复证明 checkpoint 中已完成的模型/工具不重跑；Framework 每次调度只调用 Action 一次，外部效果语义属于对应实现。
 
 退出标准：Framework 能独立完成一次带工具和 HITL 的交互生命周期，Host 无需手工保存 checkpoint 或转换 pause。
 
@@ -1342,9 +1342,8 @@ flowchart LR
   - 默认失败 action 只执行一次；显式 retry 次数正确；并发写冲突确定；kill/cancel 不泄漏 goroutine。
   - 结果：channel barrier 锁定并发重叠与首错 join；Agent/app 选定 race 全绿。
 
-完成结果：Action zero/default policy 只执行一次；显式 retry 必须声明幂等或补偿 safety，且
-wait/pause/replan/cancel/termination/committed boundary 永不重试。删除无消费者的
-process-wide 并发，workflow branch 使用隔离状态、稳定 index join 和受限 control；首错取消
+完成结果：Framework 每次调度只调用 Action 一次，不拥有 Action retry 或副作用安全策略。
+删除无消费者的 process-wide 并发，workflow branch 使用隔离状态、稳定 index join 和受限 control；首错取消
 后等待全部 goroutine 退出。宽 `Process`、ambient control/usage、`ProcessContext.Options`、
 core OTel/chatclient/chathistory 依赖全部删除。Dependencies 改为 typed key、Engine →
 Process → Action 层级、single-assignment、freeze 和可判别错误，并由 app observer 真实消费。
@@ -1847,7 +1846,7 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 
 - 状态：已接受并实现。
 - 决策：ProcessSnapshot 组合 JSON-safe Suspension；Human/Tool 共用 exact ID/schema/response 语义；Tool checkpoint 作为 framework-owned opaque payload，绑定 interaction owner、DeploymentRef、toolset digest 和 runner policy。app 只投影 prompt 与收集 response。
-- 重试边界：模型响应或工具结果产生后，后续错误匹配 `interaction.ErrCommitted`，Action executor 不进行整 action retry；任意外部副作用的 exactly-once 仍由工具幂等键/事务保证。
+- 错误边界：模型响应或工具结果产生后的错误保持原始 cause；Framework 不重放 Action，也不替工具声明外部效果语义。
 
 ### ADR-AF-007：Framework 不 replay Action
 
@@ -1962,7 +1961,7 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | 2026-07-16 | 完成 B5/P5：按 app/examples 调用频率设计根 façade，使用 alias 暴露标准定义与生命周期；根 API 48/50；`Engine.Run/Start` 删除冗余 Agent 后缀；动态 tool source 从 runtime 的伪 MCP API 移至 core；生产 Framework 禁止 transport SDK；最小示例只 import 根 agent，高级示例按需导入 owner package；进度更新为 47/61 | Codex |
 | 2026-07-16 | 完成 B4/P4：Action 默认一次且显式 retry 要求 idempotent/compensated safety；删除无消费者的 process-wide 并发，以隔离 branch + 稳定 join 固化 workflow 并发；拆除宽 Process/ambient control/Options；core 不再依赖 chatclient/chathistory/OTel；Dependencies 完成 typed/hierarchical/frozen scope 并由 app observer 真实消费；进度更新为 40/61 | Codex |
 | 2026-07-16 | 完成 B3/P3：ProcessSnapshot v1、strict capture/restore、durable/transient Blackboard、checkpoint 一致性锁、ProcessStore CAS 与 storetest、AutoSnapshot 三策略、Waiting/Paused 精确恢复、Session/invocation snake_case wire、SQLite v4 定向迁移；承诺收窄为单 active owner；进度更新为 32/61 | Codex |
-| 2026-07-16 | 完成 B2/P2：新增 interaction kernel protocol 与 process-scoped boundary；runtime 托管 ToolLoop 全事件、usage、budget、round/step、checkpoint resume；Human/Tool 统一 JSON-safe Suspension；删除 closure continuation 和 app 手工 Runner/checkpoint；加入 committed-boundary retry guard 与 crash/resume matrix；进度更新为 24/61 | Codex |
+| 2026-07-16 | 完成 B2/P2：新增 interaction kernel protocol 与 process-scoped boundary；runtime 托管 ToolLoop 全事件、usage、budget、round/step、checkpoint resume；Human/Tool 统一 JSON-safe Suspension；删除 closure continuation 和 app 手工 Runner/checkpoint；加入 crash/resume matrix；进度更新为 24/61 | Codex |
 | 2026-07-16 | 完成 B1/P1：公开 DeploymentRef/Deployment 与显式 Deploy/Replace；NewEngine 改为 error constructor；引入 Version/BuildID durable identity；ProcessSnapshot/部署事件携带 exact ref；恢复支持历史定义且拒绝 mismatch；全 workspace 消费者直接迁移，无 wrapper/dual-read；进度更新为 15/61 | Codex |
 | 2026-07-16 | 维护者授权 BB-01 至 BB-08 全部 breaking change；P0-08 完成，进度更新为 9/61，进入 B1/P1 直接迁移 | 维护者 / Codex |
 | 2026-07-16 | 推进 P1-03/P1-05/P1-07：增加 canonical definition/digest golden 与声明字段 inventory；QoS canonical JSON 改由 runtime 明确字段名和纳秒单位；Process、tool、child/session/snapshot/restore 绑定 compiled deployment；内部 starter 传递 exact handle；补齐 identity non-drift 与并发 catalog 测试；公共 API 计数仍为 430 | Codex |
@@ -2000,9 +1999,9 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | 2026-07-16 | P7-01 | 审查所有 16 个非 internal/example 公共包及 Agent/App 边界；新增 public package 分类 guard 和完整 module API discovery guard；dependency ladder、transport/app import guard、Host managed-execution AST guard、root façade budget、exact Deployment ownership、strict snapshot/Suspension/checkpoint validation、Dependency scope、structured concurrency 与 typed/sentinel errors 均复验；目标架构测试全绿（API snapshot 待 P7-03 按扩大后的完整范围更新） | P7-02 确定性测试矩阵与 fuzz/synctest |
 | 2026-07-16 | B6 / P6-01 至 P6-07 | app `runTurn` 统一经 `ProcessContext.Interact`，架构 AST guard 禁止 Host 重建 Runner/Invocation、解释 ProcessSnapshot 或直接记 Framework usage；删除 app HITL forwarding/validator，SQLite orphan reconciliation 使用 `runtime.ValidateResumableSnapshot`；waiting agent-tool 保留 child registry/snapshot 供 process_id 恢复；删除 `AsChatToolFromAgent`，child/CreateChild/RunFresh/async/workflow/routing 使用 exact owned Deployment，foreign handle 测试拒绝；标准 Run/Start 首次调用幂等 Deploy，快照始终可从 catalog exact restore；A2A infra 使用 local config 并在包内映射 transport Endpoint，adapter transport SDK fitness guard 通过；examples/Guide 更新为 managed/leaf 分层与 child inheritance matrix；API baseline 544 行（root 48）、14 个 JSON struct、wire 456 行；Agent/app 全量 build/vet/test/golangci-lint、选定 race、两模块 tidy 与 diff check 全绿 | P7-01 最终架构审查 |
 | 2026-07-16 | B5 / P5-01 至 P5-07 | 根 façade 基于真实高频符号收敛 Agent/Action/Goal/Process/Engine/Deployment/Session/Retry/Suspension，全部 alias 到 owner type；标准构造签名不再泄漏 core/runtime；`RunAgent/StartAgent` 直接改为 `Run/Start`；删除 runtime `MCPResolver`，新增 transport-neutral `core.DynamicToolGroupResolver`；架构测试禁止生产包 import MCP/A2A SDK；hello 只 import 根 agent，其余示例只因实际高级能力导入叶子包；root required/forbidden symbols + 50 declaration budget；Agent exported API 544 行（root 48）、14 个 JSON struct、wire 456 行；Agent/app 全量 build/vet/test、选定 race、两模块 tidy、diff check 全绿 | P6-01 重审 app agentexec framework ownership |
-| 2026-07-16 | B4 / P4-01 至 P4-08 | 删除 `ActionQoS` 与隐式五次 retry；`RetryPolicy` 默认一次，>1 强制 safety，cancel/wait/pause/replan/committed 不重试；删除 `ProcessType`/`tickConcurrent`，ScatterGather branch 预隔离 Blackboard/Dependencies、固定 index join、拒绝 lifecycle/Interact，channel barrier 证明首错取消后全部退出；删除宽 `Process`/`ProcessFrom`/`ProcessContext.Options`，只传播 `ProcessView` 与 immutable `SessionInfo`；core chat 只见 Model/Streamer，OTel 下沉 runtime/event；Dependencies typed key、父链、freeze、single-assignment、sentinel errors，并将 app observer 从 extension 反查迁到 typed process dependency；Agent API baseline 519 行、14 个 JSON struct、wire golden 456 行；Agent/app 全量 build/vet/test、选定 race、两模块 tidy 与 diff check 全绿 | P5-01 根 façade 清单与 API budget |
+| 2026-07-16 | B4 / P4-01 至 P4-08 | 删除 `ActionQoS` 与隐式五次 retry；删除 `ProcessType`/`tickConcurrent`，ScatterGather branch 预隔离 Blackboard/Dependencies、固定 index join、拒绝 lifecycle/Interact，channel barrier 证明首错取消后全部退出；删除宽 `Process`/`ProcessFrom`/`ProcessContext.Options`，只传播 `ProcessView` 与 immutable `SessionInfo`；core chat 只见 Model/Streamer，OTel 下沉 runtime/event；Dependencies typed key、父链、freeze、single-assignment、sentinel errors，并将 app observer 从 extension 反查迁到 typed process dependency；Agent API baseline 519 行、14 个 JSON struct、wire golden 456 行；Agent/app 全量 build/vet/test、选定 race、两模块 tidy 与 diff check 全绿 | P5-01 根 façade 清单与 API budget |
 | 2026-07-16 | B3 / P3-01 至 P3-08 | Snapshot v1 携带 schema/revision/exact deployment/suspension，status 与 Session/invocation 使用稳定 snake_case wire；Snapshot/Blackboard capture/restore 全部 fail closed；显式 transient API；Engine checkpoint lock 保证 tick/resume/save 聚合一致；Store reader/writer/delete/list 按能力拆分并以 typed CAS conflict 防 lost update；AutoSnapshot fail/pause/report-only 与 store recovery、Waiting/Paused 跨 JSON 精确恢复、并发保存 revision 1/2 均有测试；新增公开 `storetest.TestProcessStore`；SQLite v4 从 v3 定向清 snapshot/interrupt、终止 non-terminal run 并保留 Session/历史；Agent exported API baseline 503 行、14 个 JSON struct、wire golden 456 行；Agent/app 全量 build/vet/test、选定 race、两模块 tidy 与 diff check 全绿 | P4-01 默认 MaxAttempts=1，并定义显式 retry policy |
-| 2026-07-16 | B2 / P2-01 至 P2-09 | 新增 `agent/interaction`；删除 `(string,error)` ToolLoop 压缩和 closure-based continuation；runtime 发布并处理 model/tool/pause/resume/final 全边界，模型 usage 只记一次，app 只提供 streaming/UI/pricing policy；Tool checkpoint 固化 schema/round policy/toolset/deployment/owner；跨 JSON snapshot 新 Engine 恢复验证 model 与 completed tool 不重跑；Resume stale/schema/idempotent/conflict、取消、observer failure 和 committed no-retry 均有测试；Agent exported API/wire baseline 已刷新；Agent/app 全量 build/vet/test、选定 race、两模块 tidy 与 diff check 全绿 | P3-01 Snapshot v1 |
+| 2026-07-16 | B2 / P2-01 至 P2-09 | 新增 `agent/interaction`；删除 `(string,error)` ToolLoop 压缩和 closure-based continuation；runtime 发布并处理 model/tool/pause/resume/final 全边界，模型 usage 只记一次，app 只提供 streaming/UI/pricing policy；Tool checkpoint 固化 schema/round policy/toolset/deployment/owner；跨 JSON snapshot 新 Engine 恢复验证 model 与 completed tool 不重跑；Resume stale/schema/idempotent/conflict、取消和 observer failure 均有测试；Agent exported API/wire baseline 已刷新；Agent/app 全量 build/vet/test、选定 race、两模块 tidy 与 diff check 全绿 | P3-01 Snapshot v1 |
 | 2026-07-16 | B1 / P1-01 至 P1-07 | Agent exported API baseline 由 430 更新为 452 条，受管 JSON struct 由 7 增至 8，wire golden 315 行；删除 `Agents/FindAgent` 和 panic-only `NewEngine` 旧签名；app chat/task Agent 增加显式 Version，ProcessSnapshot fixture 全量切换 Deployment ref；`go build ./...`、`go vet ./...`、Agent 全测、Agent core/event/planning/runtime/workflow/arch race、app agentexec/runsegment/sqlite/bootstrap/arch、两模块 `go mod tidy -diff` 与 `git diff --check` 全绿；未操作外部数据库 | P2-01 定义 Managed Interaction 所有权与最终公开 shape |
 | 2026-07-16 | P0-08 | 维护者明确授权一切 breaking change；采用 BB-01 至 BB-08 推荐方案，不保留旧 API、双写 wire 或旧 snapshot reader；授权不含 push/tag/release/外部数据库操作 | 执行 B1 Deployment/Engine |
 | 2026-07-16 | P1-03/P1-07（部分） | 建立覆盖 Agent/Action/QoS/Goal/Tool/IO/tool requirement/Condition/StuckPolicy 的 canonical JSON golden 与 SHA-256 golden；QoS 不再依赖 `core.ActionQoS` 默认 JSON 字段名，显式编码 `max_attempts/base_delay_ns/max_delay_ns`；新增 exported declaration field inventory，未来增加影响规划/恢复的字段不能静默绕过 digest | BB-03 授权后加入 BuildID 与 caller-explicit Version 事实，完成 durable identity 规则 |

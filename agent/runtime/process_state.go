@@ -189,7 +189,7 @@ func (s *processState) historyLen() int {
 // also publishes a terminal event fires it only when it actually won — never a
 // duplicate / conflicting terminal. This is the single "first terminal wins"
 // gate for every status write except the NotStarted/Waiting/Paused → Running
-// entry, which goes through beginRun's own CAS.
+// entry, which goes through beginRun's run-ownership gate.
 func (s *processState) transition(status core.ProcessStatus) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -64,16 +64,9 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	}
 
 	modelStarted := map[int]time.Time{}
-	unsafeToRetry := false
-	interactionFailure := func(err error) error {
-		if unsafeToRetry {
-			return interaction.Commit(err)
-		}
-		return err
-	}
 	for boundary, runErr := range sequence {
 		if runErr != nil {
-			return interaction.Result{}, interactionFailure(runErr)
+			return interaction.Result{}, runErr
 		}
 		if boundary.Kind == toolloop.EventModelRequest {
 			frameworkEvent := projectInteractionEvent(boundary, nil)
@@ -92,30 +85,28 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 
 		switch boundary.Kind {
 		case toolloop.EventModelResponse:
-			unsafeToRetry = true
 			if err := p.recordInteractionUsage(ctx, actionName, boundary.Response, time.Since(modelStarted[boundary.Round]), input.Attribute); err != nil {
-				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: record interaction usage: %w", err))
+				return interaction.Result{}, fmt.Errorf("runtime: record interaction usage: %w", err)
 			}
 		case toolloop.EventToolResult:
-			unsafeToRetry = true
 			if resuming {
-				// The pending tool has now completed. Its checkpoint must never be
-				// replayed, even if an observer or later model call fails.
+				// The pending tool has completed. Remove its checkpoint so a later
+				// continuation cannot execute the completed call again.
 				p.state.clearRespondedSuspension()
 				resuming = false
 			}
 		case toolloop.EventPause:
 			if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
-				return interaction.Result{}, interactionFailure(errors.New("runtime: tool loop paused without a checkpoint"))
+				return interaction.Result{}, errors.New("runtime: tool loop paused without a checkpoint")
 			}
 			nested, activeNested, err := p.nestedChildrenForCheckpoint(boundary.Pause.Checkpoint)
 			if err != nil {
-				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: correlate nested child checkpoint: %w", err))
+				return interaction.Result{}, fmt.Errorf("runtime: correlate nested child checkpoint: %w", err)
 			}
 			if activeNested != nil && (activeNested.SuspensionID != boundary.Pause.ID ||
 				!bytes.Equal(activeNested.Prompt, boundary.Pause.Prompt) ||
 				!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
-				return interaction.Result{}, interactionFailure(fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict))
+				return interaction.Result{}, fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
 			}
 			payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
 				SchemaVersion:  suspensionCheckpointSchemaVersion,
@@ -126,7 +117,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 				NestedChildren: nested,
 			})
 			if err != nil {
-				return interaction.Result{}, interactionFailure(fmt.Errorf("runtime: encode interaction checkpoint: %w", err))
+				return interaction.Result{}, fmt.Errorf("runtime: encode interaction checkpoint: %w", err)
 			}
 			kind := interaction.SuspensionTool
 			createdAt := time.Now()
@@ -152,17 +143,17 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 
 		frameworkEvent := projectInteractionEvent(boundary, nil)
 		if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
-			return interaction.Result{}, interactionFailure(err)
+			return interaction.Result{}, err
 		}
 		if err := ctx.Err(); err != nil {
-			return interaction.Result{}, interactionFailure(err)
+			return interaction.Result{}, err
 		}
 		if boundary.Final {
 			p.state.clearRespondedSuspension()
 			return interaction.Result{Final: &frameworkEvent}, nil
 		}
 	}
-	return interaction.Result{}, interactionFailure(errors.New("runtime: managed interaction ended without a final event"))
+	return interaction.Result{}, errors.New("runtime: managed interaction ended without a final event")
 }
 
 func validateInteraction(input core.Interaction) error {
