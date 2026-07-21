@@ -147,23 +147,23 @@ func (p *Process) translateActionStatus(action core.Action, status core.ActionSt
 // handleStuck is invoked when the planner returned no plan. If the agent
 // supplied a StuckPolicy that resolves the situation, re-loop;
 // otherwise, transition to Stuck.
-func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) error {
+func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) {
 	var reason string
 	if handler := p.agent().StuckPolicy(); handler != nil {
 		result, err := p.recoverStuck(ctx, handler)
 		if err != nil {
 			p.failProcess(err)
-			return nil
+			return
 		}
 		if !result.Decision.Valid() {
 			p.failProcess(fmt.Errorf("runtime.Process.handleStuck: policy returned invalid decision %s", result.Decision))
-			return nil
+			return
 		}
 		reason = result.Reason
 		if result.Decision == core.StuckReplan {
 			if p.state.beginStuckReplan(worldState.Key()) {
 				p.state.clearExclusions()
-				return nil
+				return
 			}
 			if reason == "" {
 				reason = "stuck policy requested replanning without changing world state"
@@ -178,7 +178,6 @@ func (p *Process) handleStuck(ctx context.Context, worldState core.WorldState) e
 			Reason: reason,
 		})
 	}
-	return nil
 }
 
 func (p *Process) recoverStuck(ctx context.Context, policy core.StuckPolicy) (result core.StuckResult, err error) {
