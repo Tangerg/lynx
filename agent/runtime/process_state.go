@@ -34,6 +34,7 @@ type processState struct {
 	pendingSuspension  *interaction.Suspension
 	runOwned           bool
 	runDone            chan struct{}
+	checkpointOwned    bool
 	removalClaimed     bool
 }
 
@@ -301,6 +302,9 @@ func (s *processState) beginRun() (bool, error) {
 	if s.runOwned {
 		return false, ErrProcessRunning
 	}
+	if s.checkpointOwned {
+		return false, ErrProcessCheckpointBusy
+	}
 	switch s.currentStatus {
 	case core.StatusCompleted, core.StatusFailed, core.StatusStuck,
 		core.StatusKilled, core.StatusTerminated:
@@ -337,6 +341,31 @@ func (s *processState) waitRun(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+func (s *processState) runActive() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.runOwned
+}
+
+func (s *processState) claimCheckpoint(allowActiveRun bool) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkpointOwned {
+		return ErrProcessCheckpointBusy
+	}
+	if s.runOwned && !allowActiveRun {
+		return ErrProcessRunning
+	}
+	s.checkpointOwned = true
+	return nil
+}
+
+func (s *processState) releaseCheckpoint() {
+	s.mu.Lock()
+	s.checkpointOwned = false
+	s.mu.Unlock()
 }
 
 func (s *processState) removable() bool {

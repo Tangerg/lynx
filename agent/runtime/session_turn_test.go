@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-func TestLocalSessionTurnSequencerSerializesSameSession(t *testing.T) {
+func TestLocalSequencerSerializesSameKey(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sequencer := newLocalSessionTurnSequencer()
+		sequencer := newLocalSequencer()
 		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 		if err != nil {
 			t.Fatal(err)
@@ -42,7 +42,7 @@ func TestLocalSessionTurnSequencerSerializesSameSession(t *testing.T) {
 	})
 }
 
-func TestLocalSessionTurnSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
+func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	type ownership struct {
 		index   int
 		release func()
@@ -50,7 +50,7 @@ func TestLocalSessionTurnSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	}
 
 	synctest.Test(t, func(t *testing.T) {
-		sequencer := newLocalSessionTurnSequencer()
+		sequencer := newLocalSequencer()
 		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 		if err != nil {
 			t.Fatal(err)
@@ -83,8 +83,8 @@ func TestLocalSessionTurnSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	})
 }
 
-func TestLocalSessionTurnSequencerAllowsDifferentSessions(t *testing.T) {
-	sequencer := newLocalSessionTurnSequencer()
+func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
+	sequencer := newLocalSequencer()
 	releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 	if err != nil {
 		t.Fatal(err)

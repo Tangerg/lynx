@@ -196,8 +196,10 @@ func nestedRelationForChild(
 	if child == nil {
 		return nil, nil, errors.New("runtime: nested child is nil")
 	}
-	child.checkpointMu.RLock()
-	defer child.checkpointMu.RUnlock()
+	if err := child.state.claimCheckpoint(false); err != nil {
+		return nil, nil, fmt.Errorf("runtime: inspect nested child checkpoint: %w", err)
+	}
+	defer child.state.releaseCheckpoint()
 	if child.Status() != core.StatusWaiting {
 		return nil, nil, errors.New("runtime: nested child is not waiting")
 	}

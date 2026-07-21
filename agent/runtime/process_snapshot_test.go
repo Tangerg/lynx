@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/agent/storetest"
@@ -446,7 +447,7 @@ func TestSnapshotRejectsDeclaredButUnencodableDurableValue(t *testing.T) {
 	}
 }
 
-func TestEngineConcurrentSaveProcessCapturesValidSnapshots(t *testing.T) {
+func TestEngineConcurrentSaveFailsBusyWithoutCorruptingSnapshot(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "concurrent-save", ProcessStore: store})
 	a := buildSnapshotAgent()
@@ -472,14 +473,62 @@ func TestEngineConcurrentSaveProcessCapturesValidSnapshots(t *testing.T) {
 	wait.Wait()
 	close(errorsOut)
 
+	var saved, busy int
 	for saveErr := range errorsOut {
-		if saveErr != nil {
+		switch {
+		case saveErr == nil:
+			saved++
+		case errors.Is(saveErr, runtime.ErrProcessCheckpointBusy):
+			busy++
+		default:
 			t.Fatalf("concurrent Save: %v", saveErr)
+		}
+	}
+	if saved == 0 || saved+busy != 2 {
+		t.Fatalf("concurrent saves = %d saved, %d busy", saved, busy)
+	}
+	if busy > 0 {
+		if err := engine.Save(t.Context(), proc.ID()); err != nil {
+			t.Fatalf("save after checkpoint release: %v", err)
 		}
 	}
 	latest, err := store.Load(t.Context(), proc.ID())
 	if err != nil || latest.ID != proc.ID() || latest.Status != core.StatusCompleted {
 		t.Fatalf("latest snapshot = %#v, err %v", latest, err)
+	}
+}
+
+func TestRunningProcessSnapshotAndSaveFailWithoutListenerDeadlock(t *testing.T) {
+	store := storetest.NewMemoryProcessStore()
+	var engine *runtime.Engine
+	var saveErr, snapshotErr error
+	listener := event.NewNamedListener("checkpoint-reentry", func(ctx context.Context, published event.Event) {
+		if published.Kind() != event.KindActionStarted {
+			return
+		}
+		process, ok := engine.Process(published.ProcessID())
+		if !ok {
+			snapshotErr = errors.New("listener could not find running process")
+			return
+		}
+		saveErr = engine.Save(ctx, process.ID())
+		_, snapshotErr = process.Snapshot()
+	})
+	engine = agent.MustNewEngine(runtime.Config{
+		BuildID:      "checkpoint-reentry",
+		ProcessStore: store,
+		Extensions:   []core.Extension{listener},
+	})
+	a := buildSnapshotAgent()
+	mustDeploy(t, engine, a)
+	if _, err := engine.Run(t.Context(), a, core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(saveErr, runtime.ErrProcessRunning) {
+		t.Fatalf("listener Save error = %v, want ErrProcessRunning", saveErr)
+	}
+	if !errors.Is(snapshotErr, runtime.ErrProcessRunning) {
+		t.Fatalf("listener Snapshot error = %v, want ErrProcessRunning", snapshotErr)
 	}
 }
 
