@@ -258,9 +258,10 @@ durable；运行时 handle、函数、channel、client 等必须通过以下 API
 Restore 通过父子关系重建聚合；读取完整委派树用量时使用 `Process.Usage()`、
 `Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
 
-`ProcessStore.Save` 接收一次完整的 process-tree capture，`Delete(rootID)` 表达删除一棵持久化
-进程树；管理面列表是可选 `ProcessLister`。框架不携带 revision/CAS、事务、幂等或分布式
-语义；adapter 自行选择覆盖写、事务、并发控制和失败策略。
+`ProcessStore.Apply` 接收一个 `ProcessSnapshotChange`：可选的 `ProcessSnapshotTree` 明确根节点
+和无序快照集合，`DeleteRoots` 表达同一逻辑变更中应清理的旧树；管理面列表是可选
+`ProcessLister`。框架不携带 revision/CAS、事务、幂等或分布式语义，也不会把一个逻辑变更
+拆成多个 store 调用；adapter 自行选择覆盖写、事务、并发控制和失败策略。
 
 `core` 只定义 `ProcessStore` 和 `SessionStore` 能力接口，具体持久化由 Host 适配器实现。
 测试可使用 `storetest.NewMemoryProcessStore` 和 `storetest.NewMemorySessionStore`。

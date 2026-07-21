@@ -118,7 +118,8 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	if e.processStore != nil {
-		if err := e.processStore.Delete(ctx, processID); err != nil {
+		change := core.ProcessSnapshotChange{DeleteRoots: []string{processID}}
+		if err := e.processStore.Apply(ctx, change); err != nil {
 			tree.releaseClaims()
 			return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err))
 		}
@@ -244,18 +245,14 @@ func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessT
 	if len(snapshots) == 0 {
 		return errors.New("runtime.Engine.saveProcess: captured process tree is empty")
 	}
-	if err := e.processStore.Save(ctx, snapshots); err != nil {
-		return err
+	change := core.ProcessSnapshotChange{
+		Tree: &core.ProcessSnapshotTree{
+			RootID:    tree.process.ID(),
+			Snapshots: snapshots,
+		},
+		DeleteRoots: slices.Clone(deletes),
 	}
-	if len(deletes) == 0 {
-		return nil
-	}
-	for _, rootID := range deletes {
-		if err := e.processStore.Delete(ctx, rootID); err != nil {
-			return fmt.Errorf("delete stale process tree %q: %w", rootID, err)
-		}
-	}
-	return nil
+	return e.processStore.Apply(ctx, change)
 }
 
 func collectLockedSnapshots(tree *lockedProcessTree, snapshots *[]core.ProcessSnapshot) {

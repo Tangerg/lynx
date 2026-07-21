@@ -48,6 +48,13 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
+func bootstrapSnapshotChange(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
+	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    rootID,
+		Snapshots: snapshots,
+	}}
+}
+
 // newWriteSetFixture builds the composition-root sessionStores adapter over a
 // fresh sqlite database so the atomic write-sets run against the real stores +
 // transactor.
@@ -83,7 +90,7 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 	t.Helper()
 	ctx := context.Background()
 	processID := "proc_" + runID
-	if err := processes.Save(ctx, []core.ProcessSnapshot{bootstrapWaitingSnapshot(processID)}); err != nil {
+	if err := processes.Apply(ctx, bootstrapSnapshotChange(processID, bootstrapWaitingSnapshot(processID))); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -107,7 +114,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if err := ss.processes.Save(ctx, []core.ProcessSnapshot{child}); err != nil {
+	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange(child.ID, child)); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeCanceled
@@ -146,7 +153,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if err := ss.processes.Save(ctx, []core.ProcessSnapshot{child}); err != nil {
+	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange(child.ID, child)); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeError
@@ -350,7 +357,7 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
-	if err := ss.processes.Save(ctx, []core.ProcessSnapshot{bootstrapWaitingSnapshot("proc_preserve")}); err != nil {
+	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange("proc_preserve", bootstrapWaitingSnapshot("proc_preserve"))); err != nil {
 		t.Fatalf("seed process snapshot: %v", err)
 	}
 

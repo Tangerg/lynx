@@ -24,15 +24,22 @@ func validSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
+func validSnapshotChange(snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
+	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    snapshots[0].ID,
+		Snapshots: snapshots,
+	}}
+}
+
 func TestMemoryProcessStoreReplacementAndDefensiveLoad(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	snapshot := validSnapshot("p-1")
 	snapshot.OwnTokens = 1500
 
-	err := store.Save(ctx, []core.ProcessSnapshot{snapshot})
+	err := store.Apply(ctx, validSnapshotChange(snapshot))
 	if err != nil {
-		t.Fatalf("first Save: %v", err)
+		t.Fatalf("first Apply: %v", err)
 	}
 	loaded, err := store.Load(ctx, snapshot.ID)
 	if err != nil || loaded.OwnTokens != 1500 {
@@ -45,8 +52,8 @@ func TestMemoryProcessStoreReplacementAndDefensiveLoad(t *testing.T) {
 	}
 
 	snapshot.OwnTokens = 2000
-	if err := store.Save(ctx, []core.ProcessSnapshot{snapshot}); err != nil {
-		t.Fatalf("second Save: %v", err)
+	if err := store.Apply(ctx, validSnapshotChange(snapshot)); err != nil {
+		t.Fatalf("second Apply: %v", err)
 	}
 	updated, err := store.Load(ctx, snapshot.ID)
 	if err != nil || updated.OwnTokens != 2000 {
@@ -58,7 +65,7 @@ func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	ctx := context.Background()
 	for _, id := range []string{"c", "a", "b"} {
-		if err := store.Save(ctx, []core.ProcessSnapshot{validSnapshot(id)}); err != nil {
+		if err := store.Apply(ctx, validSnapshotChange(validSnapshot(id))); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -66,7 +73,7 @@ func TestMemoryProcessStoreManagementCapabilities(t *testing.T) {
 	if err != nil || len(ids) != 3 || ids[0] != "a" || ids[2] != "c" {
 		t.Fatalf("List = %v, err %v", ids, err)
 	}
-	if err := store.Delete(ctx, "a"); err != nil {
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{"a"}}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Load(ctx, "a"); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -131,7 +138,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	invalid := validSnapshot("waiting")
 	invalid.Status = core.StatusWaiting
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{invalid}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(invalid)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting without suspension error = %v", err)
 	}
 	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -139,24 +146,24 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	}
 	rootWithDepth := validSnapshot("root-with-depth")
 	rootWithDepth.Depth = 1
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{rootWithDepth}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(rootWithDepth)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("root with depth error = %v", err)
 	}
 	childWithoutDepth := validSnapshot("child-without-depth")
 	childWithoutDepth.ParentID = "parent"
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{childWithoutDepth}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(childWithoutDepth)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("child without depth error = %v", err)
 	}
 	invalidModelCall := validSnapshot("invalid-model-call")
 	invalidModelCall.OwnModelCalls = []core.ModelCall{{
 		Timestamp: time.Now(), PromptTokens: 1, CompletionTokens: 1, ReasoningTokens: 2,
 	}}
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{invalidModelCall}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(invalidModelCall)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("invalid model call error = %v", err)
 	}
 	failedWithoutCause := validSnapshot("failed-without-cause")
 	failedWithoutCause.Status = core.StatusFailed
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{failedWithoutCause}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(failedWithoutCause)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("failed without cause error = %v", err)
 	}
 	waitingWithFailure := validSnapshot("waiting-with-failure")
@@ -167,7 +174,58 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 		Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
 	}
 	waitingWithFailure.Failure = "must not survive"
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{waitingWithFailure}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(t.Context(), validSnapshotChange(waitingWithFailure)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting with failure error = %v", err)
+	}
+}
+
+func TestProcessSnapshotChangeValidatesTreeBoundary(t *testing.T) {
+	root := validSnapshot("root")
+	child := validSnapshot("child")
+	child.ParentID = root.ID
+	child.Depth = root.Depth + 1
+	disconnected := child
+	disconnected.ParentID = "outside"
+	wrongDepth := child
+	wrongDepth.Depth++
+
+	tests := []struct {
+		name   string
+		change core.ProcessSnapshotChange
+	}{
+		{name: "empty change"},
+		{name: "empty tree", change: core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{RootID: root.ID}}},
+		{name: "missing root", change: core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+			RootID: root.ID, Snapshots: []core.ProcessSnapshot{child},
+		}}},
+		{name: "duplicate snapshot", change: core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, root},
+		}}},
+		{name: "external parent", change: core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, disconnected},
+		}}},
+		{name: "wrong depth", change: core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, wrongDepth},
+		}}},
+		{name: "save delete conflict", change: core.ProcessSnapshotChange{
+			Tree:        &core.ProcessSnapshotTree{RootID: root.ID, Snapshots: []core.ProcessSnapshot{root}},
+			DeleteRoots: []string{root.ID},
+		}},
+		{name: "duplicate delete", change: core.ProcessSnapshotChange{DeleteRoots: []string{"old", "old"}}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.change.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
+				t.Fatalf("Validate error = %v, want ErrInvalidSnapshot", err)
+			}
+		})
+	}
+
+	valid := core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID: root.ID, Snapshots: []core.ProcessSnapshot{child, root},
+	}, DeleteRoots: []string{"stale"}}
+	if err := valid.Validate(); err != nil {
+		t.Fatalf("valid change: %v", err)
 	}
 }

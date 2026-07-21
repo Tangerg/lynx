@@ -35,29 +35,30 @@ type encodedProcessSnapshot struct {
 	capturedAt int64
 }
 
-// Save replaces the supplied process snapshots in one SQLite transaction.
-func (s *ProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapshot) error {
-	encoded := make([]encodedProcessSnapshot, len(snapshots))
-	seen := make(map[string]struct{}, len(snapshots))
-	for index, snapshot := range snapshots {
-		if _, duplicate := seen[snapshot.ID]; duplicate {
-			return fmt.Errorf("sqlite: save process snapshots: duplicate ID %q", snapshot.ID)
-		}
-		seen[snapshot.ID] = struct{}{}
-		data, err := json.Marshal(snapshot)
-		if err != nil {
-			return fmt.Errorf("sqlite: save process snapshots[%d]: %w", index, err)
-		}
-		encoded[index] = encodedProcessSnapshot{
-			id:         snapshot.ID,
-			parentID:   snapshot.ParentID,
-			data:       data,
-			capturedAt: snapshot.CapturedAt.UnixNano(),
+// Apply persists one complete process-snapshot change using the adapter's
+// transaction strategy.
+func (s *ProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
+	if err := change.Validate(); err != nil {
+		return fmt.Errorf("sqlite: apply process snapshot change: %w", err)
+	}
+
+	var encoded []encodedProcessSnapshot
+	if change.Tree != nil {
+		encoded = make([]encodedProcessSnapshot, len(change.Tree.Snapshots))
+		for index, snapshot := range change.Tree.Snapshots {
+			data, err := json.Marshal(snapshot)
+			if err != nil {
+				return fmt.Errorf("sqlite: encode process snapshots[%d]: %w", index, err)
+			}
+			encoded[index] = encodedProcessSnapshot{
+				id:         snapshot.ID,
+				parentID:   snapshot.ParentID,
+				data:       data,
+				capturedAt: snapshot.CapturedAt.UnixNano(),
+			}
 		}
 	}
-	if len(encoded) == 0 {
-		return nil
-	}
+
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		for index, snapshot := range encoded {
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
@@ -70,6 +71,11 @@ func (s *ProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapsho
 				snapshot.id, snapshot.parentID, string(snapshot.data), snapshot.capturedAt,
 			); err != nil {
 				return fmt.Errorf("sqlite: save process snapshots[%d] %q: %w", index, snapshot.id, err)
+			}
+		}
+		for _, rootID := range change.DeleteRoots {
+			if err := s.deleteTree(ctx, rootID); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -122,9 +128,7 @@ func (s *ProcessStore) List(ctx context.Context) ([]string, error) {
 	return ids, nil
 }
 
-// Delete removes the durable process tree rooted at rootID. SQLite traversal
-// and transaction scope are adapter decisions, not framework guarantees.
-func (s *ProcessStore) Delete(ctx context.Context, rootID string) error {
+func (s *ProcessStore) deleteTree(ctx context.Context, rootID string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`WITH RECURSIVE process_tree(id) AS (
 			SELECT id FROM process_snapshots WHERE id = ?

@@ -27,8 +27,7 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	firstID := prefix + "-first"
 	secondID := prefix + "-second"
 	defer func() {
-		_ = store.Delete(context.WithoutCancel(ctx), firstID)
-		_ = store.Delete(context.WithoutCancel(ctx), secondID)
+		_ = store.Apply(context.WithoutCancel(ctx), core.ProcessSnapshotChange{DeleteRoots: []string{firstID, secondID}})
 	}()
 
 	started := time.Now().UTC().Add(-time.Second)
@@ -48,19 +47,24 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	first := newSnapshot(firstID, 1)
 	wrongSchema := first
 	wrongSchema.SchemaVersion++
-	if err := store.Save(ctx, []core.ProcessSnapshot{wrongSchema}); !errors.Is(err, core.ErrSnapshotSchema) {
+	if err := store.Apply(ctx, snapshotChange(wrongSchema)); !errors.Is(err, core.ErrSnapshotSchema) {
 		return fmt.Errorf("storetest: unsupported schema error = %w", err)
 	}
 	invalid := first
 	invalid.Blackboard = map[string]core.TaggedValue{
 		"invalid": {Type: "string", Value: []byte("{")},
 	}
-	if err := store.Save(ctx, []core.ProcessSnapshot{invalid}); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if err := store.Apply(ctx, snapshotChange(invalid)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		return fmt.Errorf("storetest: invalid serialized state error = %w", err)
 	}
 
 	second := newSnapshot(secondID, 2)
-	if err := store.Save(ctx, []core.ProcessSnapshot{first, second}); err != nil {
+	second.ParentID = first.ID
+	second.Depth = first.Depth + 1
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    first.ID,
+		Snapshots: []core.ProcessSnapshot{first, second},
+	}}); err != nil {
 		return fmt.Errorf("storetest: save snapshots: %w", err)
 	}
 	loaded, err := store.Load(ctx, firstID)
@@ -74,7 +78,7 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 	}
 
 	first.OwnTokens = 3
-	if err := store.Save(ctx, []core.ProcessSnapshot{first}); err != nil {
+	if err := store.Apply(ctx, snapshotChange(first)); err != nil {
 		return fmt.Errorf("storetest: replace snapshot: %w", err)
 	}
 	replaced, err := store.Load(ctx, firstID)
@@ -95,14 +99,21 @@ func TestProcessStore(ctx context.Context, store core.ProcessStore) error {
 			return errors.New("storetest: List omitted saved process")
 		}
 	}
-	if err := store.Delete(ctx, firstID); err != nil {
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{firstID}}); err != nil {
 		return fmt.Errorf("storetest: Delete first process tree: %w", err)
 	}
-	if err := store.Delete(ctx, secondID); err != nil {
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{secondID}}); err != nil {
 		return fmt.Errorf("storetest: Delete: %w", err)
 	}
 	if _, err := store.Load(ctx, firstID); !errors.Is(err, core.ErrSnapshotNotFound) {
 		return fmt.Errorf("storetest: Load after Delete: %w", err)
 	}
 	return nil
+}
+
+func snapshotChange(snapshot core.ProcessSnapshot) core.ProcessSnapshotChange {
+	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    snapshot.ID,
+		Snapshots: []core.ProcessSnapshot{snapshot},
+	}}
 }

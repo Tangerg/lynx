@@ -466,7 +466,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	if childID == "" {
 		t.Fatalf("parked tree snapshots = %v, want root + child", ids)
 	}
-	if err := store.Delete(t.Context(), childID); err != nil {
+	if err := store.Apply(t.Context(), core.ProcessSnapshotChange{DeleteRoots: []string{childID}}); err != nil {
 		t.Fatalf("delete child snapshot: %v", err)
 	}
 
