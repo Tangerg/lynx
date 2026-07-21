@@ -124,6 +124,7 @@ var wireSamples = []struct {
 	{"mcpServerConfig.json", func() any { return new(McpServerConfig) }},
 	{"hooksList.json", func() any { return new(HooksListResult) }},
 	{"memoryEntry.json", func() any { return new(MemoryEntry) }},
+	{"agentMemoryItem.json", func() any { return new(AgentMemoryItem) }},
 	{"problemData.json", func() any { return new(ProblemData) }},
 	{"feedback.req.json", func() any { return new(FeedbackRequest) }},
 }

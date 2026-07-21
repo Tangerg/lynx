@@ -1,0 +1,12 @@
+{
+  "id": "mem_01HZY7K9Q3T4",
+  "scope": "project",
+  "content": "Build per-module with `go -C <dir>` — go.work makes a bare `go build ./...` at the repo root fail.",
+  "origin": "auto",
+  "status": "pending",
+  "pinned": false,
+  "sessionId": "sess_01HZY7K9Q3",
+  "day": "2026-07-22",
+  "createdAt": "2026-07-22T09:30:00Z",
+  "updatedAt": "2026-07-22T09:30:00Z"
+}

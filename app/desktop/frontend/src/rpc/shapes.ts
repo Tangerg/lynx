@@ -700,6 +700,32 @@ export interface SkillDraftRef {
   name: string;
   revision: string;
 }
+
+// agentMemory.* — the HITL review surface over the agent's self-maintained
+// memory. Distinct from MemoryEntry (the user-authored LYRA.md cascade): these
+// are addressable items the agent mines from sessions, held `pending` until a
+// human approves; only `active` items reach the prompt or the memory_search
+// tool. origin distinguishes mined (`auto`) from user-authored (`user`).
+export type AgentMemoryScope = "project" | "user";
+export type AgentMemoryOrigin = "auto" | "user";
+export type AgentMemoryStatus = "active" | "pending";
+
+export interface AgentMemoryItem {
+  id: string;
+  scope: AgentMemoryScope;
+  content: string;
+  origin: AgentMemoryOrigin;
+  status: AgentMemoryStatus;
+  pinned: boolean;
+  sessionId?: string;
+  day?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentMemoryList {
+  items: AgentMemoryItem[];
+}
 // A recipe is a user-invoked, parameterized prompt template (recipes.
 // list). The client expands the body's $ARGUMENTS / $1..$9 with the user's input
 // and sends the result as a turn; body travels with the listing (recipes are

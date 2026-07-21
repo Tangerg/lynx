@@ -12,6 +12,7 @@ export {
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILL_DRAFTS_KEY,
+  WORKSPACE_AGENT_MEMORY_KEY,
   useWorkspaceAgentDocs,
   useWorkspaceBuiltinTools,
   useWorkspaceDiff,
@@ -26,6 +27,7 @@ export {
   useWorkspaceSkills,
   useManagedSkills,
   useSkillDrafts,
+  useAgentMemory,
   type BuiltinToolInfo,
   type WorkspaceAgentDoc,
   type WorkspaceDiff,
@@ -50,4 +52,6 @@ export {
   type WorkspaceSkill,
   type ManagedSkillInfo,
   type SkillDraftInfo,
+  type AgentMemoryItemInfo,
+  type AgentMemoryQuery,
 } from "../application/workspaceData";

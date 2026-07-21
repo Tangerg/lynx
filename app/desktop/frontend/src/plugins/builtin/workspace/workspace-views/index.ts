@@ -11,6 +11,7 @@ export { fileView } from "./file";
 export { filesView } from "./files";
 export { fileTreeView } from "./filetree";
 export { memoryView } from "./memory";
+export { agentMemoryView } from "./agentMemory";
 export { skillsView } from "./skills";
 export { skillLibraryView } from "./skillLibrary";
 export { skillDraftsView } from "./skillDrafts";

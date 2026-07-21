@@ -1448,9 +1448,16 @@ interface HooksListResult {
 | `skills.drafts.list`    | `{ cursor?; limit? }` | `Page<SkillDraft>` | `skills`（authoring） |
 | `skills.drafts.promote` | `SkillDraftRef`       | 无                 | `skills`（authoring） |
 | `skills.drafts.reject`  | `SkillDraftRef`       | 无                 | `skills`（authoring） |
+| `agentMemory.list`   | `{ scope?: "project"\|"user"; cwd? }`           | `{ items: AgentMemoryItem[] }` | agent memory store |
+| `agentMemory.review` | `{ id: string; decision: "approve"\|"reject" }` | 无                             | agent memory store |
+| `agentMemory.update` | `{ id: string; content?: string; pinned?: bool }` | `AgentMemoryItem`            | agent memory store |
+| `agentMemory.delete` | `{ id: string }`                                | 无                             | agent memory store |
+| `agentMemory.add`    | `{ scope?; cwd?; content: string }`             | `AgentMemoryItem`              | agent memory store |
 | `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无                  | ——       |
 
 > **`skills.drafts.*` = 自撰 skill 的离线 HITL 审阅队列**：agent 在 turn 边界从会话里蒸馏出 skill 提案，落 `_drafts/`（模型不可见），人经此队列 `promote`（发布进 active 库）/ `reject`（丢弃）。`SkillDraft`（`{ name, revision, description?, createdBy?, sourceSession? }`）的 `name+revision` 是内容寻址 handle；`promote`/`reject` 带 `SkillDraftRef`（`{ name, revision }`），`revision` 把决定绑到审阅时的确切字节（撞名冲突返 `invalid_params`）。仅在 authoring store 装配时可用，否则 `capability_not_negotiated`。
+
+> **`agentMemory.*` = agent 自维护记忆的 HITL 审阅面**（区别于 `memory.*` 的用户手写 LYRA.md 级联）：agent 从会话挖掘出的耐久事实先落 `pending`，经人 `review`（approve→active / reject→隐藏 tombstone）后才 `active`；**只有 active 记忆**会注入后续 prompt 或被 `memory_search` 工具返回。`AgentMemoryItem`（`{ id, scope: "project"|"user", content, origin: "auto"|"user", status: "active"|"pending", pinned, sessionId?, day?, createdAt, updatedAt }`）；`list` 按 pending-first 排（rejected 隐藏）。`update` 的 nil 字段不变（content / pinned 分别改）；`add` 存用户手写的 active 项。scope=project 用 cwd 定位项目，scope=user 忽略 cwd。store 未装配时 `capability_not_negotiated`。
 
 > **图片输入不走上传域**：图片随 `runs.start.input` 的 image ContentBlock 内联（mime + base64 data）传入——对照八家 agent（opencode / Claude Code / codex …）一致做法，无独立 attachment 上传/引用子系统。`unsupported_mime` 仍用于校验 image block 的 mime（非图片类型或不可解析）。
 
