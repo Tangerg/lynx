@@ -107,8 +107,11 @@
       }
     }
   ],
+  "process_failure": {
+    "message": "provider unavailable"
+  },
   "process_snapshot": {
-    "schema_version": 4,
+    "schema_version": 5,
     "id": "process-1",
     "parent_id": "process-root",
     "depth": 1,

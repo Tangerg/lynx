@@ -464,8 +464,9 @@ if err := storetest.TestProcessStore(t.Context(), store); err != nil {
 
 `storetest` 保持公开；`providertest` 已移除。ChatProvider 与 ToolGroupResolver 在真实 Engine dispatch 测试中验证，不为测试对称性扩大公共 API。
 
-ProcessSnapshot 当前升级到 schema v4。v2 起只持久化当前 Process 的直接 ledger；v4 删除
-revision 与 Action history attempts，不读取旧 schema，也不增加兼容 wrapper：
+ProcessSnapshot 当前升级到 schema v5。v2 起只持久化当前 Process 的直接 ledger；v4 删除
+revision 与 Action history attempts；v5 把 `Failure string` 替换为明确的
+`*ProcessFailure{Message}`。不读取旧 schema，也不增加兼容 wrapper：
 
 | schema v1 | schema v2 |
 |---|---|
@@ -479,8 +480,12 @@ revision 与 Action history attempts，不读取旧 schema，也不增加兼容 
 `Process.Usage()`、`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`，不要把
 snapshot 的 `Own*` 字段当作进程树总量。
 
+持久化无法通用编码任意 Go error 的 sentinel 身份、unwrap 链和私有字段。恢复后的
+`Process.Failure()` 固定返回 message-only `*core.ProcessFailure`；调用方可以用 `errors.As`
+识别 durable failure，但只应在尚未跨越 snapshot 边界的 live error 上依赖 `errors.Is`。
+
 旧 snapshot 不做兼容读取。开发环境迁移时：备份数据、终止依赖旧 snapshot 的非终态运行、
-清除 schema v1 ProcessSnapshot 及其 v1 ToolLoop checkpoint、保留可独立解释的 Session
+清除 schema v1-v4 ProcessSnapshot 及其关联 ToolLoop checkpoint、保留可独立解释的 Session
 与 terminal history，然后只写当前 schema。
 
 ## 11. Event JSON

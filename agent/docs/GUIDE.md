@@ -254,10 +254,13 @@ durable；运行时 handle、函数、channel、client 等必须通过以下 API
 - `BindTransient`
 - `AddTransient`
 
-当前 ProcessSnapshot schema 为 v4；v2 引入的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
-`OwnEmbeddingCalls` 只记录该 Process 的直接 ledger。Child 各自持久化自己的 ledger，
-Restore 通过父子关系重建聚合；读取完整委派树用量时使用 `Process.Usage()`、
-`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
+当前 ProcessSnapshot schema 为 v5；v2 引入的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
+`OwnEmbeddingCalls` 只记录该 Process 的直接 ledger。v5 用确定的
+`ProcessFailure{Message}` 对象替代裸 failure 字符串。任意 live error 的 sentinel 身份与 unwrap
+链不具备通用 wire 表达，因此恢复后的 `Process.Failure()` 是 message-only
+`*core.ProcessFailure`；需要识别时使用 `errors.As`，不要假定跨进程 `errors.Is`。
+Child 各自持久化自己的 ledger，Restore 通过父子关系重建聚合；读取完整委派树用量时使用
+`Process.Usage()`、`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
 
 `ProcessStore.Apply` 接收一个 `ProcessSnapshotChange`：可选的 `ProcessSnapshotTree` 明确根节点
 和无序快照集合，`DeleteRoots` 表达同一逻辑变更中应清理的旧树；管理面列表是可选

@@ -60,7 +60,7 @@ core: const ( ToolGroupHostAccess ToolGroupPermission = iota ToolGroupInternetAc
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
 core: const BudgetPolicyName = "budget-policy"
-core: const ProcessSnapshotSchemaVersion uint16 = 4
+core: const ProcessSnapshotSchemaVersion uint16 = 5
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -104,6 +104,7 @@ core: func (d *Dependencies) Frozen() bool
 core: func (d *Dependencies) Parent() *Dependencies
 core: func (d StuckDecision) String() string
 core: func (d StuckDecision) Valid() bool
+core: func (f *ProcessFailure) Error() string
 core: func (g *ChatGuardrails) Empty() bool
 core: func (g *Goal) Description() string
 core: func (g *Goal) Examples() []string
@@ -263,9 +264,10 @@ core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
 core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Usage UsageRecorder Blackboard Blackboard Session *Session Dependencies *Dependencies Chat func() (ChatCapability, error) MaxToolRounds int ActionTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []ToolGroupRequirement }
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
+core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessLister interface { List(context.Context) ([]string, error) }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Session *Session Extensions []Extension Guardrails *ChatGuardrails }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure string `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` CapturedAt time.Time `json:"captured_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnCost float64 `json:"own_cost"` OwnTokens int `json:"own_tokens"` OwnModelCalls []ModelCall `json:"own_model_calls,omitempty"` OwnEmbeddingCalls []EmbeddingCall `json:"own_embedding_calls,omitempty"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessSnapshotChange struct { Tree *ProcessSnapshotTree DeleteRoots []string }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8

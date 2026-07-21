@@ -106,7 +106,7 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		return fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err)
 	}
 	defer releaseSave()
-	tree, err := e.discoverProcessTrees(ctx, []string{processID})
+	tree, err := e.discoverProcessTrees([]string{processID})
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Discard: %w", err)
 	}
@@ -165,7 +165,7 @@ func (e *Engine) saveProcess(ctx context.Context, process *Process, allowActiveR
 	defer releaseSave()
 	releaseProcessTree(tree)
 
-	cleanupTree, err := e.discoverProcessTrees(ctx, cleanupRoots)
+	cleanupTree, err := e.discoverProcessTrees(cleanupRoots)
 	if err != nil {
 		return err
 	}
@@ -337,8 +337,7 @@ type discoveredProcessTrees struct {
 	claimed []*Process
 }
 
-func (e *Engine) discoverProcessTrees(ctx context.Context, roots []string) (*discoveredProcessTrees, error) {
-	ctx = normalizeContext(ctx)
+func (e *Engine) discoverProcessTrees(roots []string) (*discoveredProcessTrees, error) {
 	discovered := &discoveredProcessTrees{engine: e, live: make(map[string]*Process)}
 	if len(roots) == 0 {
 		return discovered, nil
@@ -777,7 +776,7 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 		snapshot.GoalName = goal.Name()
 	}
 	if state.failure != nil {
-		snapshot.Failure = state.failure.Error()
+		snapshot.Failure = &core.ProcessFailure{Message: state.failure.Error()}
 	}
 	history := state.history
 	if len(history) > 0 {
@@ -926,8 +925,9 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 			}
 		}
 	}
-	if snapshot.Failure != "" {
-		process.state.restoreFailure(errors.New(snapshot.Failure))
+	if snapshot.Failure != nil {
+		failure := *snapshot.Failure
+		process.state.restoreFailure(&failure)
 	}
 	for _, run := range snapshot.History {
 		process.state.recordActionRun(ActionRun{

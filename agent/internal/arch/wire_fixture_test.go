@@ -183,6 +183,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 
 	return map[string]any{
 		"interaction_events":  interactionEvents,
+		"process_failure":     agentcore.ProcessFailure{Message: "provider unavailable"},
 		"process_snapshot":    processSnapshot,
 		"session":             session,
 		"toolloop_checkpoint": checkpoint,

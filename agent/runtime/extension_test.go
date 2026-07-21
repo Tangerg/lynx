@@ -284,6 +284,31 @@ func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 	}
 }
 
+func TestEngineFreezesBlackboardPrototypeNameAtRegistration(t *testing.T) {
+	baseEngine := agent.MustNewEngine(runtime.Config{})
+	base, err := baseEngine.NewBlackboard()
+	if err != nil {
+		t.Fatalf("NewBlackboard baseline: %v", err)
+	}
+	prototype := &testBlackboard{
+		Blackboard: base,
+		name:       "registered-board",
+		clone: func() core.Blackboard {
+			panic("clone failed")
+		},
+	}
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{prototype}})
+	prototype.name = "mutated-board"
+
+	_, err = engine.NewBlackboard()
+	if err == nil || !strings.Contains(err.Error(), `blackboard "registered-board" Clone panicked`) {
+		t.Fatalf("NewBlackboard error = %v", err)
+	}
+	if strings.Contains(err.Error(), prototype.name) {
+		t.Fatalf("NewBlackboard error used mutable extension name: %v", err)
+	}
+}
+
 func TestBlackboardSeedPanicReturnsProcessCreationError(t *testing.T) {
 	baseEngine := agent.MustNewEngine(runtime.Config{})
 	base, err := baseEngine.NewBlackboard()

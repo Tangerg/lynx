@@ -103,6 +103,59 @@ func buildSnapshotAgent() *core.Agent {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "word counted"})}})
 }
 
+func TestRestoreSnapshotExposesMessageOnlyProcessFailure(t *testing.T) {
+	cause := errors.New("provider unavailable")
+	failingAgent := agent.New(agent.AgentConfig{
+		Name: "failing-snapshot-agent",
+		Actions: []agent.Action{agent.NewAction(
+			"fail",
+			func(context.Context, *core.ProcessContext, ssWord) (ssWordCount, error) {
+				return ssWordCount{}, cause
+			},
+			core.ActionConfig{},
+		)},
+		Goals: []*agent.Goal{agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "never produced"})},
+	})
+
+	engine := agent.MustNewEngine(runtime.Config{BuildID: "failure-snapshot-test"})
+	process, err := engine.Run(t.Context(), failingAgent, core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("live process status = %s, failure = %v", process.Status(), process.Failure())
+	}
+	snapshot, err := process.Snapshot()
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	var durable core.ProcessSnapshot
+	if err := json.Unmarshal(raw, &durable); err != nil {
+		t.Fatalf("unmarshal snapshot: %v", err)
+	}
+
+	restarted := agent.MustNewEngine(runtime.Config{BuildID: "failure-snapshot-test"})
+	mustDeploy(t, restarted, failingAgent)
+	restored, err := restarted.RestoreSnapshot(durable, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	var restoredFailure *core.ProcessFailure
+	if !errors.As(restored.Failure(), &restoredFailure) {
+		t.Fatalf("restored failure type = %T, want *core.ProcessFailure", restored.Failure())
+	}
+	if restoredFailure.Message != cause.Error() {
+		t.Fatalf("restored failure message = %q", restoredFailure.Message)
+	}
+	if errors.Is(restored.Failure(), cause) {
+		t.Fatal("message-only durable failure retained impossible live error identity")
+	}
+}
+
 func TestEngine_SaveProcess_NoStore(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a := buildSnapshotAgent()

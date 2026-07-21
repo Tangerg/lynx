@@ -94,13 +94,46 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	if decoded["status"] != "running" {
 		t.Fatalf("status wire = %#v", decoded["status"])
 	}
-	for _, version := range []float64{0, 1, 2, 3, 5} {
+	for _, version := range []float64{0, 1, 2, 3, 4, 6} {
 		decoded["schema_version"] = version
 		invalid, _ := json.Marshal(decoded)
 		var target core.ProcessSnapshot
 		if err := json.Unmarshal(invalid, &target); !errors.Is(err, core.ErrSnapshotSchema) {
 			t.Fatalf("schema %v error = %v", version, err)
 		}
+	}
+}
+
+func TestProcessSnapshotFailureHasExplicitWireShape(t *testing.T) {
+	snapshot := validSnapshot("failed")
+	snapshot.Status = core.StatusFailed
+	snapshot.Failure = &core.ProcessFailure{Message: "provider unavailable"}
+
+	body, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wire struct {
+		Failure *core.ProcessFailure `json:"failure"`
+	}
+	if err := json.Unmarshal(body, &wire); err != nil {
+		t.Fatal(err)
+	}
+	if wire.Failure == nil || wire.Failure.Message != snapshot.Failure.Message {
+		t.Fatalf("failure wire = %#v", wire.Failure)
+	}
+
+	var decoded core.ProcessSnapshot
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Failure == nil || decoded.Failure.Error() != snapshot.Failure.Error() {
+		t.Fatalf("decoded failure = %#v", decoded.Failure)
+	}
+
+	unknownField := []byte(`{"schema_version":5,"id":"failed","deployment":{"name":"demo","digest":"digest"},"started_at":"2026-07-16T08:00:00Z","captured_at":"2026-07-16T08:00:01Z","status":"failed","failure":{"message":"failed","code":"magic"},"own_cost":0,"own_tokens":0}`)
+	if err := json.Unmarshal(unknownField, &decoded); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("unknown failure field error = %v", err)
 	}
 }
 
@@ -173,7 +206,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 		ID:            "approval", Kind: interaction.SuspensionHuman,
 		Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
 	}
-	waitingWithFailure.Failure = "must not survive"
+	waitingWithFailure.Failure = &core.ProcessFailure{Message: "must not survive"}
 	if err := store.Apply(t.Context(), validSnapshotChange(waitingWithFailure)); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting with failure error = %v", err)
 	}
