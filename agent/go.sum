@@ -2,8 +2,6 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4 h1:H4kILYu/zGPJREsNgGQW4+JAzJCTLP5SIavN0m7Hz3Y=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
-github.com/Tangerg/lynx/chathistory v0.0.0-20260721023422-b01ee95543a4 h1:bwHBz+l6cnS997yRbOh2byywVBm4JDBcSxsBxO8FZ1I=
-github.com/Tangerg/lynx/chathistory v0.0.0-20260721023422-b01ee95543a4/go.mod h1:29yD8K9sQ+qQwuuzuq31R8KM0LScn7fSPmrkMuYd8p4=
 github.com/Tangerg/lynx/core v0.0.0-20260721023422-b01ee95543a4 h1:yn3ODa+3TTYVspqC1oNkpLWx2UsF2/N5ycOAa7LFbn0=
 github.com/Tangerg/lynx/core v0.0.0-20260721023422-b01ee95543a4/go.mod h1:PY+VnxFetB5qI5vMO2inBAWTmMSnK0FJP7LNKeUgMno=
 github.com/Tangerg/lynx/mcp v0.0.0-20260721023422-b01ee95543a4 h1:h0MW0EuuKiguAlUjKTDtK6a5rfWyjSpzYqt+iBub8DE=
