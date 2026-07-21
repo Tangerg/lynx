@@ -93,12 +93,12 @@ func (s Suspension) Validate() error {
 func (s Suspension) Responded() bool { return len(s.Response) > 0 }
 
 func (s Suspension) Clone() *Suspension {
-	copy := s
-	copy.Prompt = bytes.Clone(s.Prompt)
-	copy.ResumeSchema = bytes.Clone(s.ResumeSchema)
-	copy.Payload = bytes.Clone(s.Payload)
-	copy.Response = bytes.Clone(s.Response)
-	return &copy
+	cloned := s
+	cloned.Prompt = bytes.Clone(s.Prompt)
+	cloned.ResumeSchema = bytes.Clone(s.ResumeSchema)
+	cloned.Payload = bytes.Clone(s.Payload)
+	cloned.Response = bytes.Clone(s.Response)
+	return &cloned
 }
 
 func (s Suspension) MarshalJSON() ([]byte, error) {

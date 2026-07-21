@@ -97,6 +97,8 @@ core: func (c *PromptCondition) Name() string
 core: func (c EmbeddingCall) Validate() error
 core: func (c ModelCall) Validate() error
 core: func (c ProcessSnapshotChange) Validate() error
+core: func (conditions ConditionSet) Satisfies(required ConditionSet) bool
+core: func (conditions ConditionSet) Unsatisfied(required ConditionSet) ConditionSet
 core: func (conditions ConditionSet) Validate() error
 core: func (d *Dependencies) Child() *Dependencies
 core: func (d *Dependencies) Freeze()
@@ -170,8 +172,6 @@ core: func (s ProcessStatus) String() string
 core: func (s Session) Clone() Session
 core: func (s Session) Validate() error
 core: func (s TerminationScope) String() string
-core: func (state ConditionSet) Satisfies(required ConditionSet) bool
-core: func (state ConditionSet) Unsatisfied(required ConditionSet) ConditionSet
 core: func (t *GoalTool) InputType() reflect.Type
 core: func (t ProcessSnapshotTree) Validate() error
 core: func (t Truth) And(other Truth) Truth

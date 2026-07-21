@@ -55,17 +55,16 @@ func (r *processRegistry) registerNew(process *Process) bool {
 	}
 }
 
-func (r *processRegistry) unregister(process *Process) bool {
+func (r *processRegistry) unregister(process *Process) {
 	if process == nil {
-		return false
+		return
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.items[process.id] != process {
-		return false
+		return
 	}
 	delete(r.items, process.id)
-	return true
 }
 
 func (r *processRegistry) unregisterClaimedLeaf(process *Process) (found, hasChildren bool) {
