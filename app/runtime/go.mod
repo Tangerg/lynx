@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Tangerg/lynx/a2a v0.0.0-20260719031314-1e49c2a0f145
-	github.com/Tangerg/lynx/agent v0.0.0-20260720164205-a522d6e197d3
+	github.com/Tangerg/lynx/agent v0.0.0-20260721023047-c604da6d4081
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260719031314-1e49c2a0f145
 	github.com/Tangerg/lynx/chathistory v0.0.0-20260719031314-1e49c2a0f145
 	github.com/Tangerg/lynx/core v0.0.0-20260719031314-1e49c2a0f145
