@@ -1,5 +1,5 @@
 // Package agent is the standard façade for the Lynx Agent Framework. It
-// exposes definition, deployment, execution, status, session, retry, and
+// exposes definition, deployment, execution, status, session, interaction, and
 // suspension types used by the common lifecycle. These are aliases to their
 // owning core/runtime/interaction types, not copied abstractions.
 //

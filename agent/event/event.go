@@ -181,7 +181,7 @@ type ActionStarted struct {
 
 func (ActionStarted) Kind() Kind { return KindActionStarted }
 
-// ActionFinished fires after an action's retry loop terminates.
+// ActionFinished fires after an action invocation terminates.
 type ActionFinished struct {
 	Header
 	Action   core.Action       `json:"-"`

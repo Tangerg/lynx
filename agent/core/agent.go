@@ -158,7 +158,7 @@ func (a *Agent) PlannerName() string {
 }
 
 // Validate checks all built-in invariants required by deployment: identity,
-// unique capabilities, retry safety, and conservative goal reachability.
+// unique capabilities, and conservative goal reachability.
 //
 // Distinct from the [AgentValidator] extension SPI: this is the
 // framework's built-in structural check on the entity itself; an

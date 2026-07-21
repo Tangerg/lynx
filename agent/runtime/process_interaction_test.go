@@ -350,7 +350,7 @@ func (m *managedFinalModel) Call(context.Context, *chat.Request) (*chat.Response
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls++
-	message := chat.NewAssistantMessage(chat.NewTextPart("committed"))
+	message := chat.NewAssistantMessage(chat.NewTextPart("complete"))
 	response, err := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	response.Model = "managed-final"
 	return response, err
@@ -362,14 +362,14 @@ func (m *managedFinalModel) Calls() int {
 	return m.calls
 }
 
-func TestManagedInteractionSurfacesCommittedBoundaryFailure(t *testing.T) {
+func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T) {
 	model := &managedFinalModel{}
 	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
 	observerErr := errors.New("observer stopped")
-	a := agent.New(agent.AgentConfig{Name: "managed-committed", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.AgentConfig{Name: "managed-observer-failure", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -389,7 +389,7 @@ func TestManagedInteractionSurfacesCommittedBoundaryFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run control-flow error = %v", err)
 	}
-	if proc == nil || !errors.Is(proc.Failure(), interaction.ErrCommitted) || !errors.Is(proc.Failure(), observerErr) {
+	if proc == nil || !errors.Is(proc.Failure(), observerErr) {
 		t.Fatalf("process failure = %v", proc.Failure())
 	}
 	if model.Calls() != 1 {

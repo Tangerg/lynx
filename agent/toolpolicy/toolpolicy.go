@@ -13,8 +13,8 @@ import (
 // ErrAlreadyCalled is returned by a [Once]-wrapped tool when a caller tries
 // to invoke it twice within the same policy scope.
 //
-// Use errors.Is to detect this case in callers that want to swap a
-// tool retry for a different recovery strategy.
+// Use errors.Is to detect this case in callers that want to choose a different
+// recovery strategy.
 var ErrAlreadyCalled = errors.New("toolpolicy: tool already called in this policy scope")
 
 // ErrLocked is returned by a [Gate]-wrapped tool when its condition rejects
