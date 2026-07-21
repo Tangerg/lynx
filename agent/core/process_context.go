@@ -255,13 +255,11 @@ func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (inte
 
 // Suspend parks one durable continuation on the current process.
 func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) {
-	if pc == nil || pc.control == nil {
-		if pc != nil && pc.parallelBranch {
-			return ActionFailed, ErrParallelBranchControl
-		}
-		return ActionFailed, errors.New("agent: process context has no lifecycle control")
+	control, err := pc.lifecycleControl()
+	if err != nil {
+		return ActionFailed, err
 	}
-	status, err := pc.control.Suspend(contextOrBackground(ctx), suspension)
+	status, err := control.Suspend(contextOrBackground(ctx), suspension)
 	if err != nil {
 		return status, err
 	}
@@ -273,29 +271,42 @@ func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Su
 
 // TerminateAgent requests process termination at the next tick boundary.
 func (pc *ProcessContext) TerminateAgent(reason string) error {
-	if pc == nil || pc.control == nil {
-		return ErrParallelBranchControl
+	control, err := pc.lifecycleControl()
+	if err != nil {
+		return err
 	}
-	pc.control.TerminateAgent(reason)
+	control.TerminateAgent(reason)
 	return nil
 }
 
 // TerminateAction requests re-planning without terminating the process.
 func (pc *ProcessContext) TerminateAction(reason string) error {
-	if pc == nil || pc.control == nil {
-		return ErrParallelBranchControl
+	control, err := pc.lifecycleControl()
+	if err != nil {
+		return err
 	}
-	pc.control.TerminateAction(reason)
+	control.TerminateAction(reason)
 	return nil
 }
 
 // TerminateToolCall cancels the process's registered in-flight tool call.
 func (pc *ProcessContext) TerminateToolCall() error {
-	if pc == nil || pc.control == nil {
-		return ErrParallelBranchControl
+	control, err := pc.lifecycleControl()
+	if err != nil {
+		return err
 	}
-	pc.control.TerminateToolCall()
+	control.TerminateToolCall()
 	return nil
+}
+
+func (pc *ProcessContext) lifecycleControl() (ProcessControl, error) {
+	if pc != nil && pc.control != nil {
+		return pc.control, nil
+	}
+	if pc != nil && pc.parallelBranch {
+		return nil, ErrParallelBranchControl
+	}
+	return nil, ErrLifecycleControlUnavailable
 }
 
 // ActionTools resolves the tool groups declared by the current action.
@@ -359,3 +370,7 @@ func contextOrBackground(ctx context.Context) context.Context {
 // a workflow branch. Use an isolated child Process when a parallel unit needs
 // suspension, termination, or its own model/tool lifecycle.
 var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
+
+// ErrLifecycleControlUnavailable reports lifecycle use on a ProcessContext
+// that was not assembled by the runtime.
+var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")

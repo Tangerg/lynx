@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"sync/atomic"
 	"testing"
@@ -219,6 +220,30 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 	}
 }
 
+func TestRepeatUntilAcceptable_PropagatesEvaluatorError(t *testing.T) {
+	cause := errors.New("judge unavailable")
+	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+		Name: "evaluator-error",
+		Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+			return ruaOut{Draft: "attempt"}, nil
+		},
+		Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+			return workflow.Feedback{}, cause
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	engine := agent.MustNewEngine(runtime.Config{})
+	process, err := engine.Run(t.Context(), a, core.Input(ruaIn{Topic: "topic"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Run control-flow error: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want evaluator failure", process.Status(), process.Failure())
+	}
+}
+
 func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 	cases := []struct {
 		name string
@@ -246,6 +271,24 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 		}},
 		{"invalid threshold", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 			Name: "x", AcceptableScore: math.NaN(),
+			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
+			},
+		}},
+		{"negative threshold", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+			Name: "x", AcceptableScore: -0.1,
+			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
+			},
+		}},
+		{"negative iterations", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+			Name: "x", MaxIterations: -1,
 			Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
 			},

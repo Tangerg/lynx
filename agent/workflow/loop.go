@@ -43,8 +43,8 @@ type LoopConfig[In, Out any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxIterations bounds the loop; <=0 defaults to 5. The workflow
-	// always runs Body at least once (the action is Repeatable, so
+	// MaxIterations bounds the loop; zero defaults to 5 and negative values are
+	// invalid. The workflow always runs Body at least once (the action is Repeatable, so
 	// planner reschedules until Until says stop).
 	MaxIterations int
 
@@ -88,13 +88,16 @@ func Loop[In, Out any](
 	if config.Until == nil {
 		return nil, errors.New("workflow.Loop: Until must not be nil")
 	}
+	if config.MaxIterations < 0 {
+		return nil, fmt.Errorf("workflow.Loop: MaxIterations %d must not be negative", config.MaxIterations)
+	}
 	bodyDeployment, err := engine.Deploy(ctx, config.Body)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
 	}
 	bodyName := bodyDeployment.Ref().Name
 	maxIterations := config.MaxIterations
-	if maxIterations <= 0 {
+	if maxIterations == 0 {
 		maxIterations = DefaultLoopIterations
 	}
 

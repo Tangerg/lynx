@@ -210,6 +210,20 @@ answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
 
 结构化输出使用 `PromptJSON[T]`；需要完整 request、observer 或 limits 时使用 `Interact`。
 
+`workflow.SupervisorConfig.Render` 现在返回 `(string, error)`。默认 renderer 只做 JSON 编码；
+编码失败会直接结束 action，不再用 `fmt.Sprintf` 生成另一种、不可预测的 prompt：
+
+```go
+Render: func(input Request) (string, error) {
+    return renderPrompt(input)
+},
+```
+
+`RepeatUntilAcceptable` 的 Evaluator error 同样直接传播。需要容错时由业务 Evaluator 明确
+返回合法 Feedback；框架不再把基础设施错误伪装成 `Score: 0` 并隐式执行下一轮。
+`Loop`、`RepeatUntil` 和 `RepeatUntilAcceptable` 只把零值 MaxIterations 解释为默认值；负数
+现在是配置错误。AcceptableScore 同样只以零值选择默认阈值，负数不再被默认为 0.7。
+
 低层 `toolloop` 不再构造 `Invocation`：
 
 ```go

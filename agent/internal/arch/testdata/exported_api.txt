@@ -336,6 +336,7 @@ core: var ( ErrSnapshotNotFound = errors.New("process store: snapshot not found"
 core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidSession = errors.New("session: invalid")
 core: var ErrInvalidSessionMetadata = errors.New("session metadata: invalid")
+core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
 core: var ErrSessionNotFound = errSessionNotFound{}
 core: var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
@@ -734,5 +735,5 @@ workflow: type ParallelConfig[In, Element, Result any] struct { Name string Desc
 workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Description string MaxIterations int AcceptableScore float64 Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Evaluator Evaluator[In, Out] }
 workflow: type RepeatUntilConfig[In, Out any] struct { Name string Description string MaxIterations int Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Accept func(ctx context.Context, input In, latest Out, history *History[Out]) bool }
 workflow: type ScatterGatherConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
-workflow: type SupervisorConfig[In, Out any] struct { Name string Description string Agents []string Instructions string Render func(In) string Parse func(text string) (Out, error) MaxToolRounds int }
+workflow: type SupervisorConfig[In, Out any] struct { Name string Description string Agents []string Instructions string Render func(In) (string, error) Parse func(text string) (Out, error) MaxToolRounds int }
 workflow: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }

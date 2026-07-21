@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -26,8 +27,8 @@ type RepeatUntilConfig[In, Out any] struct {
 	// Description is the agent's human-facing summary.
 	Description string
 
-	// MaxIterations bounds the loop. <=0 defaults to 3. The workflow always runs Task
-	// at least once.
+	// MaxIterations bounds the loop. Zero defaults to 3; negative values are
+	// invalid. The workflow always runs Task at least once.
 	MaxIterations int
 
 	// Task is the per-iteration body. It receives the loop input In,
@@ -67,8 +68,11 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	if config.Accept == nil {
 		return nil, errors.New("workflow.RepeatUntil: Accept must not be nil")
 	}
+	if config.MaxIterations < 0 {
+		return nil, fmt.Errorf("workflow.RepeatUntil: MaxIterations %d must not be negative", config.MaxIterations)
+	}
 	maxIterations := config.MaxIterations
-	if maxIterations <= 0 {
+	if maxIterations == 0 {
 		maxIterations = DefaultRepeatIterations
 	}
 

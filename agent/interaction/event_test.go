@@ -21,6 +21,17 @@ func TestEventWrapsNestedProtocolValidation(t *testing.T) {
 	}
 }
 
+func TestResumeEventPreservesValidationCause(t *testing.T) {
+	event := interaction.Event{
+		Kind:   interaction.EventResume,
+		Round:  1,
+		Resume: &interaction.Resume{ID: " invalid", Input: json.RawMessage(`true`)},
+	}
+	if err := event.Validate(); !errors.Is(err, interaction.ErrInvalidID) {
+		t.Fatalf("Validate error = %v, want ErrInvalidID", err)
+	}
+}
+
 func TestValidateIDRejectsUnstableIdentity(t *testing.T) {
 	for _, id := range []string{"", "   ", " approval-1", "approval-1 "} {
 		if err := interaction.ValidateID(id); !errors.Is(err, interaction.ErrInvalidID) {

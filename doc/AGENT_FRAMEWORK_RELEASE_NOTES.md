@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 735 |
+| exported declaration | 736 |
 | root façade | 50 / 50 |
 | exported JSON struct | 15 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`13705ed7568b34e170a1177f44b716539445b179d9cfd453fb2bdc8cb9299a70`
+- API baseline SHA-256：`d2d0b15783b6bd0805d3f33d1ce1b973f55d0ffcacdabb6ceef83d89ae503ea9`
 - wire fixture SHA-256：`581d7a1542353b8cc24fe492acc23b064227bdc148662e195c286e24366ec3fb`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -65,6 +65,7 @@
   `Only`、`Unlocked` 命名。无 scope 的 once allowance 明确归 decorator 实例所有，
   不再错误声称具有 Process 生命周期。
 - `runtime.AgentGoalTools` → `runtime.Engine.GoalToolsFor`。
+- `SupervisorConfig.Render` 改为返回 `(string, error)`；默认 JSON renderer 不再在编码失败时静默切换到 `fmt.Sprintf` prompt。
 - Agent durable blackboard codec、planning templates、Domain prune 与 goal-tool fan-out 改为 owner method；删除以 Agent、Domain、Engine 为首参的自由函数。
 - 私有 owner 继续收敛：`FuncAction` 读取 typed input，`DependencyKey` 校验 typed key，`Process` 调度 middleware/chat/interaction/child listener，`runnerState` 管理 input/resume/continuation，agent tool/task tool 自己编码结果。
 - Deployment snapshot、canonical definition 与 digest 归入持有 `buildID` 的私有 `deploymentCompiler`；文件改为 `deployment_compiler.go`，不增加公共 service/interface。
@@ -76,6 +77,8 @@
 ### Execution semantics
 
 - Action 与 ActionMiddleware 显式传递 `(ActionStatus, error)`。
+- `RepeatUntilAcceptable` 的 Evaluator error 直接失败并保留根因，不再魔法转换为零分反馈后继续迭代。
+- Loop/Repeat 的迭代上限与 acceptable score 采用“零值默认、负数非法”的统一配置语义，不再把错误输入静默改成默认值。
 - `RetryPolicy{}` 只尝试一次；多次 retry 必须声明安全性。
 - `StuckDecision` 的零值是停止，显式值 `StuckReplan` 才重新规划。
 - `StuckDecision` 补齐 `Valid` / `String`，runtime 拒绝未知决策并将策略 panic
@@ -121,6 +124,7 @@
 
 - `ProcessContext.Prompt`、`PromptJSON` 与 `Interact` 统一进入 framework-managed interaction。
 - Human/tool pause 共用 JSON-safe Suspension；`Resume` 与 `Continue` 分离。
+- Resume interaction event 保留 `Resume.Validate` 的错误链；ProcessContext 在普通缺失 lifecycle owner 与 parallel branch 禁止控制之间返回不同 sentinel。
 - `Engine.Resume(parent)` 会沿 durable relation 响应当前顺序位置的 waiting child；
   `RestoreResumable` 递归恢复有序 child forest，未激活 sibling 保持 parked。
 - ProcessSnapshot schema v2 使用 strict decoder 与 exact DeploymentRef，并把
