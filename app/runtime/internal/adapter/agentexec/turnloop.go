@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -105,41 +106,21 @@ type streamingModel struct {
 }
 
 func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	// The framework owns stream accumulation and delta forwarding; this adapter
+	// only layers the host's idle-stall policy over it. keepAlive resets the
+	// idle timer on every delta; stop maps an idle/parent cancellation to its
+	// cause so it wins over the raw stream error.
 	streamCtx, keepAlive, stop := modelStreamContext(ctx, m.idleTimeout)
-	var accumulator chat.ResponseAccumulator
-	seen := false
-	for response, err := range m.streamer.Stream(streamCtx, request) {
-		if err != nil {
-			if cause := stop(); cause != nil {
-				return nil, cause
-			}
-			return nil, err
-		}
-		if response == nil {
-			if cause := stop(); cause != nil {
-				return nil, cause
-			}
-			return nil, errors.New("agentexec: chat stream yielded a nil response")
-		}
-		if err := accumulator.Add(response); err != nil {
-			if cause := stop(); cause != nil {
-				return nil, cause
-			}
-			return nil, fmt.Errorf("agentexec: accumulate chat stream: %w", err)
-		}
-		seen = true
+	response, err := interaction.StreamCall(streamCtx, m.streamer, request, func(delta *chat.Response) {
 		keepAlive()
 		if m.chunk != nil {
-			m.chunk(response)
+			m.chunk(delta)
 		}
-	}
+	})
 	if cause := stop(); cause != nil {
 		return nil, cause
 	}
-	if !seen {
-		return nil, errors.New("agentexec: chat stream ended without a response")
-	}
-	return accumulator.Response(), nil
+	return response, err
 }
 
 // deferredToolProvider is implemented by a meta-tool (search_tools) that keeps

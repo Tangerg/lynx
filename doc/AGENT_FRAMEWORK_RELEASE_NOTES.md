@@ -16,12 +16,12 @@
 | 项目 | 当前值 |
 |---|---:|
 | public package | 16 |
-| exported declaration | 707 |
+| exported declaration | 708 |
 | root façade | 47 / 50 |
 | exported JSON struct | 16 |
 | wire fixture | 490 行 |
 
-- API baseline SHA-256：`ad869099e09486113bf74f42f13fc655a60fcfc9e37616036c1bfed480ae24a0`
+- API baseline SHA-256：`953fa77672a95172689a747d4a7ee86c293e09d37105794d71a22151b13fe3fa`
 - wire fixture SHA-256：`f2f6de44747d91ba41ac5eadc734357751e3a6b80e75b6e8876ef8c444e501f0`
 
 这些值用于审查开发期差异，不代表已经发布稳定承诺。
@@ -123,6 +123,9 @@
 ### Interaction and persistence
 
 - `ProcessContext.Prompt`、`PromptJSON` 与 `Interact` 统一进入 framework-managed interaction。
+- `interaction.StreamCall` 把 provider 流适配成 managed interaction 需要的同步响应：
+  驱动 `chat.Streamer`、经 `chat.ResponseAccumulator` 合并、逐 delta 回调、返回累积响应。
+  取消/idle/retry 策略仍由调用方经 ctx 与 streamer 掌握；host 不再各自重造累积循环。
 - Human/tool pause 共用 JSON-safe Suspension；`Resume` 与 `Continue` 分离。
 - Resume interaction event 保留 `Resume.Validate` 的错误链；ProcessContext 在普通缺失 lifecycle owner 与 parallel branch 禁止控制之间返回不同 sentinel。
 - `Engine.Resume(parent)` 会沿 durable relation 响应当前顺序位置的 waiting child；
