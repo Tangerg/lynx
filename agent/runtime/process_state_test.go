@@ -48,8 +48,22 @@ func TestProcessState_FirstTerminalWins(t *testing.T) {
 	}
 
 	// markKilled is the same gate (external Kill side).
-	if s.markKilled() {
+	if won, _ := s.markKilled(nil); won {
 		t.Fatal("markKilled over an existing terminal should report won=false")
+	}
+}
+
+func TestProcessStateLosingTerminalDoesNotChangeFailure(t *testing.T) {
+	state := newProcessState()
+	if !state.transition(core.StatusCompleted) {
+		t.Fatal("completion did not win")
+	}
+	cause := errors.New("late cancellation")
+	if won, _ := state.markKilled(cause); won {
+		t.Fatal("late kill replaced completion")
+	}
+	if failure := state.failure(); failure != nil {
+		t.Fatalf("late kill changed completed failure to %v", failure)
 	}
 }
 

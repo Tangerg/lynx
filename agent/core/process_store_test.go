@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/storetest"
 )
 
@@ -198,5 +199,21 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	}}
 	if err := store.Save(t.Context(), invalidModelCall); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("invalid model call error = %v", err)
+	}
+	failedWithoutCause := validSnapshot("failed-without-cause")
+	failedWithoutCause.Status = core.StatusFailed
+	if err := store.Save(t.Context(), failedWithoutCause); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("failed without cause error = %v", err)
+	}
+	waitingWithFailure := validSnapshot("waiting-with-failure")
+	waitingWithFailure.Status = core.StatusWaiting
+	waitingWithFailure.Suspension = &interaction.Suspension{
+		SchemaVersion: interaction.SuspensionSchemaVersion,
+		ID:            "approval", Kind: interaction.SuspensionHuman,
+		Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
+	}
+	waitingWithFailure.Failure = "must not survive"
+	if err := store.Save(t.Context(), waitingWithFailure); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("waiting with failure error = %v", err)
 	}
 }

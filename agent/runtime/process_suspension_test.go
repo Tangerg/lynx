@@ -63,6 +63,23 @@ func TestProcessStateSuspensionValidatesResponseSchema(t *testing.T) {
 	}
 }
 
+func TestProcessStateTerminalTransitionClearsSuspension(t *testing.T) {
+	state := newProcessState()
+	if err := state.parkSuspension(testSuspension("approval")); err != nil {
+		t.Fatal(err)
+	}
+	state.transition(core.StatusWaiting)
+	if !state.pauseDurability() || state.status() != core.StatusWaiting || state.suspension() == nil {
+		t.Fatalf("durability pause changed waiting continuation: status=%s suspension=%#v", state.status(), state.suspension())
+	}
+	if won, _ := state.markKilled(nil); !won {
+		t.Fatal("kill did not win waiting process")
+	}
+	if state.suspension() != nil {
+		t.Fatal("terminal transition retained suspension")
+	}
+}
+
 func testSuspension(id string) interaction.Suspension {
 	return interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,

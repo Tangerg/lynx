@@ -213,6 +213,9 @@ func (s *processState) transition(status core.ProcessStatus) bool {
 		return false
 	}
 	s.currentStatus = status
+	if status.IsTerminal() {
+		s.pendingSuspension = nil
+	}
 	return true
 }
 
@@ -228,29 +231,35 @@ func (s *processState) observe(worldState core.WorldState) {
 	s.world = worldState
 }
 
-func (s *processState) recordFailure(err error) {
+func (s *processState) restoreFailure(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.runErr = err
 }
 
-func (s *processState) failDurability(err error) {
+func (s *processState) fail(err error) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return
+		return false
 	}
 	s.runErr = err
 	s.currentStatus = core.StatusFailed
+	s.pendingSuspension = nil
+	return true
 }
 
-func (s *processState) pauseDurability() {
+func (s *processState) pauseDurability() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return
+		return false
+	}
+	if s.currentStatus == core.StatusWaiting || s.currentStatus == core.StatusPaused {
+		return true
 	}
 	s.currentStatus = core.StatusPaused
+	return true
 }
 
 func (s *processState) recordActionRun(run ActionRun) {
@@ -327,9 +336,19 @@ func (s *processState) endRun() {
 // markKilled transitions to StatusKilled unless the process is already
 // terminal, reporting whether THIS call performed the transition — the external
 // kill ([Engine.Kill]) side of the shared "first terminal wins" gate.
-// It is exactly transition(StatusKilled): a kill racing a natural completion (or
-// vice versa) can't clobber the other's terminal, and the caller publishes
-// ProcessKilled only when it actually won (never a spurious / duplicate one).
-func (s *processState) markKilled() bool {
-	return s.transition(core.StatusKilled)
+// A kill racing a natural completion (or vice versa) cannot clobber the
+// existing terminal. The winning transition clears any continuation and
+// reports whether the run loop owns final snapshot responsibility.
+func (s *processState) markKilled(err error) (won, runOwned bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentStatus.IsTerminal() {
+		return false, s.runOwned
+	}
+	s.currentStatus = core.StatusKilled
+	s.pendingSuspension = nil
+	if err != nil {
+		s.runErr = err
+	}
+	return true, s.runOwned
 }

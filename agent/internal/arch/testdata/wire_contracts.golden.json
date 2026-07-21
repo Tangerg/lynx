@@ -146,7 +146,6 @@
         "attempts": 2
       }
     ],
-    "failure": "awaiting approval",
     "own_cost": 0.0125,
     "own_tokens": 321,
     "own_model_calls": [
