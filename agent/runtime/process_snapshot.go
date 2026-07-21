@@ -45,7 +45,7 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 	)
 	defer cancel()
 
-	err := p.engine.saveProcess(snapshotCtx, p)
+	err := p.engine.saveProcess(snapshotCtx, p, true)
 	if err == nil {
 		return nil
 	}
@@ -76,7 +76,9 @@ func (p *Process) maybeAutoSnapshot(ctx context.Context) error {
 
 // Save captures the named process tree into the configured [core.ProcessStore].
 // It returns an error when no store is configured, the process id is unknown,
-// or the store rejects the capture.
+// the process is actively running, another checkpoint capture owns the same
+// tree, or the store rejects the capture. Automatic snapshots use the private
+// post-tick boundary and are not subject to the active-run rejection.
 func (e *Engine) Save(ctx context.Context, processID string) error {
 	if e.processStore == nil {
 		return errors.New("runtime.Engine.Save: no ProcessStore configured")
@@ -85,7 +87,7 @@ func (e *Engine) Save(ctx context.Context, processID string) error {
 	if !ok {
 		return fmt.Errorf("runtime.Engine.Save: id %q not registered", processID)
 	}
-	return e.saveProcess(ctx, process)
+	return e.saveProcess(ctx, process, false)
 }
 
 // Discard terminates a process tree, waits for every active run to release its
@@ -97,6 +99,15 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		return errors.New("runtime.Engine.Discard: nil Engine")
 	}
 	ctx = normalizeContext(ctx)
+	sequenceKey := processID
+	if process, ok := e.Process(processID); ok {
+		sequenceKey = e.processTreeRootID(process)
+	}
+	releaseSave, err := e.processSaves.acquire(ctx, sequenceKey)
+	if err != nil {
+		return fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err)
+	}
+	defer releaseSave()
 	tree, err := e.discoverProcessTrees(ctx, []string{processID})
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Discard: %w", err)
@@ -128,58 +139,85 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	return errors.Join(terminateErrs...)
 }
 
-func (e *Engine) saveProcess(ctx context.Context, process *Process) error {
+func (e *Engine) saveProcess(ctx context.Context, process *Process, allowActiveRun bool) error {
 	if e.processStore == nil {
 		return errors.New("runtime.Engine.saveProcess: no ProcessStore configured")
 	}
 	ctx = normalizeContext(ctx)
-	tree, err := e.lockProcessTree(process, map[string]struct{}{})
+	if !allowActiveRun && process.state.runActive() {
+		return fmt.Errorf("runtime.Engine.saveProcess: process %q: %w", process.ID(), ErrProcessRunning)
+	}
+	tree, err := e.claimProcessTree(process, map[string]struct{}{}, allowActiveRun)
 	if err != nil {
 		return err
 	}
 
-	if err := captureLockedProcessTree(tree); err != nil {
-		unlockProcessTree(tree)
+	if err := captureClaimedProcessTree(tree); err != nil {
+		releaseProcessTree(tree)
 		return err
 	}
 	var cleanup []deferredProcessCleanup
 	collectNestedChildCleanup(tree, &cleanup)
 	cleanupRoots := cleanupProcessRoots(cleanup)
+	releaseSave, err := e.processSaves.acquire(ctx, e.processTreeRootID(process))
+	if err != nil {
+		releaseProcessTree(tree)
+		return fmt.Errorf("runtime.Engine.saveProcess: sequence persistence: %w", err)
+	}
+	defer releaseSave()
+	releaseProcessTree(tree)
+
 	cleanupTree, err := e.discoverProcessTrees(ctx, cleanupRoots)
 	if err != nil {
-		unlockProcessTree(tree)
 		return err
 	}
 	if err := cleanupTree.wait(ctx); err != nil {
-		unlockProcessTree(tree)
 		return err
 	}
 	if err := cleanupTree.claim(); err != nil {
-		unlockProcessTree(tree)
 		return err
 	}
-	err = e.saveLockedProcessTree(ctx, tree, cleanupRoots)
+	err = e.saveCapturedProcessTree(ctx, tree, cleanupRoots)
 	if err != nil {
 		cleanupTree.releaseClaims()
-		unlockProcessTree(tree)
 		return err
 	}
 	for _, pending := range cleanup {
 		pending.owner.acknowledgeNestedChildCleanup(pending.roots)
 	}
-	unlockProcessTree(tree)
 	cleanupTree.release()
 	return nil
 }
 
-type lockedProcessTree struct {
+func (e *Engine) processTreeRootID(process *Process) string {
+	if process == nil {
+		return ""
+	}
+	rootID := process.ID()
+	visited := map[string]struct{}{rootID: {}}
+	for parentID := process.ParentID(); parentID != ""; parentID = process.ParentID() {
+		if _, duplicate := visited[parentID]; duplicate {
+			break
+		}
+		parent, ok := e.Process(parentID)
+		if !ok {
+			break
+		}
+		visited[parentID] = struct{}{}
+		rootID = parentID
+		process = parent
+	}
+	return rootID
+}
+
+type claimedProcessTree struct {
 	process   *Process
 	relations []*nestedChildRelation
-	children  []*lockedProcessTree
+	children  []*claimedProcessTree
 	snapshot  core.ProcessSnapshot
 }
 
-func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) (*lockedProcessTree, error) {
+func (e *Engine) claimProcessTree(process *Process, visited map[string]struct{}, allowActiveRun bool) (*claimedProcessTree, error) {
 	if process == nil {
 		return nil, errors.New("runtime.Engine.saveProcess: process is nil")
 	}
@@ -187,49 +225,51 @@ func (e *Engine) lockProcessTree(process *Process, visited map[string]struct{}) 
 		return nil, fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, process.ID())
 	}
 	visited[process.ID()] = struct{}{}
-	process.checkpointMu.Lock()
+	if err := process.state.claimCheckpoint(allowActiveRun); err != nil {
+		return nil, fmt.Errorf("runtime.Engine.saveProcess: claim process %q checkpoint: %w", process.ID(), err)
+	}
 	checkpoint, err := nestedChildrenFromSuspension(process.Suspension())
 	if err != nil {
-		process.checkpointMu.Unlock()
+		process.state.releaseCheckpoint()
 		return nil, err
 	}
 
-	tree := &lockedProcessTree{
+	tree := &claimedProcessTree{
 		process:   process,
 		relations: checkpoint.relations,
-		children:  make([]*lockedProcessTree, 0, len(checkpoint.relations)),
+		children:  make([]*claimedProcessTree, 0, len(checkpoint.relations)),
 	}
 	for _, relation := range checkpoint.relations {
 		child, ok := e.Process(relation.ChildID)
 		if !ok {
-			unlockProcessTree(tree)
+			releaseProcessTree(tree)
 			return nil, fmt.Errorf("%w: nested child process %q is missing", core.ErrInvalidSnapshot, relation.ChildID)
 		}
-		childTree, lockErr := e.lockProcessTree(child, visited)
-		if lockErr != nil {
-			unlockProcessTree(tree)
-			return nil, fmt.Errorf("lock nested child %q: %w", child.ID(), lockErr)
+		childTree, claimErr := e.claimProcessTree(child, visited, false)
+		if claimErr != nil {
+			releaseProcessTree(tree)
+			return nil, fmt.Errorf("claim nested child %q: %w", child.ID(), claimErr)
 		}
 		tree.children = append(tree.children, childTree)
 		if err := relation.validateProcess(process, child); err != nil {
-			unlockProcessTree(tree)
+			releaseProcessTree(tree)
 			return nil, err
 		}
 	}
 	return tree, nil
 }
 
-func captureLockedProcessTree(tree *lockedProcessTree) error {
+func captureClaimedProcessTree(tree *claimedProcessTree) error {
 	if tree == nil || tree.process == nil {
 		return errors.New("runtime.Engine.saveProcess: locked process tree is incomplete")
 	}
-	snapshot, err := tree.process.snapshot()
+	snapshot, err := tree.process.snapshotClaimed()
 	if err != nil {
 		return err
 	}
 	tree.snapshot = snapshot
 	for index, child := range tree.children {
-		if err := captureLockedProcessTree(child); err != nil {
+		if err := captureClaimedProcessTree(child); err != nil {
 			return err
 		}
 		if err := tree.relations[index].validateSnapshot(tree.snapshot, child.snapshot); err != nil {
@@ -239,9 +279,9 @@ func captureLockedProcessTree(tree *lockedProcessTree) error {
 	return nil
 }
 
-func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessTree, deletes []string) error {
+func (e *Engine) saveCapturedProcessTree(ctx context.Context, tree *claimedProcessTree, deletes []string) error {
 	var snapshots []core.ProcessSnapshot
-	collectLockedSnapshots(tree, &snapshots)
+	collectCapturedSnapshots(tree, &snapshots)
 	if len(snapshots) == 0 {
 		return errors.New("runtime.Engine.saveProcess: captured process tree is empty")
 	}
@@ -255,12 +295,12 @@ func (e *Engine) saveLockedProcessTree(ctx context.Context, tree *lockedProcessT
 	return e.processStore.Apply(ctx, change)
 }
 
-func collectLockedSnapshots(tree *lockedProcessTree, snapshots *[]core.ProcessSnapshot) {
+func collectCapturedSnapshots(tree *claimedProcessTree, snapshots *[]core.ProcessSnapshot) {
 	if tree == nil {
 		return
 	}
 	for _, child := range tree.children {
-		collectLockedSnapshots(child, snapshots)
+		collectCapturedSnapshots(child, snapshots)
 	}
 	*snapshots = append(*snapshots, tree.snapshot)
 }
@@ -270,7 +310,7 @@ type deferredProcessCleanup struct {
 	roots []string
 }
 
-func collectNestedChildCleanup(tree *lockedProcessTree, cleanup *[]deferredProcessCleanup) {
+func collectNestedChildCleanup(tree *claimedProcessTree, cleanup *[]deferredProcessCleanup) {
 	if tree == nil {
 		return
 	}
@@ -430,14 +470,14 @@ func (tree *discoveredProcessTrees) release() {
 	tree.claimed = nil
 }
 
-func unlockProcessTree(tree *lockedProcessTree) {
+func releaseProcessTree(tree *claimedProcessTree) {
 	if tree == nil {
 		return
 	}
 	for index := len(tree.children) - 1; index >= 0; index-- {
-		unlockProcessTree(tree.children[index])
+		releaseProcessTree(tree.children[index])
 	}
-	tree.process.checkpointMu.Unlock()
+	tree.process.state.releaseCheckpoint()
 }
 
 // Restore loads a snapshot from the configured store and
@@ -699,9 +739,9 @@ func restoredChildOptions(
 
 // Snapshot captures the process's state into a portable
 // [core.ProcessSnapshot] suitable for handing to a [core.ProcessStore].
-// It waits for any active tick or suspension response to reach a framework
-// checkpoint boundary, then captures one internally consistent state.
-// No external state is mutated.
+// It rejects an active run instead of blocking behind arbitrary action,
+// extension, or model code. Successful capture owns one stable process
+// boundary and does not mutate external state.
 //
 // Blackboard capture is strict: the blackboard must expose
 // [BlackboardSnapshotter], every durable value must be declared and JSON-safe,
@@ -710,12 +750,14 @@ func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
 	if p == nil {
 		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: nil process")
 	}
-	p.checkpointMu.RLock()
-	defer p.checkpointMu.RUnlock()
-	return p.snapshot()
+	if err := p.state.claimCheckpoint(false); err != nil {
+		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
+	}
+	defer p.state.releaseCheckpoint()
+	return p.snapshotClaimed()
 }
 
-func (p *Process) snapshot() (core.ProcessSnapshot, error) {
+func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 	state := p.captureDurableState()
 	snapshot := core.ProcessSnapshot{
 		SchemaVersion:     core.ProcessSnapshotSchemaVersion,

@@ -53,17 +53,18 @@ type Engine struct {
 
 	extensions extensionRegistry // engine-scoped extensions
 
-	events                  *event.Multicast           // populated from EventListener extensions
-	dependencies            *core.Dependencies         // typed engine dependency scope
-	chat                    core.ChatCapability        // optional shared model and streamer
-	guardrails              *core.ChatGuardrails       // optional global chat middlewares
-	processStore            core.ProcessStore          // optional snapshot backend
-	sessionStore            core.SessionStore          // optional root-session persistence
-	childSessionStore       core.SessionStore          // optional delegated-session persistence
-	sessionTurns            *localSessionTurnSequencer // sequences turns sharing a session ID
-	sessionFinalizeTimeout  time.Duration              // bounds the post-dispatch session write
-	autoSnapshot            bool                       // snapshot every tick when a store is configured
-	snapshotFinalizeTimeout time.Duration              // bounds each request-independent automatic snapshot
+	events                  *event.Multicast     // populated from EventListener extensions
+	dependencies            *core.Dependencies   // typed engine dependency scope
+	chat                    core.ChatCapability  // optional shared model and streamer
+	guardrails              *core.ChatGuardrails // optional global chat middlewares
+	processStore            core.ProcessStore    // optional snapshot backend
+	sessionStore            core.SessionStore    // optional root-session persistence
+	childSessionStore       core.SessionStore    // optional delegated-session persistence
+	sessionTurns            *localSequencer      // sequences turns sharing a session ID
+	processSaves            *localSequencer      // sequences persistence for one live process tree
+	sessionFinalizeTimeout  time.Duration        // bounds the post-dispatch session write
+	autoSnapshot            bool                 // snapshot every tick when a store is configured
+	snapshotFinalizeTimeout time.Duration        // bounds each request-independent automatic snapshot
 	snapshotFailurePolicy   SnapshotFailurePolicy
 	maxChildDepth           int
 	buildID                 string // stable host build identity included in deployment digests
@@ -220,7 +221,8 @@ func New(config Config) (*Engine, error) {
 		processStore:            config.ProcessStore,
 		sessionStore:            config.SessionStore,
 		childSessionStore:       config.ChildSessionStore,
-		sessionTurns:            newLocalSessionTurnSequencer(),
+		sessionTurns:            newLocalSequencer(),
+		processSaves:            newLocalSequencer(),
 		sessionFinalizeTimeout:  finalizeTimeout,
 		autoSnapshot:            config.AutoSnapshot,
 		snapshotFinalizeTimeout: snapshotFinalizeTimeout,

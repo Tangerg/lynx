@@ -594,7 +594,7 @@ runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }
 runtime: type SnapshotFailurePolicy = core.SnapshotFailurePolicy
-runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
+runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") ErrProcessHasChildren = errors.New("runtime: process still owns registered children") )
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")
 runtime: var ErrDeploymentConflict = errors.New("deployment conflict")

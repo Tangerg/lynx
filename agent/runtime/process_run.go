@@ -114,8 +114,6 @@ const (
 // [Engine.Run] / [Engine.Start] / [Engine.Continue]
 // which run the full loop.
 func (p *Process) tick(ctx context.Context) error {
-	p.checkpointMu.Lock()
-	defer p.checkpointMu.Unlock()
 	ctx = normalizeContext(ctx)
 	ctx = core.WithProcessView(ctx, p)
 

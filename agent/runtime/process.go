@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -29,8 +28,9 @@ import (
 //     cleanup; owns a separate mutex because sibling AgentTools may update it
 //     concurrently.
 //
-// checkpointMu serializes suspension transitions and durable tree capture.
-// The other top-level fields are construction-time wiring (id /
+// processState checkpoint ownership serializes suspension transitions and
+// durable capture without holding a mutex across extension callbacks or store
+// I/O. The other top-level fields are construction-time wiring (id /
 // deployment / options / blackboard / state reader / planner / domain /
 // engine) — immutable after newProcess returns.
 type Process struct {
@@ -41,11 +41,10 @@ type Process struct {
 	options    *processOptions
 	startedAt  time.Time
 
-	state        processState
-	budget       processBudget
-	signals      processSignals
-	nested       nestedChildState
-	checkpointMu sync.RWMutex
+	state   processState
+	budget  processBudget
+	signals processSignals
+	nested  nestedChildState
 
 	blackboard   core.Blackboard
 	dependencies *core.Dependencies

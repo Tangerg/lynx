@@ -28,6 +28,10 @@ var (
 	// only transient run ownership makes this error true.
 	ErrProcessRunning = errors.New("runtime: process is already running")
 
+	// ErrProcessCheckpointBusy reports that another caller is capturing or
+	// mutating continuation state at a stable process boundary.
+	ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy")
+
 	// ErrProcessActive reports an attempt to remove a process before it reaches
 	// a terminal state. Call Kill first when active work must be discarded.
 	ErrProcessActive = errors.New("runtime: process is active")
@@ -344,8 +348,10 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 		return fmt.Errorf("%w: nested process cycle at %q", interaction.ErrSuspensionConflict, process.ID())
 	}
 	visited[process.ID()] = struct{}{}
-	process.checkpointMu.Lock()
-	defer process.checkpointMu.Unlock()
+	if err := process.state.claimCheckpoint(false); err != nil {
+		return err
+	}
+	defer process.state.releaseCheckpoint()
 
 	suspension := process.Suspension()
 	if suspension == nil || process.Status() != core.StatusWaiting || suspension.ID != suspensionID {
