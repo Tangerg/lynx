@@ -37,30 +37,9 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		return interaction.Result{}, err
 	}
 
-	var sequence iter.Seq2[toolloop.Event, error]
-	resuming := false
-	if suspension := p.Suspension(); suspension != nil {
-		checkpoint, recognized, checkpointErr := decodeSuspensionCheckpoint(suspension.Payload)
-		if checkpointErr != nil {
-			return interaction.Result{}, checkpointErr
-		}
-		if !recognized || checkpoint.Kind != suspensionCheckpointInteraction {
-			sequence = runner.Run(ctx, input.Request, input.Tools)
-		} else {
-			if !suspension.Responded() {
-				return interaction.Result{}, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
-			}
-			if checkpoint.Owner != owner {
-				return interaction.Result{}, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
-			}
-			if checkpoint.Deployment != p.Deployment() {
-				return interaction.Result{}, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
-			}
-			sequence = runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, toolloop.Resume{ID: suspension.ID, Input: suspension.Response})
-			resuming = true
-		}
-	} else {
-		sequence = runner.Run(ctx, input.Request, input.Tools)
+	sequence, resuming, err := p.resolveInteractionSequence(ctx, runner, input, owner)
+	if err != nil {
+		return interaction.Result{}, err
 	}
 
 	modelStarted := map[int]time.Time{}
@@ -96,49 +75,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 				resuming = false
 			}
 		case toolloop.EventPause:
-			if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
-				return interaction.Result{}, errors.New("runtime: tool loop paused without a checkpoint")
-			}
-			nested, activeNested, err := p.nestedChildrenForCheckpoint(boundary.Pause.Checkpoint)
-			if err != nil {
-				return interaction.Result{}, fmt.Errorf("runtime: correlate nested child checkpoint: %w", err)
-			}
-			if activeNested != nil && (activeNested.SuspensionID != boundary.Pause.ID ||
-				!bytes.Equal(activeNested.Prompt, boundary.Pause.Prompt) ||
-				!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
-				return interaction.Result{}, fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
-			}
-			payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
-				SchemaVersion:  suspensionCheckpointSchemaVersion,
-				Kind:           suspensionCheckpointInteraction,
-				Owner:          owner,
-				Deployment:     p.Deployment(),
-				Checkpoint:     boundary.Pause.Checkpoint,
-				NestedChildren: nested,
-			})
-			if err != nil {
-				return interaction.Result{}, fmt.Errorf("runtime: encode interaction checkpoint: %w", err)
-			}
-			kind := interaction.SuspensionTool
-			createdAt := time.Now()
-			if activeNested != nil {
-				kind = activeNested.SuspensionKind
-				createdAt = activeNested.SuspensionCreatedAt
-			}
-			suspension := interaction.Suspension{
-				SchemaVersion: interaction.SuspensionSchemaVersion,
-				ID:            boundary.Pause.ID,
-				Kind:          kind,
-				Prompt:        boundary.Pause.Prompt,
-				ResumeSchema:  boundary.Pause.ResumeSchema,
-				Payload:       payload,
-				CreatedAt:     createdAt,
-			}
-			frameworkEvent := projectInteractionEvent(boundary, &suspension)
-			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
-				return interaction.Result{}, err
-			}
-			return interaction.Result{}, &interaction.SuspendedError{Suspension: suspension}
+			return interaction.Result{}, p.pauseInteraction(ctx, boundary, owner, input.Observe)
 		}
 
 		frameworkEvent := projectInteractionEvent(boundary, nil)
@@ -154,6 +91,86 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		}
 	}
 	return interaction.Result{}, errors.New("runtime: managed interaction ended without a final event")
+}
+
+// resolveInteractionSequence starts a fresh tool loop, or resumes the pending
+// one when this process was suspended inside a managed interaction. resuming is
+// true only on the resume path, so the caller can drop the responded suspension
+// once the pending tool result arrives. A suspension whose checkpoint is not a
+// recognized interaction checkpoint starts fresh rather than failing.
+func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toolloop.Runner, input core.Interaction, owner string) (iter.Seq2[toolloop.Event, error], bool, error) {
+	suspension := p.Suspension()
+	if suspension == nil {
+		return runner.Run(ctx, input.Request, input.Tools), false, nil
+	}
+	checkpoint, recognized, err := decodeSuspensionCheckpoint(suspension.Payload)
+	if err != nil {
+		return nil, false, err
+	}
+	if !recognized || checkpoint.Kind != suspensionCheckpointInteraction {
+		return runner.Run(ctx, input.Request, input.Tools), false, nil
+	}
+	if !suspension.Responded() {
+		return nil, false, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
+	}
+	if checkpoint.Owner != owner {
+		return nil, false, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
+	}
+	if checkpoint.Deployment != p.Deployment() {
+		return nil, false, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
+	}
+	resume := toolloop.Resume{ID: suspension.ID, Input: suspension.Response}
+	return runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, resume), true, nil
+}
+
+// pauseInteraction persists the tool-loop checkpoint as a process suspension,
+// publishes the pause boundary, and returns the SuspendedError that unwinds the
+// action. It reconciles the tool-loop pause with an active nested-child pause so
+// the two cannot disagree on suspension identity, prompt, or schema.
+func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event, owner string, observe interaction.Observer) error {
+	if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
+		return errors.New("runtime: tool loop paused without a checkpoint")
+	}
+	nested, activeNested, err := p.nestedChildrenForCheckpoint(boundary.Pause.Checkpoint)
+	if err != nil {
+		return fmt.Errorf("runtime: correlate nested child checkpoint: %w", err)
+	}
+	if activeNested != nil && (activeNested.SuspensionID != boundary.Pause.ID ||
+		!bytes.Equal(activeNested.Prompt, boundary.Pause.Prompt) ||
+		!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
+		return fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
+	}
+	payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
+		SchemaVersion:  suspensionCheckpointSchemaVersion,
+		Kind:           suspensionCheckpointInteraction,
+		Owner:          owner,
+		Deployment:     p.Deployment(),
+		Checkpoint:     boundary.Pause.Checkpoint,
+		NestedChildren: nested,
+	})
+	if err != nil {
+		return fmt.Errorf("runtime: encode interaction checkpoint: %w", err)
+	}
+	kind := interaction.SuspensionTool
+	createdAt := time.Now()
+	if activeNested != nil {
+		kind = activeNested.SuspensionKind
+		createdAt = activeNested.SuspensionCreatedAt
+	}
+	suspension := interaction.Suspension{
+		SchemaVersion: interaction.SuspensionSchemaVersion,
+		ID:            boundary.Pause.ID,
+		Kind:          kind,
+		Prompt:        boundary.Pause.Prompt,
+		ResumeSchema:  boundary.Pause.ResumeSchema,
+		Payload:       payload,
+		CreatedAt:     createdAt,
+	}
+	frameworkEvent := projectInteractionEvent(boundary, &suspension)
+	if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, observe); err != nil {
+		return err
+	}
+	return &interaction.SuspendedError{Suspension: suspension}
 }
 
 func validateInteraction(input core.Interaction) error {
