@@ -115,7 +115,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) err
 	if err != nil {
 		return fmt.Errorf("memory extraction: identify facts: %w", err)
 	}
-	_, err = e.memory.AppendLedger(ctx, agentmemory.FactBatch{
+	appended, err := e.memory.AppendLedger(ctx, agentmemory.FactBatch{
 		Project:    project,
 		SessionID:  sessionID,
 		Day:        now.Format(time.DateOnly),
@@ -125,6 +125,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) err
 	if err != nil {
 		return fmt.Errorf("memory extraction: append daily ledger: %w", err)
 	}
+	recordMinedFacts(ctx, len(appended))
 	_, err = e.maybeCurate(ctx, project, now)
 	return err
 }
@@ -158,6 +159,7 @@ func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Ti
 		return false, fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}
 	if published {
+		recordCuratedGeneration(ctx)
 		e.embedNewItems(ctx, project)
 	}
 	return published, nil
