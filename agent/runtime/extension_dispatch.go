@@ -2,19 +2,24 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
+	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/tools"
 )
 
 // EventListener is the [event.Event] subscriber extension. It lives in runtime
 // because event depends on core; placing this contract in core would create an
-// import cycle. Registered listeners are added directly to the event multicast.
+// import cycle. Valid at engine and process scope. The same listener may receive
+// events from different processes concurrently and owns its synchronization and
+// backpressure policy.
 type EventListener interface {
 	core.Extension
 
@@ -50,9 +55,61 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 	if _, duplicate := r.byName[name]; duplicate {
 		return fmt.Errorf("runtime: extension %q already registered in %s", name, scope)
 	}
+	if !supportsEngineScope(extension) {
+		return fmt.Errorf("runtime: extension %q in %s has no engine-scoped capability", name, scope)
+	}
 	r.byName[name] = extension
 	r.list = append(r.list, extension)
 	return nil
+}
+
+func supportsEngineScope(extension core.Extension) bool {
+	switch extension.(type) {
+	case core.ActionMiddleware,
+		core.ToolMiddleware,
+		core.AgentValidator,
+		core.GoalApprover,
+		core.ChatProvider,
+		core.StopPolicy,
+		core.ToolGroupResolver,
+		core.IDGenerator,
+		core.Blackboard,
+		planning.Planner,
+		EventListener:
+		return true
+	default:
+		return false
+	}
+}
+
+func validateProcessExtensionScope(extension core.Extension) error {
+	var engineOnly []string
+	if _, ok := extension.(core.AgentValidator); ok {
+		engineOnly = append(engineOnly, "AgentValidator")
+	}
+	if _, ok := extension.(core.IDGenerator); ok {
+		engineOnly = append(engineOnly, "IDGenerator")
+	}
+	if _, ok := extension.(core.Blackboard); ok {
+		engineOnly = append(engineOnly, "Blackboard")
+	}
+	if len(engineOnly) > 0 {
+		return fmt.Errorf("engine-only capabilities: %s", strings.Join(engineOnly, ", "))
+	}
+
+	switch extension.(type) {
+	case core.ActionMiddleware,
+		core.ToolMiddleware,
+		core.GoalApprover,
+		core.ChatProvider,
+		core.StopPolicy,
+		core.ToolGroupResolver,
+		planning.Planner,
+		EventListener:
+		return nil
+	default:
+		return errors.New("no process-scoped capability")
+	}
 }
 
 func extensionName(extension core.Extension) (name string, err error) {

@@ -184,7 +184,8 @@ func (l *LazyToolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 // in registration order and the first one returning a non-nil group
 // wins. Resolvers double as [Extension] so the dispatch site can
 // attribute hits / errors by Name. Panics from Resolve or from the returned
-// group's Info/Tools methods become attributed resolution errors.
+// group's Info/Tools methods become attributed resolution errors. Valid at
+// engine and process scope.
 type ToolGroupResolver interface {
 	Extension
 

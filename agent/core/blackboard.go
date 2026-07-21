@@ -96,7 +96,9 @@ type BlackboardWriter interface {
 // A Blackboard is also an engine [Extension]: register one and the
 // runtime uses [Blackboard.Clone] to produce a fresh, isolated
 // instance for every new process. The registered value itself is the
-// prototype — it is never read from or written to directly.
+// prototype — it is never read from or written to directly. Blackboard is
+// engine-scoped only; [ProcessOptions.Blackboard] is the explicit per-process
+// override.
 //
 // Implementations MUST be safe for concurrent use by host code. Framework
 // workflow fan-out does not share writes: every branch receives Clone() state

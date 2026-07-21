@@ -15,6 +15,12 @@ import (
 // subset of the capability interfaces below — the runtime detects
 // each capability via type assertion (mirrors
 // net/http.ResponseWriter ↔ http.Pusher).
+//
+// Registered instances may be called concurrently by different processes.
+// Implementations own synchronization for their mutable state; the runtime does
+// not serialize, retry, or otherwise coordinate extension calls. Each
+// capability documents whether it is valid at engine scope, process scope, or
+// both. Registering a value with no capability valid for that scope is an error.
 type Extension interface {
 	Name() string
 }
@@ -26,7 +32,7 @@ type Extension interface {
 // Composition is onion-style: the first registered interceptor is
 // the outermost layer. The runtime invokes the wrapped chain at most once even
 // if middleware calls next repeatedly, and converts middleware panics into
-// [ActionFailed].
+// [ActionFailed]. Valid at engine and process scope.
 type ActionMiddleware interface {
 	Extension
 
@@ -48,6 +54,7 @@ type ActionMiddleware interface {
 // transient-error retry. Transparent decorators should structurally forward
 // optional ConcurrencyKey and ReturnsDirect capabilities; stateful policies
 // may deliberately omit them to narrow scheduling or continuation semantics.
+// Valid at engine and process scope.
 type ToolMiddleware interface {
 	Extension
 
@@ -61,7 +68,7 @@ type ToolMiddleware interface {
 // AgentValidator runs as the last [Engine.Deploy] validation step after
 // [Agent.Validate]. It receives the same frozen definition snapshot that the
 // runtime will execute and identify durably. A non-nil return rejects the
-// deployment, attributed to the validator's Name.
+// deployment, attributed to the validator's Name. Valid only at engine scope.
 type AgentValidator interface {
 	Extension
 
@@ -71,7 +78,8 @@ type AgentValidator interface {
 // GoalApprover gates the planner's goal-selection: every approver
 // must return true for the goal to survive (any false vetoes). Used
 // for multi-tenant scoping, A/B experiments, kill-switch.
-// A panic is an extension failure, not a veto, and fails the process.
+// A panic is an extension failure, not a veto, and fails the process. Valid at
+// engine and process scope.
 type GoalApprover interface {
 	Extension
 
@@ -91,7 +99,8 @@ type GoalApprover interface {
 // choice on the process (read a binding / blackboard value), or simply
 // carry fixed model protocols when registered per-process via
 // [ProcessOptions.Extensions].
-// A panic fails capability resolution and is attributed to the provider.
+// A panic fails capability resolution and is attributed to the provider. Valid
+// at engine and process scope.
 type ChatProvider interface {
 	Extension
 
