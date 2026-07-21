@@ -7,16 +7,13 @@ import (
 )
 
 const (
-	defaultSkillStaleAfter   = 14 * 24 * time.Hour
 	defaultSkillArchiveAfter = 30 * 24 * time.Hour
 	defaultSkillSweepEvery   = 6 * time.Hour
 )
 
 // LifecycleConfig tunes the idle-skill curator. Zero values select defaults.
 type LifecycleConfig struct {
-	// StaleAfter is the inactivity before a skill is flagged stale (informational);
-	// ArchiveAfter the inactivity before an agent-authored skill is archived.
-	StaleAfter   time.Duration
+	// ArchiveAfter is the inactivity before an agent-authored skill is archived.
 	ArchiveAfter time.Duration
 	// SweepEvery is the minimum wall-clock between turn-boundary sweeps, bounding
 	// the sweep cost across a busy session.
@@ -24,14 +21,8 @@ type LifecycleConfig struct {
 }
 
 func (c LifecycleConfig) normalized() LifecycleConfig {
-	if c.StaleAfter <= 0 {
-		c.StaleAfter = defaultSkillStaleAfter
-	}
 	if c.ArchiveAfter <= 0 {
 		c.ArchiveAfter = defaultSkillArchiveAfter
-	}
-	if c.StaleAfter > c.ArchiveAfter {
-		c.StaleAfter = c.ArchiveAfter
 	}
 	if c.SweepEvery <= 0 {
 		c.SweepEvery = defaultSkillSweepEvery
@@ -39,10 +30,10 @@ func (c LifecycleConfig) normalized() LifecycleConfig {
 	return c
 }
 
-// skillSweeper archives agent-authored skills idle beyond the thresholds and
+// skillSweeper archives agent-authored skills idle beyond archiveAfter and
 // returns the names it archived.
 type skillSweeper interface {
-	SweepIdle(ctx context.Context, now time.Time, staleAfter, archiveAfter time.Duration) ([]string, error)
+	SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error)
 }
 
 // SkillCurator runs the idle-lifecycle sweep at the turn boundary, rate-limited
@@ -84,7 +75,7 @@ func (c *SkillCurator) MaybeSweep(ctx context.Context) error {
 	}
 	c.lastSweep = now
 	c.mu.Unlock()
-	archived, err := c.sweeper.SweepIdle(ctx, now, c.config.StaleAfter, c.config.ArchiveAfter)
+	archived, err := c.sweeper.SweepIdle(ctx, now, c.config.ArchiveAfter)
 	recordArchivedSkills(ctx, len(archived))
 	return err
 }

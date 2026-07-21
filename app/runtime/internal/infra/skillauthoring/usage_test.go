@@ -33,11 +33,11 @@ func TestRecordUseAccumulatesUsage(t *testing.T) {
 	if !ok {
 		t.Fatalf("no usage record for run-tests: %s", data)
 	}
-	if uses, _ := record["uses"].(float64); uses != 2 {
-		t.Fatalf("uses = %v, want 2", record["uses"])
-	}
 	if last, _ := record["lastUsed"].(float64); int64(last) != base.Add(time.Hour).Unix() {
 		t.Fatalf("lastUsed = %v, want %d", record["lastUsed"], base.Add(time.Hour).Unix())
+	}
+	if first, _ := record["firstSeen"].(float64); int64(first) != base.Unix() {
+		t.Fatalf("firstSeen = %v, want %d (anchored at first use)", record["firstSeen"], base.Unix())
 	}
 }
 

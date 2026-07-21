@@ -22,24 +22,14 @@ import (
 // mutex and reads cheap for the curator sweep.
 const usageFile = ".usage.json"
 
-// usageState is a skill's lifecycle position, derived by the curator from
-// inactivity and persisted for observability. Only Archived has a filesystem
-// effect (the skill moves to _archive); Active/Stale are informational.
-type usageState string
-
-const (
-	usageActive usageState = "active"
-	usageStale  usageState = "stale"
-)
-
 // usageRecord tracks one skill's activity for the idle-lifecycle curator.
 // FirstSeen anchors the grace floor for a never-used skill; LastUsed drives the
-// stale/archive thresholds. Times are Unix seconds.
+// archive threshold. Times are Unix seconds. (A stale/state field and a use
+// count were dropped as write-only — nothing reads them yet; re-add with the
+// lifecycle surface that would.)
 type usageRecord struct {
-	FirstSeen int64      `json:"firstSeen"`
-	LastUsed  int64      `json:"lastUsed,omitempty"`
-	Uses      int        `json:"uses"`
-	State     usageState `json:"state,omitempty"`
+	FirstSeen int64 `json:"firstSeen"`
+	LastUsed  int64 `json:"lastUsed,omitempty"`
 }
 
 // lastActivity is the most recent signal of relevance — a load if the skill has
@@ -52,10 +42,9 @@ func (r usageRecord) lastActivity() int64 {
 	return r.FirstSeen
 }
 
-// RecordUse marks a skill loaded at now: it bumps the use count and last-used
-// time (seeding FirstSeen on first sighting), so the curator can tell an
-// actively-used skill from an idle one. Best-effort from the caller's side — a
-// skill whose name has no active library entry simply leaves an inert record.
+// RecordUse marks a skill loaded at now: it updates the last-used time (seeding
+// FirstSeen on first sighting), so the curator can tell an actively-used skill
+// from an idle one. Best-effort from the caller's side.
 func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error {
 	if !s.Enabled() {
 		return nil
@@ -81,22 +70,20 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 		record.FirstSeen = ts
 	}
 	record.LastUsed = ts
-	record.Uses++
-	record.State = usageActive
 	usage[name] = record
 	return writeUsage(root, usage)
 }
 
-// SweepIdle archives agent-authored skills idle past archiveAfter and marks
-// those idle past staleAfter (but not yet archived) stale, for observability. It
-// returns the names it archived. It is provenance-gated: only skills whose
-// frontmatter created_by is [skills.CreatedByAgent] are ever auto-curated — a
-// human-authored skill is left untouched. Archiving moves the skill to _archive
-// (never deletes) and drops its usage record, so a later restore starts with a
-// fresh grace floor rather than being re-archived on the next sweep. A skill with
-// no record yet is seeded at now, giving it the full archiveAfter grace before it
-// can be judged idle. now is explicit so the policy stays testable.
-func (s *Store) SweepIdle(ctx context.Context, now time.Time, staleAfter, archiveAfter time.Duration) ([]string, error) {
+// SweepIdle archives agent-authored skills idle past archiveAfter, returning the
+// names it archived. It is provenance-gated: only skills whose frontmatter
+// created_by is [skills.CreatedByAgent] are ever auto-curated — a human-authored
+// skill is left untouched. Archiving moves the skill to _archive (never deletes)
+// and drops its usage record, so a later restore starts with a fresh grace floor
+// rather than being re-archived on the next sweep. A skill with no record yet is
+// seeded at now (persisted), giving it the full archiveAfter grace anchored from
+// its first sweep before it can be judged idle. now is explicit so the policy
+// stays testable.
+func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error) {
 	if !s.Enabled() {
 		return nil, nil
 	}
@@ -139,21 +126,17 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, staleAfter, archiv
 		if record.FirstSeen == 0 {
 			record.FirstSeen = now.Unix()
 		}
-		idle := now.Sub(time.Unix(record.lastActivity(), 0))
-		switch {
-		case idle >= archiveAfter:
+		if now.Sub(time.Unix(record.lastActivity(), 0)) >= archiveAfter {
 			if err := s.archiveActive(root, name); err != nil {
 				return archived, err
 			}
 			delete(usage, name)
 			archived = append(archived, name)
-		case idle >= staleAfter:
-			record.State = usageStale
-			usage[name] = record
-		default:
-			record.State = usageActive
-			usage[name] = record
+			continue
 		}
+		// Persist the (possibly just-seeded) FirstSeen so a never-used skill's
+		// grace is anchored to its first sweep, not re-seeded to now every pass.
+		usage[name] = record
 	}
 	if err := writeUsage(root, usage); err != nil {
 		return archived, err

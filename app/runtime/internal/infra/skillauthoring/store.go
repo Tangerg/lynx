@@ -500,17 +500,20 @@ func readSkill(root *os.Root, dir string) ([]byte, bool, error) {
 	return content, true, nil
 }
 
+// writeFile creates path (which must not exist) and writes+fsyncs content. It
+// backs both draft staging and the usage sidecar, so its messages name the
+// operation neutrally; callers add the "draft"/"usage" context.
 func writeFile(root *os.Root, path string, content []byte) (err error) {
 	file, err := root.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return fmt.Errorf("skillauthoring: create draft file: %w", err)
+		return fmt.Errorf("skillauthoring: create %q: %w", path, err)
 	}
 	defer func() { err = errors.Join(err, file.Close()) }()
 	if _, err := file.Write(content); err != nil {
-		return fmt.Errorf("skillauthoring: write draft file: %w", err)
+		return fmt.Errorf("skillauthoring: write %q: %w", path, err)
 	}
 	if err := file.Sync(); err != nil {
-		return fmt.Errorf("skillauthoring: sync draft file: %w", err)
+		return fmt.Errorf("skillauthoring: sync %q: %w", path, err)
 	}
 	return nil
 }

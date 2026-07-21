@@ -32,12 +32,19 @@ type UsageRecorder interface {
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
 func Build(workdir, globalDir string, recorder UsageRecorder) tools.Tool {
-	source := promptsource.MergeSkillSource(skills.ProjectDir(workdir), globalDir)
+	var decorateGlobal func(skillspec.ResourceSource) skillspec.ResourceSource
+	if recorder != nil {
+		// Wrap only the global source: the curator governs the global library, and
+		// merge resolves a shadowed name to the project copy, so this records
+		// exactly the global-resolved loads (a project skill never touches the
+		// global usage record).
+		decorateGlobal = func(global skillspec.ResourceSource) skillspec.ResourceSource {
+			return recordingSource{ResourceSource: global, recorder: recorder}
+		}
+	}
+	source := promptsource.MergeSkillSource(skills.ProjectDir(workdir), globalDir, decorateGlobal)
 	if source == nil {
 		return nil
-	}
-	if recorder != nil {
-		source = recordingSource{ResourceSource: source, recorder: recorder}
 	}
 	// source is non-nil, so NewTool cannot fail; the error is checked only to
 	// satisfy the signature.
@@ -48,8 +55,9 @@ func Build(workdir, globalDir string, recorder UsageRecorder) tools.Tool {
 	return tool
 }
 
-// recordingSource records a use each time a skill loads, then delegates. The
-// record is best-effort: a usage-write failure never fails the skill load.
+// recordingSource records a use each time a (global-library) skill loads, then
+// delegates. The record is best-effort: a usage-write failure never fails the
+// skill load.
 type recordingSource struct {
 	skillspec.ResourceSource
 	recorder UsageRecorder

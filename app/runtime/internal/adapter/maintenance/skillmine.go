@@ -26,6 +26,11 @@ const (
 	// minerMinMessages skips mining a conversation too short to hold a reusable
 	// procedure.
 	minerMinMessages = 4
+
+	// minedNew / minedRevise are the mined-draft kinds, carried as the skill.kind
+	// metric label; consts so a typo can't silently ship a wrong dimension.
+	minedNew    = "new"
+	minedRevise = "revise"
 )
 
 // MinerConfig tunes when the [SkillMiner] attempts a distillation. Zero values
@@ -150,7 +155,7 @@ func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID string) er
 		Body:          body,
 		CreatedBy:     skills.CreatedByAgent,
 		SourceSession: sessionID,
-	}, "new")
+	}, minedNew)
 }
 
 // mineRevision refines an existing skill from the conversation's corrections.
@@ -188,7 +193,7 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 		CreatedBy:     skills.CreatedByAgent,
 		SourceSession: sessionID,
 		Revises:       true,
-	}, "revise")
+	}, minedRevise)
 }
 
 // saveDraft validates + scans a distilled draft and stages it. An unusable or
@@ -224,13 +229,16 @@ func reviseTarget(text string) (string, bool) {
 // due advances the session's complex-turn counter and reports whether a mining
 // attempt is now due, resetting the counter when it fires. Resetting on the
 // attempt (not on a successful save) is deliberate: the cadence bounds LLM
-// calls, and every due attempt makes one whether or not it yields a draft.
+// calls, and every due attempt makes one whether or not it yields a draft. The
+// reset DELETES the key (a missing key reads back as 0), so a session self-evicts
+// from the map when it fires — bounding the map instead of retaining every
+// session for the process lifetime.
 func (m *SkillMiner) due(sessionID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.complexTurns[sessionID]++
 	if m.complexTurns[sessionID] >= m.config.Cadence {
-		m.complexTurns[sessionID] = 0
+		delete(m.complexTurns, sessionID)
 		return true
 	}
 	return false

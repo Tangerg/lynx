@@ -11,7 +11,7 @@ type fakeSweeper struct {
 	seen  []time.Time
 }
 
-func (f *fakeSweeper) SweepIdle(_ context.Context, now time.Time, _, _ time.Duration) ([]string, error) {
+func (f *fakeSweeper) SweepIdle(_ context.Context, now time.Time, _ time.Duration) ([]string, error) {
 	f.calls++
 	f.seen = append(f.seen, now)
 	return nil, nil
