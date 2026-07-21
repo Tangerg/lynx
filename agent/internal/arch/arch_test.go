@@ -232,6 +232,7 @@ func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
 func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
 	forbiddenPrefixes := []string{
 		"database/sql",
+		"github.com/Tangerg/lynx/chathistory",
 		"github.com/Tangerg/lynx/vectorstores",
 		"github.com/jackc/pgx",
 		"github.com/mattn/go-sqlite3",

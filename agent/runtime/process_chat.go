@@ -2,15 +2,17 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 )
+
+var errNilConversationContext = errors.New("runtime: BindConversation returned a nil context")
 
 func (p *Process) engineChat() core.ChatCapability {
 	if p.engine == nil {
@@ -59,14 +61,19 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 	if valueIsNil(capability.Model) {
 		return core.ChatCapability{}, nil
 	}
-	callMiddleware := make([]chat.CallMiddleware, 0, 1)
-	streamMiddleware := make([]chat.StreamMiddleware, 0, 1)
-	conversationID := p.conversationID()
-	if conversationID != "" {
-		callMiddleware = append(callMiddleware, bindCallConversation(conversationID))
-		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID))
-	}
 	guardrails := p.effectiveGuardrails()
+	callCapacity, streamCapacity := 1, 1
+	if guardrails != nil {
+		callCapacity += len(guardrails.CallMiddlewares)
+		streamCapacity += len(guardrails.StreamMiddlewares)
+	}
+	callMiddleware := make([]chat.CallMiddleware, 0, callCapacity)
+	streamMiddleware := make([]chat.StreamMiddleware, 0, streamCapacity)
+	conversationID := p.conversationID()
+	if conversationID != "" && guardrails != nil && guardrails.BindConversation != nil {
+		callMiddleware = append(callMiddleware, bindCallConversation(conversationID, guardrails.BindConversation))
+		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID, guardrails.BindConversation))
+	}
 	if !guardrails.Empty() {
 		callMiddleware = append(callMiddleware, guardrails.CallMiddlewares...)
 		streamMiddleware = append(streamMiddleware, guardrails.StreamMiddlewares...)
@@ -89,18 +96,28 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 	return result, nil
 }
 
-func bindCallConversation(id string) chat.CallMiddleware {
+func bindCallConversation(id string, bind func(context.Context, string) context.Context) chat.CallMiddleware {
 	return func(next chat.Model) chat.Model {
 		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-			return next.Call(chathistory.WithConversationID(ctx, id), request)
+			ctx = bind(ctx, id)
+			if ctx == nil {
+				return nil, errNilConversationContext
+			}
+			return next.Call(ctx, request)
 		})
 	}
 }
 
-func bindStreamConversation(id string) chat.StreamMiddleware {
+func bindStreamConversation(id string, bind func(context.Context, string) context.Context) chat.StreamMiddleware {
 	return func(next chat.Streamer) chat.Streamer {
 		return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-			return next.Stream(chathistory.WithConversationID(ctx, id), request)
+			ctx = bind(ctx, id)
+			if ctx == nil {
+				return func(yield func(*chat.Response, error) bool) {
+					yield(nil, errNilConversationContext)
+				}
+			}
+			return next.Stream(ctx, request)
 		})
 	}
 }

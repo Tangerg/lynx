@@ -141,7 +141,7 @@ func TestProcessBudgetRejectsInvalidAndOverflowingUsage(t *testing.T) {
 		t.Fatal("overflowing cost was accepted")
 	}
 	if calls := b.modelCallHistory(); len(calls) != 1 {
-		t.Fatalf("model call history length = %d, want one committed call", len(calls))
+		t.Fatalf("model call history length = %d, want one recorded call", len(calls))
 	}
 
 	tokens := newTestBudget()

@@ -17,6 +17,11 @@ import (
 // policy used by Prompt. Runtime constructors snapshot the value and both
 // middleware slices before retaining it.
 type ChatGuardrails struct {
+	// BindConversation projects the framework's conversation identity into a
+	// model-call context understood by host middleware. The host owns the
+	// context protocol and any storage behind it.
+	BindConversation func(context.Context, string) context.Context
+
 	CallMiddlewares   []chat.CallMiddleware
 	StreamMiddlewares []chat.StreamMiddleware
 
@@ -30,7 +35,7 @@ func (g *ChatGuardrails) Empty() bool {
 	if g == nil {
 		return true
 	}
-	return len(g.CallMiddlewares) == 0 && len(g.StreamMiddlewares) == 0 && g.MaxToolRounds == 0
+	return g.BindConversation == nil && len(g.CallMiddlewares) == 0 && len(g.StreamMiddlewares) == 0 && g.MaxToolRounds == 0
 }
 
 // PromptConfig configures one framework-managed model interaction. Its zero

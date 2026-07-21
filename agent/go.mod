@@ -5,7 +5,6 @@ go 1.26.5
 require (
 	github.com/Masterminds/semver/v3 v3.5.0
 	github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4
-	github.com/Tangerg/lynx/chathistory v0.0.0-20260721023422-b01ee95543a4
 	github.com/Tangerg/lynx/core v0.0.0-20260721023422-b01ee95543a4
 	github.com/Tangerg/lynx/mcp v0.0.0-20260721023422-b01ee95543a4
 	github.com/Tangerg/lynx/pkg v0.0.0-20260721023422-b01ee95543a4

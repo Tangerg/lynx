@@ -108,21 +108,15 @@ func (m *SessionMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Session models a multi-turn conversation against an agent. The
-// session id doubles as the chat history conversation id so the
-// per-turn message history is automatically loaded + persisted by
-// history middleware — no extra
-// wiring needed beyond installing the middleware on the chat client.
-//
-// Sessions carry identity + audit metadata; message history stays behind
-// the chat history Store abstraction, keeping the session struct thin.
+// Session models a multi-turn conversation against an agent. The session ID
+// is also the conversation identity passed to a host-provided
+// [ChatGuardrails.BindConversation] function. Sessions carry identity and
+// audit metadata only; message history and its persistence remain host-owned.
 //
 // Sessions are persisted through [SessionStore]. The core package defines the
 // contract only; hosts own concrete storage adapters.
 type Session struct {
-	// ID uniquely identifies the conversation. Doubles as the
-	// chat history conversation id so message
-	// history flows through without separate plumbing.
+	// ID uniquely identifies the conversation.
 	ID string `json:"id"`
 
 	// ParentID links a child session to the one that spawned it. A

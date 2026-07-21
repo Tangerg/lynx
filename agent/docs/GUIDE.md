@@ -174,8 +174,9 @@ engine, err := agent.NewEngine(agent.EngineConfig{
 ```
 
 `Chat.Model` 可为空；`Streamer` 只能与 `Model` 一起配置。每进程模型覆盖通过
-`core.ChatProvider` extension 完成。Runtime 统一叠加 conversation ID、history 与
-`ChatGuardrails`，这些执行状态不会进入 provider Request/Response。
+`core.ChatProvider` extension 完成。Runtime 只应用 `ChatGuardrails` 中显式提供的 middleware，
+并通过可选 `BindConversation` 把 conversation ID 交给 Host 定义的 context 协议；它不选择
+history store 或 middleware 实现。这些执行状态不会进入 provider Request/Response。
 
 Action 内的常用调用入口是：
 
@@ -278,7 +279,7 @@ if err := storetest.TestSessionStore(t.Context(), sessionStore); err != nil {
 ```
 
 `ProcessOptions.Session` 与 `Engine.RunInSession` 管理多 turn identity；模型对话内容仍由
-`chathistory` 维护，不写进 Agent Blackboard 或 provider Response。Session 使用
+Host 提供的 chat middleware 维护，不写进 Agent Blackboard 或 provider Response。Session 使用
 `Validate` / `BindAgent` 固定 identity；`RunInSession` 传 nil Agent 时按
 `Session.AgentName` 解析 active Deployment。
 

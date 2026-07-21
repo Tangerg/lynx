@@ -89,7 +89,8 @@ session 各自决定发现、缓存、重试、并发和连接生命周期。Fra
 - `Model` 为 nil 表示 defer 到下一个 provider；
 - `Streamer` 可选，但不能在没有 Model 时单独返回；
 - 全部 defer 时回退到 `runtime.Config.Chat`；
-- Runtime 统一叠加 conversation ID、history 和 ChatGuardrails。
+- Runtime 应用 Host 提供的 ChatGuardrails，并通过 `BindConversation` 投影 conversation ID；
+  history store 与 middleware 的选择完全属于 Host。
 
 Provider adapter 只需实现 `core/chat.Model` 和可选 `Streamer`，不应依赖 Agent、Blackboard、
 history 或 Extension registry。

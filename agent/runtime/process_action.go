@@ -107,8 +107,8 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	})
 
 	if status == core.ActionSucceeded {
-		// The action-run condition gates non-repeatable actions; set it only on success so
-		// retrying after a future re-plan remains possible.
+		// The action-run condition gates non-repeatable actions. Set it only on
+		// success so a future plan may still select an unsuccessful action.
 		p.blackboard.StoreCondition(metadata.RunCondition(), true)
 	}
 

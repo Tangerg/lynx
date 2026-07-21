@@ -12,6 +12,7 @@ import (
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	history "github.com/Tangerg/lynx/chathistory"
+	historymw "github.com/Tangerg/lynx/chathistory/middleware"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -55,11 +56,19 @@ func newChatGuardrailsWithBeforeRound(
 	historyStore history.Store,
 	beforeRound func(context.Context) []chat.Message,
 ) (*core.ChatGuardrails, error) {
-	guardrails, err := agentruntime.NewChatGuardrails(agentruntime.ChatGuardrailsConfig{
-		HistoryStore: historyStore,
-	})
-	if err != nil || beforeRound == nil {
-		return guardrails, err
+	middleware, err := historymw.New(historyStore)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: build chat history middleware: %w", err)
+	}
+	guardrails := &core.ChatGuardrails{
+		BindConversation: history.WithConversationID,
+		CallMiddlewares:  []chat.CallMiddleware{middleware.Call},
+		StreamMiddlewares: []chat.StreamMiddleware{
+			middleware.Stream,
+		},
+	}
+	if beforeRound == nil {
+		return guardrails, nil
 	}
 	var rounds atomic.Uint64
 	continuationMessages := func(ctx context.Context) []chat.Message {
