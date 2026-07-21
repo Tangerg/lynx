@@ -13,6 +13,19 @@ import (
 	skillspec "github.com/Tangerg/lynx/skills"
 )
 
+var (
+	// ErrConflict reports that the destination lifecycle state already contains
+	// a different skill. Promotion and archival never destroy either side to
+	// force a move; the caller must resolve the conflict explicitly. It is a
+	// domain-lifecycle outcome (not a storage-tech error), so it lives here where
+	// every layer — including delivery — can classify it.
+	ErrConflict = errors.New("skills: destination already exists")
+	// ErrDraftChanged reports that staged bytes no longer match the handle a
+	// promotion or discard was issued against. Neither the draft nor the active
+	// library is touched.
+	ErrDraftChanged = errors.New("skills: staged draft content changed")
+)
+
 // DraftsSubdir is the reserved directory, under a skills root, where proposed
 // skills wait for promotion. Its underscore-prefixed name is deliberately not a
 // valid skill name ([skillspec]'s name rule forbids '_'), so the read-only skill
@@ -112,6 +125,17 @@ func (h DraftHandle) Validate() error {
 // by h.
 func (h DraftHandle) Matches(content []byte) bool {
 	return h == NewDraftHandle(h.Name, content)
+}
+
+// DraftInfo describes one staged proposal for the offline review surface: its
+// content-addressed handle plus the human-facing description and provenance
+// read back from the rendered SKILL.md frontmatter. It is what a reviewer sees
+// before deciding to promote or reject a draft the agent mined.
+type DraftInfo struct {
+	Handle        DraftHandle
+	Description   string
+	CreatedBy     string
+	SourceSession string
 }
 
 // Validate checks a proposed skill against the SKILL.md spec — the same

@@ -12,21 +12,12 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-)
-
-var (
-	// ErrConflict reports that the destination lifecycle state already contains
-	// a different skill. Callers must resolve the conflict explicitly; the store
-	// never destroys either side to make a move succeed.
-	ErrConflict = errors.New("skillauthoring: destination already exists")
-	// ErrDraftChanged reports that staged bytes no longer match the handle that
-	// was approved. The store leaves both the draft and active library untouched.
-	ErrDraftChanged = errors.New("skillauthoring: staged draft content changed")
 )
 
 // Store serializes writes to one global skills root. The same instance must be
@@ -78,7 +69,7 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 		return skills.DraftHandle{}, readErr
 	} else if found {
 		if !bytes.Equal(existing, []byte(content)) {
-			return skills.DraftHandle{}, fmt.Errorf("%w: digest collision for revision %q", ErrDraftChanged, handle.Revision)
+			return skills.DraftHandle{}, fmt.Errorf("%w: digest collision for revision %q", skills.ErrDraftChanged, handle.Revision)
 		}
 		return handle, nil
 	}
@@ -116,13 +107,13 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 		return fmt.Errorf("skillauthoring: no draft %q at revision %q: %w", handle.Name, handle.Revision, fs.ErrNotExist)
 	}
 	if !handle.Matches(content) {
-		return fmt.Errorf("%w: %q revision %q", ErrDraftChanged, handle.Name, handle.Revision)
+		return fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
 	}
 	if err := validateSkill(handle.Name, content); err != nil {
 		return err
 	}
 	if _, statErr := root.Lstat(s.archiveDir(handle.Name)); statErr == nil {
-		return fmt.Errorf("%w: archived skill %q", ErrConflict, handle.Name)
+		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, handle.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
 		return fmt.Errorf("skillauthoring: inspect archived skill %q: %w", handle.Name, statErr)
 	}
@@ -132,7 +123,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 		return readErr
 	} else if exists {
 		if !bytes.Equal(active, content) {
-			return fmt.Errorf("%w: active skill %q", ErrConflict, handle.Name)
+			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
 		}
 		if err := root.RemoveAll(draftDir); err != nil {
 			return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, err)
@@ -140,7 +131,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 		return nil
 	}
 	if _, statErr := root.Lstat(activeDir); statErr == nil {
-		return fmt.Errorf("%w: active path %q", ErrConflict, handle.Name)
+		return fmt.Errorf("%w: active path %q", skills.ErrConflict, handle.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
 		return fmt.Errorf("skillauthoring: inspect active skill %q: %w", handle.Name, statErr)
 	}
@@ -159,7 +150,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 			return nil
 		}
 		if _, statErr := root.Lstat(activeDir); statErr == nil {
-			return fmt.Errorf("%w: active skill %q", ErrConflict, handle.Name)
+			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
 		}
 		return fmt.Errorf("skillauthoring: promote draft %q: %w", handle.Name, err)
 	}
@@ -202,12 +193,12 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 		}
 		if found {
 			if err := validateSkill(name, content); err != nil {
-				return fmt.Errorf("%w: cannot replay %s %q: %w", ErrConflict, operation, name, err)
+				return fmt.Errorf("%w: cannot replay %s %q: %w", skills.ErrConflict, operation, name, err)
 			}
 			return nil
 		}
 		if _, destinationErr := root.Lstat(destination); destinationErr == nil {
-			return fmt.Errorf("%w: cannot replay %s %q: destination is not a valid skill", ErrConflict, operation, name)
+			return fmt.Errorf("%w: cannot replay %s %q: destination is not a valid skill", skills.ErrConflict, operation, name)
 		} else if !errors.Is(destinationErr, fs.ErrNotExist) {
 			return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, destinationErr)
 		}
@@ -229,7 +220,7 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 		return err
 	}
 	if _, err := root.Lstat(destination); err == nil {
-		return fmt.Errorf("%w: cannot %s %q", ErrConflict, operation, name)
+		return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, err)
 	}
@@ -252,7 +243,7 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 			}
 		}
 		if _, statErr := root.Lstat(destination); statErr == nil {
-			return fmt.Errorf("%w: cannot %s %q", ErrConflict, operation, name)
+			return fmt.Errorf("%w: cannot %s %q", skills.ErrConflict, operation, name)
 		} else if !errors.Is(statErr, fs.ErrNotExist) {
 			return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, errors.Join(err, statErr))
 		}
@@ -291,6 +282,66 @@ func entries(ctx context.Context, dir string, lifecycle skills.Lifecycle) ([]ski
 	return out, nil
 }
 
+// ListDrafts enumerates the staged proposals under _drafts/, each identified by
+// its content-addressed handle and described by its rendered frontmatter
+// (including provenance). A directory whose contents no longer hash to its name
+// is skipped as corrupt/tampered; unparseable staged content is skipped rather
+// than failing the whole listing. Ordering follows the sorted revision dirs.
+// Returns empty when authoring is disabled or nothing is staged.
+func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
+	if !s.Enabled() {
+		return nil, nil
+	}
+	if err := contextError(ctx, "list drafts"); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	dirEntries, err := fs.ReadDir(root.FS(), skills.DraftsSubdir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("skillauthoring: list drafts: %w", err)
+	}
+	var out []skills.DraftInfo
+	for _, entry := range dirEntries {
+		// Skip the transient .stage-* staging dirs and any non-directory entry.
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		revision := entry.Name()
+		content, found, err := readSkill(root, filepath.Join(skills.DraftsSubdir, revision))
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			continue
+		}
+		front, _, err := skillspec.Parse(content)
+		if err != nil {
+			continue
+		}
+		handle := skills.NewDraftHandle(front.Name, content)
+		if handle.Revision != revision {
+			continue
+		}
+		out = append(out, skills.DraftInfo{
+			Handle:        handle,
+			Description:   front.Description,
+			CreatedBy:     front.Metadata[skills.MetadataCreatedBy],
+			SourceSession: front.Metadata[skills.MetadataSourceSession],
+		})
+	}
+	return out, nil
+}
+
 // DiscardDraft removes only the immutable draft represented by handle. A
 // missing draft is already discarded; changed bytes are never deleted.
 func (s *Store) DiscardDraft(ctx context.Context, handle skills.DraftHandle) error {
@@ -317,7 +368,7 @@ func (s *Store) DiscardDraft(ctx context.Context, handle skills.DraftHandle) err
 		return nil
 	}
 	if !handle.Matches(content) {
-		return fmt.Errorf("%w: %q revision %q", ErrDraftChanged, handle.Name, handle.Revision)
+		return fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
 	}
 	if err := root.RemoveAll(draftDir); err != nil {
 		return fmt.Errorf("skillauthoring: discard draft %q: %w", handle.Name, err)
