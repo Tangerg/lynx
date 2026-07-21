@@ -48,19 +48,26 @@ func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnaps
 	return snapshot
 }
 
-func TestProcessStoreSaveLoadReplacement(t *testing.T) {
+func storedSnapshotChange(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
+	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    rootID,
+		Snapshots: snapshots,
+	}}
+}
+
+func TestProcessStoreApplyLoadReplacement(t *testing.T) {
 	ctx := context.Background()
 	store := newProcessStore(t)
 	snapshot := validStoredSnapshot("proc-1", core.StatusWaiting)
 	snapshot.Conditions = map[string]bool{"k": true}
 
-	if err := store.Save(ctx, []core.ProcessSnapshot{snapshot}); err != nil {
-		t.Fatalf("first Save: %v", err)
+	if err := store.Apply(ctx, storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
+		t.Fatalf("first Apply: %v", err)
 	}
 	snapshot.Status = core.StatusCompleted
 	snapshot.Suspension = nil
-	if err := store.Save(ctx, []core.ProcessSnapshot{snapshot}); err != nil {
-		t.Fatalf("second Save: %v", err)
+	if err := store.Apply(ctx, storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
+		t.Fatalf("second Apply: %v", err)
 	}
 
 	got, err := store.Load(ctx, snapshot.ID)
@@ -90,8 +97,8 @@ func TestProcessStoreLoadCorruptSnapshotIsInvalidSentinel(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewProcessStore(db)
 	snapshot := validStoredSnapshot("proc-corrupt", core.StatusCompleted)
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{snapshot}); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.Apply(t.Context(), storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
+		t.Fatalf("Apply: %v", err)
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, snapshot.ID); err != nil {
 		t.Fatalf("corrupt stored snapshot: %v", err)
@@ -110,14 +117,17 @@ func TestProcessStoreDeleteIgnoresUnrelatedCorruptSnapshot(t *testing.T) {
 	store := sqlite.NewProcessStore(db)
 	corrupt := validStoredSnapshot("corrupt", core.StatusCompleted)
 	target := validStoredSnapshot("target", core.StatusCompleted)
-	if err := store.Save(t.Context(), []core.ProcessSnapshot{corrupt, target}); err != nil {
-		t.Fatalf("Save: %v", err)
+	if err := store.Apply(t.Context(), storedSnapshotChange(corrupt.ID, corrupt)); err != nil {
+		t.Fatalf("Apply corrupt target: %v", err)
+	}
+	if err := store.Apply(t.Context(), storedSnapshotChange(target.ID, target)); err != nil {
+		t.Fatalf("Apply delete target: %v", err)
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, corrupt.ID); err != nil {
 		t.Fatalf("corrupt stored snapshot: %v", err)
 	}
 
-	if err := store.Delete(t.Context(), target.ID); err != nil {
+	if err := store.Apply(t.Context(), core.ProcessSnapshotChange{DeleteRoots: []string{target.ID}}); err != nil {
 		t.Fatalf("Delete target: %v", err)
 	}
 	if _, err := store.Load(t.Context(), target.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
@@ -132,7 +142,7 @@ func TestProcessStoreListDelete(t *testing.T) {
 	ctx := context.Background()
 	store := newProcessStore(t)
 	for _, id := range []string{"a", "b"} {
-		if err := store.Save(ctx, []core.ProcessSnapshot{validStoredSnapshot(id, core.StatusCompleted)}); err != nil {
+		if err := store.Apply(ctx, storedSnapshotChange(id, validStoredSnapshot(id, core.StatusCompleted))); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -140,7 +150,7 @@ func TestProcessStoreListDelete(t *testing.T) {
 	if err != nil || len(ids) != 2 {
 		t.Fatalf("List = %v, err %v", ids, err)
 	}
-	if err := store.Delete(ctx, "a"); err != nil {
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{"a"}}); err != nil {
 		t.Fatal(err)
 	}
 	if ids, _ = store.List(ctx); len(ids) != 1 || ids[0] != "b" {
@@ -159,13 +169,14 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	grandchild.ParentID = child.ID
 	grandchild.Depth = 2
 	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
-	for _, snapshot := range []core.ProcessSnapshot{root, child, grandchild, unrelated} {
-		if err := store.Save(ctx, []core.ProcessSnapshot{snapshot}); err != nil {
-			t.Fatalf("Save(%s): %v", snapshot.ID, err)
-		}
+	if err := store.Apply(ctx, storedSnapshotChange(root.ID, root, child, grandchild)); err != nil {
+		t.Fatalf("Apply tree: %v", err)
+	}
+	if err := store.Apply(ctx, storedSnapshotChange(unrelated.ID, unrelated)); err != nil {
+		t.Fatalf("Apply unrelated: %v", err)
 	}
 
-	if err := store.Delete(ctx, root.ID); err != nil {
+	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{root.ID}}); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	ids, err := store.List(ctx)

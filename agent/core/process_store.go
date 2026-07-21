@@ -279,15 +279,108 @@ func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ProcessStore persists process snapshots for the runtime. Save receives one
-// logical process-tree capture. Delete removes the durable tree rooted at the
-// supplied process ID. Implementations own traversal, write coordination,
-// transaction, and partial-failure behavior. Load returns [ErrSnapshotNotFound]
-// for an unknown ID.
+// ProcessSnapshotTree is one complete runtime capture rooted at RootID.
+// Snapshots are unordered; parent links define the tree. The root may itself
+// have a parent outside the capture when a child subtree is saved directly.
+type ProcessSnapshotTree struct {
+	RootID    string
+	Snapshots []ProcessSnapshot
+}
+
+// Validate checks that the capture is one connected process tree.
+func (t ProcessSnapshotTree) Validate() error {
+	if strings.TrimSpace(t.RootID) == "" || strings.TrimSpace(t.RootID) != t.RootID {
+		return fmt.Errorf("%w: tree root ID must be non-empty without surrounding whitespace", ErrInvalidSnapshot)
+	}
+	if len(t.Snapshots) == 0 {
+		return fmt.Errorf("%w: process tree is empty", ErrInvalidSnapshot)
+	}
+
+	byID := make(map[string]ProcessSnapshot, len(t.Snapshots))
+	for index, snapshot := range t.Snapshots {
+		if err := snapshot.Validate(); err != nil {
+			return fmt.Errorf("process snapshot tree: snapshots[%d]: %w", index, err)
+		}
+		if _, duplicate := byID[snapshot.ID]; duplicate {
+			return fmt.Errorf("%w: duplicate process ID %q", ErrInvalidSnapshot, snapshot.ID)
+		}
+		byID[snapshot.ID] = snapshot
+	}
+
+	root, ok := byID[t.RootID]
+	if !ok {
+		return fmt.Errorf("%w: tree root %q is missing", ErrInvalidSnapshot, t.RootID)
+	}
+	if _, parentInsideTree := byID[root.ParentID]; parentInsideTree {
+		return fmt.Errorf("%w: root %q has parent %q inside its own tree", ErrInvalidSnapshot, root.ID, root.ParentID)
+	}
+
+	for _, snapshot := range t.Snapshots {
+		if snapshot.ID == t.RootID {
+			continue
+		}
+		parent, found := byID[snapshot.ParentID]
+		if !found {
+			return fmt.Errorf("%w: process %q has parent %q outside tree rooted at %q", ErrInvalidSnapshot, snapshot.ID, snapshot.ParentID, t.RootID)
+		}
+		if snapshot.Depth != parent.Depth+1 {
+			return fmt.Errorf("%w: process %q depth %d does not follow parent %q depth %d", ErrInvalidSnapshot, snapshot.ID, snapshot.Depth, parent.ID, parent.Depth)
+		}
+	}
+	return nil
+}
+
+// ProcessSnapshotChange is one logical persistence operation. Tree replaces
+// the captured process state when non-nil; DeleteRoots removes obsolete durable
+// trees. A store implementation chooses its own coordination, transaction, and
+// partial-failure behavior, but a nil error means every requested change was
+// applied. Implementations must not retain caller-owned slices or maps.
+type ProcessSnapshotChange struct {
+	Tree        *ProcessSnapshotTree
+	DeleteRoots []string
+}
+
+// Validate checks the complete persistence operation.
+func (c ProcessSnapshotChange) Validate() error {
+	if c.Tree == nil && len(c.DeleteRoots) == 0 {
+		return fmt.Errorf("%w: process snapshot change is empty", ErrInvalidSnapshot)
+	}
+
+	saved := make(map[string]struct{})
+	if c.Tree != nil {
+		if err := c.Tree.Validate(); err != nil {
+			return err
+		}
+		saved = make(map[string]struct{}, len(c.Tree.Snapshots))
+		for _, snapshot := range c.Tree.Snapshots {
+			saved[snapshot.ID] = struct{}{}
+		}
+	}
+
+	deletes := make(map[string]struct{}, len(c.DeleteRoots))
+	for index, rootID := range c.DeleteRoots {
+		if strings.TrimSpace(rootID) == "" || strings.TrimSpace(rootID) != rootID {
+			return fmt.Errorf("%w: delete_roots[%d] must be non-empty without surrounding whitespace", ErrInvalidSnapshot, index)
+		}
+		if _, duplicate := deletes[rootID]; duplicate {
+			return fmt.Errorf("%w: duplicate delete root %q", ErrInvalidSnapshot, rootID)
+		}
+		if _, conflict := saved[rootID]; conflict {
+			return fmt.Errorf("%w: process %q cannot be saved and deleted in one change", ErrInvalidSnapshot, rootID)
+		}
+		deletes[rootID] = struct{}{}
+	}
+	return nil
+}
+
+// ProcessStore persists process snapshots for the runtime. Implementations must
+// be safe for concurrent use and return ownership-isolated values. Apply
+// receives each complete logical persistence change in one call so the
+// implementation, not the framework, owns storage coordination. Load returns
+// [ErrSnapshotNotFound] for an unknown ID.
 type ProcessStore interface {
-	Save(context.Context, []ProcessSnapshot) error
+	Apply(context.Context, ProcessSnapshotChange) error
 	Load(context.Context, string) (ProcessSnapshot, error)
-	Delete(context.Context, string) error
 }
 
 // ProcessLister is the optional administrative listing capability.

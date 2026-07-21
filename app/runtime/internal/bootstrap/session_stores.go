@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -144,8 +145,9 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 				return err
 			}
 		}
-		for _, processID := range plan.ProcessIDs {
-			if err := s.processes.Delete(ctx, processID); err != nil {
+		if len(plan.ProcessIDs) > 0 {
+			change := core.ProcessSnapshotChange{DeleteRoots: plan.ProcessIDs}
+			if err := s.processes.Apply(ctx, change); err != nil {
 				return err
 			}
 		}
@@ -292,7 +294,8 @@ func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.Terminal
 			return err
 		}
 		if plan.ProcessID != "" {
-			if err := s.processes.Delete(ctx, plan.ProcessID); err != nil {
+			change := core.ProcessSnapshotChange{DeleteRoots: []string{plan.ProcessID}}
+			if err := s.processes.Apply(ctx, change); err != nil {
 				return err
 			}
 		}
@@ -321,12 +324,19 @@ func (s sessionStores) deleteInterrupts(ctx context.Context, sessionID string) e
 	if err != nil {
 		return err
 	}
+	processIDs := make([]string, 0, len(pending))
 	for _, p := range pending {
 		if p.ProcessID != "" {
-			if err := s.processes.Delete(ctx, p.ProcessID); err != nil {
-				return err
-			}
+			processIDs = append(processIDs, p.ProcessID)
 		}
+	}
+	if len(processIDs) > 0 {
+		change := core.ProcessSnapshotChange{DeleteRoots: processIDs}
+		if err := s.processes.Apply(ctx, change); err != nil {
+			return err
+		}
+	}
+	for _, p := range pending {
 		if err := s.interrupts.Delete(ctx, p.RunID); err != nil {
 			return err
 		}

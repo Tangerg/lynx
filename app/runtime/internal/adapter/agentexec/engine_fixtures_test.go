@@ -204,19 +204,30 @@ func newJSONProcessStore() *jsonProcessStore {
 	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}}
 }
 
-func (s *jsonProcessStore) Save(_ context.Context, snapshots []core.ProcessSnapshot) error {
-	prepared := make(map[string]json.RawMessage, len(snapshots))
-	for _, snapshot := range snapshots {
-		raw, err := json.Marshal(snapshot)
-		if err != nil {
-			return err
+func (s *jsonProcessStore) Apply(_ context.Context, change core.ProcessSnapshotChange) error {
+	if err := change.Validate(); err != nil {
+		return err
+	}
+	prepared := make(map[string]json.RawMessage)
+	if change.Tree != nil {
+		prepared = make(map[string]json.RawMessage, len(change.Tree.Snapshots))
+		for _, snapshot := range change.Tree.Snapshots {
+			raw, err := json.Marshal(snapshot)
+			if err != nil {
+				return err
+			}
+			prepared[snapshot.ID] = raw
 		}
-		prepared[snapshot.ID] = raw
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for _, snapshot := range snapshots {
-		s.snapshots[snapshot.ID] = prepared[snapshot.ID]
+	for id, raw := range prepared {
+		s.snapshots[id] = raw
+	}
+	for _, rootID := range change.DeleteRoots {
+		if err := s.deleteTree(rootID); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -245,9 +256,7 @@ func (s *jsonProcessStore) List(context.Context) ([]string, error) {
 	return ids, nil
 }
 
-func (s *jsonProcessStore) Delete(_ context.Context, rootID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *jsonProcessStore) deleteTree(rootID string) error {
 	children := make(map[string][]string)
 	for id, raw := range s.snapshots {
 		var snapshot core.ProcessSnapshot

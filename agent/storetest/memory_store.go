@@ -26,25 +26,28 @@ func NewMemoryProcessStore() *MemoryProcessStore {
 	return &MemoryProcessStore{snapshots: make(map[string]core.ProcessSnapshot)}
 }
 
-// Save implements [core.ProcessStore].
-func (s *MemoryProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapshot) error {
+// Apply implements [core.ProcessStore].
+func (s *MemoryProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
 	if s == nil {
 		return errors.New("storetest.MemoryProcessStore: nil receiver")
 	}
 	if err := contextError(ctx); err != nil {
 		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
 	}
-	if len(snapshots) == 0 {
-		return nil
+	if err := change.Validate(); err != nil {
+		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
 	}
 
-	candidates := make([]core.ProcessSnapshot, len(snapshots))
-	for index, snapshot := range snapshots {
-		candidate, err := cloneJSON(snapshot)
-		if err != nil {
-			return fmt.Errorf("storetest.MemoryProcessStore: snapshots[%d]: clone: %w", index, err)
+	var candidates []core.ProcessSnapshot
+	if change.Tree != nil {
+		candidates = make([]core.ProcessSnapshot, len(change.Tree.Snapshots))
+		for index, snapshot := range change.Tree.Snapshots {
+			candidate, err := cloneJSON(snapshot)
+			if err != nil {
+				return fmt.Errorf("storetest.MemoryProcessStore: snapshots[%d]: clone: %w", index, err)
+			}
+			candidates[index] = candidate
 		}
-		candidates[index] = candidate
 	}
 
 	s.mu.Lock()
@@ -52,8 +55,11 @@ func (s *MemoryProcessStore) Save(ctx context.Context, snapshots []core.ProcessS
 	if err := contextError(ctx); err != nil {
 		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
 	}
-	for index, snapshot := range snapshots {
-		s.snapshots[snapshot.ID] = candidates[index]
+	for _, snapshot := range candidates {
+		s.snapshots[snapshot.ID] = snapshot
+	}
+	for _, rootID := range change.DeleteRoots {
+		s.deleteTree(rootID)
 	}
 	return nil
 }
@@ -94,16 +100,7 @@ func (s *MemoryProcessStore) List(_ context.Context) ([]string, error) {
 	return ids, nil
 }
 
-// Delete implements [core.ProcessStore].
-func (s *MemoryProcessStore) Delete(ctx context.Context, rootID string) error {
-	if s == nil {
-		return errors.New("storetest.MemoryProcessStore: nil receiver")
-	}
-	if err := contextError(ctx); err != nil {
-		return fmt.Errorf("storetest.MemoryProcessStore: %w", err)
-	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *MemoryProcessStore) deleteTree(rootID string) {
 	children := make(map[string][]string)
 	for id, snapshot := range s.snapshots {
 		if snapshot.ParentID != "" {
@@ -118,7 +115,6 @@ func (s *MemoryProcessStore) Delete(ctx context.Context, rootID string) error {
 		}
 	}
 	remove(rootID)
-	return nil
 }
 
 // MemorySessionStore is an in-memory test double for [core.SessionStore].

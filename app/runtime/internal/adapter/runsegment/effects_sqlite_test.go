@@ -138,7 +138,12 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: createdAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := sqlite.NewProcessStore(db).Save(ctx, []core.ProcessSnapshot{waitingProcessSnapshot("proc_1", createdAt, parkedAt)}); err != nil {
+	snapshot := waitingProcessSnapshot("proc_1", createdAt, parkedAt)
+	change := core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    snapshot.ID,
+		Snapshots: []core.ProcessSnapshot{snapshot},
+	}}
+	if err := sqlite.NewProcessStore(db).Apply(ctx, change); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	question := &transcript.Question{Prompt: "Continue?"}

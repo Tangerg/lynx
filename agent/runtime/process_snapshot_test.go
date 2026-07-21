@@ -19,6 +19,13 @@ import (
 type ssWord struct{ Text string }
 type ssWordCount struct{ Count int }
 
+func snapshotChange(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
+	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+		RootID:    rootID,
+		Snapshots: snapshots,
+	}}
+}
+
 type mismatchedProcessStore struct {
 	core.ProcessStore
 }
@@ -376,14 +383,14 @@ func TestEngine_RestoreProcess_AgentNotDeployed(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "snapshot-missing-agent-test", ProcessStore: store})
 
 	started := time.Now().Add(-time.Second)
-	_ = store.Save(context.Background(), []core.ProcessSnapshot{{
+	_ = store.Apply(context.Background(), snapshotChange("orphan", core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "orphan",
 		Deployment:    core.DeploymentRef{Name: "never-deployed", Digest: "missing"},
 		StartedAt:     started,
 		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
-	}})
+	}))
 
 	if _, err := engine.Restore(context.Background(), "orphan", core.ProcessOptions{}); err == nil {
 		t.Error("expected error when agent not deployed")
@@ -613,7 +620,10 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 		snapshot("grandchild", "child-a", 2),
 		snapshot("outside", "", 0),
 	}
-	if err := store.Save(t.Context(), writes); err != nil {
+	if err := store.Apply(t.Context(), snapshotChange("root", writes[:4]...)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Apply(t.Context(), snapshotChange("outside", writes[4])); err != nil {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
@@ -643,7 +653,7 @@ func TestEngineDiscardStoreFailurePreservesWholeDurableTree(t *testing.T) {
 			StartedAt:  started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
 		},
 	}
-	if err := store.inner.Save(t.Context(), writes); err != nil {
+	if err := store.inner.Apply(t.Context(), snapshotChange("root", writes...)); err != nil {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})

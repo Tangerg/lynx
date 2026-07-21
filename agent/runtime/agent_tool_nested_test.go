@@ -890,7 +890,7 @@ func TestAgentToolNestedSuspensionMissingChildSnapshotIsLost(t *testing.T) {
 	parent1 := deployNestedAgents(t, engine1, false, nil, model1, &beforeCalls)
 	process1 := runNestedParent(t, engine1, parent1)
 	child1 := nestedChildProcess(t, engine1, process1.ID())
-	if err := store.Delete(t.Context(), child1.ID()); err != nil {
+	if err := store.Apply(t.Context(), core.ProcessSnapshotChange{DeleteRoots: []string{child1.ID()}}); err != nil {
 		t.Fatalf("delete child snapshot: %v", err)
 	}
 

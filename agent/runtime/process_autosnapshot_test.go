@@ -26,11 +26,11 @@ func newFlakyProcessStore(err error) *flakyProcessStore {
 	return store
 }
 
-func (s *flakyProcessStore) Save(ctx context.Context, snapshots []core.ProcessSnapshot) error {
+func (s *flakyProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
 	if s.fail.Load() {
 		return s.err
 	}
-	return s.inner.Save(ctx, snapshots)
+	return s.inner.Apply(ctx, change)
 }
 
 func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
@@ -39,13 +39,6 @@ func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSn
 
 func (s *flakyProcessStore) List(ctx context.Context) ([]string, error) {
 	return s.inner.List(ctx)
-}
-
-func (s *flakyProcessStore) Delete(ctx context.Context, rootID string) error {
-	if s.fail.Load() {
-		return s.err
-	}
-	return s.inner.Delete(ctx, rootID)
 }
 
 func autoSnapshotAgent() *core.Agent {
