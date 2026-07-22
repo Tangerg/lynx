@@ -292,10 +292,4 @@ interface McpServer {
 
 ---
 
-## 变更说明（migration notes）
-
-- [`20260614/MULTIMODAL_IMAGE_INPUT.md`](./20260614/MULTIMODAL_IMAGE_INPUT.md) —— 图片输入改为内联 base64（image `ContentBlock` 的 `mime` + `data`），删除整套 attachment 上传子系统。`API.md` / `TRANSPORT.md` 已就地更新到该形态；此文集中说明「改了什么 + 前端怎么迁」。
-
----
-
 > 正式契约。配套同目录 [`API.md`](./API.md) + [`TRANSPORT.md`](./TRANSPORT.md)。
