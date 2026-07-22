@@ -55,6 +55,10 @@ type commandRunner interface {
 // Workspace is an isolated working copy and a tools/shell Executor. Stop
 // captures an immutable snapshot without deleting the backend; Shutdown
 // destroys the backend without changing durable snapshots.
+//
+// It is the isolated-copy model described in the package doc: deliberately
+// retained C7 groundwork with no production caller yet, dormant by design. Not
+// dead code — see the package doc before removing.
 type Workspace struct {
 	mu       sync.RWMutex
 	dir      string
