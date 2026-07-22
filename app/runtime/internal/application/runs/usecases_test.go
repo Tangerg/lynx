@@ -400,6 +400,43 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	}
 }
 
+func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
+	var operations []string
+	sessions := &fakeRunSessions{
+		sess:   session.Session{ID: "ses_1", Cwd: "/work", Isolated: true},
+		treeOK: true,
+		pending: map[string]interrupts.Pending{"run_1": {
+			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
+			Interrupts: approvalInterrupt("item_1"),
+		}},
+		operations: &operations,
+	}
+	// The process that owned the sandbox copy is gone (Prepare reports the turn as
+	// not live), so a rehydrate would run against the real project tree.
+	turns := &fakeTurnControl{prepareErr: ErrTurnNotLive}
+	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+
+	_, err := c.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
+		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
+	}
+	if turns.rehydrateReq != (RehydrateTurn{}) {
+		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", turns.rehydrateReq)
+	}
+	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
+		t.Fatalf("lost recovery = %q ops=%v, want run_1 marked lost", sessions.lostRunID, operations)
+	}
+	if sessions.treeReleases != 1 || c.ActiveSession("ses_1") {
+		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, c.ActiveSession("ses_1"))
+	}
+}
+
 func approvalInterrupt(itemID string) []transcript.Interrupt {
 	return []transcript.Interrupt{{
 		ItemID: itemID,
