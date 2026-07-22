@@ -11,10 +11,18 @@ import (
 	"testing"
 )
 
-func TestConfineShellCommandJailsInPlace(t *testing.T) {
-	// The jail roots writes at the real working tree in place (no copy): a write
-	// inside cwd succeeds, a write outside fails, the home is hidden, and the
-	// environment is scrubbed of inherited credentials.
+func runConfined(t *testing.T, c Command, dir string) ([]byte, error) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), c.Name, c.Args...)
+	cmd.Dir = dir
+	cmd.Env = c.Env
+	return cmd.CombinedOutput()
+}
+
+func TestConfinerJailsInPlace(t *testing.T) {
+	// The confiner roots writes at the real working tree in place (no copy): a
+	// write inside the root succeeds, a write outside fails, the home is hidden,
+	// and the environment is scrubbed of inherited credentials.
 	workspace := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 	home := t.TempDir()
@@ -25,15 +33,17 @@ func TestConfineShellCommandJailsInPlace(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("LYRA_SANDBOX_SECRET", "must-not-leak")
 
-	name, args, env, err := ConfineShellCommand(workspace, nil,
+	confiner, err := NewConfiner(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	inside, err := confiner.Confine(workspace,
 		"printf inside > inside.txt; printf %s \"${LYRA_SANDBOX_SECRET-unset}\"; test ! -r "+strconv.Quote(secret))
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd := exec.CommandContext(t.Context(), name, args...)
-	cmd.Dir = workspace
-	cmd.Env = env
-	out, err := cmd.CombinedOutput()
+	out, err := runConfined(t, inside, workspace)
 	if err != nil {
 		t.Fatalf("confined command failed: %v (output %q)", err, out)
 	}
@@ -45,14 +55,11 @@ func TestConfineShellCommandJailsInPlace(t *testing.T) {
 		t.Fatal("jail inherited a credential-like environment variable")
 	}
 
-	name, args, env, err = ConfineShellCommand(workspace, nil, "printf outside > "+strconv.Quote(outside))
+	outsideCmd, err := confiner.Confine(workspace, "printf outside > "+strconv.Quote(outside))
 	if err != nil {
 		t.Fatal(err)
 	}
-	cmd = exec.CommandContext(t.Context(), name, args...)
-	cmd.Dir = workspace
-	cmd.Env = env
-	if err := cmd.Run(); err == nil {
+	if _, err := runConfined(t, outsideCmd, workspace); err == nil {
 		t.Fatal("write outside the workspace unexpectedly succeeded")
 	}
 	if _, err := os.Stat(outside); !os.IsNotExist(err) {
@@ -60,8 +67,12 @@ func TestConfineShellCommandJailsInPlace(t *testing.T) {
 	}
 }
 
-func TestConfineShellCommandRejectsEmpty(t *testing.T) {
-	if _, _, _, err := ConfineShellCommand(t.TempDir(), nil, ""); err == nil {
+func TestConfineRejectsEmptyCommand(t *testing.T) {
+	confiner, err := NewConfiner(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := confiner.Confine(t.TempDir(), ""); err == nil {
 		t.Fatal("expected an error for an empty command")
 	}
 }

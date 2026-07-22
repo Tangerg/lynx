@@ -36,18 +36,6 @@ import (
 // oldest bytes are dropped (a poll that fell behind is told output was lost).
 const maxBuffer = 256 * 1024
 
-// Sandbox configures optional per-command OS isolation for launched shells.
-// When Enabled, each command runs in an in-place [sandbox] jail rooted at its
-// own cwd (workspace-write-only, network denied, $HOME hidden, env scrubbed);
-// ReadOnlyPaths re-opens declared toolchain roots below the hidden home for
-// reads. The zero value leaves shells unconfined (a plain /bin/sh -c). On a
-// host with no isolation backend an enabled sandbox fails closed at launch —
-// running unconfined despite an opt-in would be worse than refusing.
-type Sandbox struct {
-	Enabled       bool
-	ReadOnlyPaths []string
-}
-
 // Shells owns background shell commands and lets callers poll their output or
 // stop them. The process handles and output buffers live here. The zero value is
 // not usable; build one with [NewShells].
@@ -58,7 +46,11 @@ type Shells struct {
 	closed    bool
 	closeOnce sync.Once
 	closeErr  error
-	sandbox   Sandbox
+	// confiner jails each command in an in-place OS sandbox (workspace-write
+	// only, network denied, $HOME hidden, env scrubbed) when non-nil; nil runs
+	// commands as a plain /bin/sh -c. Built fail-closed at construction, so a
+	// non-nil confiner is always a working backend.
+	confiner *sandbox.Confiner
 }
 
 var (
@@ -68,22 +60,25 @@ var (
 	ErrShellNotFound = errors.New("exec: shell not found")
 )
 
-// NewShells creates an empty background-shell set. sandbox opts commands into
-// per-command OS isolation; the zero value runs them unconfined.
-func NewShells(sandbox Sandbox) *Shells {
-	return &Shells{shells: map[string]*Shell{}, sandbox: sandbox}
+// NewShells creates an empty background-shell set. A non-nil confiner opts every
+// launched command into per-command OS isolation; nil runs them unconfined.
+func NewShells(confiner *sandbox.Confiner) *Shells {
+	return &Shells{shells: map[string]*Shell{}, confiner: confiner}
 }
 
 // command returns the program, args, and environment to spawn for a shell
 // command in cwd. Unconfined it is the plain `/bin/sh -c command` with a nil
-// env (the child inherits the parent's). With the sandbox enabled it is the
-// in-place jail's argv + scrubbed env rooted at cwd, which fails closed on a
-// host with no isolation backend rather than silently running unconfined.
+// env (the child inherits the parent's); confined it is the jail's argv +
+// scrubbed env rooted at cwd.
 func (s *Shells) command(cwd, command string) (name string, args, env []string, err error) {
-	if !s.sandbox.Enabled {
+	if s.confiner == nil {
 		return "/bin/sh", []string{"-c", command}, nil, nil
 	}
-	return sandbox.ConfineShellCommand(cwd, s.sandbox.ReadOnlyPaths, command)
+	confined, err := s.confiner.Confine(cwd, command)
+	if err != nil {
+		return "", nil, nil, err
+	}
+	return confined.Name, confined.Args, confined.Env, nil
 }
 
 // Shell is one background process: its handle, the tail of its combined

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
 )
 
 // TestLaunchSandboxConfinesWrites proves the opt-in jail is actually wired onto
@@ -16,7 +18,11 @@ func TestLaunchSandboxConfinesWrites(t *testing.T) {
 	workspace := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 
-	shells := NewShells(Sandbox{Enabled: true})
+	confiner, err := sandbox.NewConfiner(nil)
+	if err != nil {
+		t.Fatalf("new confiner: %v", err)
+	}
+	shells := NewShells(confiner)
 	t.Cleanup(func() { _ = shells.KillAll() })
 
 	run := func(command string) *Shell {

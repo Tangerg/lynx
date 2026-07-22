@@ -104,8 +104,8 @@ type Config struct {
 	// each command runs in an in-place jail rooted at its cwd (workspace-write
 	// only, network denied, $HOME hidden, env scrubbed). Off by default (a plain
 	// /bin/sh -c). Sourced from `sandbox.shell` / LYRA_SANDBOX_SHELL. On a host
-	// with no isolation backend (only macOS Seatbelt today) an enabled sandbox
-	// fails shell commands closed rather than running them unconfined.
+	// with no isolation backend (only macOS Seatbelt today) enabling it refuses
+	// startup — fail-closed, rather than silently running shells unconfined.
 	SandboxShell bool
 
 	// SandboxReadOnlyPaths re-opens declared toolchain roots below the hidden

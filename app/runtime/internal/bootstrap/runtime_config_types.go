@@ -69,9 +69,9 @@ type Config struct {
 
 	// SandboxShell opts the shell tools into per-command OS isolation (an
 	// in-place jail rooted at the command's cwd: workspace-write only, network
-	// denied, $HOME hidden, env scrubbed). Off by default; fail-closed on a host
-	// with no isolation backend. SandboxReadOnlyPaths re-opens declared toolchain
-	// roots below the hidden home for reads.
+	// denied, $HOME hidden, env scrubbed). Off by default; on a host with no
+	// isolation backend it refuses assembly (fail-closed). SandboxReadOnlyPaths
+	// re-opens declared toolchain roots below the hidden home for reads.
 	SandboxShell         bool
 	SandboxReadOnlyPaths []string
 
