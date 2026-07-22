@@ -26,6 +26,13 @@ const CwdBindingKey = "lyra:cwd"
 // to `task` sub-agents and survives the snapshot/resume round trip.
 const SessionBindingKey = "lyra:session"
 
+// IsolatedBindingKey is the blackboard key the chat action binds (protected)
+// when the turn runs in an isolated session: its shell commands must be
+// OS-jailed (network denied, workspace-write only) regardless of the global
+// sandbox opt-in, and its working directory ([CwdBindingKey]) is the sandbox
+// copy. Protected so a `task` sub-agent inherits the isolation.
+const IsolatedBindingKey = "lyra:isolated"
+
 // TurnCwd reads the working directory the running process seeded on its
 // blackboard ([CwdBindingKey]), falling back to fallback when the turn carried
 // none (a sessionless smoke run, or a restored continuation whose snapshot
@@ -43,6 +50,22 @@ func TurnCwd(ctx context.Context, fallback string) string {
 		}
 	}
 	return fallback
+}
+
+// TurnIsolated reports whether the running turn is in an isolated session
+// ([IsolatedBindingKey]) — the shell tool passes it to [exec.Shells.Launch] so
+// the command is OS-jailed. False for a normal (non-isolated) turn.
+func TurnIsolated(ctx context.Context) bool {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
+		return false
+	}
+	if value, ok := process.Blackboard().Load(IsolatedBindingKey); ok {
+		if isolated, ok := value.(bool); ok {
+			return isolated
+		}
+	}
+	return false
 }
 
 // TurnSession reads the session id the chat action seeded on the blackboard

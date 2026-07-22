@@ -137,16 +137,15 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	tracker := editguard.NewTracker()
 
-	// Opt-in per-command OS isolation for the shell tools. Built fail-closed: an
-	// unsupported host refuses assembly rather than running the shell unconfined.
-	var confiner *sandbox.Confiner
-	if config.SandboxShell {
-		confiner, err = sandbox.NewConfiner(config.SandboxReadOnlyPaths)
-		if err != nil {
-			return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", err)
-		}
+	// OS command isolation for the shell tools. Build the confiner whenever the
+	// host supports it — isolated sessions jail their shell even when the global
+	// sandbox.shell opt-in is off. If the global opt-in IS on but the host has no
+	// backend, that is a hard, fail-closed configuration error (refuse assembly).
+	confiner, confErr := sandbox.NewConfiner(config.SandboxReadOnlyPaths)
+	if confErr != nil && config.SandboxShell {
+		return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", confErr)
 	}
-	shells := exec.NewShells(confiner)
+	shells := exec.NewShells(confiner, config.SandboxShell)
 	shellTools, err := shell.Build(shells, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
