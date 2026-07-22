@@ -3,7 +3,6 @@ package goals
 import (
 	"context"
 	"errors"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -15,16 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-const (
-	// busyBackoff / maxBusyRetries bound the wait for the previous run's pump to
-	// finish tearing down and free the session's single admission slot. The pump
-	// closes the event stream before it releases the slot, so the loop's drain can
-	// return a few milliseconds before a back-to-back launch is admissible. This is
-	// waiting for a local resource, keyed on the ErrSessionBusy sentinel — not a
-	// transient-error retry layer.
-	busyBackoff    = 100 * time.Millisecond
-	maxBusyRetries = 20
-)
+var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
 // autonomyNote frames every autonomous turn: the model drives itself and ends
 // the loop only through update_goal, never by narrating completion.
@@ -107,7 +97,10 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		}
 	}()
 
-	result, err := d.startNext(ctx, d.command(*g))
+	if err := ctx.Err(); err != nil {
+		return "", false
+	}
+	result, err := d.runs.Start(ctx, d.command(*g))
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", false // Stop/shutdown — the state is handled by Stop / reconcile
@@ -159,7 +152,14 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	}
 
 	cost, steps := turnUsage(finished)
-	outcome := outcomeOf(finished)
+	outcome, err := outcomeOf(finished)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "malformed terminal run")
+		g.Pause("the run ended without a terminal outcome", d.now())
+		d.save(ctx, *g)
+		return dispPaused, false
+	}
 	span.SetAttributes(
 		attribute.String("run.outcome", outcome.String()),
 		attribute.Float64("goal.cost_usd", cost),
@@ -184,27 +184,6 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		return "", false
 	}
 	return dispContinue, true
-}
-
-// startNext launches the next run, waiting out the brief window in which the
-// previous run's pump is still releasing the session's admission slot.
-func (d *Driver) startNext(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
-	if err := ctx.Err(); err != nil {
-		// Stop/shutdown landed after the loop's top check: never launch a run the
-		// cancellation would immediately abandon.
-		return runs.StartResult{}, err
-	}
-	for retry := 0; ; retry++ {
-		result, err := d.runs.Start(ctx, cmd)
-		if !errors.Is(err, runs.ErrSessionBusy) || retry >= maxBusyRetries {
-			return result, err
-		}
-		select {
-		case <-ctx.Done():
-			return runs.StartResult{}, ctx.Err()
-		case <-time.After(busyBackoff):
-		}
-	}
 }
 
 // command builds the next autonomous run. It is headless: no InterruptKinds, so a
@@ -248,15 +227,13 @@ func drainTerminal(events <-chan runs.Event) *transcript.Run {
 	return finished
 }
 
-// outcomeOf reads a terminal run's outcome. A SegmentFinished always carries a
-// non-nil outcome; the nil default is defensive only, and resolves to Completed
-// so a malformed terminal lets the loop continue (and hit a real stop — budget
-// or a model signal) rather than silently pausing on absent data.
-func outcomeOf(run *transcript.Run) execution.Outcome {
+// outcomeOf reads a terminal run's outcome. A SegmentFinished without one
+// violates the Run contract and must not be treated as a successful turn.
+func outcomeOf(run *transcript.Run) (execution.Outcome, error) {
 	if run.Outcome == nil {
-		return execution.OutcomeCompleted
+		return 0, errTerminalOutcomeMissing
 	}
-	return *run.Outcome
+	return *run.Outcome, nil
 }
 
 func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
