@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 17
+const schemaVersion = 18
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -241,6 +241,11 @@ func installCurrentSchema(db *sql.DB) error {
 			model      TEXT    NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,
 			used       TEXT    NOT NULL,
+			-- generation is the loop-incarnation token behind the goal CAS: every
+			-- explicit lifecycle transition (start/resume/stop) bumps it, so a
+			-- superseded loop's detached terminal write is rejected instead of
+			-- clobbering a newer goal or resurrecting a cleared one.
+			generation INTEGER NOT NULL DEFAULT 0,
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,

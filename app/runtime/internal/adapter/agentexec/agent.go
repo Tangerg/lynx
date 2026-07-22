@@ -38,6 +38,11 @@ type turnInput struct {
 	// shell must be OS-jailed). Bound protected so tools + task sub-agents see it.
 	Isolated bool
 
+	// GoalGeneration stamps a Goal-mode autonomous run with its goal incarnation.
+	// Bound protected so update_goal signals only that goal (0 = not a Goal-loop
+	// run, so the binding is omitted).
+	GoalGeneration int64
+
 	// SessionID anchors the turn to its session; the chat action binds it
 	// protected so the read/edit guards can key file-read state per session
 	// (same blackboard seam as Cwd). Empty for a sessionless smoke run.
@@ -137,6 +142,9 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		}
 		if in.Isolated {
 			pc.Blackboard().StoreProtected(turnctx.IsolatedBindingKey, true)
+		}
+		if in.GoalGeneration > 0 {
+			pc.Blackboard().StoreProtected(turnctx.GoalGenerationBindingKey, in.GoalGeneration)
 		}
 		return e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleCoding)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})

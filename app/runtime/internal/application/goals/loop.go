@@ -33,7 +33,7 @@ const autonomyNote = "\n\n(You are running autonomously toward this goal — you
 // launch spawns the loop for sessionID, canceling any prior loop for the same
 // session first. The loop runs request-detached (task group) so it outlives the
 // call that started it and is canceled by Stop or shutdown.
-func (d *Driver) launch(parent context.Context, sessionID string) {
+func (d *Driver) launch(parent context.Context, sessionID string, generation int64) {
 	ctx, release, ok := d.tasks.Attach(parent)
 	if !ok {
 		return // shutting down
@@ -51,7 +51,7 @@ func (d *Driver) launch(parent context.Context, sessionID string) {
 	go func() {
 		defer release()
 		defer d.forget(sessionID, handle)
-		d.drive(ctx, sessionID)
+		d.drive(ctx, sessionID, generation)
 	}()
 }
 
@@ -67,13 +67,17 @@ func (d *Driver) forget(sessionID string, handle *loopHandle) {
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
 // than resuming and burning budget.
-func (d *Driver) drive(ctx context.Context, sessionID string) {
+func (d *Driver) drive(ctx context.Context, sessionID string, generation int64) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 		g, ok, err := d.goals.Get(ctx, sessionID)
-		if err != nil || !ok || g.Status != goal.StatusActive {
+		// Stop when the goal is gone, no longer active, OR its generation moved
+		// past this loop's incarnation (a Stop/Start/Resume superseded it). Driving
+		// on a newer generation would let this straggler clobber a goal it does not
+		// own.
+		if err != nil || !ok || g.Status != goal.StatusActive || g.Generation != generation {
 			return
 		}
 		if _, keepGoing := d.runTurn(ctx, &g); !keepGoing {
@@ -124,10 +128,18 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	if !ok {
 		return "", false
 	}
+	// If the generation advanced, a Stop/Start/Resume superseded this loop's goal
+	// while the run was in flight. Adopting the re-read (a different incarnation,
+	// maybe a whole new objective) and saving to it would clobber a goal this
+	// loop no longer owns; stop instead. This keeps g at the launch generation,
+	// so the terminal saves below CAS on the incarnation the loop actually drove.
+	if reread.Generation != g.Generation {
+		return "", false
+	}
 	*g = reread
 	switch g.Status {
 	case goal.StatusComplete:
-		d.clear(ctx, g.SessionID) // transient — announce (the model's reply) then clear
+		d.clear(ctx, *g) // transient — announce (the model's reply) then clear
 		return dispComplete, false
 	case goal.StatusBlocked:
 		return dispBlocked, false // the model declared blocked
@@ -163,7 +175,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		d.save(ctx, *g)
 		return dispBlocked, false
 	}
-	d.checkpoint(ctx, *g)
+	if !d.checkpoint(ctx, *g) {
+		// The goal was superseded or cleared out from under this loop (a
+		// Stop/Start or a session delete/rollback bumped the generation); stop
+		// rather than drive a goal we no longer own.
+		return "", false
+	}
 	return dispContinue, true
 }
 
@@ -201,6 +218,11 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 		Model:           g.Model,
 		OpeningUserText: message,
 		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: message}},
+		// GoalGeneration stamps the run with the incarnation that launched it, so
+		// update_goal only signals THIS goal: a straggler run from a superseded
+		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
+		// complete/blocked — its generation no longer matches.
+		GoalGeneration: g.Generation,
 	}
 }
 
@@ -246,29 +268,36 @@ func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
 }
 
 // save / clear persist the loop's TERMINAL state even when ctx was canceled by
-// Stop/shutdown (detached drops cancellation but keeps trace values). Best-effort:
-// a failed write leaves the goal for the boot reconcile to degrade, so it can
-// never corrupt into a resumed-but-lost loop — but the failure is recorded on the
-// turn span rather than dropped.
+// Stop/shutdown (detached drops cancellation but keeps trace values). Both are
+// compare-and-swap on the loop's generation: a straggler whose goal was
+// superseded (Stop/Start) or cleared (delete/rollback) simply does not apply —
+// it can neither clobber a newer goal nor resurrect a deleted one. A store error
+// (not a lost CAS) is recorded on the turn span; the boot reconcile is the
+// backstop.
 func (d *Driver) save(ctx context.Context, g goal.Goal) {
-	recordSaveError(ctx, d.goals.Save(detached(ctx), g))
+	_, err := d.goals.Save(detached(ctx), g, g.Generation)
+	recordSaveError(ctx, err)
 }
 
-func (d *Driver) clear(ctx context.Context, sessionID string) {
-	recordSaveError(ctx, d.goals.Clear(detached(ctx), sessionID))
+func (d *Driver) clear(ctx context.Context, g goal.Goal) {
+	_, err := d.goals.ClearIf(detached(ctx), g.SessionID, g.Generation)
+	recordSaveError(ctx, err)
 }
 
-// checkpoint persists mid-loop usage progress. Unlike the terminal saves it
-// HONORS ctx: it re-affirms status=active, so if it detached it could commit
-// after a concurrent Stop paused the goal and clobber the pause — wedging the
-// goal active with no loop driving it. A Stop cancels this ctx before it writes
-// paused, so the checkpoint is skipped (losing at most this turn's usage
-// accounting) and the store converges on paused; a cancellation here is that
-// expected path, not an error worth recording.
-func (d *Driver) checkpoint(ctx context.Context, g goal.Goal) {
-	if err := d.goals.Save(ctx, g); err != nil && ctx.Err() == nil {
-		recordSaveError(ctx, err)
+// checkpoint persists mid-loop usage progress and reports whether the loop still
+// owns the goal. It HONORS ctx and CAS-guards on the loop's generation: a
+// concurrent Stop/Start (generation bump) or session delete (goal cleared) makes
+// the CAS not apply, and the caller stops driving. A ctx cancellation here is the
+// expected Stop path (the loop is being torn down), not an error worth recording.
+func (d *Driver) checkpoint(ctx context.Context, g goal.Goal) (owned bool) {
+	applied, err := d.goals.Save(ctx, g, g.Generation)
+	if err != nil {
+		if ctx.Err() == nil {
+			recordSaveError(ctx, err)
+		}
+		return false
 	}
+	return applied
 }
 
 func detached(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }

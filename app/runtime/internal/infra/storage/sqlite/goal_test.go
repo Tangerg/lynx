@@ -35,8 +35,9 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	g.AddTurn(0.4, 3, now)
-	if err := store.Save(ctx, g); err != nil {
-		t.Fatalf("Save: %v", err)
+	g.Generation = 1
+	if applied, err := store.Save(ctx, g, 0); err != nil || !applied {
+		t.Fatalf("Save: applied=%v err=%v", applied, err)
 	}
 
 	got, ok, err := store.Get(ctx, sess)
@@ -61,8 +62,9 @@ func TestGoalStore_ListAndClear(t *testing.T) {
 
 	for _, s := range []string{"a", "b"} {
 		g, _ := goal.New(s, "obj-"+s, "", "", goal.Budget{}, now)
-		if err := store.Save(ctx, g); err != nil {
-			t.Fatalf("Save(%s): %v", s, err)
+		g.Generation = 1
+		if applied, err := store.Save(ctx, g, 0); err != nil || !applied {
+			t.Fatalf("Save(%s): applied=%v err=%v", s, applied, err)
 		}
 	}
 	all, err := store.List(ctx)
@@ -82,5 +84,56 @@ func TestGoalStore_ListAndClear(t *testing.T) {
 	// Clearing a missing goal is not an error.
 	if err := store.Clear(ctx, "missing"); err != nil {
 		t.Fatalf("Clear(missing): %v", err)
+	}
+}
+
+// TestGoalStore_CompareAndSwap covers the keystone CAS: insert-if-absent on
+// expected 0, update-if-generation-matches otherwise, and reject a stale writer
+// (including ClearIf) so a superseded loop can neither clobber a newer goal nor
+// resurrect a cleared one.
+func TestGoalStore_CompareAndSwap(t *testing.T) {
+	ctx := context.Background()
+	store := newGoalStore(t)
+	now := time.Unix(1_700_000_000, 0).UTC()
+	const sess = "s"
+
+	mk := func(gen int64, status goal.Status) goal.Goal {
+		g, _ := goal.New(sess, "obj", "", "", goal.Budget{}, now)
+		g.Generation = gen
+		g.Status = status
+		return g
+	}
+
+	// expected 0 inserts when absent, then refuses a second insert.
+	if applied, err := store.Save(ctx, mk(1, goal.StatusActive), 0); err != nil || !applied {
+		t.Fatalf("insert: applied=%v err=%v", applied, err)
+	}
+	if applied, _ := store.Save(ctx, mk(1, goal.StatusActive), 0); applied {
+		t.Fatal("expected 0 must not overwrite an existing goal")
+	}
+
+	// A stale writer (expected 0, or a mismatched generation) is rejected — no
+	// clobber, no resurrection.
+	if applied, _ := store.Save(ctx, mk(2, goal.StatusPaused), 99); applied {
+		t.Fatal("mismatched generation must not apply")
+	}
+	// The current owner (expected 1) advances the goal to generation 2.
+	if applied, err := store.Save(ctx, mk(2, goal.StatusPaused), 1); err != nil || !applied {
+		t.Fatalf("cas update: applied=%v err=%v", applied, err)
+	}
+	got, _, _ := store.Get(ctx, sess)
+	if got.Generation != 2 || got.Status != goal.StatusPaused {
+		t.Fatalf("after cas: gen=%d status=%q, want 2/paused", got.Generation, got.Status)
+	}
+
+	// ClearIf rejects a stale generation and applies on a match.
+	if applied, _ := store.ClearIf(ctx, sess, 1); applied {
+		t.Fatal("ClearIf must not delete on a stale generation")
+	}
+	if applied, err := store.ClearIf(ctx, sess, 2); err != nil || !applied {
+		t.Fatalf("ClearIf(match): applied=%v err=%v", applied, err)
+	}
+	if _, ok, _ := store.Get(ctx, sess); ok {
+		t.Fatal("goal should be gone after a matching ClearIf")
 	}
 }

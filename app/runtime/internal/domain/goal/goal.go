@@ -81,8 +81,15 @@ type Goal struct {
 	Model     string
 	Budget    Budget
 	Used      Usage
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	// Generation is the loop-incarnation token behind the store CAS. It is set by
+	// the store on read and by the driver on write; callers never interpret it
+	// beyond passing the last-read value as the CAS expectation. Every explicit
+	// lifecycle transition (Start/Resume/Stop) advances it, so a canceled loop's
+	// detached write — carrying the prior generation — is rejected rather than
+	// overwriting a newer goal or resurrecting a cleared one.
+	Generation int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 var (
@@ -157,13 +164,31 @@ func (g *Goal) Resume(now time.Time) {
 // transaction when the backend supports it.
 //
 // Get returns (zero, false, nil) for a session with no goal — that is not an
-// error. Save upserts. Clear removes a session's goal (completion, user
-// abandonment, or a deleted/rewound session); clearing a missing goal is not an
-// error. List returns every stored goal, for the boot reconcile that degrades a
-// live loop to paused after a restart.
+// error; the returned goal carries its current [Goal.Generation]. Clear removes
+// a session's goal (completion, user abandonment, or a deleted/rewound session);
+// clearing a missing goal is not an error. List returns every stored goal, for
+// the boot reconcile that degrades a live loop to paused after a restart.
+//
+// Save is a compare-and-swap: it applies iff the stored goal's generation equals
+// expected — or, when expected is 0, iff no goal exists yet (the initial
+// create) — and reports whether the write applied. A stale writer (whose
+// expected generation was superseded by a newer Start/Resume/Stop, or whose goal
+// was cleared by a deleted/rewound session) gets applied=false and MUST NOT
+// retry: it no longer owns the goal. This CAS, not a lock, is what keeps a
+// canceled loop's detached terminal write from resurrecting or clobbering a
+// newer goal (the loop runs request-detached, so cancellation alone cannot stop
+// an in-flight write).
 type Store interface {
 	Get(ctx context.Context, sessionID string) (Goal, bool, error)
-	Save(ctx context.Context, g Goal) error
+	Save(ctx context.Context, g Goal, expected int64) (applied bool, err error)
+	// Clear removes a session's goal unconditionally — the session-lifecycle
+	// write-sets (delete / rollback / restore) and the boot reconcile use it,
+	// since they own the session and no incarnation can legitimately survive.
 	Clear(ctx context.Context, sessionID string) error
+	// ClearIf removes a session's goal only when its stored generation equals
+	// expected, reporting whether it applied — the CAS the loop uses to clear a
+	// goal it just observed complete, so it cannot delete a newer goal that a
+	// concurrent Start slipped in.
+	ClearIf(ctx context.Context, sessionID string, expected int64) (applied bool, err error)
 	List(ctx context.Context) ([]Goal, error)
 }

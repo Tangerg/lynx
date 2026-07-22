@@ -32,6 +32,15 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	if err != nil {
 		return err
 	}
+	// Cancel the Goal loops of the rewound session and every dropped subsession
+	// before the write-set clears their goals, so no straggler drives the
+	// pre-rollback objective. Non-blocking; the generation CAS is the durable net.
+	if c.goals != nil {
+		c.goals.Quiesce(sessionID)
+		for _, id := range dropSessionIDs {
+			c.goals.Quiesce(id)
+		}
+	}
 	// A dropped parked run held the session's durable admission slot; the write-set
 	// terminalizes it (Terminate) so the session can start a fresh run afterward.
 	// The partial unique index guarantees at most one non-terminal row per session.

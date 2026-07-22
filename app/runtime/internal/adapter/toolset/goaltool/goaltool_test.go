@@ -20,9 +20,43 @@ func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
 	g, ok := s.goals[id]
 	return g, ok, nil
 }
-func (s *memStore) Save(_ context.Context, g goal.Goal) error { s.goals[g.SessionID] = g; return nil }
-func (s *memStore) Clear(_ context.Context, id string) error  { delete(s.goals, id); return nil }
+
+// put seeds a goal directly (test setup), bypassing the CAS.
+func (s *memStore) put(g goal.Goal) { s.goals[g.SessionID] = g }
+
+func (s *memStore) Save(_ context.Context, g goal.Goal, expected int64) (bool, error) {
+	cur, ok := s.goals[g.SessionID]
+	if expected == 0 {
+		if ok {
+			return false, nil
+		}
+		s.goals[g.SessionID] = g
+		return true, nil
+	}
+	if !ok || cur.Generation != expected {
+		return false, nil
+	}
+	s.goals[g.SessionID] = g
+	return true, nil
+}
+func (s *memStore) Clear(_ context.Context, id string) error { delete(s.goals, id); return nil }
+func (s *memStore) ClearIf(_ context.Context, id string, expected int64) (bool, error) {
+	cur, ok := s.goals[id]
+	if !ok || cur.Generation != expected {
+		return false, nil
+	}
+	delete(s.goals, id)
+	return true, nil
+}
 func (s *memStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
+
+// activeGoal builds a stored active goal at generation 1 (production goals are
+// always >= 1; only the driver's first Save mints them).
+func activeGoal(session string) goal.Goal {
+	g, _ := goal.New(session, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g.Generation = 1
+	return g
+}
 
 // fake ProcessView / blackboard: just enough for turnctx.TurnSession off ctx.
 type fakeBlackboard struct {
@@ -51,8 +85,7 @@ func newTool(t *testing.T, store goal.Store) *tool {
 
 func TestUpdateGoal_Complete(t *testing.T) {
 	store := newMemStore()
-	g, _ := goal.New("s1", "obj", "", "", goal.Budget{}, time.Unix(0, 0))
-	_ = store.Save(context.Background(), g)
+	store.put(activeGoal("s1"))
 
 	out, err := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})
 	if err != nil {
@@ -68,8 +101,7 @@ func TestUpdateGoal_Complete(t *testing.T) {
 
 func TestUpdateGoal_BlockedRequiresReason(t *testing.T) {
 	store := newMemStore()
-	g, _ := goal.New("s1", "obj", "", "", goal.Budget{}, time.Unix(0, 0))
-	_ = store.Save(context.Background(), g)
+	store.put(activeGoal("s1"))
 	tl := newTool(t, store)
 
 	out, _ := tl.update(sessionCtx("s1"), updateArgs{Status: "blocked"})
@@ -102,9 +134,9 @@ func TestUpdateGoal_NoActiveGoal(t *testing.T) {
 
 func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
 	store := newMemStore()
-	g, _ := goal.New("s1", "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g := activeGoal("s1")
 	g.Pause("user stop", time.Unix(0, 0))
-	_ = store.Save(context.Background(), g)
+	store.put(g)
 
 	out, _ := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})
 	if !strings.Contains(out, "No active goal") {
@@ -112,6 +144,34 @@ func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
 	}
 	if store.goals["s1"].Status != goal.StatusPaused {
 		t.Fatal("paused goal must not be flipped to complete")
+	}
+}
+
+// TestUpdateGoal_SupersededStampRefused verifies the race-#4 guard: a run
+// stamped with an OLD goal incarnation (turnctx.GoalGenerationBindingKey) must
+// not signal the current goal, which a fresh Start advanced to a new generation.
+func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
+	store := newMemStore()
+	current := activeGoal("s1")
+	current.Generation = 5 // a fresh Start advanced past the straggler run's stamp
+	store.put(current)
+
+	// The run carries generation 3 (the goal it was launched under, since superseded).
+	bb := fakeBlackboard{vals: map[string]any{
+		turnctx.SessionBindingKey:        "s1",
+		turnctx.GoalGenerationBindingKey: int64(3),
+	}}
+	ctx := core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
+
+	out, err := newTool(t, store).update(ctx, updateArgs{Status: "complete"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "superseded") {
+		t.Fatalf("output = %q, want a superseded-goal refusal", out)
+	}
+	if store.goals["s1"].Status != goal.StatusActive {
+		t.Fatal("a straggler run must not flip the current goal to complete")
 	}
 }
 

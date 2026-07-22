@@ -90,6 +90,9 @@ type StartTurn struct {
 	MaxSteps       int
 	Options        *corechat.Options
 	InterruptKinds []string
+	// GoalGeneration stamps a Goal-mode autonomous run with its goal incarnation
+	// so update_goal only signals that goal; zero for ordinary runs.
+	GoalGeneration int64
 }
 
 // RehydrateTurn describes rebuilding a parked executor turn from its durable

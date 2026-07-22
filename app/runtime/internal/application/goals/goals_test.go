@@ -37,12 +37,20 @@ func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
 	g, ok := s.goals[id]
 	return g, ok, nil
 }
-func (s *memStore) Save(_ context.Context, g goal.Goal) error {
+func (s *memStore) Save(_ context.Context, g goal.Goal, expected int64) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	cur, ok := s.goals[g.SessionID]
+	if expected == 0 {
+		if ok {
+			return false, nil
+		}
+	} else if !ok || cur.Generation != expected {
+		return false, nil
+	}
 	s.goals[g.SessionID] = g
 	s.notifyLocked()
-	return nil
+	return true, nil
 }
 func (s *memStore) Clear(_ context.Context, id string) error {
 	s.mu.Lock()
@@ -50,6 +58,17 @@ func (s *memStore) Clear(_ context.Context, id string) error {
 	delete(s.goals, id)
 	s.notifyLocked()
 	return nil
+}
+func (s *memStore) ClearIf(_ context.Context, id string, expected int64) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cur, ok := s.goals[id]
+	if !ok || cur.Generation != expected {
+		return false, nil
+	}
+	delete(s.goals, id)
+	s.notifyLocked()
+	return true, nil
 }
 func (s *memStore) List(context.Context) ([]goal.Goal, error) {
 	s.mu.Lock()
@@ -114,10 +133,12 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	}
 	tn := f.script[i]
 	if tn.setStatus != "" {
+		// Simulate the model calling update_goal mid-turn: a CAS on the goal's
+		// current generation (update_goal keeps the incarnation).
 		g, _, _ := f.store.Get(ctx, cmd.SessionID)
 		g.Status = tn.setStatus
 		g.Reason = tn.reason
-		_ = f.store.Save(ctx, g)
+		_, _ = f.store.Save(ctx, g, g.Generation)
 	}
 	go func() {
 		if f.hold != nil {
@@ -138,9 +159,17 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	return runs.StartResult{RunID: "run", SessionID: cmd.SessionID, Events: events}, nil
 }
 
+// fakeSessions is the driver's session-existence check; sessions exist unless
+// listed in deleted (nil map = all exist).
+type fakeSessions struct{ deleted map[string]bool }
+
+func (f *fakeSessions) Exists(_ context.Context, id string) (bool, error) {
+	return !f.deleted[id], nil
+}
+
 func newDriver(t *testing.T, store *memStore, script ...turn) *goals.Driver {
 	t.Helper()
-	d := goals.NewDriver(store, &fakeRuns{t: t, store: store, script: script})
+	d := goals.NewDriver(store, &fakeRuns{t: t, store: store, script: script}, &fakeSessions{})
 	t.Cleanup(func() { _ = d.Close() })
 	return d
 }
@@ -214,7 +243,8 @@ func TestDriverAccumulatesCostBudget(t *testing.T) {
 func TestDriverRefusesConcurrentStart(t *testing.T) {
 	store := newMemStore()
 	g, _ := goal.New("s1", "obj", "", "", goal.Budget{}, time.Unix(0, 0))
-	_ = store.Save(context.Background(), g)
+	g.Generation = 1
+	_, _ = store.Save(context.Background(), g, 0)
 	d := newDriver(t, store) // no script needed; Start is rejected before any run
 	if _, err := d.Start(context.Background(), "s1", "obj2", "", "", goal.Budget{}); err != goals.ErrGoalActive {
 		t.Fatalf("Start on active goal = %v, want ErrGoalActive", err)
@@ -229,7 +259,7 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 	hold := make(chan struct{})
 	started := make(chan struct{}, 1)
 	fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}}, hold: hold, started: started}
-	d := goals.NewDriver(store, fake)
+	d := goals.NewDriver(store, fake, &fakeSessions{})
 	t.Cleanup(func() { _ = d.Close() })
 
 	if _, err := d.Start(context.Background(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
@@ -312,7 +342,8 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 	paused, _ := goal.New("held", "obj", "", "", goal.Budget{}, now)
 	paused.Pause("earlier", now)
 	for _, g := range []goal.Goal{active, done, paused} {
-		_ = store.Save(context.Background(), g)
+		g.Generation = 1
+		_, _ = store.Save(context.Background(), g, 0)
 	}
 
 	d := newDriver(t, store)
@@ -327,5 +358,92 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 	}
 	if g, _, _ := store.Get(context.Background(), "held"); g.Status != goal.StatusPaused || g.Reason != "earlier" {
 		t.Fatalf("paused goal was disturbed: %+v", g)
+	}
+}
+
+func TestStartRefusesMissingSession(t *testing.T) {
+	store := newMemStore()
+	fake := &fakeRuns{t: t, store: store}
+	d := goals.NewDriver(store, fake, &fakeSessions{deleted: map[string]bool{"ghost": true}})
+	t.Cleanup(func() { _ = d.Close() })
+
+	if _, err := d.Start(context.Background(), "ghost", "obj", "p", "m", goal.Budget{}); err != goals.ErrNoSession {
+		t.Fatalf("Start(missing session) = %v, want ErrNoSession", err)
+	}
+	if _, ok, _ := store.Get(context.Background(), "ghost"); ok {
+		t.Fatal("a goal was created for a nonexistent session")
+	}
+	fake.mu.Lock()
+	calls := fake.calls
+	fake.mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("launched %d runs for a missing session, want 0", calls)
+	}
+}
+
+func TestReconcileSweepsOrphanGoal(t *testing.T) {
+	store := newMemStore()
+	now := time.Unix(0, 0)
+	orphan, _ := goal.New("gone", "obj", "", "", goal.Budget{}, now) // session deleted while down
+	orphan.Generation = 1
+	_, _ = store.Save(context.Background(), orphan, 0)
+	kept, _ := goal.New("live", "obj", "", "", goal.Budget{}, now)
+	kept.Generation = 1
+	kept.Pause("earlier", now)
+	_, _ = store.Save(context.Background(), kept, 0)
+
+	d := goals.NewDriver(store, &fakeRuns{t: t, store: store}, &fakeSessions{deleted: map[string]bool{"gone": true}})
+	t.Cleanup(func() { _ = d.Close() })
+	if err := d.Reconcile(context.Background()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if _, ok, _ := store.Get(context.Background(), "gone"); ok {
+		t.Fatal("orphan goal for a deleted session was not swept")
+	}
+	if _, ok, _ := store.Get(context.Background(), "live"); !ok {
+		t.Fatal("a goal for a live session was wrongly swept")
+	}
+}
+
+// TestStopThenStartRejectsStragglerWrite is the race-#4 keystone: a run whose
+// goal was stopped and replaced by a fresh Start (a newer generation) must not
+// clobber the new goal when its straggler loop finally drains. The loop's launch
+// generation no longer matches, so it stops without writing.
+func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
+	store := newMemStore()
+	hold := make(chan struct{})
+	started := make(chan struct{}, 1)
+	fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeError}}, hold: hold, started: started}
+	d := goals.NewDriver(store, fake, &fakeSessions{})
+	t.Cleanup(func() { _ = d.Close() })
+
+	if _, err := d.Start(context.Background(), "s1", "objective one", "p", "m", goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("goal driver did not launch its first run")
+	}
+	// User stops the goal (generation → 2, paused, loop canceled) then starts a
+	// fresh objective. Save the new goal at generation 3 exactly as Start would
+	// (no second loop launched, to keep the straggler the only writer under test).
+	if _, err := d.Stop(context.Background(), "s1"); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	newGoal, _ := goal.New("s1", "objective two", "p", "m", goal.Budget{}, time.Unix(0, 0))
+	newGoal.Generation = 3
+	if applied, err := store.Save(context.Background(), newGoal, 2); err != nil || !applied {
+		t.Fatalf("seed replacement goal: applied=%v err=%v", applied, err)
+	}
+
+	close(hold) // release the straggler run; its loop drains and re-reads the goal
+	if err := d.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	got, ok, _ := store.Get(context.Background(), "s1")
+	if !ok || got.Generation != 3 || got.Status != goal.StatusActive || got.Objective != "objective two" {
+		t.Fatalf("straggler clobbered the replacement goal: %+v", got)
 	}
 }

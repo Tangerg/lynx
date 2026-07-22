@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -41,6 +42,7 @@ type sessionStores struct {
 	todos       todo.Store
 	approvals   approval.RuleStore
 	toolResults *sqlitestore.ToolResultStore
+	goals       goal.Store
 	forgetter   sessionForgetter
 	tx          Transactor
 }
@@ -129,6 +131,13 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 				return err
 			}
 		}
+		// A rewind invalidates the goal's cross-run usage accounting too; clear it
+		// in the same commit (dropped subsessions are cleared by deleteSession).
+		if s.goals != nil {
+			if err := s.goals.Clear(ctx, plan.SessionID); err != nil {
+				return err
+			}
+		}
 		if plan.KeepMark >= 0 {
 			if err := s.history.Truncate(ctx, plan.SessionID, plan.KeepMark); err != nil {
 				return err
@@ -208,6 +217,13 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 				return err
 			}
 		}
+		if s.goals != nil {
+			// Replacing the whole history invalidates the goal (its usage
+			// accounting referenced the runs being dropped); clear it with the rest.
+			if err := s.goals.Clear(ctx, id); err != nil {
+				return err
+			}
+		}
 		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
 			return err
 		}
@@ -267,6 +283,13 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 	}
 	if s.approvals != nil {
 		if err := s.approvals.DeleteSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
+	if s.goals != nil {
+		// A goal is session-owned; drop it in the same cascade so a deleted
+		// session leaves no orphan goal (and no loop to resurrect one).
+		if err := s.goals.Clear(ctx, sessionID); err != nil {
 			return err
 		}
 	}
