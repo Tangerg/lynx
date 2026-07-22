@@ -6,13 +6,12 @@
 //     working tree, confined to write only within its cwd, with the network
 //     denied, $HOME hidden, and the environment scrubbed. It backs the live
 //     shell tool (see internal/infra/exec).
-//   - Workspace (groundwork, no production caller by design): an isolated
-//     working copy with content-addressed tar snapshots and resume — a
-//     from-scratch Executor for eventually running untrusted code. It is the
-//     deliberately-retained C7 deliverable (doc/AGENTSCOPE_INSPIRED_BACKLOG.md);
-//     its consumers (untrusted-code execution, execpolicy, yolo-safe autonomous
-//     runs) and its Linux/Windows jail backends are unbuilt, so it is dormant on
-//     purpose — NOT dead code. Delete only when C7 is retired as a plan.
+//   - Workspace (wired): an isolated working copy with content-addressed tar
+//     snapshots — a session marked Isolated runs its tools inside one instead of
+//     the real tree (see internal/adapter/isolation). New/Path/Stop/Shutdown are
+//     the copy lifecycle the isolation adapter drives; Resume rebuilds a copy
+//     from a snapshot. macOS-only today (fail-closed elsewhere); its execpolicy /
+//     Linux-Windows-backend extensions remain future work (the C7 backlog).
 package sandbox
 
 import (
