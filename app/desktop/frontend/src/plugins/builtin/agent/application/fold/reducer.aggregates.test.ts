@@ -104,7 +104,6 @@ describe("reducer — shared state", () => {
     });
     expect(s.shared).toEqual({ plan: ["a", "b"], counter: 1 });
   });
-
 });
 
 describe("reducer — durable history hydration", () => {

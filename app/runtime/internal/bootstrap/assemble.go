@@ -387,15 +387,14 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if isolator != nil {
 		sessionDeps.Sandbox = isolator
 	}
-	// The session coordinator quiesces a mutated session's goal loop, but the goal
-	// driver is built after it (the driver depends on the run coordinator, which
-	// depends on the session coordinator). goalQuiescer late-binds the driver into
-	// the coordinator, breaking that construction cycle without a public setter; it
-	// is populated below, before serving begins.
-	var goalQuiescer *goalQuiescerRef
+	// The session coordinator serializes write-sets with Goal lifecycle commands,
+	// but the Goal driver is built after it (the driver depends on the run
+	// coordinator, which depends on the session coordinator). The guard is
+	// late-bound before serving to break that construction cycle.
+	var goalMutationGuard *goalMutationGuardRef
 	if cfg.GoalStore != nil {
-		goalQuiescer = &goalQuiescerRef{}
-		sessionDeps.Goals = goalQuiescer
+		goalMutationGuard = &goalMutationGuardRef{}
+		sessionDeps.Goals = goalMutationGuard
 	}
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
@@ -458,7 +457,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
 		goalDriver = goals.NewDriver(cfg.GoalStore, runCoord, cfg.SessionStore)
-		goalQuiescer.d = goalDriver // late-bind into the session coordinator
+		goalMutationGuard.d = goalDriver // late-bind into the session coordinator
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}

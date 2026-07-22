@@ -33,7 +33,7 @@ const autonomyNote = "\n\n(You are running autonomously toward this goal — you
 // launch spawns the loop for sessionID, canceling any prior loop for the same
 // session first. The loop runs request-detached (task group) so it outlives the
 // call that started it and is canceled by Stop or shutdown.
-func (d *Driver) launch(parent context.Context, sessionID string, generation int64) {
+func (d *Driver) launch(parent context.Context, sessionID, leaseID string) {
 	ctx, release, ok := d.tasks.Attach(parent)
 	if !ok {
 		return // shutting down
@@ -51,7 +51,7 @@ func (d *Driver) launch(parent context.Context, sessionID string, generation int
 	go func() {
 		defer release()
 		defer d.forget(sessionID, handle)
-		d.drive(ctx, sessionID, generation)
+		d.drive(ctx, sessionID, leaseID)
 	}()
 }
 
@@ -67,19 +67,19 @@ func (d *Driver) forget(sessionID string, handle *loopHandle) {
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
 // than resuming and burning budget.
-func (d *Driver) drive(ctx context.Context, sessionID string, generation int64) {
+func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 		g, ok, err := d.goals.Get(ctx, sessionID)
-		// Stop when the goal is gone or no longer active. The generation check is a
+		// Stop when the goal is gone or no longer active. The lease check is a
 		// cheap backstop — a supersession (Stop/Start/Resume) is already caught above
 		// by ctx cancellation or by the status leaving active — that guards a future
-		// regression where a transition stops cancelling the loop. The load-bearing
-		// generation guard is the re-read in runTurn: it prevents adopting and
+		// regression where a transition stops canceling the loop. The load-bearing
+		// lease guard is the re-read in runTurn: it prevents adopting and
 		// clobbering a foreign incarnation mid-turn.
-		if err != nil || !ok || g.Status != goal.StatusActive || g.Generation != generation {
+		if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 			return
 		}
 		if _, keepGoing := d.runTurn(ctx, &g); !keepGoing {
@@ -130,12 +130,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	if !ok {
 		return "", false
 	}
-	// If the generation advanced, a Stop/Start/Resume superseded this loop's goal
+	// If the lease changed, a Stop/Start/Resume superseded this loop's goal
 	// while the run was in flight. Adopting the re-read (a different incarnation,
 	// maybe a whole new objective) and saving to it would clobber a goal this
-	// loop no longer owns; stop instead. This keeps g at the launch generation,
-	// so the terminal saves below CAS on the incarnation the loop actually drove.
-	if reread.Generation != g.Generation {
+	// loop no longer owns; stop instead. This keeps g at the launch lease, so the
+	// terminal saves below CAS on the incarnation the loop actually drove.
+	if reread.LeaseID != g.LeaseID {
 		return "", false
 	}
 	*g = reread
@@ -179,7 +179,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	}
 	if !d.checkpoint(ctx, *g) {
 		// The goal was superseded or cleared out from under this loop (a
-		// Stop/Start or a session delete/rollback bumped the generation); stop
+		// Stop/Start or a session delete/rollback revoked the lease); stop
 		// rather than drive a goal we no longer own.
 		return "", false
 	}
@@ -220,11 +220,11 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 		Model:           g.Model,
 		OpeningUserText: message,
 		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: message}},
-		// GoalGeneration stamps the run with the incarnation that launched it, so
+		// GoalLeaseID stamps the run with the incarnation that launched it, so
 		// update_goal only signals THIS goal: a straggler run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
-		// complete/blocked — its generation no longer matches.
-		GoalGeneration: g.Generation,
+		// complete/blocked — its lease no longer matches.
+		GoalLeaseID: g.LeaseID,
 	}
 }
 
@@ -271,28 +271,32 @@ func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
 
 // save / clear persist the loop's TERMINAL state even when ctx was canceled by
 // Stop/shutdown (detached drops cancellation but keeps trace values). Both are
-// compare-and-swap on the loop's generation: a straggler whose goal was
+// compare-and-swap on the loop's version: a straggler whose goal was
 // superseded (Stop/Start) or cleared (delete/rollback) simply does not apply —
 // it can neither clobber a newer goal nor resurrect a deleted one. A store error
 // (not a lost CAS) is recorded on the turn span; the boot reconcile is the
 // backstop.
 func (d *Driver) save(ctx context.Context, g goal.Goal) {
-	_, err := d.goals.Save(detached(ctx), g, g.Generation)
+	expected := g.Version()
+	g.AdvanceRevision()
+	_, err := d.goals.Save(detached(ctx), g, expected)
 	recordSaveError(ctx, err)
 }
 
 func (d *Driver) clear(ctx context.Context, g goal.Goal) {
-	_, err := d.goals.ClearIf(detached(ctx), g.SessionID, g.Generation)
+	_, err := d.goals.ClearIf(detached(ctx), g.SessionID, g.Version())
 	recordSaveError(ctx, err)
 }
 
 // checkpoint persists mid-loop usage progress and reports whether the loop still
-// owns the goal. It HONORS ctx and CAS-guards on the loop's generation: a
-// concurrent Stop/Start (generation bump) or session delete (goal cleared) makes
+// owns the goal. It HONORS ctx and CAS-guards on the loop's version: a
+// concurrent Stop/Start (lease renewal) or session delete (goal cleared) makes
 // the CAS not apply, and the caller stops driving. A ctx cancellation here is the
 // expected Stop path (the loop is being torn down), not an error worth recording.
 func (d *Driver) checkpoint(ctx context.Context, g goal.Goal) (owned bool) {
-	applied, err := d.goals.Save(ctx, g, g.Generation)
+	expected := g.Version()
+	g.AdvanceRevision()
+	applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		if ctx.Err() == nil {
 			recordSaveError(ctx, err)

@@ -20,10 +20,12 @@ type emptyGoalStore struct{}
 func (emptyGoalStore) Get(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (emptyGoalStore) Save(context.Context, goal.Goal, int64) (bool, error) { return false, nil }
-func (emptyGoalStore) Clear(context.Context, string) error                  { return nil }
-func (emptyGoalStore) ClearIf(context.Context, string, int64) (bool, error) { return false, nil }
-func (emptyGoalStore) List(context.Context) ([]goal.Goal, error)            { return nil, nil }
+func (emptyGoalStore) Save(context.Context, goal.Goal, goal.Version) (bool, error) { return false, nil }
+func (emptyGoalStore) Clear(context.Context, string) error                         { return nil }
+func (emptyGoalStore) ClearIf(context.Context, string, goal.Version) (bool, error) {
+	return false, nil
+}
+func (emptyGoalStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
 
 func toolNameSet(ts []tools.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))

@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 18
+const schemaVersion = 19
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -230,10 +230,11 @@ func installCurrentSchema(db *sql.DB) error {
 			items      TEXT    NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
-		// One autonomous goal per session (Goal mode). budget/used are small JSON
-		// blobs — read and written whole with the row, like todos.items.
+		// One autonomous goal per session (Goal mode). The FK is the durable
+		// ownership invariant: a Goal cannot survive or be created after its
+		// Session. budget/used are small JSON blobs read/written whole with the row.
 		`CREATE TABLE IF NOT EXISTS goals (
-			session_id TEXT    PRIMARY KEY,
+			session_id TEXT    PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
 			objective  TEXT    NOT NULL,
 			status     TEXT    NOT NULL,
 			reason     TEXT    NOT NULL DEFAULT '',
@@ -241,9 +242,8 @@ func installCurrentSchema(db *sql.DB) error {
 			model      TEXT    NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,
 			used       TEXT    NOT NULL,
-			-- generation is the loop-incarnation token behind the goal CAS (the
-			-- goal.Store contract explains it); every start/resume/stop bumps it.
-			generation INTEGER NOT NULL DEFAULT 0,
+			lease_id   TEXT    NOT NULL CHECK (lease_id <> ''),
+			revision   INTEGER NOT NULL CHECK (revision > 0),
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,

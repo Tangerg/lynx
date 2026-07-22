@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { STREAM_EVENT_TYPES } from "./shapes";
+
 import type {
   AgentDoc,
   ApprovalMode,
@@ -282,6 +284,13 @@ const samples: unknown[] = [
 ];
 
 describe("wire golden samples", () => {
+  it("advertises only supported stream events", () => {
+    const supported = new Set<string>(STREAM_EVENT_TYPES);
+    for (const event of requestMeta.clientCapabilities.events) {
+      expect(supported.has(event)).toBe(true);
+    }
+  });
+
   it("every canonical sample parses to a non-empty object", () => {
     expect(samples.length).toBeGreaterThan(0);
     for (const s of samples) expect(s).toBeTruthy();

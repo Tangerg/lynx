@@ -13,7 +13,6 @@
       "item.delta",
       "item.completed",
       "state.snapshot",
-      "state.delta",
       "custom"
     ],
     "features": {

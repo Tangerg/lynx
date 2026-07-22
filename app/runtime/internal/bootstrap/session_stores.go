@@ -184,45 +184,15 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 	}
 	plan = normalized
 	id := plan.Session.ID
+	if s.toolResults == nil && len(plan.ToolResults) > 0 {
+		return errors.New("bootstrap: cannot restore tool results without blob persistence")
+	}
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
 			return err
 		}
-		if err := s.deleteInterrupts(ctx, id); err != nil {
+		if err := s.clearSessionOwnedState(ctx, id); err != nil {
 			return err
-		}
-		if err := s.runs.DeleteForSession(ctx, id); err != nil {
-			return err
-		}
-		if err := s.transcript.DeleteSession(ctx, id); err != nil {
-			return err
-		}
-		if s.toolResults != nil {
-			if err := s.toolResults.DropSession(ctx, id); err != nil {
-				return err
-			}
-		} else if len(plan.ToolResults) > 0 {
-			return errors.New("bootstrap: cannot restore tool results without blob persistence")
-		}
-		if err := s.history.Clear(ctx, id); err != nil {
-			return err
-		}
-		if s.todos != nil {
-			if err := s.todos.DeleteSession(ctx, id); err != nil {
-				return err
-			}
-		}
-		if s.approvals != nil {
-			if err := s.approvals.DeleteSession(ctx, id); err != nil {
-				return err
-			}
-		}
-		if s.goals != nil {
-			// Replacing the whole history invalidates the goal (its usage
-			// accounting referenced the runs being dropped); clear it with the rest.
-			if err := s.goals.Clear(ctx, id); err != nil {
-				return err
-			}
 		}
 		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
 			return err
@@ -237,9 +207,11 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 				return err
 			}
 		}
-		for _, blob := range plan.ToolResults {
-			if err := s.toolResults.Restore(ctx, blob); err != nil {
-				return err
+		if s.toolResults != nil {
+			for _, blob := range plan.ToolResults {
+				if err := s.toolResults.Restore(ctx, blob); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -264,6 +236,16 @@ func (s sessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan
 }
 
 func (s sessionStores) deleteSession(ctx context.Context, sessionID string) error {
+	if err := s.clearSessionOwnedState(ctx, sessionID); err != nil {
+		return err
+	}
+	return s.sessions.Delete(ctx, sessionID)
+}
+
+// clearSessionOwnedState removes every child projection that is invalid once a
+// session's history is replaced or its row is deleted. Both operations share
+// this one write-set so future session-owned state cannot drift between them.
+func (s sessionStores) clearSessionOwnedState(ctx context.Context, sessionID string) error {
 	if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
@@ -287,8 +269,8 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 		}
 	}
 	if s.goals != nil {
-		// A goal is session-owned; drop it in the same cascade so a deleted
-		// session leaves no orphan goal (and no loop to resurrect one).
+		// A goal's usage refers to this session's runs, so replacing its history
+		// invalidates it just as surely as deleting the session does.
 		if err := s.goals.Clear(ctx, sessionID); err != nil {
 			return err
 		}
@@ -300,7 +282,7 @@ func (s sessionStores) deleteSession(ctx context.Context, sessionID string) erro
 			return err
 		}
 	}
-	return s.sessions.Delete(ctx, sessionID)
+	return nil
 }
 
 // ApplyTerminal ends a parked run: it drops the open interrupt + process

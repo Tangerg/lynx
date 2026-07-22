@@ -144,13 +144,11 @@ type SandboxDiscarder interface {
 	Discard(sessionID string) error
 }
 
-// GoalQuiescer cancels a session's autonomous Goal-mode loop before a
-// delete/rollback/restore clears its goal, so no straggler run launches against
-// the mutated session. Canceling is enough: the goal store's generation CAS
-// makes any in-flight loop write a no-op, so this never blocks on a model turn.
-// nil disables it (Goal mode off).
-type GoalQuiescer interface {
-	Quiesce(sessionID string)
+// GoalMutationGuard serializes a session write-set with Goal lifecycle
+// commands. It quiesces loops only after apply commits, so a failed mutation
+// leaves an active Goal's loop intact. nil disables it (Goal mode off).
+type GoalMutationGuard interface {
+	WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error
 }
 
 // WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):
@@ -191,9 +189,9 @@ type Coordinator struct {
 	// sandbox destroys a deleted/rolled-back/restored session's isolated working
 	// copy, post-commit alongside the checkpoint drop; nil disables it.
 	sandbox SandboxDiscarder
-	// goals cancels a mutated session's autonomous Goal loop before its goal is
-	// cleared; nil disables it (Goal mode off).
-	goals GoalQuiescer
+	// goals serializes a session write-set with Goal lifecycle commands and
+	// quiesces its loop after a successful commit; nil disables Goal mode.
+	goals GoalMutationGuard
 	// mutations is the §8.5 recoverable operation log guarding a file+history
 	// rollback across the working tree and the durable history; nil disables it.
 	mutations WorkspaceMutations
@@ -212,7 +210,7 @@ type Dependencies struct {
 	Paths       CwdResolver
 	Checkpoints WorkspaceCheckpoints
 	Sandbox     SandboxDiscarder
-	Goals       GoalQuiescer
+	Goals       GoalMutationGuard
 	Mutations   WorkspaceMutations
 }
 
