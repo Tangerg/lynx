@@ -41,7 +41,7 @@ type goalUsed struct {
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id, objective, status, reason, provider, model, budget, used, generation, created_at, updated_at
+		`SELECT session_id, objective, status, reason, provider, model, budget, used, lease_id, revision, created_at, updated_at
 		 FROM goals WHERE session_id = ?`, sessionID)
 	g, err := scanGoal(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -53,12 +53,10 @@ func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool,
 	return g, true, nil
 }
 
-// Save is the goal CAS (see [goal.Store] for the contract): it writes g at
-// g.Generation iff the stored generation equals expected, or inserts when
-// expected is 0 and no row exists, reporting whether it applied. INSERT-if-absent
+// Save is the goal CAS (see [goal.Store] for the contract). INSERT-if-absent
 // (not INSERT OR REPLACE) is deliberate — a stale writer whose row was cleared
 // must not resurrect it.
-func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected int64) (bool, error) {
+func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
 	budget, err := json.Marshal(goalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
 	if err != nil {
 		return false, fmt.Errorf("sqlite: encode goal budget: %w", err)
@@ -67,24 +65,24 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected int64) (bool
 	if err != nil {
 		return false, fmt.Errorf("sqlite: encode goal used: %w", err)
 	}
-	if expected == 0 {
+	if expected == (goal.Version{}) {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT INTO goals(session_id, objective, status, reason, provider, model, budget, used, generation, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO goals(session_id, objective, status, reason, provider, model, budget, used, lease_id, revision, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
 			g.SessionID, g.Objective, string(g.Status), g.Reason, g.Provider, g.Model,
-			string(budget), string(used), g.Generation, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
+			string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
 		if err != nil {
 			return false, fmt.Errorf("sqlite: insert goal: %w", err)
 		}
 		return rowsAffected(res)
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE goals SET objective = ?, status = ?, reason = ?, provider = ?, model = ?, budget = ?, used = ?, generation = ?, created_at = ?, updated_at = ?
-		 WHERE session_id = ? AND generation = ?`,
+		`UPDATE goals SET objective = ?, status = ?, reason = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
+		 WHERE session_id = ? AND lease_id = ? AND revision = ?`,
 		g.Objective, string(g.Status), g.Reason, g.Provider, g.Model,
-		string(budget), string(used), g.Generation, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
-		g.SessionID, expected)
+		string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
+		g.SessionID, expected.LeaseID, expected.Revision)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: save goal: %w", err)
 	}
@@ -108,11 +106,11 @@ func (s *GoalStore) Clear(ctx context.Context, sessionID string) error {
 	return nil
 }
 
-// ClearIf removes the session's goal only when its generation matches expected
+// ClearIf removes the session's goal only when its version matches expected
 // (the loop's CAS delete — see [goal.Store]), reporting whether it applied.
-func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected int64) (bool, error) {
+func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM goals WHERE session_id = ? AND generation = ?`, sessionID, expected)
+		`DELETE FROM goals WHERE session_id = ? AND lease_id = ? AND revision = ?`, sessionID, expected.LeaseID, expected.Revision)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: clear goal (cas): %w", err)
 	}
@@ -122,7 +120,7 @@ func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected int6
 // List returns every stored goal (for the boot reconcile).
 func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT session_id, objective, status, reason, provider, model, budget, used, generation, created_at, updated_at FROM goals`)
+		`SELECT session_id, objective, status, reason, provider, model, budget, used, lease_id, revision, created_at, updated_at FROM goals`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list goals: %w", err)
 	}
@@ -142,7 +140,7 @@ func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 }
 
 // scanGoal decodes one row of the goals table. Both queries select the same
-// eleven columns in the same order (session_id first), so [scanRow] covers
+// twelve columns in the same order (session_id first), so [scanRow] covers
 // *sql.Row (Get) and *sql.Rows (List) alike.
 func scanGoal(row scanRow) (goal.Goal, error) {
 	var (
@@ -151,7 +149,7 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 		budgetJSON, usedJSON string
 		createdAt, updatedAt int64
 	)
-	if err := row.Scan(&g.SessionID, &g.Objective, &status, &g.Reason, &g.Provider, &g.Model, &budgetJSON, &usedJSON, &g.Generation, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &g.Reason, &g.Provider, &g.Model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}

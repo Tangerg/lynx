@@ -28,24 +28,17 @@ func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, 
 		}
 	}()
 
-	// Cancel each session's Goal loop while the mutation slot is held, before the
-	// delete clears its goal — so no straggler launches a run against a session
-	// we are about to remove. Non-blocking; the generation CAS is the durable net.
-	if c.goals != nil {
-		for _, id := range sessionIDs {
-			c.goals.Quiesce(id)
-		}
-	}
-
 	var pending []interrupts.Pending
-	for _, id := range sessionIDs {
-		open, err := c.s.Interrupts().List(ctx, id)
-		if err != nil {
-			return err
+	if err := c.withGoalMutation(ctx, sessionIDs, func(ctx context.Context) error {
+		for _, id := range sessionIDs {
+			open, err := c.s.Interrupts().List(ctx, id)
+			if err != nil {
+				return err
+			}
+			pending = append(pending, open...)
 		}
-		pending = append(pending, open...)
-	}
-	if err := c.s.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs}); err != nil {
+		return c.s.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
+	}); err != nil {
 		return err
 	}
 	var cleanupErrs []error
@@ -155,6 +148,13 @@ func releaseAdmissions(admissions []RunAdmission) {
 	}
 }
 
+func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
+	if c.goals == nil {
+		return apply(ctx)
+	}
+	return c.goals.WithSessionMutation(ctx, sessionIDs, apply)
+}
+
 // RestoreSession recreates a session under its ORIGINAL id from a decoded
 // artifact and replaces its whole history as one atomic write-set (§8.1): it
 // upserts the session record, clears the old interrupts / admission rows /
@@ -177,17 +177,14 @@ func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer,
 		return err
 	}
 	defer admission.Release()
-	// Cancel any Goal loop before the restore replaces the session's history and
-	// clears its goal, so a straggler can't drive the pre-restore objective.
-	if c.goals != nil {
-		c.goals.Quiesce(snapshot.Session.ID)
-	}
 	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
 	if err != nil {
 		return err
 	}
 	snapshot.Session.Cwd = cwd
-	if err := c.s.ApplyRestore(ctx, snapshot); err != nil {
+	if err := c.withGoalMutation(ctx, []string{snapshot.Session.ID}, func(ctx context.Context) error {
+		return c.s.ApplyRestore(ctx, snapshot)
+	}); err != nil {
 		return err
 	}
 	// Restore replaced the whole history: any isolated working copy from before

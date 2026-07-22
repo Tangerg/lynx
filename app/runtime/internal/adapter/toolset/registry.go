@@ -31,8 +31,8 @@ type registry struct {
 	src *Resolver
 }
 
-func (r *registry) List(context.Context) ([]tool.Tool, error) {
-	chatTools := r.src.Tools()
+func (r *registry) List(ctx context.Context) ([]tool.Tool, error) {
+	chatTools := r.src.toolsFor(ctx)
 	out := make([]tool.Tool, 0, len(chatTools))
 	for _, candidate := range chatTools {
 		definition := candidate.Definition()
@@ -59,7 +59,7 @@ func (r *registry) Invoke(ctx context.Context, name, arguments string) (string, 
 		trace.WithAttributes(attribute.String(attrGenAIToolName, name)))
 	defer span.End()
 
-	for _, candidate := range r.src.Tools() {
+	for _, candidate := range r.src.toolsFor(ctx) {
 		if candidate.Definition().Name != name {
 			continue
 		}

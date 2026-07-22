@@ -244,7 +244,7 @@ func (m *SkillMiner) due(sessionID string) bool {
 	return false
 }
 
-// skillMinerPrompt distils the Hermes prompt wisdom (H-Skill-4): prefer a
+// skillMinerPrompt distills the Hermes prompt wisdom (H-Skill-4): prefer a
 // reusable, class-level procedure; refuse the well-known anti-patterns. The
 // model returns a complete SKILL.md or the exact sentinel NO_SKILL.
 const skillMinerPrompt = `You are mining a coding-agent conversation for a REUSABLE skill worth saving for future sessions.

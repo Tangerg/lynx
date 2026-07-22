@@ -56,10 +56,10 @@ type TurnRequest struct {
 	// (turnctx.IsolatedBindingKey) so tools and task sub-agents see the isolation.
 	Isolated bool
 
-	// GoalGeneration stamps a Goal-mode autonomous run with its goal incarnation.
-	// The chat action binds it protected (turnctx.GoalGenerationBindingKey) so
-	// update_goal only signals that goal. Zero for ordinary runs.
-	GoalGeneration int64
+	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation.
+	// The chat action binds it protected (turnctx.GoalLeaseBindingKey) so
+	// update_goal only signals that goal. Empty for ordinary runs.
+	GoalLeaseID string
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. See
@@ -140,7 +140,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, GoalGeneration: request.GoalGeneration, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
+	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, GoalLeaseID: request.GoalLeaseID, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
 	guardrails, err := e.steeringGuardrails(request.Steer)
 	if err != nil {

@@ -50,6 +50,41 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
+	stores := newMutationStores("")
+	coordinator := New(Dependencies{
+		Stores: stores,
+		Turns:  mutationTurns{operations: &stores.operations},
+		Paths:  testCwdResolver{},
+		Goals:  mutationGoalGuard{operations: &stores.operations},
+	})
+
+	if err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1"); err != nil {
+		t.Fatalf("DeleteSession: %v", err)
+	}
+	want := []string{"goal.mutation", "interrupts.list", "apply.delete", "goal.quiesce", "turn.cancel", "session.forget"}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want %v", stores.operations, want)
+	}
+}
+
+func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
+	stores := newMutationStores("apply.delete")
+	coordinator := New(Dependencies{
+		Stores: stores,
+		Turns:  mutationTurns{operations: &stores.operations},
+		Paths:  testCwdResolver{},
+		Goals:  mutationGoalGuard{operations: &stores.operations},
+	})
+
+	if err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1"); !errors.Is(err, errMutationStage) {
+		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
+	}
+	if slices.Contains(stores.operations, "goal.quiesce") {
+		t.Fatalf("operations = %v, goal was quiesced after a failed write-set", stores.operations)
+	}
+}
+
 func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing.T) {
 	stores := newMutationStores("")
 	turns := new(observingTurns)
@@ -253,6 +288,17 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 }
 
 var errMutationStage = errors.New("mutation stage failed")
+
+type mutationGoalGuard struct{ operations *[]string }
+
+func (g mutationGoalGuard) WithSessionMutation(ctx context.Context, _ []string, apply func(context.Context) error) error {
+	*g.operations = append(*g.operations, "goal.mutation")
+	if err := apply(ctx); err != nil {
+		return err
+	}
+	*g.operations = append(*g.operations, "goal.quiesce")
+	return nil
+}
 
 // mutationStores is the coordinator's Stores view for the mutation write-sets: it
 // records the atomic Apply* calls + the process cleanup, and lists a single open

@@ -74,7 +74,7 @@ func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (ru
 		MaxSteps:       request.MaxSteps,
 		Options:        request.Options,
 		InterruptKinds: request.InterruptKinds,
-		GoalGeneration: request.GoalGeneration,
+		GoalLeaseID:    request.GoalLeaseID,
 	})
 	if err != nil {
 		return runs.TurnRef{}, err

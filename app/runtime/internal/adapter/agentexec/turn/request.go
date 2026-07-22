@@ -44,10 +44,10 @@ type StartTurnRequest struct {
 	// shell must be OS-jailed. Carried to the blackboard binding.
 	Isolated bool
 
-	// GoalGeneration stamps a Goal-mode autonomous run with its goal incarnation,
-	// carried to the blackboard so update_goal only signals that goal. Zero for
+	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation,
+	// carried to the blackboard so update_goal only signals that goal. Empty for
 	// ordinary runs.
-	GoalGeneration int64
+	GoalLeaseID string
 
 	// Provider + Model select the model this turn runs against (the wire
 	// runs.start{providerId, model}). Both empty uses the runtime's default;

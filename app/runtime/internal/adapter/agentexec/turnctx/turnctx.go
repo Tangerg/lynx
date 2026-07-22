@@ -33,13 +33,13 @@ const SessionBindingKey = "lyra:session"
 // copy. Protected so a `task` sub-agent inherits the isolation.
 const IsolatedBindingKey = "lyra:isolated"
 
-// GoalGenerationBindingKey is the blackboard key the chat action binds
-// (protected) on a Goal-mode autonomous run: the goal incarnation (generation)
+// GoalLeaseBindingKey is the blackboard key the chat action binds (protected)
+// on a Goal-mode autonomous run: the goal incarnation lease
 // the loop launched this run under. update_goal reads it and compare-and-swaps
 // on it, so a straggler run from a superseded goal cannot signal a newer goal.
 // Absent on ordinary runs — then update_goal signals whatever goal is currently
 // active (a user-initiated turn legitimately targets the live goal).
-const GoalGenerationBindingKey = "lyra:goal-generation"
+const GoalLeaseBindingKey = "lyra:goal-lease"
 
 // TurnCwd reads the working directory the running process seeded on its
 // blackboard ([CwdBindingKey]), falling back to fallback when the turn carried
@@ -76,21 +76,21 @@ func TurnIsolated(ctx context.Context) bool {
 	return false
 }
 
-// TurnGoalGeneration reports the goal incarnation this run was launched under
-// ([GoalGenerationBindingKey]) and whether it was set. update_goal uses (gen,
-// true) as its CAS expectation; (0, false) means the run carries no goal stamp
+// TurnGoalLease reports the goal incarnation this run was launched under
+// ([GoalLeaseBindingKey]) and whether it was set. update_goal uses the lease to
+// reject a superseded run; ("", false) means the run carries no goal stamp
 // (a user turn), so update_goal targets the currently-active goal instead.
-func TurnGoalGeneration(ctx context.Context) (int64, bool) {
+func TurnGoalLease(ctx context.Context) (string, bool) {
 	process := core.ProcessViewFrom(ctx)
 	if process == nil {
-		return 0, false
+		return "", false
 	}
-	if value, ok := process.Blackboard().Load(GoalGenerationBindingKey); ok {
-		if generation, ok := value.(int64); ok {
-			return generation, true
+	if value, ok := process.Blackboard().Load(GoalLeaseBindingKey); ok {
+		if leaseID, ok := value.(string); ok && leaseID != "" {
+			return leaseID, true
 		}
 	}
-	return 0, false
+	return "", false
 }
 
 // TurnSession reads the session id the chat action seeded on the blackboard

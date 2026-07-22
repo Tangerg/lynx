@@ -444,13 +444,20 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	}
 }
 
-// seedGoal stores an active goal (generation 1) for a session, so a write-set
+// seedGoal stores an active goal for a session, so a write-set
 // test can assert the delete/rollback/restore cascade clears it.
 func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
 	t.Helper()
+	if _, err := ss.sessions.Get(t.Context(), sessionID); errors.Is(err, session.ErrNotFound) {
+		if err := ss.sessions.Restore(t.Context(), session.Session{ID: sessionID, StartedAt: time.Unix(0, 0), UpdatedAt: time.Unix(0, 0), Revision: 1}); err != nil {
+			t.Fatalf("seed goal session %q: %v", sessionID, err)
+		}
+	} else if err != nil {
+		t.Fatalf("get goal session %q: %v", sessionID, err)
+	}
 	g, _ := goal.New(sessionID, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
-	g.Generation = 1
-	if applied, err := ss.goals.Save(context.Background(), g, 0); err != nil || !applied {
+	g.RenewLease("lease-" + sessionID)
+	if applied, err := ss.goals.Save(context.Background(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal %q: applied=%v err=%v", sessionID, applied, err)
 	}
 }

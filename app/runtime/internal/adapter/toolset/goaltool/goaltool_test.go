@@ -24,25 +24,25 @@ func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
 // put seeds a goal directly (test setup), bypassing the CAS.
 func (s *memStore) put(g goal.Goal) { s.goals[g.SessionID] = g }
 
-func (s *memStore) Save(_ context.Context, g goal.Goal, expected int64) (bool, error) {
+func (s *memStore) Save(_ context.Context, g goal.Goal, expected goal.Version) (bool, error) {
 	cur, ok := s.goals[g.SessionID]
-	if expected == 0 {
+	if expected == (goal.Version{}) {
 		if ok {
 			return false, nil
 		}
 		s.goals[g.SessionID] = g
 		return true, nil
 	}
-	if !ok || cur.Generation != expected {
+	if !ok || cur.Version() != expected {
 		return false, nil
 	}
 	s.goals[g.SessionID] = g
 	return true, nil
 }
 func (s *memStore) Clear(_ context.Context, id string) error { delete(s.goals, id); return nil }
-func (s *memStore) ClearIf(_ context.Context, id string, expected int64) (bool, error) {
+func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) (bool, error) {
 	cur, ok := s.goals[id]
-	if !ok || cur.Generation != expected {
+	if !ok || cur.Version() != expected {
 		return false, nil
 	}
 	delete(s.goals, id)
@@ -50,11 +50,10 @@ func (s *memStore) ClearIf(_ context.Context, id string, expected int64) (bool, 
 }
 func (s *memStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
 
-// activeGoal builds a stored active goal at generation 1 (production goals are
-// always >= 1; only the driver's first Save mints them).
+// activeGoal builds a stored active goal with an opaque current lease.
 func activeGoal(session string) goal.Goal {
 	g, _ := goal.New(session, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
-	g.Generation = 1
+	g.RenewLease("lease-active")
 	return g
 }
 
@@ -148,18 +147,18 @@ func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
 }
 
 // TestUpdateGoal_SupersededStampRefused verifies the race-#4 guard: a run
-// stamped with an OLD goal incarnation (turnctx.GoalGenerationBindingKey) must
-// not signal the current goal, which a fresh Start advanced to a new generation.
+// stamped with an OLD goal incarnation (turnctx.GoalLeaseBindingKey) must not
+// signal the current goal, which a fresh Start gave a new lease.
 func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 	store := newMemStore()
 	current := activeGoal("s1")
-	current.Generation = 5 // a fresh Start advanced past the straggler run's stamp
+	current.LeaseID = "lease-current"
 	store.put(current)
 
-	// The run carries generation 3 (the goal it was launched under, since superseded).
+	// The run carries the lease it was launched under, since superseded.
 	bb := fakeBlackboard{vals: map[string]any{
-		turnctx.SessionBindingKey:        "s1",
-		turnctx.GoalGenerationBindingKey: int64(3),
+		turnctx.SessionBindingKey:   "s1",
+		turnctx.GoalLeaseBindingKey: "lease-stale",
 	}}
 	ctx := core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
 

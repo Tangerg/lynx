@@ -188,7 +188,7 @@ func (d Draft) provenance() map[string]string {
 }
 
 // Render produces the on-disk SKILL.md content: a YAML frontmatter block (name,
-// description, and any provenance metadata) followed by the body. Marshalling
+// description, and any provenance metadata) followed by the body. Marshaling
 // the canonical [skillspec.Frontmatter] — rather than a hand-built map — keeps
 // the emitted shape identical to what the read-only loader parses, so
 // provenance round-trips. yaml.Marshal quotes/escapes the fields so a

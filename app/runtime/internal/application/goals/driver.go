@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -33,7 +35,7 @@ var (
 	// session-owned, so it must never outlive (or precede) its session.
 	ErrNoSession = errors.New("goals: session does not exist")
 	// ErrGoalConflict reports that a concurrent lifecycle transition won the goal's
-	// compare-and-swap; the caller read a generation that was already superseded.
+	// compare-and-swap; the caller read a version that was already superseded.
 	ErrGoalConflict = errors.New("goals: goal changed concurrently")
 )
 
@@ -55,19 +57,17 @@ type SessionExists interface {
 // Driver owns the per-session autonomous loops. Each active goal has at most one
 // loop goroutine, spawned into a task group so shutdown cancels and joins them.
 //
-// Every durable goal write is a compare-and-swap on the goal's generation
-// ([goal.Store]); the mutex here guards only the in-process loop registry, not
-// the durable state. Explicit lifecycle transitions (Start/Resume/Stop) advance
-// the generation, so a canceled loop's request-detached terminal write is
-// rejected by the store instead of overwriting a newer goal or resurrecting a
-// cleared one — the correctness guarantee that does NOT require blocking on the
-// old loop's exit (which could stall a delete/stop on a whole model turn).
+// Every durable goal write is a compare-and-swap on [goal.Version]. An opaque
+// lease distinguishes loop ownership across clears, and the revision protects
+// mutations inside one lease. The mutex serializes explicit lifecycle commands
+// and session write-sets; loop goroutines and update_goal use the store CAS.
 type Driver struct {
 	goals    goal.Store
 	runs     RunUseCases
 	sessions SessionExists
 	tasks    *taskgroup.Group
 	now      func() time.Time
+	newLease func() string
 
 	// cmdMu serializes the lifecycle commands (Start / Resume / Stop) so their
 	// read → decide → write → launch/cancel sequences never interleave. Without
@@ -75,7 +75,7 @@ type Driver struct {
 	// skip its own durable write — it decides on a status read taken before the
 	// cancel — wedging the goal into active-with-no-loop. The loop goroutines and
 	// update_goal deliberately do NOT take this lock; their races are handled by
-	// the store's generation CAS, not by serializing against user commands.
+	// the store's lease-and-revision CAS, not by serializing against user commands.
 	cmdMu sync.Mutex
 
 	mu      sync.Mutex // guards running
@@ -94,6 +94,7 @@ func NewDriver(store goal.Store, runUseCases RunUseCases, sessions SessionExists
 		sessions: sessions,
 		tasks:    &taskgroup.Group{},
 		now:      time.Now,
+		newLease: uuid.NewString,
 		running:  map[string]*loopHandle{},
 	}
 }
@@ -101,8 +102,8 @@ func NewDriver(store goal.Store, runUseCases RunUseCases, sessions SessionExists
 // Start opens a new goal for the session and begins driving it. It replaces a
 // paused or blocked goal (a fresh objective abandons the old one) but refuses to
 // clobber a goal that is already actively driving, and refuses a session that
-// does not exist. The new goal advances the generation so any straggler loop
-// from the replaced goal can no longer write.
+// does not exist. The new goal gets a fresh lease so a straggler from any
+// previously-cleared goal can no longer write.
 func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error) {
 	d.cmdMu.Lock()
 	defer d.cmdMu.Unlock()
@@ -120,15 +121,15 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 	if ok && existing.Status == goal.StatusActive {
 		return goal.Goal{}, ErrGoalActive
 	}
-	var expected int64
+	var expected goal.Version
 	if ok {
-		expected = existing.Generation
+		expected = existing.Version()
 	}
 	g, err := goal.New(sessionID, objective, provider, model, budget, d.now())
 	if err != nil {
 		return goal.Goal{}, err
 	}
-	g.Generation = expected + 1
+	g.RenewLease(d.newLease())
 	applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		return goal.Goal{}, err
@@ -136,12 +137,12 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launch(ctx, sessionID, g.Generation)
+	d.launch(ctx, sessionID, g.LeaseID)
 	return g, nil
 }
 
 // Resume returns a paused or blocked goal to active and drives it again. It is
-// idempotent on an already-active goal. The resume advances the generation so
+// idempotent on an already-active goal. The resume renews the lease so
 // the fresh loop owns the goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
 	d.cmdMu.Lock()
@@ -156,9 +157,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if g.Status == goal.StatusActive {
 		return g, nil
 	}
-	expected := g.Generation
+	expected := g.Version()
 	g.Resume(d.now())
-	g.Generation = expected + 1
+	g.RenewLease(d.newLease())
 	applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		return goal.Goal{}, err
@@ -166,15 +167,13 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launch(ctx, sessionID, g.Generation)
+	d.launch(ctx, sessionID, g.LeaseID)
 	return g, nil
 }
 
-// Stop pauses the session's goal and cancels its loop. Canceling is enough: the
-// generation bump makes the paused state authoritative, so the straggler loop's
-// detached write is rejected — Stop need not block on the old loop's exit (its
-// in-flight run finishes on its own; no further run is launched). Returns the
-// goal's current state so a caller can report what was stopped.
+// Stop pauses the session's goal and cancels its loop. If the durable pause does
+// not commit, it restores a driver for the still-authoritative lease before
+// returning the error, so an active Goal never remains without a loop.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
 	d.cmdMu.Lock()
 	defer d.cmdMu.Unlock()
@@ -185,27 +184,33 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	if !ok {
 		return goal.Goal{}, ErrNoGoal
 	}
-	d.Quiesce(sessionID)
 	if g.Status != goal.StatusActive {
 		return g, nil
 	}
-	expected := g.Generation
+	expected := g.Version()
+	d.quiesce(sessionID)
 	g.Pause("stopped by the user", d.now())
-	g.Generation = expected + 1
-	if _, err := d.goals.Save(ctx, g, expected); err != nil {
+	g.RenewLease(d.newLease())
+	applied, err := d.goals.Save(ctx, g, expected)
+	if err != nil {
+		d.recoverDrive(ctx, sessionID, expected.LeaseID)
 		return goal.Goal{}, err
 	}
-	// Report the authoritative stored state: our pause if the CAS won, else what a
-	// concurrent transition (a double-stop, or the loop's own terminal write)
-	// committed. If it was cleared out from under us, report the pause we intended.
+	if applied {
+		return g, nil
+	}
+	// The loop or update_goal changed the revision while Stop was quiescing. A
+	// restored driver observes the authoritative row and exits unless it remains
+	// active under the prior lease.
+	d.recoverDrive(ctx, sessionID, expected.LeaseID)
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
-	if !ok {
-		return g, nil
+	if ok {
+		return current, nil
 	}
-	return current, nil
+	return g, nil
 }
 
 // Get returns the session's goal, or (zero, false, nil) when it has none.
@@ -237,8 +242,9 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 		}
 		switch g.Status {
 		case goal.StatusActive:
-			expected := g.Generation
+			expected := g.Version()
 			g.Pause("the runtime restarted — resume to continue", d.now())
+			g.RenewLease(d.newLease())
 			if _, err := d.goals.Save(ctx, g, expected); err != nil {
 				return err
 			}
@@ -257,13 +263,28 @@ func (d *Driver) Close() error {
 	return nil
 }
 
-// Quiesce cancels a session's loop so it launches no further runs. It does NOT
-// block on the loop's exit — an in-flight run finishes on its own, and the
-// generation CAS already makes any straggler write a no-op — so a session
-// delete/rollback can quiesce the goal without stalling on a model turn. It is
-// the [GoalQuiescer] the session-lifecycle coordinator calls before it clears a
-// deleted/rewound session's goal.
-func (d *Driver) Quiesce(sessionID string) {
+// WithSessionMutation serializes a session write-set with Start, Resume, and
+// Stop. It commits apply before quiescing loops: failed writes leave the active
+// loop untouched, while successful clears reject any straggler write before the
+// loop is canceled. The caller already holds the run-admission slots, so no run
+// can begin between the commit and the quiesce.
+func (d *Driver) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
+	d.cmdMu.Lock()
+	defer d.cmdMu.Unlock()
+	if err := apply(ctx); err != nil {
+		return err
+	}
+	for _, sessionID := range sessionIDs {
+		d.quiesce(sessionID)
+	}
+	return nil
+}
+
+func (d *Driver) recoverDrive(ctx context.Context, sessionID, leaseID string) {
+	d.launch(ctx, sessionID, leaseID)
+}
+
+func (d *Driver) quiesce(sessionID string) {
 	d.mu.Lock()
 	if h := d.running[sessionID]; h != nil {
 		h.cancel()

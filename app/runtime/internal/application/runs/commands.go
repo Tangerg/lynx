@@ -55,10 +55,10 @@ type StartCommand struct {
 	InterruptKinds  []string
 	OpeningUserText string
 	Input           []ContentBlock
-	// GoalGeneration stamps a Goal-mode autonomous run with the goal incarnation
+	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
-	// (see [goal.Store] generation CAS). Zero for ordinary (non-Goal-loop) runs.
-	GoalGeneration int64
+	// (see [goal.Store] lease-and-revision CAS). Empty for ordinary runs.
+	GoalLeaseID string
 }
 
 // ResumeCommand is the protocol-neutral runs.resume use case input.

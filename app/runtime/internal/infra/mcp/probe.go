@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -31,7 +32,7 @@ func (c *Connections) Probe(ctx context.Context, cfg ServerConfig) error {
 // probe dials cfg with a throwaway client, proves its tools are listable, and
 // closes the session; a connection test that touches no live state. Honors any
 // cfg.OAuthHandler so a probe can be authorized. Returns nil on success.
-func probe(ctx context.Context, cfg ServerConfig) error {
+func probe(ctx context.Context, cfg ServerConfig) (err error) {
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
@@ -45,7 +46,12 @@ func probe(ctx context.Context, cfg ServerConfig) error {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	defer func() { recordCleanupError(ctx, session.Close()) }()
+	defer func() {
+		if closeErr := session.Close(); closeErr != nil {
+			recordCleanupError(ctx, closeErr)
+			err = errors.Join(err, closeErr)
+		}
+	}()
 	if _, err := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err

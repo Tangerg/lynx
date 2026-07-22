@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -268,19 +267,16 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
 
-	// Canonical tool list for tools.list — metadata (name/schema) is
-	// working-directory independent, so the default-workdir build is faithful.
-	// Only `task` is appended by the engine (it needs the engine).
+	// Build the immutable catalog core. Resolver.Tools projects MCP, search_tools,
+	// and the cwd-scoped skill tool live so reconnects and session cwd changes do
+	// not leave tools.list or tools.invoke on a stale construction-time snapshot.
+	// Only `task` is appended later by the engine (it needs the engine).
 	tools := resolver.workdirTools(config.Workdir)
 	tools = append(tools, online...)
-	tools = append(tools, mcpTools...)
 	tools = append(tools, a2aTools...)
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
 	tools = append(tools, askUserTool)
-	if skillTool := skill.Build(config.Workdir, config.SkillsGlobalDir, config.SkillUsage); skillTool != nil {
-		tools = append(tools, skillTool)
-	}
 	if todoTool != nil {
 		tools = append(tools, todoTool)
 	}
@@ -308,11 +304,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	if goalTool != nil {
 		tools = append(tools, goalTool)
-	}
-	// search_tools surfaces the MCP tools withheld from the per-turn manifest; it
-	// exists whenever any MCP server is connected, so the catalog lists it too.
-	if search := toolsearch.New(mcpTools); search != nil {
-		tools = append(tools, search)
 	}
 	// codebase_search is in the catalog whenever the index is wired — the tool's
 	// metadata is meaningful regardless of the live embedding model, and the

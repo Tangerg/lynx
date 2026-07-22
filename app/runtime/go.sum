@@ -17,8 +17,8 @@ github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAw
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/lynx/a2a v0.0.0-20260719031314-1e49c2a0f145 h1:8L02f4GzZFPi/LEEV4RayuS1hfmv+eDx4IzwdmJQe7Y=
 github.com/Tangerg/lynx/a2a v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:Tz+GXDLNwP3+PDvZgKt0VzCAuM0sKn+tgGveeWVBzYw=
-github.com/Tangerg/lynx/agent v0.0.0-20260721064937-5297047a05da h1:0cuaqxh58aOpf8qT/yIIQ7cPd9j1ydnb1zoGgBA9PNY=
-github.com/Tangerg/lynx/agent v0.0.0-20260721064937-5297047a05da/go.mod h1:JmJfQz6eXwEREEQFAF0ZJ5HeWw+H8SDw+ZkwUyYk5tw=
+github.com/Tangerg/lynx/agent v0.0.0-20260722091640-f7296065f5a1 h1:s7cPs0Kl2+WTuC7BQ0s0wpf6hlRnfXzxYHxQK+1KbXI=
+github.com/Tangerg/lynx/agent v0.0.0-20260722091640-f7296065f5a1/go.mod h1:JmJfQz6eXwEREEQFAF0ZJ5HeWw+H8SDw+ZkwUyYk5tw=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4 h1:H4kILYu/zGPJREsNgGQW4+JAzJCTLP5SIavN0m7Hz3Y=
 github.com/Tangerg/lynx/chatclient v0.0.0-20260721023422-b01ee95543a4/go.mod h1:trFaa8ARMyotTzfXw1j1w9NNzQbbOL3qwmbjLsz/gv0=
 github.com/Tangerg/lynx/chathistory v0.0.0-20260721023422-b01ee95543a4 h1:bwHBz+l6cnS997yRbOh2byywVBm4JDBcSxsBxO8FZ1I=

@@ -56,6 +56,15 @@ type Usage struct {
 	Steps   int
 }
 
+// Version identifies one durable revision of a Goal. LeaseID is an opaque,
+// non-reusable ownership token for a driving loop; Revision advances on every
+// persisted mutation within that lease. Together they make a stale loop unable
+// to write a freshly-created Goal after the old row was cleared.
+type Version struct {
+	LeaseID  string
+	Revision int64
+}
+
 // Exceeded reports the first budget axis u has reached, or ("", false) when the
 // goal is still within budget. Checked after each turn commits its usage.
 func (b Budget) Exceeded(u Usage) (axis string, exceeded bool) {
@@ -81,15 +90,14 @@ type Goal struct {
 	Model     string
 	Budget    Budget
 	Used      Usage
-	// Generation is the loop-incarnation token behind the store CAS. It is set by
-	// the store on read and by the driver on write; callers never interpret it
-	// beyond passing the last-read value as the CAS expectation. Every explicit
-	// lifecycle transition (Start/Resume/Stop) advances it, so a canceled loop's
-	// detached write — carrying the prior generation — is rejected rather than
-	// overwriting a newer goal or resurrecting a cleared one.
-	Generation int64
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// LeaseID names the currently valid driving-loop incarnation. It is generated
+	// afresh at every lifecycle transition, never inferred from row existence.
+	LeaseID string
+	// Revision is the durable optimistic-concurrency version for mutations made
+	// within a single lease.
+	Revision  int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 var (
@@ -159,36 +167,48 @@ func (g *Goal) Resume(now time.Time) {
 	g.UpdatedAt = now
 }
 
+// Version returns the value a caller must use to condition its next mutation.
+func (g Goal) Version() Version {
+	return Version{LeaseID: g.LeaseID, Revision: g.Revision}
+}
+
+// RenewLease revokes every prior loop ownership token and advances the durable
+// revision. Lifecycle transitions call it before persisting their new state.
+func (g *Goal) RenewLease(leaseID string) {
+	g.LeaseID = leaseID
+	g.Revision++
+}
+
+// AdvanceRevision records a mutation within the current lease.
+func (g *Goal) AdvanceRevision() { g.Revision++ }
+
 // Store persists goals keyed by session. At most one goal exists per session.
 // Implementations must be safe for concurrent use and join an ambient
 // transaction when the backend supports it.
 //
 // Get returns (zero, false, nil) for a session with no goal — that is not an
-// error; the returned goal carries its current [Goal.Generation]. Clear removes
+// error; the returned goal carries its current [Goal.Version]. Clear removes
 // a session's goal (completion, user abandonment, or a deleted/rewound session);
 // clearing a missing goal is not an error. List returns every stored goal, for
 // the boot reconcile that degrades a live loop to paused after a restart.
 //
-// Save is a compare-and-swap: it applies iff the stored goal's generation equals
-// expected — or, when expected is 0, iff no goal exists yet (the initial
-// create) — and reports whether the write applied. A stale writer (whose
-// expected generation was superseded by a newer Start/Resume/Stop, or whose goal
-// was cleared by a deleted/rewound session) gets applied=false and MUST NOT
-// retry: it no longer owns the goal. This CAS, not a lock, is what keeps a
-// canceled loop's detached terminal write from resurrecting or clobbering a
-// newer goal (the loop runs request-detached, so cancellation alone cannot stop
-// an in-flight write).
+// Save is a compare-and-swap: it applies iff the stored goal matches expected,
+// or, when expected is its zero value, iff no goal exists yet. A stale writer
+// (whose lease was revoked, whose revision is old, or whose goal was cleared by
+// a deleted/rewound session) gets applied=false and MUST NOT retry: it no longer
+// owns the goal. This CAS, not cancellation alone, keeps detached terminal work
+// from resurrecting or clobbering a newer goal.
 type Store interface {
 	Get(ctx context.Context, sessionID string) (Goal, bool, error)
-	Save(ctx context.Context, g Goal, expected int64) (applied bool, err error)
+	Save(ctx context.Context, g Goal, expected Version) (applied bool, err error)
 	// Clear removes a session's goal unconditionally — the session-lifecycle
 	// write-sets (delete / rollback / restore) and the boot reconcile use it,
 	// since they own the session and no incarnation can legitimately survive.
 	Clear(ctx context.Context, sessionID string) error
-	// ClearIf removes a session's goal only when its stored generation equals
+	// ClearIf removes a session's goal only when its stored version equals
 	// expected, reporting whether it applied — the CAS the loop uses to clear a
 	// goal it just observed complete, so it cannot delete a newer goal that a
 	// concurrent Start slipped in.
-	ClearIf(ctx context.Context, sessionID string, expected int64) (applied bool, err error)
+	ClearIf(ctx context.Context, sessionID string, expected Version) (applied bool, err error)
 	List(ctx context.Context) ([]Goal, error)
 }

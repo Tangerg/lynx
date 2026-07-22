@@ -185,5 +185,4 @@ describe("handler contract — state.*", () => {
     expect(out.run).toBe(s.run);
     expect(out.messages).toBe(s.messages);
   });
-
 });

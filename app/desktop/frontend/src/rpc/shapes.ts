@@ -997,6 +997,17 @@ export interface RunProgress {
 
 export type StreamEventType = StreamEvent["type"];
 
+export const STREAM_EVENT_TYPES = [
+  "segment.started",
+  "segment.progress",
+  "segment.finished",
+  "item.started",
+  "item.delta",
+  "item.completed",
+  "state.snapshot",
+  "custom",
+] as const satisfies readonly StreamEventType[];
+
 // The RunEvent envelope does NOT carry `durable` (S4). For all first-party
 // events durability is a pure function of `event.type` (see DURABLE_EVENT_TYPES
 // / isDurableEvent); only `custom` carries its own on-frame `durable?`. A

@@ -68,14 +68,14 @@ func (t *tool) update(ctx context.Context, a updateArgs) (string, error) {
 		// model keeps working; it just cannot signal a goal that isn't active.
 		return "No active goal for this session — nothing to update.", nil
 	}
-	// A run launched by the goal loop is stamped with the incarnation it must
+	// A run launched by the goal loop is stamped with the lease it must
 	// signal. If the goal has since been superseded (stopped, then replaced by a
 	// fresh Start), this straggler run must not mark the NEW goal complete/blocked.
 	// A user turn carries no stamp and legitimately targets the live goal.
-	if origin, stamped := turnctx.TurnGoalGeneration(ctx); stamped && origin != g.Generation {
+	if origin, stamped := turnctx.TurnGoalLease(ctx); stamped && origin != g.LeaseID {
 		return "This goal has been superseded since the run started — nothing to update.", nil
 	}
-	expected := g.Generation
+	expected := g.Version()
 	now := t.now()
 	switch a.Status {
 	case string(goal.StatusComplete):
@@ -88,6 +88,7 @@ func (t *tool) update(ctx context.Context, a updateArgs) (string, error) {
 	default:
 		return fmt.Sprintf("Unknown status %q — use \"complete\" or \"blocked\".", a.Status), nil
 	}
+	g.AdvanceRevision()
 	applied, err := t.store.Save(ctx, g, expected)
 	if err != nil {
 		return "", err
