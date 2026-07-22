@@ -43,7 +43,6 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnReq
 	state.provider = request.Provider
 	state.cwd = request.Cwd
 	state.setInterruptKinds(request.InterruptKinds)
-	state.prepareStart(request)
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
@@ -74,6 +73,11 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnReq
 		}
 		request.Message = msg
 	}
+	// Capture the request AFTER the prompt hooks so the (possibly context-injected)
+	// message is what Activate replays into the turn; prepareStart before the hooks
+	// would snapshot the pre-injection prompt and silently drop UserPromptSubmit /
+	// SessionStart InjectContext.
+	state.prepareStart(request)
 
 	if !s.register(state) {
 		state.cancel()

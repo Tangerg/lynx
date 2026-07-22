@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -79,6 +80,40 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	}
 	if got := stub.runTurnCalls.Load(); got != 0 {
 		t.Fatalf("engine StartTurn calls = %d, want 0", got)
+	}
+}
+
+// TestPromptHookInjectedContextReachesTurn guards the prepare/activate seam: a
+// UserPromptSubmit hook that injects context must have it in the prompt the
+// engine actually runs. The request is snapshotted for Activate AFTER the prompt
+// hooks rewrite the message; capturing it before would silently drop the
+// injection.
+func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
+	stub := &stubEngine{runReply: "ok"}
+	bound := hooks.NewBound(
+		[]hooks.Hook{{Event: hooks.UserPromptSubmit, Inject: "remember: use tabs", Source: "test"}},
+		hooks.NewRunner(nil, nil), // declarative inject needs no command runner
+	)
+	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
+		deps.Hooks = staticHookResolver{bound: bound}
+	})))
+	t.Cleanup(func() { _ = dispatcher.Close() })
+
+	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := dispatcher.Events(ctx, handle)
+	for range events { //nolint:revive // drain to terminal
+	}
+
+	got := stub.message()
+	if !strings.Contains(got, "remember: use tabs") || !strings.Contains(got, "do the thing") {
+		t.Fatalf("engine prompt = %q, want the injected context AND the original message", got)
 	}
 }
 
