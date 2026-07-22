@@ -447,3 +447,35 @@ func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 		t.Fatalf("straggler clobbered the replacement goal: %+v", got)
 	}
 }
+
+// TestStopResumeRaceNeverWedgesActive runs Stop and Resume concurrently on a
+// paused goal. The command mutex must serialize them so the goal never ends up
+// active with no loop driving it — a wedge would leave it active forever, and
+// waitGoal would time out. Run under -race to also catch memory races.
+func TestStopResumeRaceNeverWedgesActive(t *testing.T) {
+	for i := 0; i < 50; i++ {
+		store := newMemStore()
+		g, _ := goal.New("s1", "obj", "p", "m", goal.Budget{MaxTurns: 1}, time.Unix(0, 0))
+		g.Generation = 1
+		g.Pause("seed", time.Unix(0, 0))
+		if _, err := store.Save(context.Background(), g, 0); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+		fake := &fakeRuns{t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}}}
+		d := goals.NewDriver(store, fake, &fakeSessions{})
+
+		var wg sync.WaitGroup
+		wg.Go(func() { _, _ = d.Stop(context.Background(), "s1") })
+		wg.Go(func() { _, _ = d.Resume(context.Background(), "s1") })
+		wg.Wait()
+
+		// Settles non-active: paused (Stop won) or blocked (Resume's loop ran its one
+		// budgeted turn). Active-with-no-loop would never leave active.
+		waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool {
+			return ok && g.Status != goal.StatusActive
+		})
+		if err := d.Close(); err != nil {
+			t.Fatalf("Close: %v", err)
+		}
+	}
+}

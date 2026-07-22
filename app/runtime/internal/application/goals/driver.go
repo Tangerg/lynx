@@ -32,9 +32,9 @@ var (
 	// ErrNoSession reports a start for a session that does not exist — a goal is
 	// session-owned, so it must never outlive (or precede) its session.
 	ErrNoSession = errors.New("goals: session does not exist")
-	// ErrGoalBusy reports that a concurrent lifecycle transition won the goal's
+	// ErrGoalConflict reports that a concurrent lifecycle transition won the goal's
 	// compare-and-swap; the caller read a generation that was already superseded.
-	ErrGoalBusy = errors.New("goals: goal changed concurrently")
+	ErrGoalConflict = errors.New("goals: goal changed concurrently")
 )
 
 // RunUseCases is the goal loop's narrow view of the run entry point — the same
@@ -69,7 +69,16 @@ type Driver struct {
 	tasks    *taskgroup.Group
 	now      func() time.Time
 
-	mu      sync.Mutex
+	// cmdMu serializes the lifecycle commands (Start / Resume / Stop) so their
+	// read → decide → write → launch/cancel sequences never interleave. Without
+	// it a Stop could cancel a loop a concurrent Resume just launched and then
+	// skip its own durable write — it decides on a status read taken before the
+	// cancel — wedging the goal into active-with-no-loop. The loop goroutines and
+	// update_goal deliberately do NOT take this lock; their races are handled by
+	// the store's generation CAS, not by serializing against user commands.
+	cmdMu sync.Mutex
+
+	mu      sync.Mutex // guards running
 	running map[string]*loopHandle
 }
 
@@ -95,6 +104,8 @@ func NewDriver(store goal.Store, runUseCases RunUseCases, sessions SessionExists
 // does not exist. The new goal advances the generation so any straggler loop
 // from the replaced goal can no longer write.
 func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error) {
+	d.cmdMu.Lock()
+	defer d.cmdMu.Unlock()
 	exists, err := d.sessions.Exists(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -123,7 +134,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 		return goal.Goal{}, err
 	}
 	if !applied {
-		return goal.Goal{}, ErrGoalBusy
+		return goal.Goal{}, ErrGoalConflict
 	}
 	d.launch(ctx, sessionID, g.Generation)
 	return g, nil
@@ -133,6 +144,8 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 // idempotent on an already-active goal. The resume advances the generation so
 // the fresh loop owns the goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
+	d.cmdMu.Lock()
+	defer d.cmdMu.Unlock()
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -151,7 +164,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, err
 	}
 	if !applied {
-		return goal.Goal{}, ErrGoalBusy
+		return goal.Goal{}, ErrGoalConflict
 	}
 	d.launch(ctx, sessionID, g.Generation)
 	return g, nil
@@ -163,6 +176,8 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 // in-flight run finishes on its own; no further run is launched). Returns the
 // goal's current state so a caller can report what was stopped.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
+	d.cmdMu.Lock()
+	defer d.cmdMu.Unlock()
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err

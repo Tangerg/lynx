@@ -198,6 +198,7 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "future work", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
+	seedGoal(t, ss, "ses_A")
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:  "ses_A",
@@ -208,6 +209,9 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 		Terminate:  true,
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
+	}
+	if _, ok, err := ss.goals.Get(ctx, "ses_A"); err != nil || ok {
+		t.Fatalf("goal survived the rollback: ok=%v err=%v", ok, err)
 	}
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
@@ -305,6 +309,7 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "stale", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
+	seedGoal(t, ss, "ses_A")
 	sessionRule := testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)
 	projectRule := testApprovalRule(t, approval.ScopeProject, "/repo", "write", approval.Allow)
 	globalRule := testApprovalRule(t, approval.ScopeGlobal, "", "read", approval.Allow)
@@ -319,6 +324,9 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	}
 	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
 		t.Fatalf("todos after restore = %+v, %v, want cleared", got, err)
+	}
+	if _, ok, err := ss.goals.Get(ctx, "ses_A"); err != nil || ok {
+		t.Fatalf("goal survived the restore: ok=%v err=%v", ok, err)
 	}
 	rules, err := ss.approvals.Visible(ctx, "ses_A", "/repo")
 	if err != nil {
@@ -436,17 +444,23 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	}
 }
 
+// seedGoal stores an active goal (generation 1) for a session, so a write-set
+// test can assert the delete/rollback/restore cascade clears it.
+func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
+	t.Helper()
+	g, _ := goal.New(sessionID, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g.Generation = 1
+	if applied, err := ss.goals.Save(context.Background(), g, 0); err != nil || !applied {
+		t.Fatalf("seed goal %q: applied=%v err=%v", sessionID, applied, err)
+	}
+}
+
 // TestApplyDeleteClearsSessionGoal proves a goal is part of the atomic delete
 // cascade (D1): a deleted session leaves no orphan goal behind.
 func TestApplyDeleteClearsSessionGoal(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := context.Background()
-
-	g, _ := goal.New("ses_goal", "ship it", "", "", goal.Budget{}, time.Unix(0, 0))
-	g.Generation = 1
-	if applied, err := ss.goals.Save(ctx, g, 0); err != nil || !applied {
-		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
-	}
+	seedGoal(t, ss, "ses_goal")
 
 	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_goal"}}); err != nil {
 		t.Fatalf("ApplyDelete: %v", err)

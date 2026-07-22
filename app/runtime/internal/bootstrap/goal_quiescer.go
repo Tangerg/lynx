@@ -13,7 +13,7 @@ import "github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 type goalQuiescerRef struct{ d *goals.Driver }
 
 func (r *goalQuiescerRef) Quiesce(sessionID string) {
-	if r != nil && r.d != nil {
+	if r.d != nil {
 		r.d.Quiesce(sessionID)
 	}
 }

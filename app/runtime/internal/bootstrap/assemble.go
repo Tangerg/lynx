@@ -359,27 +359,24 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
 
-	sessionStoreSet := sessionStores{
-		sessions:    cfg.SessionStore,
-		transcript:  cfg.TranscriptStore,
-		interrupts:  cfg.InterruptStore,
-		runs:        cfg.RunStore,
-		processes:   cfg.ProcessStore,
-		history:     messages.conversation,
-		todos:       cfg.TodoStore,
-		approvals:   cfg.ApprovalRuleStore,
-		toolResults: cfg.ToolResultStore,
-		forgetter:   turnDispatcher,
-		tx:          cfg.Transactor,
-	}
-	// Set the goal store only when present so a nil goal.Store never reaches the
-	// write-sets as a non-nil interface (which would defeat their own nil check).
-	// It puts a deleted/rewound session's goal into the atomic cleanup cascade.
-	if cfg.GoalStore != nil {
-		sessionStoreSet.goals = cfg.GoalStore
-	}
 	sessionDeps := sessions.Dependencies{
-		Stores:      sessionStoreSet,
+		Stores: sessionStores{
+			sessions:    cfg.SessionStore,
+			transcript:  cfg.TranscriptStore,
+			interrupts:  cfg.InterruptStore,
+			runs:        cfg.RunStore,
+			processes:   cfg.ProcessStore,
+			history:     messages.conversation,
+			todos:       cfg.TodoStore,
+			approvals:   cfg.ApprovalRuleStore,
+			toolResults: cfg.ToolResultStore,
+			// goals puts a deleted/rewound session's goal into the atomic cleanup
+			// cascade. cfg.GoalStore is an interface (nil when Goal mode is off), so
+			// the write-sets' own nil check skips it — no guard needed here.
+			goals:     cfg.GoalStore,
+			forgetter: turnDispatcher,
+			tx:        cfg.Transactor,
+		},
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},

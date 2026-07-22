@@ -73,10 +73,12 @@ func (d *Driver) drive(ctx context.Context, sessionID string, generation int64) 
 			return
 		}
 		g, ok, err := d.goals.Get(ctx, sessionID)
-		// Stop when the goal is gone, no longer active, OR its generation moved
-		// past this loop's incarnation (a Stop/Start/Resume superseded it). Driving
-		// on a newer generation would let this straggler clobber a goal it does not
-		// own.
+		// Stop when the goal is gone or no longer active. The generation check is a
+		// cheap backstop — a supersession (Stop/Start/Resume) is already caught above
+		// by ctx cancellation or by the status leaving active — that guards a future
+		// regression where a transition stops cancelling the loop. The load-bearing
+		// generation guard is the re-read in runTurn: it prevents adopting and
+		// clobbering a foreign incarnation mid-turn.
 		if err != nil || !ok || g.Status != goal.StatusActive || g.Generation != generation {
 			return
 		}
