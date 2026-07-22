@@ -148,7 +148,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	}); err != nil {
 		t.Fatalf("stage source result: %v", err)
 	}
-	preview := toolresultpreview.Render(body, id, "read_tool_result", 100)
+	preview := toolresultpreview.Render(body, string(id), "read_tool_result", 100)
 	ref := &resultoffload.Ref{ID: id}
 	previewValue := tool.StringResult(preview)
 	item := transcript.Item{

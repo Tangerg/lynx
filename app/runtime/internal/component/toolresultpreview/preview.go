@@ -6,15 +6,14 @@ package toolresultpreview
 import (
 	"fmt"
 	"unicode/utf8"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
 // Render returns a head-and-tail inline replacement that tells the model how
 // to retrieve the full result. Cuts snap to rune boundaries. Callers decide
 // whether the rendered value is materially smaller before using it because the
-// retrieval marker itself has a fixed cost.
-func Render(body string, id offload.ID, readToolName string, previewBytes int) string {
+// retrieval marker itself has a fixed cost. id is the retrieval handle as a
+// plain string — this presentation primitive stays free of domain types.
+func Render(body, id, readToolName string, previewBytes int) string {
 	previewBytes = min(max(previewBytes, 0), len(body))
 	head := previewBytes * 3 / 4
 	tailStart := len(body) - previewBytes/4

@@ -39,7 +39,7 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	full := strings.Repeat("Z", 300)
 
 	id := stageToolResult(t, blobs, sess, "shell", full)
-	preview := toolresultpreview.Render(full, id, "read_tool_result", 100)
+	preview := toolresultpreview.Render(full, string(id), "read_tool_result", 100)
 	if len(preview) >= len(full) {
 		t.Fatal("test setup: preview should be smaller than the full body")
 	}
