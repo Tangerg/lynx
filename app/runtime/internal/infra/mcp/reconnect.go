@@ -291,6 +291,3 @@ func recordCleanupError(ctx context.Context, err error) {
 		trace.SpanFromContext(ctx).RecordError(err)
 	}
 }
-
-// setState records a terminal dial outcome on one server under the lock — the
-// shared tail for the early-failure paths that don't reach the dial.

@@ -187,7 +187,7 @@ func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload
 	}
 	response, ok := message.(*transport.Response)
 	if !ok {
-		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: stored payload is not a response")))
+		return responseError(req.ID, errorToRPC(errors.New("idempotency: stored payload is not a response")))
 	}
 	response.ID = req.ID
 	if response.Error != nil || (req.Method != MethodRunsStart && req.Method != MethodRunsResume) {
