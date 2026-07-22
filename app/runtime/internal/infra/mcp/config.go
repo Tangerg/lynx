@@ -5,16 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"net"
 	"net/http"
 	"net/url"
 	"os/exec"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 )
 
 // Transport is the wire mode of an MCP server connection. The zero value is
@@ -82,7 +82,7 @@ func (c ServerConfig) Validate() error {
 		if c.Endpoint == "" {
 			return fmt.Errorf("mcp server %q: Endpoint is required for HTTP transport", c.Name)
 		}
-		if _, err := parseHTTPOrigin(c.Endpoint); err != nil {
+		if _, err := httporigin.Parse(c.Endpoint); err != nil {
 			return fmt.Errorf("mcp server %q: invalid Endpoint: %w", c.Name, err)
 		}
 		if c.Command != "" {
@@ -153,44 +153,8 @@ const maxRedirects = 10
 
 var errCrossOrigin = errors.New("mcp: cross-origin request blocked")
 
-type httpOrigin struct {
-	scheme string
-	host   string
-}
-
-func parseHTTPOrigin(rawURL string) (httpOrigin, error) {
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return httpOrigin{}, fmt.Errorf("parse URL: %w", err)
-	}
-	return originFromURL(u)
-}
-
-func originFromURL(u *url.URL) (httpOrigin, error) {
-	if u == nil {
-		return httpOrigin{}, errors.New("URL is nil")
-	}
-	scheme := strings.ToLower(u.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return httpOrigin{}, fmt.Errorf("scheme %q is not HTTP or HTTPS", u.Scheme)
-	}
-	hostname := strings.ToLower(u.Hostname())
-	if hostname == "" {
-		return httpOrigin{}, errors.New("host is required")
-	}
-	port := u.Port()
-	if port == "" {
-		if scheme == "https" {
-			port = "443"
-		} else {
-			port = "80"
-		}
-	}
-	return httpOrigin{scheme: scheme, host: net.JoinHostPort(hostname, port)}, nil
-}
-
 func endpointHTTPClient(endpoint, authorization string, headers map[string]string) (*http.Client, error) {
-	origin, err := parseHTTPOrigin(endpoint)
+	origin, err := httporigin.Parse(endpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -212,7 +176,7 @@ func endpointHTTPClient(endpoint, authorization string, headers map[string]strin
 }
 
 type headerRoundTripper struct {
-	origin        httpOrigin
+	origin        httporigin.Origin
 	authorization string
 	headers       map[string]string
 	base          http.RoundTripper
@@ -255,13 +219,13 @@ func classifyHTTPDialError(client *http.Client, err error) error {
 }
 
 func (t *headerRoundTripper) validateTarget(target *url.URL) error {
-	origin, err := originFromURL(target)
+	origin, err := httporigin.FromURL(target)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errCrossOrigin, err)
 	}
 	if origin != t.origin {
-		return fmt.Errorf("%w: target origin %s://%s differs from configured origin %s://%s",
-			errCrossOrigin, origin.scheme, origin.host, t.origin.scheme, t.origin.host)
+		return fmt.Errorf("%w: target origin %s differs from configured origin %s",
+			errCrossOrigin, origin, t.origin)
 	}
 	return nil
 }

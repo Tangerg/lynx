@@ -86,19 +86,12 @@ type toolObserver interface {
 	OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64)
 }
 
-// FileMutationReporter is the prospective filesystem capability consumed by
-// the approval adapter. It is defined here, where it is used; concrete tools
-// satisfy it structurally without coupling this package to their type.
-type FileMutationReporter interface {
-	MutationPaths(arguments string) ([]string, error)
-}
-
 // ToolApprovalTarget carries the capabilities of the exact tool wrapper being
 // gated. MCP identifies the immutable upstream bound to that wrapper, avoiding
 // a second lookup through a live catalog that may have changed since the turn
 // resolved its tools. Its zero value denotes a non-MCP tool.
 type ToolApprovalTarget struct {
-	FileMutations FileMutationReporter
+	FileMutations tools.FileMutationReporter
 	MCP           mcpserver.ToolRef
 }
 
@@ -408,7 +401,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		call = &observedModelCall{id: "direct:" + rand.Text(), name: name, arguments: arguments}
 	}
 
-	mutations, _ := o.inner.(FileMutationReporter)
+	mutations, _ := o.inner.(tools.FileMutationReporter)
 	target := ToolApprovalTarget{FileMutations: mutations}
 	if identity, ok := o.inner.(mcpToolIdentity); ok {
 		server, remote := identity.MCPToolIdentity()
@@ -471,7 +464,7 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 		return output, nil
 	}
 	id := offload.NewID()
-	preview := toolresultpreview.Render(output, id, toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	preview := toolresultpreview.Render(output, string(id), toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
 		// than the body. Keep the body inline without staging any durable state.

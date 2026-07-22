@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // doomLoopThreshold is how many consecutive identical, no-new-output calls must
@@ -237,7 +238,7 @@ func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName,
 	return agentexec.ToolApprovalVerdict{Arguments: cmp.Or(res.Arguments, arguments)}
 }
 
-func fileMutationScope(reporter agentexec.FileMutationReporter, arguments, cwd string) tool.FileMutationScope {
+func fileMutationScope(reporter tools.FileMutationReporter, arguments, cwd string) tool.FileMutationScope {
 	if reporter == nil || cwd == "" {
 		return tool.FileMutationNone
 	}

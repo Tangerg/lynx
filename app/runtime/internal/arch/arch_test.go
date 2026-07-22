@@ -141,6 +141,17 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 		append([]string{componentPkg}, frameworkImports...))
 }
 
+// TestComponentStaysDomainFree keeps the internal/component ring free of DOMAIN
+// coupling: components are no-domain-semantics primitives (taskgroup /
+// filechanges / mcpstatus / pathidentity / httporigin / toolresultpreview) that
+// both application and adapter reuse. layerOf leaves component unclassified, so
+// the ring rule catches only the INBOUND domain → component edge; this covers
+// the OUTBOUND one (toolresultpreview took a domain offload.ID before this).
+func TestComponentStaysDomainFree(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "component"), []string{domainPkg})
+}
+
 // TestApplicationStaysFrameworkFree enforces §19's headline application-purity
 // clause directly for EXTERNAL dependencies (the ring rule already forbids the
 // internal SDK/SQLite/protocol edges): a use-case coordinator imports no agent
@@ -597,6 +608,11 @@ func receiverIsExported(recv *ast.FieldList) bool {
 // ring rule doesn't check edges into it; the domain rings ban it explicitly
 // (application/delivery/composition may import it). Prefix-matched.
 const componentPkg = "github.com/Tangerg/lynx/app/runtime/internal/component"
+
+// domainPkg is the bounded-context ring. internal/component must not import it
+// (components are no-domain-semantics primitives); layerOf leaves component
+// unclassified, so the ring rule alone would miss the outbound edge. Prefix-matched.
+const domainPkg = "github.com/Tangerg/lynx/app/runtime/internal/domain"
 
 // protocolPkg is the wire-type package; it must stay pure wire (no domain /
 // application import) so protocol types never leak inward (§16 rule 10).
