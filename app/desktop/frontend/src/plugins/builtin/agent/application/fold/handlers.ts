@@ -1,10 +1,9 @@
-import type { Operation } from "fast-json-patch";
 import type { StreamEvent } from "@/rpc";
 import type { StreamEventHandler } from "@/plugins/sdk";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { onItemCompleted, onItemDelta, onItemStarted } from "./itemHandlers";
 import { onRunFinished, onRunProgress, onRunStarted } from "./runHandlers";
-import { onStateDelta, onStateSnapshot } from "./stateHandlers";
+import { onStateSnapshot } from "./stateHandlers";
 
 function bind<T extends StreamEvent["type"]>(
   type: T,
@@ -32,5 +31,4 @@ export const HANDLERS: ReadonlyArray<[string, StreamEventHandler]> = [
   bind("item.delta", (state, event) => onItemDelta(state, event.itemId, event.delta)),
   bind("item.completed", (state, event) => onItemCompleted(state, event.item)),
   bind("state.snapshot", (state, event) => onStateSnapshot(state, event.state)),
-  bind("state.delta", (state, event) => onStateDelta(state, event.patch as Operation[])),
 ];

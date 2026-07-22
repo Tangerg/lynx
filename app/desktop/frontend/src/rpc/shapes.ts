@@ -966,13 +966,6 @@ export interface PageQuery {
 // §5 — Streaming (RunEvent envelope + StreamEvent union + ItemDelta)
 // ---------------------------------------------------------------------------
 
-export type JsonPatch = Array<{
-  op: "add" | "remove" | "replace" | "move" | "copy" | "test";
-  path: string;
-  value?: unknown;
-  from?: string;
-}>;
-
 export type ItemDelta =
   | { type: "content"; index?: number; text: string } // agentMessage text delta
   | { type: "reasoning"; text: string } // reasoning text delta
@@ -988,7 +981,6 @@ export type StreamEvent =
   | { type: "item.delta"; itemId: ItemId; delta: ItemDelta }
   | { type: "item.completed"; item: Item } // authoritative terminal, durable
   | { type: "state.snapshot"; state: Record<string, unknown> }
-  | { type: "state.delta"; patch: JsonPatch }
   | { type: "custom"; name: string; durable?: boolean; payload: unknown }; // durable carried on-frame (default false)
 
 // Mid-run progress preview — a live readout of step/usage/cost while the Run
@@ -998,7 +990,6 @@ export type StreamEvent =
 // Cumulative cost reads `usage.costUsd` — no separate RunProgress.costUsd (§5).
 export interface RunProgress {
   step?: number; // agent steps elapsed so far
-  maxSteps?: number; // ceiling, when the Run was started with one
   usage?: Usage; // cumulative usage so far (cost via usage.costUsd)
   contextTokens?: number; // latest round's prompt size = live context-window occupancy (vs cumulative usage.inputTokens); pair with model.contextWindow for a gauge
   activity?: string; // human-readable current action ("calling tool: shell")

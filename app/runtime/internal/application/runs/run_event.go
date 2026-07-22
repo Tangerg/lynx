@@ -93,7 +93,6 @@ func (StateSnapshot) Terminal() bool     { return false }
 
 type RunProgress struct {
 	Step          *int
-	MaxSteps      *int
 	Usage         *transcript.Usage
 	ContextTokens *int64
 	ToolName      string

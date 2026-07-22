@@ -32,7 +32,6 @@ const (
 	StreamItemDelta       StreamEventType = "item.delta"
 	StreamItemCompleted   StreamEventType = "item.completed"
 	StreamStateSnapshot   StreamEventType = "state.snapshot"
-	StreamStateDelta      StreamEventType = "state.delta"
 	StreamCustom          StreamEventType = "custom"
 )
 
@@ -46,7 +45,6 @@ const (
 //	item.delta      → ItemID, Delta
 //	item.completed  → Item
 //	state.snapshot  → State
-//	state.delta     → Patch
 //	custom          → Name, Payload, Durable?
 type StreamEvent struct {
 	Type StreamEventType `json:"type"`
@@ -58,7 +56,6 @@ type StreamEvent struct {
 	ItemID   string         `json:"itemId,omitempty"`
 	Delta    *ItemDelta     `json:"delta,omitempty"`
 	State    map[string]any `json:"state,omitempty"`
-	Patch    JsonPatch      `json:"patch,omitempty"`
 	Name     string         `json:"name,omitempty"`    // custom
 	Payload  any            `json:"payload,omitempty"` // custom
 	Durable  *bool          `json:"durable,omitempty"` // custom only — its self-declared durability (default false)
@@ -73,7 +70,7 @@ type StreamEvent struct {
 // derives durability independently.
 func (se StreamEvent) IsDurable() bool {
 	switch se.Type {
-	case StreamItemDelta, StreamStateDelta, StreamSegmentProgress:
+	case StreamItemDelta, StreamSegmentProgress:
 		return false
 	case StreamCustom:
 		return se.Durable != nil && *se.Durable
@@ -86,14 +83,8 @@ func (se StreamEvent) IsDurable() bool {
 // event (API.md §5). Ephemeral — its terminal values land on
 // segment.finished.result (usage incl. costUsd / steps).
 type RunProgress struct {
-	Step *int `json:"step,omitempty"`
-	// MaxSteps would complete a "step N of M" counter, but no producer sets it
-	// yet: Step counts tool CALLS while the run cap (StartRun.maxSteps) counts
-	// tool ROUNDS, so emitting M here would mismatch N until the units align.
-	// The cap is still enforced — it terminates the run (outcome:maxSteps)
-	// rather than streaming a live countdown. Staged, not an oversight.
-	MaxSteps *int   `json:"maxSteps,omitempty"`
-	Usage    *Usage `json:"usage,omitempty"`
+	Step  *int   `json:"step,omitempty"`
+	Usage *Usage `json:"usage,omitempty"`
 	// ContextTokens is the latest round's prompt-token count — the live
 	// context-window occupancy (how full the window is right now), distinct from
 	// the cumulative-over-rounds Usage.inputTokens (which only grows). Pair it
@@ -141,27 +132,4 @@ type ItemDelta struct {
 	Text               string     `json:"text,omitempty"`
 	ArgumentsTextDelta string     `json:"argumentsTextDelta,omitempty"`
 	Steps              []PlanStep `json:"steps,omitempty"`
-}
-
-// JsonPatch is an RFC 6902 patch (API.md §5).
-type JsonPatch []JsonPatchOp
-
-// PatchOp is one RFC 6902 operation verb (API.md §5).
-type PatchOp string
-
-const (
-	PatchOpAdd     PatchOp = "add"
-	PatchOpRemove  PatchOp = "remove"
-	PatchOpReplace PatchOp = "replace"
-	PatchOpMove    PatchOp = "move"
-	PatchOpCopy    PatchOp = "copy"
-	PatchOpTest    PatchOp = "test"
-)
-
-// JsonPatchOp is one RFC 6902 operation.
-type JsonPatchOp struct {
-	Op    PatchOp `json:"op"` // see PatchOp
-	Path  string  `json:"path"`
-	Value any     `json:"value,omitempty"`
-	From  string  `json:"from,omitempty"`
 }

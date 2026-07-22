@@ -38,8 +38,6 @@ const runProgress = (progress: Record<string, unknown>): StreamEvent =>
   ({ type: "segment.progress", progress }) as StreamEvent;
 const snapshot = (state: Record<string, unknown>): StreamEvent =>
   ({ type: "state.snapshot", state }) as StreamEvent;
-const stateDelta = (patch: Record<string, unknown>[]): StreamEvent =>
-  ({ type: "state.delta", patch }) as StreamEvent;
 
 beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
@@ -78,7 +76,6 @@ describe("handler contract — run.*", () => {
       s,
       runProgress({
         step: 3,
-        maxSteps: 10,
         activity: "reading",
         contextTokens: 4200,
         usage: { inputTokens: 100, outputTokens: 5, cacheReadTokens: 0 },
@@ -86,7 +83,7 @@ describe("handler contract — run.*", () => {
     );
     const out = reduce(s, runProgress({ step: 4 })); // step only
     expect(out.run.step).toBe(4);
-    expect(out.run).toMatchObject({ totalSteps: 10, activity: "reading", contextTokens: 4200 });
+    expect(out.run).toMatchObject({ activity: "reading", contextTokens: 4200 });
     expect(out.run.usage).toEqual({ inputTokens: 100, outputTokens: 5, cacheReadTokens: 0 });
   });
 
@@ -189,18 +186,4 @@ describe("handler contract — state.*", () => {
     expect(out.messages).toBe(s.messages);
   });
 
-  it("state.delta applies a JSON Patch to shared, isolating run + stream", () => {
-    let s = reduce(INITIAL_VIEW_STATE, runStarted("r1", "s1"));
-    s = reduce(s, snapshot({ count: 1, items: [] }));
-    const out = reduce(
-      s,
-      stateDelta([
-        { op: "replace", path: "/count", value: 2 },
-        { op: "add", path: "/items/-", value: "x" },
-      ]),
-    );
-    expect(out.shared).toEqual({ count: 2, items: ["x"] });
-    expect(out.run).toBe(s.run);
-    expect(out.messages).toBe(s.messages);
-  });
 });

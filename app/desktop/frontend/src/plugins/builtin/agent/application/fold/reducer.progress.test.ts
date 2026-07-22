@@ -22,14 +22,13 @@ beforeEach(async () => {
 });
 
 describe("reducer — segment.progress (mid-run live readout)", () => {
-  it("surfaces step / maxSteps / activity / tokens / cost while the run streams", () => {
+  it("surfaces step / activity / tokens / cost while the run streams", () => {
     let s: AgentViewState = INITIAL_VIEW_STATE;
     s = reduce(s, runStarted("run_1"));
     s = reduce(
       s,
       progress({
         step: 2,
-        maxSteps: 8,
         activity: "calling tool: ls -la",
         usage: { inputTokens: 1200, outputTokens: 80, costUsd: 0.0123 },
       }),
@@ -37,7 +36,6 @@ describe("reducer — segment.progress (mid-run live readout)", () => {
     expect(s.run).toMatchObject({
       running: true,
       step: 2,
-      totalSteps: 8,
       activity: "calling tool: ls -la",
       usage: { inputTokens: 1200, outputTokens: 80, cacheReadTokens: 0, costUsd: 0.0123 },
     });

@@ -57,7 +57,7 @@ func presentRunResult(result *transcript.RunResult) *protocol.RunResult {
 
 func presentProgress(progress runs.RunProgress) protocol.RunProgress {
 	return protocol.RunProgress{
-		Step: progress.Step, MaxSteps: progress.MaxSteps,
+		Step:  progress.Step,
 		Usage: presentUsage(progress.Usage), ContextTokens: progress.ContextTokens,
 		Activity: toolActivity(progress.ToolName),
 	}

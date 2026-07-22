@@ -1,7 +1,7 @@
 // Reducer — accumulator-shape tests. These cover the *view-level* data
 // structures the reducer maintains alongside the message stream: the audit
-// `timeline`, the agent-owned shared state (state.snapshot + state.delta
-// JSON Patch), and durable history hydration via item.completed.
+// `timeline`, the agent-owned shared state (state.snapshot), and durable
+// history hydration via item.completed.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
@@ -105,29 +105,6 @@ describe("reducer — shared state", () => {
     expect(s.shared).toEqual({ plan: ["a", "b"], counter: 1 });
   });
 
-  it("state.delta applies a JSON Patch to shared", () => {
-    let s = reduce(INITIAL_VIEW_STATE, {
-      type: "state.snapshot",
-      state: { counter: 0, list: ["a"] },
-    });
-    s = reduce(s, {
-      type: "state.delta",
-      patch: [
-        { op: "replace", path: "/counter", value: 5 },
-        { op: "add", path: "/list/-", value: "b" },
-      ],
-    });
-    expect(s.shared).toEqual({ counter: 5, list: ["a", "b"] });
-  });
-
-  it("state.delta with a broken patch leaves shared unchanged", () => {
-    const s = reduce(INITIAL_VIEW_STATE, { type: "state.snapshot", state: { x: 1 } });
-    const next = reduce(s, {
-      type: "state.delta",
-      patch: [{ op: "remove", path: "/does/not/exist" }],
-    });
-    expect(next.shared).toEqual({ x: 1 });
-  });
 });
 
 describe("reducer — durable history hydration", () => {

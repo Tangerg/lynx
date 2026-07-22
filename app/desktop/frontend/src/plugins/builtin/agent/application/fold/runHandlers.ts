@@ -59,7 +59,6 @@ export function onRunProgress(
   if (runId && state.run.runId && runId !== state.run.runId) return state;
   return patchRun({
     ...(progress.step !== undefined ? { step: progress.step } : {}),
-    ...(progress.maxSteps !== undefined ? { totalSteps: progress.maxSteps } : {}),
     ...(progress.activity !== undefined ? { activity: progress.activity } : {}),
     ...(progress.usage ? { usage: mapUsage(progress.usage) } : {}),
     ...(progress.contextTokens !== undefined ? { contextTokens: progress.contextTokens } : {}),

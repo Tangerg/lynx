@@ -73,7 +73,7 @@ export {
   useSlashCommands,
   useWorkspaceViews,
 } from "./selectors";
-// Backend-driven shared state — agent state.snapshot / state.delta.
+// Backend-driven shared state — agent state.snapshot.
 
 export {
   appendBlockToLatestAssistant,
