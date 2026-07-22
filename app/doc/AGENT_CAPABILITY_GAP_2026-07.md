@@ -4,7 +4,7 @@
 >
 > **方法**：对每个竞品的源码做第一手枚举（工具面 / loop / 上下文 / 自治 / 子 agent / 会话 / 模型 / 扩展 / 独特能力 9 维），再对 lyra 现状（后端 `kernel/toolset` 工具装配 + `internal/delivery/protocol` 方法面 + `agent/` SDK）逐项对照。竞品源码克隆在 `~/Desktop/{codex,opencode,kimi-code,crush}`。基线 **2026-07-08**。
 >
-> **与 `COMPETITIVE_GAP_2026-06.md` 的关系**：那份偏 **UX / 前端 surface**（composer chip、steer 气泡、diff、history），且 T1/T2 多已落地。**本文件是它的 agent-能力侧补集**——只谈"agent 能做什么"这一层。哲学/反不变量以根 `CLAUDE.md` + `app/runtime/CLAUDE.md` 为准。
+> **基线 2026-07-08，已部分补齐**：此后 §4 的 agent 自沙箱已作为 **C7 隔离运行模式**落地，§2.A 数个编辑/工具原语（`apply_patch` 多文件、`download` 等）已补齐；当前能力现状以 [`../runtime/doc/inspiration/`](../runtime/doc/inspiration/)（跨应用 backlog）+ 代码为准。哲学/反不变量以根 `CLAUDE.md` + `app/runtime/CLAUDE.md` 为准。
 
 ---
 
@@ -76,13 +76,13 @@ lyra 在**会话与状态**（检查点回滚 / fork / 导出导入 / durable re
 
 ---
 
-## 4. ⚠️ 值得重估的哲学点：**agent 自我沙箱**
+## 4. ✅ 已落地：**agent 自我沙箱**（C7）
 
-codex 的 OS 沙箱是四家里最硬的能力（macOS Seatbelt SBPL / Linux bubblewrap+seccomp / Windows WFP+restricted-token，**fail-closed** + 升级流 + 网络代理 MITM + 凭据 broker），lyra **完全没有**。lyra CLAUDE.md 把它归入"本地单用户 / OS 信任 → 沙箱是 ceremony"。
+此前四家里 codex 的 OS 沙箱最硬（macOS Seatbelt / Linux bubblewrap+seccomp / Windows WFP，fail-closed + 网络代理 + 凭据 broker）而 lyra **完全没有**；现已作为 **C7 隔离运行模式**落地：macOS Seatbelt、逐命令 confine（长驻多 session 不锁 runtime 进程）、网络 deny-by-omission、`$HOME` 隐藏、env 洗白、fail-closed，另有隔离副本运行模式（工具跑项目一次性副本、改动不碰真实树）。见 [`../runtime/doc/inspiration/README.md`](../runtime/doc/inspiration/README.md) T1。
 
-**要点区分**：codex 沙箱防的是**"agent 伤害用户机器"**（幻觉/注入出的 `rm -rf`、越权写、意外外联），这跟"多租户鉴权"是**两码事**。lyra 现在以**审批模式 + 路径守卫**为主，一条被批准的 shell 命令内部仍是完全放开的。
+**要点区分依旧成立**：沙箱防的是**"agent 伤害用户机器"**（幻觉/注入出的 `rm -rf`、越权写、意外外联），跟"多租户鉴权"是两码事——后者仍刻意不做。
 
-**判断**：这不是要求做多租户/鉴权（那确实不做），而是——**"限制 agent 自己那条 shell 的爆炸半径"是否值得从 OS 层补一道**（哪怕只做 macOS Seatbelt 只读默认 + 可写根 + 网络门）。**值得作为独立议题重估**，不宜无脑归入"不做"。涉及新的 infra 子系统，落手前先咨询。
+**剩余方向**：Linux/Windows jail 后端（现 macOS-only，他平台 fail-closed）、T2 凭证经纪人、T15 execpolicy（argv 策略层）。
 
 ---
 

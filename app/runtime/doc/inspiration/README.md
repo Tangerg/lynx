@@ -1,8 +1,8 @@
 # 同类 Agent 应用启发的能力吸纳 —— 总索引与合并 Backlog
 
-> **这是什么**：对桌面上 6 个同类生产级 coding agent 的源码级对比分析，用统一方法（源码级自析 → 过 lynx 四道筛子 → 只收可搬点子），产出"哪些能力值得吸纳进 lyra"。每个应用一份独立文档；本文件是**跨应用合并排序 backlog + 总索引 + 刻意不吸总表**。方法沿袭 [`../AGENTSCOPE_INSPIRED_BACKLOG.md`](../AGENTSCOPE_INSPIRED_BACKLOG.md)（第 7 份、更早的同类分析）。
+> **这是什么**：对桌面上 6 个同类生产级 coding agent 的源码级对比分析，用统一方法（源码级自析 → 过 lynx 四道筛子 → 只收可搬点子），产出"哪些能力值得吸纳进 lyra"。每个应用一份独立文档；本文件是**跨应用合并排序 backlog + 总索引 + 刻意不吸总表**。
 >
-> **状态**：多数 **proposed**（分析产物，未实现）。**已落地**：T3 工具搜索（含 agent/toolloop mid-loop 提升 seam）· T13 doom_loop 守卫（no-progress 版）· T8 压缩后活状态 reminder；T6 结构化执行 TODO **发现原已实现**（`todo_write` + todo 域）。其余落地时每条按"破坏性公开 API 改动须先咨询"走。
+> **状态**：部分仍 **proposed**（分析产物，未实现）。**已落地（前后端）**：T1 OS 沙箱(C7 隔离运行) · T3 工具搜索 · T4 跨会话记忆(C8) · T5 Goal mode · T7 自进化 skill · T8 压缩后活状态 reminder · T9 models.dev 目录 · T13 doom_loop 守卫；T6 结构化执行 TODO **原已实现**。**仍 open**：T2 凭证经纪人（头号）· T10~T12 · T14~T25。其余落地时每条按"破坏性公开 API 改动须先咨询"走。
 
 ## 0. 六道对照 + 索引
 
@@ -24,7 +24,7 @@
 
 ### 🥇 第一梯队（P1，高价值 + 高置信）
 
-**T1 · OS 级沙箱 confinement —— 落地 deferred C7**　`收敛：Grok + Codex（2家）`
+**T1 · OS 级沙箱 confinement —— ✅ 已落地 C7（隔离运行模式）**　`收敛：Grok + Codex（2家）`
 - 声明式 allow/deny profile → OS 内核 confinement（macOS **Seatbelt** 先行，覆盖用户主平台；Linux Landlock+bwrap+seccomp），逐子进程/逐命令 confine（lyra 长驻多 session、不锁 runtime 进程），fail-closed，项目配置只能加不能改。
 - **Codex 的实质增量**（C7 落地直接吸）：FS ⊥ Network **双轴** profile；可写根内挖**保护子路径**（`.git`/`.lyra`）；敏感 glob **deny-read + deny-unlink**（堵"用删除探测密钥"）；路径作 `-D` 参数防注入。
 - **连带**：C7 落地后翻转 B5/C3——"真 confinement 才配少问"，yolo 真安全，审批只留 out-of-confinement 写 + unsafe-env floor。
@@ -39,29 +39,29 @@
 - MCP 工具**不全塞 manifest**——内存索引 + `search_tools` meta-tool 返回 top-k（name+schema+server）。provider-agnostic（降级 `<functions>` 文本块）。opencode 的**跨 namespace round-robin 公平**（防单个大 MCP server 饿死别人）一并吸。
 - 纯上下文优化、零机制债、薄核。**三家独立收敛 → 最先做的确定项之一**。详见 [Grok G4](GROK.md)、[Claude Code CC1](CLAUDE_CODE.md)、[opencode OC4](OPENCODE.md)。
 
-**T4 · 跨会话记忆 —— 落地 deferred C8**　`收敛：Grok + Claude Code + Hermes（3家）`
+**T4 · 跨会话记忆 —— ✅ 已落地 C8**　`收敛：Grok + Claude Code + Hermes（3家）`
 - 三家给出三套设计，**关键设计岔路 lyra 须显式选**：
   - **有界 + 溢出强制当轮 consolidate（Hermes）** —— 硬 char cap，溢出返回教模型自 curate 的结构化错误；**更贴 lyra 薄核 + 反向不变量**（无隐藏后台 LLM）。
   - **无界 + 后台 "dream" LLM 蒸馏（Grok）** —— 周期性反思式合并 session log 进 curated 文件，gate+lock+`NO_REPLY`+只删已读。
   - **检索式注入（Claude Code）** —— frontmatter manifest + 便宜模型选 top-5 + 注入；沙箱化 extraction fork 只读+只写 memdir。
 - **综合落地**：`LYRA.md` 当 curated 层（不切分两文件）；加 session-log 层 + **FTS5 关键词召回**（Hermes 证明关键词对"是否聊过 X"够用，比向量便宜）；轨迹自动挖掘按 cadence；写全部生命周期所有 + HITL 一致；**推荐 Hermes 的有界路线**、dream 作可选。复用 lyra 现成 @codebase embedding/cosine 做向量层。详见 [Hermes 记忆](HERMES.md)、[Grok G2](GROK.md)、[Claude Code CC4](CLAUDE_CODE.md)。
 
-**T5 · Goal mode —— 受监督的自主多轮执行循环**　`✅ 后端已落地（前端 defer）`　`唯一：Kimi`
+**T5 · Goal mode —— 受监督的自主多轮执行循环**　`✅ 已落地（前后端）`　`唯一：Kimi`
 - typed runtime state + 最小 4 态机（active/paused/blocked/complete）+ continuation-prompt 驱动 + **opt-in 预算硬顶** + 重启降级(active→paused) + **入口 HITL 门**。lyra 有 plan-mode/steer/scheduler/durable-resume，但**无自主自续执行循环**——用户现在得每轮敲 continue。保持为独立机制、别折进 steer/plan。详见 [Kimi K1](KIMI_CODE.md)。
-- **落地形态**：`domain/goal`（session-keyed 独立 durable store，与 per-run RunState 正交）+ `update_goal` 工具（**机器信号**才结束循环，prose"done"不算；resolver 只在 goal active 时对 coding 角色出现）+ `application/goals` GoalDriver（镜像 schedules，消费 run 的 `SegmentFinished` terminal 决策：complete→clear · blocked/预算→停 · error/cancel→paused · 否则注入 continuation 开下一 run；**不在 pump 内**，back-to-back launch 用 ErrSessionBusy 有界退避等 admission 释放）+ goals.start/get/stop/resume RPC + boot Reconcile(active→paused)。自主 run headless（现有全局 approval stance 治理）。**complete 是 machine-signal 纪律 + 预算硬顶**是设计价值本身。前端 goal box **刻意 defer**。
+- **落地形态**：`domain/goal`（session-keyed 独立 durable store，与 per-run RunState 正交）+ `update_goal` 工具（**机器信号**才结束循环，prose"done"不算；resolver 只在 goal active 时对 coding 角色出现）+ `application/goals` GoalDriver（镜像 schedules，消费 run 的 `SegmentFinished` terminal 决策：complete→clear · blocked/预算→停 · error/cancel→paused · 否则注入 continuation 开下一 run；**不在 pump 内**，back-to-back launch 用 ErrSessionBusy 有界退避等 admission 释放）+ goals.start/get/stop/resume RPC + boot Reconcile(active→paused)。自主 run headless（现有全局 approval stance 治理）。**complete 是 machine-signal 纪律 + 预算硬顶**是设计价值本身。前端 goal box 随后已跟上。
 
 **T6 · 结构化执行 TODO 追踪**　`✅ 原已实现`　`唯一：Claude Code`
 - lyra 已有 `todo_write` 工具 + `todo` 域（`todo.Validate` 强制"恰好一个 in_progress / 完成即标 / 一次一个"、`todo.Render`、session-keyed、两个角色），字段比 CC V1 更全（blocked_reason / next_action）。无需再做。
 - 会话内、模型自管的执行进度清单（"恰好一个 in_progress"/"完成即标记"/"≥3 步才用"），既作模型 working-memory（实测提升长任务完成率）又给 UI 实时进度条。与 plan-mode 保持"计划 vs 执行"分层。极薄（session-state + 一工具）。详见 [Claude Code CC2](CLAUDE_CODE.md)。
 
-**T7 · 自进化 Skill —— B4 扩展**　`唯一：Hermes`
+**T7 · 自进化 Skill —— B4 扩展**　`✅ 已落地（前后端）`　`唯一：Hermes`
 - B4 的三个真实短板：**轨迹自动蒸馏**（post-turn 后台 review 挖轨迹）+ **反馈驱动精修现有 skill**（从用户纠正 patch）+ **自动闲置生命周期**（active→stale→archived、re-use 复活、never delete、provenance-gated）。**把 Hermes 的"自动挖掘脑"接到 B4 的"强制 HITL 身"**——自动提议落 `_drafts/` 走人审门。治理**不借**（Hermes 默认自由写弱于 B4）。详见 [Hermes skill](HERMES.md)。
 
 **T8 · 压缩后活状态 system-reminder**　`✅ 已落地`　`唯一：Grok`
 - LLM 摘要天然丢活的执行副作用——压缩重建末尾确定性拼一段 reminder（在跑后台 shell + TODO + 在跑 subagent + 各自 poll/cancel 工具名）。压缩正确性的独立维度、零 LLM。详见 [Grok G3](GROK.md)。
 - **落地形态**：LLM-summary rung 在 summary 后注入 `<system-reminder>`，列 session 的在跑后台 shell（`exec.Shells` 加 session-scoping + `RunningForSession`）+ in-progress todos；无活状态则整段省略。**subagent 段刻意不做**（task 工具同步跑子进程，post-turn 压缩时无在跑 subagent）。
 
-**T9 · models.dev 外部模型目录（build 时 vendor）**　`唯一：opencode`
+**T9 · models.dev 外部模型目录（build 时 vendor）**　`✅ 已落地`　`唯一：opencode`
 - 把模型 id/能力/定价/上限从二进制解耦成外部维护数据集，**build 时 vendor `models.dev/api.json`**，消除手维护 21-provider Go 表漂移。只取数据源、不取 Effect/TTL 机器。小、独立、收益明确。详见 [opencode OC3](OPENCODE.md)。
 
 ### 🥈 第二梯队（P1~P2）
@@ -101,13 +101,13 @@
 
 | 优先级 | 条目 |
 |---|---|
-| **✅ 已落地** | **T3 工具搜索**、**T5 Goal mode（后端，前端 defer）**、**T8 活状态 reminder**、**T13 doom_loop**（+ **T6 执行 TODO** 原已实现） |
-| **P1（先做）** | T1 沙箱(C7)、T2 凭证经纪人、T4 记忆(C8)、T7 自进化 skill、T9 models.dev |
+| **✅ 已落地** | **T1 沙箱(C7)**、**T3 工具搜索**、**T4 记忆(C8)**、**T5 Goal mode**、**T7 自进化 skill**、**T8 活状态 reminder**、**T9 models.dev**、**T13 doom_loop**（+ **T6 执行 TODO** 原已实现） |
+| **P1（先做）** | T2 凭证经纪人（头号 open） |
 | **P1~P2** | T10 system-context、T11 hunk curation、T12 yolo LLM reviewer、T14 media 落地 |
 | **P2** | T15 execpolicy、T16 压缩健壮性、T19 廉价快赢集、T23 事件 seq 核对 |
 | **P3 / 门控 / defer** | T17 subagent 组合、T18 KAOS(门控 C7)、T20 apply_patch、T21 bundle 安装、T22 ACP(defer)、T24 MCP OAuth(待决)、T25 CodeMode(先写 spec) |
 
-**两块大而独立的**（各自成批、用户确认后逐批）：**C7 沙箱（T1+T2+T15+T18）** 与 **C8 记忆（T4）**。其余多为薄核加法或廉价收尾。
+**C7 沙箱（T1）与 C8 记忆（T4）均已落地**；C7 的配套 T2 凭证经纪人 / T15 execpolicy / T18 KAOS seam 仍 open。其余多为薄核加法或廉价收尾。
 
 ---
 

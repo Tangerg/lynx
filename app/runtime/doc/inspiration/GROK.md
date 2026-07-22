@@ -2,7 +2,7 @@
 
 > **来源**：对 **Grok Build**（`grok`，xAI/SpaceXAI 的终端 AI coding agent，Rust，~70 个 `xai-*` crate 的 Cargo workspace；桌面克隆 `~/Desktop/grok-build`，其 `crates/codegen/xai-grok-pager/docs/user-guide/` 24 篇是可信的能力索引）的源码级对比分析。Grok Build 与 lyra 是**高度同构的两个生产 coding agent 运行时**（TUI/headless/ACP 三形态 vs lyra 的 desktop/headless）；本文档只收录"它工程化更细、而 lyra 值得搬"的点子，过 lynx 哲学筛子后落地。
 >
-> **本文档职责**：给"满血上下文"实现会话提供每条吸纳项的 _为什么 / 目标 / 落点 / 计划 / 验收 / 风险 / 优先级 / 进度_，以及**刻意不吸**清单（防止未来会话重新论证）。方法与 [`../AGENTSCOPE_INSPIRED_BACKLOG.md`](../AGENTSCOPE_INSPIRED_BACKLOG.md) 一致；架构基准以 [`../EXECUTION_CENTERED_ARCHITECTURE.md`](../EXECUTION_CENTERED_ARCHITECTURE.md) 为准。跨应用合并排序与总索引见 [`README.md`](README.md)。
+> **本文档职责**：给"满血上下文"实现会话提供每条吸纳项的 _为什么 / 目标 / 落点 / 计划 / 验收 / 风险 / 优先级 / 进度_，以及**刻意不吸**清单（防止未来会话重新论证）。方法与其余能力吸纳分析一致；架构基准以 [`../EXECUTION_CENTERED_ARCHITECTURE.md`](../EXECUTION_CENTERED_ARCHITECTURE.md) 为准。跨应用合并排序与总索引见 [`README.md`](README.md)。
 >
 > **状态**：**全部为 proposed**（尚未实现）。分析基于 5 个能力簇的源码级并行深挖（执行/隔离、代码智能/git、run-loop/压缩、工具/协议、扩展/治理/记忆）。
 

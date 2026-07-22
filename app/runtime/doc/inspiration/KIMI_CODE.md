@@ -1,6 +1,6 @@
 # Kimi Code 启发的能力吸纳 Backlog
 
-> **来源**：对 **Kimi Code CLI**（`@moonshot-ai/monorepo`，Moonshot 的终端 coding agent，pnpm/TS monorepo；桌面克隆 `~/Desktop/kimi-code`）的源码级对比分析。**非 gemini-cli fork**——表面像（README/GEMINI 式 memory、`/`-命令、`@`-文件、subagents、ACP），实为自研引擎栈：`agent-core`(v1)/`agent-core-v2`(DI×Scope)、自研 LLM 层 `kosong`、自研存储 `minidb`、自研执行环境 `kaos`。方法与 [`GROK.md`](GROK.md) / [`../AGENTSCOPE_INSPIRED_BACKLOG.md`](../AGENTSCOPE_INSPIRED_BACKLOG.md) 一致；跨应用总索引见 [`README.md`](README.md)。
+> **来源**：对 **Kimi Code CLI**（`@moonshot-ai/monorepo`，Moonshot 的终端 coding agent，pnpm/TS monorepo；桌面克隆 `~/Desktop/kimi-code`）的源码级对比分析。**非 gemini-cli fork**——表面像（README/GEMINI 式 memory、`/`-命令、`@`-文件、subagents、ACP），实为自研引擎栈：`agent-core`(v1)/`agent-core-v2`(DI×Scope)、自研 LLM 层 `kosong`、自研存储 `minidb`、自研执行环境 `kaos`。方法与 [`GROK.md`](GROK.md) 一致；跨应用总索引见 [`README.md`](README.md)。
 >
 > **状态**：全部 proposed。已跳过 parity 项（subagents/swarm、hooks、`/`-命令、`@`-文件、plan、compaction、per-session cwd、background commands、MCP gating、telemetry）——lyra 均 match 或 lead。
 

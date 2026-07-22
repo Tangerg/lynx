@@ -1,6 +1,6 @@
 # 功能入口 / 可发现性 Backlog —— app/desktop 前端
 
-> **目的**：功能越堆越多，但用户摸不到——把"已实现却藏起来/失效的入口"和"竞品用来surface大量功能的 IA 模式"落成**可勾选、带源码证据、分优先级**的待办。配套 [`DESKTOP_COMPARISON.md`](./DESKTOP_COMPARISON.md)（比 GUI 形态：引擎位置/插件化/设计系统）/ [`UX_POLISH_BACKLOG.md`](./UX_POLISH_BACKLOG.md)（比"小处打磨"：通知/进度/草稿）——**本篇只比"功能入口在哪、藏没藏、怎么 surface"**（信息架构 / 可发现性）。
+> **目的**：功能越堆越多，但用户摸不到——把"已实现却藏起来/失效的入口"和"竞品用来surface大量功能的 IA 模式"落成**可勾选、带源码证据、分优先级**的待办。配套 [`DESKTOP_COMPARISON.md`](./DESKTOP_COMPARISON.md)（比 GUI 形态：引擎位置/插件化/设计系统）——**本篇只比"功能入口在哪、藏没藏、怎么 surface"**（信息架构 / 可发现性）。
 >
 > **方法**：4 个 source-grounded subagent 第一手核实——1 个自审（盘点 `app/desktop/frontend/src` 全部入口）+ 3 个竞品（**Proma**=最近同类 / **Cherry Studio**=多功能区标杆 / **LobeChat**=可发现性标杆，clone 均在 `~/Desktop/`）。竞品路径相对各自 clone 根；我方路径相对 `app/desktop/frontend/src`。基线 **2026-06-22**。
 >
