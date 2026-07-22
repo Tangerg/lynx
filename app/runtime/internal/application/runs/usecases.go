@@ -27,6 +27,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		MaxSteps:       cmd.MaxSteps,
 		Options:        cmd.Options,
 		InterruptKinds: cmd.InterruptKinds,
+		GoalGeneration: cmd.GoalGeneration,
 	}
 	if err := draft.Validate(); err != nil {
 		return StartResult{}, err

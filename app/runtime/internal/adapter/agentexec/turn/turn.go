@@ -45,19 +45,20 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	observer := &turnObserver{dispatcher: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
 	process, err := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
-		SessionID:     request.SessionID,
-		Message:       request.Message,
-		Provider:      request.Provider,
-		Media:         request.Media,
-		Cwd:           request.Cwd,
-		Isolated:      request.Isolated,
-		MaxBudget:     request.MaxBudget,
-		MaxCostUSD:    request.MaxCostUSD,
-		MaxSteps:      request.MaxSteps,
-		Options:       request.Options,
-		ChatClient:    client,
-		Observer:      observer,
-		EventListener: st.lifecycle.listener(st.handle.TurnID),
+		SessionID:      request.SessionID,
+		Message:        request.Message,
+		Provider:       request.Provider,
+		Media:          request.Media,
+		Cwd:            request.Cwd,
+		Isolated:       request.Isolated,
+		GoalGeneration: request.GoalGeneration,
+		MaxBudget:      request.MaxBudget,
+		MaxCostUSD:     request.MaxCostUSD,
+		MaxSteps:       request.MaxSteps,
+		Options:        request.Options,
+		ChatClient:     client,
+		Observer:       observer,
+		EventListener:  st.lifecycle.listener(st.handle.TurnID),
 		// Mid-run steering: drained before each continuation round (with the
 		// next-turn flushSteering as the after-last-round fallback).
 		Steer: s.steerSource(st),

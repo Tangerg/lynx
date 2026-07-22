@@ -33,6 +33,14 @@ const SessionBindingKey = "lyra:session"
 // copy. Protected so a `task` sub-agent inherits the isolation.
 const IsolatedBindingKey = "lyra:isolated"
 
+// GoalGenerationBindingKey is the blackboard key the chat action binds
+// (protected) on a Goal-mode autonomous run: the goal incarnation (generation)
+// the loop launched this run under. update_goal reads it and compare-and-swaps
+// on it, so a straggler run from a superseded goal cannot signal a newer goal.
+// Absent on ordinary runs — then update_goal signals whatever goal is currently
+// active (a user-initiated turn legitimately targets the live goal).
+const GoalGenerationBindingKey = "lyra:goal-generation"
+
 // TurnCwd reads the working directory the running process seeded on its
 // blackboard ([CwdBindingKey]), falling back to fallback when the turn carried
 // none (a sessionless smoke run, or a restored continuation whose snapshot
@@ -66,6 +74,23 @@ func TurnIsolated(ctx context.Context) bool {
 		}
 	}
 	return false
+}
+
+// TurnGoalGeneration reports the goal incarnation this run was launched under
+// ([GoalGenerationBindingKey]) and whether it was set. update_goal uses (gen,
+// true) as its CAS expectation; (0, false) means the run carries no goal stamp
+// (a user turn), so update_goal targets the currently-active goal instead.
+func TurnGoalGeneration(ctx context.Context) (int64, bool) {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
+		return 0, false
+	}
+	if value, ok := process.Blackboard().Load(GoalGenerationBindingKey); ok {
+		if generation, ok := value.(int64); ok {
+			return generation, true
+		}
+	}
+	return 0, false
 }
 
 // TurnSession reads the session id the chat action seeded on the blackboard

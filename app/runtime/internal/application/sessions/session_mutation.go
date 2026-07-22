@@ -28,6 +28,15 @@ func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, 
 		}
 	}()
 
+	// Cancel each session's Goal loop while the mutation slot is held, before the
+	// delete clears its goal — so no straggler launches a run against a session
+	// we are about to remove. Non-blocking; the generation CAS is the durable net.
+	if c.goals != nil {
+		for _, id := range sessionIDs {
+			c.goals.Quiesce(id)
+		}
+	}
+
 	var pending []interrupts.Pending
 	for _, id := range sessionIDs {
 		open, err := c.s.Interrupts().List(ctx, id)
@@ -168,6 +177,11 @@ func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer,
 		return err
 	}
 	defer admission.Release()
+	// Cancel any Goal loop before the restore replaces the session's history and
+	// clears its goal, so a straggler can't drive the pre-restore objective.
+	if c.goals != nil {
+		c.goals.Quiesce(snapshot.Session.ID)
+	}
 	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
 	if err != nil {
 		return err

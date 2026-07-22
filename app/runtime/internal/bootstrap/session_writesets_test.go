@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -78,6 +79,7 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 		history:    conversation.NewMessages(sqlite.NewMessageStore(db)),
 		todos:      todos,
 		approvals:  approvals,
+		goals:      sqlite.NewGoalStore(db),
 		forgetter:  noopForgetter{},
 		tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -431,5 +433,25 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	sourceItems, sourceRuns, err := ss.transcript.List(ctx, "ses_A")
 	if err != nil || len(sourceItems) != 1 || len(sourceRuns) != 1 {
 		t.Fatalf("source transcript after conflict = items=%+v runs=%+v err=%v", sourceItems, sourceRuns, err)
+	}
+}
+
+// TestApplyDeleteClearsSessionGoal proves a goal is part of the atomic delete
+// cascade (D1): a deleted session leaves no orphan goal behind.
+func TestApplyDeleteClearsSessionGoal(t *testing.T) {
+	ss, _, _ := newWriteSetFixture(t)
+	ctx := context.Background()
+
+	g, _ := goal.New("ses_goal", "ship it", "", "", goal.Budget{}, time.Unix(0, 0))
+	g.Generation = 1
+	if applied, err := ss.goals.Save(ctx, g, 0); err != nil || !applied {
+		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
+	}
+
+	if err := ss.ApplyDelete(ctx, sessions.DeletePlan{SessionIDs: []string{"ses_goal"}}); err != nil {
+		t.Fatalf("ApplyDelete: %v", err)
+	}
+	if _, ok, err := ss.goals.Get(ctx, "ses_goal"); err != nil || ok {
+		t.Fatalf("goal survived the delete cascade: ok=%v err=%v", ok, err)
 	}
 }

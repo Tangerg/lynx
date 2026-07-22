@@ -35,6 +35,21 @@ func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
 	return out, nil
 }
 
+// Exists reports whether a session row exists — the cheap existence check the
+// goal driver uses to refuse a goal for a missing session and to sweep orphaned
+// goals at boot, without decoding the whole aggregate.
+func (s *SessionStore) Exists(ctx context.Context, id string) (bool, error) {
+	var one int
+	err := conn(ctx, s.db).QueryRowContext(ctx, `SELECT 1 FROM sessions WHERE id = ?`, id).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("sqlite: session exists: %w", err)
+	}
+	return true, nil
+}
+
 func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+sessionColumns+` FROM sessions WHERE id = ?`, id)

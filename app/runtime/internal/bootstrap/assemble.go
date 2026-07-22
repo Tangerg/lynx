@@ -359,20 +359,27 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
 
+	sessionStoreSet := sessionStores{
+		sessions:    cfg.SessionStore,
+		transcript:  cfg.TranscriptStore,
+		interrupts:  cfg.InterruptStore,
+		runs:        cfg.RunStore,
+		processes:   cfg.ProcessStore,
+		history:     messages.conversation,
+		todos:       cfg.TodoStore,
+		approvals:   cfg.ApprovalRuleStore,
+		toolResults: cfg.ToolResultStore,
+		forgetter:   turnDispatcher,
+		tx:          cfg.Transactor,
+	}
+	// Set the goal store only when present so a nil goal.Store never reaches the
+	// write-sets as a non-nil interface (which would defeat their own nil check).
+	// It puts a deleted/rewound session's goal into the atomic cleanup cascade.
+	if cfg.GoalStore != nil {
+		sessionStoreSet.goals = cfg.GoalStore
+	}
 	sessionDeps := sessions.Dependencies{
-		Stores: sessionStores{
-			sessions:    cfg.SessionStore,
-			transcript:  cfg.TranscriptStore,
-			interrupts:  cfg.InterruptStore,
-			runs:        cfg.RunStore,
-			processes:   cfg.ProcessStore,
-			history:     messages.conversation,
-			todos:       cfg.TodoStore,
-			approvals:   cfg.ApprovalRuleStore,
-			toolResults: cfg.ToolResultStore,
-			forgetter:   turnDispatcher,
-			tx:          cfg.Transactor,
-		},
+		Stores:      sessionStoreSet,
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
@@ -382,6 +389,16 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// non-nil interface (which would defeat its own nil check).
 	if isolator != nil {
 		sessionDeps.Sandbox = isolator
+	}
+	// The session coordinator quiesces a mutated session's goal loop, but the goal
+	// driver is built after it (the driver depends on the run coordinator, which
+	// depends on the session coordinator). goalQuiescer late-binds the driver into
+	// the coordinator, breaking that construction cycle without a public setter; it
+	// is populated below, before serving begins.
+	var goalQuiescer *goalQuiescerRef
+	if cfg.GoalStore != nil {
+		goalQuiescer = &goalQuiescerRef{}
+		sessionDeps.Goals = goalQuiescer
 	}
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
@@ -443,7 +460,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriver(cfg.GoalStore, runCoord)
+		goalDriver = goals.NewDriver(cfg.GoalStore, runCoord, cfg.SessionStore)
+		goalQuiescer.d = goalDriver // late-bind into the session coordinator
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
