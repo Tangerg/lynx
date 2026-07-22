@@ -190,5 +190,4 @@ decode 失败时仍返回原始 Response，repair/retry 策略由调用方显式
 - `go doc github.com/Tangerg/lynx/tools`
 - `go doc github.com/Tangerg/lynx/agent/toolloop`
 - 观测接入见 [`OBSERVABILITY.md`](./OBSERVABILITY.md)
-- 长期边界、ADR 与发布状态见
-  [`CORE_ARCHITECTURE_EXECUTION_PLAN.md`](./CORE_ARCHITECTURE_EXECUTION_PLAN.md)
+- 模块维护规则与反向不变量见 [`../core/CLAUDE.md`](../core/CLAUDE.md)

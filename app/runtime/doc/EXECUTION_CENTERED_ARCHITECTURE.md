@@ -1,9 +1,6 @@
 # Execution-Centered Architecture — `app/runtime` 架构基准
 
-> 状态：现行架构基准。历史收敛过程见
-> [`EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md`](EXECUTION_ARCHITECTURE_CONVERGENCE_PLAN.md)，
-> Core/Chat 重构过程见
-> [`../../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md`](../../../doc/CORE_ARCHITECTURE_EXECUTION_PLAN.md)。
+> 状态：现行架构基准。
 
 Lyra Runtime 以 Run 生命周期为中心，而不是以某个 agent loop 类型或 transport 为中心。
 Delivery 接收 wire request，Application 拥有完整用例和副作用顺序，Adapter/Infra
