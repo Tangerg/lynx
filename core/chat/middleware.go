@@ -1,5 +1,7 @@
 package chat
 
+import "slices"
+
 // CallMiddleware wraps a Model with cross-cutting call behavior. Concrete
 // logging, tracing, retry, history, and safety policy belong to upper modules;
 // core/chat only owns this composition vocabulary.
@@ -26,11 +28,10 @@ func WrapStream(streamer Streamer, middlewares ...StreamMiddleware) Streamer {
 // nominal generic model hierarchy.
 func compose[T any, M ~func(T) T](endpoint T, middlewares []M) T {
 	wrapped := endpoint
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		if middlewares[i] == nil {
-			continue
+	for _, middleware := range slices.Backward(middlewares) {
+		if middleware != nil {
+			wrapped = middleware(wrapped)
 		}
-		wrapped = middlewares[i](wrapped)
 	}
 	return wrapped
 }
