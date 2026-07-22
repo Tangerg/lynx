@@ -75,6 +75,14 @@ type Config struct {
 	SandboxShell         bool
 	SandboxReadOnlyPaths []string
 
+	// SandboxSnapshotStore persists the final tar snapshot of an isolated
+	// session's working copy when it is discarded; SandboxDir roots the ephemeral
+	// copies. Together they back an isolated run — a session marked Isolated runs
+	// its tools in a throwaway copy of its project. nil store / empty dir disables
+	// isolation (an isolated session's run is then refused, fail-closed).
+	SandboxSnapshotStore *sqlitestore.SandboxSnapshotStore
+	SandboxDir           string
+
 	// MCPRegistry is the runtime-mutable MCP-server registry. The enabled
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime

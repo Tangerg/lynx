@@ -34,6 +34,10 @@ type turnInput struct {
 	// it. Empty falls back to the engine's default workdir.
 	Cwd string
 
+	// Isolated marks a turn in an isolated session (Cwd is a sandbox copy, its
+	// shell must be OS-jailed). Bound protected so tools + task sub-agents see it.
+	Isolated bool
+
 	// SessionID anchors the turn to its session; the chat action binds it
 	// protected so the read/edit guards can key file-read state per session
 	// (same blackboard seam as Cwd). Empty for a sessionless smoke run.
@@ -130,6 +134,9 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		}
 		if in.SessionID != "" {
 			pc.Blackboard().StoreProtected(turnctx.SessionBindingKey, in.SessionID)
+		}
+		if in.Isolated {
+			pc.Blackboard().StoreProtected(turnctx.IsolatedBindingKey, true)
 		}
 		return e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
 	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleCoding)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})

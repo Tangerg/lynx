@@ -66,6 +66,7 @@ func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (ru
 		Message:        request.Message,
 		Media:          request.Media,
 		Cwd:            request.Cwd,
+		Isolated:       request.Isolated,
 		Provider:       request.Provider,
 		Model:          request.Model,
 		MaxBudget:      request.MaxBudget,

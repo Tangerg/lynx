@@ -35,10 +35,14 @@ type StartTurnRequest struct {
 	// image input should be sent them (gated before StartTurn).
 	Media []*media.Media
 
-	// Cwd is the session's working directory — the project root the turn's
-	// filesystem + shell tools run in. Resolved from Session.cwd by the
-	// caller (runs.start). Empty falls back to the engine's default workdir.
+	// Cwd is the turn's EXECUTION directory — the sandbox copy for an isolated
+	// session, else the project root. The filesystem + shell tools run in it.
+	// Empty falls back to the engine's default workdir.
 	Cwd string
+
+	// Isolated marks a turn in an isolated session: Cwd is a sandbox copy and the
+	// shell must be OS-jailed. Carried to the blackboard binding.
+	Isolated bool
 
 	// Provider + Model select the model this turn runs against (the wire
 	// runs.start{providerId, model}). Both empty uses the runtime's default;

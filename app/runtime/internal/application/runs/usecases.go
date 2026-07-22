@@ -62,7 +62,12 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		}
 	}
 	draft.SessionID = sess.ID
-	draft.Cwd = sess.Cwd
+	execCwd, isolated, err := c.executionCwd(ctx, sess)
+	if err != nil {
+		return StartResult{}, err
+	}
+	draft.Cwd = execCwd
+	draft.Isolated = isolated
 	turn, err := c.turns.PrepareStart(ctx, draft)
 	if err != nil {
 		return StartResult{}, err
@@ -141,6 +146,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		}
 	}()
 
+	// Resume inherits isolation from the parked turn: a live turn still carries
+	// the copy cwd + isolation on its blackboard; a rehydrated one restores them
+	// from the snapshot's protected bindings. So no execution-cwd resolution here.
 	turn, err := c.prepareTurn(ctx, pending, sess.Cwd)
 	if err != nil {
 		if errors.Is(err, ErrTurnStateLost) {
@@ -280,6 +288,24 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) (func
 		return nil, ErrSessionBusy
 	}
 	return release, nil
+}
+
+// executionCwd resolves where a session's turn tools operate: the sandbox copy
+// for an isolated session (created on first use), else the project directory.
+// It fails closed when isolation is requested but unavailable — an isolated run
+// must never fall back to the real tree.
+func (c *Coordinator) executionCwd(ctx context.Context, sess session.Session) (cwd string, isolated bool, err error) {
+	if !sess.Isolated {
+		return sess.Cwd, false, nil
+	}
+	if c.isolation == nil {
+		return "", false, fmt.Errorf("%w: isolation is not configured", ErrIsolationUnavailable)
+	}
+	copyDir, err := c.isolation.Workspace(ctx, sess.ID, sess.Cwd)
+	if err != nil {
+		return "", false, fmt.Errorf("%w: %w", ErrIsolationUnavailable, err)
+	}
+	return copyDir, true, nil
 }
 
 func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (TurnRef, error) {

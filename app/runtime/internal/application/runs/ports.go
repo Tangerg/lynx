@@ -75,10 +75,14 @@ func (r TurnRef) ValidateFor(sessionID string) error {
 // StartTurn is the protocol-neutral command the run use case sends to the
 // executor adapter after resolving the session and its working directory.
 type StartTurn struct {
-	SessionID      string
-	Message        string
-	Media          []*media.Media
+	SessionID string
+	Message   string
+	Media     []*media.Media
+	// Cwd is the turn's EXECUTION directory — the sandbox copy for an isolated
+	// run, else the session's project directory. The durable run record keeps the
+	// project directory; only the executor sees the copy.
 	Cwd            string
+	Isolated       bool
 	Provider       string
 	Model          string
 	MaxBudget      int64
@@ -97,6 +101,14 @@ type RehydrateTurn struct {
 	Provider  string
 	Model     string
 	Cwd       string
+}
+
+// IsolationProvider resolves the sandbox working-copy directory an isolated
+// session's run executes in, creating it from the project directory on first
+// use. Implemented by the isolation adapter; nil when isolation is not
+// configured (then an isolated session's start is refused).
+type IsolationProvider interface {
+	Workspace(ctx context.Context, sessionID, projectRoot string) (string, error)
 }
 
 // TurnControl is the run use cases' engine-neutral control surface. Validation

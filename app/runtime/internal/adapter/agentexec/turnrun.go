@@ -51,6 +51,11 @@ type TurnRequest struct {
 	// the engine's default workdir.
 	Cwd string
 
+	// Isolated marks a turn running in an isolated session: Cwd is a sandbox
+	// copy and the shell must be OS-jailed. The chat action binds it protected
+	// (turnctx.IsolatedBindingKey) so tools and task sub-agents see the isolation.
+	Isolated bool
+
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. See
 	// [turnInput.MaxBudget] for the stop semantics.
@@ -130,7 +135,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
+	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
 	guardrails, err := e.steeringGuardrails(request.Steer)
 	if err != nil {

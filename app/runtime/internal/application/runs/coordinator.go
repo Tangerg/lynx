@@ -27,6 +27,7 @@ type Coordinator struct {
 	turns        TurnControl
 	sessions     SessionLifecycle
 	effects      Effects
+	isolation    IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
 	now          func() time.Time
 	newRunID     func() string
 	newSegmentID func() string
@@ -46,6 +47,7 @@ type Dependencies struct {
 	Turns        TurnControl
 	Sessions     SessionLifecycle
 	Effects      Effects
+	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
 	Now          func() time.Time
 	NewRunID     func() string
 	NewSegmentID func() string
@@ -61,6 +63,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		turns:        deps.Turns,
 		sessions:     deps.Sessions,
 		effects:      deps.Effects,
+		isolation:    deps.Isolation,
 		now:          deps.Now,
 		newRunID:     deps.NewRunID,
 		newSegmentID: deps.NewSegmentID,

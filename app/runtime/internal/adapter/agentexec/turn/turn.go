@@ -50,6 +50,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		Provider:      request.Provider,
 		Media:         request.Media,
 		Cwd:           request.Cwd,
+		Isolated:      request.Isolated,
 		MaxBudget:     request.MaxBudget,
 		MaxCostUSD:    request.MaxCostUSD,
 		MaxSteps:      request.MaxSteps,
