@@ -359,7 +359,7 @@ func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) e
 
 func (e *Effects) interruptProcessID(ctx context.Context, p interrupts.Pending) (string, error) {
 	if e.processes == nil {
-		return "", errors.New("runsegment: interrupt persistence is unavailable")
+		return "", errors.New("runsegment: process lookup is unavailable")
 	}
 	// Rebuild the executor's turn handle from the persisted coordinates — the
 	// dispatcher keys the live turn by session + turn id, and the domain record

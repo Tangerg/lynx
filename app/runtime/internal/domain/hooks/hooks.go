@@ -222,5 +222,3 @@ func (d *Decision) fold(block, ask bool, reason, inject, rewrite string) {
 		d.RewriteArguments = rewrite
 	}
 }
-
-func trimSpace(s string) string { return strings.TrimSpace(s) }

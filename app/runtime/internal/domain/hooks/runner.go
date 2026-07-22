@@ -7,6 +7,7 @@ import (
 	"errors"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -78,7 +79,7 @@ func (r *Runner) Run(ctx context.Context, hooks []Hook, in Input) Decision {
 		}
 		if h.Command == "" {
 			// Declarative: a literal context injection, no exec.
-			dec.fold(false, false, "", trimSpace(h.Inject), "")
+			dec.fold(false, false, "", strings.TrimSpace(h.Inject), "")
 			continue
 		}
 		r.runOne(ctx, h, in, &dec)
@@ -121,16 +122,16 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 		ask := out.Decision == "ask"
 		reason := out.Reason
 		if block && reason == "" {
-			reason = trimSpace(result.Stderr)
+			reason = strings.TrimSpace(result.Stderr)
 		}
-		dec.fold(block, ask, reason, trimSpace(out.InjectContext), trimSpace(out.RewriteArguments))
+		dec.fold(block, ask, reason, strings.TrimSpace(out.InjectContext), strings.TrimSpace(out.RewriteArguments))
 	case result.ExitCode == blockExitCode:
 		// Exit 2: block. Reason is the stdout JSON's, else stderr.
 		reason := out.Reason
 		if reason == "" {
-			reason = trimSpace(result.Stderr)
+			reason = strings.TrimSpace(result.Stderr)
 		}
-		dec.fold(true, false, reason, trimSpace(out.InjectContext), "")
+		dec.fold(true, false, reason, strings.TrimSpace(out.InjectContext), "")
 	default:
 		// Any other non-zero exit (or spawn failure): a broken hook. Non-blocking
 		// — the action proceeds — but surfaced via onError so it's observable.
@@ -157,7 +158,7 @@ func parseOutput(b []byte) hookOutput {
 
 // hookError builds a descriptive error for a non-blocking hook failure.
 func hookError(exit int, stderr string, runErr error) error {
-	if s := trimSpace(stderr); s != "" {
+	if s := strings.TrimSpace(stderr); s != "" {
 		return errors.New(s)
 	}
 	if runErr != nil {
