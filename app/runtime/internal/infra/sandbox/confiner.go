@@ -6,12 +6,13 @@
 //     working tree, confined to write only within its cwd, with the network
 //     denied, $HOME hidden, and the environment scrubbed. It backs the live
 //     shell tool (see internal/infra/exec).
-//   - Workspace (wired): an isolated working copy with content-addressed tar
-//     snapshots — a session marked Isolated runs its tools inside one instead of
-//     the real tree (see internal/adapter/isolation). New/Path/Stop/Shutdown are
-//     the copy lifecycle the isolation adapter drives; Resume rebuilds a copy
-//     from a snapshot. macOS-only today (fail-closed elsewhere); its execpolicy /
-//     Linux-Windows-backend extensions remain future work (the C7 backlog).
+//   - Workspace (wired): an isolated working copy — a session marked Isolated
+//     runs its tools inside one instead of the real tree (see
+//     internal/adapter/isolation, which drives New/Path/Shutdown). macOS-only
+//     today (fail-closed elsewhere). Stop/Resume + the content-addressed tar
+//     SnapshotStore are the snapshot/resume half: unused today (the scratch copy
+//     is thrown away, never snapshotted), retained as C7 groundwork for a future
+//     inspect / resume-isolated-session feature — not dead code.
 package sandbox
 
 import (

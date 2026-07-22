@@ -36,7 +36,6 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		LSPServers:             runtimeLSPServers(cfg.LSPServers),
 		SandboxShell:           cfg.SandboxShell,
 		SandboxReadOnlyPaths:   cfg.SandboxReadOnlyPaths,
-		SandboxSnapshotStore:   stores.Sandbox,
 		SandboxDir:             filepath.Join(stores.Home, "sandbox"),
 		SessionStore:           stores.Session,
 		RunStore:               stores.Runs,

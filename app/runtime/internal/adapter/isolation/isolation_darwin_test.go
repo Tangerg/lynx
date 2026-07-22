@@ -6,32 +6,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 )
-
-// memStore is an in-memory sandbox.SnapshotStore for the discard snapshot.
-type memStore struct {
-	mu   sync.Mutex
-	blob map[string][]byte
-}
-
-func (m *memStore) SaveSandboxSnapshot(_ context.Context, id string, archive []byte) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.blob == nil {
-		m.blob = map[string][]byte{}
-	}
-	m.blob[id] = archive
-	return nil
-}
-
-func (m *memStore) LoadSandboxSnapshot(_ context.Context, id string) ([]byte, bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	b, ok := m.blob[id]
-	return b, ok, nil
-}
 
 func TestIsolatorCopiesReusesAndDiscards(t *testing.T) {
 	project := t.TempDir()
@@ -39,7 +15,7 @@ func TestIsolatorCopiesReusesAndDiscards(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	iso := New(t.TempDir(), &memStore{}, nil)
+	iso := New(t.TempDir(), nil)
 	t.Cleanup(func() { _ = iso.Close() })
 	ctx := context.Background()
 
@@ -69,13 +45,13 @@ func TestIsolatorCopiesReusesAndDiscards(t *testing.T) {
 	}
 
 	// Discard destroys the copy and is idempotent.
-	if err := iso.Discard(ctx, "s1"); err != nil {
+	if err := iso.Discard("s1"); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	if _, err := os.Stat(copyDir); !os.IsNotExist(err) {
 		t.Fatalf("copy survived discard: %v", err)
 	}
-	if err := iso.Discard(ctx, "s1"); err != nil {
+	if err := iso.Discard("s1"); err != nil {
 		t.Fatalf("Discard is not idempotent: %v", err)
 	}
 }

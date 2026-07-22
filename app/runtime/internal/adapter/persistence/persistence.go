@@ -57,7 +57,6 @@ type Bundle struct {
 	Codebase      *sqlitestore.CodebaseIndexStore
 	ToolResults   *sqlitestore.ToolResultStore
 	Idempotency   *sqlitestore.IdempotencyStore
-	Sandbox       *sqlitestore.SandboxSnapshotStore
 }
 
 // Open wires the persistence backends. The returned bundle owns the shared
@@ -102,7 +101,6 @@ func Open() (*Bundle, error) {
 		Codebase:      sqlitestore.NewCodebaseIndexStore(db),
 		ToolResults:   sqlitestore.NewToolResultStore(db),
 		Idempotency:   sqlitestore.NewIdempotencyStore(db),
-		Sandbox:       sqlitestore.NewSandboxSnapshotStore(db),
 	}, nil
 }
 

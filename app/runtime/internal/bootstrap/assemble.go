@@ -320,11 +320,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	// Sandbox isolation for a run whose session is marked Isolated: its tools
 	// operate in a throwaway copy of the project directory, the shell OS-jailed.
-	// nil store disables it (an isolated session's run is then refused, fail-
+	// Empty dir disables it (an isolated session's run is then refused, fail-
 	// closed). Its copies are destroyed on session delete and at shutdown.
 	var isolator *isolation.Isolator
-	if cfg.SandboxSnapshotStore != nil {
-		isolator = isolation.New(cfg.SandboxDir, cfg.SandboxSnapshotStore, cfg.SandboxReadOnlyPaths)
+	if cfg.SandboxDir != "" {
+		isolator = isolation.New(cfg.SandboxDir, cfg.SandboxReadOnlyPaths)
 	}
 
 	// The run coordinator owns the run lifecycle (§20). It commits durable side
