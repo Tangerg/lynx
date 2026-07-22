@@ -147,9 +147,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}()
 
 	// Resume inherits isolation from the parked turn: a live turn still carries
-	// the copy cwd + isolation on its blackboard; a rehydrated one restores them
-	// from the snapshot's protected bindings. So no execution-cwd resolution here.
-	turn, err := c.prepareTurn(ctx, pending, sess.Cwd)
+	// the copy cwd + isolation on its blackboard, so no execution-cwd resolution
+	// here. A rehydrate (process gone) of an isolated run is refused as lost —
+	// see prepareTurn — because the sandbox copy died with the process.
+	turn, err := c.prepareTurn(ctx, pending, sess.Cwd, sess.Isolated)
 	if err != nil {
 		if errors.Is(err, ErrTurnStateLost) {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
@@ -308,7 +309,7 @@ func (c *Coordinator) executionCwd(ctx context.Context, sess session.Session) (c
 	return copyDir, true, nil
 }
 
-func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string) (TurnRef, error) {
+func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (TurnRef, error) {
 	turn, err := c.turns.Prepare(ctx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
 	if err == nil {
 		if err := turn.ValidateFor(pending.SessionID); err != nil {
@@ -321,6 +322,17 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 	}
 	if !errors.Is(err, ErrTurnNotLive) {
 		return TurnRef{}, err
+	}
+	// The parked turn is not live in this process, so its executor died — for an
+	// isolated run that means its sandbox copy, which lives only in this process's
+	// Isolator, died with it. Rehydrating would rebuild the turn against the
+	// project directory (the only cwd we still have), running the resumed model
+	// and its memory extraction on the REAL tree — the exact pollution isolation
+	// exists to prevent. Fail closed: the run's world is gone, so it is lost, not
+	// resumable. Reusing ErrTurnStateLost routes it through the same durable
+	// lost-run cleanup as a missing process snapshot.
+	if isolated {
+		return TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
 	}
 	if pending.ProcessID == "" {
 		return TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
