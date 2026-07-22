@@ -125,7 +125,6 @@ import session from "./samples/session.json";
 import skill from "./samples/skill.json";
 import managedSkill from "./samples/managedSkill.json";
 import skillDraft from "./samples/skillDraft.json";
-import stateDelta from "./samples/state.delta.json";
 import stateSnapshot from "./samples/state.snapshot.json";
 import usageSummary from "./samples/usageSummary.json";
 import utilityRole from "./samples/utilityRole.json";
@@ -181,7 +180,6 @@ const samples: unknown[] = [
   wire<RunEvent>(itemDelta),
   wire<RunEvent>(itemCompleted),
   wire<RunEvent>(stateSnapshot),
-  wire<RunEvent>(stateDelta),
   wire<RunEvent>(custom),
 
   // §4.3 Item union (bare) + ContentBlock.

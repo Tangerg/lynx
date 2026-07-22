@@ -248,7 +248,7 @@ export interface AgentViewState {
    *  retains only the identity and kind needed to resume or settle them. */
   pendingInterrupts: PendingInterruptGroup[];
   /**
-   * Backend-owned shared state — v2 state.snapshot / state.delta. Free-form
+   * Backend-owned shared state — v2 state.snapshot. Free-form
    * JSON the agent maintains and the UI observes; plugins subscribe to
    * subtrees via `useSharedState(path)`. Empty by default.
    */

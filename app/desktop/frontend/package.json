@@ -57,7 +57,6 @@
     "colord": "^2.9.3",
     "compare-versions": "^6.1.1",
     "eventsource-parser": "^3.1.0",
-    "fast-json-patch": "^3.1.1",
     "i18next": "^26.3.3",
     "katex": "^0.17.0",
     "lucide-react": "^1.21.0",

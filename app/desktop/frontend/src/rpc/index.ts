@@ -75,7 +75,6 @@ export type {
   StreamEvent,
   StreamEventType,
   ItemDelta,
-  JsonPatch,
   // HITL
   Interrupt,
   ApprovalPayload,

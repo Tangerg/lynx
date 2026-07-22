@@ -10,7 +10,6 @@ export const CLIENT_CAPABILITIES: ClientCapabilities = {
     "item.delta",
     "item.completed",
     "state.snapshot",
-    "state.delta",
     "custom",
   ],
   features: { multimodal: { enabled: true } },

@@ -34,7 +34,6 @@ var wireSamples = []struct {
 	{"item.delta.json", func() any { return new(RunEvent) }},
 	{"item.completed.json", func() any { return new(RunEvent) }},
 	{"state.snapshot.json", func() any { return new(RunEvent) }},
-	{"state.delta.json", func() any { return new(RunEvent) }},
 	{"custom.json", func() any { return new(RunEvent) }},
 
 	// §4.3 Item union (bare) + ContentBlock.
