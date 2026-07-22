@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -297,6 +298,21 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	if skillProposeTool != nil {
 		tools = append(tools, skillProposeTool)
+	}
+	// exit_plan_mode and update_goal "possibly exist" whenever their backing is
+	// wired, so tools.list must report them even though the per-turn manifest
+	// gates them (approval stance / role / an active goal). Omitting them here is
+	// the drift TestCatalogCoversPerTurnCodingTools guards against.
+	if exitPlanTool != nil {
+		tools = append(tools, exitPlanTool)
+	}
+	if goalTool != nil {
+		tools = append(tools, goalTool)
+	}
+	// search_tools surfaces the MCP tools withheld from the per-turn manifest; it
+	// exists whenever any MCP server is connected, so the catalog lists it too.
+	if search := toolsearch.New(mcpTools); search != nil {
+		tools = append(tools, search)
 	}
 	// codebase_search is in the catalog whenever the index is wired — the tool's
 	// metadata is meaningful regardless of the live embedding model, and the
