@@ -31,6 +31,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
 )
 
 // This file is the tool-assembly entry point. It is the SOLE place that
@@ -83,7 +84,7 @@ type BuildConfig struct {
 	// SandboxShell opts the shell tools into per-command OS isolation: each
 	// command runs in an in-place jail rooted at its own cwd (workspace-write
 	// only, network denied, $HOME hidden, env scrubbed). Off by default; on a
-	// host with no isolation backend an enabled sandbox fails commands closed.
+	// host with no isolation backend enabling it fails the build (fail-closed).
 	SandboxShell bool
 	// SandboxReadOnlyPaths re-opens declared toolchain roots below the hidden
 	// home for reads (e.g. a language toolchain or dependency cache under $HOME).
@@ -136,10 +137,16 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	tracker := editguard.NewTracker()
 
-	shells := exec.NewShells(exec.Sandbox{
-		Enabled:       config.SandboxShell,
-		ReadOnlyPaths: config.SandboxReadOnlyPaths,
-	})
+	// Opt-in per-command OS isolation for the shell tools. Built fail-closed: an
+	// unsupported host refuses assembly rather than running the shell unconfined.
+	var confiner *sandbox.Confiner
+	if config.SandboxShell {
+		confiner, err = sandbox.NewConfiner(config.SandboxReadOnlyPaths)
+		if err != nil {
+			return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", err)
+		}
+	}
+	shells := exec.NewShells(confiner)
 	shellTools, err := shell.Build(shells, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)

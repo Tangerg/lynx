@@ -131,7 +131,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		// shared shell set whose KillAll is a shutdown closer (toolset.Build); this
 		// private shell set has no closer, fine for a process-lifetime test engine.
 		var err error
-		shellTools, err = shell.Build(exec.NewShells(exec.Sandbox{}), d.DefaultWorkdir)
+		shellTools, err = shell.Build(exec.NewShells(nil), d.DefaultWorkdir)
 		if err != nil {
 			return nil, fmt.Errorf("toolset.NewResolver: build fallback shell tools: %w", err)
 		}
