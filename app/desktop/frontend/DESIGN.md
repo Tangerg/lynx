@@ -306,7 +306,7 @@ components:
 
   # ---- Navigation ----
   # (2026-06) chat-tab + view-tab removed — no tab strip. One active session;
-  # workspace views open full-pane. See REDESIGN.md §5 Step 2a.
+  # workspace views open full-pane.
   command-palette:
     backgroundColor: "{colors.surface-2}"
     borderColor: "{colors.hairline-strong}"
@@ -340,7 +340,6 @@ components:
 ---
 
 > **Redesign 2026-06 (landed on `main`).** The OpenAI-restrained redesign
-> — see [`REDESIGN.md`](./REDESIGN.md) for the full step-by-step + commit log —
 > changed the structural design intent from the original spec below:
 > - **Tabs removed** — one active session; workspace views open full-pane and
 >   close via sidebar-toggle / `Esc` (no tab strip, no in-view ×).
@@ -540,8 +539,7 @@ area (`surface` vs `canvas`, no hairline); no gutters, no bottom status bar:
   Plan / Tools / …) open **full-pane** (no tab affordance, no title bar) and
   close via **Option A**: click the same sidebar nav row again (toggle), press
   `Esc` (yields to palette/dialog/input first), or use the split-view
-  promote/close control. See REDESIGN.md §5 Step 2a for the full rationale +
-  the `sessionStore` deprecation of `tabIds` / `mainViewTabs`.
+  promote/close control.
 
 ### Spacing rhythm
 
