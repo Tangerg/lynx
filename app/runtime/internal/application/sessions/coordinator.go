@@ -134,6 +134,16 @@ type WorkspaceCheckpoints interface {
 	DropSession(sessionID string) error
 }
 
+// SandboxDiscarder destroys a session's isolated sandbox working copy — the
+// scratch-tree half of the delete/rollback/restore cascades, run POST-COMMIT
+// (a filesystem RemoveAll, never inside the durable transaction) alongside the
+// checkpoint drop. nil disables it (no-op — the session was not isolated or
+// isolation is off). A failure cannot roll the durable delete back, so it is
+// returned as cleanup, never disguised as success.
+type SandboxDiscarder interface {
+	Discard(sessionID string) error
+}
+
 // WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):
 // a Git reset is not atomic across paths, and the optional durable-history cut
 // cannot share its transaction. Record logs the intent before the tree is
@@ -169,6 +179,9 @@ type Coordinator struct {
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
 	checkpoints WorkspaceCheckpoints
+	// sandbox destroys a deleted/rolled-back/restored session's isolated working
+	// copy, post-commit alongside the checkpoint drop; nil disables it.
+	sandbox SandboxDiscarder
 	// mutations is the §8.5 recoverable operation log guarding a file+history
 	// rollback across the working tree and the durable history; nil disables it.
 	mutations WorkspaceMutations
@@ -186,6 +199,7 @@ type Dependencies struct {
 	Turns       Turns
 	Paths       CwdResolver
 	Checkpoints WorkspaceCheckpoints
+	Sandbox     SandboxDiscarder
 	Mutations   WorkspaceMutations
 }
 
@@ -199,6 +213,7 @@ func New(deps Dependencies) *Coordinator {
 		turns:       deps.Turns,
 		paths:       deps.Paths,
 		checkpoints: deps.Checkpoints,
+		sandbox:     deps.Sandbox,
 		mutations:   deps.Mutations,
 	}
 }

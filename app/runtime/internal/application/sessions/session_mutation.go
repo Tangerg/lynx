@@ -56,6 +56,11 @@ func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, 
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for deleted session %q: %w", id, err))
 			}
 		}
+		if c.sandbox != nil {
+			if err := c.sandbox.Discard(id); err != nil {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: discard sandbox copy for deleted session %q: %w", id, err))
+			}
+		}
 	}
 	return errors.Join(cleanupErrs...)
 }
@@ -168,7 +173,18 @@ func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer,
 		return err
 	}
 	snapshot.Session.Cwd = cwd
-	return c.s.ApplyRestore(ctx, snapshot)
+	if err := c.s.ApplyRestore(ctx, snapshot); err != nil {
+		return err
+	}
+	// Restore replaced the whole history: any isolated working copy from before
+	// the restore is stale, so drop it post-commit and let the next isolated run
+	// rebuild a fresh copy from the restored project. Best-effort cleanup.
+	if c.sandbox != nil {
+		if err := c.sandbox.Discard(snapshot.Session.ID); err != nil {
+			return fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", err)
+		}
+	}
+	return nil
 }
 
 // subtaskSessionsAfter resolves the internal subtask subtrees a rollback must

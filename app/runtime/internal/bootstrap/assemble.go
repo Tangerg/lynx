@@ -359,7 +359,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
 
-	sessionCoord := sessions.New(sessions.Dependencies{
+	sessionDeps := sessions.Dependencies{
 		Stores: sessionStores{
 			sessions:    cfg.SessionStore,
 			transcript:  cfg.TranscriptStore,
@@ -370,7 +370,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			todos:       cfg.TodoStore,
 			approvals:   cfg.ApprovalRuleStore,
 			toolResults: cfg.ToolResultStore,
-			isolator:    isolator,
 			forgetter:   turnDispatcher,
 			tx:          cfg.Transactor,
 		},
@@ -378,7 +377,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
-	})
+	}
+	// Set only when present so a nil *Isolator never reaches the coordinator as a
+	// non-nil interface (which would defeat its own nil check).
+	if isolator != nil {
+		sessionDeps.Sandbox = isolator
+	}
+	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
 		Segments: runExecutor,
 		Turns:    runExecutor,
