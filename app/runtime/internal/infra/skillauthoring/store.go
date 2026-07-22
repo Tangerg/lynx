@@ -242,6 +242,15 @@ func (s *Store) Archive(ctx context.Context, name string) error {
 
 // Restore moves an archived skill back into the active set.
 func (s *Store) Restore(ctx context.Context, name string) error {
+	// Drop any leftover usage record BEFORE the move so the restored skill always
+	// starts with a fresh grace floor — even if an earlier Archive crashed between
+	// its rename and its own dropUsage, leaving a stale record. move + dropUsage
+	// are two filesystem operations and cannot be atomic; dropping first makes a
+	// crash here either a no-op re-restore (still archived, usage already gone) or
+	// a clean fresh floor (moved, usage already gone), never active-with-stale-usage.
+	if err := s.dropUsage(ctx, name); err != nil {
+		return err
+	}
 	return s.move(ctx, name, s.archiveDir(name), s.activeDir(name), "restore")
 }
 

@@ -70,7 +70,7 @@ func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 		cancel func() error
 	}{
 		{name: "segment", cancel: func() error { return executor.CancelTurn(t.Context(), ref) }},
-		{name: "control", cancel: func() error { return executor.Cancel(t.Context(), ref) }},
+		{name: "control", cancel: func() error { return executor.CancelTurn(t.Context(), ref) }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

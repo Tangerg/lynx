@@ -200,7 +200,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	binding, cleanupCtx, cancel, live := c.BeginCancel(ctx, cmd.RunID, cmd.Reason)
 	if live {
 		defer cancel()
-		if err := c.turns.Cancel(cleanupCtx, TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
+		if err := c.turns.CancelTurn(cleanupCtx, TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
 			return fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
 		}
 		// A park can commit durably in the window between BeginCancel observing the
@@ -243,7 +243,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, re
 	cancel()
 	turnCtx, cancelTurn := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancelTurn()
-	if err := c.turns.Cancel(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
+	if err := c.turns.CancelTurn(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
 		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}
 	return nil
@@ -359,7 +359,7 @@ func (c *Coordinator) validateStartedTurn(ctx context.Context, ref TurnRef, sess
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()
-		if cleanupErr := c.turns.Cancel(cleanupCtx, ref); cleanupErr != nil {
+		if cleanupErr := c.turns.CancelTurn(cleanupCtx, ref); cleanupErr != nil {
 			return errors.Join(err, fmt.Errorf("runs: cancel invalid started turn: %w", cleanupErr))
 		}
 		return err

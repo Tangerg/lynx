@@ -150,7 +150,7 @@ func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (T
 	return f.rehydrated, f.rehydrateErr
 }
 
-func (f *fakeTurnControl) Cancel(_ context.Context, ref TurnRef) error {
+func (f *fakeTurnControl) CancelTurn(_ context.Context, ref TurnRef) error {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "turn.cancel")
 	}

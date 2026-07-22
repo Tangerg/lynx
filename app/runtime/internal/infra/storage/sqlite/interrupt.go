@@ -140,10 +140,6 @@ func (s *InterruptStore) Delete(ctx context.Context, runID string) error {
 
 // scanRow abstracts *sql.Row and *sql.Rows so one scan path serves Get +
 // List.
-type scanRow interface {
-	Scan(dest ...any) error
-}
-
 func scanPending(row scanRow) (interrupts.Pending, error) {
 	var (
 		p            interrupts.Pending
