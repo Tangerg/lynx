@@ -13,7 +13,6 @@ type ToolInvocation = transcript.ToolInvocation
 type Problem = transcript.Problem
 type ProblemKind = transcript.ProblemKind
 type ProblemScope = transcript.ProblemScope
-type RunInterrupt = transcript.Interrupt
 type RunResult = transcript.RunResult
 type ModelUsage = transcript.ModelUsage
 type Usage = transcript.Usage
