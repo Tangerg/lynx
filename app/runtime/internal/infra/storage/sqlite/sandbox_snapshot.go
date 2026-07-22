@@ -11,10 +11,9 @@ import (
 // SandboxSnapshotStore persists immutable, content-addressed workspace tar
 // archives. Live sandbox clients and process state are deliberately absent.
 //
-// It is the durable backing for the sandbox package's isolated-copy Workspace —
-// deliberately-retained C7 groundwork (see infra/sandbox package doc). It has no
-// production constructor yet and the sandbox_snapshots table is never written in
-// production; both are dormant by design, not dead code.
+// It is the durable backing for the sandbox package's isolated-copy Workspace,
+// wired via internal/adapter/isolation: an isolated session's final working-copy
+// state is snapshotted here when the session is discarded.
 type SandboxSnapshotStore struct {
 	db *sql.DB
 }
