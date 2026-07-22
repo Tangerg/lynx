@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -42,7 +41,6 @@ type sessionStores struct {
 	todos       todo.Store
 	approvals   approval.RuleStore
 	toolResults *sqlitestore.ToolResultStore
-	isolator    *isolation.Isolator // destroys a deleted session's sandbox copy; nil = isolation off
 	forgetter   sessionForgetter
 	tx          Transactor
 }
@@ -196,11 +194,6 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 			}
 		} else if len(plan.ToolResults) > 0 {
 			return errors.New("bootstrap: cannot restore tool results without blob persistence")
-		}
-		if s.isolator != nil {
-			if err := s.isolator.Discard(id); err != nil {
-				return fmt.Errorf("bootstrap: discard session sandbox copy: %w", err)
-			}
 		}
 		if err := s.history.Clear(ctx, id); err != nil {
 			return err

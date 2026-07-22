@@ -95,6 +95,32 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
+	sandboxErr := errors.New("sandbox discard failed")
+	stores := newMutationStores("")
+	coordinator := New(Dependencies{
+		Stores:      stores,
+		Turns:       mutationTurns{operations: &stores.operations},
+		Paths:       testCwdResolver{},
+		Checkpoints: &mutationCheckpoints{operations: &stores.operations},
+		Sandbox:     &mutationSandbox{operations: &stores.operations, err: sandboxErr},
+	})
+
+	err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1")
+	if !errors.Is(err, sandboxErr) {
+		t.Fatalf("DeleteSession error = %v, want sandbox discard failure surfaced", err)
+	}
+	// The sandbox copy is discarded post-commit, after the durable delete and the
+	// checkpoint drop — never inside the write-set.
+	want := []string{"interrupts.list", "apply.delete", "turn.cancel", "session.forget", "checkpoint.drop:ses_1", "sandbox.discard:ses_1"}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want %v", stores.operations, want)
+	}
+	if len(stores.deleted) != 1 || stores.deleted[0] != "ses_1" {
+		t.Fatal("sandbox cleanup failure prevented durable session deletion")
+	}
+}
+
 func TestRollbackDropsSubtaskCheckpointsAndReportsCleanupFailures(t *testing.T) {
 	turnErr := errors.New("turn cleanup failed")
 	checkpointErr := errors.New("checkpoint cleanup failed")
@@ -362,4 +388,14 @@ func (*mutationCheckpoints) Restore(context.Context, string, string, string) err
 func (c *mutationCheckpoints) DropSession(sessionID string) error {
 	*c.operations = append(*c.operations, "checkpoint.drop:"+sessionID)
 	return c.err
+}
+
+type mutationSandbox struct {
+	operations *[]string
+	err        error
+}
+
+func (s *mutationSandbox) Discard(sessionID string) error {
+	*s.operations = append(*s.operations, "sandbox.discard:"+sessionID)
+	return s.err
 }

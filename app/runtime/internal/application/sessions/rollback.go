@@ -59,6 +59,11 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for rolled-back subtask session %q: %w", id, err))
 			}
 		}
+		if c.sandbox != nil {
+			if err := c.sandbox.Discard(id); err != nil {
+				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: discard sandbox copy for rolled-back subtask session %q: %w", id, err))
+			}
+		}
 	}
 	return errors.Join(cleanupErrs...)
 }
