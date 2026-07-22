@@ -12,6 +12,7 @@
 |---|---|
 | [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md) | ★ **唯一架构基准**：Run 生命周期中心的 Domain / Application / Adapter / Infra / Delivery / Bootstrap 边界，以及事件、事务、并发和完成定义。 |
 | [EXTENSIBILITY.md](EXTENSIBILITY.md) | 当前可替换端口、内部具体类型与组合根注入规则。 |
+| [ARCHITECTURE_HYGIENE_PLAN.md](ARCHITECTURE_HYGIENE_PLAN.md) | `app/runtime` 架构卫生治理的目标、批次、验收标准与进度台账。 |
 
 ---
 

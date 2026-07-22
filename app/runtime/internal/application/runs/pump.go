@@ -122,10 +122,8 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			}
 			cancelTeardown()
 		}
-		hub.Close()
 		entry, releaseMaintenance, maintenanceHeld := c.registry.BeginMaintenance(spec.RunID)
 		if maintenanceHeld {
-			defer releaseMaintenance()
 			// A parked run keeps its live turn alive for resume — only cancel +
 			// forget on a true terminal.
 			if !parked && entry.Payload != nil {
@@ -150,6 +148,13 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			}
 			cancelFinish()
 		}
+		if maintenanceHeld {
+			releaseMaintenance()
+		}
+		// Journal closure is the externally observable completion boundary. A
+		// consumer that drains it may immediately admit the next segment, so the
+		// synchronous maintenance fence and its admission claim must be gone first.
+		hub.Close()
 	}()
 
 	for ev := range inner {

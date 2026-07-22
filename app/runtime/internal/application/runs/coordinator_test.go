@@ -255,7 +255,8 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
-	_ = collectEvents(stream)
+	streamDone := make(chan []Event, 1)
+	go func() { streamDone <- collectEvents(stream) }()
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -270,8 +271,18 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if _, ok := coordinator.registry.AcquireSession("ses_1"); ok {
 		t.Fatal("new run admission crossed the terminal-maintenance fence")
 	}
+	select {
+	case <-streamDone:
+		t.Fatal("stream closed before terminal maintenance released admission")
+	case <-time.After(50 * time.Millisecond):
+	}
 
 	close(release)
+	select {
+	case <-streamDone:
+	case <-time.After(time.Second):
+		t.Fatal("stream did not close after terminal maintenance released admission")
+	}
 	coordinator.Close()
 	if coordinator.registry.ActiveSession("ses_1") {
 		t.Fatal("terminal-maintenance claim was not released")

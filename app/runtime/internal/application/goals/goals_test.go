@@ -108,22 +108,24 @@ func (s *memStore) notifyLocked() {
 // turn scripts one autonomous turn's outcome. setStatus simulates the model
 // calling update_goal mid-turn (the driver re-reads the store after the run).
 type turn struct {
-	setStatus goal.Status
-	reason    string
-	outcome   execution.Outcome
-	cost      float64
-	steps     int
-	park      bool // close the stream without a terminal
+	setStatus      goal.Status
+	reason         string
+	outcome        execution.Outcome
+	missingOutcome bool
+	cost           float64
+	steps          int
+	park           bool // close the stream without a terminal
 }
 
 type fakeRuns struct {
-	t       *testing.T
-	store   *memStore
-	script  []turn
-	hold    chan struct{} // when non-nil, a run holds its terminal until this closes
-	started chan struct{}
-	mu      sync.Mutex
-	calls   int
+	t        *testing.T
+	store    *memStore
+	script   []turn
+	hold     chan struct{} // when non-nil, a run holds its terminal until this closes
+	started  chan struct{}
+	startErr error
+	mu       sync.Mutex
+	calls    int
 }
 
 func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
@@ -131,6 +133,9 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	i := f.calls
 	f.calls++
 	f.mu.Unlock()
+	if f.startErr != nil {
+		return runs.StartResult{}, f.startErr
+	}
 	if f.started != nil {
 		select {
 		case f.started <- struct{}{}:
@@ -161,10 +166,14 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 		}
 		if !tn.park {
 			cost := tn.cost
+			var outcome *execution.Outcome
+			if !tn.missingOutcome {
+				outcome = &tn.outcome
+			}
 			run := transcript.Run{
 				SessionID: cmd.SessionID,
 				ID:        "run",
-				Outcome:   &tn.outcome,
+				Outcome:   outcome,
 				Result:    &transcript.RunResult{Steps: tn.steps, Usage: &transcript.Usage{ModelUsage: transcript.ModelUsage{CostUSD: &cost}}},
 			}
 			events <- runs.Event{Payload: runs.SegmentFinished{Run: run}}
@@ -237,6 +246,43 @@ func TestDriverPausesOnRunError(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool { return ok && g.Status == goal.StatusPaused })
+}
+
+func TestDriverPausesOnMalformedTerminal(t *testing.T) {
+	store := newMemStore()
+	d := newDriver(t, store, turn{missingOutcome: true})
+	if _, err := d.Start(t.Context(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool {
+		return ok && g.Status == goal.StatusPaused
+	})
+	g, _, _ := store.Get(t.Context(), "s1")
+	if g.Reason != "the run ended without a terminal outcome" {
+		t.Fatalf("pause reason = %q", g.Reason)
+	}
+	if g.Used.Turns != 0 {
+		t.Fatalf("malformed terminal recorded %d turns, want 0", g.Used.Turns)
+	}
+}
+
+func TestDriverDoesNotRetryBusyRunStart(t *testing.T) {
+	store := newMemStore()
+	fake := &fakeRuns{t: t, store: store, startErr: runs.ErrSessionBusy}
+	d := goals.NewDriver(store, fake, &fakeSessions{})
+	t.Cleanup(func() { _ = d.Close() })
+	if _, err := d.Start(t.Context(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool {
+		return ok && g.Status == goal.StatusPaused
+	})
+	fake.mu.Lock()
+	calls := fake.calls
+	fake.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("busy run start calls = %d, want 1", calls)
+	}
 }
 
 func TestDriverAccumulatesCostBudget(t *testing.T) {
