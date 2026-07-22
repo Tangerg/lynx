@@ -25,11 +25,19 @@ import (
 // type and addresses turns through durable [TurnRef] values, so neither
 // lifecycle nor Delivery depends on agent-SDK handle types.
 
+// TurnCanceler tears down a live or parked turn by its durable identity. It is a
+// shared capability both the pump ([SegmentExecutor]) and the control surface
+// ([TurnControl]) need; naming it once keeps the adapter from implementing the
+// same teardown under two method names.
+type TurnCanceler interface {
+	CancelTurn(ctx context.Context, ref TurnRef) error
+}
+
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
 type SegmentExecutor interface {
 	TurnEvents(ctx context.Context, ref TurnRef) (iter.Seq[EngineEvent], error)
-	CancelTurn(ctx context.Context, ref TurnRef) error
+	TurnCanceler
 }
 
 // SessionLifecycle is the run use cases' narrow view of session persistence,
@@ -124,7 +132,7 @@ type TurnControl interface {
 	Prepare(ctx context.Context, ref TurnRef) (TurnRef, error)
 	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []string) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (TurnRef, error)
-	Cancel(ctx context.Context, ref TurnRef) error
+	TurnCanceler
 	Steer(ctx context.Context, ref TurnRef, message string) error
 }
 

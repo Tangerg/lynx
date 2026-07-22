@@ -117,11 +117,6 @@ func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (r
 	return neutralTurn(handle), nil
 }
 
-// Cancel tears down a live or parked turn addressed by neutral identity.
-func (e *Executor) Cancel(ctx context.Context, ref runs.TurnRef) error {
-	return mapControlError(e.dispatcher.Cancel(ctx, concreteHandle(ref)))
-}
-
 // Steer injects a message into a live turn addressed by neutral identity.
 func (e *Executor) Steer(ctx context.Context, ref runs.TurnRef, message string) error {
 	return mapControlError(e.dispatcher.InjectSteering(ctx, concreteHandle(ref), message))

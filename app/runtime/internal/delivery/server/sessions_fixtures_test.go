@@ -211,7 +211,7 @@ func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (run
 }
 
 func (s stubRuntime) Cancel(ctx context.Context, ref runs.TurnRef) error {
-	return turn.NewExecutor(s.turnDispatcher()).Cancel(ctx, ref)
+	return turn.NewExecutor(s.turnDispatcher()).CancelTurn(ctx, ref)
 }
 
 func (s stubRuntime) Steer(ctx context.Context, ref runs.TurnRef, message string) error {

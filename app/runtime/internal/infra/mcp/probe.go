@@ -45,7 +45,7 @@ func probe(ctx context.Context, cfg ServerConfig) error {
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
-	defer session.Close()
+	defer func() { recordCleanupError(ctx, session.Close()) }()
 	if _, err := sourceTools(ctx, lynxmcp.ToolSource{Name: cfg.Name, Session: session}); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		return err
