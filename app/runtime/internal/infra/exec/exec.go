@@ -47,10 +47,14 @@ type Shells struct {
 	closeOnce sync.Once
 	closeErr  error
 	// confiner jails each command in an in-place OS sandbox (workspace-write
-	// only, network denied, $HOME hidden, env scrubbed) when non-nil; nil runs
-	// commands as a plain /bin/sh -c. Built fail-closed at construction, so a
+	// only, network denied, $HOME hidden, env scrubbed) when non-nil; nil means
+	// the host has no isolation backend. Built fail-closed at construction, so a
 	// non-nil confiner is always a working backend.
 	confiner *sandbox.Confiner
+	// alwaysJail confines every command (the global sandbox.shell opt-in). When
+	// false, only commands launched isolated=true are jailed — an isolated
+	// session's shell is always confined regardless of the global opt-in.
+	alwaysJail bool
 }
 
 var (
@@ -60,19 +64,25 @@ var (
 	ErrShellNotFound = errors.New("exec: shell not found")
 )
 
-// NewShells creates an empty background-shell set. A non-nil confiner opts every
-// launched command into per-command OS isolation; nil runs them unconfined.
-func NewShells(confiner *sandbox.Confiner) *Shells {
-	return &Shells{shells: map[string]*Shell{}, confiner: confiner}
+// NewShells creates an empty background-shell set. confiner is the OS jail (nil
+// when the host has no backend); alwaysJail confines every command (the global
+// sandbox.shell opt-in). An isolated-session command is jailed even when
+// alwaysJail is false.
+func NewShells(confiner *sandbox.Confiner, alwaysJail bool) *Shells {
+	return &Shells{shells: map[string]*Shell{}, confiner: confiner, alwaysJail: alwaysJail}
 }
 
 // command returns the program, args, and environment to spawn for a shell
-// command in cwd. Unconfined it is the plain `/bin/sh -c command` with a nil
-// env (the child inherits the parent's); confined it is the jail's argv +
-// scrubbed env rooted at cwd.
-func (s *Shells) command(cwd, command string) (name string, args, env []string, err error) {
-	if s.confiner == nil {
+// command in cwd. It is jailed when the global opt-in is on OR the command runs
+// in an isolated session; otherwise it is the plain `/bin/sh -c command` with a
+// nil env (the child inherits the parent's). An isolated command with no
+// backend fails closed — an isolated shell must never run unconfined.
+func (s *Shells) command(cwd, command string, isolated bool) (name string, args, env []string, err error) {
+	if !s.alwaysJail && !isolated {
 		return "/bin/sh", []string{"-c", command}, nil, nil
+	}
+	if s.confiner == nil {
+		return "", nil, nil, fmt.Errorf("exec: isolated shell requires a sandbox backend: %w", sandbox.ErrUnavailable)
 	}
 	confined, err := s.confiner.Confine(cwd, command)
 	if err != nil {
@@ -117,7 +127,7 @@ type Shell struct {
 // rather than being severed by a bare context.Background(). A positive timeout
 // hard-kills the command when it elapses (0 = no hard timeout; the command
 // runs until it exits or is killed).
-func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, timeout time.Duration) (string, error) {
+func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, timeout time.Duration, isolated bool) (string, error) {
 	base := context.WithoutCancel(ctx)
 	var (
 		runCtx context.Context
@@ -128,7 +138,7 @@ func (s *Shells) Launch(ctx context.Context, sessionID, cwd, command string, tim
 	} else {
 		runCtx, cancel = context.WithCancel(base)
 	}
-	name, args, env, err := s.command(cwd, command)
+	name, args, env, err := s.command(cwd, command, isolated)
 	if err != nil {
 		cancel()
 		return "", err
