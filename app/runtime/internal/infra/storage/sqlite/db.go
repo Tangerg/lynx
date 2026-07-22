@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 16
+const schemaVersion = 17
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -77,6 +77,7 @@ func installCurrentSchema(db *sql.DB) error {
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0,
+			isolated    INTEGER NOT NULL DEFAULT 0,
 			revision    INTEGER NOT NULL DEFAULT 1
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at

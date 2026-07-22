@@ -32,10 +32,10 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, max(sess.Revision, 1),
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -76,10 +76,11 @@ func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch
 		res, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
 			title = COALESCE(?, title), model = COALESCE(?, model),
 			cwd = COALESCE(?, cwd), favorite = COALESCE(?, favorite),
+			isolated = COALESCE(?, isolated),
 			updated_at = ?, revision = revision + 1
 			WHERE id = ? AND (? = 0 OR revision = ?)`,
 			nullableString(patch.Title), nullableString(patch.Model),
-			nullableString(patch.Cwd), nullableBool(patch.Favorite),
+			nullableString(patch.Cwd), nullableBool(patch.Favorite), nullableBool(patch.Isolated),
 			time.Now().UTC().UnixNano(), id, patch.ExpectedRevision, patch.ExpectedRevision)
 		if err != nil {
 			return fmt.Errorf("sqlite: patch session: %w", err)
@@ -180,10 +181,10 @@ func (s *SessionStore) insert(ctx context.Context, sess session.Session) error {
 func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.Session) error {
 	_, err := ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, max(sess.Revision, 1),
+		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

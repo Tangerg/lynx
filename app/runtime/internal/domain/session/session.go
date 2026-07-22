@@ -65,6 +65,7 @@ type Patch struct {
 	Model    *string
 	Cwd      *string
 	Favorite *bool
+	Isolated *bool
 	// ExpectedRevision is the revision observed by the caller. Zero disables
 	// the guard for runtime-owned maintenance writes such as SetModel.
 	ExpectedRevision uint64
@@ -73,7 +74,7 @@ type Patch struct {
 // Empty reports whether the patch carries no editable field. The revision is
 // a precondition, not a change, and therefore does not make a patch non-empty.
 func (p Patch) Empty() bool {
-	return p.Title == nil && p.Model == nil && p.Cwd == nil && p.Favorite == nil
+	return p.Title == nil && p.Model == nil && p.Cwd == nil && p.Favorite == nil && p.Isolated == nil
 }
 
 // Normalize returns a copy with domain-level text invariants applied.
@@ -113,7 +114,12 @@ type Session struct {
 	// opaque to the product model and never appears on the public Session API.
 	AgentAnnotations AgentAnnotations
 	Favorite         bool // user-pinned: sorts ahead of the rest in the session list
-	Revision         uint64
+	// Isolated runs the session's tools inside a sandbox copy of Cwd instead of
+	// the real working tree: fs + shell operate on the copy, the shell is
+	// OS-jailed (network denied, $HOME hidden), and changes never touch the
+	// project. Off by default. Requires a host isolation backend (macOS today).
+	Isolated bool
+	Revision uint64
 }
 
 // Subtask is the Agent runtime identity that must survive the product
@@ -190,6 +196,7 @@ func (s Session) Fork(id string, now time.Time) Session {
 		Title:     s.Title + " (fork)",
 		Cwd:       s.Cwd, // inherit the source's cwd (API.md §7.2)
 		ParentID:  s.ID,
+		Isolated:  s.Isolated, // a fork of an isolated session stays isolated
 		StartedAt: now,
 		UpdatedAt: now,
 	}
@@ -225,6 +232,7 @@ func (s Session) NewSubtask(subtask Subtask) (Session, error) {
 		Cwd:              s.Cwd,
 		ParentID:         s.ID,
 		Kind:             KindSubtask,
+		Isolated:         s.Isolated, // a subtask runs inside its parent's isolation
 		StartedAt:        subtask.StartedAt,
 		UpdatedAt:        subtask.UpdatedAt,
 		AgentAnnotations: subtask.AgentAnnotations,
