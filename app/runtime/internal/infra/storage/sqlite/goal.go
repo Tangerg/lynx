@@ -53,11 +53,11 @@ func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool,
 	return g, true, nil
 }
 
-// Save is the goal CAS (see [goal.Store]): it writes g at g.Generation iff the
-// stored generation equals expected, or inserts when expected is 0 and no row
-// exists. It reports whether the write applied; a superseded/cleared writer gets
-// false. INSERT-if-absent (not INSERT OR REPLACE) is deliberate: a stale loop
-// whose goal was cleared by a delete/rollback must not resurrect it.
+// Save is the goal CAS (see [goal.Store] for the contract): it writes g at
+// g.Generation iff the stored generation equals expected, or inserts when
+// expected is 0 and no row exists, reporting whether it applied. INSERT-if-absent
+// (not INSERT OR REPLACE) is deliberate — a stale writer whose row was cleared
+// must not resurrect it.
 func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected int64) (bool, error) {
 	budget, err := json.Marshal(goalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
 	if err != nil {
