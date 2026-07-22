@@ -12,6 +12,10 @@ var (
 	// ErrSessionBusy reports that a session or its working tree cannot admit a
 	// new run segment.
 	ErrSessionBusy = errors.New("runs: session busy")
+	// ErrIsolationUnavailable reports that an isolated session cannot run because
+	// isolation is not configured or the host has no sandbox backend. The run is
+	// refused rather than run unconfined (fail-closed).
+	ErrIsolationUnavailable = errors.New("runs: sandbox isolation unavailable")
 	// ErrRunNotFound reports that a cancel or steer target is neither live nor
 	// parked.
 	ErrRunNotFound = errors.New("runs: run not found")

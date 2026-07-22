@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
@@ -317,6 +318,15 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// backs the run-segment boundary snapshot and the sessions file restorer.
 	checkpoints := checkpointstore.NewCheckpoints(cfg.CheckpointDir)
 
+	// Sandbox isolation for a run whose session is marked Isolated: its tools
+	// operate in a throwaway copy of the project directory, the shell OS-jailed.
+	// nil store disables it (an isolated session's run is then refused, fail-
+	// closed). Its copies are destroyed on session delete and at shutdown.
+	var isolator *isolation.Isolator
+	if cfg.SandboxSnapshotStore != nil {
+		isolator = isolation.New(cfg.SandboxDir, cfg.SandboxSnapshotStore, cfg.SandboxReadOnlyPaths)
+	}
+
 	// The run coordinator owns the run lifecycle (§20). It commits durable side
 	// effects through the run-segment adapter, whose file-change nudges reach the
 	// delivery workspace hub via the notifier the delivery Server observes — the
@@ -360,6 +370,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			todos:       cfg.TodoStore,
 			approvals:   cfg.ApprovalRuleStore,
 			toolResults: cfg.ToolResultStore,
+			isolator:    isolator,
 			forgetter:   turnDispatcher,
 			tx:          cfg.Transactor,
 		},
@@ -368,7 +379,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
 	})
-	runCoord := runs.NewCoordinator(runs.Dependencies{
+	runDeps := runs.Dependencies{
 		Segments: runExecutor,
 		Turns:    runExecutor,
 		Sessions: sessionCoord,
@@ -380,7 +391,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		NewSegmentID: func() string {
 			return "seg_" + uuid.NewString()
 		},
-	})
+	}
+	// Set only when present so a nil *Isolator never reaches the coordinator as a
+	// non-nil interface (which would defeat its own nil check).
+	if isolator != nil {
+		runDeps.Isolation = isolator
+	}
+	runCoord := runs.NewCoordinator(runDeps)
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
@@ -429,6 +446,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	toolClosers := slices.Clone(built.Closers)
 	if goalDriver != nil {
 		toolClosers = append(toolClosers, goalDriver.Close)
+	}
+	if isolator != nil {
+		// Destroy any live isolated working copies on shutdown.
+		toolClosers = append(toolClosers, isolator.Close)
 	}
 
 	// Interface-nil (not a typed-nil holding a nil pointer) when no store is wired,
