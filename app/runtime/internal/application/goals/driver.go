@@ -175,22 +175,22 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return g, nil
 	}
 	expected := g.Generation
-	stopped := g
 	g.Pause("stopped by the user", d.now())
 	g.Generation = expected + 1
-	applied, err := d.goals.Save(ctx, g, expected)
+	if _, err := d.goals.Save(ctx, g, expected); err != nil {
+		return goal.Goal{}, err
+	}
+	// Report the authoritative stored state: our pause if the CAS won, else what a
+	// concurrent transition (a double-stop, or the loop's own terminal write)
+	// committed. If it was cleared out from under us, report the pause we intended.
+	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
-	if !applied {
-		// A concurrent transition (the loop's own terminal write, or update_goal)
-		// won the CAS; report the actual current state rather than a stale pause.
-		if current, ok, getErr := d.goals.Get(ctx, sessionID); getErr == nil && ok {
-			return current, nil
-		}
-		return stopped, nil
+	if !ok {
+		return g, nil
 	}
-	return g, nil
+	return current, nil
 }
 
 // Get returns the session's goal, or (zero, false, nil) when it has none.
