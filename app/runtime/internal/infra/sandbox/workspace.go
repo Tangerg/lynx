@@ -71,7 +71,9 @@ var _ toolshell.Executor = (*Workspace)(nil)
 
 // New creates a fresh isolated working copy. source may be empty; otherwise
 // its regular files, directories, and contained relative symlinks are copied
-// into the new workspace through the same validated tar format used by Stop.
+// into the new workspace through the same validated tar format used by Stop. A
+// nil Config.Store yields a scratch sandbox that runs and is destroyed but
+// cannot Stop (snapshot).
 func New(ctx context.Context, config Config, source string) (*Workspace, error) {
 	runner, err := platformRunner(config.ReadOnlyPaths)
 	if err != nil {
@@ -81,9 +83,8 @@ func New(ctx context.Context, config Config, source string) (*Workspace, error) 
 }
 
 func newWorkspace(ctx context.Context, config Config, source string, runner commandRunner) (_ *Workspace, err error) {
-	if config.Store == nil {
-		return nil, errors.New("sandbox: snapshot store is nil")
-	}
+	// Store is optional: a store-less workspace is a pure scratch sandbox (New /
+	// Run / Shutdown). Only Stop — which persists a snapshot — requires it.
 	if runner == nil {
 		return nil, errors.New("sandbox: command runner is nil")
 	}
@@ -212,6 +213,9 @@ func (w *Workspace) Stop(ctx context.Context) (SnapshotID, error) {
 		return w.snapshot, nil
 	case workspaceShutdown:
 		return "", ErrShutdown
+	}
+	if w.store == nil {
+		return "", errors.New("sandbox: cannot snapshot a store-less workspace")
 	}
 	archive, err := archiveTree(ctx, w.dir)
 	if err != nil {

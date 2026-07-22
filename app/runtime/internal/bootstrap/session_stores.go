@@ -198,7 +198,7 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 			return errors.New("bootstrap: cannot restore tool results without blob persistence")
 		}
 		if s.isolator != nil {
-			if err := s.isolator.Discard(ctx, id); err != nil {
+			if err := s.isolator.Discard(id); err != nil {
 				return fmt.Errorf("bootstrap: discard session sandbox copy: %w", err)
 			}
 		}
