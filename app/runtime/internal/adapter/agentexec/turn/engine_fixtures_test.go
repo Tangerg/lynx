@@ -134,6 +134,7 @@ type stubEngine struct {
 	mu                   sync.Mutex
 	lastClient           *chatclient.Client
 	lastCwd              string
+	lastMessage          string
 	lastCtx              context.Context
 	lastOptions          *corechat.Options
 	restoreGateTool      string
@@ -148,6 +149,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	s.mu.Lock()
 	s.lastClient = request.ChatClient
 	s.lastCwd = request.Cwd
+	s.lastMessage = request.Message
 	s.lastCtx = ctx
 	if request.Options == nil {
 		s.lastOptions = nil
@@ -167,6 +169,14 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	process.discardErr = s.discardErr
 	s.lastProcess.Store(process)
 	return process, nil
+}
+
+// message returns the prompt the engine received (for asserting prompt-hook
+// context injection reaches the turn).
+func (s *stubEngine) message() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastMessage
 }
 
 func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
