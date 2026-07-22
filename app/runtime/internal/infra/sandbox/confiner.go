@@ -1,3 +1,18 @@
+// Package sandbox provides the runtime's OS command-isolation capabilities on a
+// macOS Seatbelt backend (fail-closed elsewhere). It offers two models that
+// share one confinement core (the SBPL profile + scrubbed environment):
+//
+//   - Confiner (wired): an in-place jail. A shell command runs against the real
+//     working tree, confined to write only within its cwd, with the network
+//     denied, $HOME hidden, and the environment scrubbed. It backs the live
+//     shell tool (see internal/infra/exec).
+//   - Workspace (groundwork, no production caller by design): an isolated
+//     working copy with content-addressed tar snapshots and resume — a
+//     from-scratch Executor for eventually running untrusted code. It is the
+//     deliberately-retained C7 deliverable (doc/AGENTSCOPE_INSPIRED_BACKLOG.md);
+//     its consumers (untrusted-code execution, execpolicy, yolo-safe autonomous
+//     runs) and its Linux/Windows jail backends are unbuilt, so it is dormant on
+//     purpose — NOT dead code. Delete only when C7 is retired as a plan.
 package sandbox
 
 import (
