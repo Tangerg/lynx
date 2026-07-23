@@ -65,7 +65,7 @@ func (s *IdempotencyStore) Claim(ctx context.Context, key, fingerprint string) (
 }
 
 func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Record) error {
-	res, err := s.db.ExecContext(ctx,
+	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE idempotency_records SET payload = ?
 		 WHERE key = ? AND fingerprint = ? AND length(payload) = 0 AND expires_at > ?`,
 		record.Payload, record.Key, record.Fingerprint, time.Now().Unix())
@@ -81,7 +81,7 @@ func (s *IdempotencyStore) Complete(ctx context.Context, record idempotency.Reco
 	}
 	var fingerprint string
 	var payload []byte
-	err = s.db.QueryRowContext(ctx,
+	err = conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT fingerprint, payload FROM idempotency_records WHERE key = ? AND expires_at > ?`,
 		record.Key, time.Now().Unix()).Scan(&fingerprint, &payload)
 	if errors.Is(err, sql.ErrNoRows) {

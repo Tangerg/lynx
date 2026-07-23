@@ -49,67 +49,83 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 // application/runs, where the open interrupt is available.
 func decodeResumeResponses(responses []protocol.InterruptResponse) ([]runs.ResumeResponse, error) {
 	out := make([]runs.ResumeResponse, 0, len(responses))
-	for _, r := range responses {
-		if r.ItemID == "" {
-			return nil, fmt.Errorf("%w: interrupt response itemId is required", protocol.ErrInvalidParams)
-		}
-		response := runs.ResumeResponse{ItemID: r.ItemID}
-		switch r.Response.Type {
-		case protocol.InterruptResponseApproval:
-			if r.Response.Answers != nil || r.Response.Result != nil || r.Response.Error != nil {
-				return nil, fmt.Errorf("%w: approval response contains fields for another response type", protocol.ErrInvalidParams)
-			}
-			// remember{scope} persists this decision as a rule at the chosen
-			// scope (session / project / global); the chat gate maps the scope
-			// across and keys the rule (AUX_API §6). Empty = don't remember.
-			approval := &runs.ApprovalResponse{Reason: r.Response.Reason}
-			if r.Response.Remember != nil {
-				scope, ok := rememberScopeFromWire(r.Response.Remember.Scope)
-				if !ok {
-					return nil, fmt.Errorf("%w: remember scope must be %q | %q | %q", protocol.ErrInvalidParams, protocol.RememberSession, protocol.RememberProject, protocol.RememberGlobal)
-				}
-				approval.RememberScope = scope
-			}
-			switch r.Response.Decision {
-			case protocol.ApprovalApprove:
-				approval.Approved = true
-				// editedArgs overrides the model-regenerated tool args for this
-				// one call (the gate's verdict.Arguments path). One-shot: never
-				// folded into a remembered decision.
-				if len(r.Response.EditedArgs) > 0 {
-					b, err := json.Marshal(r.Response.EditedArgs)
-					if err != nil {
-						return nil, fmt.Errorf("runs.resume: editedArgs: %w", err)
-					}
-					approval.Arguments = string(b)
-				}
-			case protocol.ApprovalDeny:
-				approval.Approved = false
-			default:
-				return nil, fmt.Errorf(`%w: approval decision must be "approve" | "deny"`, protocol.ErrInvalidParams)
-			}
-			response.Kind = runs.ApprovalResponseKind
-			response.Approval = approval
-		case protocol.InterruptResponseAnswer:
-			if r.Response.Decision != "" || r.Response.Remember != nil || r.Response.EditedArgs != nil ||
-				r.Response.Reason != "" || r.Response.Result != nil || r.Response.Error != nil {
-				return nil, fmt.Errorf("%w: answer response contains fields for another response type", protocol.ErrInvalidParams)
-			}
-			// A question answer (ask_user / exit_plan_mode): the answers map IS
-			// the resolution — the answering tool reads its chosen label / fields
-			// back and decides what to do (e.g. exit_plan_mode treats a "Reject"
-			// label as "stay in plan mode"). Always continues; the decision lives
-			// in the answer content, not in Approved.
-			response.Kind = runs.QuestionResponseKind
-			response.Question = &runs.QuestionResponse{Answers: cloneWireAnswers(r.Response.Answers)}
-		case protocol.InterruptResponseToolResult:
-			return nil, fmt.Errorf("%w: toolResult does not answer a runtime interrupt", protocol.ErrInvalidParams)
-		default:
-			return nil, fmt.Errorf("%w: unknown interrupt response type %q", protocol.ErrInvalidParams, r.Response.Type)
+	for _, wire := range responses {
+		response, err := decodeResumeResponse(wire)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, response)
 	}
 	return out, nil
+}
+
+func decodeResumeResponse(wire protocol.InterruptResponse) (runs.ResumeResponse, error) {
+	if wire.ItemID == "" {
+		return runs.ResumeResponse{}, fmt.Errorf("%w: interrupt response itemId is required", protocol.ErrInvalidParams)
+	}
+	response := runs.ResumeResponse{ItemID: wire.ItemID}
+	switch wire.Response.Type {
+	case protocol.InterruptResponseApproval:
+		approval, err := decodeApprovalResponse(wire.Response)
+		if err != nil {
+			return runs.ResumeResponse{}, err
+		}
+		response.Kind = runs.ApprovalResponseKind
+		response.Approval = approval
+	case protocol.InterruptResponseAnswer:
+		question, err := decodeQuestionResponse(wire.Response)
+		if err != nil {
+			return runs.ResumeResponse{}, err
+		}
+		response.Kind = runs.QuestionResponseKind
+		response.Question = question
+	case protocol.InterruptResponseToolResult:
+		return runs.ResumeResponse{}, fmt.Errorf("%w: toolResult does not answer a runtime interrupt", protocol.ErrInvalidParams)
+	default:
+		return runs.ResumeResponse{}, fmt.Errorf("%w: unknown interrupt response type %q", protocol.ErrInvalidParams, wire.Response.Type)
+	}
+	return response, nil
+}
+
+func decodeApprovalResponse(wire protocol.InterruptResponseValue) (*runs.ApprovalResponse, error) {
+	if wire.Answers != nil || wire.Result != nil || wire.Error != nil {
+		return nil, fmt.Errorf("%w: approval response contains fields for another response type", protocol.ErrInvalidParams)
+	}
+	// remember{scope} persists this decision as a rule at the chosen scope.
+	// Empty means the one-shot decision is not remembered.
+	approval := &runs.ApprovalResponse{Reason: wire.Reason}
+	if wire.Remember != nil {
+		scope, ok := rememberScopeFromWire(wire.Remember.Scope)
+		if !ok {
+			return nil, fmt.Errorf("%w: remember scope must be %q | %q | %q", protocol.ErrInvalidParams, protocol.RememberSession, protocol.RememberProject, protocol.RememberGlobal)
+		}
+		approval.RememberScope = scope
+	}
+	switch wire.Decision {
+	case protocol.ApprovalApprove:
+		approval.Approved = true
+		if len(wire.EditedArgs) > 0 {
+			encoded, err := json.Marshal(wire.EditedArgs)
+			if err != nil {
+				return nil, fmt.Errorf("runs.resume: editedArgs: %w", err)
+			}
+			approval.Arguments = string(encoded)
+		}
+	case protocol.ApprovalDeny:
+		approval.Approved = false
+	default:
+		return nil, fmt.Errorf(`%w: approval decision must be "approve" | "deny"`, protocol.ErrInvalidParams)
+	}
+	return approval, nil
+}
+
+func decodeQuestionResponse(wire protocol.InterruptResponseValue) (*runs.QuestionResponse, error) {
+	if wire.Decision != "" || wire.Remember != nil || wire.EditedArgs != nil || wire.Reason != "" || wire.Result != nil || wire.Error != nil {
+		return nil, fmt.Errorf("%w: answer response contains fields for another response type", protocol.ErrInvalidParams)
+	}
+	// The answer map is the complete question resolution. The application later
+	// validates it against the stored question's field schema.
+	return &runs.QuestionResponse{Answers: cloneWireAnswers(wire.Answers)}, nil
 }
 
 func cloneWireAnswers(in map[string][]string) map[string][]string {

@@ -27,7 +27,7 @@ func NewScheduleStore(db *sql.DB) *ScheduleStore {
 func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
 	sc.ID = schedule.IDPrefix + uuid.NewString()
 	sc.CreatedAt = time.Now().UTC()
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO schedules (id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
 		sc.ID, sc.Title, sc.Prompt, sc.Cwd, sc.Provider, sc.Model, sc.Cron,
@@ -40,7 +40,7 @@ func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (sched
 }
 
 func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error) {
-	res, err := s.db.ExecContext(ctx,
+	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE schedules
 		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?, revision = revision + 1
 		 WHERE id = ? AND revision = ?`,
@@ -63,7 +63,7 @@ func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expect
 }
 
 func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules WHERE id = ?`, id)
 	sc, err := scanSchedule(row.Scan)
@@ -97,7 +97,7 @@ func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNex
 	// a value computed from the stale cron. If the guard misses (rescheduled, or
 	// the row was deleted), the run still fired — record last_run_at without
 	// rewinding the cursor.
-	res, err := s.db.ExecContext(ctx,
+	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE schedules SET last_run_at = ?, next_run_at = ?, revision = revision + 1 WHERE id = ? AND next_run_at = ?`,
 		toMillis(ranAt), toMillis(nextRunAt), id, toMillis(prevNextRunAt))
 	if err != nil {
@@ -116,7 +116,7 @@ func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNex
 // RecordRun moves only last_run_at; next_run_at is left as-is so a manual
 // run-now never rewinds the cron cursor.
 func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Time) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE schedules SET last_run_at = ?, revision = revision + 1 WHERE id = ?`,
 		toMillis(ranAt), id); err != nil {
 		return fmt.Errorf("sqlite: record schedule run: %w", err)
@@ -125,14 +125,14 @@ func (s *ScheduleStore) RecordRun(ctx context.Context, id string, ranAt time.Tim
 }
 
 func (s *ScheduleStore) Delete(ctx context.Context, id string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id); err != nil {
+	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM schedules WHERE id = ?`, id); err != nil {
 		return fmt.Errorf("sqlite: delete schedule: %w", err)
 	}
 	return nil
 }
 
 func (s *ScheduleStore) query(ctx context.Context, operation, q string, args ...any) ([]schedule.Schedule, error) {
-	rows, err := s.db.QueryContext(ctx, q, args...)
+	rows, err := conn(ctx, s.db).QueryContext(ctx, q, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: %s: %w", operation, err)
 	}
