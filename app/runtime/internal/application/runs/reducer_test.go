@@ -25,12 +25,7 @@ func testReducerConfig() reducerConfig {
 	}
 }
 
-type unsupportedEngineEvent struct{ EventMeta }
-
-func (e unsupportedEngineEvent) WithMeta(meta EventMeta) EngineEvent {
-	e.EventMeta = meta
-	return e
-}
+type unsupportedEngineEvent struct{ engineEventBase }
 
 func mustOpen(t *testing.T, reducer *reducer) []reduction {
 	t.Helper()

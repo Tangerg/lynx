@@ -37,13 +37,7 @@ type RestorePlan struct {
 }
 
 func restorePlan(snapshot Snapshot) RestorePlan {
-	return RestorePlan{
-		Session:     snapshot.Session,
-		Messages:    snapshot.Messages,
-		Items:       snapshot.Items,
-		Runs:        snapshot.Runs,
-		ToolResults: snapshot.ToolResults,
-	}
+	return RestorePlan(snapshot)
 }
 
 // DeletePlan is the post-order session set removed by one delete cascade. It

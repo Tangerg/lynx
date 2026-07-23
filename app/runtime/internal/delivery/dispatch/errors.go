@@ -81,7 +81,7 @@ func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string) *transport.Erro
 		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail,
 		Retryable: spec.retryable, RetryAfterSeconds: spec.retryAfterSeconds,
 	})
-	return transport.NewErrorWithMessage(spec.code, typ, data)
+	return transport.NewError(spec.code, typ, data)
 }
 
 // invalidParams wraps a params-validation failure as invalid_params.

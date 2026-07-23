@@ -70,31 +70,6 @@ func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, ma
 	return elems, "", nil
 }
 
-// pageOrderedByCursor is the deletion-tolerant variant for collections that
-// are explicitly sorted by the same lexical key stored in the cursor. It can
-// safely seek to the first greater key when the anchor disappears.
-func pageOrderedByCursor[T any](elems []T, key func(T) string, cursor string, limit, maxLimit int) ([]T, string, error) {
-	if cursor == "" {
-		return pageByCursor(elems, key, cursor, limit, maxLimit)
-	}
-	decoded, err := base64.RawURLEncoding.DecodeString(cursor)
-	if err != nil || len(decoded) == 0 {
-		return nil, "", fmt.Errorf("%w: cursor is invalid", protocol.ErrInvalidParams)
-	}
-	anchor := string(decoded)
-	start := len(elems)
-	for idx, elem := range elems {
-		if candidate := key(elem); candidate >= anchor {
-			start = idx
-			if candidate == anchor {
-				start++
-			}
-			break
-		}
-	}
-	return pageByCursor(elems[start:], key, "", limit, maxLimit)
-}
-
 // listItemsFromHistory serves items.list from durable Item rows.
 func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcript.Run, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 	pageRows, next, err := pageByCursor(hItems, func(item transcript.Item) string { return item.ID }, in.Cursor, in.Limit, defaultItemPageLimit)

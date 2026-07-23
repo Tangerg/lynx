@@ -3,7 +3,6 @@ package integrations
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -74,10 +73,8 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 		releaseConfigure:   make(chan struct{}),
 	}
 	live := &mcpLiveSet{servers: map[string]bool{}}
-	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
-	policyCell.Store(&policy)
-	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: policyCell})
+	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: NewToolPolicyState(policy)})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 
 	configured := make(chan error, 1)
@@ -119,10 +116,8 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 		releaseConfigure:   make(chan struct{}),
 	}
 	live := &mcpLiveSet{servers: map[string]bool{}}
-	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy(nil)
-	policyCell.Store(&policy)
-	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: policyCell})
+	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: NewToolPolicyState(policy)})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -177,15 +172,13 @@ func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 		reconnectStarted: make(chan struct{}),
 		releaseReconnect: make(chan struct{}),
 	}
-	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy([]mcpserver.Server{server})
-	policyCell.Store(&policy)
 	c := New(Config{
 		MCPRegistry:           registry,
 		MCPStatusReader:       live,
 		MCPConnectionCommands: live,
 		MCPRegistryCommands:   live,
-		MCPPolicy:             policyCell,
+		MCPPolicy:             NewToolPolicyState(policy),
 	})
 	defer c.Close()
 
@@ -234,15 +227,13 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 		reconnectStarted: make(chan struct{}),
 		releaseReconnect: make(chan struct{}),
 	}
-	policyCell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 	policy := mcpserver.NewToolPolicy([]mcpserver.Server{server})
-	policyCell.Store(&policy)
 	c := New(Config{
 		MCPRegistry:           registry,
 		MCPStatusReader:       live,
 		MCPConnectionCommands: live,
 		MCPRegistryCommands:   live,
-		MCPPolicy:             policyCell,
+		MCPPolicy:             NewToolPolicyState(policy),
 	})
 
 	removed := make(chan error, 1)

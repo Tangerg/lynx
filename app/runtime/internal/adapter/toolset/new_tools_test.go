@@ -375,7 +375,6 @@ func newMemoryScheduleRegistry() *memoryScheduleRegistry {
 func newTestScheduleCoordinator(reg schedule.Registry) *scheduleapp.Coordinator {
 	return scheduleapp.New(scheduleapp.Dependencies{
 		Registry: reg,
-		Worker:   reg,
 		Paths:    workspacepath.Resolver{},
 	})
 }

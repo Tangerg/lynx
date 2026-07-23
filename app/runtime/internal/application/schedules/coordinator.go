@@ -1,31 +1,24 @@
-// Package schedules is the application coordinator for cron-triggered headless
-// runs: CRUD over saved schedules, off-cycle firing, and the background
-// due-schedule worker. It is a thin use-case layer over the domain schedule
-// registry + worker store. Bootstrap binds the Runner that turns a fired
-// schedule into a run.
+// Package schedules owns cron-triggered headless-run management and firing.
+// Management is independent from execution; firing is built after Runs without
+// mutable post-construction wiring.
 package schedules
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// Coordinator owns the scheduled-run use cases over the domain registry. It is
-// stateless beyond its dependencies and safe to share.
+// Coordinator owns editable scheduled-run management over the domain registry.
+// It is stateless beyond its dependencies and safe to share.
 type Coordinator struct {
 	registry schedule.Registry
-	worker   WorkerStore
 	paths    CwdResolver
 	now      func() time.Time
 	enabled  bool
-
-	runnerMu sync.RWMutex
-	runner   Runner
 }
 
 // CwdResolver is the filesystem boundary used to admit a schedule's working
@@ -38,9 +31,7 @@ type CwdResolver interface {
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
 	Registry schedule.Registry
-	Worker   WorkerStore
 	Paths    CwdResolver
-	Runner   Runner
 }
 
 // CreateCommand is the complete editable state of a new schedule.
@@ -72,29 +63,10 @@ func New(deps Dependencies) *Coordinator {
 	}
 	return &Coordinator{
 		registry: registry,
-		worker:   deps.Worker,
 		paths:    deps.Paths,
 		now:      time.Now,
 		enabled:  enabled,
-		runner:   deps.Runner,
 	}
-}
-
-// BindRunner completes the scheduled-run wiring after the Runs coordinator is
-// available. Bootstrap uses it to break the construction cycle between tools,
-// which expose schedule management, and the runner that executes accepted
-// schedules. It is safe to call before or while the worker reads its runner.
-func (c *Coordinator) BindRunner(runner Runner) {
-	c.runnerMu.Lock()
-	c.runner = runner
-	c.runnerMu.Unlock()
-}
-
-func (c *Coordinator) scheduledRunner() Runner {
-	c.runnerMu.RLock()
-	runner := c.runner
-	c.runnerMu.RUnlock()
-	return runner
 }
 
 // List returns every saved schedule, newest-created first.
@@ -220,37 +192,6 @@ func (c *Coordinator) resolveCwd(cwd string) (string, error) {
 		return "", fmt.Errorf("%w: resolve %q: %w", schedule.ErrCwdUnavailable, cwd, err)
 	}
 	return resolved, nil
-}
-
-// RunNow starts one off-cycle schedule firing and records it without advancing
-// the cron cursor. Once the run is accepted, recording uses a bounded context
-// detached from the request: a client disconnect must not make the durable
-// LastRunAt claim that the accepted run never happened.
-func (c *Coordinator) RunNow(ctx context.Context, id string) (RunHandle, error) {
-	sc, err := c.registry.Get(ctx, id)
-	if err != nil {
-		return RunHandle{}, err
-	}
-	handle, err := Fire(ctx, c.scheduledRunner(), sc)
-	if err != nil {
-		return RunHandle{}, err
-	}
-
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
-	defer cancel()
-	if err := c.registry.RecordRun(writeCtx, id, c.now().UTC()); err != nil {
-		return RunHandle{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
-	}
-	return handle, nil
-}
-
-// RunWorker starts the due-schedule scanner until ctx is canceled. No worker
-// store → no-op (scheduling unavailable on this build).
-func (c *Coordinator) RunWorker(ctx context.Context) {
-	if c.worker == nil {
-		return
-	}
-	NewWorker(c.worker, c.scheduledRunner()).Run(ctx)
 }
 
 // disabledRegistry is the no-scheduling fallback: CRUD reports unavailable while

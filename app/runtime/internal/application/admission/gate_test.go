@@ -18,7 +18,7 @@ func TestGateHoldsSessionThroughRunMaintenance(t *testing.T) {
 		t.Fatal("terminal maintenance did not acquire the run")
 	}
 	releaseOpening()
-	if !gate.ActiveSession("ses_1") {
+	if !gate.ActiveSessions()["ses_1"] {
 		t.Fatal("opening release erased the maintenance claim")
 	}
 	if _, ok := gate.AcquireSession("ses_1"); ok {
@@ -29,7 +29,7 @@ func TestGateHoldsSessionThroughRunMaintenance(t *testing.T) {
 	}
 
 	releaseMaintenance()
-	if gate.ActiveSession("ses_1") {
+	if gate.ActiveSessions()["ses_1"] {
 		t.Fatal("maintenance release left the session active")
 	}
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
@@ -43,6 +44,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -60,7 +62,6 @@ type Stack struct {
 	Queries            *queries.Coordinator
 	Usage              *usage.Reporter
 	Feedback           *feedbackapp.Recorder
-	WorkspaceRoots     *workspace.Context
 	WorkspaceFiles     *workspace.Files
 	WorkspaceVCS       *workspace.VCS
 	WorkspaceDiscovery *workspace.Discovery
@@ -92,6 +93,7 @@ type Stack struct {
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
 	ScheduleFires    *signal.Signal[string]
+	ScheduleFiring   *schedules.Firing
 	IdempotencyStore *sqlitestore.IdempotencyStore
 	GitAvailable     bool
 }
@@ -255,21 +257,29 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	providers := cfg.ProviderRegistry
 	resolver := modelclient.NewClientResolver(providers)
 
-	utilityEnv, err := buildUtilityEnvironment(ctx, cfg.Engine.ChatClient, cfg.UtilityRoleStore, resolver)
+	utilityRole, err := loadUtilityRole(ctx, cfg.UtilityRoleStore)
 	if err != nil {
 		return Host{}, err
 	}
-	embeddingEnv, err := buildEmbeddingEnvironment(ctx, cfg.EmbeddingRoleStore, cfg.CodebaseStore, providers)
+	utilityRoleState := models.NewRoleState(utilityRole)
+	utilityClient := resolver.UtilityClient(cfg.Engine.ChatClient, utilityRoleState)
+	embeddingRole, err := loadEmbeddingRole(ctx, cfg.EmbeddingRoleStore)
 	if err != nil {
 		return Host{}, err
+	}
+	embeddingRoleState := models.NewRoleState(embeddingRole)
+	embeddingResolver := modelclient.NewEmbeddingResolver(providers)
+	liveEmbedder := modelclient.NewRoleEmbedder(embeddingResolver, embeddingRoleState)
+	var codebaseIndex codebaseindex.Index
+	if cfg.CodebaseStore != nil {
+		codebaseIndex = codebaseindex.New(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
 	}
 	// Agent-memory search (memory_search + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
 	// no memory store is wired; keyword search works without an embedder.
-	memoryEmbed := memoryEmbedder(embeddingEnv.resolveEmbedder)
 	var memorySearcher *agentmemory.Searcher
 	if cfg.AgentMemoryStore != nil {
-		memorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, memoryEmbed)
+		memorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)
 	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
@@ -291,11 +301,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	scheduleCoord := schedules.New(schedules.Dependencies{
 		Registry: cfg.ScheduleRegistry,
-		Worker:   cfg.ScheduleRegistry,
 		Paths:    workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, embeddingEnv.index, memorySearcher, scheduleCoord, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseIndex, memorySearcher, scheduleCoord, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -314,7 +323,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
 	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.Shells, skillStore, utilityEnv.resolve, memoryEmbed)
+	turnServices := buildTurnServices(cfg, messages, built.Shells, skillStore, utilityClient, liveEmbedder.ResolveMemory)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -334,7 +343,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,
-		MCPToolAutoApproved: mcpEnv.toolAutoApproved,
+		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
@@ -383,7 +392,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Transcript:         cfg.TranscriptStore,
 		ToolResults:        cfg.ToolResultStore,
 		Messages:           messages.conversation,
-		Titles:             maintenance.NewTitler(utilityEnv.resolve),
+		Titles:             maintenance.NewTitler(utilityClient),
 		Processes:          turnDispatcher,
 		RunState:           cfg.RunStore,
 		Tx:                 runsegment.Transactor(cfg.Transactor),
@@ -414,18 +423,18 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	})
 	modelCapabilities := modelcatalog.Capabilities{}
 	modelsCoord := models.New(models.Config{
-		Providers:         cfg.ProviderRegistry,
-		Catalog:           modelCapabilities,
-		Prober:            modelCapabilities,
-		Lister:            modelCapabilities,
-		UtilityCell:       utilityEnv.cell,
-		UtilityValidator:  resolver,
-		UtilityStore:      cfg.UtilityRoleStore,
-		EmbeddingCell:     embeddingEnv.cell,
-		EmbeddingResolver: embeddingEnv.resolver,
-		EmbeddingStore:    cfg.EmbeddingRoleStore,
-		DefaultProvider:   cfg.Provider,
-		DefaultModel:      cfg.Model,
+		Providers:          cfg.ProviderRegistry,
+		Catalog:            modelCapabilities,
+		Prober:             modelCapabilities,
+		Lister:             modelCapabilities,
+		UtilityRoleState:   utilityRoleState,
+		UtilityValidator:   resolver,
+		UtilityStore:       cfg.UtilityRoleStore,
+		EmbeddingRoleState: embeddingRoleState,
+		EmbeddingResolver:  embeddingResolver,
+		EmbeddingStore:     cfg.EmbeddingRoleStore,
+		DefaultProvider:    cfg.Provider,
+		DefaultModel:       cfg.Model,
 	})
 	sessionDeps := sessions.Dependencies{
 		Sessions:    cfg.SessionStore,
@@ -476,7 +485,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	}
 	runCoord := runs.NewCoordinator(runDeps)
 	scheduleFires := &signal.Signal[string]{}
-	scheduleCoord.BindRunner(schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish))
+	scheduleFiring := schedules.NewFiring(
+		cfg.ScheduleRegistry,
+		schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish),
+	)
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
@@ -536,7 +548,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoord := codebase.New(embeddingEnv.index, workspaceContext)
+	codebaseCoord := codebase.New(codebaseIndex, workspaceContext)
 	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
 		Store: cfg.AgentMemoryStore,
 		Roots: workspaceContext,
@@ -554,6 +566,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			MCPStatus:        mcpStatus,
 			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
+			ScheduleFiring:   scheduleFiring,
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
@@ -565,7 +578,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Defaults: modelsCoord,
 			}),
 			Feedback:           feedbackapp.New(cfg.FeedbackStore),
-			WorkspaceRoots:     workspaceContext,
 			WorkspaceFiles:     workspaceFiles,
 			WorkspaceVCS:       workspaceVCS,
 			WorkspaceDiscovery: workspaceDiscovery,

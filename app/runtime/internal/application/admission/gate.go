@@ -51,13 +51,6 @@ func (g *Gate) BeginMaintenance(runID string) (release func(), ok bool) {
 	return g.addClaimLocked(run.sessionID), true
 }
 
-// ActiveSession reports whether a session has a live Run or held admission.
-func (g *Gate) ActiveSession(sessionID string) bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	return g.activeSessionLocked(sessionID)
-}
-
 // ActiveSessionWithCwd returns the session whose live Run owns cwd, if any.
 func (g *Gate) ActiveSessionWithCwd(cwd string) string {
 	if cwd == "" {

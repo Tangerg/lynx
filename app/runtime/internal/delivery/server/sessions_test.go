@@ -153,7 +153,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if _, ok := history[id]; ok {
 		t.Errorf("conversation messages not cascaded: still present")
 	}
-	if s.hasActiveRun(id) {
+	if testRunCoordinator(t, s).ActiveSessions()[id] {
 		t.Fatal("delete leaked the session mutation claim")
 	}
 }

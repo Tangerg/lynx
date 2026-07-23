@@ -266,7 +266,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if coordinator.registry.Contains("run_1") {
 		t.Fatal("terminal run remained in the live registry during maintenance")
 	}
-	if !coordinator.ActiveSession("ses_1") {
+	if !hasActiveSession(coordinator, "ses_1") {
 		t.Fatal("session admission was released before terminal maintenance completed")
 	}
 	if _, ok := coordinator.AcquireSession("ses_1"); ok {
@@ -285,9 +285,13 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 		t.Fatal("stream did not close after terminal maintenance released admission")
 	}
 	coordinator.Close()
-	if coordinator.ActiveSession("ses_1") {
+	if hasActiveSession(coordinator, "ses_1") {
 		t.Fatal("terminal-maintenance claim was not released")
 	}
+}
+
+func hasActiveSession(c *Coordinator, sessionID string) bool {
+	return c.ActiveSessions()[sessionID]
 }
 
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {

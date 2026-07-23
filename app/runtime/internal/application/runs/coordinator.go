@@ -47,7 +47,6 @@ type AdmissionGate interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
 	OpenRun(runID, sessionID, cwd string)
 	BeginMaintenance(runID string) (release func(), ok bool)
-	ActiveSession(sessionID string) bool
 	ActiveSessionWithCwd(cwd string) string
 	ActiveSessions() map[string]bool
 }
@@ -283,12 +282,6 @@ func (c *Coordinator) Contains(runID string) bool { return c.registry.Contains(r
 // List snapshots the records of the currently-live runs.
 func (c *Coordinator) List() []Record {
 	return c.registry.List()
-}
-
-// ActiveSession reports whether the session has a run in flight (open or an
-// in-progress admission claim) — the session-busy guard.
-func (c *Coordinator) ActiveSession(sessionID string) bool {
-	return c.admission.ActiveSession(sessionID)
 }
 
 // ActiveSessionWithCwd returns the session id of a live run whose canonical

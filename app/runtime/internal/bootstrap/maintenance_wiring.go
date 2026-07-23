@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
@@ -42,7 +41,7 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 		services.compactor = maintenance.NewCompactor(
 			messages.store,
 			resolveUtility,
-			liveStateSnapshot(shells, cfg.TodoStore),
+			maintenance.NewLiveState(shells, cfg.TodoStore),
 			maintenance.CompactionConfig{ContextWindow: window},
 		)
 	}
@@ -62,33 +61,4 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 		services.curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
 	return services
-}
-
-// liveStateSnapshot adapts the background-shell set and the todo store into the
-// compactor's live-state source: a session's still-running shells and its
-// in-progress tasks. Returns nil (reminder disabled) when neither source exists.
-// Building the reminder is best-effort — a todo-store read error omits the tasks
-// section rather than failing the compaction it decorates.
-func liveStateSnapshot(shells *exec.Shells, todos todo.Store) maintenance.LiveStateFunc {
-	if shells == nil && todos == nil {
-		return nil
-	}
-	return func(ctx context.Context, sessionID string) maintenance.LiveStateSnapshot {
-		var snap maintenance.LiveStateSnapshot
-		if shells != nil {
-			for _, sh := range shells.RunningForSession(sessionID) {
-				snap.Shells = append(snap.Shells, maintenance.RunningShell{ID: sh.ID, Command: sh.Command})
-			}
-		}
-		if todos != nil {
-			if items, err := todos.List(ctx, sessionID); err == nil {
-				for _, item := range items {
-					if item.Status == todo.StatusInProgress {
-						snap.Todos = append(snap.Todos, item.Content)
-					}
-				}
-			}
-		}
-		return snap
-	}
 }

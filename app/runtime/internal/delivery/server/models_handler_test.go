@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"errors"
-	"sync/atomic"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
@@ -59,7 +58,7 @@ func modelRoleServer(entries map[string]provider.Provider, saver *utilitySaverRe
 	return serverWithModels(models.Config{
 		Providers:        fake,
 		Catalog:          fake,
-		UtilityCell:      &atomic.Pointer[modelrole.Role]{},
+		UtilityRoleState: models.NewRoleState(modelrole.Role{}),
 		UtilityValidator: okChatModelValidator{},
 		UtilityStore:     saver,
 	})

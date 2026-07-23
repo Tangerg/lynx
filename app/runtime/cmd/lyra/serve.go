@@ -63,7 +63,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		return err
 	}
 	defer api.Close()
-	return runServer(ctx, errw, httpServer, host.Stack.Schedules.RunWorker, srv.Listen, token)
+	return runServer(ctx, errw, httpServer, host.Stack.ScheduleFiring.RunWorker, srv.Listen, token)
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
@@ -95,9 +95,9 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Usage:              stack.Usage,
 		Feedback:           stack.Feedback,
 		Schedules:          stack.Schedules,
+		ScheduleFiring:     stack.ScheduleFiring,
 		Goals:              stack.Goals,
 		AgentMemory:        stack.AgentMemory,
-		WorkspaceRoots:     stack.WorkspaceRoots,
 		WorkspaceFiles:     stack.WorkspaceFiles,
 		WorkspaceVCS:       stack.WorkspaceVCS,
 		WorkspaceDiscovery: stack.WorkspaceDiscovery,

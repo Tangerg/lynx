@@ -35,11 +35,11 @@ func TestBuildMCPEnvironmentUsesOneRegistrySnapshot(t *testing.T) {
 	if len(env.configs) != 1 || env.configs[0].Name != "files" {
 		t.Fatalf("configs = %+v, want enabled files server", env.configs)
 	}
-	if !env.toolDisabled(mcpserver.ToolRef{Server: "files", Tool: "write"}) ||
-		env.toolDisabled(mcpserver.ToolRef{Server: "off", Tool: "hidden"}) {
+	if !env.policy.ToolDisabled(mcpserver.ToolRef{Server: "files", Tool: "write"}) ||
+		env.policy.ToolDisabled(mcpserver.ToolRef{Server: "off", Tool: "hidden"}) {
 		t.Fatalf("disabled policy does not match registry snapshot")
 	}
-	if !env.toolAutoApproved(mcpserver.ToolRef{Server: "files", Tool: "read"}) {
+	if !env.policy.ToolAutoApproved(mcpserver.ToolRef{Server: "files", Tool: "read"}) {
 		t.Fatal("files_read must be auto-approved")
 	}
 }

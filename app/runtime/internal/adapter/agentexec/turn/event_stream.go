@@ -72,7 +72,7 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEv
 // (the default branch = nothing more queued -> stop). A different-kind event
 // pulled off mid-drain is parked in *spill for the caller to yield next, so
 // ordering is preserved. The merged event keeps the head event's metadata; deltas are
-// ephemeral (no SSE id, §5.2), so a merged delta's seq is immaterial.
+// ephemeral (no SSE id, §5.2), so merged delta boundaries are immaterial.
 func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill *runs.EngineEvent) runs.EngineEvent {
 	switch h := head.(type) {
 	case runs.MessageDelta:

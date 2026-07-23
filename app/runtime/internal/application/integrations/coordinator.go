@@ -8,7 +8,6 @@ package integrations
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -54,7 +53,7 @@ type Coordinator struct {
 	mcpToolCatalog        MCPToolCatalog
 	mcpConnectionCommands MCPConnectionCommands
 	mcpRegistryCommands   MCPRegistryCommands
-	mcpPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
+	mcpPolicy             *ToolPolicyState
 	mcpMutationMu         sync.Mutex
 	mcpDialMu             sync.Mutex
 	mcpDials              map[string]*mcpDial
@@ -77,7 +76,7 @@ type Config struct {
 	MCPToolCatalog        MCPToolCatalog
 	MCPConnectionCommands MCPConnectionCommands
 	MCPRegistryCommands   MCPRegistryCommands
-	MCPPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
+	MCPPolicy             *ToolPolicyState
 	// MCPStatus publishes safe MCP connection status read models to the delivery
 	// workspace stream bridge. nil disables notification.
 	MCPStatus func(status MCPServerStatus)
@@ -85,6 +84,9 @@ type Config struct {
 
 // New returns an integrations Coordinator over cfg.
 func New(cfg Config) *Coordinator {
+	if cfg.MCPPolicy == nil {
+		cfg.MCPPolicy = NewToolPolicyState(mcpserver.ToolPolicy{})
+	}
 	return &Coordinator{
 		mcpRegistry:           cfg.MCPRegistry,
 		mcpStatusReader:       cfg.MCPStatusReader,

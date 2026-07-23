@@ -46,15 +46,3 @@ func TestPageByCursorRejectsInvalidQueries(t *testing.T) {
 		})
 	}
 }
-
-func TestPageOrderedByCursorToleratesDeletedAnchor(t *testing.T) {
-	values := []string{"a", "c", "d"}
-	cursor := base64.RawURLEncoding.EncodeToString([]byte("b"))
-	page, next, err := pageOrderedByCursor(values, func(value string) string { return value }, cursor, 2, 10)
-	if err != nil {
-		t.Fatalf("page after deleted anchor: %v", err)
-	}
-	if len(page) != 2 || page[0] != "c" || page[1] != "d" || next != "" {
-		t.Fatalf("page = %v cursor=%q", page, next)
-	}
-}

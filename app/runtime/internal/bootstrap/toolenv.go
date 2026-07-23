@@ -36,7 +36,7 @@ func buildToolEnvironment(
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
 		Interrupt:       suspension.Interrupt,
-		MCPToolDisabled: mcpEnv.toolDisabled,
+		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
 		CodebaseIndex:   codebaseIdx,
 		// propose_skill writes to the global skills dir; an empty dir yields a
 		// disabled store (Enabled() false), which omits the tool.

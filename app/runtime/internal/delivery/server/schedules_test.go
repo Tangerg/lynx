@@ -73,10 +73,9 @@ func serverWithSchedules(reg schedule.Registry) *Server {
 	s := newTestServer(&stubRuntime{})
 	s.schedules = schedules.New(schedules.Dependencies{
 		Registry: reg,
-		Worker:   reg,
 		Paths:    workspacepath.Resolver{},
-		Runner:   schedules.NewRunLauncher(s.coordinator, s.serverInfo.Cwd, nil),
 	})
+	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.coordinator, s.serverInfo.Cwd, nil))
 	return s
 }
 
