@@ -6,9 +6,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// WorkspaceListProjects projects the application-owned distinct-workspace view
+// ListWorkspaceProjects projects the application-owned distinct-workspace view
 // derived from user-facing sessions.
-func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
+func (s *Server) ListWorkspaceProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
 	projects, err := s.workspaceDiscovery.ListProjects(ctx)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -24,8 +24,8 @@ func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceListSkills maps application skill discovery to the protocol shape.
-func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+// ListDiscoveredSkills maps application skill discovery to the protocol shape.
+func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
 	found, err := s.workspaceSkills.ListSkills(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -37,8 +37,8 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceListRecipes maps application recipe discovery to the protocol shape.
-func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
+// ListRecipes maps application recipe discovery to the protocol shape.
+func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
 	found, err := s.workspaceDiscovery.ListRecipes(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -53,9 +53,9 @@ func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.Workspace
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceListAgentDocs maps the application-owned instruction-document
+// ListAgentDocs maps the application-owned instruction-document
 // cascade onto the protocol shape.
-func (s *Server) WorkspaceListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
+func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
 	docs, err := s.workspaceDiscovery.ListAgentDocs(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)

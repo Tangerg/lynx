@@ -30,6 +30,11 @@ type Runtime interface {
 	Runs
 	Items
 	Workspace
+	Skills
+	Recipes
+	AgentDocs
+	MCP
+	Hooks
 	Approval
 	Schedules
 	Goals

@@ -1,5 +1,21 @@
 package protocol
 
+import "context"
+
+// MCP is the mcp.* method group. Server status, exposed tools, and editable
+// configuration are one integration surface even though they use sub-roots.
+type MCP interface {
+	ListMCPServers(ctx context.Context, q PageQuery) (*Page[McpServer], error)
+	ListMCPTools(ctx context.Context, in MCPListToolsRequest) (*Page[McpTool], error)
+	ReconnectMCPServer(ctx context.Context, server string) error
+	AuthorizeMCPServer(ctx context.Context, server string) error
+	ListMCPServerConfigs(ctx context.Context, q PageQuery) (*Page[McpServerConfig], error)
+	ConfigureMCPServer(ctx context.Context, in ConfigureMCPServerRequest) (*McpServerConfig, error)
+	RemoveMCPServer(ctx context.Context, name string) error
+	SetMCPServerEnabled(ctx context.Context, in SetMCPEnabledRequest) error
+	TestMCPServer(ctx context.Context, in ConfigureMCPServerRequest) (*McpTestResult, error)
+}
+
 // MCPServerRequest identifies a configured MCP server by name.
 type MCPServerRequest struct {
 	Server string `json:"server"`

@@ -14,7 +14,7 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 	notifier := new(signal.Signal[struct{}])
 	s.observeSkillChanges(notifier)
 
-	_, events, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{})
+	_, events, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
