@@ -78,7 +78,7 @@ func (s *AgentMemoryStore) PendingLedger(ctx context.Context, project string, wa
 	if limit <= 0 {
 		return nil, errors.New("sqlite: agent memory pending limit must be positive")
 	}
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT seq, day, fact, captured_at
 		 FROM agent_memory_ledger
 		 WHERE project = ? AND seq > ?
@@ -112,7 +112,7 @@ func (s *AgentMemoryStore) State(ctx context.Context, project string) (agentmemo
 	}
 	var st agentmemory.State
 	var updatedAt int64
-	err := s.db.QueryRowContext(ctx,
+	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT watermark, updated_at FROM agent_memory_state WHERE project = ?`, project).
 		Scan(&st.Watermark, &updatedAt)
 	if errors.Is(err, sql.ErrNoRows) {

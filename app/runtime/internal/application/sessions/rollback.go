@@ -3,7 +3,6 @@ package sessions
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -58,21 +57,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			cleanupErrs = append(cleanupErrs, err)
 		}
 	}
-	for _, id := range dropSessionIDs {
-		if c.forgetter != nil {
-			c.forgetter.ForgetSession(id)
-		}
-		if c.checkpoints != nil {
-			if err := c.checkpoints.DropSession(id); err != nil {
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for rolled-back subtask session %q: %w", id, err))
-			}
-		}
-		if c.sandbox != nil {
-			if err := c.sandbox.Discard(id); err != nil {
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: discard sandbox copy for rolled-back subtask session %q: %w", id, err))
-			}
-		}
-	}
+	cleanupErrs = append(cleanupErrs, c.dropSessionResources(dropSessionIDs, "rolled-back subtask")...)
 	return errors.Join(cleanupErrs...)
 }
 

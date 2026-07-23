@@ -32,7 +32,7 @@ func (s *CodebaseIndexStore) Meta(ctx context.Context, cwd string) (codebaseinde
 		indexedMs int64
 		truncated int
 	)
-	err := s.db.QueryRowContext(ctx,
+	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT model_id, indexed_at, file_count, chunk_count, truncated
 		 FROM codebase_index WHERE cwd = ?`, cwd).
 		Scan(&m.ModelID, &indexedMs, &m.FileCount, &m.ChunkCount, &truncated)
@@ -48,7 +48,7 @@ func (s *CodebaseIndexStore) Meta(ctx context.Context, cwd string) (codebaseinde
 }
 
 func (s *CodebaseIndexStore) SetMeta(ctx context.Context, m codebaseindex.Meta) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO codebase_index (cwd, model_id, indexed_at, file_count, chunk_count, truncated)
 		 VALUES (?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(cwd) DO UPDATE SET
@@ -63,7 +63,7 @@ func (s *CodebaseIndexStore) SetMeta(ctx context.Context, m codebaseindex.Meta) 
 }
 
 func (s *CodebaseIndexStore) FileHashes(ctx context.Context, cwd string) (map[string]string, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT path, hash FROM codebase_files WHERE cwd = ?`, cwd)
+	rows, err := conn(ctx, s.db).QueryContext(ctx, `SELECT path, hash FROM codebase_files WHERE cwd = ?`, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: codebase file hashes: %w", err)
 	}
@@ -122,7 +122,7 @@ func (s *CodebaseIndexStore) DeleteFile(ctx context.Context, cwd, path string) e
 }
 
 func (s *CodebaseIndexStore) AllChunks(ctx context.Context, cwd string) ([]codebaseindex.Chunk, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT path, start_line, end_line, text, embedding FROM codebase_chunks WHERE cwd = ?`, cwd)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: codebase chunks: %w", err)

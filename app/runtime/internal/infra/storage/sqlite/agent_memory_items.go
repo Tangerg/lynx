@@ -121,34 +121,18 @@ func scanItem(row scanRow) (agentmemory.Item, error) {
 // recently updated. Pending and rejected items are excluded — only approved
 // memory is injected into the prompt.
 func (s *AgentMemoryStore) Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return s.listItems(ctx,
 		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status = 'active'
-		 ORDER BY pinned DESC, updated_at DESC`, scope.String(), project)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite: list agent memory items: %w", err)
-	}
-	defer rows.Close()
-	var items []agentmemory.Item
-	for rows.Next() {
-		item, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
-	}
-	return items, nil
+		 ORDER BY pinned DESC, updated_at DESC`, "agent memory items", scope.String(), project)
 }
 
 // ItemsForSearch lists the active (scope, project) items with their embedding
 // decoded, for in-process keyword + vector ranking. Only approved memory is
 // searchable.
 func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+agentMemoryItemColumns+`, embedding
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status = 'active'`, scope.String(), project)
@@ -189,40 +173,28 @@ func (s *AgentMemoryStore) ItemsForSearch(ctx context.Context, scope agentmemory
 // UnembeddedItems lists the active (scope, project) items that still lack an
 // embedding — the searchable set an embedder should backfill.
 func (s *AgentMemoryStore) UnembeddedItems(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return s.listItems(ctx,
 		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
-		 WHERE scope = ? AND project = ? AND status = 'active' AND length(embedding) = 0`, scope.String(), project)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite: list unembedded agent memory items: %w", err)
-	}
-	defer rows.Close()
-	var items []agentmemory.Item
-	for rows.Next() {
-		item, err := scanItem(rows)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: iterate agent memory items: %w", err)
-	}
-	return items, nil
+		 WHERE scope = ? AND project = ? AND status = 'active' AND length(embedding) = 0`, "unembedded agent memory items", scope.String(), project)
 }
 
 // List returns the (scope, project) items the review surface shows: active and
 // pending, ordered pending-first (they need attention), then pinned, then most
 // recently updated. Rejected tombstones are hidden.
 func (s *AgentMemoryStore) List(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	rows, err := s.db.QueryContext(ctx,
+	return s.listItems(ctx,
 		`SELECT `+agentMemoryItemColumns+`
 		 FROM agent_memory_items
 		 WHERE scope = ? AND project = ? AND status IN ('active','pending')
 		 ORDER BY CASE status WHEN 'pending' THEN 0 ELSE 1 END, pinned DESC, updated_at DESC`,
-		scope.String(), project)
+		"agent memory", scope.String(), project)
+}
+
+func (s *AgentMemoryStore) listItems(ctx context.Context, query, operation string, args ...any) ([]agentmemory.Item, error) {
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, fmt.Errorf("sqlite: list agent memory: %w", err)
+		return nil, fmt.Errorf("sqlite: list %s: %w", operation, err)
 	}
 	defer rows.Close()
 	var items []agentmemory.Item
@@ -234,7 +206,7 @@ func (s *AgentMemoryStore) List(ctx context.Context, scope agentmemory.Scope, pr
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: iterate agent memory: %w", err)
+		return nil, fmt.Errorf("sqlite: iterate %s: %w", operation, err)
 	}
 	return items, nil
 }

@@ -57,21 +57,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			cleanupErrs = append(cleanupErrs, err)
 		}
 	}
-	for _, id := range sessionIDs {
-		if c.forgetter != nil {
-			c.forgetter.ForgetSession(id)
-		}
-		if c.checkpoints != nil {
-			if err := c.checkpoints.DropSession(id); err != nil {
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for deleted session %q: %w", id, err))
-			}
-		}
-		if c.sandbox != nil {
-			if err := c.sandbox.Discard(id); err != nil {
-				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: discard sandbox copy for deleted session %q: %w", id, err))
-			}
-		}
-	}
+	cleanupErrs = append(cleanupErrs, c.dropSessionResources(sessionIDs, "deleted")...)
 	return errors.Join(cleanupErrs...)
 }
 
@@ -154,6 +140,30 @@ func releaseAdmissions(admissions []RunAdmission) {
 	for i := len(admissions) - 1; i >= 0; i-- {
 		admissions[i].Release()
 	}
+}
+
+// dropSessionResources removes the process-local resources which outlive a
+// durable session write-set. Deletion and rollback share this exact post-commit
+// cleanup order; callers choose the action only to preserve useful error
+// context for the operator.
+func (c *Coordinator) dropSessionResources(sessionIDs []string, action string) []error {
+	var errs []error
+	for _, sessionID := range sessionIDs {
+		if c.forgetter != nil {
+			c.forgetter.ForgetSession(sessionID)
+		}
+		if c.checkpoints != nil {
+			if err := c.checkpoints.DropSession(sessionID); err != nil {
+				errs = append(errs, fmt.Errorf("sessions: drop checkpoints for %s session %q: %w", action, sessionID, err))
+			}
+		}
+		if c.sandbox != nil {
+			if err := c.sandbox.Discard(sessionID); err != nil {
+				errs = append(errs, fmt.Errorf("sessions: discard sandbox copy for %s session %q: %w", action, sessionID, err))
+			}
+		}
+	}
+	return errs
 }
 
 func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {

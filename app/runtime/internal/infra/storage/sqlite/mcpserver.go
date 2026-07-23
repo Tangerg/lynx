@@ -31,7 +31,7 @@ const mcpColumns = `name, transport, enabled, description, url, authorization, h
 	        command, args, env, dir, timeout, disabled_tools, auto_approve_tools`
 
 func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers ORDER BY name`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list mcp servers: %w", err)
@@ -53,7 +53,7 @@ func (s *MCPServerStore) List(ctx context.Context) ([]mcpserver.Server, error) {
 }
 
 func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server, bool, error) {
-	row := s.db.QueryRowContext(ctx,
+	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+mcpColumns+` FROM mcp_servers WHERE name = ?`, name)
 	srv, err := scanMCPServer(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -66,7 +66,7 @@ func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server
 }
 
 func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO mcp_servers
 		   (name, transport, enabled, description, url, authorization, headers,
 		    command, args, env, dir, timeout, disabled_tools, auto_approve_tools)
@@ -90,14 +90,14 @@ func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) er
 }
 
 func (s *MCPServerStore) Remove(ctx context.Context, name string) error {
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
+	if _, err := conn(ctx, s.db).ExecContext(ctx, `DELETE FROM mcp_servers WHERE name = ?`, name); err != nil {
 		return fmt.Errorf("sqlite: remove mcp server: %w", err)
 	}
 	return nil
 }
 
 func (s *MCPServerStore) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	if _, err := s.db.ExecContext(ctx,
+	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE mcp_servers SET enabled = ? WHERE name = ?`, enabled, name); err != nil {
 		return fmt.Errorf("sqlite: set mcp server enabled: %w", err)
 	}

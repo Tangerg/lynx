@@ -23,7 +23,7 @@ func NewTrustStore(db *sql.DB) *TrustStore {
 // IsTrusted reports whether projectRoot has been granted hook trust.
 func (s *TrustStore) IsTrusted(ctx context.Context, projectRoot string) (bool, error) {
 	var one int
-	err := s.db.QueryRowContext(ctx,
+	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT 1 FROM trusted_projects WHERE project_root = ?`, projectRoot).Scan(&one)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -36,7 +36,7 @@ func (s *TrustStore) IsTrusted(ctx context.Context, projectRoot string) (bool, e
 
 // Trust grants hook trust to projectRoot (idempotent upsert).
 func (s *TrustStore) Trust(ctx context.Context, projectRoot string) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO trusted_projects (project_root, trusted_at) VALUES (?, ?)
 		 ON CONFLICT(project_root) DO UPDATE SET trusted_at = excluded.trusted_at`,
 		projectRoot, time.Now().UTC().UnixNano())
@@ -48,7 +48,7 @@ func (s *TrustStore) Trust(ctx context.Context, projectRoot string) error {
 
 // Untrust revokes hook trust for projectRoot. Idempotent.
 func (s *TrustStore) Untrust(ctx context.Context, projectRoot string) error {
-	_, err := s.db.ExecContext(ctx,
+	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM trusted_projects WHERE project_root = ?`, projectRoot)
 	if err != nil {
 		return fmt.Errorf("sqlite: untrust project: %w", err)
@@ -58,7 +58,7 @@ func (s *TrustStore) Untrust(ctx context.Context, projectRoot string) error {
 
 // List returns every trusted project root, newest grant first.
 func (s *TrustStore) List(ctx context.Context) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx,
+	rows, err := conn(ctx, s.db).QueryContext(ctx,
 		`SELECT project_root FROM trusted_projects ORDER BY trusted_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list trusted: %w", err)

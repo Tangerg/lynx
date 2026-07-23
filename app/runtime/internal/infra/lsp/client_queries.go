@@ -7,17 +7,7 @@ import (
 )
 
 func (c *client) definition(ctx context.Context, abs string, pos Position) ([]Location, error) {
-	if _, err := c.ensureOpen(ctx, abs); err != nil {
-		return nil, err
-	}
-	var raw json.RawMessage
-	if err := c.conn.Call(ctx, "textDocument/definition", positionParams{
-		TextDocument: textDocumentIdentifier{URI: pathToURI(abs)},
-		Position:     pos,
-	}, &raw); err != nil {
-		return nil, fmt.Errorf("lsp: definition: %w", err)
-	}
-	return parseLocations(raw), nil
+	return c.positionLocations(ctx, abs, pos, "textDocument/definition", "definition")
 }
 
 func (c *client) references(ctx context.Context, abs string, pos Position) ([]Location, error) {
@@ -36,15 +26,22 @@ func (c *client) references(ctx context.Context, abs string, pos Position) ([]Lo
 }
 
 func (c *client) implementation(ctx context.Context, abs string, pos Position) ([]Location, error) {
+	return c.positionLocations(ctx, abs, pos, "textDocument/implementation", "implementation")
+}
+
+// positionLocations executes an LSP position request whose response is a
+// definition-shaped location payload. Definition and implementation differ
+// only in the protocol method and diagnostic operation name.
+func (c *client) positionLocations(ctx context.Context, abs string, pos Position, method, operation string) ([]Location, error) {
 	if _, err := c.ensureOpen(ctx, abs); err != nil {
 		return nil, err
 	}
 	var raw json.RawMessage
-	if err := c.conn.Call(ctx, "textDocument/implementation", positionParams{
+	if err := c.conn.Call(ctx, method, positionParams{
 		TextDocument: textDocumentIdentifier{URI: pathToURI(abs)},
 		Position:     pos,
 	}, &raw); err != nil {
-		return nil, fmt.Errorf("lsp: implementation: %w", err)
+		return nil, fmt.Errorf("lsp: %s: %w", operation, err)
 	}
 	return parseLocations(raw), nil
 }

@@ -21,7 +21,7 @@ func newRoleStore(db *sql.DB, table, label string) *roleStore {
 
 func (s *roleStore) load(ctx context.Context) (provider, model string, err error) {
 	query := fmt.Sprintf("SELECT provider, model FROM %s WHERE id = 1", s.table)
-	err = s.db.QueryRowContext(ctx, query).Scan(&provider, &model)
+	err = conn(ctx, s.db).QueryRowContext(ctx, query).Scan(&provider, &model)
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", nil
 	}
@@ -36,7 +36,7 @@ func (s *roleStore) save(ctx context.Context, provider, model string) error {
 		`INSERT INTO %s (id, provider, model) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET provider = excluded.provider, model = excluded.model`,
 		s.table,
 	)
-	_, err := s.db.ExecContext(ctx, query, provider, model)
+	_, err := conn(ctx, s.db).ExecContext(ctx, query, provider, model)
 	if err != nil {
 		return fmt.Errorf("sqlite: save %s: %w", s.label, err)
 	}
