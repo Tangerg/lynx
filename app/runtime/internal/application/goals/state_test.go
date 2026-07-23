@@ -69,7 +69,7 @@ func TestStateReportOwnsTerminalGoalTransition(t *testing.T) {
 	if err != nil || result != ReportApplied {
 		t.Fatalf("blocked Report = %v, %v, want applied, nil", result, err)
 	}
-	if store.goal.Status != goal.StatusBlocked || store.goal.Reason != "needs credentials" || !store.goal.UpdatedAt.Equal(now) {
+	if store.goal.Status != goal.StatusBlocked || store.goal.Reason != (goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: "needs credentials"}) || !store.goal.UpdatedAt.Equal(now) {
 		t.Fatalf("stored goal = %+v, want blocked state at %s", store.goal, now)
 	}
 }

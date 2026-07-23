@@ -89,8 +89,8 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 		// Recoverable: the agent fixes the proposal and retries rather than aborting.
 		return "Rejected — " + err.Error(), nil
 	}
-	if reason, dangerous := draft.Scan(); dangerous {
-		return "Rejected — " + reason + ". Rewrite the skill without it.", nil
+	if issue := draft.SafetyIssue(); issue != skills.DraftSafe {
+		return "Rejected — " + draftSafetyMessage(issue) + ". Rewrite the skill without it.", nil
 	}
 	arguments, err := in.arguments()
 	if err != nil {
@@ -123,6 +123,15 @@ func (t *tool) propose(ctx context.Context, in proposeArgs) (string, error) {
 		return "", err
 	}
 	return "The user approved the skill '" + draft.Name + "'; it was added to the global skill library and is now loadable via the skill tool.", nil
+}
+
+func draftSafetyMessage(issue skills.DraftSafetyIssue) string {
+	switch issue {
+	case skills.DraftDangerousInstruction:
+		return "the proposed skill contains an obviously-dangerous instruction"
+	default:
+		return "the proposed skill has an unknown safety issue"
+	}
 }
 
 func proposePrompt(draft skills.Draft, arguments string) runs.QuestionPrompt {

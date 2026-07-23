@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 )
@@ -18,8 +18,8 @@ import (
 // guards over dir. The tests pass no code-intelligence analyzer, so the
 // diagnostics wrap is a no-op. They drive the tools with a plain context, so
 // turnSession resolves to "" and every call shares one session bucket.
-func guardTools(dir string) (read, edit, write tools.Tool, tr *editguard.Tracker) {
-	tr = editguard.NewTracker()
+func guardTools(dir string) (read, edit, write tools.Tool, tr *editguardstate.Tracker) {
+	tr = editguardstate.NewTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
 	edit = withEditGuard(withEditDiagnostics(fs.NewEditTool(ex), nil, dir), tr, dir)
@@ -28,7 +28,7 @@ func guardTools(dir string) (read, edit, write tools.Tool, tr *editguard.Tracker
 }
 
 func guardToolsWithFormat(dir string) (read, edit tools.Tool) {
-	tr := editguard.NewTracker()
+	tr := editguardstate.NewTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
 	edit = withEditGuard(withEditDiagnostics(withAutoFormat(fs.NewEditTool(ex), dir), nil, dir), tr, dir)
@@ -165,7 +165,7 @@ func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
 	if err := os.WriteFile(path, []byte("before"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	tracker := editguard.NewTracker()
+	tracker := editguardstate.NewTracker()
 	locker := newPathLocker()
 	executor := fs.NewLocalExecutor(dir)
 	readStarted := make(chan struct{})

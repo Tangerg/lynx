@@ -97,7 +97,7 @@ func (s *State) Report(ctx context.Context, cmd ReportCommand) (ReportResult, er
 		if cmd.Reason == "" {
 			return ReportReasonRequired, nil
 		}
-		g.Block(cmd.Reason, s.now())
+		g.Block(goal.ReasonBlockedByModel, cmd.Reason, s.now())
 	default:
 		return ReportInvalidStatus, nil
 	}

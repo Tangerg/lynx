@@ -111,7 +111,7 @@ func goalPtr(g goal.Goal) *protocol.Goal {
 		SessionID: g.SessionID,
 		Objective: g.Objective,
 		Status:    string(g.Status),
-		Reason:    g.Reason,
+		Reason:    goalReason(g.Reason),
 		Provider:  g.Provider,
 		Model:     g.Model,
 		Budget:    protocol.GoalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
@@ -120,4 +120,45 @@ func goalPtr(g goal.Goal) *protocol.Goal {
 		UpdatedAt: g.UpdatedAt,
 	}
 	return &w
+}
+
+// goalReason owns the current wire's human-readable reason. The goal entity
+// persists a typed cause plus raw detail, so model and infrastructure data do
+// not become presentation text in the domain or application layers.
+func goalReason(reason goal.Reason) string {
+	switch reason.Cause {
+	case goal.ReasonNone:
+		return ""
+	case goal.ReasonStoppedByUser:
+		return "stopped by the user"
+	case goal.ReasonRuntimeRestarted:
+		return "the runtime restarted — resume to continue"
+	case goal.ReasonRunStartFailed:
+		if reason.Detail == "" {
+			return "could not start the next run"
+		}
+		return "could not start the next run: " + reason.Detail
+	case goal.ReasonAwaitingInput:
+		return "the run is waiting for your input"
+	case goal.ReasonTerminalOutcomeMissing:
+		return "the run ended without a terminal outcome"
+	case goal.ReasonRunNotCompleted:
+		if reason.Detail == "" {
+			return "the run ended before completing the goal"
+		}
+		return "the run ended (" + reason.Detail + ")"
+	case goal.ReasonTurnBudgetReached:
+		return "reached the turn budget"
+	case goal.ReasonCostBudgetReached:
+		return "reached the cost budget"
+	case goal.ReasonStepBudgetReached:
+		return "reached the step budget"
+	case goal.ReasonBlockedByModel:
+		if reason.Detail != "" {
+			return reason.Detail
+		}
+		return "the model reported that it is blocked"
+	default:
+		return "the goal stopped"
+	}
 }

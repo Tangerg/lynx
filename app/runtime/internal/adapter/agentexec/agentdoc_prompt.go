@@ -3,7 +3,7 @@ package agentexec
 import (
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 const agentDocPromptMaxBytes = 32 * 1024
@@ -11,7 +11,7 @@ const agentDocPromptMaxBytes = 32 * 1024
 // renderAgentDocs formats discovered files for the agent system prompt. The
 // provenance marker and byte budget are part of the model-facing prompt, not
 // the agent-document domain value.
-func renderAgentDocs(files []agentdoc.File, maxBytes int) string {
+func renderAgentDocs(files []workspace.AgentDocFile, maxBytes int) string {
 	if len(files) == 0 || maxBytes <= 0 {
 		return ""
 	}

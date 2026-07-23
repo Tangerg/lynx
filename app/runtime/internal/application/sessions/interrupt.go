@@ -113,9 +113,8 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		item.Status = transcript.ItemIncomplete
 		if outcome == execution.OutcomeError && item.Kind == transcript.ToolCall {
 			item.Error = &transcript.Problem{
-				Kind:   transcript.ToolFailedProblem,
-				Scope:  transcript.ToolProblem,
-				Detail: "tool call interrupted because the run process state was lost",
+				Kind:  transcript.ToolFailedProblem,
+				Scope: transcript.ToolProblem,
 			}
 		}
 		items = append(items, item)
@@ -130,9 +129,8 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	run.Result = &transcript.RunResult{}
 	if outcome == execution.OutcomeError {
 		run.Result.Error = &transcript.Problem{
-			Kind:   transcript.RunLostProblem,
-			Scope:  transcript.RunProblem,
-			Detail: "run process state is unavailable",
+			Kind:  transcript.RunLostProblem,
+			Scope: transcript.RunProblem,
 		}
 	}
 	run.Detail = detail

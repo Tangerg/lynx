@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 21
+const schemaVersion = 22
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -241,7 +241,8 @@ func installCurrentSchema(db *sql.DB) error {
 			session_id TEXT    PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
 			objective  TEXT    NOT NULL,
 			status     TEXT    NOT NULL,
-			reason     TEXT    NOT NULL DEFAULT '',
+			reason_cause  INTEGER NOT NULL DEFAULT 0,
+			reason_detail TEXT    NOT NULL DEFAULT '',
 			provider   TEXT    NOT NULL DEFAULT '',
 			model      TEXT    NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,

@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 // DiscoverAgentDocs walks the project tree + user-level locations and returns
@@ -34,7 +34,7 @@ import (
 // os.UserHomeDir / os.Getwd before calling). Missing files are never an error —
 // discovery is best-effort. The agent-execution adapter renders the resulting
 // values.
-func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, error) {
+func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
 	if cwd == "" {
 		return nil, errors.New("promptsource: cwd is required")
 	}
@@ -75,7 +75,7 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, 
 // AgentDocs adapts prompt-source discovery to the workspace application port.
 type AgentDocs struct{}
 
-func (AgentDocs) DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, error) {
+func (AgentDocs) DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
 	return DiscoverAgentDocs(ctx, cwd, home)
 }
 
@@ -84,7 +84,7 @@ func (AgentDocs) DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]age
 // skipped per the best-effort policy.
 type agentDocScan struct {
 	seen  map[string]struct{}
-	files []agentdoc.File
+	files []workspaceapp.AgentDocFile
 }
 
 func (d *agentDocScan) try(ctx context.Context, path string) error {
@@ -106,7 +106,7 @@ func (d *agentDocScan) try(ctx context.Context, path string) error {
 		return nil
 	}
 	d.seen[abs] = struct{}{}
-	d.files = append(d.files, agentdoc.File{Path: abs, Content: content})
+	d.files = append(d.files, workspaceapp.AgentDocFile{Path: abs, Content: content})
 	return nil
 }
 

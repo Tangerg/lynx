@@ -48,40 +48,21 @@ type MCPServerConfig struct {
 	AutoApproveTools    []string
 }
 
-// MCPConnectionState is the application-owned status vocabulary exposed to
-// outer adapters. The MCP domain's live state remains an internal source fact.
-type MCPConnectionState string
-
-const (
-	MCPConnecting MCPConnectionState = "connecting"
-	MCPConnected  MCPConnectionState = "connected"
-	MCPFailed     MCPConnectionState = "failed"
-	MCPNeedsAuth  MCPConnectionState = "needsAuth"
-)
-
-// MCPProblem is a safe diagnostic suitable for presentation. It deliberately
-// contains no adapter error because those errors can expose endpoint, process,
-// or credential details.
-type MCPProblem struct {
-	Type   string
-	Detail string
-}
-
-// MCPServerStatus is a fully resolved application status read model. Known is
-// false after a removed server's final notification; Delivery then emits the
-// protocol's bare deletion event without re-querying live infrastructure.
+// MCPServerStatus is the application status read model. Known is false after a
+// removed server's final notification; Delivery then emits the protocol's bare
+// deletion event without re-querying live infrastructure. Connection state is
+// a domain fact, so application does not recreate a second state vocabulary.
 type MCPServerStatus struct {
 	Name      string
 	Known     bool
-	State     MCPConnectionState
+	State     mcpserver.ConnectionState
 	ToolCount *int
-	Problem   *MCPProblem
 }
 
-// MCPTestResult is the safe outcome of a non-persisting connection probe.
+// MCPTestResult is the semantic outcome of a non-persisting connection probe.
+// Delivery maps a failed probe to its client-facing safe diagnostic.
 type MCPTestResult struct {
-	OK      bool
-	Problem *MCPProblem
+	OK bool
 }
 
 func (in MCPServerInput) server() mcpserver.Server {
@@ -123,21 +104,5 @@ func mcpConfigView(server mcpserver.Server) MCPServerConfig {
 }
 
 func mcpStatusView(status mcpserver.ConnectionStatus, toolCount *int) MCPServerStatus {
-	view := MCPServerStatus{Name: status.Name, Known: true, ToolCount: toolCount}
-	switch status.State {
-	case mcpserver.ConnectionConnecting:
-		view.State = MCPConnecting
-	case mcpserver.ConnectionConnected:
-		view.State = MCPConnected
-	case mcpserver.ConnectionNeedsAuth:
-		view.State = MCPNeedsAuth
-		view.Problem = &MCPProblem{Type: "mcp_authorization_required", Detail: "MCP authorization is required."}
-	case mcpserver.ConnectionFailed:
-		view.State = MCPFailed
-		view.Problem = &MCPProblem{Type: "mcp_dial_failed", Detail: "MCP connection failed."}
-	default:
-		view.State = MCPFailed
-		view.Problem = &MCPProblem{Type: "mcp_invalid_connection_state", Detail: "Runtime reported an unknown MCP connection state."}
-	}
-	return view
+	return MCPServerStatus{Name: status.Name, Known: true, State: status.State, ToolCount: toolCount}
 }

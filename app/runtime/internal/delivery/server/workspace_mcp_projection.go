@@ -30,29 +30,37 @@ func (s *Server) mcpServerWire(st integrations.MCPServerStatus) protocol.McpServ
 			},
 		}
 	}
-	return protocol.McpServer{Name: st.Name, Status: status, ToolCount: st.ToolCount, Error: mcpProblemWire(st.Problem)}
+	return protocol.McpServer{Name: st.Name, Status: status, ToolCount: st.ToolCount, Error: mcpStatusProblem(st.State)}
 }
 
-func mcpStateWire(state integrations.MCPConnectionState) (protocol.McpStatus, bool) {
+func mcpStateWire(state mcpserver.ConnectionState) (protocol.McpStatus, bool) {
 	switch state {
-	case integrations.MCPConnecting:
+	case mcpserver.ConnectionConnecting:
 		return protocol.McpConnecting, true
-	case integrations.MCPConnected:
+	case mcpserver.ConnectionConnected:
 		return protocol.McpConnected, true
-	case integrations.MCPFailed:
+	case mcpserver.ConnectionFailed:
 		return protocol.McpFailed, true
-	case integrations.MCPNeedsAuth:
+	case mcpserver.ConnectionNeedsAuth:
 		return protocol.McpNeedsAuth, true
 	default:
 		return "", false
 	}
 }
 
-func mcpProblemWire(problem *integrations.MCPProblem) *protocol.ProblemData {
-	if problem == nil {
+func mcpStatusProblem(state mcpserver.ConnectionState) *protocol.ProblemData {
+	switch state {
+	case mcpserver.ConnectionNeedsAuth:
+		return &protocol.ProblemData{Type: "mcp_authorization_required", Detail: "MCP authorization is required."}
+	case mcpserver.ConnectionFailed:
+		return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: "MCP connection failed."}
+	default:
 		return nil
 	}
-	return &protocol.ProblemData{Type: problem.Type, Detail: problem.Detail}
+}
+
+func mcpProbeProblem() *protocol.ProblemData {
+	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: "MCP connection test failed."}
 }
 
 func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {

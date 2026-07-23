@@ -189,8 +189,9 @@ type FactBatch struct {
 }
 
 // Normalize validates the batch identity and canonicalizes already-parsed facts
-// into a unique, trimmed list while preserving first-seen order. Parsing a
-// model's Markdown response belongs to the extraction adapter.
+// into a unique, trimmed plain-text list while preserving first-seen order.
+// Parsing and rendering a model's Markdown response belong to the extraction
+// adapter.
 func (b FactBatch) Normalize() (FactBatch, error) {
 	b.Project = strings.TrimSpace(b.Project)
 	b.SessionID = strings.TrimSpace(b.SessionID)
@@ -234,9 +235,6 @@ func normalizeFactList(input []string) []string {
 		fact = strings.TrimSpace(fact)
 		if fact == "" {
 			continue
-		}
-		if !strings.HasPrefix(fact, "- ") {
-			fact = "- " + fact
 		}
 		if _, duplicate := seen[fact]; duplicate {
 			continue

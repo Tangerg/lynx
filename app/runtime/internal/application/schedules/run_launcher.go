@@ -36,14 +36,10 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, sc schedule.Schedule
 	if cwd == "" {
 		cwd = l.defaultCwd
 	}
-	title := sc.Title
-	if title == "" {
-		title = "Scheduled run"
-	}
 	fireCtx, cancel := context.WithCancel(ctx)
 	result, err := l.runs.Start(fireCtx, runs.StartCommand{
 		DefaultCwd:      cwd,
-		NewSessionTitle: title,
+		NewSessionTitle: sc.Title,
 		Provider:        sc.Provider,
 		Model:           sc.Model,
 		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},

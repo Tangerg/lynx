@@ -15,10 +15,6 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 	switch e.Reason {
 	case execution.OutcomeError:
 		result.Error = r.runProblem()
-	case execution.OutcomeMaxBudget:
-		detail = budgetDetail(e)
-	case execution.OutcomeMaxSteps:
-		detail = stepDetail(e)
 	case execution.OutcomeCanceled:
 		if r.cfg.CancelReason != nil {
 			detail = r.cfg.CancelReason()
@@ -61,24 +57,6 @@ func (r *reducer) finishedRun(outcome execution.Outcome, result *transcript.RunR
 	run.Detail = detail
 	run.FinishedAt = r.now()
 	return SegmentFinished{Run: run}, nil
-}
-
-func budgetDetail(e TurnEnd) string {
-	switch {
-	case e.MaxCostUSD > 0:
-		return fmt.Sprintf("spent $%.2f of $%.2f budget", e.CostUSD, e.MaxCostUSD)
-	case e.MaxBudget > 0:
-		return fmt.Sprintf("reached the %d-token budget", e.MaxBudget)
-	default:
-		return "reached the configured budget"
-	}
-}
-
-func stepDetail(e TurnEnd) string {
-	if e.MaxSteps > 0 {
-		return fmt.Sprintf("reached the %d-step limit", e.MaxSteps)
-	}
-	return "reached the configured step limit"
 }
 
 func (r *reducer) turnUsage(e TurnEnd) *transcript.Usage {

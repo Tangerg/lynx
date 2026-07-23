@@ -19,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -133,7 +132,7 @@ type workspaceVCSUseCases interface {
 type workspaceDiscoveryUseCases interface {
 	ListAgentDocs(ctx context.Context, cwd string) ([]workspaceapp.AgentDoc, error)
 	ListProjects(ctx context.Context) ([]workspaceapp.Project, error)
-	ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error)
+	ListRecipes(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error)
 }
 
 type workspaceKnowledgeUseCases interface {
@@ -147,7 +146,7 @@ type workspaceSkillUseCases interface {
 	ArchiveSkill(ctx context.Context, name string) error
 	ListManagedSkills(ctx context.Context) ([]skills.Entry, error)
 	ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error)
-	ListSkills(ctx context.Context, cwd string) ([]skills.Info, error)
+	ListSkills(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error)
 	PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error
 	RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error
 	RestoreSkill(ctx context.Context, name string) error

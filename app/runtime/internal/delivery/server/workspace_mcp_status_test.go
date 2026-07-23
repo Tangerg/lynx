@@ -40,15 +40,15 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 func TestMCPStateWire(t *testing.T) {
 	tests := []struct {
 		name  string
-		state integrations.MCPConnectionState
+		state mcpserver.ConnectionState
 		want  protocol.McpStatus
 		ok    bool
 	}{
-		{"connecting", integrations.MCPConnecting, protocol.McpConnecting, true},
-		{"connected", integrations.MCPConnected, protocol.McpConnected, true},
-		{"failed", integrations.MCPFailed, protocol.McpFailed, true},
-		{"needs auth", integrations.MCPNeedsAuth, protocol.McpNeedsAuth, true},
-		{"unknown", integrations.MCPConnectionState("typo"), "", false},
+		{"connecting", mcpserver.ConnectionConnecting, protocol.McpConnecting, true},
+		{"connected", mcpserver.ConnectionConnected, protocol.McpConnected, true},
+		{"failed", mcpserver.ConnectionFailed, protocol.McpFailed, true},
+		{"needs auth", mcpserver.ConnectionNeedsAuth, protocol.McpNeedsAuth, true},
+		{"unknown", mcpserver.ConnectionState("typo"), "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -63,7 +63,7 @@ func TestMCPStateWire(t *testing.T) {
 func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{}))
 	got := s.mcpServerWire(integrations.MCPServerStatus{
-		Name: "broken", Known: true, State: integrations.MCPConnectionState("typo"),
+		Name: "broken", Known: true, State: mcpserver.ConnectionState("typo"),
 	})
 	if got.Status != protocol.McpFailed || got.Error == nil || got.Error.Type != "mcp_invalid_connection_state" {
 		t.Fatalf("mcpServerWire(unknown state) = %+v, want explicit failed projection", got)

@@ -55,20 +55,3 @@ func GateFor(cls tool.SafetyClass, mode Mode) GateAction {
 	// fallback keeps the pure policy function safe in isolation too.
 	return GatePrompt
 }
-
-// RiskFor maps a gated tool's class to the (risk, reason) an approval card
-// shows — a coarser low/medium/high read plus a one-line why.
-func RiskFor(cls tool.SafetyClass) (risk tool.RiskLevel, reason string) {
-	switch cls {
-	case tool.SafetyClassSafe:
-		return cls.Risk(), "Reads data without changing the workspace."
-	case tool.SafetyClassWrite:
-		return cls.Risk(), "Modifies files in the workspace."
-	case tool.SafetyClassExec:
-		return cls.Risk(), "Runs commands in the workspace."
-	case tool.SafetyClassNetwork:
-		return cls.Risk(), "Accesses network resources."
-	default:
-		return cls.Risk(), "Has an unknown safety classification."
-	}
-}

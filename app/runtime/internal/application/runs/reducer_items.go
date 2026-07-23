@@ -187,7 +187,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 	switch {
 	case e.Denied:
 		item.Status = transcript.ItemIncomplete
-		item.Error = &transcript.Problem{Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem, Detail: "tool call denied by user"}
+		item.Error = &transcript.Problem{Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem}
 	case e.Err != "":
 		item.Status = transcript.ItemIncomplete
 		item.Error = &transcript.Problem{Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem, Detail: e.Err}

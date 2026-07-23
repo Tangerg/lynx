@@ -16,10 +16,6 @@ import (
 
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
-// autonomyNote frames every autonomous turn: the model drives itself and ends
-// the loop only through update_goal, never by narrating completion.
-const autonomyNote = "\n\n(You are running autonomously toward this goal — you do not need to wait for the user. Take one concrete next step. Call update_goal(status=\"complete\") only when the whole goal is done and verified, or update_goal(status=\"blocked\", reason=\"...\") if you genuinely cannot proceed without the user. Otherwise just keep working.)"
-
 // launch spawns the loop for sessionID, canceling any prior loop for the same
 // session first. The loop runs request-detached (task group) so it outlives the
 // call that started it and is canceled by Stop or shutdown.
@@ -98,7 +94,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
-		g.Pause("could not start the next run: "+err.Error(), d.now())
+		g.Pause(goal.ReasonRunStartFailed, err.Error(), d.now())
 		d.save(ctx, *g)
 		return dispPaused, false
 	}
@@ -137,7 +133,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		// The run parked for HITL and produced no terminal (rare — autonomous runs
 		// are headless, so an unanswerable interrupt auto-denies rather than
 		// parking). Wait for the user, who resolves it and can resume the goal.
-		g.Pause("the run is waiting for your input", d.now())
+		g.Pause(goal.ReasonAwaitingInput, "", d.now())
 		d.save(ctx, *g)
 		return dispPaused, false
 	}
@@ -147,7 +143,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "malformed terminal run")
-		g.Pause("the run ended without a terminal outcome", d.now())
+		g.Pause(goal.ReasonTerminalOutcomeMissing, "", d.now())
 		d.save(ctx, *g)
 		return dispPaused, false
 	}
@@ -159,12 +155,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	g.AddTurn(cost, steps, d.now())
 
 	if outcome != execution.OutcomeCompleted {
-		g.Pause("the run ended ("+outcome.String()+")", d.now())
+		g.Pause(goal.ReasonRunNotCompleted, outcome.String(), d.now())
 		d.save(ctx, *g)
 		return dispPaused, false
 	}
-	if axis, over := g.Budget.Exceeded(g.Used); over {
-		g.Block("reached the "+axis+" budget", d.now())
+	if limit, over := g.Budget.Exceeded(g.Used); over {
+		g.Block(reasonForBudgetLimit(limit), "", d.now())
 		d.save(ctx, *g)
 		return dispBlocked, false
 	}
@@ -182,12 +178,17 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 // loop no client is watching (the user's chosen global approval stance still
 // gates tools — yolo runs everything, a stricter stance keeps the agent read-only).
 func (d *Driver) command(g goal.Goal) runs.StartCommand {
-	message := d.prompt(g)
 	return runs.StartCommand{
 		SessionID: g.SessionID,
 		Provider:  g.Provider,
 		Model:     g.Model,
-		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: message}},
+		Input: []transcript.ContentBlock{{
+			Kind: transcript.TextContent,
+			Text: d.prompt(PromptInput{
+				Objective:  g.Objective,
+				Continuing: g.Used.Turns > 0,
+			}),
+		}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
 		// update_goal only signals THIS goal: a straggler run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
@@ -196,11 +197,17 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	}
 }
 
-func (d *Driver) prompt(g goal.Goal) string {
-	if g.Used.Turns == 0 {
-		return g.Objective + autonomyNote
+func reasonForBudgetLimit(limit goal.BudgetLimit) goal.ReasonCause {
+	switch limit {
+	case goal.BudgetLimitTurns:
+		return goal.ReasonTurnBudgetReached
+	case goal.BudgetLimitCost:
+		return goal.ReasonCostBudgetReached
+	case goal.BudgetLimitSteps:
+		return goal.ReasonStepBudgetReached
+	default:
+		return goal.ReasonNone
 	}
-	return "Continue toward the goal: " + g.Objective + autonomyNote
 }
 
 // drainTerminal consumes a run's event stream to its close and returns the run's

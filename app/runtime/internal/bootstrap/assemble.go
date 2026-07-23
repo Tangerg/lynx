@@ -517,7 +517,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations)
+		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}

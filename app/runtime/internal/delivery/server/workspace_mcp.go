@@ -153,5 +153,9 @@ func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPS
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	return &protocol.McpTestResult{OK: result.OK, Error: mcpProblemWire(result.Problem)}, nil
+	var problem *protocol.ProblemData
+	if !result.OK {
+		problem = mcpProbeProblem()
+	}
+	return &protocol.McpTestResult{OK: result.OK, Error: problem}, nil
 }

@@ -149,7 +149,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		}
 		return agentexec.ToolApprovalVerdict{Arguments: plan.ArgumentOverride}
 	case approval.GateDeny:
-		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: plan.DenyReason}
+		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: approvalDenialMessage(plan.Denial, toolName)}
 	}
 
 	// interrupt for human approval (R model). First pass bubbles the
@@ -159,7 +159,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		Kind: runs.ApprovalInterruptKind,
 		Approval: &runs.ApprovalPrompt{
 			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
-			SafetyClass: plan.SafetyClass, Risk: plan.Risk, Reason: plan.PromptReason,
+			SafetyClass: plan.SafetyClass, Risk: plan.Risk, Reason: approvalPromptReason(plan.PromptCause),
 		},
 	}
 	if err := pending.Validate(); err != nil {

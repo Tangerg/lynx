@@ -194,9 +194,6 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 	root := moduleRoot(t)
 	checks := map[string]map[string]string{
-		filepath.Join(root, "internal", "domain", "agentdoc"): {
-			"Render": "AGENTS.md prompt formatting belongs to adapter/agentexec",
-		},
 		filepath.Join(root, "internal", "domain", "agentmemory"): {
 			"Render":         "memory prompt rendering belongs to adapter/agentexec",
 			"EstimateTokens": "model token approximation belongs to adapter/agentexec",
@@ -205,11 +202,15 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 		filepath.Join(root, "internal", "domain", "todo"): {
 			"Render": "todo prompt/tool formatting belongs to adapter/todopresentation",
 		},
-		filepath.Join(root, "internal", "domain", "editguard"): {
-			"Message": "tool refusal wording belongs to adapter/toolset",
-		},
 		filepath.Join(root, "internal", "domain", "skills"): {
 			"ProjectDir": "skill source layout belongs to adapter/promptsource",
+			"Info":       "discovered-skill client projection belongs to application/workspace",
+		},
+		filepath.Join(root, "internal", "domain", "approval"): {
+			"RiskFor": "approval-risk wording belongs to adapter/agentexec",
+		},
+		filepath.Join(root, "internal", "domain", "tool"): {
+			"BypassImmuneReason": "tool refusal wording belongs to adapter/agentexec",
 		},
 	}
 	for dir, banned := range checks {

@@ -22,7 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -131,7 +131,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
 
-	tracker := editguard.NewTracker()
+	tracker := editguardstate.NewTracker()
 
 	// OS command isolation for the shell tools. Build the confiner whenever the
 	// host supports it — isolated sessions jail their shell even when the global

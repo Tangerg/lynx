@@ -12,7 +12,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -33,7 +32,7 @@ var ErrFileWatchUnavailable = errors.New("workspace: file watch unavailable")
 // SkillCatalog enumerates the skills visible from a working directory (project
 // over global). The composition root supplies promptsource-backed discovery.
 type SkillCatalog interface {
-	ListSkills(ctx context.Context, workdir string) ([]skills.Info, error)
+	ListSkills(ctx context.Context, workdir string) ([]SkillInfo, error)
 }
 
 // SkillCurator manages the global self-authored skill library: listing every
@@ -85,7 +84,7 @@ type KnowledgeStore interface {
 // root supplies the filesystem-backed implementation (the promptsource adapter);
 // the port keeps the coordinator free of file I/O.
 type RecipeLister interface {
-	List(ctx context.Context, cwd string) ([]recipes.Recipe, error)
+	List(ctx context.Context, cwd string) ([]Recipe, error)
 }
 
 // GitStateWatcher observes the small set of Git metadata directories that
@@ -274,7 +273,7 @@ func (c *Knowledge) UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd
 
 // ListSkills enumerates the skills visible from cwd (project over global) for
 // skills.discovered.list.
-func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]skills.Info, error) {
+func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]SkillInfo, error) {
 	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
@@ -363,7 +362,7 @@ func (c *Skills) RejectSkillDraft(ctx context.Context, handle skills.DraftHandle
 // ListRecipes enumerates the prompt recipes visible from cwd — project recipes
 // (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
 // name collision (recipes.list).
-func (c *Discovery) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
+func (c *Discovery) ListRecipes(ctx context.Context, cwd string) ([]Recipe, error) {
 	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err

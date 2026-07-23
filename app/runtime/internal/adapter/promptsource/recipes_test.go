@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 // write creates dir/<name> with content, failing the test on error.
@@ -20,16 +20,16 @@ func write(t *testing.T, dir, name, content string) {
 	}
 }
 
-func findRecipe(rs []recipes.Recipe, name string) (recipes.Recipe, bool) {
+func findRecipe(rs []workspaceapp.Recipe, name string) (workspaceapp.Recipe, bool) {
 	for _, r := range rs {
 		if r.Name == name {
 			return r, true
 		}
 	}
-	return recipes.Recipe{}, false
+	return workspaceapp.Recipe{}, false
 }
 
-func recipeNames(rs []recipes.Recipe) []string {
+func recipeNames(rs []workspaceapp.Recipe) []string {
 	out := make([]string, len(rs))
 	for i, r := range rs {
 		out[i] = r.Name
@@ -72,8 +72,8 @@ func TestListRecipes(t *testing.T) {
 
 	// Project wins the collision: review carries the project body + description.
 	review, _ := findRecipe(got, "review")
-	if review.Scope != recipes.ScopeProject {
-		t.Errorf("review.Scope = %q, want %q", review.Scope, recipes.ScopeProject)
+	if review.Scope != workspaceapp.RecipeScopeProject {
+		t.Errorf("review.Scope = %q, want %q", review.Scope, workspaceapp.RecipeScopeProject)
 	}
 	if review.Description != "project review" {
 		t.Errorf("review.Description = %q, want project copy", review.Description)
@@ -84,8 +84,8 @@ func TestListRecipes(t *testing.T) {
 
 	// Frontmatter parses; argumentHint is optional.
 	explain, _ := findRecipe(got, "explain")
-	if explain.Scope != recipes.ScopeGlobal {
-		t.Errorf("explain.Scope = %q, want %q", explain.Scope, recipes.ScopeGlobal)
+	if explain.Scope != workspaceapp.RecipeScopeGlobal {
+		t.Errorf("explain.Scope = %q, want %q", explain.Scope, workspaceapp.RecipeScopeGlobal)
 	}
 	if explain.Description != "explain a thing" || explain.ArgumentHint != "[symbol]" {
 		t.Errorf("explain frontmatter = %q / %q, want \"explain a thing\" / \"[symbol]\"", explain.Description, explain.ArgumentHint)

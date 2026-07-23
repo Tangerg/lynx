@@ -40,7 +40,7 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 	settled := make(chan string, 2)
 	cfg := configWithMCPPorts(ports)
 	cfg.MCPStatus = func(status MCPServerStatus) {
-		if status.State != MCPConnecting {
+		if status.State != mcpserver.ConnectionConnecting {
 			settled <- status.Name
 		}
 	}

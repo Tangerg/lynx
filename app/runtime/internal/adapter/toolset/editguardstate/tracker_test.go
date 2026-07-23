@@ -1,4 +1,4 @@
-package editguard
+package editguardstate
 
 import "testing"
 
@@ -45,5 +45,4 @@ func TestTracker(t *testing.T) {
 	if got := tr.Check(sess, path, two, false); got != ResultAllowed {
 		t.Fatalf("partial edit Check = %v, want ok (partial read allows an edit)", got)
 	}
-
 }

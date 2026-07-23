@@ -1,7 +1,6 @@
 package approval
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -15,7 +14,7 @@ func TestToolCallInputPlan_HookBlockWins(t *testing.T) {
 		ApprovalConfigured: true,
 		Hook:               HookDecision{Block: true},
 	}.Plan()
-	if plan.Action != GateDeny || plan.DenyReason != "denied by a PreToolUse hook" {
+	if plan.Action != GateDeny || plan.Denial != (Denial{Cause: DenialHook}) {
 		t.Fatalf("plan = %+v, want hook denial", plan)
 	}
 }
@@ -39,7 +38,7 @@ func TestToolCallInputPlan_HookAskEscalatesPass(t *testing.T) {
 		ApprovalConfigured: true,
 		Hook:               HookDecision{Ask: true},
 	}.Plan()
-	if plan.Action != GatePrompt || plan.SafetyClass != tool.SafetyClassWrite || plan.Risk == "" || plan.PromptReason == "" {
+	if plan.Action != GatePrompt || plan.SafetyClass != tool.SafetyClassWrite || plan.Risk == "" || plan.PromptCause != PromptCauseWorkspaceWrite {
 		t.Fatalf("plan = %+v, want prompt for hook ask", plan)
 	}
 }
@@ -57,7 +56,7 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 	if plan.Action != GatePrompt {
 		t.Fatalf("action = %v, want GatePrompt (bypass-immune)", plan.Action)
 	}
-	if plan.Risk != tool.RiskHigh || !strings.Contains(plan.PromptReason, "outside the workspace") {
+	if plan.Risk != tool.RiskHigh || plan.PromptCause != PromptCauseOutsideWorkspace {
 		t.Fatalf("plan = %+v, want high risk + out-of-workspace reason", plan)
 	}
 }
@@ -95,7 +94,7 @@ func TestToolCallInputPlan_ModePlanDenyBeatsHookAsk(t *testing.T) {
 		ApprovalConfigured: true,
 		Hook:               HookDecision{Ask: true},
 	}.Plan()
-	if plan.Action != GateDeny || !strings.Contains(plan.DenyReason, "plan mode") {
+	if plan.Action != GateDeny || plan.Denial.Cause != DenialPlanMode {
 		t.Fatalf("plan = %+v, want plan-mode deny", plan)
 	}
 }
@@ -108,7 +107,7 @@ func TestToolCallPlanResolvePromptShortcuts_RememberedRuleBeforeAutoApprove(t *t
 		ApprovalConfigured: true,
 	}.Plan()
 	got := plan.ResolvePromptShortcuts(StandingDecision{Matched: true, Decision: Deny}, true)
-	if got.Action != GateDeny || got.DenyReason != "tool call denied by a remembered rule" {
+	if got.Action != GateDeny || got.Denial.Cause != DenialRememberedRule {
 		t.Fatalf("remembered deny + auto approve = %+v, want deny", got)
 	}
 
