@@ -32,7 +32,8 @@ import (
 //
 // ctx cancels long walks; cwd / home are absolute (callers resolve via
 // os.UserHomeDir / os.Getwd before calling). Missing files are never an error —
-// discovery is best-effort. The rendered blob is produced by [agentdoc.Render].
+// discovery is best-effort. The agent-execution adapter renders the resulting
+// values.
 func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, error) {
 	if cwd == "" {
 		return nil, errors.New("promptsource: cwd is required")

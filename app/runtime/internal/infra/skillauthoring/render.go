@@ -29,13 +29,13 @@ func renderDraft(draft skills.Draft) ([]byte, error) {
 func draftProvenance(draft skills.Draft) map[string]string {
 	metadata := make(map[string]string, 2)
 	if draft.CreatedBy != "" {
-		metadata[skills.MetadataCreatedBy] = draft.CreatedBy
+		metadata[metadataCreatedBy] = draft.CreatedBy
 	}
 	if draft.SourceSession != "" {
-		metadata[skills.MetadataSourceSession] = draft.SourceSession
+		metadata[metadataSourceSession] = draft.SourceSession
 	}
 	if draft.Revises {
-		metadata[skills.MetadataRevises] = skills.MetadataTrue
+		metadata[metadataRevises] = metadataTrue
 	}
 	if len(metadata) == 0 {
 		return nil

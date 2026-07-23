@@ -8,10 +8,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // agentMemoryInjectBudget bounds the always-on curated-memory block whole-inject
@@ -80,7 +79,7 @@ func appendTodos(ctx context.Context, prompt string, todos TodoReader) string {
 	if err != nil || len(items) == 0 {
 		return prompt
 	}
-	return prompt + "\n\n## Current todo list (you maintain this via todo_write)\n\n" + todo.Render(items)
+	return prompt + "\n\n## Current todo list (you maintain this via todo_write)\n\n" + todopresentation.Render(items)
 }
 
 // composePrompt is the pure form behind [Engine.systemPrompt],
@@ -109,7 +108,7 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 		}
 		userItems, _ := memory.Items(ctx, agentmemory.ScopeUser, "")
 		pinned = appendPinned(pinned, userItems)
-		if s := agentmemory.Render(pinned, agentMemoryInjectBudget); s != "" {
+		if s := renderPinnedMemory(pinned, agentMemoryInjectBudget); s != "" {
 			b.WriteString("\n\n## Pinned memory (managed by Lyra)\n\n")
 			b.WriteString(s)
 		}
@@ -128,7 +127,7 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 	if dir := resolveCwd(cwd); dir != "" {
 		home, _ := os.UserHomeDir()
 		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, home); err == nil {
-			if rendered := agentdoc.Render(files, agentdoc.DefaultMaxBytes); rendered != "" {
+			if rendered := renderAgentDocs(files, agentDocPromptMaxBytes); rendered != "" {
 				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
 				b.WriteString(rendered)
 			}

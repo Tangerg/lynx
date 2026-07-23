@@ -12,7 +12,7 @@ import (
 
 	skillspec "github.com/Tangerg/lynx/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 )
 
 type recordingProbe struct{ names []string }
@@ -78,8 +78,8 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 	workdir := t.TempDir()
 	global := t.TempDir()
 
-	writeSkill(t, skills.ProjectDir(workdir), "shared", "PROJECT copy")
-	writeSkill(t, skills.ProjectDir(workdir), "proj-only", "project only")
+	writeSkill(t, promptsource.ProjectSkillDir(workdir), "shared", "PROJECT copy")
+	writeSkill(t, promptsource.ProjectSkillDir(workdir), "proj-only", "project only")
 	writeSkill(t, global, "shared", "GLOBAL copy")
 	writeSkill(t, global, "glob-only", "global only")
 

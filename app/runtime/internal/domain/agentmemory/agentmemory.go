@@ -5,9 +5,9 @@
 // this is agent-owned, curated from an append-only fact ledger into discrete,
 // individually addressable items.
 //
-// Which items get injected into a prompt, and in what order, is a policy of
-// this domain via [Render]; the agent-execution adapter only wraps the rendered
-// body with its heading.
+// Which items get injected into an agent prompt, and in what order, is a
+// model-adapter policy. This domain owns the durable memory values, lifecycle,
+// and content invariants only.
 package agentmemory
 
 import (
@@ -15,7 +15,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 )
@@ -189,8 +188,9 @@ type FactBatch struct {
 	CapturedAt time.Time
 }
 
-// Normalize validates the batch identity and canonicalizes its facts into
-// unique markdown bullets while preserving first-seen order.
+// Normalize validates the batch identity and canonicalizes already-parsed facts
+// into a unique, trimmed list while preserving first-seen order. Parsing a
+// model's Markdown response belongs to the extraction adapter.
 func (b FactBatch) Normalize() (FactBatch, error) {
 	b.Project = strings.TrimSpace(b.Project)
 	b.SessionID = strings.TrimSpace(b.SessionID)
@@ -207,7 +207,7 @@ func (b FactBatch) Normalize() (FactBatch, error) {
 	if b.CapturedAt.IsZero() {
 		return FactBatch{}, errors.New("agentmemory: fact batch capture time is required")
 	}
-	b.Facts = NormalizeFacts(strings.Join(b.Facts, "\n"))
+	b.Facts = normalizeFactList(b.Facts)
 	return b, nil
 }
 
@@ -227,42 +227,22 @@ type State struct {
 	UpdatedAt time.Time
 }
 
-// NormalizeFacts converts an extraction response into stable markdown bullets.
-// Blank lines, fences, and the NO_FACTS sentinel are discarded; duplicate facts
-// within one response collapse without reordering the survivors.
-func NormalizeFacts(markdown string) []string {
-	var facts []string
+func normalizeFactList(input []string) []string {
+	var normalized []string
 	seen := make(map[string]struct{})
-	for line := range strings.SplitSeq(markdown, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || line == "```" || strings.EqualFold(line, "NO_FACTS") {
+	for _, fact := range input {
+		fact = strings.TrimSpace(fact)
+		if fact == "" {
 			continue
 		}
-		line = trimBullet(line)
-		if line == "" {
-			continue
+		if !strings.HasPrefix(fact, "- ") {
+			fact = "- " + fact
 		}
-		fact := "- " + line
 		if _, duplicate := seen[fact]; duplicate {
 			continue
 		}
 		seen[fact] = struct{}{}
-		facts = append(facts, fact)
+		normalized = append(normalized, fact)
 	}
-	return slices.Clip(facts)
-}
-
-func trimBullet(line string) string {
-	if len(line) >= 2 && (line[0] == '-' || line[0] == '*' || line[0] == '+') && line[1] == ' ' {
-		return strings.TrimSpace(line[2:])
-	}
-	if index := strings.IndexByte(line, '.'); index > 0 && index+1 < len(line) && line[index+1] == ' ' {
-		for _, digit := range line[:index] {
-			if digit < '0' || digit > '9' {
-				return line
-			}
-		}
-		return strings.TrimSpace(line[index+2:])
-	}
-	return line
+	return normalized
 }

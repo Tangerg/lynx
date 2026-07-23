@@ -13,6 +13,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
+const (
+	draftSubdir   = "_drafts"
+	archiveSubdir = "_archive"
+)
+
 func TestSaveDraftThenPromote(t *testing.T) {
 	root := t.TempDir()
 	store := skillauthoring.NewStore(root)
@@ -190,7 +195,7 @@ func TestSameNameDraftsKeepIndependentApprovedBytes(t *testing.T) {
 	if err := store.DiscardDraft(t.Context(), firstHandle); err != nil {
 		t.Fatalf("discard first draft: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, skills.DraftsSubdir, secondHandle.Revision, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, draftSubdir, secondHandle.Revision, "SKILL.md")); err != nil {
 		t.Fatalf("discarding one proposal removed another: %v", err)
 	}
 	if err := store.Promote(t.Context(), secondHandle); err != nil {
@@ -213,7 +218,7 @@ func TestPromoteRejectsChangedDraftWithoutTouchingActiveSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveDraft: %v", err)
 	}
-	path := filepath.Join(root, skills.DraftsSubdir, handle.Revision, "SKILL.md")
+	path := filepath.Join(root, draftSubdir, handle.Revision, "SKILL.md")
 	if err := os.WriteFile(path, []byte("tampered"), 0o644); err != nil {
 		t.Fatalf("tamper draft: %v", err)
 	}
@@ -270,10 +275,10 @@ func TestLifecycleConflictsPreserveBothStates(t *testing.T) {
 	if err := store.Promote(t.Context(), handle); !errors.Is(err, skills.ErrConflict) {
 		t.Fatalf("Promote() error = %v, want ErrConflict", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, skills.ArchivedSubdir, draft.Name, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, archiveSubdir, draft.Name, "SKILL.md")); err != nil {
 		t.Fatalf("archived version was lost: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, skills.DraftsSubdir, handle.Revision, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, draftSubdir, handle.Revision, "SKILL.md")); err != nil {
 		t.Fatalf("conflicting draft was lost: %v", err)
 	}
 }
@@ -331,7 +336,7 @@ func TestConcurrentPromotionsPublishOneRevisionWithoutLosingTheOther(t *testing.
 		t.Fatal("active bytes match neither proposed revision")
 	}
 	loser := 1 - winner
-	if _, err := os.Stat(filepath.Join(root, skills.DraftsSubdir, handles[loser].Revision, "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(root, draftSubdir, handles[loser].Revision, "SKILL.md")); err != nil {
 		t.Fatalf("losing revision was destroyed: %v", err)
 	}
 }

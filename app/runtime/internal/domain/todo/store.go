@@ -1,11 +1,7 @@
-// Package todo is the model-facing task list: the agent's own working
-// checklist for a session. It is a small domain: an ordered list of items, each
-// pending / in_progress / completed, with optional blocked reason and next
-// action. The list survives across turns (and restarts). The model owns the list
-// through the todo_write tool (a full-list replace); this package holds the
-// types, progress-integrity rules, and canonical textual rendering shared by
-// the tool and the system-prompt
-// injection.
+// Package todo is the agent's working checklist domain: an ordered list of
+// items, each pending / in_progress / completed, with optional blocked reason
+// and next action. The list survives across turns and restarts; model-facing
+// tool and prompt presentation live in adapters.
 package todo
 
 import (
@@ -98,38 +94,4 @@ func completedCount(items []Item) int {
 		}
 	}
 	return n
-}
-
-// Render formats items as a compact checklist for the system-prompt injection
-// and the tool's confirmation. An empty list renders as "".
-func Render(items []Item) string {
-	var b strings.Builder
-	for _, it := range items {
-		b.WriteString(it.Status.mark())
-		b.WriteByte(' ')
-		b.WriteString(it.Content)
-		b.WriteByte('\n')
-		if it.BlockedReason != "" {
-			b.WriteString("    blocked: ")
-			b.WriteString(it.BlockedReason)
-			b.WriteByte('\n')
-		}
-		if it.NextAction != "" {
-			b.WriteString("    next: ")
-			b.WriteString(it.NextAction)
-			b.WriteByte('\n')
-		}
-	}
-	return b.String()
-}
-
-func (s Status) mark() string {
-	switch s {
-	case StatusCompleted:
-		return "[x]"
-	case StatusInProgress:
-		return "[~]"
-	default:
-		return "[ ]"
-	}
 }

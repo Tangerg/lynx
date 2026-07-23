@@ -3,10 +3,8 @@ package sessions
 import (
 	"context"
 	"errors"
-	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -81,14 +79,10 @@ func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { return n
 func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { return nil }
 func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { return nil }
 
-func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
-	stores := &crudStores{session: store}
-	return New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}})), stores
-}
-
 func TestCoordinatorSessionCRUD(t *testing.T) {
 	store := &crudSessionStore{sessions: []session.Session{{ID: "ses_1"}}}
-	c, _ := newCRUDCoordinator(store)
+	stores := &crudStores{session: store}
+	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}}))
 	ctx := context.Background()
 
 	listed, err := c.List(ctx)
@@ -107,12 +101,11 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 		t.Fatalf("getID=%q got=%+v", store.getID, got)
 	}
 
-	createCwd := t.TempDir()
-	created, err := c.Create(ctx, "New", filepath.Join(createCwd, "."))
+	created, err := c.Create(ctx, "New", "/requested/project")
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != workspacepath.Canonical(createCwd) {
+	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != "/resolved/project" {
 		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCwd)
 	}
 }
@@ -133,12 +126,12 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}, Admissions: claims}))
+	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	ctx := context.Background()
 
 	title := "  Renamed  "
 	model := "claude-opus-4-8"
-	cwd := t.TempDir()
+	cwd := "/requested/project"
 	favorite := true
 
 	got, err := c.Update(ctx, "ses_1", session.Patch{
@@ -159,7 +152,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	if store.model != ([2]string{"ses_1", model}) {
 		t.Fatalf("model = %v", store.model)
 	}
-	if store.cwd != ([2]string{"ses_1", workspacepath.Canonical(cwd)}) {
+	if store.cwd != ([2]string{"ses_1", "/resolved/project"}) {
 		t.Fatalf("cwd = %v", store.cwd)
 	}
 	if store.favoriteID != "ses_1" || !store.favoriteValue {
@@ -174,8 +167,8 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}, Admissions: claims}))
-	cwd := t.TempDir()
+	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	cwd := "/requested/project"
 
 	_, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &cwd})
 	if !errors.Is(err, ErrSessionBusy) {
@@ -188,7 +181,8 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
-	c, _ := newCRUDCoordinator(store)
+	stores := &crudStores{session: store}
+	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{err: errors.New("cwd unavailable")}}))
 
 	blank := "  "
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
@@ -214,7 +208,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 		t.Fatalf("invalid mixed patch renamed session: %v", store.renamed)
 	}
 
-	missing := filepath.Join(t.TempDir(), "missing")
+	missing := "/missing/project"
 	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, session.ErrCwdUnavailable) {
 		t.Fatalf("missing create cwd err = %v, want ErrCwdUnavailable", err)
 	}

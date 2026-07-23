@@ -3,6 +3,7 @@ package promptsource
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -10,6 +11,18 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
+
+const projectSkillsSubdir = ".lyra/skills"
+
+// ProjectSkillDir resolves the project skill-source directory for a working
+// directory. The .lyra layout is a prompt-source filesystem convention, not a
+// skills-domain concern.
+func ProjectSkillDir(workdir string) string {
+	if workdir == "" {
+		return ""
+	}
+	return filepath.Join(workdir, projectSkillsSubdir)
+}
 
 // MergeSkillSource builds the merged skill source: projectDir layered over
 // globalDir, the project copy winning on name collisions. Returns nil when

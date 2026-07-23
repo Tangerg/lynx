@@ -174,10 +174,9 @@ func TestDomainHooksStayPure(t *testing.T) {
 // TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
 // heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
 // process I/O, network, database driver, or external SDK/storage library
-// (including the reusable chathistory adapter contract).
-// Pure path-string composition via path/filepath remains allowed. The single
-// agent-SDK edge (accounting reads core.ModelCall token counts, a value
-// type) is a deliberate, documented exception and stays allowed.
+// (including the reusable chathistory adapter contract). The single agent-SDK
+// edge (accounting reads core.ModelCall token counts, a value type) is a
+// deliberate, documented exception and stays allowed.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	// componentPkg is banned here (not in frameworkImports) because application
@@ -185,7 +184,37 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 	// ring must stay free of it, and layerOf leaves component unclassified so the
 	// ring rule alone would miss a domain → component edge.
 	forbidExternalImports(t, filepath.Join(root, "internal", "domain"),
-		append([]string{componentPkg}, frameworkImports...))
+		append([]string{componentPkg, "path/filepath"}, frameworkImports...))
+}
+
+// TestDomainDoesNotRenderAgentOrToolPresentation keeps model/tool text and
+// filesystem-format helpers in adapters. Domain may return semantic values and
+// structured verdicts, but it cannot regain the presentation functions moved
+// during the boundary closure.
+func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
+	root := moduleRoot(t)
+	checks := map[string]map[string]string{
+		filepath.Join(root, "internal", "domain", "agentdoc"): {
+			"Render": "AGENTS.md prompt formatting belongs to adapter/agentexec",
+		},
+		filepath.Join(root, "internal", "domain", "agentmemory"): {
+			"Render":         "memory prompt rendering belongs to adapter/agentexec",
+			"EstimateTokens": "model token approximation belongs to adapter/agentexec",
+			"NormalizeFacts": "LLM Markdown extraction belongs to adapter/maintenance",
+		},
+		filepath.Join(root, "internal", "domain", "todo"): {
+			"Render": "todo prompt/tool formatting belongs to adapter/todopresentation",
+		},
+		filepath.Join(root, "internal", "domain", "editguard"): {
+			"Message": "tool refusal wording belongs to adapter/toolset",
+		},
+		filepath.Join(root, "internal", "domain", "skills"): {
+			"ProjectDir": "skill source layout belongs to adapter/promptsource",
+		},
+	}
+	for dir, banned := range checks {
+		forbidTopLevelNames(t, dir, banned)
+	}
 }
 
 // TestComponentStaysDomainFree keeps the internal/component ring free of DOMAIN
