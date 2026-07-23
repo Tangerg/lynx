@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -31,68 +29,6 @@ var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP ser
 // result. The underlying domain sentinel remains internal to this package.
 var ErrUnknownMCPServer = errors.New("integrations: unknown MCP server")
 
-// MCP-server registry orchestration: the coordinator owns both the persisted
-// registry and the live connection pool, so a
-// configure/remove/enable both persists and applies to the live tool set in one
-// place. Registry entries are projected to dial-level descriptors only at the
-// live-connection boundary.
-
-// ListMCPServerConfigs returns safe editable MCP configurations. The durable
-// domain entries never cross the application boundary because they carry raw
-// authorization tokens.
-func (c *Coordinator) ListMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
-	if c.mcpRegistry == nil {
-		return nil, errors.New("integrations: MCP registry is unavailable")
-	}
-	servers, err := c.mcpRegistry.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	configs := make([]MCPServerConfig, 0, len(servers))
-	for _, server := range servers {
-		configs = append(configs, mcpConfigView(server))
-	}
-	return configs, nil
-}
-
-// MCPServerStatuses resolves the safe live status read model for every tracked
-// server. Raw adapter errors are intentionally reduced to stable diagnostics.
-func (c *Coordinator) MCPServerStatuses(ctx context.Context) []MCPServerStatus {
-	if c.mcpStatusReader == nil {
-		return nil
-	}
-	statuses := c.mcpStatusReader.Statuses()
-	views := make([]MCPServerStatus, 0, len(statuses))
-	for _, status := range statuses {
-		views = append(views, c.mcpStatusView(ctx, status))
-	}
-	return views
-}
-
-// MCPServerStatus resolves one safe live status read model.
-func (c *Coordinator) MCPServerStatus(ctx context.Context, name string) MCPServerStatus {
-	if c.mcpStatusReader == nil {
-		return MCPServerStatus{Name: name}
-	}
-	for _, status := range c.mcpStatusReader.Statuses() {
-		if status.Name == name {
-			return c.mcpStatusView(ctx, status)
-		}
-	}
-	return MCPServerStatus{Name: name}
-}
-
-func (c *Coordinator) mcpStatusView(ctx context.Context, status mcpserver.ConnectionStatus) MCPServerStatus {
-	var toolCount *int
-	if status.State == mcpserver.ConnectionConnected && c.mcpToolCatalog != nil {
-		if tools, err := c.mcpToolCatalog.Tools(ctx, status.Name); err == nil {
-			count := len(tools)
-			toolCount = &count
-		}
-	}
-	return mcpStatusView(status, toolCount)
-}
-
 // resolveMCPServerConfiguration applies the registry-owned credential policy to
 // an editable command. An omitted HTTP Authorization retains a stored token only
 // when the transport and origin remain unchanged; credentials never silently
@@ -113,192 +49,15 @@ func (c *Coordinator) resolveMCPServerConfiguration(ctx context.Context, candida
 	return candidate, nil
 }
 
-// ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live tool
-// set (mcp.servers.reconnect). Fire-and-forget: the name is validated
-// synchronously (unknown → [mcpserver.ErrUnknownServer]), then the dial runs on
-// the component task group with connecting → settled status published for the
-// workspace stream, so a returning RPC does not abort it while shutdown still can.
-func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
-	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
-		return c.mcpConnectionCommands.Reconnect(ctx, name)
-	})
-}
-
-// AuthorizeMCPServer runs the interactive OAuth sign-in for an HTTP MCP server
-// (mcp.servers.authorize) — opens the system browser, catches the loopback
-// redirect, and connects on success. Fire-and-forget like reconnect; the
-// credentials live for the process only (re-prompt after restart).
-func (c *Coordinator) AuthorizeMCPServer(ctx context.Context, name string) error {
-	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
-		return c.mcpConnectionCommands.Authorize(ctx, name)
-	})
-}
-
-// startMCPConnection validates the server exists, then runs dial on the
-// component task group — detached from the caller's cancellation (so a returning
-// RPC cannot abort it) but keeping its trace values and canceled + joined by
-// Close. It enters the application mutation order only for the pre/post registry
-// checks and status publication; the dial itself runs outside that global
-// critical section. The live adapter's per-server generation makes a concurrent
-// configure/remove supersede stale dial completion, while unrelated servers can
-// connect in parallel. The task's context scopes both registry reads and dial.
-// Returns [errMCPConnectionUnavailable] when the coordinator lacks a required
-// connection dependency, [mcpserver.ErrUnknownServer] for an unknown name (the
-// delivery layer maps it to invalid_params), or [errClosed] during shutdown.
-func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
-	if c.mcpRegistry == nil || c.mcpStatusReader == nil || c.mcpConnectionCommands == nil {
-		return errMCPConnectionUnavailable
-	}
-	if !c.mcpServerKnown(name) {
-		return ErrUnknownMCPServer
-	}
-	return c.dispatchMCPConnection(ctx, name, dial)
-}
-
-// dispatchMCPConnection runs a live (re)dial on the component task group, detached
-// from the caller's cancellation. It enters the mutation order only for the
-// pre/post registry checks and status publication; the dial itself runs OUTSIDE
-// that global critical section, so a slow endpoint cannot freeze the control
-// plane, and the registry re-read lets a concurrent configure/remove supersede a
-// stale completion. A caller that already holds mcpMutationMu may invoke this: the
-// spawned task blocks on the lock until that caller releases it, then proceeds —
-// which is exactly how the registry-write methods dispatch their live dial without
-// holding the lock across the network handshake. Returns errClosed only when the
-// task group is shutting down.
-func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, connect func(context.Context) error) error {
-	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
-	if !ok {
-		return errClosed
-	}
-	dialCtx, operation := c.replaceMCPDial(ownerCtx, name)
-	if !c.tasks.StartLinked(dialCtx, func(ctx context.Context) {
-		defer releaseOwner()
-		defer c.clearMCPDial(name, operation)
-		if err := ctx.Err(); err != nil {
-			return
-		}
-		c.mcpMutationMu.Lock()
-		srv, ok, err := c.mcpRegistry.Get(ctx, name)
-		if err != nil {
-			c.mcpMutationMu.Unlock()
-			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q before connection: %w", name, err))
-			return
-		}
-		if !ok || !srv.Enabled {
-			c.mcpMutationMu.Unlock()
-			return
-		}
-		c.notifyMCPStatus(ctx, name, true)
-		c.mcpMutationMu.Unlock()
-
-		// Interactive OAuth may wait minutes for a human. The live connection
-		// adapter owns per-server generation/cancellation, so no application-wide
-		// mutation lock is held while dialing. A configure/remove can supersede it
-		// immediately; stale adapter completion cannot swap itself back in.
-		_ = connect(ctx)
-
-		c.mcpMutationMu.Lock()
-		defer c.mcpMutationMu.Unlock()
-		srv, ok, err = c.mcpRegistry.Get(ctx, name)
-		if err != nil {
-			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q after connection: %w", name, err))
-			return
-		}
-		if !ok || !srv.Enabled {
-			// Defensive projection cleanup for adapters that cannot cancel a stale
-			// operation themselves. The production adapter rejects stale generations,
-			// so this is normally an idempotent no-op.
-			if c.mcpRegistryCommands != nil {
-				c.mcpRegistryCommands.Remove(ctx, name)
-			}
-			return
-		}
-		c.notifyMCPStatus(ctx, name, false)
-	}) {
-		operation.cancel()
-		c.clearMCPDial(name, operation)
-		releaseOwner()
-		return errClosed
-	}
-	return nil
-}
-
-// replaceMCPDial gives each server exactly one current connection operation.
-// A registry mutation, reconnect, or authorize supersedes the previous dial by
-// canceling its context; adapters must honor ctx while dialing. The generation
-// check after a dial remains a defensive cleanup for adapters whose transport
-// cannot stop synchronously.
-func (c *Coordinator) replaceMCPDial(ctx context.Context, name string) (context.Context, *mcpDial) {
-	dialCtx, cancel := context.WithCancel(ctx)
-	dial := &mcpDial{cancel: cancel}
-	c.mcpDialMu.Lock()
-	if previous := c.mcpDials[name]; previous != nil {
-		previous.cancel()
-	}
-	c.mcpDials[name] = dial
-	c.mcpDialMu.Unlock()
-	return dialCtx, dial
-}
-
-func (c *Coordinator) cancelMCPDial(name string) {
-	c.mcpDialMu.Lock()
-	if dial := c.mcpDials[name]; dial != nil {
-		dial.cancel()
-		delete(c.mcpDials, name)
-	}
-	c.mcpDialMu.Unlock()
-}
-
-func (c *Coordinator) clearMCPDial(name string, dial *mcpDial) {
-	c.mcpDialMu.Lock()
-	if c.mcpDials[name] == dial {
-		delete(c.mcpDials, name)
-	}
-	c.mcpDialMu.Unlock()
-}
-
-func recordMCPConnectionError(ctx context.Context, err error) {
-	if err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
-	}
-}
-
-// mcpServerKnown reports whether name is a tracked MCP server (a configured
-// server appears in the live statuses even when its last dial failed).
-func (c *Coordinator) mcpServerKnown(name string) bool {
-	if c.mcpStatusReader == nil {
-		return false
-	}
-	for _, st := range c.mcpStatusReader.Statuses() {
-		if st.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecting bool) {
-	if c.mcpStatus != nil {
-		if connecting {
-			c.mcpStatus(MCPServerStatus{Name: name, Known: true, State: mcpserver.ConnectionConnecting})
-			return
-		}
-		c.mcpStatus(c.MCPServerStatus(ctx, name))
-	}
-}
-
 // ConfigureMCPServer upserts a server in the registry and applies it to the live
 // connections: an enabled server is (re)dialed, a disabled one is dropped from
 // the live set (it stays in the registry). A dial failure does not fail the call
 // — the server is persisted and tracked "failed" (reconnectable); the
 // connectivity feedback path is TestMCPServer.
 func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInput) (MCPServerConfig, error) {
-	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	srv, err := c.validatedMCPServer(ctx, input)
 	if err != nil {
 		return MCPServerConfig{}, err
-	}
-	if err := srv.Validate(); err != nil {
-		return MCPServerConfig{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
 	if err != nil {
@@ -476,12 +235,9 @@ func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server)
 // OAuth server tests as connected, not "unauthorized"). Returns the dial /
 // tools-list error, or nil on success.
 func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (MCPTestResult, error) {
-	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	srv, err := c.validatedMCPServer(ctx, input)
 	if err != nil {
 		return MCPTestResult{}, err
-	}
-	if err := srv.Validate(); err != nil {
-		return MCPTestResult{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	if c.mcpRegistryCommands == nil {
 		return MCPTestResult{}, ErrUnknownMCPServer
@@ -490,6 +246,17 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (
 		return MCPTestResult{}, nil
 	}
 	return MCPTestResult{OK: true}, nil
+}
+
+func (c *Coordinator) validatedMCPServer(ctx context.Context, input MCPServerInput) (mcpserver.Server, error) {
+	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	if err != nil {
+		return mcpserver.Server{}, err
+	}
+	if err := srv.Validate(); err != nil {
+		return mcpserver.Server{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
+	}
+	return srv, nil
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server

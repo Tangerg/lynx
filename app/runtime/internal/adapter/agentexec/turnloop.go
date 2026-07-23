@@ -132,6 +132,12 @@ type deferredToolProvider interface {
 	DeferredToolNames() []string
 }
 
+type preparedTurn struct {
+	streamer chat.Streamer
+	registry *tools.Registry
+	request  *chat.Request
+}
+
 // advertisedTools projects the executable registry into the model-facing tool
 // manifest, excluding every tool a deferred-tool provider withholds. The
 // withheld tools stay in the registry (resolvable) so a mid-loop promotion can
@@ -169,43 +175,9 @@ func advertisedTools(actionTools []tools.Tool, registry *tools.Registry) []chat.
 // iteration, checkpointing, suspension, usage recording, and budget/step
 // enforcement.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
-	capability, err := pc.Chat()
+	prepared, err := e.prepareTurn(ctx, pc, message, images, options)
 	if err != nil {
 		return TurnOutput{}, err
-	}
-	if capability.Streamer == nil {
-		return TurnOutput{}, errors.New("agentexec: configured chat capability does not support streaming")
-	}
-	actionTools, err := pc.ActionTools(ctx)
-	if err != nil {
-		return TurnOutput{}, fmt.Errorf("agentexec: resolve action tools: %w", err)
-	}
-	registry, err := tools.NewRegistry(actionTools...)
-	if err != nil {
-		return TurnOutput{}, fmt.Errorf("agentexec: register action tools: %w", err)
-	}
-
-	parts := make([]chat.Part, 0, len(images)+1)
-	if message != "" {
-		parts = append(parts, chat.NewTextPart(message))
-	}
-	for _, image := range images {
-		parts = append(parts, chat.NewMediaPart(image))
-	}
-	messages := []chat.Message{chat.NewSystemMessage(e.systemPrompt(ctx))}
-	if recall, ok := e.recalledMemories(ctx, message); ok {
-		messages = append(messages, recall)
-	}
-	messages = append(messages, chat.NewUserMessage(parts...))
-	request := &chat.Request{
-		Messages: messages,
-		Tools:    advertisedTools(actionTools, registry),
-	}
-	if options != nil {
-		request.Options = options.Clone()
-	}
-	if err := request.Validate(); err != nil {
-		return TurnOutput{}, fmt.Errorf("agentexec: turn request: %w", err)
 	}
 
 	observation := observationFrom(pc.Dependencies())
@@ -218,7 +190,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	// completion always reads result.Final below.
 	var partial strings.Builder
 	model := streamingModel{
-		streamer:    capability.Streamer,
+		streamer:    prepared.streamer,
 		idleTimeout: e.modelStreamIdleTimeout,
 		chunk: func(response *chat.Response) {
 			choice := response.First()
@@ -243,8 +215,8 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 
 	result, err := pc.Interact(ctx, core.Interaction{
 		Model:   model,
-		Request: request,
-		Tools:   registry,
+		Request: prepared.request,
+		Tools:   prepared.registry,
 		Limits: agent.InteractionLimits{
 			MaxTokens:     budget.MaxTokens,
 			MaxCostUSD:    budget.MaxCostUSD,
@@ -280,11 +252,57 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	if err != nil {
 		return TurnOutput{}, err
 	}
+	return turnOutputFromInteraction(pc, result, partial.String())
+}
+
+func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, options *chat.Options) (preparedTurn, error) {
+	capability, err := pc.Chat()
+	if err != nil {
+		return preparedTurn{}, err
+	}
+	if capability.Streamer == nil {
+		return preparedTurn{}, errors.New("agentexec: configured chat capability does not support streaming")
+	}
+	actionTools, err := pc.ActionTools(ctx)
+	if err != nil {
+		return preparedTurn{}, fmt.Errorf("agentexec: resolve action tools: %w", err)
+	}
+	registry, err := tools.NewRegistry(actionTools...)
+	if err != nil {
+		return preparedTurn{}, fmt.Errorf("agentexec: register action tools: %w", err)
+	}
+
+	parts := make([]chat.Part, 0, len(images)+1)
+	if message != "" {
+		parts = append(parts, chat.NewTextPart(message))
+	}
+	for _, image := range images {
+		parts = append(parts, chat.NewMediaPart(image))
+	}
+	messages := []chat.Message{chat.NewSystemMessage(e.systemPrompt(ctx))}
+	if recall, ok := e.recalledMemories(ctx, message); ok {
+		messages = append(messages, recall)
+	}
+	messages = append(messages, chat.NewUserMessage(parts...))
+	request := &chat.Request{
+		Messages: messages,
+		Tools:    advertisedTools(actionTools, registry),
+	}
+	if options != nil {
+		request.Options = options.Clone()
+	}
+	if err := request.Validate(); err != nil {
+		return preparedTurn{}, fmt.Errorf("agentexec: turn request: %w", err)
+	}
+	return preparedTurn{streamer: capability.Streamer, registry: registry, request: request}, nil
+}
+
+func turnOutputFromInteraction(pc *core.ProcessContext, result interaction.Result, partial string) (TurnOutput, error) {
 	switch result.StopReason {
 	case agent.InteractionStopBudget:
-		return turnOutput(pc, partial.String(), StopReasonBudget), nil
+		return turnOutput(pc, partial, StopReasonBudget), nil
 	case agent.InteractionStopSteps:
-		return turnOutput(pc, partial.String(), StopReasonSteps), nil
+		return turnOutput(pc, partial, StopReasonSteps), nil
 	case agent.InteractionStopNone:
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)

@@ -56,74 +56,90 @@ func (snapshot Snapshot) Validate() error {
 	if snapshot.Session.ID == "" {
 		return errors.New("sessions: snapshot session id is required")
 	}
-	runs := make(map[string]struct{}, len(snapshot.Runs))
-	for _, run := range snapshot.Runs {
-		if run.ID == "" || run.SessionID != snapshot.Session.ID {
-			return fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID, run.SessionID, snapshot.Session.ID)
-		}
-		if _, exists := runs[run.ID]; exists {
-			return fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID)
-		}
-		if !run.State.IsTerminal() {
-			return fmt.Errorf("sessions: snapshot run %q is %s, want terminal", run.ID, run.State)
-		}
-		if run.Outcome == nil || run.Result == nil {
-			return fmt.Errorf("sessions: snapshot terminal run %q has no outcome or result", run.ID)
-		}
-		expected, ok := execution.Running.Terminate(*run.Outcome)
-		if !ok || expected != run.State {
-			return fmt.Errorf("sessions: snapshot run %q state %s does not match outcome %s", run.ID, run.State, run.Outcome)
-		}
-		if run.FinishedAt.IsZero() || len(run.Interrupts) != 0 {
-			return fmt.Errorf("sessions: snapshot terminal run %q has an incomplete terminal boundary", run.ID)
-		}
-		if (*run.Outcome == execution.OutcomeError) != (run.Result.Error != nil) {
-			return fmt.Errorf("sessions: snapshot run %q error result does not match outcome %s", run.ID, run.Outcome)
-		}
-		if run.Result.Steps < 0 || run.Result.Duration < 0 {
-			return fmt.Errorf("sessions: snapshot run %q has negative result accounting", run.ID)
-		}
-		if err := validateSnapshotUsage(run.Result.Usage); err != nil {
-			return fmt.Errorf("sessions: snapshot run %q usage: %w", run.ID, err)
-		}
-		if err := validateSnapshotProblem(run.Result.Error, transcript.RunProblem); err != nil {
-			return fmt.Errorf("sessions: snapshot run %q problem: %w", run.ID, err)
-		}
-		if run.MessageMark < 0 || run.MessageMark > len(snapshot.Messages) {
-			return fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID, run.MessageMark)
-		}
-		runs[run.ID] = struct{}{}
+	runs, err := snapshot.validateRuns()
+	if err != nil {
+		return err
 	}
-	items := make(map[string]transcript.Item, len(snapshot.Items))
-	for _, item := range snapshot.Items {
-		if item.ID == "" || item.SessionID != snapshot.Session.ID {
-			return fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID, item.SessionID, snapshot.Session.ID)
-		}
-		if _, exists := items[item.ID]; exists {
-			return fmt.Errorf("sessions: snapshot contains duplicate item %q", item.ID)
-		}
-		items[item.ID] = item
-		if _, found := runs[item.RunID]; !found {
-			return fmt.Errorf("sessions: snapshot item %q references unknown run %q", item.ID, item.RunID)
-		}
-		switch item.Status {
-		case transcript.ItemCompleted, transcript.ItemIncomplete:
-		case transcript.ItemRunning:
-			return fmt.Errorf("sessions: snapshot terminal run item %q is still running", item.ID)
-		default:
-			return fmt.Errorf("sessions: snapshot item %q has unknown status %d", item.ID, item.Status)
-		}
-		if item.Error != nil && (item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete) {
-			return fmt.Errorf("sessions: snapshot item %q has an invalid tool error", item.ID)
-		}
-		if err := validateSnapshotItem(item); err != nil {
-			return fmt.Errorf("sessions: snapshot item %q: %w", item.ID, err)
-		}
+	items, err := snapshot.validateItems(runs)
+	if err != nil {
+		return err
 	}
 	if err := validateSnapshotRunTree(snapshot.Runs, items); err != nil {
 		return err
 	}
 	return snapshot.ValidateToolResults()
+}
+
+func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
+	runs := make(map[string]struct{}, len(snapshot.Runs))
+	for _, run := range snapshot.Runs {
+		if run.ID == "" || run.SessionID != snapshot.Session.ID {
+			return nil, fmt.Errorf("sessions: snapshot run %q belongs to session %q, want %q", run.ID, run.SessionID, snapshot.Session.ID)
+		}
+		if _, exists := runs[run.ID]; exists {
+			return nil, fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID)
+		}
+		if !run.State.IsTerminal() {
+			return nil, fmt.Errorf("sessions: snapshot run %q is %s, want terminal", run.ID, run.State)
+		}
+		if run.Outcome == nil || run.Result == nil {
+			return nil, fmt.Errorf("sessions: snapshot terminal run %q has no outcome or result", run.ID)
+		}
+		expected, ok := execution.Running.Terminate(*run.Outcome)
+		if !ok || expected != run.State {
+			return nil, fmt.Errorf("sessions: snapshot run %q state %s does not match outcome %s", run.ID, run.State, run.Outcome)
+		}
+		if run.FinishedAt.IsZero() || len(run.Interrupts) != 0 {
+			return nil, fmt.Errorf("sessions: snapshot terminal run %q has an incomplete terminal boundary", run.ID)
+		}
+		if (*run.Outcome == execution.OutcomeError) != (run.Result.Error != nil) {
+			return nil, fmt.Errorf("sessions: snapshot run %q error result does not match outcome %s", run.ID, run.Outcome)
+		}
+		if run.Result.Steps < 0 || run.Result.Duration < 0 {
+			return nil, fmt.Errorf("sessions: snapshot run %q has negative result accounting", run.ID)
+		}
+		if err := validateSnapshotUsage(run.Result.Usage); err != nil {
+			return nil, fmt.Errorf("sessions: snapshot run %q usage: %w", run.ID, err)
+		}
+		if err := validateSnapshotProblem(run.Result.Error, transcript.RunProblem); err != nil {
+			return nil, fmt.Errorf("sessions: snapshot run %q problem: %w", run.ID, err)
+		}
+		if run.MessageMark < 0 || run.MessageMark > len(snapshot.Messages) {
+			return nil, fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID, run.MessageMark)
+		}
+		runs[run.ID] = struct{}{}
+	}
+	return runs, nil
+}
+
+func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]transcript.Item, error) {
+	items := make(map[string]transcript.Item, len(snapshot.Items))
+	for _, item := range snapshot.Items {
+		if item.ID == "" || item.SessionID != snapshot.Session.ID {
+			return nil, fmt.Errorf("sessions: snapshot item %q belongs to session %q, want %q", item.ID, item.SessionID, snapshot.Session.ID)
+		}
+		if _, exists := items[item.ID]; exists {
+			return nil, fmt.Errorf("sessions: snapshot contains duplicate item %q", item.ID)
+		}
+		items[item.ID] = item
+		if _, found := runs[item.RunID]; !found {
+			return nil, fmt.Errorf("sessions: snapshot item %q references unknown run %q", item.ID, item.RunID)
+		}
+		switch item.Status {
+		case transcript.ItemCompleted, transcript.ItemIncomplete:
+		case transcript.ItemRunning:
+			return nil, fmt.Errorf("sessions: snapshot terminal run item %q is still running", item.ID)
+		default:
+			return nil, fmt.Errorf("sessions: snapshot item %q has unknown status %d", item.ID, item.Status)
+		}
+		if item.Error != nil && (item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete) {
+			return nil, fmt.Errorf("sessions: snapshot item %q has an invalid tool error", item.ID)
+		}
+		if err := validateSnapshotItem(item); err != nil {
+			return nil, fmt.Errorf("sessions: snapshot item %q: %w", item.ID, err)
+		}
+	}
+	return items, nil
 }
 
 func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.Item) error {
