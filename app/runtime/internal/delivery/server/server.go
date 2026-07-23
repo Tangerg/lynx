@@ -9,10 +9,11 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -197,7 +198,7 @@ type Server struct {
 // file-change nudges to wire workspace events on the hub. The concrete notifier
 // is owned by the Host, which also passes its publish side to the run effects.
 type FileChangeSource interface {
-	Observe(sink func(cwd string, paths []string))
+	Observe(sink func(runs.FileChange))
 }
 
 // MCPStatusSource is the delivery-side view of the composition-root MCP-status
@@ -206,13 +207,13 @@ type FileChangeSource interface {
 // concrete notifier is owned by the Host, which passes its publish side to the
 // integrations coordinator.
 type MCPStatusSource interface {
-	Observe(sink func(ctx context.Context, server string, connecting bool))
+	Observe(sink func(integrations.MCPServerStatus))
 }
 
 // SkillChangeSource is the delivery-side view of committed skill-library
 // changes. Its one observer refreshes clients through the workspace event hub.
 type SkillChangeSource interface {
-	Observe(sink func())
+	Observe(sink func(struct{}))
 }
 
 // ScheduleFireSource is the delivery-side view of accepted scheduled-run

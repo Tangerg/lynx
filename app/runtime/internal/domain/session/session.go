@@ -1,5 +1,5 @@
 // Package session models Lyra's conversation identity — the Session entity and
-// the pure derivations over it (Fork, NewSubtask, EffectiveModel, the editable
+// the pure derivations over it (Fork, NewSubtask, the editable
 // Patch). Every multi-turn interaction lives under a Session. Persistence is a
 // consumer concern: each coordinator/adapter defines the narrow store port it
 // needs (list/resume/branch/discard), so this package holds no persistence
@@ -150,19 +150,6 @@ func (s Subtask) SameIdentity(existing Session) bool {
 		existing.ID == s.ID &&
 		existing.ParentID == s.ParentID &&
 		existing.StartedAt.Equal(s.StartedAt)
-}
-
-// EffectiveModel returns the model the session should report on the wire.
-// A session that never explicitly ran against a provider+model (Model == "")
-// falls back to the supplied runtime default, so callers — and the frontend,
-// which derives the assistant's display name from it — always see a real model
-// name. The fallback is a Session invariant, so it lives here rather than in
-// the wire-translation layer.
-func (s Session) EffectiveModel(defaultModel string) string {
-	if s.Model != "" {
-		return s.Model
-	}
-	return defaultModel
 }
 
 // Fork derives a child session from s. The child inherits s's working

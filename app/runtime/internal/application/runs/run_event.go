@@ -96,6 +96,7 @@ type RunProgress struct {
 	Usage         *transcript.Usage
 	ContextTokens *int64
 	ToolName      string
+	Activity      string
 }
 
 type ItemDeltaKind uint8

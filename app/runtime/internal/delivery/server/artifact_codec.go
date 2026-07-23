@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -46,30 +45,15 @@ func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionA
 	}
 	return protocol.SessionArtifact{
 		Version:  protocol.SessionArtifactVersion,
-		Session:  artifactSessionFromDomain(portable.Session),
+		Session:  artifactSessionFromPortable(portable.Session),
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
 	}, nil
 }
 
-func artifactSessionFromDomain(value session.Session) protocol.ArtifactSession {
+func artifactSessionFromPortable(value sessions.PortableSession) protocol.ArtifactSession {
 	return protocol.ArtifactSession{
 		ID: value.ID, Title: value.Title, Cwd: value.Cwd, Model: value.Model,
-		CreatedAt: value.StartedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
-	}
-}
-
-// artifactToSession maps the durable wire session identity to the product
-// session. Archive documents deliberately omit delegation lineage, so a
-// restored artifact is always a standalone user-facing conversation.
-func artifactToSession(value protocol.ArtifactSession) session.Session {
-	return session.Session{
-		ID:        value.ID,
-		Title:     value.Title,
-		Cwd:       value.Cwd,
-		Model:     value.Model,
-		StartedAt: value.CreatedAt,
-		UpdatedAt: value.UpdatedAt,
-		Favorite:  value.Favorite,
+		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
 	}
 }
 
@@ -298,7 +282,11 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 		})
 	}
 	return sessions.PortableSnapshot{
-		Session: artifactToSession(art.Session), Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
+		Session: sessions.PortableSession{
+			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Cwd, Model: art.Session.Model,
+			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
+		},
+		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults,
 	}, nil
 }
 

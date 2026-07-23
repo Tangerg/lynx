@@ -49,6 +49,24 @@ func (g *Group) Start(parent context.Context, task func(context.Context)) bool {
 	return true
 }
 
+// StartLinked launches task under a context canceled by either parent or Close.
+// Use it when the caller has already derived a component-owned operation context
+// whose supersession must interrupt the background task.
+func (g *Group) StartLinked(parent context.Context, task func(context.Context)) bool {
+	if task == nil {
+		return false
+	}
+	ctx, release, ok := g.AttachLinked(parent)
+	if !ok {
+		return false
+	}
+	go func() {
+		defer release()
+		task(ctx)
+	}()
+	return true
+}
+
 // Attach registers caller-managed work with the group. The returned context
 // preserves parent values, ignores parent cancellation, and is canceled by
 // Close. The caller must release it when the work ends; release is idempotent.

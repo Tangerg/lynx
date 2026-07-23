@@ -142,11 +142,10 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 }
 
 // TestComponentStaysDomainFree keeps the internal/component ring free of DOMAIN
-// coupling: components are no-domain-semantics primitives (taskgroup /
-// filechanges / mcpstatus / pathidentity / httporigin / toolresultpreview) that
-// both application and adapter reuse. layerOf leaves component unclassified, so
-// the ring rule catches only the INBOUND domain → component edge; this covers
-// the OUTBOUND one (toolresultpreview took a domain offload.ID before this).
+// coupling: components are no-domain-semantics primitives (signal / taskgroup /
+// pathidentity / httporigin / toolresultpreview) that both application and
+// adapter reuse. layerOf leaves component unclassified, so the ring rule catches
+// only the INBOUND domain → component edge; this covers the OUTBOUND one.
 func TestComponentStaysDomainFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "component"), []string{domainPkg})
@@ -977,7 +976,7 @@ func receiverIsExported(recv *ast.FieldList) bool {
 }
 
 // componentPkg is the neutral concurrency/wiring primitive package
-// (taskgroup / filechanges / mcpstatus). layerOf leaves it unclassified so the
+// (signal / taskgroup). layerOf leaves it unclassified so the
 // ring rule doesn't check edges into it; the domain rings ban it explicitly
 // (application/delivery/composition may import it). Prefix-matched.
 const componentPkg = "github.com/Tangerg/lynx/app/runtime/internal/component"

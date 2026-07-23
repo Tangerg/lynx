@@ -15,8 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
 // Transport names an MCP server connection mode using the standard
@@ -125,12 +123,6 @@ func (s Server) Validate() error {
 		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportStreamableHTTP)
 	}
 	return nil
-}
-
-// MaskedAuthorization renders the bearer token for the wire: "" when unset,
-// otherwise the runtime's standard redacted form.
-func (s Server) MaskedAuthorization() string {
-	return secret.Mask(s.Authorization)
 }
 
 // Registry is the MCP-server registry. All methods are safe for concurrent use.

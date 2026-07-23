@@ -97,7 +97,7 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 	step := r.step
 	r.toolOrder++
 	out = append(out, SegmentProgressed{Progress: RunProgress{
-		Step: &step, ToolName: e.ToolName,
+		Step: &step, ToolName: e.ToolName, Activity: e.Activity,
 	}})
 	ref := &openTool{
 		callID: e.CallID, order: r.toolOrder,

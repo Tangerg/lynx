@@ -15,6 +15,13 @@ type CwdResolver interface {
 	Inspect(path string) (session.WorkspaceIdentity, error)
 }
 
+// ModelDefaults supplies the runtime's configured fallback model. Model
+// selection is application policy: a persisted session only records an
+// explicit choice, while the read model resolves the effective value.
+type ModelDefaults interface {
+	DefaultModel() string
+}
+
 // List returns every user-facing session, newest-updated first.
 func (c *Coordinator) List(ctx context.Context) ([]session.Session, error) {
 	if c.sessions == nil {

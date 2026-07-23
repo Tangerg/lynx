@@ -1,8 +1,4 @@
-// Package toolpresentation projects canonical tool records into the stable
-// client-facing JSON shapes. It is deliberately independent of Delivery: the
-// protocol adapter asks for a projection but never knows concrete tool names,
-// vendor result fields, or diff construction rules.
-package toolpresentation
+package turn
 
 import (
 	"encoding/json"
@@ -12,14 +8,38 @@ import (
 	"github.com/pmezard/go-difflib/difflib"
 )
 
-type resultPresenter func(arguments map[string]any, result any) any
-
-type presentation struct {
-	activity string
-	result   resultPresenter
+// normalizeToolResult translates a concrete tool adapter's native result into
+// the runtime's canonical transcript shape at the executor boundary. Delivery
+// only projects this already-normalized value; it never needs to know a tool's
+// private result fields or argument schema.
+func normalizeToolResult(name string, arguments map[string]any, result any) any {
+	presentation := toolPresentations[strings.ToLower(name)]
+	if presentation.result == nil {
+		return result
+	}
+	return presentation.result(arguments, result)
 }
 
-var presentations = map[string]presentation{
+// toolActivity describes a concrete tool call before it enters Application's
+// execution event vocabulary. The value is data, not a Delivery lookup.
+func toolActivity(name string) string {
+	if name == "" {
+		return ""
+	}
+	if activity := toolPresentations[strings.ToLower(name)].activity; activity != "" {
+		return activity
+	}
+	return "Calling " + name
+}
+
+type toolResultPresenter func(arguments map[string]any, result any) any
+
+type toolPresentation struct {
+	activity string
+	result   toolResultPresenter
+}
+
+var toolPresentations = map[string]toolPresentation{
 	"shell":             {activity: "Running command", result: presentCommandResult},
 	"run_in_background": {activity: "Running command"},
 	"shell_output":      {activity: "Reading command output"},
@@ -37,28 +57,6 @@ var presentations = map[string]presentation{
 	"todo_write":        {activity: "Updating the plan"},
 }
 
-// Present returns the stable JSON result shape for a known tool. Unknown tools
-// and already-projected results pass through unchanged, making extension a
-// registration concern rather than a Delivery conditional.
-func Present(name string, arguments map[string]any, result any) any {
-	p := presentations[strings.ToLower(name)]
-	if p.result == nil {
-		return result
-	}
-	return p.result(arguments, result)
-}
-
-// Activity supplies the human-readable live activity for a tool call.
-func Activity(name string) string {
-	if name == "" {
-		return ""
-	}
-	if activity := presentations[strings.ToLower(name)].activity; activity != "" {
-		return activity
-	}
-	return "Calling " + name
-}
-
 type commandResult struct {
 	Stdout   string `json:"stdout"`
 	Stderr   string `json:"stderr"`
@@ -66,10 +64,10 @@ type commandResult struct {
 }
 
 func presentCommandResult(_ map[string]any, result any) any {
-	if hasField(result, "output") {
+	if hasPresentationField(result, "output") {
 		return result
 	}
-	raw, ok := decode[commandResult](result, "stdout", "stderr", "exit_code")
+	raw, ok := decodePresentation[commandResult](result, "stdout", "stderr", "exit_code")
 	if !ok {
 		return result
 	}
@@ -93,23 +91,21 @@ type localSearchResult struct {
 	Paths   []string           `json:"paths"`
 	Counts  []localSearchCount `json:"counts"`
 }
-
 type localSearchMatch struct {
 	Path string `json:"path"`
 	Line int    `json:"line"`
 	Text string `json:"text"`
 }
-
 type localSearchCount struct {
 	Path  string `json:"path"`
 	Count int    `json:"count"`
 }
 
 func presentSearchResult(_ map[string]any, result any) any {
-	if hasField(result, "hits") {
+	if hasPresentationField(result, "hits") {
 		return result
 	}
-	raw, ok := decode[localSearchResult](result, "matches", "files", "paths", "counts")
+	raw, ok := decodePresentation[localSearchResult](result, "matches", "files", "paths", "counts")
 	if !ok {
 		return result
 	}
@@ -136,7 +132,6 @@ func presentSearchResult(_ map[string]any, result any) any {
 type webSearchResult struct {
 	Results []webSearchHit `json:"results"`
 }
-
 type webSearchHit struct {
 	Title          string `json:"title"`
 	URL            string `json:"url"`
@@ -146,7 +141,7 @@ type webSearchHit struct {
 }
 
 func presentWebSearchResult(_ map[string]any, result any) any {
-	raw, ok := decode[webSearchResult](result, "results")
+	raw, ok := decodePresentation[webSearchResult](result, "results")
 	if !ok {
 		return result
 	}
@@ -174,16 +169,15 @@ type editArguments struct {
 	OldString string `json:"old_string"`
 	NewString string `json:"new_string"`
 }
-
 type writeArguments struct {
 	FilePath string `json:"file_path"`
 }
 
 func presentEditResult(arguments map[string]any, result any) any {
-	if hasField(result, "changes") {
+	if hasPresentationField(result, "changes") {
 		return result
 	}
-	args, ok := decode[editArguments](arguments, "file_path")
+	args, ok := decodePresentation[editArguments](arguments, "file_path")
 	if !ok || args.FilePath == "" {
 		return result
 	}
@@ -195,17 +189,17 @@ func presentEditResult(arguments map[string]any, result any) any {
 }
 
 func presentWriteResult(arguments map[string]any, result any) any {
-	if hasField(result, "changes") {
+	if hasPresentationField(result, "changes") {
 		return result
 	}
-	args, ok := decode[writeArguments](arguments, "file_path")
+	args, ok := decodePresentation[writeArguments](arguments, "file_path")
 	if !ok || args.FilePath == "" {
 		return result
 	}
 	return map[string]any{"changes": []map[string]any{{"path": args.FilePath, "status": "modified"}}}
 }
 
-func decode[T any](value any, knownFields ...string) (T, bool) {
+func decodePresentation[T any](value any, knownFields ...string) (T, bool) {
 	var decoded T
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -226,8 +220,8 @@ func decode[T any](value any, knownFields ...string) (T, bool) {
 	return decoded, false
 }
 
-func hasField(value any, field string) bool {
-	_, ok := decode[struct{}](value, field)
+func hasPresentationField(value any, field string) bool {
+	_, ok := decodePresentation[struct{}](value, field)
 	return ok
 }
 
@@ -235,8 +229,7 @@ func editDiff(oldText, newText string) []map[string]any {
 	if oldText == newText {
 		return nil
 	}
-	oldLines := splitLines(oldText)
-	newLines := splitLines(newText)
+	oldLines, newLines := splitPresentationLines(oldText), splitPresentationLines(newText)
 	matcher := difflib.NewMatcher(oldLines, newLines)
 	rows := []map[string]any{}
 	left, right := 1, 1
@@ -267,7 +260,7 @@ func editDiff(oldText, newText string) []map[string]any {
 	return rows
 }
 
-func splitLines(text string) []string {
+func splitPresentationLines(text string) []string {
 	if text == "" {
 		return nil
 	}

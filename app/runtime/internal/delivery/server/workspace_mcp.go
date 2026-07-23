@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // mcp.* is runtime-global, so these methods take no cwd (API.md §7.5).
@@ -60,7 +60,10 @@ func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error
 // wireMCPError maps the coordinator's unknown-server sentinel onto invalid_params
 // (an unknown / empty name is a bad request); every other error surfaces as-is.
 func wireMCPError(err error) error {
-	if errors.Is(err, mcpserver.ErrUnknownServer) {
+	if errors.Is(err, integrations.ErrUnknownMCPServer) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	if errors.Is(err, integrations.ErrInvalidMCPServerConfiguration) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return err
@@ -71,14 +74,13 @@ func wireMCPError(err error) error {
 // on the hub. connecting=true is the transient pre-frame; connecting=false reads
 // back the settled live status (connected + tool count, or failed + reason).
 func (s *Server) observeMCPStatus(src MCPStatusSource) {
-	src.Observe(func(ctx context.Context, server string, connecting bool) {
-		if connecting {
-			s.PublishWorkspaceEvent(protocol.WorkspaceEvent{
-				Type: protocol.WorkspaceEventMCPServerChanged, Server: server, Status: protocol.McpConnecting,
-			})
-			return
+	src.Observe(func(status integrations.MCPServerStatus) {
+		event := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: status.Name}
+		if status.Known {
+			wire := s.mcpServerWire(status)
+			event.Status, event.ToolCount, event.Error = wire.Status, wire.ToolCount, wire.Error
 		}
-		s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, server))
+		s.PublishWorkspaceEvent(event)
 	})
 }
 
@@ -92,13 +94,13 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 // configuration (token masked). Live connection state is not included — read it
 // from mcp.servers.list (McpServer), keyed by name.
 func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
-	servers, err := s.integrations.ListMCPRegisteredServers(ctx)
+	servers, err := s.integrations.ListMCPServerConfigs(ctx)
 	if err != nil {
 		return nil, err
 	}
 	out := make([]protocol.McpServerConfig, 0, len(servers))
-	for _, srv := range servers {
-		out = append(out, mcpConfigWire(srv))
+	for _, config := range servers {
+		out = append(out, mcpConfigWire(config))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -110,17 +112,11 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
 	}
-	srv, err := s.integrations.ResolveMCPServerConfiguration(ctx, mcpServerCandidateFromRequest(in))
+	config, err := s.integrations.ConfigureMCPServer(ctx, mcpServerInputFromRequest(in))
 	if err != nil {
-		return nil, err
+		return nil, wireMCPError(err)
 	}
-	if err := srv.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	if err := s.integrations.ConfigureMCPServer(ctx, srv); err != nil {
-		return nil, err
-	}
-	out := mcpConfigWire(srv)
+	out := mcpConfigWire(config)
 	return &out, nil
 }
 
@@ -153,15 +149,9 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 // reuses the stored token only for the same HTTP origin, so testing an ordinary
 // edit needn't re-enter the secret and testing a new endpoint cannot leak it.
 func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-	srv, err := s.integrations.ResolveMCPServerConfiguration(ctx, mcpServerCandidateFromRequest(in))
+	result, err := s.integrations.TestMCPServer(ctx, mcpServerInputFromRequest(in))
 	if err != nil {
-		return nil, err
+		return nil, wireMCPError(err)
 	}
-	if err := srv.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	}
-	if err := s.integrations.TestMCPServer(ctx, srv); err != nil {
-		return &protocol.McpTestResult{OK: false, Error: mcpDialFailedProblem(err)}, nil
-	}
-	return &protocol.McpTestResult{OK: true}, nil
+	return &protocol.McpTestResult{OK: result.OK, Error: mcpProblemWire(result.Problem)}, nil
 }

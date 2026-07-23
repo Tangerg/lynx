@@ -59,7 +59,7 @@ func presentProgress(progress runs.RunProgress) protocol.RunProgress {
 	return protocol.RunProgress{
 		Step:  progress.Step,
 		Usage: presentUsage(progress.Usage), ContextTokens: progress.ContextTokens,
-		Activity: toolActivity(progress.ToolName),
+		Activity: progress.Activity,
 	}
 }
 

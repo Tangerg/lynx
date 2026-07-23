@@ -5,20 +5,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/skillchanges"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
-	notifier := new(skillchanges.Notifier)
+	notifier := new(signal.Signal[struct{}])
 	s.observeSkillChanges(notifier)
 
 	_, events, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	notifier.Publish()
+	notifier.Publish(struct{}{})
 
 	select {
 	case event := <-events:

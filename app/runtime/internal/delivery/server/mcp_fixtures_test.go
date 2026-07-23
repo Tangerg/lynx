@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -127,7 +127,7 @@ func (r *mcpRegistryFake) SetEnabled(_ context.Context, name string, enabled boo
 // serverWithMCP builds a Server whose capabilities coordinator is wired for the
 // MCP handlers (live pool + registry + policy), plus the workspace event hub the
 // reconnect/configure paths publish through — bridged like the composition root
-// via an mcpstatus.Notifier so the coordinator's connecting → settled frames
+// via a neutral signal so the coordinator's connecting → settled frames
 // reach the hub.
 func serverWithMCP(cfg integrations.Config) *Server {
 	if cfg.MCPPolicy == nil {
@@ -136,7 +136,7 @@ func serverWithMCP(cfg integrations.Config) *Server {
 		cell.Store(&policy)
 		cfg.MCPPolicy = cell
 	}
-	mcpStatus := &mcpstatus.Notifier{}
+	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
 	cfg.MCPStatus = mcpStatus.Publish
 	s := &Server{integrations: integrations.New(cfg), wsHub: newWorkspaceHub()}
 	s.observeMCPStatus(mcpStatus)

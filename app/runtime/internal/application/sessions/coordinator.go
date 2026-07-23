@@ -180,6 +180,7 @@ type Coordinator struct {
 	forgetter  SessionForgetter
 	turns      Turns
 	paths      CwdResolver
+	models     ModelDefaults
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -212,6 +213,7 @@ type Dependencies struct {
 	Forgetter   SessionForgetter
 	Turns       Turns
 	Paths       CwdResolver
+	Models      ModelDefaults
 	Checkpoints WorkspaceCheckpoints
 	Sandbox     SandboxDiscarder
 	Goals       GoalMutationGuard
@@ -237,6 +239,7 @@ func New(deps Dependencies) *Coordinator {
 		forgetter:   deps.Forgetter,
 		turns:       deps.Turns,
 		paths:       deps.Paths,
+		models:      deps.Models,
 		checkpoints: deps.Checkpoints,
 		sandbox:     deps.Sandbox,
 		goals:       deps.Goals,

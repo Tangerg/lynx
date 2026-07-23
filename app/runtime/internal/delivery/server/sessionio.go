@@ -32,10 +32,11 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if format == "" {
 		format = protocol.ExportFormatJSON
 	}
-	presentedSession, err := s.sessionToWire(snapshot.Session, protocol.SessionStatusIdle)
+	view, err := s.sessions.View(ctx, snapshot.Session.ID)
 	if err != nil {
 		return nil, err
 	}
+	presentedSession := sessionViewToWire(view)
 
 	switch format {
 	case protocol.ExportFormatMarkdown:
@@ -99,18 +100,11 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		return nil, wireSessionErr(err)
 	}
 
-	ses, err := s.sessions.Get(ctx, id)
+	view, err := s.sessions.View(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.sessionStatus(ctx, ses.ID)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.sessionToWire(ses, status)
-	if err != nil {
-		return nil, err
-	}
+	out := sessionViewToWire(view)
 	return &protocol.ImportSessionResponse{Session: &out}, nil
 }
 

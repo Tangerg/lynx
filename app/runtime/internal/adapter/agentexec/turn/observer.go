@@ -365,6 +365,7 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
+		Activity:    toolActivity(toolName),
 		SafetyClass: tool.SafetyClassFor(toolName),
 	})
 }
@@ -381,7 +382,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 	// recoverable denial — with the same args and same output as the previous run
 	// is a no-progress repeat. The gate reads this count before the next call.
 	t.st.recordToolOutcome(toolName, arguments, output)
-	result := decodeToolResult(output)
+	result := decodeToolResult(toolName, arguments, output)
 	end := ToolCallEnd{
 		CallID:       callID,
 		Arguments:    arguments,

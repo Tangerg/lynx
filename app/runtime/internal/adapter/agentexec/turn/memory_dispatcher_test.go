@@ -74,8 +74,8 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if !ok {
 				t.Fatalf("ToolCallEnd.Result = %T, want JSON object", e.Result)
 			}
-			stdout, ok := result["stdout"].(string)
-			if !ok || !strings.Contains(stdout, "lyra") {
+			output, ok := result["output"].(string)
+			if !ok || !strings.Contains(output, "lyra") {
 				t.Errorf("ToolCallEnd.Result missing 'lyra': %#v", e.Result)
 			}
 		case turn.MessageDelta:
