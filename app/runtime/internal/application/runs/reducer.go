@@ -327,65 +327,76 @@ func validateReductionBatch(reductions []reduction) error {
 		return nil
 	}
 
-	interrupt := reductions[0].Interrupt
-	terminalAt := -1
+	interrupt, terminalAt, err := validateReductionShape(reductions)
+	if err != nil {
+		return err
+	}
+	if interrupt {
+		return validateInterruptReductionBatch(reductions, terminalAt)
+	}
+	if terminalAt < 0 {
+		return nil
+	}
+	return validateTerminalReduction(reductions[terminalAt])
+}
+
+func validateReductionShape(reductions []reduction) (interrupt bool, terminalAt int, err error) {
+	interrupt = reductions[0].Interrupt
+	terminalAt = -1
 	for i, reduced := range reductions {
 		if reduced.Event == nil {
-			return fmt.Errorf("%w: reduction[%d] has no event", errReducerInvariant, i)
+			return false, -1, fmt.Errorf("%w: reduction[%d] has no event", errReducerInvariant, i)
 		}
 		if reduced.Event.Terminal() {
 			terminalAt = i
 			if i != len(reductions)-1 {
-				return fmt.Errorf("%w: terminal reduction[%d] is not last", errReducerInvariant, i)
+				return false, -1, fmt.Errorf("%w: terminal reduction[%d] is not last", errReducerInvariant, i)
 			}
 		}
 		if reduced.Interrupt && i != 0 {
-			return fmt.Errorf("%w: interrupt boundary at reduction[%d] must be first", errReducerInvariant, i)
+			return false, -1, fmt.Errorf("%w: interrupt boundary at reduction[%d] must be first", errReducerInvariant, i)
 		}
 		if reduced.Commit != nil {
 			switch reduced.Commit.State {
 			case StateUnchanged:
 			case StateSuspend:
 				if !interrupt || i != 0 {
-					return fmt.Errorf("%w: suspend commit at reduction[%d] has no interrupt boundary", errReducerInvariant, i)
+					return false, -1, fmt.Errorf("%w: suspend commit at reduction[%d] has no interrupt boundary", errReducerInvariant, i)
 				}
 			case StateTerminalize:
 				if interrupt || !reduced.Event.Terminal() {
-					return fmt.Errorf("%w: terminal commit at reduction[%d] has no terminal event", errReducerInvariant, i)
+					return false, -1, fmt.Errorf("%w: terminal commit at reduction[%d] has no terminal event", errReducerInvariant, i)
 				}
 			default:
-				return fmt.Errorf("%w: reduction[%d] has unknown state change %d", errReducerInvariant, i, reduced.Commit.State)
+				return false, -1, fmt.Errorf("%w: reduction[%d] has unknown state change %d", errReducerInvariant, i, reduced.Commit.State)
 			}
 		}
-		if !interrupt {
-			continue
-		}
-		if i > 0 && reduced.Commit != nil {
-			return fmt.Errorf("%w: interrupt reduction[%d] repeats a durable commit", errReducerInvariant, i)
+		if interrupt && i > 0 && reduced.Commit != nil {
+			return false, -1, fmt.Errorf("%w: interrupt reduction[%d] repeats a durable commit", errReducerInvariant, i)
 		}
 	}
+	return interrupt, terminalAt, nil
+}
 
-	if interrupt {
-		commit := reductions[0].Commit
-		switch {
-		case commit == nil:
-			return fmt.Errorf("%w: interrupt batch has no durable commit", errReducerInvariant)
-		case commit.State != StateSuspend:
-			return fmt.Errorf("%w: interrupt batch commit does not suspend the run", errReducerInvariant)
-		case commit.Interrupt == nil:
-			return fmt.Errorf("%w: interrupt batch commit has no pending interrupt", errReducerInvariant)
-		case commit.Run == nil || commit.Run.State != execution.Interrupted:
-			return fmt.Errorf("%w: interrupt batch commit has no interrupted run", errReducerInvariant)
-		case terminalAt != len(reductions)-1:
-			return fmt.Errorf("%w: interrupt batch has no terminal boundary event", errReducerInvariant)
-		}
-		return nil
+func validateInterruptReductionBatch(reductions []reduction, terminalAt int) error {
+	commit := reductions[0].Commit
+	switch {
+	case commit == nil:
+		return fmt.Errorf("%w: interrupt batch has no durable commit", errReducerInvariant)
+	case commit.State != StateSuspend:
+		return fmt.Errorf("%w: interrupt batch commit does not suspend the run", errReducerInvariant)
+	case commit.Interrupt == nil:
+		return fmt.Errorf("%w: interrupt batch commit has no pending interrupt", errReducerInvariant)
+	case commit.Run == nil || commit.Run.State != execution.Interrupted:
+		return fmt.Errorf("%w: interrupt batch commit has no interrupted run", errReducerInvariant)
+	case terminalAt != len(reductions)-1:
+		return fmt.Errorf("%w: interrupt batch has no terminal boundary event", errReducerInvariant)
 	}
+	return nil
+}
 
-	if terminalAt < 0 {
-		return nil
-	}
-	commit := reductions[terminalAt].Commit
+func validateTerminalReduction(reduced reduction) error {
+	commit := reduced.Commit
 	switch {
 	case commit == nil:
 		return fmt.Errorf("%w: terminal event has no durable commit", errReducerInvariant)
