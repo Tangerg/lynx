@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -148,14 +149,15 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
-		policy approval.Policy,
+		policy *approval.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
+		goalState *goals.State,
 		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}
@@ -184,14 +186,15 @@ func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
-		policy approval.Policy,
+		policy *approval.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		index toolset.CodebaseIndex,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
+		goalState *goals.State,
 		skillStore *skillauthoring.Store,
 	) (toolset.Built, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
 			return toolset.Built{}, err
 		}

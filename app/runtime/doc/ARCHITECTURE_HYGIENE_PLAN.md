@@ -366,6 +366,35 @@ Acceptance:
 - Architecture tests guard the removed seams; full module and standalone
   verification are green.
 
+### Batch 13 — Consumer-port and state-ownership closure
+
+Status: **Completed**
+
+Scope:
+
+- Remove producer-owned broad interfaces from the Goal, Todo, Knowledge, and
+  Schedule domains; define each persistence slice at its actual Application or
+  Adapter consumer.
+- Replace the Goal tool's direct persistence/CAS mutation with an
+  application-owned `goals.State` report boundary shared through Bootstrap.
+- Split schedule management, run-now, and worker persistence requirements;
+  keep their composition-root union only at Bootstrap wiring.
+- Make approval consumers name their independent management, tool-gate, and
+  plan-exit views; retain the concrete `approval.RuntimePolicy` as the cohesive
+  domain implementation.
+- Remove Bootstrap's duplicate hook-trust relay and make prompt knowledge/todos
+  use the same root-configured source as their corresponding use cases.
+
+Acceptance:
+
+- No Delivery/Tool adapter reads or writes Goal persistence directly.
+- A consumer cannot accidentally obtain Todo write/cleanup, Knowledge write,
+  Schedule firing, or Approval management methods it does not invoke.
+- Goal, Todo, Knowledge, Schedule, and Approval do not reintroduce the removed
+  producer-owned domain interface names.
+- Existing, unconnected product capability is preserved; Goal mode remains
+  available for its planned UI integration.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -382,6 +411,7 @@ Acceptance:
 | 10. Residual ownership closure and non-destructive abstraction audit | Completed | 2026-07-23 | 2026-07-23 | Full module tests and architecture tests verified the Bootstrap, archive, notifier, and consumer-audit changes. |
 | 11. Final abstraction-leak remediation | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; exact-symbol scans for removed query/Turn/Transport/sandbox facades; Application/Domain dependency-direction scan. |
 | 12. Runtime ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone test/vet/build; focused race suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed seams passed. |
+| 13. Consumer-port and state-ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race` suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed domain interfaces passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -589,6 +619,25 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   constructor leakage, post-construction schedule wiring, and the removed
   Delivery port members. Module and standalone test/vet/build, focused race
   suites, `staticcheck`, and `golangci-lint` passed.
+
+### 2026-07-23 — Batch 13 completed
+
+- Goal terminal reporting now enters through `application/goals.State`; the
+  model-facing tool has neither a Goal store nor CAS/domain-mutation code.
+  Lease validation, status validation, revision advance, and conflict handling
+  are all application-owned.
+- Knowledge, Todo, Goal, and Schedule persistence contracts moved from broad
+  producer/domain definitions to their real consumers. Schedule explicitly
+  separates management, run-now, and worker capability slices; Bootstrap alone
+  composes their union for one SQLite implementation.
+- Approval now exposes a concrete `RuntimePolicy`; its independent consumers
+  define their own management, gate, and plan-exit views. The session cleanup
+  capability is likewise local to its consumer.
+- Added a fitness rule preventing the removed Goal/Todo/Knowledge/Schedule/
+  Approval producer-owned interface names from returning. Goal mode remains
+  wired and tested as a planned capability, not treated as dead code.
+- Workspace and standalone build/vet/test, focused race suites, architecture
+  tests, `staticcheck`, `golangci-lint`, formatting, and source scans passed.
 
 ## 8. Completion definition
 

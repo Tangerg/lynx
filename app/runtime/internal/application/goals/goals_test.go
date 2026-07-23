@@ -18,7 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-// memStore is an in-memory goal.Store.
+// memStore is an in-memory goals.Store.
 type memStore struct {
 	mu       sync.Mutex
 	goals    map[string]goal.Goal

@@ -8,22 +8,36 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
+// RunNowStore is the on-demand firing persistence slice.
+type RunNowStore interface {
+	Get(ctx context.Context, id string) (schedule.Schedule, error)
+	RecordRun(ctx context.Context, id string, ranAt time.Time) error
+}
+
+// FiringStore joins the independently consumed run-now and worker slices for
+// wiring one persistence implementation into this application component.
+type FiringStore interface {
+	RunNowStore
+	WorkerStore
+}
+
 // Firing owns schedule execution after a management operation or worker tick.
 // It is constructed with a complete Runner, so callers cannot observe an
 // incompletely wired scheduler.
 type Firing struct {
-	registry schedule.Registry
+	registry RunNowStore
+	worker   WorkerStore
 	runner   Runner
 	now      func() time.Time
 }
 
 // NewFiring builds the schedule execution use case. A nil registry behaves as
 // the unavailable scheduling capability.
-func NewFiring(registry schedule.Registry, runner Runner) *Firing {
-	if registry == nil {
-		registry = disabledRegistry{}
+func NewFiring(store FiringStore, runner Runner) *Firing {
+	if store == nil {
+		store = disabledFiringStore{}
 	}
-	return &Firing{registry: registry, runner: runner, now: time.Now}
+	return &Firing{registry: store, worker: store, runner: runner, now: time.Now}
 }
 
 // RunNow starts one off-cycle schedule firing and records it without advancing
@@ -49,5 +63,23 @@ func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
 
 // RunWorker starts the due-schedule scanner until ctx is canceled.
 func (f *Firing) RunWorker(ctx context.Context) {
-	NewWorker(f.registry, f.runner).Run(ctx)
+	NewWorker(f.worker, f.runner).Run(ctx)
+}
+
+type disabledFiringStore struct{}
+
+func (disabledFiringStore) Get(context.Context, string) (schedule.Schedule, error) {
+	return schedule.Schedule{}, schedule.ErrUnavailable
+}
+
+func (disabledFiringStore) RecordRun(context.Context, string, time.Time) error {
+	return schedule.ErrUnavailable
+}
+
+func (disabledFiringStore) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+	return nil, nil
+}
+
+func (disabledFiringStore) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
+	return schedule.ErrUnavailable
 }

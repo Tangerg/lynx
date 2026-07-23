@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-// GoalStore implements goal.Store against SQLite: one row per session, the
+// GoalStore is the SQLite persistence adapter for autonomous goals: one row per session, the
 // budget and used accumulators JSON blobs read/written whole with the row.
 //
 // Safe for concurrent use; the *sql.DB serializes writes (MaxOpenConns 1, see
@@ -20,10 +20,8 @@ type GoalStore struct {
 	db *sql.DB
 }
 
-var _ goal.Store = (*GoalStore)(nil)
-
 // NewGoalStore wires a database with the current [Open]-installed schema to the
-// goal.Store surface.
+// autonomous-goal persistence surface.
 func NewGoalStore(db *sql.DB) *GoalStore { return &GoalStore{db: db} }
 
 type goalBudget struct {
@@ -53,7 +51,7 @@ func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool,
 	return g, true, nil
 }
 
-// Save is the goal CAS (see [goal.Store] for the contract). INSERT-if-absent
+// Save is the goal CAS. INSERT-if-absent
 // (not INSERT OR REPLACE) is deliberate — a stale writer whose row was cleared
 // must not resurrect it.
 func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
@@ -107,7 +105,7 @@ func (s *GoalStore) Clear(ctx context.Context, sessionID string) error {
 }
 
 // ClearIf removes the session's goal only when its version matches expected
-// (the loop's CAS delete — see [goal.Store]), reporting whether it applied.
+// (the loop's CAS delete), reporting whether it applied.
 func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal.Version) (bool, error) {
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`DELETE FROM goals WHERE session_id = ? AND lease_id = ? AND revision = ?`, sessionID, expected.LeaseID, expected.Revision)

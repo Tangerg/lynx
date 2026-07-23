@@ -61,7 +61,7 @@ type SessionExists interface {
 // mutations inside one lease. The mutex serializes explicit lifecycle commands
 // and session write-sets; loop goroutines and update_goal use the store CAS.
 type Driver struct {
-	goals    goal.Store
+	goals    Store
 	runs     RunUseCases
 	sessions SessionExists
 	tasks    *taskgroup.Group
@@ -75,7 +75,7 @@ type loopHandle struct{ cancel context.CancelFunc }
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
-func NewDriverWithMutations(store goal.Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations) *Driver {
+func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations) *Driver {
 	if mutations == nil {
 		mutations = NewSessionMutations()
 	}

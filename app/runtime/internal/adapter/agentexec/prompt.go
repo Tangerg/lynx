@@ -53,8 +53,8 @@ task is ambiguous, ask one focused question rather than guess.`
 // project A briefs the model about project A regardless of where the runtime
 // server process was started.
 //
-// knowledge.Store is Lyra's writable memory surface managed over the runtime
-// protocol; agentdoc is the read-only cross-tool AGENTS.md convention.
+// KnowledgeReader is the prompt's read-only memory surface; agentdoc is the
+// read-only cross-tool AGENTS.md convention.
 // Engines built without either memory source simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
@@ -68,7 +68,7 @@ func (e *Engine) systemPrompt(ctx context.Context) string {
 // model, never a correctness input, so it must never derail prompt assembly.
 // Kept off composePrompt so that function stays focused on the knowledge /
 // AGENTS.md cascade (and its direct unit tests need no todo stub).
-func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
+func appendTodos(ctx context.Context, prompt string, todos TodoReader) string {
 	if todos == nil {
 		return prompt
 	}
@@ -86,7 +86,7 @@ func appendTodos(ctx context.Context, prompt string, todos todo.Store) string {
 // composePrompt is the pure form behind [Engine.systemPrompt],
 // exposed unexported so the unit tests (which build stub memory stores without
 // a full Engine) can exercise the cascade directly.
-func composePrompt(ctx context.Context, mem knowledge.Store, memory AgentMemoryReader, cwd string) string {
+func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryReader, cwd string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 

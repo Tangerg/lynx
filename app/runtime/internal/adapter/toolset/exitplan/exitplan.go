@@ -82,8 +82,14 @@ func (o optionArg) toInterrupt() runs.QuestionOptionSpec {
 }
 
 type tool struct {
-	approval  approval.Policy
+	approval  ModePolicy
 	interrupt suspension.Func
+}
+
+// ModePolicy is the exit-plan tool's complete view of approval state.
+type ModePolicy interface {
+	Mode(ctx context.Context) (approval.Mode, error)
+	SetMode(ctx context.Context, mode approval.Mode) error
 }
 
 // New builds the exit_plan_mode tool over the approval policy (it flips the
@@ -91,7 +97,7 @@ type tool struct {
 //
 // The toolset composes the interrupt suspension contract from the composition
 // root.
-func New(appr approval.Policy, interrupt suspension.Func) (tools.Tool, error) {
+func New(appr ModePolicy, interrupt suspension.Func) (tools.Tool, error) {
 	if interrupt == nil {
 		interrupt = suspension.Unavailable
 	}

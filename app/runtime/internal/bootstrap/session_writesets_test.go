@@ -63,9 +63,9 @@ type sessionStores struct {
 	runs       *sqlite.RunStateStore
 	processes  *sqlite.ProcessStore
 	history    *conversation.Messages
-	todos      todo.Store
-	approvals  approval.RuleStore
-	goals      goal.Store
+	todos      *sqlite.TodoStore
+	approvals  *sqlite.ApprovalRuleStore
+	goals      *sqlite.GoalStore
 }
 
 // newWriteSetFixture builds the persistence adapter over a fresh sqlite

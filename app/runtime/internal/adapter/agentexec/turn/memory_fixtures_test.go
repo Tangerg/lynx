@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -48,9 +49,17 @@ func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {
 
 func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	t.Helper()
+	var todos todotool.Store
+	if cfg.Todos != nil {
+		var ok bool
+		todos, ok = cfg.Todos.(todotool.Store)
+		if !ok {
+			t.Fatalf("test engine todo source must support todo_write")
+		}
+	}
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		Workdir: cfg.Workdir,
-		Todos:   cfg.Todos,
+		Todos:   todos,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)

@@ -194,11 +194,12 @@ type toolEnvironmentBuilder func(
 	context.Context,
 	Config,
 	agentexec.Config,
-	approval.Policy,
+	*approval.RuntimePolicy,
 	mcpEnvironment,
 	toolset.CodebaseIndex,
 	*agentmemory.Searcher,
 	*schedules.Coordinator,
+	*goals.State,
 	*skillauthoring.Store,
 ) (toolset.Built, error)
 
@@ -293,6 +294,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if err != nil {
 		return Host{}, fmt.Errorf("runtime: approval policy: %w", err)
 	}
+	// Goal state crosses into the tool environment before the loop driver can be
+	// constructed. It is an application boundary, not a persistence proxy.
+	goalState := goals.NewState(cfg.GoalStore)
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
@@ -300,11 +304,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	}
 
 	scheduleCoord := schedules.New(schedules.Dependencies{
-		Registry: cfg.ScheduleRegistry,
-		Paths:    workspacepath.Resolver{},
+		Store: cfg.ScheduleStore,
+		Paths: workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseIndex, memorySearcher, scheduleCoord, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseIndex, memorySearcher, scheduleCoord, goalState, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -486,7 +490,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	runCoord := runs.NewCoordinator(runDeps)
 	scheduleFires := &signal.Signal[string]{}
 	scheduleFiring := schedules.NewFiring(
-		cfg.ScheduleRegistry,
+		cfg.ScheduleStore,
 		schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish),
 	)
 
@@ -540,7 +544,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	workspaceDiscovery := workspace.NewDiscovery(
 		workspaceContext, sessionCoord, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
-	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.Engine.Knowledge)
+	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.KnowledgeStore)
 	workspaceSkills := workspace.NewSkills(
 		workspaceContext, promptsource.NewWorkspaceSkills(cfg.SkillsGlobalDir), skillCurator, skillDrafts, skillChanges.Publish,
 	)

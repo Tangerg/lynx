@@ -14,12 +14,8 @@ import (
 
 	history "github.com/Tangerg/lynx/chathistory"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	goalsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
-	todosvc "github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -39,7 +35,7 @@ type Bundle struct {
 	Session       *sqlitestore.SessionStore
 	Runs          *sqlitestore.RunStateStore
 	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
-	Memory        knowledge.Store
+	Memory        *storage.FileKnowledgeStore
 	AgentMemory   *sqlitestore.AgentMemoryStore
 	Process       *sqlitestore.ProcessStore
 	Interrupt     *sqlitestore.InterruptStore
@@ -48,9 +44,9 @@ type Bundle struct {
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
-	Todos         todosvc.Store
-	Goals         goalsvc.Store
-	ApprovalRules approval.RuleStore
+	Todos         *sqlitestore.TodoStore
+	Goals         *sqlitestore.GoalStore
+	ApprovalRules *sqlitestore.ApprovalRuleStore
 	UtilityRole   *sqlitestore.UtilityRoleStore
 	Trust         *sqlitestore.TrustStore
 	Schedules     *sqlitestore.ScheduleStore

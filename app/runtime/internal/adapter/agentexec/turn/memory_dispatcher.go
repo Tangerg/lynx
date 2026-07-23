@@ -34,6 +34,14 @@ type todoLister interface {
 	List(ctx context.Context, sessionID string) ([]todo.Item, error)
 }
 
+// ApprovalGate is the tool-call evaluator's complete approval view. Mode/rules
+// management belongs to separate application and tool consumers.
+type ApprovalGate interface {
+	Mode(ctx context.Context) (approval.Mode, error)
+	Decide(ctx context.Context, q approval.Query) (approval.Decision, bool, error)
+	Remember(ctx context.Context, req approval.RememberRequest) error
+}
+
 // turnIDPrefix tags adapter-local turn handles. A TurnID is neither the stable
 // domain RunID nor the agent process snapshot id, so it has its own namespace.
 const turnIDPrefix = "turn_"
@@ -70,7 +78,7 @@ type Dependencies struct {
 
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
-	Approval approval.Policy
+	Approval ApprovalGate
 
 	// ClientResolver resolves an explicit per-turn provider/model client. nil
 	// keeps every turn on the engine default client.
@@ -141,11 +149,11 @@ type memoryDispatcher struct {
 	steering  SteeringSink
 	compactor Compactor
 	extractor Extractor
-	miner     SkillMiner      // optional — nil = no skill mining
-	curator   SkillCurator    // optional — nil = no idle-skill curation
-	approval  approval.Policy // optional — nil = auto-approve every tool
-	resolver  clientResolver  // optional — nil = always use the default model
-	todos     todoLister      // optional — nil = no state.snapshot{todos} projection
+	miner     SkillMiner     // optional — nil = no skill mining
+	curator   SkillCurator   // optional — nil = no idle-skill curation
+	approval  ApprovalGate   // optional — nil = auto-approve every tool
+	resolver  clientResolver // optional — nil = always use the default model
+	todos     todoLister     // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

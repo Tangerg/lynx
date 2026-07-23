@@ -16,7 +16,7 @@ import (
 // blob the agent reads as project / user knowledge.
 const memoryFileName = "LYRA.md"
 
-// FileKnowledgeStore persists [knowledge.Store] state to markdown files:
+// FileKnowledgeStore persists human-authored knowledge to markdown files:
 //
 //   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
 //     supplied per call (a session's cwd), so one store serves
@@ -32,10 +32,6 @@ type FileKnowledgeStore struct {
 
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
-
-// Compile-time tripwire: NewFileKnowledgeStore returns the concrete type,
-// so nothing checks knowledge.Store conformance until this assertion.
-var _ knowledge.Store = (*FileKnowledgeStore)(nil)
 
 // NewFileKnowledgeStore captures the process working directory (the
 // per-call fallback project dir) and the storage home. Callers with a
@@ -74,7 +70,7 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) string {
 }
 
 // ------------------------------------------------------------------
-// knowledge.Store
+// knowledge persistence
 // ------------------------------------------------------------------
 
 func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -19,11 +20,12 @@ func buildToolEnvironment(
 	ctx context.Context,
 	cfg Config,
 	ecfg agentexec.Config,
-	approvalPolicy approval.Policy,
+	approvalPolicy *approval.RuntimePolicy,
 	mcpEnv mcpEnvironment,
 	codebaseIdx toolset.CodebaseIndex,
 	memorySearcher *agentmemory.Searcher,
 	scheduleCoord *schedules.Coordinator,
+	goalState *goals.State,
 	skillStore *skillauthoring.Store,
 ) (toolset.Built, error) {
 	bc := toolset.BuildConfig{
@@ -33,7 +35,7 @@ func buildToolEnvironment(
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPServers:      mcpEnv.configs,
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
-		Todos:           ecfg.Todos,
+		Todos:           cfg.TodoStore,
 		Approval:        approvalPolicy,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
@@ -48,7 +50,7 @@ func buildToolEnvironment(
 		SandboxShell:         cfg.SandboxShell,
 		SandboxReadOnlyPaths: cfg.SandboxReadOnlyPaths,
 	}
-	if cfg.ScheduleRegistry != nil {
+	if cfg.ScheduleStore != nil {
 		bc.Schedules = scheduleCoord
 	}
 	// Set the read-back store only when concretely present, so a nil store never
@@ -56,10 +58,10 @@ func buildToolEnvironment(
 	if cfg.ToolResultStore != nil {
 		bc.ToolResults = cfg.ToolResultStore
 	}
-	// update_goal + its active-gate come from the goal store (Goal mode). Set only
+	// update_goal + its active-gate come from the application state boundary. Set only
 	// when present, for the same nil-interface reason.
-	if cfg.GoalStore != nil {
-		bc.Goals = cfg.GoalStore
+	if goalState != nil {
+		bc.Goals = goalState
 	}
 	// memory_search searches the agent's curated project memory. Set only when a
 	// concrete searcher exists, so a nil *Searcher never reaches the tool builder

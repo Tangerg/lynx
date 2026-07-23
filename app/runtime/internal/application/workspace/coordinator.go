@@ -72,6 +72,14 @@ type HookTrustStore interface {
 	Untrust(ctx context.Context, projectRoot string) error
 }
 
+// KnowledgeStore is the workspace knowledge use case's complete persistence
+// need. Prompt assembly receives its own read-only view from agentexec.
+type KnowledgeStore interface {
+	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
+	Update(ctx context.Context, scope knowledge.Scope, dir string, content string) error
+	List(ctx context.Context, dir string) ([]knowledge.Entry, error)
+}
+
 // RecipeLister discovers the prompt recipes visible from a working directory —
 // a project's .lyra/recipes layered over the global directory. The composition
 // root supplies the filesystem-backed implementation (the promptsource adapter);
@@ -137,10 +145,10 @@ func NewDiscovery(context *Context, projects ProjectCatalog, agentDocs AgentDocF
 // Knowledge owns the human-authored LYRA.md cascade use cases.
 type Knowledge struct {
 	context *Context
-	memory  knowledge.Store
+	memory  KnowledgeStore
 }
 
-func NewKnowledge(context *Context, memory knowledge.Store) *Knowledge {
+func NewKnowledge(context *Context, memory KnowledgeStore) *Knowledge {
 	return &Knowledge{context: context, memory: memory}
 }
 
