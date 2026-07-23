@@ -17,8 +17,7 @@ type Embedder interface {
 	ID() string
 }
 
-// itemSearchStore is the slice of [Store] the searcher needs: the fetch of a
-// project's items (with embeddings) it ranks in-process.
+// itemSearchStore fetches the project's embedded items for in-process ranking.
 type itemSearchStore interface {
 	ItemsForSearch(ctx context.Context, scope Scope, project string) ([]Item, error)
 }

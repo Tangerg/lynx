@@ -34,7 +34,7 @@ type staticRootResolver struct{}
 
 func (staticRootResolver) ResolveRoot(cwd string) (string, error) { return cwd, nil }
 
-func newCoordinator(index codebaseindex.Index) *Coordinator {
+func newCoordinator(index Index) *Coordinator {
 	return New(index, staticRootResolver{})
 }
 
@@ -60,8 +60,6 @@ func (i *codebaseIndex) Search(_ context.Context, root, query string, limit int)
 	i.searchLimit = limit
 	return i.hits, nil
 }
-
-func (*codebaseIndex) EnsureIndexed(context.Context, string) error { return nil }
 
 func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
 	i.statusRoot = root

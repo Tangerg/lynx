@@ -32,7 +32,7 @@ var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP ser
 var ErrUnknownMCPServer = errors.New("integrations: unknown MCP server")
 
 // MCP-server registry orchestration: the coordinator owns both the persisted
-// registry (mcpserver.Registry) and the live connection pool, so a
+// registry and the live connection pool, so a
 // configure/remove/enable both persists and applies to the live tool set in one
 // place. Registry entries are projected to dial-level descriptors only at the
 // live-connection boundary.

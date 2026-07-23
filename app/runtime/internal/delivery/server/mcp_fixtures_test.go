@@ -64,7 +64,7 @@ func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 	}
 }
 
-// mcpRegistryFake is the mcpserver.Registry the MCP config handlers drive.
+// mcpRegistryFake is the integration registry the MCP config handlers drive.
 type mcpRegistryFake struct {
 	mu         sync.Mutex
 	servers    map[string]mcpserver.Server

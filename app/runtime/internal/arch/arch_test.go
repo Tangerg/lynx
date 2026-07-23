@@ -115,19 +115,23 @@ func TestDependencyRule(t *testing.T) {
 	}
 }
 
-// TestConsumerPortsDoNotReturnToDomain prevents the broad producer-owned
-// persistence/policy interfaces removed during the ownership cleanup from
-// quietly returning. Their method sets are now defined by the application or
-// adapter consumer that actually needs them; domain packages retain values and
-// invariants, plus the approval rule store consumed directly by RuntimePolicy.
-func TestConsumerPortsDoNotReturnToDomain(t *testing.T) {
+// TestRemovedProducerPortsDoNotReturnToDomain prevents the producer-owned
+// interfaces removed during the ownership cleanup from quietly returning.
+// Their method sets belong to their application or adapter consumers; Domain
+// retains values, invariants, and only ports consumed by a Domain service.
+func TestRemovedProducerPortsDoNotReturnToDomain(t *testing.T) {
 	root := moduleRoot(t)
 	for path, forbiddenNames := range map[string]map[string]struct{}{
-		filepath.Join(root, "internal", "domain", "goal"):      {"Store": {}},
-		filepath.Join(root, "internal", "domain", "todo"):      {"Store": {}},
-		filepath.Join(root, "internal", "domain", "knowledge"): {"Store": {}},
-		filepath.Join(root, "internal", "domain", "schedule"):  {"Registry": {}},
-		filepath.Join(root, "internal", "domain", "approval"):  {"Policy": {}},
+		filepath.Join(root, "internal", "domain", "agentmemory"):   {"Store": {}},
+		filepath.Join(root, "internal", "domain", "approval"):      {"Policy": {}},
+		filepath.Join(root, "internal", "domain", "codebaseindex"): {"Index": {}},
+		filepath.Join(root, "internal", "domain", "feedback"):      {"Store": {}},
+		filepath.Join(root, "internal", "domain", "goal"):          {"Store": {}},
+		filepath.Join(root, "internal", "domain", "knowledge"):     {"Store": {}},
+		filepath.Join(root, "internal", "domain", "mcpserver"):     {"Registry": {}},
+		filepath.Join(root, "internal", "domain", "schedule"):      {"Registry": {}},
+		filepath.Join(root, "internal", "domain", "todo"):          {"Store": {}},
+		filepath.Join(root, "internal", "domain", "tool"):          {"Catalog": {}, "Invoker": {}, "Registry": {}},
 	} {
 		entries, err := os.ReadDir(path)
 		if err != nil {
