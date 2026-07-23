@@ -59,7 +59,7 @@ type StartCommand struct {
 	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
-	// (see [goal.Store] lease-and-revision CAS). Empty for ordinary runs.
+	// (see the goals application store's lease-and-revision CAS). Empty for ordinary runs.
 	GoalLeaseID string
 }
 

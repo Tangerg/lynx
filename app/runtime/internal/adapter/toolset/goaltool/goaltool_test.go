@@ -8,10 +8,11 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-// in-memory goal.Store for the tool tests.
+// in-memory goals.Store for the tool tests.
 type memStore struct{ goals map[string]goal.Goal }
 
 func newMemStore() *memStore { return &memStore{goals: map[string]goal.Goal{}} }
@@ -77,9 +78,9 @@ func sessionCtx(session string) context.Context {
 	return core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
 }
 
-func newTool(t *testing.T, store goal.Store) *tool {
+func newTool(t *testing.T, store goals.Store) *tool {
 	t.Helper()
-	return &tool{store: store, now: func() time.Time { return time.Unix(0, 0) }}
+	return &tool{state: goals.NewState(store)}
 }
 
 func TestUpdateGoal_Complete(t *testing.T) {

@@ -4,10 +4,7 @@
 // agentmemory. Prompt composition remains in the agent-execution adapter.
 package knowledge
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 // Scope selects which LYRA.md the operation targets. The prompt
 // composes both per turn — user (global) first, then project, so
@@ -32,27 +29,4 @@ type Entry struct {
 	Scope      Scope
 	Content    string
 	CapturedAt time.Time // when this entry last landed in LYRA.md
-}
-
-// Store is the long-term knowledge persistence contract. The implementation is
-// file-backed (internal/infra/storage) — LYRA.md stays a user-editable
-// file by design, the one deliberate exception to the SQLite backend.
-// dir on each method is the project directory [ScopeProject] reads
-// from / writes to — a session's working directory, so one store
-// serves every project. [ScopeUser] ignores it. Empty dir falls back
-// to the implementation's default directory (the process cwd for the
-// file-backed store), preserving single-project behavior for
-// callers with no session in hand (CLI, wire requests without cwd).
-type Store interface {
-	// Get returns the full LYRA.md content for the given scope.
-	// Empty result is valid (file may not exist yet).
-	Get(ctx context.Context, scope Scope, dir string) (string, error)
-
-	// Update overwrites the LYRA.md file for the given scope with
-	// the supplied markdown. Concurrent writers race; last-write-wins.
-	Update(ctx context.Context, scope Scope, dir string, content string) error
-
-	// List enumerates every memory entry across scopes. Used by UIs
-	// that want to render a list rather than a flat markdown blob.
-	List(ctx context.Context, dir string) ([]Entry, error)
 }

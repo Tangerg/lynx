@@ -13,6 +13,18 @@ import (
 	history "github.com/Tangerg/lynx/chathistory"
 )
 
+// KnowledgeReader is the prompt assembler's read-only view of human-authored
+// LYRA.md. Writing and listing knowledge belong to the workspace use case.
+type KnowledgeReader interface {
+	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
+}
+
+// TodoReader is the execution adapter's read-only prompt view of session todos.
+// Replacing a list and lifecycle cleanup belong to their direct consumers.
+type TodoReader interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+}
+
 // AgentMemoryReader is the prompt assembler's view of agent-maintained memory
 // items — the always-on (pinned) core injected into the system prompt.
 type AgentMemoryReader interface {
@@ -57,7 +69,7 @@ type Config struct {
 	// Knowledge optionally supplies the human-authored LYRA.md cascade reader.
 	// nil disables that prompt layer; curated memory and discovered AGENTS.md
 	// remain independent. (Wire/API calls this "memory".)
-	Knowledge knowledge.Store
+	Knowledge KnowledgeReader
 
 	// AgentMemory optionally supplies the agent-maintained memory items. The
 	// pinned ones are injected as the always-on core after user preferences and
@@ -74,7 +86,7 @@ type Config struct {
 	// todo_write tool: when set, the tool is registered and the session's
 	// current list is injected into every system prompt. nil disables the
 	// feature (no tool, no injection).
-	Todos todo.Store
+	Todos TodoReader
 
 	// ToolResolver supplies the execution-time role groups and accepts the task
 	// delegation tool that can only be built after the subtask Agent deploys.

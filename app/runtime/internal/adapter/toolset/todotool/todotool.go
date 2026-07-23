@@ -1,5 +1,5 @@
-// Package todotool exposes the model-facing todo_write tool over a
-// [todo.Store]. It is named todotool (not todo) to avoid colliding with the
+// Package todotool exposes the model-facing todo_write tool over its narrow
+// persistence view. It is named todotool (not todo) to avoid colliding with the
 // domain/todo domain package it builds on — the same disambiguation the
 // lsptools package uses for the codeintel adapter.
 //
@@ -66,7 +66,14 @@ func (a writeArgs) items() []todo.Item {
 }
 
 type tool struct {
-	store todo.Store
+	store Store
+}
+
+// Store is the todo_write tool's complete persistence need. Session lifecycle
+// cleanup is intentionally outside this model-facing adapter.
+type Store interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+	Replace(ctx context.Context, sessionID string, items []todo.Item) error
 }
 
 // New builds the todo_write tool over store. It returns a nil tool and nil
@@ -74,7 +81,7 @@ type tool struct {
 // is disabled, not a broken tool. The session id is read per-call off the
 // turn's blackboard ([turnctx.TurnSession]), so one tool instance serves every
 // session.
-func New(store todo.Store) (tools.Tool, error) {
+func New(store Store) (tools.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}

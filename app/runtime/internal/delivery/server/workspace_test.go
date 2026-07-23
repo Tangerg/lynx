@@ -13,13 +13,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 type workspaceTestConfig struct {
-	Memory  knowledge.Store
+	Memory  workspaceapp.KnowledgeStore
 	Skills  workspaceapp.SkillCatalog
 	Curator workspaceapp.SkillCurator
 	Drafts  workspaceapp.SkillDrafts

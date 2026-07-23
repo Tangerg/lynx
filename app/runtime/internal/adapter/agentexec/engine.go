@@ -11,8 +11,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	history "github.com/Tangerg/lynx/chathistory"
 )
 
@@ -27,10 +25,10 @@ type Engine struct {
 	dependencies *core.Dependencies
 
 	historyStore history.Store
-	knowledge    knowledge.Store
+	knowledge    KnowledgeReader
 	memory       AgentMemoryReader
 	memorySearch MemorySearcher
-	todos        todo.Store
+	todos        TodoReader
 	workdir      string
 	pricing      accounting.Pricing
 

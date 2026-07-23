@@ -564,7 +564,10 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 func buildB8Dispatcher(
 	t *testing.T,
 	model chat.Model,
-	policy approval.Policy,
+	policy interface {
+		turn.ApprovalGate
+		SetMode(context.Context, approval.Mode) error
+	},
 	hookResolver staticHookResolver,
 ) turnDriver {
 	t.Helper()
@@ -601,7 +604,10 @@ func buildB8Dispatcher(
 func buildB8PersistentDispatcher(
 	t *testing.T,
 	model chat.Model,
-	policy approval.Policy,
+	policy interface {
+		turn.ApprovalGate
+		SetMode(context.Context, approval.Mode) error
+	},
 	hookResolver staticHookResolver,
 	store core.ProcessStore,
 	historyStore history.Store,

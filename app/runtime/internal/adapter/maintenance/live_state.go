@@ -7,10 +7,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 )
 
+// TodoReader is the compactor's read-only view of a session todo list.
+type TodoReader interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+}
+
 // NewLiveState adapts live shells and persisted todos to the compactor's
 // reminder source. A todo-read failure omits todos rather than failing the
 // compaction it decorates.
-func NewLiveState(shells *exec.Shells, todos todo.Store) LiveStateFunc {
+func NewLiveState(shells *exec.Shells, todos TodoReader) LiveStateFunc {
 	if shells == nil && todos == nil {
 		return nil
 	}

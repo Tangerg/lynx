@@ -12,10 +12,20 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// Coordinator owns editable scheduled-run management over the domain registry.
+// ManagementStore is the editable-schedule persistence slice owned by this
+// use case. Firing and worker cursor updates intentionally remain separate.
+type ManagementStore interface {
+	List(ctx context.Context) ([]schedule.Schedule, error)
+	Get(ctx context.Context, id string) (schedule.Schedule, error)
+	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
+	Delete(ctx context.Context, id string) error
+}
+
+// Coordinator owns editable scheduled-run management over its narrow store.
 // It is stateless beyond its dependencies and safe to share.
 type Coordinator struct {
-	registry schedule.Registry
+	registry ManagementStore
 	paths    CwdResolver
 	now      func() time.Time
 	enabled  bool
@@ -30,8 +40,8 @@ type CwdResolver interface {
 
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
-	Registry schedule.Registry
-	Paths    CwdResolver
+	Store ManagementStore
+	Paths CwdResolver
 }
 
 // CreateCommand is the complete editable state of a new schedule.
@@ -52,14 +62,13 @@ type UpdateCommand struct {
 	ExpectedRevision uint64
 }
 
-// New returns a Coordinator over deps. A nil registry yields a disabled
-// coordinator (every CRUD operation returns [schedule.ErrUnavailable]); a nil
-// worker disables the background scanner.
+// New returns a Coordinator over deps. A nil store yields a disabled
+// coordinator (every CRUD operation returns [schedule.ErrUnavailable]).
 func New(deps Dependencies) *Coordinator {
-	registry := deps.Registry
+	registry := deps.Store
 	enabled := registry != nil
 	if registry == nil {
-		registry = disabledRegistry{}
+		registry = disabledManagementStore{}
 	}
 	return &Coordinator{
 		registry: registry,
@@ -194,38 +203,25 @@ func (c *Coordinator) resolveCwd(cwd string) (string, error) {
 	return resolved, nil
 }
 
-// disabledRegistry is the no-scheduling fallback: CRUD reports unavailable while
-// Due returns empty so the worker (if ever run) simply finds nothing to fire.
-type disabledRegistry struct{}
+// disabledManagementStore is the no-scheduling CRUD fallback.
+type disabledManagementStore struct{}
 
-func (disabledRegistry) List(context.Context) ([]schedule.Schedule, error) {
+func (disabledManagementStore) List(context.Context) ([]schedule.Schedule, error) {
 	return nil, schedule.ErrUnavailable
 }
 
-func (disabledRegistry) Get(context.Context, string) (schedule.Schedule, error) {
+func (disabledManagementStore) Get(context.Context, string) (schedule.Schedule, error) {
 	return schedule.Schedule{}, schedule.ErrUnavailable
 }
 
-func (disabledRegistry) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
+func (disabledManagementStore) Create(context.Context, schedule.Schedule) (schedule.Schedule, error) {
 	return schedule.Schedule{}, schedule.ErrUnavailable
 }
 
-func (disabledRegistry) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
+func (disabledManagementStore) Update(context.Context, schedule.Schedule, uint64) (schedule.Schedule, error) {
 	return schedule.Schedule{}, schedule.ErrUnavailable
 }
 
-func (disabledRegistry) Delete(context.Context, string) error {
-	return schedule.ErrUnavailable
-}
-
-func (disabledRegistry) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
-	return nil, nil
-}
-
-func (disabledRegistry) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
-	return schedule.ErrUnavailable
-}
-
-func (disabledRegistry) RecordRun(context.Context, string, time.Time) error {
+func (disabledManagementStore) Delete(context.Context, string) error {
 	return schedule.ErrUnavailable
 }

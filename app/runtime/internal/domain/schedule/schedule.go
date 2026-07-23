@@ -1,7 +1,7 @@
 // Package schedule is the scheduled-run domain: a Schedule fires a saved prompt
-// on a cron trigger as a headless run (no client present). The worker ticks,
-// asks [WorkerStore.Due] for the schedules whose time has come, starts a run
-// through a [Runner] port, and records the firing via [WorkerStore.MarkFired].
+// on a cron trigger as a headless run (no client present). The application
+// worker asks its persistence port for schedules whose time has come, starts a
+// run, and records the firing.
 //
 // A Schedule stores the final PROMPT text, not a recipe reference — the
 // scheduler is deliberately decoupled from recipes (a client may pre-fill the
@@ -9,7 +9,6 @@
 package schedule
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -21,7 +20,7 @@ import (
 // run id convention).
 const IDPrefix = "sch_"
 
-// ErrNotFound is returned by [Registry.Get] / [Registry.Update] for an unknown id.
+// ErrNotFound is returned when an application schedule lookup cannot find an id.
 var ErrNotFound = errors.New("schedule: not found")
 
 // ErrUnavailable is returned when scheduling is disabled for this runtime.
@@ -164,39 +163,4 @@ func NextRun(spec string, after time.Time) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("%w %q: %w", ErrInvalidCron, spec, err)
 	}
 	return sched.Next(after), nil
-}
-
-// Registry is the schedule persistence + due-query contract. All methods are
-// safe for concurrent use; the sqlite-backed implementation satisfies it.
-type Registry interface {
-	// List returns every schedule, newest-created first.
-	List(ctx context.Context) ([]Schedule, error)
-	// Get returns one schedule by id, or [ErrNotFound].
-	Get(ctx context.Context, id string) (Schedule, error)
-	// Create assigns an id + CreatedAt and persists s verbatim (the caller sets
-	// Enabled + the computed NextRunAt). Returns the stored schedule.
-	Create(ctx context.Context, s Schedule) (Schedule, error)
-	// Update replaces the schedule with s.ID (full-replace of the editable
-	// fields + the recomputed NextRunAt). [ErrNotFound] for an unknown id.
-	Update(ctx context.Context, s Schedule, expectedRevision uint64) (Schedule, error)
-	// Delete drops a schedule by id. Idempotent (a missing id is not an error).
-	Delete(ctx context.Context, id string) error
-	// Due returns the enabled schedules whose NextRunAt has come (in (0, now]),
-	// newest-due first — the worker's per-tick work list.
-	Due(ctx context.Context, now time.Time) ([]Schedule, error)
-	// MarkFired records a scheduled firing: the run time (LastRunAt) and the
-	// advanced next due time. Only the worker calls it. prevNextRunAt is the
-	// NextRunAt the worker saw when it picked this schedule as due — the cursor is
-	// advanced only if it still holds, so a concurrent [Registry.Update] that
-	// rescheduled (new cron → new NextRunAt) between that read and now wins instead
-	// of being clobbered with a value computed from the stale cron. If the guard
-	// misses, the firing is still recorded (LastRunAt) without rewinding the
-	// cursor. A manual run-now uses [Registry.RecordRun] instead, so the two never
-	// write NextRunAt with conflicting intent.
-	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
-	// RecordRun records an off-cycle run (schedules.runNow): it updates LastRunAt
-	// and leaves NextRunAt untouched. Separate from MarkFired so a manual run can
-	// never rewind the cron cursor — re-stamping a cursor value read before the
-	// worker advanced it would race that advance and re-fire the schedule.
-	RecordRun(ctx context.Context, id string, ranAt time.Time) error
 }

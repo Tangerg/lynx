@@ -3,12 +3,14 @@ package bootstrap
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -135,12 +137,16 @@ type Config struct {
 	// TodoStore persists per-session todo lists for the todo_write tool.
 	// Optional; nil disables the feature (no tool, no prompt injection). The
 	// composition root injects the sqlite-backed store.
-	TodoStore todo.Store
+	TodoStore TodoStore
 
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
 	// disables the feature (no update_goal tool, goals.* report
 	// capability_not_negotiated). The composition root injects the sqlite store.
-	GoalStore goal.Store
+	GoalStore goals.Store
+
+	// KnowledgeStore persists the human-authored LYRA.md cascade for both the
+	// workspace use case and the execution adapter's read-only prompt view.
+	KnowledgeStore workspace.KnowledgeStore
 
 	// ApprovalMode sets the initial runtime approval stance. The zero value is
 	// [approval.ModeSafe]; [RuntimeConfig] explicitly selects the product default
@@ -151,7 +157,7 @@ type Config struct {
 	// (AUX_API §6). nil is supported for mode-only test environments: Decide
 	// never matches and remember/forget return an unavailable error. The product
 	// composition root injects the sqlite-backed store.
-	ApprovalRuleStore approval.RuleStore
+	ApprovalRuleStore ApprovalRuleStore
 
 	// Provider / Model name the runtime's DEFAULT provider+model; the one a turn
 	// runs against when it doesn't pick a model. providers.list / models.list
@@ -167,7 +173,7 @@ type Config struct {
 	// HookTrustStore backs the hooks.* trust toggle (a GUI granting a
 	// project's hooks). nil means trust is read-only (CLI / file only); the
 	// resolver still reads trust through its own checker.
-	HookTrustStore HookTrustStore
+	HookTrustStore workspace.HookTrustStore
 
 	// RecipesGlobalDir is the global recipes directory (<LYRA_HOME>/recipes) the
 	// recipes.list discovery layers under a project's .lyra/recipes.
@@ -180,11 +186,11 @@ type Config struct {
 	// checkpoints. The composition root sets it.
 	CheckpointDir string
 
-	// ScheduleRegistry persists scheduled runs (schedules.*) and is the registry
-	// the scheduler worker fires from. nil disables scheduling; schedules.*
+	// ScheduleStore persists scheduled runs (schedules.*), serving management,
+	// run-now, and the scheduler worker. nil disables scheduling; schedules.*
 	// fails and the worker no-ops. The composition root injects the sqlite-backed
 	// store.
-	ScheduleRegistry schedule.Registry
+	ScheduleStore ScheduleStore
 
 	// DefaultCwd is the serving process's default working directory. The
 	// scheduled-run launcher uses it only when a saved schedule leaves Cwd empty.
@@ -248,11 +254,33 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
-// HookTrustStore mutates project hook trust for the hooks.setTrust
-// surface. The sqlite TrustStore implements it.
-type HookTrustStore interface {
-	Trust(ctx context.Context, projectRoot string) error
-	Untrust(ctx context.Context, projectRoot string) error
+// TodoStore is the composition-root union shared by prompt assembly,
+// todo_write, and session lifecycle cleanup.
+type TodoStore interface {
+	List(ctx context.Context, sessionID string) ([]todo.Item, error)
+	Replace(ctx context.Context, sessionID string, items []todo.Item) error
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+// ApprovalRuleStore is the composition-root union shared by the domain policy
+// evaluator and session lifecycle cleanup.
+type ApprovalRuleStore interface {
+	approval.RuleStore
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+// ScheduleStore is the composition-root union shared by schedule management,
+// run-now firing, and the due worker. The consumers retain their narrower
+// application-owned ports.
+type ScheduleStore interface {
+	List(ctx context.Context) ([]schedule.Schedule, error)
+	Get(ctx context.Context, id string) (schedule.Schedule, error)
+	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
+	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
+	Delete(ctx context.Context, id string) error
+	Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error)
+	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
+	RecordRun(ctx context.Context, id string, ranAt time.Time) error
 }
 
 // HookResolver is the runtime's consumer view of lifecycle-hook resolution.

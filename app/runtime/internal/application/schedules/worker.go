@@ -35,9 +35,9 @@ type RunHandle struct {
 	RunID     string
 }
 
-// WorkerStore is the schedule persistence slice the worker owns. Management CRUD
-// stays on [schedule.Registry]; the worker only needs the due query and guarded
-// cursor advance.
+// WorkerStore is the schedule persistence slice the worker owns. Management
+// CRUD stays on the management use case; the worker only needs the due query
+// and guarded cursor advance.
 type WorkerStore interface {
 	Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error)
 	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error

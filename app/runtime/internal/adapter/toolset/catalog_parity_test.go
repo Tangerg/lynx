@@ -8,25 +8,20 @@ import (
 	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 )
 
-// emptyGoalStore is enough to make goaltool.New return a non-nil update_goal
+// emptyGoalState is enough to make goaltool.New return a non-nil update_goal
 // tool (Goal mode wired) without an active goal.
-type emptyGoalStore struct{}
+type emptyGoalState struct{}
 
-func (emptyGoalStore) Get(context.Context, string) (goal.Goal, bool, error) {
-	return goal.Goal{}, false, nil
+func (emptyGoalState) Active(context.Context, string) (bool, error) { return false, nil }
+func (emptyGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+	return goals.ReportNoActiveGoal, nil
 }
-func (emptyGoalStore) Save(context.Context, goal.Goal, goal.Version) (bool, error) { return false, nil }
-func (emptyGoalStore) Clear(context.Context, string) error                         { return nil }
-func (emptyGoalStore) ClearIf(context.Context, string, goal.Version) (bool, error) {
-	return false, nil
-}
-func (emptyGoalStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
 
 func toolNameSet(ts []tools.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
@@ -51,7 +46,7 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
 		Approval: policy,           // backs exit_plan_mode
-		Goals:    emptyGoalStore{}, // backs update_goal (Goal mode wired)
+		Goals:    emptyGoalState{}, // backs update_goal (Goal mode wired)
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},

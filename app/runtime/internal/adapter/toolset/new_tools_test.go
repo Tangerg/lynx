@@ -372,10 +372,10 @@ func newMemoryScheduleRegistry() *memoryScheduleRegistry {
 	return &memoryScheduleRegistry{items: map[string]schedule.Schedule{}}
 }
 
-func newTestScheduleCoordinator(reg schedule.Registry) *scheduleapp.Coordinator {
+func newTestScheduleCoordinator(reg scheduleapp.ManagementStore) *scheduleapp.Coordinator {
 	return scheduleapp.New(scheduleapp.Dependencies{
-		Registry: reg,
-		Paths:    workspacepath.Resolver{},
+		Store: reg,
+		Paths: workspacepath.Resolver{},
 	})
 }
 

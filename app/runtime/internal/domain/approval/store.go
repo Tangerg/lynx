@@ -20,8 +20,4 @@ type RuleStore interface {
 
 	// Delete removes one rule by id; removing a missing id is not an error.
 	Delete(ctx context.Context, id string) error
-
-	// DeleteSession removes only rules owned by sessionID. Project and global
-	// rules outlive sessions and must remain untouched.
-	DeleteSession(ctx context.Context, sessionID string) error
 }

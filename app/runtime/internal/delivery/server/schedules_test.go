@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// fakeScheduleRegistry is a schedule.Registry (+ WorkerStore) that records the
+// fakeScheduleRegistry is the combined test store that records the
 // CRUD the schedules coordinator drives, so delivery tests assert the wire→domain
 // mapping without a real store.
 type fakeScheduleRegistry struct {
@@ -69,11 +69,11 @@ func (r *fakeScheduleRegistry) MarkFired(context.Context, string, time.Time, tim
 
 // serverWithSchedules builds a test Server whose schedules coordinator is backed
 // by reg (used as both the CRUD registry and the worker store).
-func serverWithSchedules(reg schedule.Registry) *Server {
+func serverWithSchedules(reg *fakeScheduleRegistry) *Server {
 	s := newTestServer(&stubRuntime{})
 	s.schedules = schedules.New(schedules.Dependencies{
-		Registry: reg,
-		Paths:    workspacepath.Resolver{},
+		Store: reg,
+		Paths: workspacepath.Resolver{},
 	})
 	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.coordinator, s.serverInfo.Cwd, nil))
 	return s

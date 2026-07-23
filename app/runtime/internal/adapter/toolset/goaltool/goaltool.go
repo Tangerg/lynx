@@ -8,10 +8,9 @@ package goaltool
 
 import (
 	"context"
-	"fmt"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -35,22 +34,29 @@ type updateArgs struct {
 	Reason string `json:"reason,omitempty" jsonschema_description:"Why the goal is blocked. Required for blocked; ignored for complete."`
 }
 
-type tool struct {
-	store goal.Store
-	now   func() time.Time
+// State is the goal use case consumed by the model-facing tool. It deliberately
+// exposes no persistence operations: terminal reporting and active-gating are
+// the complete adapter needs.
+type State interface {
+	Active(ctx context.Context, sessionID string) (bool, error)
+	Report(ctx context.Context, command goals.ReportCommand) (goals.ReportResult, error)
 }
 
-// New builds the update_goal tool over store. It returns a nil tool and nil
-// error when store is nil so the caller can simply omit it (Goal mode disabled).
+type tool struct {
+	state State
+}
+
+// New builds the update_goal tool over the application state boundary. It returns a nil tool and nil
+// error when state is nil so the caller can simply omit it (Goal mode disabled).
 // The session is read per-call off the turn's blackboard, so one instance serves
 // every session.
-func New(store goal.Store) (tools.Tool, error) {
-	if store == nil {
+func New(state State) (tools.Tool, error) {
+	if state == nil {
 		return nil, nil
 	}
 	return tools.New[updateArgs, string](
 		tools.Config{Name: "update_goal", Description: description},
-		(&tool{store: store, now: time.Now}).update,
+		(&tool{state: state}).update,
 	)
 }
 
@@ -59,45 +65,33 @@ func (t *tool) update(ctx context.Context, a updateArgs) (string, error) {
 	if sessionID == "" {
 		return "error: no active session — cannot update a goal", nil
 	}
-	g, ok, err := t.store.Get(ctx, sessionID)
+	leaseID, _ := turnctx.TurnGoalLease(ctx)
+	result, err := t.state.Report(ctx, goals.ReportCommand{
+		SessionID: sessionID,
+		LeaseID:   leaseID,
+		Status:    goal.Status(a.Status),
+		Reason:    a.Reason,
+	})
 	if err != nil {
 		return "", err
 	}
-	if !ok || g.Status != goal.StatusActive {
-		// Recoverable: the loop is not running, so there is nothing to end. The
-		// model keeps working; it just cannot signal a goal that isn't active.
+	switch result {
+	case goals.ReportApplied:
+		if a.Status == string(goal.StatusComplete) {
+			return "Goal marked complete — the autonomous loop will stop after this turn.", nil
+		}
+		return "Goal marked blocked — the loop will stop and surface your reason to the user.", nil
+	case goals.ReportNoActiveGoal:
+		return "No active goal for this session — nothing to update.", nil
+	case goals.ReportSuperseded:
+		return "This goal has been superseded since the run started — nothing to update.", nil
+	case goals.ReportConflict:
+		return "The goal changed concurrently — nothing to update.", nil
+	case goals.ReportReasonRequired:
+		return "Provide a concrete reason when marking the goal blocked.", nil
+	case goals.ReportInvalidStatus:
+		return "Unknown status \"" + a.Status + "\" — use \"complete\" or \"blocked\".", nil
+	default:
 		return "No active goal for this session — nothing to update.", nil
 	}
-	// A run launched by the goal loop is stamped with the lease it must
-	// signal. If the goal has since been superseded (stopped, then replaced by a
-	// fresh Start), this straggler run must not mark the NEW goal complete/blocked.
-	// A user turn carries no stamp and legitimately targets the live goal.
-	if origin, stamped := turnctx.TurnGoalLease(ctx); stamped && origin != g.LeaseID {
-		return "This goal has been superseded since the run started — nothing to update.", nil
-	}
-	expected := g.Version()
-	now := t.now()
-	switch a.Status {
-	case string(goal.StatusComplete):
-		g.Complete(now)
-	case string(goal.StatusBlocked):
-		if a.Reason == "" {
-			return "Provide a concrete reason when marking the goal blocked.", nil
-		}
-		g.Block(a.Reason, now)
-	default:
-		return fmt.Sprintf("Unknown status %q — use \"complete\" or \"blocked\".", a.Status), nil
-	}
-	g.AdvanceRevision()
-	applied, err := t.store.Save(ctx, g, expected)
-	if err != nil {
-		return "", err
-	}
-	if !applied {
-		return "The goal changed concurrently — nothing to update.", nil
-	}
-	if g.Status == goal.StatusComplete {
-		return "Goal marked complete — the autonomous loop will stop after this turn.", nil
-	}
-	return "Goal marked blocked — the loop will stop and surface your reason to the user.", nil
 }

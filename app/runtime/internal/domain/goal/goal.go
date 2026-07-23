@@ -2,14 +2,13 @@
 // goal per session that drives runs toward an objective until the model signals
 // it complete or blocked, an opt-in budget is spent, or the user stops it. The
 // GoalDriver (application/goals) owns the loop; this package holds the entity,
-// its status vocabulary, the cross-turn budget accounting, and the persistence
-// contract. A goal is deliberately session-scoped, not run-scoped: it spans the
+// its status vocabulary, and the cross-turn budget accounting. A goal is
+// deliberately session-scoped, not run-scoped: it spans the
 // many runs the loop launches, so it lives outside the per-run execution.RunState
 // machine (which has no paused state and terminalizes a lost run on restart).
 package goal
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -181,34 +180,3 @@ func (g *Goal) RenewLease(leaseID string) {
 
 // AdvanceRevision records a mutation within the current lease.
 func (g *Goal) AdvanceRevision() { g.Revision++ }
-
-// Store persists goals keyed by session. At most one goal exists per session.
-// Implementations must be safe for concurrent use and join an ambient
-// transaction when the backend supports it.
-//
-// Get returns (zero, false, nil) for a session with no goal — that is not an
-// error; the returned goal carries its current [Goal.Version]. Clear removes
-// a session's goal (completion, user abandonment, or a deleted/rewound session);
-// clearing a missing goal is not an error. List returns every stored goal, for
-// the boot reconcile that degrades a live loop to paused after a restart.
-//
-// Save is a compare-and-swap: it applies iff the stored goal matches expected,
-// or, when expected is its zero value, iff no goal exists yet. A stale writer
-// (whose lease was revoked, whose revision is old, or whose goal was cleared by
-// a deleted/rewound session) gets applied=false and MUST NOT retry: it no longer
-// owns the goal. This CAS, not cancellation alone, keeps detached terminal work
-// from resurrecting or clobbering a newer goal.
-type Store interface {
-	Get(ctx context.Context, sessionID string) (Goal, bool, error)
-	Save(ctx context.Context, g Goal, expected Version) (applied bool, err error)
-	// Clear removes a session's goal unconditionally — the session-lifecycle
-	// write-sets (delete / rollback / restore) and the boot reconcile use it,
-	// since they own the session and no incarnation can legitimately survive.
-	Clear(ctx context.Context, sessionID string) error
-	// ClearIf removes a session's goal only when its stored version equals
-	// expected, reporting whether it applied — the CAS the loop uses to clear a
-	// goal it just observed complete, so it cannot delete a newer goal that a
-	// concurrent Start slipped in.
-	ClearIf(ctx context.Context, sessionID string, expected Version) (applied bool, err error)
-	List(ctx context.Context) ([]Goal, error)
-}

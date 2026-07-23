@@ -75,7 +75,7 @@ func TestCreateOwnsScheduleAdmission(t *testing.T) {
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	registry := &runNowRegistry{}
 	c := New(Dependencies{
-		Registry: registry,
+		Store: registry,
 		Paths: cwdResolverFunc(func(path string) (string, error) {
 			if path != "workspace" {
 				t.Fatalf("ResolveExistingDir(%q), want workspace", path)
@@ -119,7 +119,7 @@ func TestUpdateOwnsPatchAndPreservesDurableState(t *testing.T) {
 		CreatedAt: createdAt,
 	}}
 	c := New(Dependencies{
-		Registry: registry,
+		Store: registry,
 		Paths: cwdResolverFunc(func(string) (string, error) {
 			return "/canonical/after", nil
 		}),
@@ -143,7 +143,7 @@ func TestUpdateOwnsPatchAndPreservesDurableState(t *testing.T) {
 }
 
 func TestUpdateRequiresAnExplicitRevision(t *testing.T) {
-	c := New(Dependencies{Registry: &runNowRegistry{schedule: schedule.Schedule{ID: "sch_1"}}})
+	c := New(Dependencies{Store: &runNowRegistry{schedule: schedule.Schedule{ID: "sch_1"}}})
 	_, err := c.Update(t.Context(), UpdateCommand{ID: "sch_1"})
 	if !errors.Is(err, schedule.ErrRevisionRequired) {
 		t.Fatalf("Update error = %v, want ErrRevisionRequired", err)
@@ -153,7 +153,7 @@ func TestUpdateRequiresAnExplicitRevision(t *testing.T) {
 func TestCreateValidatesBeforeResolvingCwd(t *testing.T) {
 	resolved := false
 	c := New(Dependencies{
-		Registry: &runNowRegistry{},
+		Store: &runNowRegistry{},
 		Paths: cwdResolverFunc(func(string) (string, error) {
 			resolved = true
 			return "", errors.New("unexpected resolution")

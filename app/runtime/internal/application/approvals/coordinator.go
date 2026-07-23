@@ -1,7 +1,5 @@
 // Package approvals owns the runtime tool-permission use cases: the approval
-// stance (mode) and the persisted per-session/project/global approval rules,
-// over the domain [approval.Policy]. It is a thin use-case layer the delivery
-// settings handlers drive.
+// stance (mode) and the persisted per-session/project/global approval rules.
 package approvals
 
 import (
@@ -18,15 +16,24 @@ type SessionLookup interface {
 	Get(ctx context.Context, id string) (session.Session, error)
 }
 
+// Policy is the approval-management use case's view of runtime policy. Tool
+// call evaluation has a different, narrower consumer interface in turn.
+type Policy interface {
+	Mode(ctx context.Context) (approval.Mode, error)
+	SetMode(ctx context.Context, mode approval.Mode) error
+	Rules(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error)
+	Forget(ctx context.Context, id string) error
+}
+
 // Coordinator drives the tool-permission stance + approval-rule use cases.
 type Coordinator struct {
-	policy   approval.Policy
+	policy   Policy
 	sessions SessionLookup
 }
 
 // New returns a Coordinator over the approval policy + the session lookup its
 // rule scoping reads.
-func New(policy approval.Policy, sessions SessionLookup) *Coordinator {
+func New(policy Policy, sessions SessionLookup) *Coordinator {
 	return &Coordinator{policy: policy, sessions: sessions}
 }
 

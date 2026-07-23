@@ -8,11 +8,12 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
-// fakeMemoryStore is a knowledge.Store recording the workspace coordinator's
+// fakeMemoryStore is a workspace knowledge store recording the coordinator's
 // calls, so the memory delivery handlers can be tested against a wired store
 // (or, when nil, against the disabled path).
 type fakeMemoryStore struct {
@@ -46,7 +47,7 @@ func (s *fakeMemoryStore) Update(_ context.Context, scope knowledge.Scope, cwd s
 
 // serverWithMemory builds a test Server whose workspace coordinator is backed by
 // store (nil store → the disabled memory path).
-func serverWithMemory(store knowledge.Store) *Server {
+func serverWithMemory(store workspaceapp.KnowledgeStore) *Server {
 	s := newTestServer(&stubRuntime{})
 	applyWorkspaceSurfaces(s, newWorkspaceSurfaces("", workspaceTestConfig{Memory: store}))
 	return s

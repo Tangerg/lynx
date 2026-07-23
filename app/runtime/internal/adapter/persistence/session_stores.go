@@ -7,13 +7,10 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -27,10 +24,10 @@ type SessionStores struct {
 	runs        *sqlitestore.RunStateStore
 	processes   *sqlitestore.ProcessStore
 	history     *conversation.Messages
-	todos       todo.Store
-	approvals   approval.RuleStore
+	todos       todoCleaner
+	approvals   approvalRuleCleaner
 	toolResults *sqlitestore.ToolResultStore
-	goals       goal.Store
+	goals       goalCleaner
 	tx          Transactor
 }
 
@@ -42,15 +39,27 @@ type SessionStoresConfig struct {
 	Runs        *sqlitestore.RunStateStore
 	Processes   *sqlitestore.ProcessStore
 	History     *conversation.Messages
-	Todos       todo.Store
-	Approvals   approval.RuleStore
+	Todos       todoCleaner
+	Approvals   approvalRuleCleaner
 	ToolResults *sqlitestore.ToolResultStore
-	Goals       goal.Store
+	Goals       goalCleaner
 	Tx          Transactor
 }
 
 // Transactor runs a complete write-set inside one durable transaction.
 type Transactor func(context.Context, func(context.Context) error) error
+
+type todoCleaner interface {
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+type approvalRuleCleaner interface {
+	DeleteSession(ctx context.Context, sessionID string) error
+}
+
+type goalCleaner interface {
+	Clear(ctx context.Context, sessionID string) error
+}
 
 // NewSessionStores returns the SQLite adapter for session snapshots and
 // write-sets. Its dependencies are assembled once by Bootstrap.

@@ -115,6 +115,49 @@ func TestDependencyRule(t *testing.T) {
 	}
 }
 
+// TestConsumerPortsDoNotReturnToDomain prevents the broad producer-owned
+// persistence/policy interfaces removed during the ownership cleanup from
+// quietly returning. Their method sets are now defined by the application or
+// adapter consumer that actually needs them; domain packages retain values and
+// invariants, plus the approval rule store consumed directly by RuntimePolicy.
+func TestConsumerPortsDoNotReturnToDomain(t *testing.T) {
+	root := moduleRoot(t)
+	for path, forbiddenNames := range map[string]map[string]struct{}{
+		filepath.Join(root, "internal", "domain", "goal"):      {"Store": {}},
+		filepath.Join(root, "internal", "domain", "todo"):      {"Store": {}},
+		filepath.Join(root, "internal", "domain", "knowledge"): {"Store": {}},
+		filepath.Join(root, "internal", "domain", "schedule"):  {"Registry": {}},
+		filepath.Join(root, "internal", "domain", "approval"):  {"Policy": {}},
+	} {
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			filePath := filepath.Join(path, entry.Name())
+			file, err := parser.ParseFile(token.NewFileSet(), filePath, nil, 0)
+			if err != nil {
+				t.Fatalf("parse %s: %v", filePath, err)
+			}
+			for _, declaration := range file.Decls {
+				general, ok := declaration.(*ast.GenDecl)
+				if !ok || general.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range general.Specs {
+					typeSpec := spec.(*ast.TypeSpec)
+					if _, forbidden := forbiddenNames[typeSpec.Name.Name]; forbidden {
+						t.Errorf("%s declares removed producer-owned domain interface %s", filePath, typeSpec.Name.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
 // TestDomainHooksStayPure keeps the hooks bounded context free of filesystem +
 // process I/O: hooks is a pure policy domain (precedence / merge / trust rules),
 // and its I/O belongs to the composition-side subprocess adapter.

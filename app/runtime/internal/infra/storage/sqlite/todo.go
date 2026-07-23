@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
-// TodoStore implements todo.Store against SQLite. A session's list is one
+// TodoStore is the SQLite persistence adapter for session todo lists. A session's list is one
 // row keyed by session id, the items a JSON array — the list is always read
 // and written whole (a model-owned full replace), so a single row plus one
 // UPSERT is the entire story; there are no per-item rows to reconcile.
@@ -22,8 +22,6 @@ type TodoStore struct {
 	db *sql.DB
 }
 
-var _ todo.Store = (*TodoStore)(nil)
-
 type todoItemRow struct {
 	Content       string      `json:"content"`
 	Status        todo.Status `json:"status"`
@@ -32,13 +30,13 @@ type todoItemRow struct {
 }
 
 // NewTodoStore wires a database with the current [Open]-installed schema to the
-// todo.Store surface.
+// todo persistence surface.
 func NewTodoStore(db *sql.DB) *TodoStore {
 	return &TodoStore{db: db}
 }
 
 // List returns the session's items, or nil when the session has no list yet
-// (an unknown session is not an error — see [todo.Store]).
+// (an unknown session is not an error).
 func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, error) {
 	var itemsJSON string
 	err := conn(ctx, s.db).QueryRowContext(ctx,

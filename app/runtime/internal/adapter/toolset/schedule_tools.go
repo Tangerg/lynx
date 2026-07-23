@@ -63,9 +63,18 @@ type scheduleView struct {
 	CreatedAt string `json:"created_at,omitempty"`
 }
 
+// ScheduleManagement is the coding tool's narrow schedule-management use case.
+// It intentionally does not expose delivery's revisioned Update or firing APIs.
+type ScheduleManagement interface {
+	List(ctx context.Context) ([]schedule.Schedule, error)
+	Create(ctx context.Context, cmd scheduleapp.CreateCommand) (schedule.Schedule, error)
+	UpdateLatest(ctx context.Context, id string, patch schedule.Patch) (schedule.Schedule, error)
+	Delete(ctx context.Context, id string) error
+}
+
 // newScheduleTool builds the single `schedule` management tool. nil coordinator → nil
 // tool (feature off, omitted). Coding role only.
-func newScheduleTool(coordinator *scheduleapp.Coordinator) (tools.Tool, error) {
+func newScheduleTool(coordinator ScheduleManagement) (tools.Tool, error) {
 	if coordinator == nil {
 		return nil, nil
 	}
@@ -91,7 +100,7 @@ func newScheduleTool(coordinator *scheduleapp.Coordinator) (tools.Tool, error) {
 	)
 }
 
-func scheduleList(ctx context.Context, coordinator *scheduleapp.Coordinator) (string, error) {
+func scheduleList(ctx context.Context, coordinator ScheduleManagement) (string, error) {
 	items, err := coordinator.List(ctx)
 	if err != nil {
 		return "", fmt.Errorf("schedule list: %w", err)
@@ -103,7 +112,7 @@ func scheduleList(ctx context.Context, coordinator *scheduleapp.Coordinator) (st
 	return encodeToolResult(scheduleListResponse{Schedules: views})
 }
 
-func scheduleCreate(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
+func scheduleCreate(ctx context.Context, coordinator ScheduleManagement, in scheduleRequest) (string, error) {
 	enabled := true
 	if in.Enabled != nil {
 		enabled = *in.Enabled
@@ -123,7 +132,7 @@ func scheduleCreate(ctx context.Context, coordinator *scheduleapp.Coordinator, i
 	return encodeToolResult(scheduleResponse{Schedule: viewSchedule(created)})
 }
 
-func scheduleUpdate(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
+func scheduleUpdate(ctx context.Context, coordinator ScheduleManagement, in scheduleRequest) (string, error) {
 	updated, err := coordinator.UpdateLatest(ctx, in.ID, schedule.Patch{
 		Title:    in.Title,
 		Prompt:   in.Prompt,
@@ -139,7 +148,7 @@ func scheduleUpdate(ctx context.Context, coordinator *scheduleapp.Coordinator, i
 	return encodeToolResult(scheduleResponse{Schedule: viewSchedule(updated)})
 }
 
-func scheduleDelete(ctx context.Context, coordinator *scheduleapp.Coordinator, in scheduleRequest) (string, error) {
+func scheduleDelete(ctx context.Context, coordinator ScheduleManagement, in scheduleRequest) (string, error) {
 	if err := coordinator.Delete(ctx, in.ID); err != nil {
 		return "", fmt.Errorf("schedule delete: %w", err)
 	}

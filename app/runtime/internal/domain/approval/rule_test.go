@@ -181,7 +181,7 @@ func TestPolicyRejectsMissingRequiredRuleSubject(t *testing.T) {
 	}
 }
 
-func mustPolicy(t *testing.T, mode Mode, store RuleStore) Policy {
+func mustPolicy(t *testing.T, mode Mode, store RuleStore) *RuntimePolicy {
 	t.Helper()
 	policy, err := New(mode, store)
 	if err != nil {

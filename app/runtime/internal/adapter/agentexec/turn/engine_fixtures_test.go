@@ -37,13 +37,13 @@ func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependen
 	return deps
 }
 
-func withApproval(policy approval.Policy) func(*turn.Dependencies) {
+func withApproval(policy turn.ApprovalGate) func(*turn.Dependencies) {
 	return func(deps *turn.Dependencies) {
 		deps.Approval = policy
 	}
 }
 
-func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleStore) approval.Policy {
+func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleStore) *approval.RuntimePolicy {
 	t.Helper()
 	policy, err := approval.New(mode, store)
 	if err != nil {

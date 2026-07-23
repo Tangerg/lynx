@@ -18,9 +18,12 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, erro
 	ecfg.ChildSessionStore = agentexec.NewChildSessionStore(cfg.SessionStore)
 	ecfg.ProcessStore = cfg.ProcessStore
 	ecfg.Provider = cfg.Provider
-	if ecfg.Todos == nil {
-		ecfg.Todos = cfg.TodoStore
-	}
+	// These runtime-wide stores have one composition-root source of truth. The
+	// engine receives only its read views; accepting a second value through
+	// agentexec.Config would let the prompt and the corresponding application
+	// use case silently observe different state.
+	ecfg.Todos = cfg.TodoStore
+	ecfg.Knowledge = cfg.KnowledgeStore
 	// Guard the concrete-nil before it lands in an interface field: a typed-nil
 	// offloader would read as non-nil and drive the eviction middleware into a
 	// nil-pointer Stage. Threshold rides along only when a store is present.

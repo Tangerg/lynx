@@ -156,7 +156,7 @@ func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
 	}
 }
 
-func approvalObserver(policy approval.Policy) *turnObserver {
+func approvalObserver(policy ApprovalGate) *turnObserver {
 	return &turnObserver{
 		dispatcher: &memoryDispatcher{approval: policy},
 		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
@@ -195,7 +195,7 @@ type suspendedProcessView struct {
 
 func (p suspendedProcessView) Suspension() *interaction.Suspension { return p.value }
 
-func newTestApprovalPolicy(t *testing.T, mode approval.Mode) approval.Policy {
+func newTestApprovalPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {
 	t.Helper()
 	policy, err := approval.New(mode, approvaltest.NewMemoryStore())
 	if err != nil {

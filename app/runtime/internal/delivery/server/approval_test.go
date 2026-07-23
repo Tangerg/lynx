@@ -13,11 +13,11 @@ import (
 
 // serverWithApprovals builds a Server whose only wired coordinator is the
 // approvals one — enough for the approval.* handler tests.
-func serverWithApprovals(policy approval.Policy, sessions approvals.SessionLookup) *Server {
+func serverWithApprovals(policy approvals.Policy, sessions approvals.SessionLookup) *Server {
 	return &Server{approvals: approvals.New(policy, sessions)}
 }
 
-// approvalPolicyFake is the approval.Policy the approvals coordinator drives; it
+// approvalPolicyFake is the approval-management policy the coordinator drives; it
 // records the mutating calls the wire handlers make.
 type approvalPolicyFake struct {
 	mode             approval.Mode

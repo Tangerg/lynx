@@ -22,12 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
@@ -56,14 +52,14 @@ type BuildConfig struct {
 	LSPServers      []codeintel.ServerSpec
 	MCPServers      []mcpserver.LiveConfig
 	A2AAgents       []A2AAgentConfig
-	Todos           todo.Store      // backs todo_write; nil → the tool is omitted
-	Approval        approval.Policy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+	Todos           todotool.Store      // backs todo_write; nil → the tool is omitted
+	Approval        exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 	Interrupt       suspension.Func
-	Schedules       *schedules.Coordinator // backs the schedule tool; nil → omitted
+	Schedules       ScheduleManagement     // backs the schedule tool; nil → omitted
 	ToolResults     toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillAuthoring  skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
 	SkillUsage      skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
-	Goals           goal.Store             // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
+	Goals           goaltool.State         // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -343,15 +339,11 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 // update_goal: it reports whether the session currently has an ACTIVE goal (a
 // paused/blocked one does not count — the tool is only useful while the loop is
 // driving). Returns nil when Goal mode is off so the tool is never offered.
-func goalActiveReader(store goal.Store) func(context.Context, string) (bool, error) {
-	if store == nil {
+func goalActiveReader(state goaltool.State) func(context.Context, string) (bool, error) {
+	if state == nil {
 		return nil
 	}
 	return func(ctx context.Context, sessionID string) (bool, error) {
-		g, ok, err := store.Get(ctx, sessionID)
-		if err != nil {
-			return false, err
-		}
-		return ok && g.Status == goal.StatusActive, nil
+		return state.Active(ctx, sessionID)
 	}
 }

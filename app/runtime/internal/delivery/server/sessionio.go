@@ -71,7 +71,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 
 	id := art.Session.ID
 
-	// Hand the strictly-decoded canonical aggregate to the lifecycle coordinator.
+	// Hand the strictly decoded portable archive to the lifecycle coordinator.
 	// It commits the whole thing as ONE transaction — upsert the
 	// session row, replace existing history (drop old items/runs/tool bodies + clear the
 	// chat log + stale open interrupts), re-seed the messages, re-persist

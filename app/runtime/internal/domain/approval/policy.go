@@ -15,7 +15,6 @@
 package approval
 
 import (
-	"context"
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -133,36 +132,4 @@ type RememberRequest struct {
 	Tool       string
 	Arguments  tool.Arguments
 	Decision   Decision
-}
-
-// Policy is the runtime approval stance + the persistent rule store. Read at
-// each tool call by the chat engine; mutable at runtime. All methods are safe
-// for concurrent use.
-type Policy interface {
-	// Mode returns the current runtime stance.
-	Mode(ctx context.Context) (Mode, error)
-
-	// SetMode changes the runtime-wide stance. Future tool calls honor the new
-	// mode; in-flight calls keep their original mode.
-	SetMode(ctx context.Context, mode Mode) error
-
-	// Decide resolves a gated tool call against the stored rules. ok=false when
-	// no rule matches (the gate then prompts the user). When several rules
-	// match, the most specific wins (session > project > global, then exact
-	// subject > glob > any); a tie between conflicting decisions resolves to
-	// Deny (the conservative choice).
-	Decide(ctx context.Context, q Query) (decision Decision, ok bool, err error)
-
-	// Remember persists a rule from an approve/deny + remember choice. Invalid
-	// scopes, missing scope keys, malformed tool subjects, and unknown decisions
-	// are explicit errors; callers must never report an unpersisted rule as
-	// remembered.
-	Remember(ctx context.Context, req RememberRequest) error
-
-	// Rules lists every rule visible from a session — its session rules, its
-	// project's rules, and all global rules — for the management UI.
-	Rules(ctx context.Context, sessionID, projectDir string) ([]Rule, error)
-
-	// Forget removes one rule by id.
-	Forget(ctx context.Context, id string) error
 }
