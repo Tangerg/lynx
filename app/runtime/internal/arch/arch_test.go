@@ -594,6 +594,138 @@ func TestProtocolStaysWireOnly(t *testing.T) {
 		})
 }
 
+// TestDomainValuesCarryNoJSONTags keeps serialization ownership at the adapter
+// boundary. Domain values may define semantic JSON *values* (for example an
+// input schema), but their Go structs must not carry a transport/storage field
+// shape through json tags.
+func TestDomainValuesCarryNoJSONTags(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "domain")
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(f, func(node ast.Node) bool {
+			field, ok := node.(*ast.Field)
+			if !ok || field.Tag == nil || !strings.Contains(field.Tag.Value, `json:`) {
+				return true
+			}
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: domain value carries wire/storage JSON tag %s", rel, field.Tag.Value)
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk domain: %v", walkErr)
+	}
+}
+
+// TestDeliveryDoesNotOwnArchiveRecoveryOrValidation keeps the archive document
+// decoder mechanical. Canonical snapshot validation, terminal-state recovery,
+// and durable mutation recovery are application concerns; Delivery only maps
+// the versioned wire document to/from the application portable model.
+func TestDeliveryDoesNotOwnArchiveRecoveryOrValidation(t *testing.T) {
+	root := moduleRoot(t)
+	forbidSelectorCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
+		"NormalizeForRestore":       "archive normalization belongs to application/sessions",
+		"ValidateToolResults":       "archive structural validation belongs to application/sessions",
+		"CanonicalSnapshot":         "terminal archive derivation belongs to application/sessions",
+		"RecoverWorkspaceMutations": "startup recovery belongs to the composition root",
+	})
+}
+
+// TestDeliveryDoesNotDeriveSessionActivity keeps precedence between active
+// admission and durable interrupt state in the sessions read model. Delivery
+// maps the resulting enum but cannot duplicate the precedence rule.
+func TestDeliveryDoesNotDeriveSessionActivity(t *testing.T) {
+	root := moduleRoot(t)
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
+		"liveStatus":        "session activity is an application read model",
+		"runningSessionSet": "active-run lookup is an application read model",
+		"waitingSessionSet": "interrupt lookup is an application read model",
+	})
+}
+
+// TestDeliverySkillHandlersOnlyDriveUseCases prevents mutation handlers from
+// manually publishing their own effects. The workspace Skills use case emits a
+// neutral committed-change nudge through the composition-root bridge instead.
+func TestDeliverySkillHandlersDoNotPublishChangeEvents(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "delivery", "server", "skills.go")
+	forbidSelectorCalls(t, path, map[string]string{
+		"PublishWorkspaceEvent": "committed skill changes are published by the application bridge",
+	})
+}
+
+// TestStartCommandHasOneInputRepresentation prevents parallel opening-message,
+// media, and text fields from returning beside ContentBlock. Application owns
+// the one materialization into the executor-facing turn request.
+func TestStartCommandHasOneInputRepresentation(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "application", "runs", "commands.go")
+	for _, field := range []string{"Message", "Media", "OpeningUserText"} {
+		if got := namedStructFieldTypeOptional(t, path, "StartCommand", field); got != "" {
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: StartCommand.%s = %s duplicates ContentBlock input", rel, field, got)
+		}
+	}
+}
+
+// TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods prevents a test
+// setup convenience from widening the production consumer ports. Admission
+// probes, raw restore, and registry lookups belong to their owning application
+// coordinators; handlers consume only the use cases they actually drive.
+func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "delivery", "server", "application_ports.go")
+	forbidden := map[string]map[string]struct{}{
+		"sessionUseCases": {
+			"ClaimWorkingTreeMutation": {}, "ClaimWorkingTreeRun": {}, "RestoreSession": {},
+		},
+		"integrationUseCases": {"MCPRegisteredServer": {}},
+		"runUseCases":         {"AcquireSession": {}, "ActiveSessions": {}, "Contains": {}},
+	}
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range f.Decls {
+		general, ok := decl.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range general.Specs {
+			named, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			blocked, watched := forbidden[named.Name.Name]
+			if !watched {
+				continue
+			}
+			iface, ok := named.Type.(*ast.InterfaceType)
+			if !ok || iface.Methods == nil {
+				t.Fatalf("%s: %s is not an interface", path, named.Name.Name)
+			}
+			for _, method := range iface.Methods.List {
+				for _, name := range method.Names {
+					if _, leaked := blocked[name.Name]; leaked {
+						t.Errorf("%s: %s.%s is not a production handler dependency", path, named.Name.Name, name.Name)
+					}
+				}
+			}
+		}
+	}
+}
+
 // TestCanonicalExecutionRecordsStayTyped prevents the old persistence design
 // from returning: transcript and interrupt records may be serialized by an
 // adapter, but their domain shape cannot contain an opaque Blob/Payload/JSON
@@ -963,6 +1095,47 @@ func forbidSelectorCalls(t *testing.T, dir string, banned map[string]string) {
 	}
 }
 
+// forbidTopLevelNames rejects production functions and named types with names
+// that would reintroduce a removed ownership seam.
+func forbidTopLevelNames(t *testing.T, dir string, banned map[string]string) {
+	t.Helper()
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, decl := range f.Decls {
+			switch decl := decl.(type) {
+			case *ast.FuncDecl:
+				if reason, forbidden := banned[decl.Name.Name]; forbidden {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s: removed ownership seam %s returned; %s", rel, decl.Name.Name, reason)
+				}
+			case *ast.GenDecl:
+				for _, spec := range decl.Specs {
+					if named, ok := spec.(*ast.TypeSpec); ok {
+						if reason, forbidden := banned[named.Name.Name]; forbidden {
+							rel, _ := filepath.Rel(root, path)
+							t.Errorf("%s: removed ownership seam %s returned; %s", rel, named.Name.Name, reason)
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", dir, walkErr)
+	}
+}
+
 // forbidQualifiedCalls rejects a named package-selector call while allowing
 // unrelated methods with the same selector. It guards composition ownership
 // seams such as delivery's application-coordinator constructors.
@@ -1034,6 +1207,43 @@ func namedStructFieldType(t *testing.T, path, structName, fieldName string) stri
 				}
 			}
 			t.Fatalf("%s: %s.%s not found", path, structName, fieldName)
+		}
+	}
+	t.Fatalf("%s: type %s not found", path, structName)
+	return ""
+}
+
+// namedStructFieldTypeOptional is namedStructFieldType for an intentionally
+// absent field; it returns an empty string when the named struct or field is not
+// present, while still failing on an unreadable source file.
+func namedStructFieldTypeOptional(t *testing.T, path, structName, fieldName string) string {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range f.Decls {
+		general, ok := decl.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range general.Specs {
+			named, ok := spec.(*ast.TypeSpec)
+			if !ok || named.Name.Name != structName {
+				continue
+			}
+			value, ok := named.Type.(*ast.StructType)
+			if !ok || value.Fields == nil {
+				t.Fatalf("%s: %s is not a struct", path, structName)
+			}
+			for _, field := range value.Fields.List {
+				for _, name := range field.Names {
+					if name.Name == fieldName {
+						return exprString(field.Type)
+					}
+				}
+			}
+			return ""
 		}
 	}
 	t.Fatalf("%s: type %s not found", path, structName)

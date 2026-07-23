@@ -38,6 +38,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/skillchanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -83,6 +84,9 @@ type Stack struct {
 	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
 	MCPStatus *mcpstatus.Notifier
+	// SkillChanges bridges committed skill-library mutations to the delivery
+	// workspace hub. Delivery maps the nudge to a skills.changed event.
+	SkillChanges *skillchanges.Notifier
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
 	ScheduleFires    *schedules.FireNotifier
@@ -99,6 +103,17 @@ type Host struct {
 
 	// lifetime owns the immutable shutdown graph shared by every Host copy.
 	lifetime *hostLifetime
+}
+
+// RecoverStartup completes durable work that must be reconciled before any
+// delivery adapter starts accepting requests. Keeping it as a composition-root
+// function, rather than a Host method, keeps Host's public surface limited to
+// process lifetime ownership.
+func RecoverStartup(ctx context.Context, stack Stack) error {
+	if stack.Sessions == nil {
+		return errors.New("runtime: sessions coordinator is unavailable for startup recovery")
+	}
+	return stack.Sessions.RecoverWorkspaceMutations(ctx)
 }
 
 type hostLifetime struct {
@@ -374,6 +389,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
+	// skillChanges bridges successful skill-library curation and draft promotion
+	// to the delivery workspace stream.
+	skillChanges := &skillchanges.Notifier{}
 
 	admissions := &admission.Gate{}
 	sessionStorage := sessionStores{
@@ -511,7 +529,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	)
 	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.Engine.Knowledge)
 	workspaceSkills := workspace.NewSkills(
-		workspaceContext, skillCatalog{globalDir: cfg.SkillsGlobalDir}, skillCurator, skillDrafts,
+		workspaceContext, skillCatalog{globalDir: cfg.SkillsGlobalDir}, skillCurator, skillDrafts, skillChanges.Publish,
 	)
 	workspaceHooks := workspace.NewHooks(workspaceContext, cfg.HooksResolver, cfg.HookTrustStore)
 	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
@@ -533,6 +551,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Coordinator:      runCoord,
 			FileChanges:      fileChanges,
 			MCPStatus:        mcpStatus,
+			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{

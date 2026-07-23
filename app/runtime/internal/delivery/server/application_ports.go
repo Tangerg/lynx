@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
@@ -30,8 +29,6 @@ import (
 // application coordinators or their unrelated methods.
 
 type sessionUseCases interface {
-	ClaimWorkingTreeMutation(cwd string) (sessions.WorkingTreeAdmission, bool)
-	ClaimWorkingTreeRun(cwd string) (sessions.WorkingTreeAdmission, bool)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 	Fork(ctx context.Context, spec sessions.ForkSpec) (session.Session, error)
@@ -39,9 +36,9 @@ type sessionUseCases interface {
 	InspectWorkspace(cwd string) (session.WorkspaceIdentity, error)
 	List(ctx context.Context) ([]session.Session, error)
 	ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error)
-	RecoverWorkspaceMutations(ctx context.Context) error
-	RestoreSession(ctx context.Context, snapshot sessions.Snapshot) error
+	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) error
 	RollbackFiles(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
+	SessionStates(ctx context.Context, sessionIDs []string) (map[string]sessions.SessionState, error)
 	Update(ctx context.Context, id string, patch session.Patch) (session.Session, error)
 }
 
@@ -49,7 +46,7 @@ type integrationUseCases interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
 	ConfigureMCPServer(ctx context.Context, server mcpserver.Server) error
 	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
-	MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error)
+	ResolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error)
 	MCPServerStatuses() []mcpserver.ConnectionStatus
 	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error
@@ -90,11 +87,8 @@ type codebaseUseCases interface {
 }
 
 type runUseCases interface {
-	AcquireSession(sessionID string) (func(), bool)
 	ActiveSession(sessionID string) bool
-	ActiveSessions() map[string]bool
 	Cancel(ctx context.Context, cmd runs.CancelCommand) error
-	Contains(runID string) bool
 	List() []runs.Record
 	LiveRun(runID string) (runs.Record, bool)
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
@@ -161,7 +155,7 @@ type workspaceSkillUseCases interface {
 }
 
 type workspaceHookUseCases interface {
-	InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error)
+	InspectHooks(ctx context.Context, cwd string) (workspaceapp.HookInspection, error)
 	SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error
 }
 

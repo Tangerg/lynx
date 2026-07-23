@@ -24,6 +24,13 @@ type TodoStore struct {
 
 var _ todo.Store = (*TodoStore)(nil)
 
+type todoItemRow struct {
+	Content       string      `json:"content"`
+	Status        todo.Status `json:"status"`
+	BlockedReason string      `json:"blocked_reason,omitempty"`
+	NextAction    string      `json:"next_action,omitempty"`
+}
+
 // NewTodoStore wires a database with the current [Open]-installed schema to the
 // todo.Store surface.
 func NewTodoStore(db *sql.DB) *TodoStore {
@@ -45,9 +52,13 @@ func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, er
 	if itemsJSON == "" {
 		return nil, nil
 	}
-	var items []todo.Item
-	if err := json.Unmarshal([]byte(itemsJSON), &items); err != nil {
+	var rows []todoItemRow
+	if err := json.Unmarshal([]byte(itemsJSON), &rows); err != nil {
 		return nil, fmt.Errorf("sqlite: decode todos: %w", err)
+	}
+	items := make([]todo.Item, len(rows))
+	for index, row := range rows {
+		items[index] = todo.Item{Content: row.Content, Status: row.Status, BlockedReason: row.BlockedReason, NextAction: row.NextAction}
 	}
 	return items, nil
 }
@@ -59,7 +70,11 @@ func (s *TodoStore) Replace(ctx context.Context, sessionID string, items []todo.
 	if items == nil {
 		items = []todo.Item{}
 	}
-	data, err := json.Marshal(items)
+	rows := make([]todoItemRow, len(items))
+	for index, item := range items {
+		rows[index] = todoItemRow{Content: item.Content, Status: item.Status, BlockedReason: item.BlockedReason, NextAction: item.NextAction}
+	}
+	data, err := json.Marshal(rows)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode todos: %w", err)
 	}

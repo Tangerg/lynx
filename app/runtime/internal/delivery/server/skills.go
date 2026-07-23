@@ -31,8 +31,8 @@ func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.Page
 }
 
 // WorkspaceArchiveSkill removes a skill from active use without deleting it
-// (skills.library.archive), then fans out skills.changed so open clients
-// refresh.
+// (skills.library.archive). The application use case publishes the refresh
+// nudge after its durable mutation commits.
 func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
@@ -40,12 +40,12 @@ func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNam
 	if err := s.workspaceSkills.ArchiveSkill(ctx, in.Name); err != nil {
 		return err
 	}
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
 	return nil
 }
 
 // WorkspaceRestoreSkill returns an archived skill to active use
-// (skills.library.restore), then fans out skills.changed.
+// (skills.library.restore). The application use case publishes the refresh
+// nudge after its durable mutation commits.
 func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
@@ -53,7 +53,6 @@ func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNam
 	if err := s.workspaceSkills.RestoreSkill(ctx, in.Name); err != nil {
 		return err
 	}
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
 	return nil
 }
 
@@ -79,7 +78,8 @@ func (s *Server) WorkspaceListSkillDrafts(ctx context.Context, _ protocol.PageQu
 }
 
 // WorkspacePromoteSkillDraft publishes a reviewed draft into the active library
-// (skills.drafts.promote), then fans out skills.changed so open clients refresh.
+// (skills.drafts.promote). The application use case publishes the refresh nudge
+// after the active library changes.
 func (s *Server) WorkspacePromoteSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
 	handle, err := skillDraftHandle(in)
 	if err != nil {
@@ -88,7 +88,6 @@ func (s *Server) WorkspacePromoteSkillDraft(ctx context.Context, in protocol.Ski
 	if err := s.workspaceSkills.PromoteSkillDraft(ctx, handle); err != nil {
 		return mapSkillDraftErr(err, "skills.drafts.promote")
 	}
-	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
 	return nil
 }
 

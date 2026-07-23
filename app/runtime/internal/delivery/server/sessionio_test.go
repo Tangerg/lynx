@@ -76,13 +76,13 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Cwd != canonicalCwd {
+	if art.Session.Title != "My Session" || art.Session.Cwd != ses.Cwd {
 		t.Errorf("artifact session = %+v, want title/cwd preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
 		t.Fatalf("artifact = %d msgs / %d items / %d runs, want 2/2/1", len(art.Messages), len(art.Items), len(art.Runs))
 	}
-	wantToolResult := `{"exitCode":0,"output":"total 0\n"}`
+	wantToolResult := `{"exit_code":0,"stderr":"","stdout":"total 0\n"}`
 	assertArtifactToolResult(t, art.Items, "item2", wantToolResult)
 
 	// Wipe the session entirely.
@@ -120,9 +120,8 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Errorf("restored items/runs = %d/%d, want 2/1", len(items.Data), len(items.Runs))
 	}
 
-	// Exporting the restored canonical data must preserve the Delivery shape:
-	// a known presenter is idempotent when it receives an already-presented
-	// result from an imported artifact.
+	// Exporting the restored canonical data preserves the original tool result;
+	// archive encoding never runs the client-facing tool presenter.
 	reexported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
 	if err != nil {
 		t.Fatalf("re-export: %v", err)
@@ -178,7 +177,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if exported.Artifact.ToolResults[0].Body != body || exported.Artifact.ToolResults[0].Preview != preview {
 		t.Fatal("artifact did not preserve the offloaded body and preview")
 	}
-	if len(exported.Artifact.Items) != 1 || exported.Artifact.Items[0].Item.Tool == nil || exported.Artifact.Items[0].Item.Tool.Result != preview {
+	if len(exported.Artifact.Items) != 1 || exported.Artifact.Items[0].Tool == nil || exported.Artifact.Items[0].Tool.Result != preview {
 		t.Fatal("artifact item duplicated the full body instead of carrying its bounded preview")
 	}
 
@@ -215,13 +214,13 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 func assertArtifactToolResult(t *testing.T, items []protocol.ArtifactItem, itemID, want string) {
 	t.Helper()
 	for _, artifactItem := range items {
-		if artifactItem.Item.ID != itemID {
+		if artifactItem.ID != itemID {
 			continue
 		}
-		if artifactItem.Item.Tool == nil {
+		if artifactItem.Tool == nil {
 			t.Fatalf("artifact item %q has no tool", itemID)
 		}
-		got, err := json.Marshal(artifactItem.Item.Tool.Result)
+		got, err := json.Marshal(artifactItem.Tool.Result)
 		if err != nil {
 			t.Fatalf("marshal tool result: %v", err)
 		}
@@ -241,7 +240,7 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := s.coordinator.AcquireSession(ses.ID)
+	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(ses.ID)
 	if !ok {
 		t.Fatal("claim session")
 	}
@@ -250,7 +249,7 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
-			Session: protocol.Session{
+			Session: protocol.ArtifactSession{
 				ID:    ses.ID,
 				Title: "Restored",
 				Cwd:   "/restore",
@@ -276,7 +275,7 @@ func TestSessionExportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := s.coordinator.AcquireSession(ses.ID)
+	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(ses.ID)
 	if !ok {
 		t.Fatal("claim session")
 	}
@@ -303,7 +302,7 @@ func TestSessionImportRejectsOpenInterrupt(t *testing.T) {
 	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
-			Session: protocol.Session{
+			Session: protocol.ArtifactSession{
 				ID:    ses.ID,
 				Title: "Restored",
 				Cwd:   "/restore",
@@ -350,6 +349,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
+		Question: &transcript.Question{Prompt: "Continue?"},
 	}); err != nil {
 		t.Fatalf("put interrupt item: %v", err)
 	}
@@ -367,13 +367,13 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("export canceled session: %v", err)
 	}
 	run := exported.Artifact.Runs[0]
-	if run.Run.Outcome == nil || run.Run.Outcome.Type != protocol.OutcomeCanceled || run.Run.Outcome.Result == nil {
+	if run.Outcome.Type != "canceled" || run.Outcome.Result == nil {
 		t.Fatalf("exported run = %+v, want canceled terminal result", run)
 	}
-	if run.MessageMark != 2 || run.Run.Outcome.Detail != "user stopped" {
-		t.Fatalf("exported mark/detail = %d/%q, want 2/user stopped", run.MessageMark, run.Run.Outcome.Detail)
+	if run.MessageMark != 2 || run.Outcome.Detail != "user stopped" {
+		t.Fatalf("exported mark/detail = %d/%q, want 2/user stopped", run.MessageMark, run.Outcome.Detail)
 	}
-	if got := exported.Artifact.Items[0].Item.Status; got != protocol.ItemStatusIncomplete {
+	if got := exported.Artifact.Items[0].Status; got != "incomplete" {
 		t.Fatalf("interrupt item status = %q, want incomplete", got)
 	}
 }
@@ -391,7 +391,7 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.sessions.RestoreSession(ctx, sessions.Snapshot{Session: session.Session{
+	if err := s.sessions.(*sessions.Coordinator).RestoreSession(ctx, sessions.Snapshot{Session: session.Session{
 		ID: ses.ID, Title: "Restored", Cwd: restoreCwd,
 	}}); !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
@@ -444,7 +444,7 @@ func TestSessionImport_VersionMismatch(t *testing.T) {
 	s, _ := rollbackHarness(t)
 	for _, version := range []int{2, 3, 999} {
 		_, err := s.ImportSession(context.Background(), protocol.ImportSessionRequest{
-			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.Session{ID: "ses_x"}},
+			Artifact: protocol.SessionArtifact{Version: version, Session: protocol.ArtifactSession{ID: "ses_x"}},
 		})
 		if !errors.Is(err, protocol.ErrInvalidParams) {
 			t.Fatalf("version %d mismatch err = %v, want ErrInvalidParams", version, err)
@@ -458,7 +458,7 @@ func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
 	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{
 		Artifact: protocol.SessionArtifact{
 			Version: protocol.SessionArtifactVersion,
-			Session: protocol.Session{ID: "ses_missing_cwd", Cwd: missing},
+			Session: protocol.ArtifactSession{ID: "ses_missing_cwd", Cwd: missing},
 		},
 	})
 	if !errors.Is(err, protocol.ErrCwdUnavailable) {

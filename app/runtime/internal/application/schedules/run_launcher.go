@@ -43,10 +43,8 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, sc schedule.Schedule
 	result, err := l.runs.Start(fireCtx, runs.StartCommand{
 		DefaultCwd:      cwd,
 		NewSessionTitle: title,
-		Message:         sc.Prompt,
 		Provider:        sc.Provider,
 		Model:           sc.Model,
-		OpeningUserText: sc.Prompt,
 		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: sc.Prompt}},
 	})
 	cancel()

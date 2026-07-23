@@ -46,19 +46,17 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 	}
 }
 
-// TestCollectUserInput covers the wire-input → (text, media) split that
-// runs.start feeds the turn: text blocks join, image blocks become core media
-// carrying the parsed mime + base64 data, and a malformed image block is a
-// hard error (not silently dropped) so a bad attachment surfaces to the user.
-func TestCollectUserInput(t *testing.T) {
+// TestStartCommandMaterializeInput covers the Application-owned conversion from
+// canonical input blocks to executor media and opening text.
+func TestStartCommandMaterializeInput(t *testing.T) {
 	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
 
 	// text + image: text joins, one media with decoded bytes carried through.
-	text, imgs, err := collectUserInput([]protocol.ContentBlock{
-		{Type: protocol.ContentBlockText, Text: "look at"},
-		{Type: protocol.ContentBlockText, Text: "this"},
-		{Type: protocol.ContentBlockImage, Mime: "image/png", Data: b64},
-	})
+	text, imgs, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
+		{Kind: runs.TextContent, Text: "look at"},
+		{Kind: runs.TextContent, Text: "this"},
+		{Kind: runs.ImageContent, Mime: "image/png", Data: b64},
+	}}).MaterializeInput()
 	if err != nil {
 		t.Fatalf("text+image: %v", err)
 	}
@@ -77,27 +75,27 @@ func TestCollectUserInput(t *testing.T) {
 	}
 
 	// image-only: no text is fine (the StartRun guard accepts media-only).
-	if text, imgs, err := collectUserInput([]protocol.ContentBlock{
-		{Type: protocol.ContentBlockImage, Mime: "image/jpeg", Data: b64},
-	}); err != nil || text != "" || len(imgs) != 1 {
+	if text, imgs, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
+		{Kind: runs.ImageContent, Mime: "image/jpeg", Data: b64},
+	}}).MaterializeInput(); err != nil || text != "" || len(imgs) != 1 {
 		t.Fatalf("image-only: text=%q imgs=%d err=%v", text, len(imgs), err)
 	}
 
 	// A non-image mime, an unparseable mime, and empty data are all rejected.
-	if _, _, err := collectUserInput([]protocol.ContentBlock{
-		{Type: protocol.ContentBlockImage, Mime: "text/plain", Data: b64},
-	}); !errors.Is(err, protocol.ErrUnsupportedMime) {
-		t.Fatalf("non-image mime: err = %v, want ErrUnsupportedMime", err)
+	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
+		{Kind: runs.ImageContent, Mime: "text/plain", Data: b64},
+	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
+		t.Fatalf("non-image mime: err = %v, want ErrUnsupportedMedia", err)
 	}
-	if _, _, err := collectUserInput([]protocol.ContentBlock{
-		{Type: protocol.ContentBlockImage, Mime: "not-a-mime", Data: b64},
-	}); !errors.Is(err, protocol.ErrUnsupportedMime) {
-		t.Fatalf("bad mime: err = %v, want ErrUnsupportedMime", err)
+	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
+		{Kind: runs.ImageContent, Mime: "not-a-mime", Data: b64},
+	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
+		t.Fatalf("bad mime: err = %v, want ErrUnsupportedMedia", err)
 	}
-	if _, _, err := collectUserInput([]protocol.ContentBlock{
-		{Type: protocol.ContentBlockImage, Mime: "image/png", Data: ""},
-	}); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("empty data: err = %v, want ErrInvalidParams", err)
+	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
+		{Kind: runs.ImageContent, Mime: "image/png", Data: ""},
+	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
+		t.Fatalf("empty data: err = %v, want ErrUnsupportedMedia", err)
 	}
 }
 

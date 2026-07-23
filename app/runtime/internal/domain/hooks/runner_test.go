@@ -46,8 +46,8 @@ func TestRunner_DeclarativeInject(t *testing.T) {
 	}
 }
 
-func TestRunner_CommandReceivesEventOnStdin(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"injectContext":"saw-event"}`)}}}
+func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{InjectContext: "saw-event"}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []Hook{{
 		Event:   UserPromptSubmit,
@@ -57,13 +57,13 @@ func TestRunner_CommandReceivesEventOnStdin(t *testing.T) {
 	if dec.InjectContext != "saw-event" {
 		t.Fatalf("InjectContext = %q — stdin event not delivered?", dec.InjectContext)
 	}
-	if len(cmds.requests) != 1 || !strings.Contains(string(cmds.requests[0].Stdin), `"event":"UserPromptSubmit"`) {
-		t.Fatalf("stdin = %q, want event JSON", cmds.requests)
+	if len(cmds.requests) != 1 || cmds.requests[0].Input.Event != UserPromptSubmit || cmds.requests[0].Input.Prompt != "hi" {
+		t.Fatalf("request = %+v, want typed prompt event", cmds.requests)
 	}
 }
 
 func TestRunner_StdoutDenyBlocks(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny","reason":"no rm allowed"}`)}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny", Reason: "no rm allowed"}}}}, nil)
 	hooks := []Hook{{
 		Event:   PreToolUse,
 		Command: "hook",
@@ -91,7 +91,7 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 }
 
 func TestRunner_AskEscalates(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"ask","reason":"review"}`)}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "ask", Reason: "review"}}}}, nil)
 	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block || !dec.Ask {
@@ -100,7 +100,7 @@ func TestRunner_AskEscalates(t *testing.T) {
 }
 
 func TestRunner_RewriteArguments(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Stdout: []byte(`{"rewriteArguments":"{\"path\":\"safe\"}"}`)}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{RewriteArguments: `{"path":"safe"}`}}}}, nil)
 	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "write"}})
 	if dec.RewriteArguments != `{"path":"safe"}` {
@@ -145,7 +145,7 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 }
 
 func TestRunner_MatcherGatesByToolName(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny","reason":"x"}`)}}}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny", Reason: "x"}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: "hook"}}
 
@@ -164,8 +164,8 @@ func TestRunner_MatcherGatesByToolName(t *testing.T) {
 
 func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{
-		{Stdout: []byte(`{"decision":"deny","reason":"first"}`)},
-		{Stdout: []byte(`{"decision":"deny","reason":"second"}`)},
+		{Decision: CommandDecision{Decision: "deny", Reason: "first"}},
+		{Decision: CommandDecision{Decision: "deny", Reason: "second"}},
 	}}, nil)
 	hooks := []Hook{
 		{Event: PostToolUse, Inject: "ctx-a"},
@@ -183,7 +183,7 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 }
 
 func TestRunner_WrongEventDoesNotFire(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Stdout: []byte(`{"decision":"deny"}`)}}}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny"}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []Hook{{Event: Stop, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})

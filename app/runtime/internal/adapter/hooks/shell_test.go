@@ -12,14 +12,14 @@ import (
 func TestShell_CommandReceivesStdin(t *testing.T) {
 	got := Shell{}.RunHookCommand(context.Background(), domainhooks.CommandRequest{
 		Command: `grep -q '"event":"UserPromptSubmit"' && echo '{"injectContext":"saw-event"}'`,
-		Stdin:   []byte(`{"event":"UserPromptSubmit"}`),
+		Input:   domainhooks.Input{Event: domainhooks.UserPromptSubmit},
 		Timeout: time.Second,
 	})
 	if got.Err != nil {
 		t.Fatal(got.Err)
 	}
-	if strings.TrimSpace(string(got.Stdout)) != `{"injectContext":"saw-event"}` {
-		t.Fatalf("stdout = %q", got.Stdout)
+	if strings.TrimSpace(got.Decision.InjectContext) != "saw-event" {
+		t.Fatalf("decision = %+v", got.Decision)
 	}
 }
 

@@ -36,10 +36,10 @@ func (s Status) Valid() bool {
 
 // Item is one entry in the agent's working checklist.
 type Item struct {
-	Content       string `json:"content"`
-	Status        Status `json:"status"`
-	BlockedReason string `json:"blocked_reason,omitempty"`
-	NextAction    string `json:"next_action,omitempty"`
+	Content       string
+	Status        Status
+	BlockedReason string
+	NextAction    string
 }
 
 // Store persists a session's todo list. The list is always read and written

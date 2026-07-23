@@ -1,9 +1,6 @@
 package tool
 
-import (
-	"strconv"
-	"testing"
-)
+import "testing"
 
 func TestBypassImmuneReason_FileMutationScope(t *testing.T) {
 	tests := []struct {
@@ -18,7 +15,7 @@ func TestBypassImmuneReason_FileMutationScope(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			reason, immune := BypassImmuneReason("write", `{}`, test.scope)
+			reason, immune := BypassImmuneReason(test.scope, "")
 			if immune != test.want {
 				t.Fatalf("BypassImmuneReason() immune = %v, want %v", immune, test.want)
 			}
@@ -49,8 +46,7 @@ func TestBypassImmuneReason_CatastrophicShell(t *testing.T) {
 	}
 	for _, cmd := range flag {
 		t.Run("flag:"+cmd, func(t *testing.T) {
-			args := `{"command":` + strconv.Quote(cmd) + `}`
-			if _, immune := BypassImmuneReason("shell", args, FileMutationNone); !immune {
+			if _, immune := BypassImmuneReason(FileMutationNone, cmd); !immune {
 				t.Fatalf("command %q should be catastrophic (immune), was not", cmd)
 			}
 		})
@@ -68,8 +64,7 @@ func TestBypassImmuneReason_CatastrophicShell(t *testing.T) {
 	}
 	for _, cmd := range allow {
 		t.Run("allow:"+cmd, func(t *testing.T) {
-			args := `{"command":` + strconv.Quote(cmd) + `}`
-			if _, immune := BypassImmuneReason("shell", args, FileMutationNone); immune {
+			if _, immune := BypassImmuneReason(FileMutationNone, cmd); immune {
 				t.Fatalf("ordinary command %q must not be flagged catastrophic", cmd)
 			}
 		})

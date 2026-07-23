@@ -84,8 +84,8 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 
 // mcp.configs registry CRUD — the editable configuration the settings pane
 // drives. listConfigs returns the registry with bearer tokens masked;
-// configure/remove/setEnabled persist + apply to the live connections, then
-// publish mcp.serverChanged so the status view updates; test probes a
+// configure/remove/setEnabled persist + apply to the live connections, while
+// the application status bridge publishes mcp.serverChanged. Test probes a
 // candidate config without persisting.
 
 // WorkspaceMCPListConfigs returns every registered MCP server's editable
@@ -110,7 +110,7 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
 	}
-	srv, err := s.mcpServerFromRequest(ctx, in)
+	srv, err := s.integrations.ResolveMCPServerConfiguration(ctx, mcpServerCandidateFromRequest(in))
 	if err != nil {
 		return nil, err
 	}
@@ -120,14 +120,8 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	if err := s.integrations.ConfigureMCPServer(ctx, srv); err != nil {
 		return nil, err
 	}
-	s.publishMCPServerChanged(ctx, in.Name)
 	out := mcpConfigWire(srv)
 	return &out, nil
-}
-
-// publishMCPServerChanged emits the workspace mcp.serverChanged frame for name.
-func (s *Server) publishMCPServerChanged(ctx context.Context, name string) {
-	s.PublishWorkspaceEvent(s.mcpServerChangedEvent(ctx, name))
 }
 
 // WorkspaceMCPRemove deletes a server from the registry + the live set. The
@@ -139,7 +133,6 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	if err := s.integrations.RemoveMCPServer(ctx, name); err != nil {
 		return err
 	}
-	s.publishMCPServerChanged(ctx, name)
 	return nil
 }
 
@@ -152,7 +145,6 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	if err := s.integrations.SetMCPServerEnabled(ctx, in.Name, in.Enabled); err != nil {
 		return err
 	}
-	s.publishMCPServerChanged(ctx, in.Name)
 	return nil
 }
 
@@ -161,7 +153,7 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 // reuses the stored token only for the same HTTP origin, so testing an ordinary
 // edit needn't re-enter the secret and testing a new endpoint cannot leak it.
 func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-	srv, err := s.mcpServerFromRequest(ctx, in)
+	srv, err := s.integrations.ResolveMCPServerConfiguration(ctx, mcpServerCandidateFromRequest(in))
 	if err != nil {
 		return nil, err
 	}

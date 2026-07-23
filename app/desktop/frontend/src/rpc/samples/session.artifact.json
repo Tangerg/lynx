@@ -1,46 +1,43 @@
 {
-  "version": 5,
+  "version": 6,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",
-    "status": "idle",
     "model": "claude-opus-4-8",
     "cwd": "/Users/dev/project",
     "createdAt": "2026-07-07T10:00:00Z",
-    "updatedAt": "2026-07-07T10:05:00Z",
-    "revision": 3
+    "updatedAt": "2026-07-07T10:05:00Z"
   },
   "messages": [],
   "runs": [
     {
+      "id": "run_01",
+      "sessionId": "ses_01",
+      "model": "claude-opus-4-8",
+      "provider": "anthropic",
+      "outcome": {
+        "type": "completed",
+        "result": { "steps": 0 }
+      },
+      "createdAt": "2026-07-07T10:00:00Z",
+      "finishedAt": "2026-07-07T10:00:20Z",
       "updatedAt": "2026-07-07T10:00:20Z",
-      "messageMark": 4,
-      "run": {
-        "id": "run_01",
-        "sessionId": "ses_01",
-        "model": "claude-opus-4-8",
-        "provider": "anthropic",
-        "status": "finished",
-        "createdAt": "2026-07-07T10:00:00Z",
-        "finishedAt": "2026-07-07T10:00:20Z"
-      }
+      "messageMark": 4
     }
   ],
   "items": [
     {
-      "item": {
-        "id": "item_01",
-        "runId": "run_01",
-        "status": "completed",
-        "createdAt": "2026-07-07T10:00:04Z",
-        "type": "toolCall",
-        "tool": {
-          "name": "shell",
-          "arguments": { "command": "ls -la" },
-          "result": "total 0\n…[result offloaded; use read_tool_result with BLOB234]…"
-        },
-        "safetyClass": "exec"
-      }
+      "id": "item_01",
+      "runId": "run_01",
+      "status": "completed",
+      "createdAt": "2026-07-07T10:00:04Z",
+      "type": "toolCall",
+      "tool": {
+        "name": "shell",
+        "arguments": { "command": "ls -la" },
+        "result": "total 0\n"
+      },
+      "safetyClass": "exec"
     }
   ],
   "toolResults": [

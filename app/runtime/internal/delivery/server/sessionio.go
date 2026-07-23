@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,8 +10,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/core/chat"
 )
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
@@ -50,46 +47,17 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	default:
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
-	portable, err := snapshot.NormalizeForRestore()
+	portable, err := snapshot.PortableSnapshot()
 	if err != nil {
-		return nil, fmt.Errorf("sessions.export: project portable tool results: %w", err)
+		return nil, fmt.Errorf("sessions.export: prepare portable snapshot: %w", err)
 	}
-	snapshot = portable
-
-	msgBlobs := make([]json.RawMessage, 0, len(snapshot.Messages))
-	for _, m := range snapshot.Messages {
-		b, err := json.Marshal(m)
-		if err != nil {
-			return nil, fmt.Errorf("sessions.export: marshal message: %w", err)
-		}
-		msgBlobs = append(msgBlobs, b)
-	}
-
-	artRuns := make([]protocol.ArtifactRun, 0, len(snapshot.Runs))
-	for _, r := range snapshot.Runs {
-		artRuns = append(artRuns, protocol.ArtifactRun{
-			UpdatedAt: r.UpdatedAt, MessageMark: r.MessageMark, Run: presentRun(r),
-		})
-	}
-	artItems := make([]protocol.ArtifactItem, 0, len(snapshot.Items))
-	for _, it := range snapshot.Items {
-		artItems = append(artItems, protocol.ArtifactItem{Item: presentItem(it)})
-	}
-	artToolResults := make([]protocol.ArtifactToolResult, 0, len(snapshot.ToolResults))
-	for _, blob := range snapshot.ToolResults {
-		artToolResults = append(artToolResults, protocol.ArtifactToolResult{
-			ID: blob.ID.String(), ItemID: blob.ItemID, ToolName: blob.ToolName,
-			Preview: blob.Preview, Body: blob.Body, CreatedAt: blob.CreatedAt,
-		})
+	artifact, err := artifactFromPortable(portable)
+	if err != nil {
+		return nil, fmt.Errorf("sessions.export: encode artifact: %w", err)
 	}
 
 	return &protocol.ExportSessionResponse{
-		Format: format,
-		Artifact: &protocol.SessionArtifact{
-			Version:  protocol.SessionArtifactVersion,
-			Session:  presentedSession,
-			Messages: msgBlobs, Runs: artRuns, Items: artItems, ToolResults: artToolResults,
-		},
+		Format: format, Artifact: &artifact,
 	}, nil
 }
 
@@ -103,25 +71,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if art.Version != protocol.SessionArtifactVersion {
 		return nil, fmt.Errorf("%w: unsupported artifact version %d (want %d)", protocol.ErrInvalidParams, art.Version, protocol.SessionArtifactVersion)
 	}
-	if art.Session.ID == "" {
-		return nil, fmt.Errorf("%w: artifact.session.id is required", protocol.ErrInvalidParams)
-	}
-
-	// Decode the chat messages up front so a malformed artifact fails before we
-	// mutate any storage.
-	msgs := make([]chat.Message, 0, len(art.Messages))
-	for i, blob := range art.Messages {
-		var m chat.Message
-		if err := json.Unmarshal(blob, &m); err != nil {
-			return nil, fmt.Errorf("%w: artifact.messages[%d]: %w", protocol.ErrInvalidParams, i, err)
-		}
-		msgs = append(msgs, m)
-	}
-	runs, items, err := canonicalArtifact(art, len(msgs))
-	if err != nil {
-		return nil, err
-	}
-	toolResults, err := canonicalToolResults(art, items)
+	portable, err := portableArtifactFromWire(art)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +86,12 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	if err := s.sessions.RestoreSession(ctx, sessions.Snapshot{
-		Session: artifactToSession(art.Session), Messages: msgs, Runs: runs, Items: items, ToolResults: toolResults,
-	}); err != nil {
+	if err := s.sessions.RestorePortableSession(ctx, portable); err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
+		}
+		if errors.Is(err, sessions.ErrInvalidPortableSnapshot) {
+			return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 		}
 		if errors.Is(err, transcript.ErrIdentityConflict) || errors.Is(err, offload.ErrIdentityConflict) {
 			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
@@ -152,7 +103,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.liveStatus(ctx, ses.ID)
+	status, err := s.sessionStatus(ctx, ses.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -161,22 +112,6 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		return nil, err
 	}
 	return &protocol.ImportSessionResponse{Session: &out}, nil
-}
-
-// artifactToSession maps the wire Session carried in an artifact back to the
-// domain session. The wire shape omits the
-// delegation-lineage fields (Kind / ParentID); a restored session is a
-// standalone user-facing conversation, so Kind/ParentID stay empty.
-func artifactToSession(w protocol.Session) session.Session {
-	return session.Session{
-		ID:        w.ID,
-		Title:     w.Title,
-		Cwd:       w.Cwd,
-		Model:     w.Model,
-		StartedAt: w.CreatedAt,
-		UpdatedAt: w.UpdatedAt,
-		Favorite:  w.Favorite,
-	}
 }
 
 // renderSessionMarkdown produces a human-readable transcript of a session — a

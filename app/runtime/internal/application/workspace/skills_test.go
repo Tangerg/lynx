@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -11,7 +12,7 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
 		skills: []skills.Info{{Name: "lint", Description: "check code", Scope: "project"}},
 	}
-	c := NewSkills(NewContext("", "", testPaths{}), catalog, nil, nil)
+	c := NewSkills(NewContext("", "", testPaths{}), catalog, nil, nil, nil)
 
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil {
@@ -26,10 +27,38 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 }
 
 func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
-	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil)
+	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil, nil)
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil || got != nil {
 		t.Fatalf("ListSkills = %v, %v; want nil, nil", got, err)
+	}
+}
+
+func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
+	curator := &fakeSkillCurator{}
+	drafts := &fakeSkillDrafts{}
+	notifications := 0
+	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, drafts, func() { notifications++ })
+
+	if err := c.ArchiveSkill(context.Background(), "lint"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.RestoreSkill(context.Background(), "lint"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.PromoteSkillDraft(context.Background(), skills.DraftHandle{Name: "lint", Revision: "r1"}); err != nil {
+		t.Fatal(err)
+	}
+	if notifications != 3 {
+		t.Fatalf("notifications = %d, want 3", notifications)
+	}
+
+	curator.archiveErr = errors.New("disk unavailable")
+	if err := c.ArchiveSkill(context.Background(), "lint"); err == nil {
+		t.Fatal("ArchiveSkill error = nil, want failure")
+	}
+	if notifications != 3 {
+		t.Fatalf("failed mutation notifications = %d, want 3", notifications)
 	}
 }
 
@@ -37,6 +66,14 @@ type fakeSkillCatalog struct {
 	cwd    string
 	skills []skills.Info
 }
+
+type fakeSkillCurator struct {
+	archiveErr error
+}
+
+func (f *fakeSkillCurator) List(context.Context) ([]skills.Entry, error) { return nil, nil }
+func (f *fakeSkillCurator) Archive(context.Context, string) error        { return f.archiveErr }
+func (f *fakeSkillCurator) Restore(context.Context, string) error        { return nil }
 
 type testPaths struct{}
 

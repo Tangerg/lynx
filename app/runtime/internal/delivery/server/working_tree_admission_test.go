@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -16,7 +17,7 @@ func TestStartRunRejectsWorkingTreeMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	mutationAdmission, ok := s.sessions.ClaimWorkingTreeMutation(cwd)
+	mutationAdmission, ok := s.sessions.(*sessions.Coordinator).ClaimWorkingTreeMutation(cwd)
 	if !ok {
 		t.Fatal("claim mutation")
 	}
@@ -45,7 +46,7 @@ func TestRollbackFilesRejectsWorkingTreeRunAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	runAdmission, ok := s.sessions.ClaimWorkingTreeRun(cwd)
+	runAdmission, ok := s.sessions.(*sessions.Coordinator).ClaimWorkingTreeRun(cwd)
 	if !ok {
 		t.Fatal("claim run")
 	}

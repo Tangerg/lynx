@@ -1019,15 +1019,11 @@ interface DroppedRun {
 
 ```ts
 interface SessionArtifact {
-  version: number; // artifact schema 版本（当前 5）；import 不识别即 invalid_params
-  session: Session; // 会话身份与展示状态（wire 形态）
+  version: number; // artifact schema 版本（当前 6）；import 不识别即 invalid_params
+  session: ArtifactSession; // id/title/cwd/model/createdAt/updatedAt/favorite；无 status/revision/派生工作区字段
   messages: unknown[]; // chat 消息 blob（模型上下文）
-  runs: {
-    updatedAt: string;
-    messageMark: number;
-    run: RunRef;
-  }[]; // messageMark：rollback/fork 边界水位（-1=未知）
-  items: { item: Item }[];
+  runs: ArtifactRun[]; // 仅已终结 run；outcome 为 completed/error/maxSteps/maxBudget/canceled
+  items: ArtifactItem[]; // 直接持久化的 transcript 值，不包裹 live Item
   toolResults: {
     id: string;
     itemId: string;
@@ -1038,6 +1034,13 @@ interface SessionArtifact {
   }[]; // 被 offload 的工具全文；保证跨数据库导入后仍可 read_tool_result
 }
 ```
+
+`ArtifactRun` 是 `{ id, sessionId, spawnedByItemId?, provider?, model?, outcome,
+createdAt, finishedAt, updatedAt, messageMark }`；`outcome.result` 是可空的持久化
+`{ usage?, steps, error?, durationMs? }`。`ArtifactItem` 与实时 `Item` 使用相同的
+内容、计划、问题和工具值形状，但工具 `result` 保留规范原值，**不**经过客户端展示转换。
+归档格式不复用 `Session` / `RunRef` / `Item`，因此不会把 live status、revision、workspace
+派生状态或可恢复 executor 状态写入持久化文档。
 
 #### `sessions.import`
 

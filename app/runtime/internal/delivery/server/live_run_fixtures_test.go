@@ -79,15 +79,13 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 		t.Fatalf("create live-run session: %v", err)
 	}
 	result, err := s.coordinator.Start(context.Background(), runs.StartCommand{
-		SessionID:       sess.ID,
-		Message:         "hold this run open",
-		OpeningUserText: "hold this run open",
-		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: "hold this run open"}},
+		SessionID: sess.ID,
+		Input:     []runs.ContentBlock{{Kind: runs.TextContent, Text: "hold this run open"}},
 	})
 	if err != nil {
 		t.Fatalf("start live run: %v", err)
 	}
-	if !s.coordinator.Contains(result.RunID) {
+	if !testRunCoordinator(t, s).Contains(result.RunID) {
 		t.Fatal("Start returned before the live run was registered")
 	}
 	t.Cleanup(s.Close)

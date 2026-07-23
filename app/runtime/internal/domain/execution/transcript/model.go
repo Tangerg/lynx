@@ -145,7 +145,7 @@ type ToolInvocation struct {
 	Name      string
 	Arguments tool.Arguments
 	Result    *tool.Result
-	Offload   *offload.Ref `json:"-"`
+	Offload   *offload.Ref
 }
 
 type ProblemScope uint8

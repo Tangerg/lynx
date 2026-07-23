@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -27,36 +28,42 @@ func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]inter
 	return r.pending, r.err
 }
 
+func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
+	for _, pending := range r.pending {
+		if pending.RunID == runID {
+			return pending, true, r.err
+		}
+	}
+	return interrupts.Pending{}, false, r.err
+}
+
 func TestSessionStatusPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}
-	s := &Server{
-		coordinator: runs.NewCoordinator(runs.Dependencies{}),
-		queries:     queries.New(queries.Dependencies{Interrupts: reader}),
-	}
+	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader})
+	s := &Server{sessions: coordinator}
 
-	if _, err := s.liveStatus(t.Context(), "ses_1"); !errors.Is(err, want) {
-		t.Fatalf("liveStatus error = %v, want interrupt read failure", err)
+	if _, err := s.sessionStatus(t.Context(), "ses_1"); !errors.Is(err, want) {
+		t.Fatalf("sessionStatus error = %v, want interrupt read failure", err)
 	}
-	if _, err := s.waitingSessionSet(t.Context()); !errors.Is(err, want) {
-		t.Fatalf("waitingSessionSet error = %v, want interrupt read failure", err)
+	if _, err := coordinator.SessionStates(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
+		t.Fatalf("SessionStates error = %v, want interrupt read failure", err)
 	}
 }
 
 func TestSessionStatusDoesNotQueryInterruptsForActiveRun(t *testing.T) {
 	reader := &fakeInterruptReader{err: errors.New("must not be read")}
-	coordinator := runs.NewCoordinator(runs.Dependencies{})
-	if _, ok := coordinator.AcquireSession("ses_1"); !ok {
+	gate := &admission.Gate{}
+	if _, ok := gate.AcquireSession("ses_1"); !ok {
 		t.Fatal("AcquireSession rejected an empty registry")
 	}
 	s := &Server{
-		coordinator: coordinator,
-		queries:     queries.New(queries.Dependencies{Interrupts: reader}),
+		sessions: sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: gate}),
 	}
 
-	status, err := s.liveStatus(t.Context(), "ses_1")
+	status, err := s.sessionStatus(t.Context(), "ses_1")
 	if err != nil || status != protocol.SessionStatusRunning {
-		t.Fatalf("liveStatus = (%q, %v), want running", status, err)
+		t.Fatalf("sessionStatus = (%q, %v), want running", status, err)
 	}
 }
 

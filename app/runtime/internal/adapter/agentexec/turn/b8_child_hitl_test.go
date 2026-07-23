@@ -2,7 +2,6 @@ package turn_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"iter"
 	"strings"
@@ -751,15 +750,13 @@ type hookCommandRecorder struct {
 }
 
 func (r *hookCommandRecorder) RunHookCommand(_ context.Context, request hooks.CommandRequest) hooks.CommandResult {
-	var input hooks.Input
-	_ = json.Unmarshal(request.Stdin, &input)
+	input := request.Input
 	r.mu.Lock()
 	r.inputs = append(r.inputs, input)
 	r.mu.Unlock()
 	if input.Event == hooks.PreToolUse && input.Tool != nil &&
 		input.Tool.Name == r.rewriteTool && r.rewriteArguments != "" {
-		output, _ := json.Marshal(map[string]string{"rewriteArguments": r.rewriteArguments})
-		return hooks.CommandResult{Stdout: output}
+		return hooks.CommandResult{Decision: hooks.CommandDecision{RewriteArguments: r.rewriteArguments}}
 	}
 	return hooks.CommandResult{}
 }

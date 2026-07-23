@@ -146,14 +146,15 @@ func NewKnowledge(context *Context, memory knowledge.Store) *Knowledge {
 
 // Skills owns skill discovery, library curation, and proposal review.
 type Skills struct {
-	context *Context
-	skills  SkillCatalog
-	curator SkillCurator
-	drafts  SkillDrafts
+	context       *Context
+	skills        SkillCatalog
+	curator       SkillCurator
+	drafts        SkillDrafts
+	skillsChanged func()
 }
 
-func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts) *Skills {
-	return &Skills{context: context, skills: skills, curator: curator, drafts: drafts}
+func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts, skillsChanged func()) *Skills {
+	return &Skills{context: context, skills: skills, curator: curator, drafts: drafts, skillsChanged: skillsChanged}
 }
 
 // Hooks owns lifecycle-hook inspection and trust decisions.
@@ -161,6 +162,20 @@ type Hooks struct {
 	context *Context
 	hooks   HookInspector
 	trust   HookTrustStore
+}
+
+// HookInspection is the workspace use case's resolved hook view. Active is
+// business policy (global hooks always run; project hooks require trust), not
+// a presentation decision for Delivery to reconstruct.
+type HookInspection struct {
+	ProjectRoot    string
+	ProjectTrusted bool
+	Hooks          []ResolvedHook
+}
+
+type ResolvedHook struct {
+	Hook   hooks.Hook
+	Active bool
 }
 
 func NewHooks(context *Context, hooks HookInspector, trust HookTrustStore) *Hooks {
@@ -278,7 +293,11 @@ func (c *Skills) ArchiveSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
 	}
-	return c.curator.Archive(ctx, name)
+	if err := c.curator.Archive(ctx, name); err != nil {
+		return err
+	}
+	c.notifySkillsChanged()
+	return nil
 }
 
 // RestoreSkill returns an archived skill to active use
@@ -287,7 +306,11 @@ func (c *Skills) RestoreSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
 	}
-	return c.curator.Restore(ctx, name)
+	if err := c.curator.Restore(ctx, name); err != nil {
+		return err
+	}
+	c.notifySkillsChanged()
+	return nil
 }
 
 // ListSkillDrafts enumerates the agent-mined skill proposals awaiting offline
@@ -307,7 +330,17 @@ func (c *Skills) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandl
 	if c.drafts == nil {
 		return ErrSkillDraftsUnavailable
 	}
-	return c.drafts.Promote(ctx, handle)
+	if err := c.drafts.Promote(ctx, handle); err != nil {
+		return err
+	}
+	c.notifySkillsChanged()
+	return nil
+}
+
+func (c *Skills) notifySkillsChanged() {
+	if c.skillsChanged != nil {
+		c.skillsChanged()
+	}
 }
 
 // RejectSkillDraft discards a reviewed draft (skills.drafts.reject). Reports
@@ -335,15 +368,28 @@ func (c *Discovery) ListRecipes(ctx context.Context, cwd string) ([]recipes.Reci
 
 // InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
 // trust status (hooks.list). Empty when hooks are unconfigured.
-func (c *Hooks) InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error) {
+func (c *Hooks) InspectHooks(ctx context.Context, cwd string) (HookInspection, error) {
 	root, err := c.context.root(cwd)
 	if err != nil {
-		return hooks.Inspection{}, err
+		return HookInspection{}, err
 	}
 	if c.hooks == nil {
-		return hooks.Inspection{}, nil
+		return HookInspection{}, nil
 	}
-	return c.hooks.Inspect(ctx, root)
+	inspection, err := c.hooks.Inspect(ctx, root)
+	if err != nil {
+		return HookInspection{}, err
+	}
+	resolved := HookInspection{
+		ProjectRoot: inspection.ProjectRoot, ProjectTrusted: inspection.ProjectTrusted,
+		Hooks: make([]ResolvedHook, 0, len(inspection.Hooks)),
+	}
+	for _, hook := range inspection.Hooks {
+		resolved.Hooks = append(resolved.Hooks, ResolvedHook{
+			Hook: hook, Active: hook.Scope == hooks.ScopeGlobal || inspection.ProjectTrusted,
+		})
+	}
+	return resolved, nil
 }
 
 // SetProjectHookTrust trusts (or revokes) a project's hooks (hooks.

@@ -2,7 +2,6 @@ package turn
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"testing"
 	"unicode/utf8"
@@ -127,8 +126,6 @@ type recordHookCommands struct {
 }
 
 func (r *recordHookCommands) RunHookCommand(_ context.Context, req hooks.CommandRequest) hooks.CommandResult {
-	var in hooks.Input
-	_ = json.Unmarshal(req.Stdin, &in)
-	r.inputs = append(r.inputs, in)
+	r.inputs = append(r.inputs, req.Input)
 	return hooks.CommandResult{}
 }

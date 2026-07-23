@@ -14,6 +14,7 @@ import (
 type SessionAdmissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
 	ActiveSessionWithCwd(cwd string) string
+	ActiveSessions() map[string]bool
 }
 
 // RunAdmission is a held single-writer slot. Release is idempotent across value

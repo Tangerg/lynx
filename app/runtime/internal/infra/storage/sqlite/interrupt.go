@@ -22,6 +22,13 @@ type InterruptStore struct {
 	db *sql.DB
 }
 
+type drainedToolRow struct {
+	ItemID    string `json:"itemId"`
+	CallID    string `json:"callId,omitempty"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
 // NewInterruptStore binds the SQLite interrupt registry to a database opened via
 // [Open].
 func NewInterruptStore(db *sql.DB) *InterruptStore {
@@ -38,7 +45,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		return fmt.Errorf("sqlite: encode interrupts: %w", err)
 	}
 	if len(p.DrainedTools) > 0 {
-		b, err := json.Marshal(p.DrainedTools)
+		b, err := json.Marshal(drainedToolRows(p.DrainedTools))
 		if err != nil {
 			return fmt.Errorf("sqlite: encode drained tools: %w", err)
 		}
@@ -160,11 +167,29 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		}
 	}
 	if drained != "" {
-		if err := json.Unmarshal([]byte(drained), &p.DrainedTools); err != nil {
+		var rows []drainedToolRow
+		if err := json.Unmarshal([]byte(drained), &rows); err != nil {
 			return interrupts.Pending{}, fmt.Errorf("sqlite: decode drained tools: %w", err)
 		}
+		p.DrainedTools = drainedToolsFromRows(rows)
 	}
 	p.RunCreatedAt = time.Unix(0, runCreatedNs).UTC()
 	p.CreatedAt = time.Unix(0, createdNs).UTC()
 	return p, nil
+}
+
+func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
+	rows := make([]drainedToolRow, len(tools))
+	for index, tool := range tools {
+		rows[index] = drainedToolRow{ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments}
+	}
+	return rows
+}
+
+func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
+	tools := make([]interrupts.DrainedTool, len(rows))
+	for index, row := range rows {
+		tools[index] = interrupts.DrainedTool{ItemID: row.ItemID, CallID: row.CallID, Name: row.Name, Arguments: row.Arguments}
+	}
+	return tools
 }

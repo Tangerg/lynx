@@ -36,7 +36,7 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	if useCases.cmd.DefaultCwd != "/default" || useCases.cmd.NewSessionTitle != "Scheduled run" {
 		t.Fatalf("command defaults = %+v", useCases.cmd)
 	}
-	if useCases.cmd.Message != "summarize" || useCases.cmd.Provider != "p" || useCases.cmd.Model != "m" {
+	if len(useCases.cmd.Input) != 1 || useCases.cmd.Input[0].Text != "summarize" || useCases.cmd.Provider != "p" || useCases.cmd.Model != "m" {
 		t.Fatalf("command mapping = %+v", useCases.cmd)
 	}
 	<-useCases.canceled
