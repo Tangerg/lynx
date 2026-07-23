@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func TestWorkspaceMCPListServers(t *testing.T) {
+func TestListMCPServers(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{
 			{Name: "fs", State: mcpserver.ConnectionConnected},
@@ -20,7 +20,7 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},
 		},
 	}))
-	page, err := s.WorkspaceMCPListServers(context.Background(), protocol.PageQuery{})
+	page, err := s.ListMCPServers(context.Background(), protocol.PageQuery{})
 	if err != nil {
 		t.Fatalf("listServers: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	}
 }
 
-func TestWorkspaceMCPReconnect(t *testing.T) {
+func TestReconnectMCPServer(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
@@ -79,7 +79,7 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 	events, unsub := s.wsHub.subscribe()
 	defer unsub()
 
-	if err := s.WorkspaceMCPReconnect(context.Background(), "fs"); err != nil {
+	if err := s.ReconnectMCPServer(context.Background(), "fs"); err != nil {
 		t.Fatalf("reconnect: %v", err)
 	}
 	if first := <-events; first.Type != "mcp.serverChanged" || first.Server != "fs" || first.Status != "connecting" {
@@ -89,12 +89,12 @@ func TestWorkspaceMCPReconnect(t *testing.T) {
 		t.Fatalf("terminal event = %+v, want fs connected toolCount=1", term)
 	}
 
-	if err := s.WorkspaceMCPReconnect(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {
+	if err := s.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reconnect unknown = %v, want ErrInvalidParams", err)
 	}
 }
 
-func TestWorkspaceMCPListTools(t *testing.T) {
+func TestListMCPTools(t *testing.T) {
 	readSchema, err := mcpserver.ParseInputSchema([]byte(`{"type":"object"}`))
 	if err != nil {
 		t.Fatalf("ParseInputSchema: %v", err)
@@ -105,7 +105,7 @@ func TestWorkspaceMCPListTools(t *testing.T) {
 		{Server: "git", Name: "log"},
 	}}))
 
-	all, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{})
+	all, err := s.ListMCPTools(context.Background(), protocol.MCPListToolsRequest{})
 	if err != nil {
 		t.Fatalf("listTools: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestWorkspaceMCPListTools(t *testing.T) {
 		t.Fatalf("all = %+v, want 3 with fs/read carrying its schema", all.Data)
 	}
 
-	scoped, err := s.WorkspaceMCPListTools(context.Background(), protocol.MCPListToolsRequest{Server: "git"})
+	scoped, err := s.ListMCPTools(context.Background(), protocol.MCPListToolsRequest{Server: "git"})
 	if err != nil {
 		t.Fatalf("listTools(git): %v", err)
 	}

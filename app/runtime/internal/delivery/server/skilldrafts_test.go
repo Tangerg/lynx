@@ -35,14 +35,14 @@ func (s *stubSkillDrafts) DiscardDraft(_ context.Context, h skills.DraftHandle) 
 
 func TestSkillDraftsHandlersDisabled(t *testing.T) {
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{})
-	if _, err := s.WorkspaceListSkillDrafts(context.Background(), protocol.PageQuery{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+	if _, err := s.ListSkillDrafts(context.Background(), protocol.PageQuery{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list err = %v, want capability_not_negotiated", err)
 	}
 	ref := protocol.SkillDraftRef{Name: "x", Revision: "r"}
-	if err := s.WorkspacePromoteSkillDraft(context.Background(), ref); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+	if err := s.PromoteSkillDraft(context.Background(), ref); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("promote err = %v, want capability_not_negotiated", err)
 	}
-	if err := s.WorkspaceRejectSkillDraft(context.Background(), ref); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+	if err := s.RejectSkillDraft(context.Background(), ref); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("reject err = %v, want capability_not_negotiated", err)
 	}
 }
@@ -54,7 +54,7 @@ func TestSkillDraftsListMapsWire(t *testing.T) {
 	}}
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 
-	out, err := s.WorkspaceListSkillDrafts(context.Background(), protocol.PageQuery{})
+	out, err := s.ListSkillDrafts(context.Background(), protocol.PageQuery{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,18 +72,18 @@ func TestSkillDraftsPromoteRejectValidateAndDelegate(t *testing.T) {
 	stub := &stubSkillDrafts{}
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 
-	if err := s.WorkspacePromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Revision: "r"}); !errors.Is(err, protocol.ErrInvalidParams) {
+	if err := s.PromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Revision: "r"}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("promote missing name → %v, want invalid_params", err)
 	}
-	if err := s.WorkspaceRejectSkillDraft(context.Background(), protocol.SkillDraftRef{Name: "n"}); !errors.Is(err, protocol.ErrInvalidParams) {
+	if err := s.RejectSkillDraft(context.Background(), protocol.SkillDraftRef{Name: "n"}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reject missing revision → %v, want invalid_params", err)
 	}
 
 	ref := protocol.SkillDraftRef{Name: "run-tests", Revision: "abc123"}
-	if err := s.WorkspacePromoteSkillDraft(context.Background(), ref); err != nil {
+	if err := s.PromoteSkillDraft(context.Background(), ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.WorkspaceRejectSkillDraft(context.Background(), ref); err != nil {
+	if err := s.RejectSkillDraft(context.Background(), ref); err != nil {
 		t.Fatal(err)
 	}
 	want := skills.DraftHandle{Name: "run-tests", Revision: "abc123"}
@@ -98,7 +98,7 @@ func TestSkillDraftsPromoteRejectValidateAndDelegate(t *testing.T) {
 func TestSkillDraftsPromoteConflictMapsInvalidParams(t *testing.T) {
 	stub := &stubSkillDrafts{promoteErr: skills.ErrConflict}
 	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
-	err := s.WorkspacePromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Name: "n", Revision: "r"})
+	err := s.PromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Name: "n", Revision: "r"})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("conflict → %v, want invalid_params", err)
 	}

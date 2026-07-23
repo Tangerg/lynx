@@ -72,11 +72,11 @@
 
 > 这条与 RUNTIME_COMPARISON 的结论独立:那篇说"无 protocol→TS codegen 是 by-design(flat-struct 不映射 union)"——但 §14 明确这不是终点而是**待落地的硬前置**。务实解是**先上黄金样本闸**(绕开映射难题),而非继续纯靠 review。
 
-### 3.2 【次·命名/SRP】留意 `workspace.*` 渐成 god-namespace
+### 3.2 【已收口·命名/SRP】`workspace.*` 已收敛为工作树视图
 
-`workspace.*` 现已横跨:VCS(listFileChanges/getDiff/getFileHead)、文件读(listFiles/readFile)、搜索(grep)、技能(listSkills)、AgentDocs(listAgentDocs)、事件流(subscribe)、recipes.*、hooks.*、mcp.*、code.*。其中 **code-intel / mcp / hooks / recipes 本是独立 domain**(各有自己的 §)。这是"一个命名空间横跨多 domain"的 SRP 信号。
+此项已完成：wire 的 `workspace.*` 只承载 VCS(listFileChanges/getDiff/getFileHead)、文件读(listFiles/readFile)、搜索(grep)、项目与事件流(subscribe)；skills、recipes、agentDocs、mcp、hooks、codebase 均为独立顶层根。Delivery 的 typed Runtime 也按同一边界分为 `Workspace`、`Skills`、`Recipes`、`AgentDocs`、`MCP`、`Hooks`，不再以 `Workspace` 聚合无关领域。
 
-- **改法(轻、非紧急)**:把已成独立 domain 的子面**提为顶层**(如 `codeintel.*` / `mcp.*` / `hooks.*` / `recipes.*`),`workspace.*` 收敛回"工作树视图"(VCS+文件+搜索+事件)。**破坏性命名改动,按规矩先咨询**——dev 阶段无兼容包袱,值得一次性改对(第一法则)。触发条件:`workspace.*` 子面继续增多时做。
+这不是兼容层迁移：JSON-RPC wire 名称保持不变，仅消除了 Delivery 内部的旧分组和命名拖尾。后续新增旁路能力必须先选择其真实协议根；只有工作树视图才进入 `workspace.*`。
 
 ### 3.3 【次·演进粒度】借 Codex 的 field/method 级 experimental 门控
 
@@ -105,7 +105,7 @@ Codex 用 `#[experimental("path")]` 在**字段/方法级**门控,client `initia
 
 1. **✅【已落地 · 全 §4 覆盖 `252f462f`→`da934b05`】§3.1 第一步:黄金样本契约测试**(前后端 pin 同一组 canonical JSON,Go round-trip + TS `wire<T>`;已验证能抓信封与裸类型两类 drift)——头号项已落到里程碑:81 样本覆盖整个 §4 数据模型 + §5 流 + 方法 req/resp。**手写两份 wire 类型的 drift 从此有机器闸,不再纯靠 review。**
 2. **【中】§3.1 第二步:从 Go SSOT 导出 OpenRPC + JSON Schema**——非 Go/非 TS 客户端的单一对接物 + 机器可读漂移闸。
-3. **【中·按需】§3.2 `workspace.*` 拆 god-namespace**(codeintel/mcp/hooks/recipes 提顶层)——破坏性命名改动,先咨询;触发条件(子面继续增多)到了再做。
+3. **✅【已落地】§3.2 `workspace.*` 收敛**——独立领域已使用顶层协议根，Delivery typed Runtime 同步拆分，不留旧 `Workspace` 聚合。
 4. **【低·可选】§3.3 field 级 experimental 门控**(并入 `FeatureFlag` 对象形态);§3.4 readiness 拆分——按需。
 
 > 总判:**协议 shape 已经合理且在多处领先**;把"更优雅/易扩展"继续守在薄核+三扩展缝+R 模型上即可,**真正要补的"易维护"是 §14 那层一直没立起来的漂移闸**——而它同时是薄核选择的安全前提,故应优先。落手前涉及破坏性命名/契约改动的(§3.2),按 `app/desktop/CLAUDE.md` 先出 scope + 影响面 + 备选,确认再动。

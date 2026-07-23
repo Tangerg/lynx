@@ -146,7 +146,7 @@ type streamingRuntime struct {
 	canceled chan struct{}
 }
 
-func (r *streamingRuntime) WorkspaceSubscribe(
+func (r *streamingRuntime) SubscribeWorkspace(
 	ctx context.Context,
 	_ protocol.WorkspaceSubscribeRequest,
 ) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {

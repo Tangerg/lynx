@@ -17,10 +17,10 @@ func TestWorkspaceVcsUnavailable(t *testing.T) {
 		t.Skip("git not on PATH")
 	}
 	s := newWorkspaceServer(t.TempDir())
-	if _, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
+	if _, err := s.ListWorkspaceFileChanges(context.Background(), protocol.WorkspaceListQuery{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
 		t.Errorf("listFileChanges err = %v, want ErrVcsUnavailable", err)
 	}
-	if _, err := s.WorkspaceGetDiff(context.Background(), protocol.GetDiffRequest{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
+	if _, err := s.GetWorkspaceDiff(context.Background(), protocol.GetDiffRequest{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
 		t.Errorf("getDiff err = %v, want ErrVcsUnavailable", err)
 	}
 }
@@ -49,7 +49,7 @@ func TestWorkspaceGitWireMapping(t *testing.T) {
 	}
 
 	s := newWorkspaceServer(dir)
-	page, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{})
+	page, err := s.ListWorkspaceFileChanges(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listFileChanges: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestWorkspaceGitWireMapping(t *testing.T) {
 		t.Fatalf("changes = %+v, want one modified with non-nil added", page.Data)
 	}
 
-	diff, err := s.WorkspaceGetDiff(context.Background(), protocol.GetDiffRequest{})
+	diff, err := s.GetWorkspaceDiff(context.Background(), protocol.GetDiffRequest{})
 	if err != nil {
 		t.Fatalf("getDiff: %v", err)
 	}

@@ -30,7 +30,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
+	_, events, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
@@ -59,7 +59,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	s.wsHub = newWorkspaceHub()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
+	_, events, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{
 		Watches: []protocol.WatchSpec{{WatchID: "w1"}},
 	})
 	if err != nil {
@@ -107,7 +107,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 func TestWorkspaceSubscribe_MissingWatchID(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	s.wsHub = newWorkspaceHub()
-	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{
+	if _, _, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{
 		Watches: []protocol.WatchSpec{{}},
 	}); err == nil {
 		t.Fatal("watch missing watchId must be invalid_params")

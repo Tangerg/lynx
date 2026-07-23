@@ -1,5 +1,24 @@
 package protocol
 
+import "context"
+
+// Skills is the skills.* method group. Discovery, the owned library, and
+// mined drafts share the skill lifecycle rather than the workspace namespace.
+type Skills interface {
+	ListDiscoveredSkills(ctx context.Context, in WorkspaceListQuery) (*Page[Skill], error)
+	ListManagedSkills(ctx context.Context, q PageQuery) (*Page[ManagedSkill], error)
+	ArchiveSkill(ctx context.Context, in SkillNameRequest) error
+	RestoreSkill(ctx context.Context, in SkillNameRequest) error
+	ListSkillDrafts(ctx context.Context, q PageQuery) (*Page[SkillDraft], error)
+	PromoteSkillDraft(ctx context.Context, in SkillDraftRef) error
+	RejectSkillDraft(ctx context.Context, in SkillDraftRef) error
+}
+
+// AgentDocs is the agentDocs.* method group.
+type AgentDocs interface {
+	ListAgentDocs(ctx context.Context, in WorkspaceListQuery) (*Page[AgentDoc], error)
+}
+
 // SkillSource is where a discovered Skill came from (API.md §4.10): project
 // (<cwd>/.lyra/skills) or global (<LYRA_HOME>/skills).
 type SkillSource string

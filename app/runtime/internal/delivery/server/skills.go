@@ -10,11 +10,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-// WorkspaceListManagedSkills returns the global self-authored skill library —
+// ListManagedSkills returns the global self-authored skill library —
 // active and archived skills, each tagged with its lifecycle
 // (skills.library.list). The library is small, so it comes back in one page
 // (same as skills.discovered.list). Empty when no authoring store is wired.
-func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
+func (s *Server) ListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
 	entries, err := s.workspaceSkills.ListManagedSkills(ctx)
 	if err != nil {
 		return nil, err
@@ -30,10 +30,10 @@ func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.Page
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceArchiveSkill removes a skill from active use without deleting it
+// ArchiveSkill removes a skill from active use without deleting it
 // (skills.library.archive). The application use case publishes the refresh
 // nudge after its durable mutation commits.
-func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNameRequest) error {
+func (s *Server) ArchiveSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
@@ -43,10 +43,10 @@ func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNam
 	return nil
 }
 
-// WorkspaceRestoreSkill returns an archived skill to active use
+// RestoreSkill returns an archived skill to active use
 // (skills.library.restore). The application use case publishes the refresh
 // nudge after its durable mutation commits.
-func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNameRequest) error {
+func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
@@ -56,10 +56,10 @@ func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNam
 	return nil
 }
 
-// WorkspaceListSkillDrafts returns the agent-mined skill proposals awaiting
+// ListSkillDrafts returns the agent-mined skill proposals awaiting
 // review (skills.drafts.list). The draft area is small, so it comes back in one
 // page. capability_not_negotiated when authoring is disabled.
-func (s *Server) WorkspaceListSkillDrafts(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
+func (s *Server) ListSkillDrafts(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
 	drafts, err := s.workspaceSkills.ListSkillDrafts(ctx)
 	if err != nil {
 		return nil, mapSkillDraftErr(err, "skills.drafts.list")
@@ -77,10 +77,10 @@ func (s *Server) WorkspaceListSkillDrafts(ctx context.Context, _ protocol.PageQu
 	return protocol.NewPage(out), nil
 }
 
-// WorkspacePromoteSkillDraft publishes a reviewed draft into the active library
+// PromoteSkillDraft publishes a reviewed draft into the active library
 // (skills.drafts.promote). The application use case publishes the refresh nudge
 // after the active library changes.
-func (s *Server) WorkspacePromoteSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
+func (s *Server) PromoteSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
 	handle, err := skillDraftHandle(in)
 	if err != nil {
 		return err
@@ -91,8 +91,8 @@ func (s *Server) WorkspacePromoteSkillDraft(ctx context.Context, in protocol.Ski
 	return nil
 }
 
-// WorkspaceRejectSkillDraft discards a reviewed draft (skills.drafts.reject).
-func (s *Server) WorkspaceRejectSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
+// RejectSkillDraft discards a reviewed draft (skills.drafts.reject).
+func (s *Server) RejectSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
 	handle, err := skillDraftHandle(in)
 	if err != nil {
 		return err

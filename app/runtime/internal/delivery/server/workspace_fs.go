@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// WorkspaceListFiles projects a paged application workspace-file listing onto
+// ListWorkspaceFiles projects a paged application workspace-file listing onto
 // the wire contract.
-func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
+func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
 	page, err := s.workspaceFiles.ListFiles(ctx, workspaceapp.FileListInput{
 		Cwd: in.Cwd,
 		FileListOptions: workspaceapp.FileListOptions{
@@ -36,8 +36,8 @@ func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRe
 	return &protocol.Page[protocol.FileEntry]{Data: data, NextCursor: page.NextCursor}, nil
 }
 
-// WorkspaceGetFileHead projects the application file preview onto wire lines.
-func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
+// GetWorkspaceFileHead projects the application file preview onto wire lines.
+func (s *Server) GetWorkspaceFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
 	head, err := s.workspaceFiles.FileHead(ctx, in.Cwd, in.Path, in.Lines)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -49,8 +49,8 @@ func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHe
 	return &protocol.FileHead{Path: in.Path, Lines: lines}, nil
 }
 
-// WorkspaceReadFile maps the application file read onto the protocol response.
-func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
+// ReadWorkspaceFile maps the application file read onto the protocol response.
+func (s *Server) ReadWorkspaceFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
 	read, err := s.workspaceFiles.ReadFile(ctx, in.Cwd, workspaceapp.FileReadInput{
 		Path: in.Path, MaxBytes: in.MaxBytes, StartLine: in.StartLine, EndLine: in.EndLine,
 	})
@@ -67,8 +67,8 @@ func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequ
 	return out, nil
 }
 
-// WorkspaceGrep maps the application content search onto the protocol result.
-func (s *Server) WorkspaceGrep(ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
+// GrepWorkspace maps the application content search onto the protocol result.
+func (s *Server) GrepWorkspace(ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
 	result, err := s.workspaceFiles.Grep(ctx, in.Cwd, workspaceapp.GrepInput{Path: in.Path, Query: in.Query, Limit: in.Limit})
 	if err != nil {
 		return nil, wireWorkspaceError(err)

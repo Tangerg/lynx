@@ -38,12 +38,12 @@ func serverWithHookTrust(trust workspaceapp.HookTrustStore) *Server {
 	return newWorkspaceServerWithConfig("", workspaceTestConfig{Trust: trust})
 }
 
-func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
+func TestSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	trust := &fakeHookTrust{}
 	s := serverWithHookTrust(trust)
 	projectRoot := t.TempDir()
 
-	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
+	err := s.SetHookTrust(context.Background(), protocol.SetHookTrustRequest{
 		ProjectRoot: projectRoot,
 		Trusted:     true,
 	})
@@ -55,12 +55,12 @@ func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	}
 }
 
-func TestWorkspaceSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
+func TestSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 	trust := &fakeHookTrust{}
 	s := serverWithHookTrust(trust)
 	missing := filepath.Join(t.TempDir(), "missing")
 
-	err := s.WorkspaceSetHookTrust(context.Background(), protocol.SetHookTrustRequest{
+	err := s.SetHookTrust(context.Background(), protocol.SetHookTrustRequest{
 		ProjectRoot: missing,
 		Trusted:     true,
 	})
@@ -84,7 +84,7 @@ func (i staticHookInspector) Inspect(context.Context, string) (domainhooks.Inspe
 	return i.inspection, nil
 }
 
-func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
+func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	root := t.TempDir()
 	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
 		ProjectRoot: root,
@@ -94,9 +94,9 @@ func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
 		}},
 	}}})
 
-	result, err := s.WorkspaceListHooks(t.Context(), protocol.ListHooksRequest{})
+	result, err := s.ListHooks(t.Context(), protocol.ListHooksRequest{})
 	if err != nil {
-		t.Fatalf("WorkspaceListHooks: %v", err)
+		t.Fatalf("ListHooks: %v", err)
 	}
 	if len(result.Hooks) != 1 {
 		t.Fatalf("hooks = %+v, want one", result.Hooks)
@@ -107,12 +107,12 @@ func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	}
 }
 
-func TestWorkspaceListHooksPreservesInspectionFailure(t *testing.T) {
+func TestListHooksPreservesInspectionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	root := t.TempDir()
 	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: failingHookInspector{err: wantErr}})
 
-	if _, err := s.WorkspaceListHooks(context.Background(), protocol.ListHooksRequest{}); !errors.Is(err, wantErr) {
-		t.Fatalf("WorkspaceListHooks error = %v, want %v", err, wantErr)
+	if _, err := s.ListHooks(context.Background(), protocol.ListHooksRequest{}); !errors.Is(err, wantErr) {
+		t.Fatalf("ListHooks error = %v, want %v", err, wantErr)
 	}
 }

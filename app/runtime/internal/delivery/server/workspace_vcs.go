@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// WorkspaceListFileChanges projects application VCS status onto the wire.
-func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+// ListWorkspaceFileChanges projects application VCS status onto the wire.
+func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
@@ -28,9 +28,9 @@ func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.Works
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceGetDiff validates wire-specific mode values then projects the
+// GetWorkspaceDiff validates wire-specific mode values then projects the
 // application-owned diff onto the wire shape.
-func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
+func (s *Server) GetWorkspaceDiff(ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
 	base := false
 	switch in.Mode {
 	case "", protocol.DiffModeWorktree:

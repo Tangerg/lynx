@@ -132,7 +132,7 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 	return ev
 }
 
-// WorkspaceSubscribe opens the workspace event stream (AUX_API §3.1). The
+// SubscribeWorkspace opens the workspace event stream (AUX_API §3.1). The
 // stream's lifetime is the request ctx: it ends on client disconnect and on
 // server shutdown (the transport force-closes the connection, canceling the
 // request), at which point the cleanup below runs and the transport's own
@@ -142,13 +142,13 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 // on any change (commit / stage / checkout / merge) — the client then re-fetches
 // workspace.getDiff. (Working-tree file edits aren't watched directly — see
 // gitWatcher; the agent's own edits arrive as files.changed from its tools.)
-func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
 	cwds, err := watchCwds(in.Watches)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// WorkspaceSubscribe owns the channel: the hub broadcasts to it and (when
+	// SubscribeWorkspace owns the channel: the hub broadcasts to it and (when
 	// watches are present) the application-owned watcher emits to it. Closing it
 	// only after that watcher has stopped keeps emit from racing the close.
 	out := make(chan protocol.WorkspaceEvent, 64)

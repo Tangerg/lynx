@@ -17,7 +17,7 @@ func (d *Dispatcher) handleWorkspaceListFileChanges(ctx context.Context, msg *tr
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListFileChanges(ctx, in)
+	out, err := d.api.ListWorkspaceFileChanges(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -26,7 +26,7 @@ func (d *Dispatcher) handleWorkspaceGetDiff(ctx context.Context, msg *transport.
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceGetDiff(ctx, in)
+	out, err := d.api.GetWorkspaceDiff(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -38,7 +38,7 @@ func (d *Dispatcher) handleWorkspaceGetFileHead(ctx context.Context, msg *transp
 	if in.Path == "" {
 		return responseError(msg.ID, invalidParams("path is required"))
 	}
-	out, err := d.api.WorkspaceGetFileHead(ctx, in)
+	out, err := d.api.GetWorkspaceFileHead(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -47,7 +47,7 @@ func (d *Dispatcher) handleWorkspaceListFiles(ctx context.Context, msg *transpor
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListFiles(ctx, in)
+	out, err := d.api.ListWorkspaceFiles(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -59,7 +59,7 @@ func (d *Dispatcher) handleWorkspaceReadFile(ctx context.Context, msg *transport
 	if in.Path == "" {
 		return responseError(msg.ID, invalidParams("path is required"))
 	}
-	out, err := d.api.WorkspaceReadFile(ctx, in)
+	out, err := d.api.ReadWorkspaceFile(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -71,7 +71,7 @@ func (d *Dispatcher) handleWorkspaceGrep(ctx context.Context, msg *transport.Req
 	if in.Query == "" {
 		return responseError(msg.ID, invalidParams("query is required"))
 	}
-	out, err := d.api.WorkspaceGrep(ctx, in)
+	out, err := d.api.GrepWorkspace(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -80,7 +80,7 @@ func (d *Dispatcher) handleWorkspaceListProjects(ctx context.Context, msg *trans
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListProjects(ctx, q)
+	out, err := d.api.ListWorkspaceProjects(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -89,7 +89,7 @@ func (d *Dispatcher) handleSkillsDiscoveredList(ctx context.Context, msg *transp
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListSkills(ctx, in)
+	out, err := d.api.ListDiscoveredSkills(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -98,7 +98,7 @@ func (d *Dispatcher) handleSkillsLibraryList(ctx context.Context, msg *transport
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListManagedSkills(ctx, q)
+	out, err := d.api.ListManagedSkills(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -110,7 +110,7 @@ func (d *Dispatcher) handleSkillsLibraryArchive(ctx context.Context, msg *transp
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceArchiveSkill(ctx, in))
+	return replyDone(msg, d.api.ArchiveSkill(ctx, in))
 }
 
 func (d *Dispatcher) handleSkillsLibraryRestore(ctx context.Context, msg *transport.Request) HandleResult {
@@ -121,7 +121,7 @@ func (d *Dispatcher) handleSkillsLibraryRestore(ctx context.Context, msg *transp
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceRestoreSkill(ctx, in))
+	return replyDone(msg, d.api.RestoreSkill(ctx, in))
 }
 
 func (d *Dispatcher) handleSkillsDraftsList(ctx context.Context, msg *transport.Request) HandleResult {
@@ -129,7 +129,7 @@ func (d *Dispatcher) handleSkillsDraftsList(ctx context.Context, msg *transport.
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListSkillDrafts(ctx, q)
+	out, err := d.api.ListSkillDrafts(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -138,7 +138,7 @@ func (d *Dispatcher) handleSkillsDraftsPromote(ctx context.Context, msg *transpo
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	return replyDone(msg, d.api.WorkspacePromoteSkillDraft(ctx, in))
+	return replyDone(msg, d.api.PromoteSkillDraft(ctx, in))
 }
 
 func (d *Dispatcher) handleSkillsDraftsReject(ctx context.Context, msg *transport.Request) HandleResult {
@@ -146,7 +146,7 @@ func (d *Dispatcher) handleSkillsDraftsReject(ctx context.Context, msg *transpor
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	return replyDone(msg, d.api.WorkspaceRejectSkillDraft(ctx, in))
+	return replyDone(msg, d.api.RejectSkillDraft(ctx, in))
 }
 
 func (d *Dispatcher) handleRecipesList(ctx context.Context, msg *transport.Request) HandleResult {
@@ -154,7 +154,7 @@ func (d *Dispatcher) handleRecipesList(ctx context.Context, msg *transport.Reque
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListRecipes(ctx, in)
+	out, err := d.api.ListRecipes(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -163,7 +163,7 @@ func (d *Dispatcher) handleAgentDocsList(ctx context.Context, msg *transport.Req
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListAgentDocs(ctx, in)
+	out, err := d.api.ListAgentDocs(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -172,7 +172,7 @@ func (d *Dispatcher) handleMCPServersList(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceMCPListServers(ctx, q)
+	out, err := d.api.ListMCPServers(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -181,7 +181,7 @@ func (d *Dispatcher) handleMCPToolsList(ctx context.Context, msg *transport.Requ
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceMCPListTools(ctx, in)
+	out, err := d.api.ListMCPTools(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -193,7 +193,7 @@ func (d *Dispatcher) handleMCPServersReconnect(ctx context.Context, msg *transpo
 	if in.Server == "" {
 		return responseError(msg.ID, invalidParams("server is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceMCPReconnect(ctx, in.Server))
+	return replyDone(msg, d.api.ReconnectMCPServer(ctx, in.Server))
 }
 
 func (d *Dispatcher) handleMCPServersAuthorize(ctx context.Context, msg *transport.Request) HandleResult {
@@ -204,7 +204,7 @@ func (d *Dispatcher) handleMCPServersAuthorize(ctx context.Context, msg *transpo
 	if in.Server == "" {
 		return responseError(msg.ID, invalidParams("server is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceMCPAuthorize(ctx, in.Server))
+	return replyDone(msg, d.api.AuthorizeMCPServer(ctx, in.Server))
 }
 
 func (d *Dispatcher) handleMCPConfigsList(ctx context.Context, msg *transport.Request) HandleResult {
@@ -212,7 +212,7 @@ func (d *Dispatcher) handleMCPConfigsList(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceMCPListConfigs(ctx, q)
+	out, err := d.api.ListMCPServerConfigs(ctx, q)
 	return reply(msg, out, err)
 }
 
@@ -224,7 +224,7 @@ func (d *Dispatcher) handleMCPConfigsConfigure(ctx context.Context, msg *transpo
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
-	out, err := d.api.WorkspaceMCPConfigure(ctx, in)
+	out, err := d.api.ConfigureMCPServer(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -236,7 +236,7 @@ func (d *Dispatcher) handleMCPConfigsRemove(ctx context.Context, msg *transport.
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceMCPRemove(ctx, in.Name))
+	return replyDone(msg, d.api.RemoveMCPServer(ctx, in.Name))
 }
 
 func (d *Dispatcher) handleMCPConfigsSetEnabled(ctx context.Context, msg *transport.Request) HandleResult {
@@ -247,7 +247,7 @@ func (d *Dispatcher) handleMCPConfigsSetEnabled(ctx context.Context, msg *transp
 	if in.Name == "" {
 		return responseError(msg.ID, invalidParams("name is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceMCPSetEnabled(ctx, in))
+	return replyDone(msg, d.api.SetMCPServerEnabled(ctx, in))
 }
 
 func (d *Dispatcher) handleMCPConfigsTest(ctx context.Context, msg *transport.Request) HandleResult {
@@ -255,7 +255,7 @@ func (d *Dispatcher) handleMCPConfigsTest(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceMCPTest(ctx, in)
+	out, err := d.api.TestMCPServer(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -264,7 +264,7 @@ func (d *Dispatcher) handleHooksList(ctx context.Context, msg *transport.Request
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, err := d.api.WorkspaceListHooks(ctx, in)
+	out, err := d.api.ListHooks(ctx, in)
 	return reply(msg, out, err)
 }
 
@@ -276,7 +276,7 @@ func (d *Dispatcher) handleHooksSetTrust(ctx context.Context, msg *transport.Req
 	if in.ProjectRoot == "" {
 		return responseError(msg.ID, invalidParams("projectRoot is required"))
 	}
-	return replyDone(msg, d.api.WorkspaceSetHookTrust(ctx, in))
+	return replyDone(msg, d.api.SetHookTrust(ctx, in))
 }
 
 // handleWorkspaceSubscribe opens the workspace event stream (AUX_API §3.1) and
@@ -286,7 +286,7 @@ func (d *Dispatcher) handleWorkspaceSubscribe(ctx context.Context, msg *transpor
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	out, events, err := d.api.WorkspaceSubscribe(ctx, in)
+	out, events, err := d.api.SubscribeWorkspace(ctx, in)
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}

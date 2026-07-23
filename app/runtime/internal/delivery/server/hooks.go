@@ -7,11 +7,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// WorkspaceListHooks reports the lifecycle hooks discovered for a cwd — global
+// ListHooks reports the lifecycle hooks discovered for a cwd — global
 // (~/.lyra) + the project's (.lyra) — each marked active iff it currently runs
 // (global always; project only when the project is trusted). The client renders
 // this for review + a trust toggle (hooks.list, API.md §7.5).
-func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
+func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
 	insp, err := s.workspaceHooks.InspectHooks(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(fmt.Errorf("workspace: inspect hooks: %w", err))
@@ -37,10 +37,10 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 	return out, nil
 }
 
-// WorkspaceSetHookTrust trusts (or revokes) a project's hooks (hooks.
+// SetHookTrust trusts (or revokes) a project's hooks (hooks.
 // setTrust). The change takes effect on the next turn — the resolver re-reads
 // trust per turn.
-func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookTrustRequest) error {
+func (s *Server) SetHookTrust(ctx context.Context, in protocol.SetHookTrustRequest) error {
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams
 	}

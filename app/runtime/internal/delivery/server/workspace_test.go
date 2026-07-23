@@ -86,7 +86,7 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 	}
 	s := newWorkspaceServer(dir)
 
-	got, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "f.txt", Lines: 2})
+	got, err := s.GetWorkspaceFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "f.txt", Lines: 2})
 	if err != nil {
 		t.Fatalf("getFileHead: %v", err)
 	}
@@ -94,7 +94,7 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 		t.Fatalf("lines = %+v, want first two lines numbered 1,2", got.Lines)
 	}
 
-	if _, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "../escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+	if _, err := s.GetWorkspaceFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "../escape"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
 	}
 }
@@ -110,7 +110,7 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	}
 	s := newWorkspaceServer(dir)
 
-	first, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{Recursive: true, PageQuery: protocol.PageQuery{Limit: 2}})
+	first, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{Recursive: true, PageQuery: protocol.PageQuery{Limit: 2}})
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+	second, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{
 		Recursive: true,
 		PageQuery: protocol.PageQuery{Cursor: first.NextCursor, Limit: 2},
 	})
@@ -139,13 +139,13 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	if len(second.Data) != 1 || second.Data[0].Path != "c.txt" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want c.txt and no cursor", second)
 	}
-	if _, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+	if _, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{
 		Recursive: true,
 		PageQuery: protocol.PageQuery{Limit: -1},
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("negative limit error = %v, want invalid_params", err)
 	}
-	if _, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+	if _, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{
 		Recursive: true,
 		PageQuery: protocol.PageQuery{Cursor: "!", Limit: 1},
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
@@ -164,7 +164,7 @@ func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
 	}
 	s := newWorkspaceServer(root)
 
-	if _, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "leak.txt"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+	if _, err := s.ReadWorkspaceFile(context.Background(), protocol.ReadFileRequest{Path: "leak.txt"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Fatalf("read symlink escape err = %v, want ErrPathOutsideRoot", err)
 	}
 }
@@ -179,7 +179,7 @@ func TestWorkspaceReadFileWindowAndMaxBytes(t *testing.T) {
 	}
 	s := newWorkspaceServer(dir)
 
-	got, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "f.txt", StartLine: 2, EndLine: 3})
+	got, err := s.ReadWorkspaceFile(context.Background(), protocol.ReadFileRequest{Path: "f.txt", StartLine: 2, EndLine: 3})
 	if err != nil {
 		t.Fatalf("read window: %v", err)
 	}
@@ -187,7 +187,7 @@ func TestWorkspaceReadFileWindowAndMaxBytes(t *testing.T) {
 		t.Fatalf("window = %+v, want lines 2..3 with truncated=true", got)
 	}
 
-	capped, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "long.txt", MaxBytes: 3})
+	capped, err := s.ReadWorkspaceFile(context.Background(), protocol.ReadFileRequest{Path: "long.txt", MaxBytes: 3})
 	if err != nil {
 		t.Fatalf("read capped: %v", err)
 	}
@@ -211,8 +211,8 @@ func TestWorkspaceReadFileRejectsInvalidRange(t *testing.T) {
 		{Path: "f.txt", StartLine: 3, EndLine: 2},
 	}
 	for _, tc := range cases {
-		if _, err := s.WorkspaceReadFile(context.Background(), tc); !errors.Is(err, protocol.ErrInvalidParams) {
-			t.Fatalf("WorkspaceReadFile(%+v) err = %v, want ErrInvalidParams", tc, err)
+		if _, err := s.ReadWorkspaceFile(context.Background(), tc); !errors.Is(err, protocol.ErrInvalidParams) {
+			t.Fatalf("ReadWorkspaceFile(%+v) err = %v, want ErrInvalidParams", tc, err)
 		}
 	}
 }
@@ -232,11 +232,11 @@ func TestWorkspaceGrep(t *testing.T) {
 	}
 	s := newWorkspaceServer(dir)
 
-	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
+	if _, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Errorf("empty query err = %v, want ErrInvalidParams", err)
 	}
 
-	got, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{Query: "Needle"})
+	got, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{Query: "Needle"})
 	if err != nil {
 		t.Skipf("grep backend unavailable: %v", err) // no rg/grep on PATH
 	}
@@ -244,7 +244,7 @@ func TestWorkspaceGrep(t *testing.T) {
 		t.Fatalf("grep Needle = %d matches / total %d, want 2/2", len(got.Matches), got.Total)
 	}
 
-	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{Query: "x", Path: "../out"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
+	if _, err := s.GrepWorkspace(context.Background(), protocol.GrepRequest{Query: "x", Path: "../out"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Errorf("escape path err = %v, want ErrPathOutsideRoot", err)
 	}
 }
@@ -261,15 +261,15 @@ func (f fakeRecipeLister) List(context.Context, string) ([]workspaceapp.Recipe, 
 	return f.recipes, nil
 }
 
-// TestWorkspaceListSkills maps discovered skills onto the wire,
+// TestListDiscoveredSkills maps discovered skills onto the wire,
 // carrying each one's scope through Source, and defaults cwd to the serve dir.
-func TestWorkspaceListSkills(t *testing.T) {
+func TestListDiscoveredSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []workspaceapp.SkillInfo{
 		{Name: "pdf", Description: "PDF tools", Scope: "project"},
 		{Name: "web", Description: "web tools", Scope: "global"},
 	}}})
-	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
+	got, err := s.ListDiscoveredSkills(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listSkills: %v", err)
 	}
@@ -278,15 +278,15 @@ func TestWorkspaceListSkills(t *testing.T) {
 	}
 }
 
-// TestWorkspaceListRecipes maps the runtime's discovered recipes onto the wire,
+// TestListRecipes maps the runtime's discovered recipes onto the wire,
 // carrying scope + body through, and defaults cwd to the serve dir.
-func TestWorkspaceListRecipes(t *testing.T) {
+func TestListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Recipes: fakeRecipeLister{recipes: []workspaceapp.Recipe{
 		{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: workspaceapp.RecipeScopeProject, Source: "/p/review.md"},
 		{Name: "commit", Body: "Write a commit", Scope: workspaceapp.RecipeScopeGlobal, Source: "/g/commit.md"},
 	}}})
-	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
+	got, err := s.ListRecipes(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listRecipes: %v", err)
 	}
@@ -309,7 +309,7 @@ func TestWorkspaceSubscribe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{})
+	_, events, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
@@ -341,9 +341,9 @@ func TestWorkspaceSubscribe(t *testing.T) {
 func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	s := &Server{wsHub: newWorkspaceHub()}
 	reqCtx, cancelReq := context.WithCancel(context.Background())
-	_, events, err := s.WorkspaceSubscribe(reqCtx, protocol.WorkspaceSubscribeRequest{})
+	_, events, err := s.SubscribeWorkspace(reqCtx, protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
-		t.Fatalf("WorkspaceSubscribe: %v", err)
+		t.Fatalf("SubscribeWorkspace: %v", err)
 	}
 
 	// Server.Close gates new work but must not disturb an in-flight request-owned
@@ -369,17 +369,17 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	}
 
 	// A new subscription after Close is rejected.
-	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{}); !errors.Is(err, errServerClosed) {
+	if _, _, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{}); !errors.Is(err, errServerClosed) {
 		t.Fatalf("subscribe after close err = %v, want errServerClosed", err)
 	}
 }
 
 // TestAgentDocScope pins the cwd→home cascade classification.
-func TestWorkspaceListAgentDocsRejectsUnavailableCwd(t *testing.T) {
+func TestListAgentDocsRejectsUnavailableCwd(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	missing := filepath.Join(t.TempDir(), "missing")
 
-	_, err := s.WorkspaceListAgentDocs(context.Background(), protocol.WorkspaceListQuery{
+	_, err := s.ListAgentDocs(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: missing},
 	})
 	if !errors.Is(err, protocol.ErrCwdUnavailable) {

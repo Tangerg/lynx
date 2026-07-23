@@ -20,7 +20,7 @@ type streamingLifecycleRuntime struct {
 	subscribed chan struct{}
 }
 
-func (r *streamingLifecycleRuntime) WorkspaceSubscribe(
+func (r *streamingLifecycleRuntime) SubscribeWorkspace(
 	context.Context,
 	protocol.WorkspaceSubscribeRequest,
 ) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {

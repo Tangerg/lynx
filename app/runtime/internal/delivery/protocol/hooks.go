@@ -1,5 +1,13 @@
 package protocol
 
+import "context"
+
+// Hooks is the hooks.* method group.
+type Hooks interface {
+	ListHooks(ctx context.Context, in ListHooksRequest) (*HooksListResult, error)
+	SetHookTrust(ctx context.Context, in SetHookTrustRequest) error
+}
+
 // Lifecycle-hooks management wire types (hooks.*, API.md §7.5). The
 // runtime runs user-authored hooks at fixed turn lifecycle points; these
 // methods let a client review what's configured for a cwd and toggle whether a

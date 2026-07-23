@@ -1,5 +1,12 @@
 package protocol
 
+import "context"
+
+// Recipes is the recipes.* method group.
+type Recipes interface {
+	ListRecipes(ctx context.Context, in WorkspaceListQuery) (*Page[Recipe], error)
+}
+
 // Recipe-discovery wire types (recipes.list, API.md §7.5). A recipe is
 // a user-invoked, parameterized prompt template discovered from .lyra/recipes
 // (project) layered over the global recipes directory. The client renders the

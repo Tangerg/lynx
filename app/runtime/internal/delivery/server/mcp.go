@@ -13,20 +13,20 @@ import (
 // Reconnect's outcome rides the workspace event stream as mcp.serverChanged
 // (AUX_API §5).
 
-// WorkspaceMCPListServers lists every configured MCP server with its real
+// ListMCPServers lists every configured MCP server with its real
 // connection state (AUX_API §5.1). Boot tolerates a per-server failure, so the
 // list includes servers that couldn't connect — each carrying its failure
 // reason as Error — alongside the connected ones, instead of the old
 // "everything is connected" assumption.
-func (s *Server) WorkspaceMCPListServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
+func (s *Server) ListMCPServers(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServer], error) {
 	return protocol.NewPage(s.mcpServersWire(ctx)), nil
 }
 
-// WorkspaceMCPListTools lists tools advertised by the connected MCP servers,
+// ListMCPTools lists tools advertised by the connected MCP servers,
 // scoped to in.Server when set (empty = all). Each tool's bare name + the
 // server it belongs to are kept separate on the wire (the model sees them as
 // "<server>_<name>").
-func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
+func (s *Server) ListMCPTools(ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
 	found, err := s.integrations.MCPTools(ctx, in.Server)
 	if err != nil {
 		return nil, err
@@ -38,22 +38,22 @@ func (s *Server) WorkspaceMCPListTools(ctx context.Context, in protocol.MCPListT
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceMCPReconnect re-dials a configured MCP server (AUX_API §5.2). It has
+// ReconnectMCPServer re-dials a configured MCP server (AUX_API §5.2). It has
 // no synchronous result — the outcome rides notifications.workspace.event as
 // mcp.serverChanged, in the guaranteed order connecting → (connected | failed).
 // The capabilities coordinator validates the name synchronously (unknown →
 // invalid_params) then runs the dial fire-and-forget on its component task group,
 // publishing the connecting + settled frames through the MCP-status bridge.
-func (s *Server) WorkspaceMCPReconnect(ctx context.Context, server string) error {
+func (s *Server) ReconnectMCPServer(ctx context.Context, server string) error {
 	return wireMCPError(s.integrations.ReconnectMCPServer(ctx, server))
 }
 
-// WorkspaceMCPAuthorize starts the interactive OAuth sign-in for an HTTP MCP
+// AuthorizeMCPServer starts the interactive OAuth sign-in for an HTTP MCP
 // server (mcp.servers.authorize). Like reconnect it is fire-and-forget: the
 // coordinator validates the name synchronously (unknown → invalid_params) then
 // runs the flow — open the browser, catch the loopback redirect, exchange the
 // code — publishing the connecting + settled frames as it settles.
-func (s *Server) WorkspaceMCPAuthorize(ctx context.Context, server string) error {
+func (s *Server) AuthorizeMCPServer(ctx context.Context, server string) error {
 	return wireMCPError(s.integrations.AuthorizeMCPServer(ctx, server))
 }
 
@@ -90,10 +90,10 @@ func (s *Server) observeMCPStatus(src MCPStatusSource) {
 // the application status bridge publishes mcp.serverChanged. Test probes a
 // candidate config without persisting.
 
-// WorkspaceMCPListConfigs returns every registered MCP server's editable
+// ListMCPServerConfigs returns every registered MCP server's editable
 // configuration (token masked). Live connection state is not included — read it
 // from mcp.servers.list (McpServer), keyed by name.
-func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
+func (s *Server) ListMCPServerConfigs(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.McpServerConfig], error) {
 	servers, err := s.integrations.ListMCPServerConfigs(ctx)
 	if err != nil {
 		return nil, err
@@ -105,10 +105,10 @@ func (s *Server) WorkspaceMCPListConfigs(ctx context.Context, _ protocol.PageQue
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceMCPConfigure upserts a server in the registry and applies it to the
+// ConfigureMCPServer upserts a server in the registry and applies it to the
 // live connections, returning the stored configuration (token masked). A blank
 // Authorization preserves the existing token only for the same HTTP origin.
-func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
+func (s *Server) ConfigureMCPServer(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpServerConfig, error) {
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
 	}
@@ -120,9 +120,9 @@ func (s *Server) WorkspaceMCPConfigure(ctx context.Context, in protocol.Configur
 	return &out, nil
 }
 
-// WorkspaceMCPRemove deletes a server from the registry + the live set. The
+// RemoveMCPServer deletes a server from the registry + the live set. The
 // follow-up mcp.serverChanged frame omits status (entry no longer exists).
-func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
+func (s *Server) RemoveMCPServer(ctx context.Context, name string) error {
 	if name == "" {
 		return protocol.ErrInvalidParams
 	}
@@ -132,9 +132,9 @@ func (s *Server) WorkspaceMCPRemove(ctx context.Context, name string) error {
 	return nil
 }
 
-// WorkspaceMCPSetEnabled flips a server's enablement (enable → dial, disable →
+// SetMCPServerEnabled flips a server's enablement (enable → dial, disable →
 // drop from the live set) and publishes the resulting status.
-func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPEnabledRequest) error {
+func (s *Server) SetMCPServerEnabled(ctx context.Context, in protocol.SetMCPEnabledRequest) error {
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
@@ -144,11 +144,11 @@ func (s *Server) WorkspaceMCPSetEnabled(ctx context.Context, in protocol.SetMCPE
 	return nil
 }
 
-// WorkspaceMCPTest probes a candidate configuration (a throwaway dial + tools
+// TestMCPServer probes a candidate configuration (a throwaway dial + tools
 // list) without persisting — the connection-test button. A blank Authorization
 // reuses the stored token only for the same HTTP origin, so testing an ordinary
 // edit needn't re-enter the secret and testing a new endpoint cannot leak it.
-func (s *Server) WorkspaceMCPTest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
+func (s *Server) TestMCPServer(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
 	result, err := s.integrations.TestMCPServer(ctx, mcpServerInputFromRequest(in))
 	if err != nil {
 		return nil, wireMCPError(err)
