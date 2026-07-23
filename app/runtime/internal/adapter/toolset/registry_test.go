@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -62,7 +63,7 @@ func TestRegistryRejectsUnknownTool(t *testing.T) {
 	}
 }
 
-func buildRegistry(t *testing.T) tool.Registry {
+func buildRegistry(t *testing.T) toolapp.Registry {
 	t.Helper()
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
 	if err != nil {

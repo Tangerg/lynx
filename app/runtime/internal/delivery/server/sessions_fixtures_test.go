@@ -23,7 +23,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -150,7 +149,7 @@ func serverWithModels(cfg models.Config) *Server {
 
 // serverWithTools builds a Server whose only wired coordinator is the tools one —
 // enough for the tools.* handler tests.
-func serverWithTools(registry tool.Registry) *Server {
+func serverWithTools(registry tools.Registry) *Server {
 	return &Server{tools: tools.New(registry)}
 }
 

@@ -14,9 +14,7 @@ type FeedbackStore struct {
 	db *sql.DB
 }
 
-var _ feedback.Store = (*FeedbackStore)(nil)
-
-// NewFeedbackStore wires db to the feedback.Store port.
+// NewFeedbackStore wires db to the feedback receiver.
 func NewFeedbackStore(db *sql.DB) *FeedbackStore {
 	return &FeedbackStore{db: db}
 }

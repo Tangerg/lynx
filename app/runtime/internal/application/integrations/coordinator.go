@@ -39,6 +39,15 @@ type MCPRegistryCommands interface {
 	Remove(ctx context.Context, name string)
 }
 
+// Registry is the durable MCP-server surface the integration use cases own.
+type Registry interface {
+	List(ctx context.Context) ([]mcpserver.Server, error)
+	Get(ctx context.Context, name string) (mcpserver.Server, bool, error)
+	Configure(ctx context.Context, server mcpserver.Server) error
+	Remove(ctx context.Context, name string) error
+	SetEnabled(ctx context.Context, name string, enabled bool) error
+}
+
 // Coordinator owns the MCP integration use cases: the durable server registry,
 // its live connection pool, and the atomically-published tool policy.
 type Coordinator struct {
@@ -48,7 +57,7 @@ type Coordinator struct {
 	// reconciliation and the short pre/post boundaries of asynchronous connect
 	// operations. Network and interactive OAuth waits never hold it; the live
 	// adapter owns per-server latest-operation-wins sequencing.
-	mcpRegistry           mcpserver.Registry
+	mcpRegistry           Registry
 	mcpStatusReader       MCPStatusReader
 	mcpToolCatalog        MCPToolCatalog
 	mcpConnectionCommands MCPConnectionCommands
@@ -71,7 +80,7 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	MCPRegistry           mcpserver.Registry
+	MCPRegistry           Registry
 	MCPStatusReader       MCPStatusReader
 	MCPToolCatalog        MCPToolCatalog
 	MCPConnectionCommands MCPConnectionCommands

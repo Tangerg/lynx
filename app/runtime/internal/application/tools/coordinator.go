@@ -1,7 +1,6 @@
 // Package tools is the application coordinator for the runtime's diagnostic
-// tool registry: listing every tool the runtime exposes and invoking one
-// directly, outside a chat turn. A thin read/invoke surface over the domain tool
-// registry the delivery tools.* handlers drive.
+// tool catalog: listing every tool the runtime exposes and invoking one
+// directly, outside a chat turn.
 package tools
 
 import (
@@ -10,13 +9,20 @@ import (
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// Coordinator drives the diagnostic tool registry.
+// Registry is the diagnostic catalog and invocation surface these use cases
+// consume.
+type Registry interface {
+	List(ctx context.Context) ([]toolsvc.Tool, error)
+	Invoke(ctx context.Context, name string, arguments string) (string, error)
+}
+
+// Coordinator drives diagnostic tool use cases.
 type Coordinator struct {
-	registry toolsvc.Registry
+	registry Registry
 }
 
 // New returns a Coordinator over the tool registry.
-func New(registry toolsvc.Registry) *Coordinator {
+func New(registry Registry) *Coordinator {
 	return &Coordinator{registry: registry}
 }
 

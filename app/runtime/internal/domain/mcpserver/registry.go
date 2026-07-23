@@ -11,7 +11,6 @@
 package mcpserver
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -123,23 +122,4 @@ func (s Server) Validate() error {
 		return fmt.Errorf("mcpserver %q: unknown transport %q (want %q or %q)", s.Name, s.Transport, TransportStdio, TransportStreamableHTTP)
 	}
 	return nil
-}
-
-// Registry is the MCP-server registry. All methods are safe for concurrent use.
-type Registry interface {
-	// List returns every registered server, enabled or not, sorted by Name.
-	List(ctx context.Context) ([]Server, error)
-
-	// Get returns one server by name; ok is false when unknown.
-	Get(ctx context.Context, name string) (Server, bool, error)
-
-	// Configure upserts a server by Name, persisting the change. Used both to
-	// seed at startup and to apply a runtime mcp.configs.configure.
-	Configure(ctx context.Context, s Server) error
-
-	// Remove deletes a server by name. Removing an unknown name is a no-op.
-	Remove(ctx context.Context, name string) error
-
-	// SetEnabled flips a server's enablement by name, persisting the change.
-	SetEnabled(ctx context.Context, name string, enabled bool) error
 }

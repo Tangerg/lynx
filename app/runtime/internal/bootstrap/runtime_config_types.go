@@ -8,11 +8,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -87,7 +87,7 @@ type Config struct {
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime
 	// mcp.configs.configure / remove / setEnabled. Required.
-	MCPRegistry mcpserver.Registry
+	MCPRegistry integrations.Registry
 
 	// SessionStore persists Lyra sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to

@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// MCPServerStore implements mcpserver.Registry against a SQLite database.
-// One row per server name; Configure is an upsert. The list columns (args /
+// MCPServerStore persists MCP server entries in SQLite. One row per server
+// name; Configure is an upsert. The list columns (args /
 // disabled_tools / auto_approve_tools) and the map columns (env / headers) are
 // JSON-encoded; timeout is stored as nanoseconds. The DB must have been opened
 // via [Open] so the mcp_servers table exists.
@@ -20,9 +20,7 @@ type MCPServerStore struct {
 	db *sql.DB
 }
 
-var _ mcpserver.Registry = (*MCPServerStore)(nil)
-
-// NewMCPServerStore wires the given *sql.DB to the mcpserver.Registry surface.
+// NewMCPServerStore wires the given *sql.DB to MCP server persistence.
 func NewMCPServerStore(db *sql.DB) *MCPServerStore {
 	return &MCPServerStore{db: db}
 }
