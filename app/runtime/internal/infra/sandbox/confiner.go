@@ -9,10 +9,8 @@
 //   - Workspace (wired): an isolated working copy — a session marked Isolated
 //     runs its tools inside one instead of the real tree (see
 //     internal/adapter/isolation, which drives New/Path/Shutdown). macOS-only
-//     today (fail-closed elsewhere). Stop/Resume + the content-addressed tar
-//     SnapshotStore are the snapshot/resume half: unused today (the scratch copy
-//     is thrown away, never snapshotted), retained as C7 groundwork for a future
-//     inspect / resume-isolated-session feature — not dead code.
+//     today (fail-closed elsewhere). The scratch copy is process-local and is
+//     removed at shutdown.
 package sandbox
 
 import (

@@ -245,12 +245,12 @@ func TestRollbackRejectsActiveSubtaskDescendantBeforeWriteSet(t *testing.T) {
 func TestRestoreSessionAppliesPlan(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]interrupts.Pending{}
-	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).RestoreSession(
+	_, err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).restoreSession(
 		t.Context(),
 		Snapshot{
 			Session:  session.Session{ID: "ses_1", Cwd: "/workspace"},
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
-		},
+		}, false,
 	)
 	if err != nil {
 		t.Fatalf("RestoreSession: %v", err)
@@ -269,7 +269,7 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 		Paths: testCwdResolver{err: want},
 	}))
 
-	err := coordinator.RestoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}})
+	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}}, false)
 	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}

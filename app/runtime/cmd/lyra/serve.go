@@ -93,6 +93,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		ScheduleFires:      stack.ScheduleFires,
 		Queries:            stack.Queries,
 		Usage:              stack.Usage,
+		Feedback:           stack.Feedback,
 		Schedules:          stack.Schedules,
 		Goals:              stack.Goals,
 		AgentMemory:        stack.AgentMemory,

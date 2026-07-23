@@ -108,7 +108,7 @@ type Dependencies struct {
 //   - event_stream.go   — event subscription + transient delta coalescing
 //   - prompt_hooks.go   — pre-turn lifecycle hooks
 //   - lifecycle.go      — terminal-event capture from the agent runtime
-//   - observer.go       — engine tool-observer → turn.Event translation
+//   - observer.go       — engine tool-observer → application runs event translation
 //
 // Consumers define the narrow control ports they need; delivery never drives
 // this adapter directly.

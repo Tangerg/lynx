@@ -52,7 +52,7 @@ func mustReduce(t *testing.T, reducer *reducer, event EngineEvent) []reduction {
 
 func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	config := testReducerConfig()
-	config.UserInput = []ContentBlock{{Kind: TextContent, Text: "hello"}}
+	config.UserInput = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
 	reducer := newReducer(config)
 
 	opening := mustOpen(t, reducer)
@@ -64,7 +64,7 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 		t.Fatalf("opening run = %#v", opening[0].Event)
 	}
 	itemStarted, ok := opening[1].Event.(ItemStarted)
-	if !ok || itemStarted.Item.Kind != UserMessage || itemStarted.Item.Status != ItemRunning {
+	if !ok || itemStarted.Item.Kind != transcript.UserMessage || itemStarted.Item.Status != transcript.ItemRunning {
 		t.Fatalf("user item start = %#v", opening[1].Event)
 	}
 	itemCompleted, ok := opening[2].Event.(ItemCompleted)
@@ -81,7 +81,7 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 
 func TestReducerOwnsOpeningUserInput(t *testing.T) {
 	config := testReducerConfig()
-	config.UserInput = []ContentBlock{{Kind: TextContent, Text: "original"}}
+	config.UserInput = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "original"}}
 	reducer := newReducer(config)
 
 	config.UserInput[0].Text = "reused by caller"
@@ -124,7 +124,7 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 
 	mustReduce(t, reducer, ToolCallStart{CallID: "denied_1", ToolName: "shell", Arguments: `{}`})
 	denied := completedItem(t, mustReduce(t, reducer, ToolCallEnd{CallID: "denied_1", Denied: true}))
-	if denied.Status != ItemIncomplete || denied.Error == nil || denied.Error.Kind != DeniedByUserProblem {
+	if denied.Status != transcript.ItemIncomplete || denied.Error == nil || denied.Error.Kind != transcript.DeniedByUserProblem {
 		t.Fatalf("denied item = %+v", denied)
 	}
 }
@@ -181,7 +181,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	if commit == nil || commit.Interrupt == nil || len(commit.Items) != 2 {
 		t.Fatalf("park commit = %+v, want two ordered tool items", commit)
 	}
-	if commit.Items[0].ID != firstID || commit.Items[0].Status != ItemRunning {
+	if commit.Items[0].ID != firstID || commit.Items[0].Status != transcript.ItemRunning {
 		t.Fatalf("active approval item = %+v, want original running item %q", commit.Items[0], firstID)
 	}
 	if commit.Items[1].Tool == nil || commit.Items[1].Tool.Result == nil {
@@ -189,7 +189,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	}
 	result, ok := commit.Items[1].Tool.Result.String()
 	if commit.Items[1].Tool.Name != "lookup" ||
-		commit.Items[1].Status != ItemSucceeded || !ok || result != "found" {
+		commit.Items[1].Status != transcript.ItemCompleted || !ok || result != "found" {
 		t.Fatalf("completed sibling item = %+v", commit.Items[1])
 	}
 	if got := commit.Interrupt.Interrupts[0].ItemID; got != firstID {
@@ -268,7 +268,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	}
 
 	compaction := mustReduce(t, reducer, CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
-	if item := completedItem(t, compaction); item.Kind != Compaction || item.DroppedMessages != 14 {
+	if item := completedItem(t, compaction); item.Kind != transcript.Compaction || item.DroppedMessages != 14 {
 		t.Fatalf("compaction item = %+v", item)
 	}
 
@@ -285,13 +285,13 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 	cases := []struct {
 		name    string
-		problem Problem
+		problem transcript.Problem
 	}{
-		{"rate limited", Problem{Kind: RateLimitedProblem, Detail: "retry shortly", Retryable: true, RetryAfterSeconds: 30}},
-		{"invalid credentials", Problem{Kind: InvalidAPIKeyProblem, Detail: "check credentials"}},
-		{"provider unavailable", Problem{Kind: ProviderUnavailableProblem, Detail: "retry shortly", Retryable: true}},
-		{"timeout", Problem{Kind: TimeoutProblem, Detail: "retry shortly", Retryable: true}},
-		{"provider rejected", Problem{Kind: ProviderRejectedProblem, Detail: "invalid request"}},
+		{"rate limited", transcript.Problem{Kind: transcript.RateLimitedProblem, Detail: "retry shortly", Retryable: true, RetryAfterSeconds: 30}},
+		{"invalid credentials", transcript.Problem{Kind: transcript.InvalidAPIKeyProblem, Detail: "check credentials"}},
+		{"provider unavailable", transcript.Problem{Kind: transcript.ProviderUnavailableProblem, Detail: "retry shortly", Retryable: true}},
+		{"timeout", transcript.Problem{Kind: transcript.TimeoutProblem, Detail: "retry shortly", Retryable: true}},
+		{"provider rejected", transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "invalid request"}},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
@@ -303,8 +303,8 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError})
 			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 			problem := finished.Run.Result.Error
-			if problem == nil || *problem != (Problem{
-				Kind: test.problem.Kind, Scope: RunProblem, Detail: test.problem.Detail,
+			if problem == nil || *problem != (transcript.Problem{
+				Kind: test.problem.Kind, Scope: transcript.RunProblem, Detail: test.problem.Detail,
 				Retryable: test.problem.Retryable, RetryAfterSeconds: test.problem.RetryAfterSeconds,
 			}) || strings.Contains(problem.Detail, "api.example") {
 				t.Errorf("terminal problem = %+v", problem)
@@ -387,7 +387,7 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 		t.Fatalf("park commit = %+v, want items + run + interrupt + suspend", commit)
 	}
 	for _, item := range commit.Items {
-		if item.SessionID != "ses_1" || item.RunID != "run_1" || item.Status != ItemRunning {
+		if item.SessionID != "ses_1" || item.RunID != "run_1" || item.Status != transcript.ItemRunning {
 			t.Fatalf("persisted interrupt item = %+v", item)
 		}
 	}
@@ -670,7 +670,7 @@ func testToolArguments(t *testing.T, value map[string]any) tool.Arguments {
 	return result
 }
 
-func completedItem(t *testing.T, reductions []reduction) Item {
+func completedItem(t *testing.T, reductions []reduction) transcript.Item {
 	t.Helper()
 	for _, reduction := range reductions {
 		if event, ok := reduction.Event.(ItemCompleted); ok {
@@ -678,7 +678,7 @@ func completedItem(t *testing.T, reductions []reduction) Item {
 		}
 	}
 	t.Fatalf("no ItemCompleted in %+v", reductions)
-	return Item{}
+	return transcript.Item{}
 }
 
 func startedItemID(t *testing.T, reductions []reduction) string {

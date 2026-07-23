@@ -262,27 +262,19 @@ func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (Ca
 	return CancelBinding{SessionID: e.record.SessionID, TurnID: e.record.TurnID}, cleanupCtx, cancel, true
 }
 
-// Subscribe attaches a fresh subscriber to a live run's Journal, replaying the
-// durable backlog after fromCursor then tailing live, and drops the
-// subscription when ctx ends. ok=false when the run isn't actively streaming.
-func (c *Coordinator) Subscribe(ctx context.Context, runID, fromCursor string) (<-chan Event, bool) {
+// SubscribeLive opens a coherent subscription to a live run. The record and
+// Journal are captured from the same registry entry, so Delivery cannot return
+// a segment id from one entry and subscribe to a replacement or removed entry.
+// The subscription is dropped when ctx ends. ok=false when the run is not
+// actively streaming.
+func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string) (Record, <-chan Event, bool) {
 	e, ok := c.registry.Get(runID)
 	if !ok || e.handle == nil || e.handle.hub == nil {
-		return nil, false
+		return Record{}, nil, false
 	}
 	events, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	context.AfterFunc(ctx, unsubscribe)
-	return events, true
-}
-
-// LiveRun returns a live segment's record, or false when the run isn't actively
-// tracked (finished / parked / unknown).
-func (c *Coordinator) LiveRun(runID string) (Record, bool) {
-	e, ok := c.registry.Get(runID)
-	if !ok {
-		return Record{}, false
-	}
-	return e.record, true
+	return e.record, events, true
 }
 
 // Contains reports whether a run is actively tracked.

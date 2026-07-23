@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // These fakes exercise the application-owned reducer and journal. Delivery
@@ -213,7 +214,7 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
-	spec.Input = []ContentBlock{{Kind: TextContent, Text: "question"}}
+	spec.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "question"}}
 
 	stream, err := coordinator.openSegment(context.Background(), spec)
 	if err != nil {
@@ -294,7 +295,7 @@ func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) 
 		TurnStart{Model: "model"},
 		ErrorEvent{
 			Message: "engine: start chat: duplicate process extension",
-			Code:    ErrorCodeEngine, Problem: Problem{Kind: InternalProblem, Scope: RunProblem, Detail: "the run failed due to an internal error"},
+			Code:    ErrorCodeEngine, Problem: transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"},
 		},
 		TurnEnd{Reason: execution.OutcomeError},
 	}}
@@ -319,7 +320,7 @@ func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) 
 	if finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
 		t.Fatalf("outcome = %v, want error", finished.Run.Outcome)
 	}
-	if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != InternalProblem {
+	if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != transcript.InternalProblem {
 		t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
 	}
 	if events[0].Seq >= events[1].Seq {
@@ -427,7 +428,7 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 			if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeError {
 				t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
 			}
-			if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != InternalProblem {
+			if finished.Run.Result == nil || finished.Run.Result.Error == nil || finished.Run.Result.Error.Kind != transcript.InternalProblem {
 				t.Fatalf("run result = %+v, want canonical internal problem", finished.Run.Result)
 			}
 			if executor.cancels() != 1 {

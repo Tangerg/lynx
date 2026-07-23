@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -64,7 +65,7 @@ func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {
 		dur := time.Since(st.startedAt)
 		finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 		recordTurnDuration(st.ctx, reason, st.model, dur)
-		s.emit(st, TurnEnd{Reason: reason, Duration: dur})
+		s.emit(st, runs.TurnEnd{Reason: reason, Duration: dur})
 	})
 }
 
@@ -90,9 +91,9 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, process agentexec.TurnProc
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
 	if plan.errMsg != "" {
-		s.emit(st, ErrorEvent{Message: plan.errMsg, Code: plan.errCode, Problem: plan.problem})
+		s.emit(st, runs.ErrorEvent{Message: plan.errMsg, Code: plan.errCode, Problem: plan.problem})
 	}
-	end := TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD, MaxSteps: st.maxSteps}
+	end := runs.TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD, MaxSteps: st.maxSteps}
 	if plan.withUsage {
 		end.TokenUsage = out.Usage
 		end.UsageByModel = out.UsageByModel
@@ -123,8 +124,8 @@ type turnEndPlan struct {
 	reason    execution.Outcome
 	withUsage bool
 	errMsg    string // non-empty → emit an ErrorEvent before TurnEnd
-	errCode   ErrorCode
-	problem   runs.Problem
+	errCode   runs.ErrorCode
+	problem   transcript.Problem
 }
 
 // planTurnEnd is the turnEndPlan constructor: it maps the captured
@@ -147,12 +148,12 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 			msg = t.Err.Error()
 		}
 		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: msg, errCode: ErrorCodeEngine,
+			reason: execution.OutcomeError, errMsg: msg, errCode: runs.ErrorCodeEngine,
 			problem: problemFromError(t.Err),
 		}
 	case event.ProcessStuck:
 		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: ErrorCodeAgentStuck,
+			reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: runs.ErrorCodeAgentStuck,
 			problem: problemForFailure(execution.FailureAgentStuck, 0),
 		}
 	default:
@@ -176,7 +177,7 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 		return turnEndPlan{
 			reason:  execution.OutcomeError,
 			errMsg:  fmt.Sprintf("invalid turn stop reason %q", out.StopReason),
-			errCode: ErrorCodeEngine,
+			errCode: runs.ErrorCodeEngine,
 			problem: internalRunProblem(),
 		}
 	}
@@ -192,14 +193,14 @@ func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.Pr
 			return turnEndPlan{reason: execution.OutcomeCanceled}
 		}
 		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: ErrorCodeEngine,
+			reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: runs.ErrorCodeEngine,
 			problem: problemFromError(runErr),
 		}
 	}
 	return completedPlan(out)
 }
 
-func problemFromError(err error) runs.Problem {
+func problemFromError(err error) transcript.Problem {
 	var failure *execution.Failure
 	if errors.As(err, &failure) {
 		return problemForFailure(failure.Kind, failure.RetryAfter)
@@ -207,29 +208,29 @@ func problemFromError(err error) runs.Problem {
 	return internalRunProblem()
 }
 
-func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) runs.Problem {
-	problem := runs.Problem{Scope: runs.RunProblem}
+func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) transcript.Problem {
+	problem := transcript.Problem{Scope: transcript.RunProblem}
 	switch kind {
 	case execution.FailureAgentStuck:
-		problem.Kind = runs.AgentStuckProblem
+		problem.Kind = transcript.AgentStuckProblem
 		problem.Detail = "the agent stopped because it could not make forward progress"
 	case execution.FailureRateLimited:
-		problem.Kind = runs.RateLimitedProblem
+		problem.Kind = transcript.RateLimitedProblem
 		problem.Detail = "the model provider rate-limited the request; retry shortly"
 		problem.Retryable = true
 	case execution.FailureInvalidCredentials:
-		problem.Kind = runs.InvalidAPIKeyProblem
+		problem.Kind = transcript.InvalidAPIKeyProblem
 		problem.Detail = "the model provider rejected the credentials; check the provider API key"
 	case execution.FailureTimeout:
-		problem.Kind = runs.TimeoutProblem
+		problem.Kind = transcript.TimeoutProblem
 		problem.Detail = "the model provider request timed out or the connection failed; retry shortly"
 		problem.Retryable = true
 	case execution.FailureProviderUnavailable:
-		problem.Kind = runs.ProviderUnavailableProblem
+		problem.Kind = transcript.ProviderUnavailableProblem
 		problem.Detail = "the model provider is temporarily unavailable; retry shortly"
 		problem.Retryable = true
 	case execution.FailureProviderRejected:
-		problem.Kind = runs.ProviderRejectedProblem
+		problem.Kind = transcript.ProviderRejectedProblem
 		problem.Detail = "the model provider rejected the request as invalid"
 	default:
 		return internalRunProblem()
@@ -240,9 +241,9 @@ func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) run
 	return problem
 }
 
-func internalRunProblem() runs.Problem {
-	return runs.Problem{
-		Kind: runs.InternalProblem, Scope: runs.RunProblem,
+func internalRunProblem() transcript.Problem {
+	return transcript.Problem{
+		Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
 		Detail: "the run failed due to an internal error",
 	}
 }

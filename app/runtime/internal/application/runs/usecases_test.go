@@ -189,7 +189,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		SessionID: "ses_1",
 		Provider:  "provider",
 		Model:     "model",
-		Input:     []ContentBlock{{Kind: TextContent, Text: "hello"}},
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -224,7 +224,7 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
-	_, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []ContentBlock{{Kind: TextContent, Text: "hello"}}})
+	_, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
 	if !errors.Is(err, openingErr) {
 		t.Fatalf("Start error = %v, want opening failure", err)
 	}
@@ -261,7 +261,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	}
 	started := make(chan startOutcome, 1)
 	go func() {
-		result, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []ContentBlock{{Kind: TextContent, Text: "hello"}}})
+		result, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
 		started <- startOutcome{result: result, err: err}
 	}()
 
@@ -301,7 +301,7 @@ func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
-	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Input: []ContentBlock{{Kind: TextContent, Text: "hello"}}})
+	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
 	if !errors.Is(err, ErrInvalidTurnRef) {
 		t.Fatalf("Start error = %v, want ErrInvalidTurnRef", err)
 	}

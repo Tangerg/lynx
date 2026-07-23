@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -50,7 +51,7 @@ func (s *memoryDispatcher) steerSource(st *turnState) agentexec.SteerSource {
 		}
 		out := make([]corechat.Message, len(queue))
 		for i, m := range queue {
-			s.emit(st, SteerMessage{Text: m})
+			s.emit(st, runs.SteerMessage{Text: m})
 			out[i] = corechat.NewUserMessage(corechat.NewTextPart(m))
 		}
 		return out
@@ -70,17 +71,17 @@ func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, ses
 	}
 	for _, msg := range queue {
 		if s.steering == nil {
-			s.emit(st, ErrorEvent{
+			s.emit(st, runs.ErrorEvent{
 				Message: "steering inject failed: no steering sink configured",
-				Code:    ErrorCodeSteering,
+				Code:    runs.ErrorCodeSteering,
 				Problem: internalRunProblem(),
 			})
 			return
 		}
 		if err := s.steering.InjectUser(ctx, sessionID, msg); err != nil {
-			s.emit(st, ErrorEvent{
+			s.emit(st, runs.ErrorEvent{
 				Message: "steering inject failed: " + err.Error(),
-				Code:    ErrorCodeSteering,
+				Code:    runs.ErrorCodeSteering,
 				Problem: internalRunProblem(),
 			})
 			return

@@ -1,4 +1,4 @@
-package bootstrap
+package persistence
 
 import (
 	"context"
@@ -17,13 +17,10 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-// sessionStores is the composition root's adapter from the assembled durable
-// stores to the session lifecycle's durable read and write ports. It owns the
-// atomic durable write-sets ([sessions.WriteSets]): each applies its whole multi-store mutation
-// in one transaction here, so the coordinator commits an atomic decision (roll
-// back / restore / delete / cancel) rather than stitching a transaction across
-// table-CRUD calls (§8.1/§8.4).
-type sessionStores struct {
+// SessionStores is the SQLite-backed adapter for the session lifecycle's
+// snapshot and atomic write-set ports. Each operation applies the complete
+// application-decided mutation inside one storage transaction.
+type SessionStores struct {
 	sessions    *sqlitestore.SessionStore
 	transcript  *sqlitestore.TranscriptStore
 	interrupts  *sqlitestore.InterruptStore
@@ -37,11 +34,46 @@ type sessionStores struct {
 	tx          Transactor
 }
 
-func (s sessionStores) Session() sessions.SessionStore       { return s.sessions }
-func (s sessionStores) Interrupts() sessions.InterruptStore  { return s.interrupts }
-func (s sessionStores) Transcript() sessions.TranscriptStore { return s.transcript }
+// SessionStoresConfig is the durable collaborator set for SessionStores.
+type SessionStoresConfig struct {
+	Sessions    *sqlitestore.SessionStore
+	Transcript  *sqlitestore.TranscriptStore
+	Interrupts  *sqlitestore.InterruptStore
+	Runs        *sqlitestore.RunStateStore
+	Processes   *sqlitestore.ProcessStore
+	History     *conversation.Messages
+	Todos       todo.Store
+	Approvals   approval.RuleStore
+	ToolResults *sqlitestore.ToolResultStore
+	Goals       goal.Store
+	Tx          Transactor
+}
 
-func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
+// Transactor runs a complete write-set inside one durable transaction.
+type Transactor func(context.Context, func(context.Context) error) error
+
+// NewSessionStores returns the SQLite adapter for session snapshots and
+// write-sets. Its dependencies are assembled once by Bootstrap.
+func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
+	return &SessionStores{
+		sessions:    cfg.Sessions,
+		transcript:  cfg.Transcript,
+		interrupts:  cfg.Interrupts,
+		runs:        cfg.Runs,
+		processes:   cfg.Processes,
+		history:     cfg.History,
+		todos:       cfg.Todos,
+		approvals:   cfg.Approvals,
+		toolResults: cfg.ToolResults,
+		goals:       cfg.Goals,
+		tx:          cfg.Tx,
+	}
+}
+
+var _ sessions.SnapshotReader = (*SessionStores)(nil)
+var _ sessions.WriteSets = (*SessionStores)(nil)
+
+func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
 	var snapshot sessions.Snapshot
 	err := s.runInTx(ctx, func(ctx context.Context) error {
 		ses, err := s.sessions.Get(ctx, sessionID)
@@ -71,17 +103,13 @@ func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sess
 	return snapshot, err
 }
 
-// runInTx runs fn inside the required storage transaction. The Apply* write-sets
-// below drive it; it is the one transactional seam left, behind atomic ports
-// rather than the coordinator's own surface (§8.4).
-func (s sessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {
+func (s *SessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {
 	return s.tx(ctx, fn)
 }
 
-// ApplyFork branches a child session off plan.ParentID, seeds its chat log with
-// the resolved history prefix, and titles it — all in one transaction, so a
-// concurrent delete on the parent can't race a half-created child.
-func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
+// ApplyFork branches a child session, seeds its history prefix, and applies its
+// title in one transaction.
+func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	var child session.Session
 	err := s.runInTx(ctx, func(ctx context.Context) error {
 		ch, err := s.sessions.Fork(ctx, plan.ParentID)
@@ -106,21 +134,14 @@ func (s sessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (s
 	return child, nil
 }
 
-// ApplyRollback truncates the chat log to the boundary watermark, drops each
-// past-boundary run, terminalizes an abandoned parked run, and deletes the
-// attributed internal subtask subtrees and their process snapshots — all in one
-// transaction (§8.1/§8.3).
-func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
+// ApplyRollback persists one resolved rollback plan atomically.
+func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
-		// Todos describe the current future plan, not historical transcript state.
-		// A rewind invalidates that projection, so clear it in the same commit.
 		if s.todos != nil {
 			if err := s.todos.DeleteSession(ctx, plan.SessionID); err != nil {
 				return err
 			}
 		}
-		// A rewind invalidates the goal's cross-run usage accounting too; clear it
-		// in the same commit (dropped subsessions are cleared by deleteSession).
 		if s.goals != nil {
 			if err := s.goals.Clear(ctx, plan.SessionID); err != nil {
 				return err
@@ -131,9 +152,6 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 				return err
 			}
 		}
-		// Surfaced (not swallowed): after the truncate commits, a failed DeleteRun
-		// would leave a run record past the boundary whose messages are already
-		// gone — an orphan inconsistent with the log.
 		for _, runID := range plan.DropRunIDs {
 			if err := s.transcript.DeleteRun(ctx, plan.SessionID, runID); err != nil {
 				return err
@@ -143,8 +161,7 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 			}
 		}
 		if len(plan.ProcessIDs) > 0 {
-			change := core.ProcessSnapshotChange{DeleteRoots: plan.ProcessIDs}
-			if err := s.processes.Apply(ctx, change); err != nil {
+			if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: plan.ProcessIDs}); err != nil {
 				return err
 			}
 		}
@@ -162,13 +179,12 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 	})
 }
 
-// ApplyRestore recreates a session under its original id and replaces its whole
-// history atomically: clear the old interrupts / admission rows / transcript /
-// chat log, then seed the decoded messages, runs, and items.
-func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
+// ApplyRestore replaces every durable projection for a restored session in one
+// transaction.
+func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
 	id := plan.Session.ID
 	if s.toolResults == nil && len(plan.ToolResults) > 0 {
-		return errors.New("bootstrap: cannot restore tool results without blob persistence")
+		return errors.New("persistence: cannot restore tool results without blob persistence")
 	}
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
@@ -180,13 +196,13 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
 			return err
 		}
-		for _, r := range plan.Runs {
-			if err := s.transcript.PutRun(ctx, r); err != nil {
+		for _, run := range plan.Runs {
+			if err := s.transcript.PutRun(ctx, run); err != nil {
 				return err
 			}
 		}
-		for _, it := range plan.Items {
-			if err := s.transcript.AppendItem(ctx, it); err != nil {
+		for _, item := range plan.Items {
+			if err := s.transcript.AppendItem(ctx, item); err != nil {
 				return err
 			}
 		}
@@ -201,12 +217,10 @@ func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePl
 	})
 }
 
-// ApplyDelete removes all of a session's durable state — transcript, chat log,
-// open interrupts, process snapshots, admission rows, and the session row —
-// atomically.
-func (s sessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
+// ApplyDelete removes all durable state for the requested session cascade.
+func (s *SessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
 	if len(plan.SessionIDs) == 0 {
-		return errors.New("runtime: delete plan has no sessions")
+		return errors.New("persistence: delete plan has no sessions")
 	}
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		for _, sessionID := range plan.SessionIDs {
@@ -218,17 +232,14 @@ func (s sessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan
 	})
 }
 
-func (s sessionStores) deleteSession(ctx context.Context, sessionID string) error {
+func (s *SessionStores) deleteSession(ctx context.Context, sessionID string) error {
 	if err := s.clearSessionOwnedState(ctx, sessionID); err != nil {
 		return err
 	}
 	return s.sessions.Delete(ctx, sessionID)
 }
 
-// clearSessionOwnedState removes every child projection that is invalid once a
-// session's history is replaced or its row is deleted. Both operations share
-// this one write-set so future session-owned state cannot drift between them.
-func (s sessionStores) clearSessionOwnedState(ctx context.Context, sessionID string) error {
+func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID string) error {
 	if err := s.transcript.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
@@ -252,15 +263,11 @@ func (s sessionStores) clearSessionOwnedState(ctx context.Context, sessionID str
 		}
 	}
 	if s.goals != nil {
-		// A goal's usage refers to this session's runs, so replacing its history
-		// invalidates it just as surely as deleting the session does.
 		if err := s.goals.Clear(ctx, sessionID); err != nil {
 			return err
 		}
 	}
 	if s.toolResults != nil {
-		// Offloaded tool-result bodies are session-scoped; drop them in the same
-		// cascade transaction so a deleted session leaves no orphan blobs.
 		if err := s.toolResults.DropSession(ctx, sessionID); err != nil {
 			return err
 		}
@@ -268,10 +275,9 @@ func (s sessionStores) clearSessionOwnedState(ctx context.Context, sessionID str
 	return nil
 }
 
-// ApplyTerminal ends a parked run: it drops the open interrupt + process
-// snapshot and closes the run's admission row atomically, so the abandoned run
-// neither stays resumable nor leaves the session durably busy.
-func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
+// ApplyTerminal persists the terminal record for an abandoned parked run and
+// clears its resumable process state atomically.
+func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
 	return s.runInTx(ctx, func(ctx context.Context) error {
 		for _, item := range plan.Items {
 			if err := s.transcript.AppendItem(ctx, item); err != nil {
@@ -282,8 +288,7 @@ func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.Terminal
 			return err
 		}
 		if plan.ProcessID != "" {
-			change := core.ProcessSnapshotChange{DeleteRoots: []string{plan.ProcessID}}
-			if err := s.processes.Apply(ctx, change); err != nil {
+			if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{plan.ProcessID}}); err != nil {
 				return err
 			}
 		}
@@ -291,7 +296,7 @@ func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.Terminal
 			return err
 		}
 		if plan.Run.Outcome == nil {
-			return errors.New("bootstrap: terminal run outcome is required")
+			return errors.New("persistence: terminal run outcome is required")
 		}
 		switch *plan.Run.Outcome {
 		case execution.OutcomeCanceled:
@@ -299,33 +304,29 @@ func (s sessionStores) ApplyTerminal(ctx context.Context, plan sessions.Terminal
 		case execution.OutcomeError:
 			return s.runs.RecoverLost(ctx, plan.Run.SessionID, plan.Run.ID)
 		default:
-			return fmt.Errorf("bootstrap: unsupported parked terminal outcome %s", *plan.Run.Outcome)
+			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *plan.Run.Outcome)
 		}
 	})
 }
 
-// deleteInterrupts removes every open-interrupt record and referenced process
-// snapshot for a session inside the caller's transaction — the list + per-row
-// deletes join the same conn(ctx).
-func (s sessionStores) deleteInterrupts(ctx context.Context, sessionID string) error {
+func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) error {
 	pending, err := s.interrupts.List(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	processIDs := make([]string, 0, len(pending))
-	for _, p := range pending {
-		if p.ProcessID != "" {
-			processIDs = append(processIDs, p.ProcessID)
+	for _, interrupt := range pending {
+		if interrupt.ProcessID != "" {
+			processIDs = append(processIDs, interrupt.ProcessID)
 		}
 	}
 	if len(processIDs) > 0 {
-		change := core.ProcessSnapshotChange{DeleteRoots: processIDs}
-		if err := s.processes.Apply(ctx, change); err != nil {
+		if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: processIDs}); err != nil {
 			return err
 		}
 	}
-	for _, p := range pending {
-		if err := s.interrupts.Delete(ctx, p.RunID); err != nil {
+	for _, interrupt := range pending {
+		if err := s.interrupts.Delete(ctx, interrupt.RunID); err != nil {
 			return err
 		}
 	}

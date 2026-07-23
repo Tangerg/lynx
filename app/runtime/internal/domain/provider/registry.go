@@ -18,8 +18,6 @@ package provider
 
 import (
 	"context"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
 // Provider is one registry entry: a provider id plus the credentials a turn
@@ -79,12 +77,6 @@ const (
 // A seeded-but-unconfigured provider is listed (so the UI can offer it) but
 // not enabled until a key is set.
 func (p Provider) Enabled() bool { return p.APIKey != "" }
-
-// MaskedAPIKey renders the key for the wire (API.md §4.9 apiKeyMasked): "" for
-// an unconfigured provider (the disabled signal), otherwise the redacted form
-// (e.g. "sk****78"). The provider owns how to present its own secret, so the
-// wire boundary never touches the raw key.
-func (p Provider) MaskedAPIKey() string { return secret.Mask(p.APIKey) }
 
 // Registry is the provider registry. All methods are safe for concurrent use.
 type Registry interface {

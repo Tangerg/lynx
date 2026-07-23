@@ -20,7 +20,7 @@ func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
 	saver := &fakeUtilityRoleSaver{}
 	c := New(Config{UtilityCell: cell, UtilityStore: saver})
 
-	if err := c.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
+	if _, err := c.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestSetUtilityRoleUsesChatModelValidatorPort(t *testing.T) {
 	cfg.UtilityStore = saver
 	c := New(cfg)
 
-	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
+	if _, err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
@@ -65,7 +65,7 @@ func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 	cfg.UtilityValidator = &fakeChatModelValidator{err: fail}
 	c := New(cfg)
 
-	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
+	if _, err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
 		t.Fatalf("SetUtilityRole err = %v, want %v", err, fail)
 	}
 }
@@ -77,7 +77,7 @@ func TestSetUtilityRoleRequiresChatModelValidator(t *testing.T) {
 	cfg.UtilityCell = cell
 	c := New(cfg)
 
-	err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku")
+	_, err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku")
 	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
 		t.Fatalf("SetUtilityRole err = %v, want unavailable validation error", err)
 	}
@@ -91,7 +91,7 @@ func TestSetUtilityRoleRequiresAConfiguredProvider(t *testing.T) {
 	cfg.UtilityValidator = staticChatModelValidator{}
 	c := New(cfg)
 
-	err := c.SetUtilityRole(t.Context(), "anthropic", "claude-haiku")
+	_, err := c.SetUtilityRole(t.Context(), "anthropic", "claude-haiku")
 	if !errors.Is(err, ErrProviderUnconfigured) {
 		t.Fatalf("SetUtilityRole error = %v, want ErrProviderUnconfigured", err)
 	}
@@ -103,7 +103,7 @@ func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	saver := &fakeEmbeddingRoleSaver{}
 	c := New(Config{EmbeddingCell: cell, EmbeddingStore: saver})
 
-	if err := c.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
+	if _, err := c.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
 		t.Fatalf("SetEmbeddingRole err = %v", err)
 	}
 
@@ -123,7 +123,7 @@ func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
 	cfg.EmbeddingCell = cell
 	c := New(cfg)
 
-	err := c.SetEmbeddingRole(context.Background(), "openai", "text-embedding-3-small")
+	_, err := c.SetEmbeddingRole(context.Background(), "openai", "text-embedding-3-small")
 	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
 		t.Fatalf("SetEmbeddingRole err = %v, want unavailable validation error", err)
 	}
@@ -137,7 +137,7 @@ func TestSetEmbeddingRoleRejectsProviderWithoutEmbeddings(t *testing.T) {
 	cfg.EmbeddingResolver = staticEmbeddingResolver{}
 	c := New(cfg)
 
-	err := c.SetEmbeddingRole(t.Context(), "anthropic", "embedding")
+	_, err := c.SetEmbeddingRole(t.Context(), "anthropic", "embedding")
 	if !errors.Is(err, ErrEmbeddingUnsupported) {
 		t.Fatalf("SetEmbeddingRole error = %v, want ErrEmbeddingUnsupported", err)
 	}
@@ -153,10 +153,10 @@ func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 	c := New(cfg)
 
 	first := make(chan error, 1)
-	go func() { first <- c.SetUtilityRole(t.Context(), "provider", "first") }()
+	go func() { _, err := c.SetUtilityRole(t.Context(), "provider", "first"); first <- err }()
 	<-saver.firstStarted
 	second := make(chan error, 1)
-	go func() { second <- c.SetUtilityRole(t.Context(), "provider", "second") }()
+	go func() { _, err := c.SetUtilityRole(t.Context(), "provider", "second"); second <- err }()
 
 	select {
 	case <-saver.secondEntered:
@@ -188,10 +188,10 @@ func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	c := New(cfg)
 
 	first := make(chan error, 1)
-	go func() { first <- c.SetEmbeddingRole(t.Context(), "provider", "first") }()
+	go func() { _, err := c.SetEmbeddingRole(t.Context(), "provider", "first"); first <- err }()
 	<-saver.firstStarted
 	second := make(chan error, 1)
-	go func() { second <- c.SetEmbeddingRole(t.Context(), "provider", "second") }()
+	go func() { _, err := c.SetEmbeddingRole(t.Context(), "provider", "second"); second <- err }()
 
 	select {
 	case <-saver.secondEntered:

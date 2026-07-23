@@ -28,10 +28,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/idempotency"
 )
 
 // messageHandler is the dispatch surface this transport needs: route

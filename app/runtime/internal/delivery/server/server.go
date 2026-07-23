@@ -49,13 +49,18 @@ type Config struct {
 	Coordinator runUseCases
 
 	// Queries is the application read coordinator for a session's durable
-	// execution record (transcript / history / interrupts). Required — the
-	// items.list / messages.list / interrupts.list handlers drive it.
+	// execution record (transcript / interrupts). Required — the items.list and
+	// interrupts.list handlers drive it.
 	Queries queryUseCases
 
 	// Usage folds durable run history into session and aggregate metering
 	// reports. Required — delivery only projects its result onto usage.*.
 	Usage usageUseCases
+
+	// Feedback records feedback.create quality signals through the application's
+	// durable feedback use case. Required: this protocol method must never ack a
+	// discarded signal.
+	Feedback feedbackUseCases
 
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
@@ -156,12 +161,15 @@ type Server struct {
 	coordinator runUseCases
 
 	// queries is the application read coordinator for a session's durable
-	// execution record (transcript / history / interrupts). Injected by New.
+	// execution record (transcript / interrupts). Injected by New.
 	queries queryUseCases
 
 	// usage owns durable metering aggregation. Delivery only maps its neutral
 	// result values to the protocol response.
 	usage usageUseCases
+
+	// feedback owns the feedback.create durable write use case.
+	feedback feedbackUseCases
 
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
@@ -269,6 +277,9 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Usage == nil {
 		return nil, errors.New("server: Usage is required")
 	}
+	if cfg.Feedback == nil {
+		return nil, errors.New("server: Feedback is required")
+	}
 	if cfg.Schedules == nil {
 		return nil, errors.New("server: Schedules is required")
 	}
@@ -290,6 +301,7 @@ func New(cfg Config) (*Server, error) {
 		coordinator:        cfg.Coordinator,
 		queries:            cfg.Queries,
 		usage:              cfg.Usage,
+		feedback:           cfg.Feedback,
 		serverInfo:         cfg.ServerInfo,
 		wsHub:              newWorkspaceHub(),
 		schedules:          cfg.Schedules,

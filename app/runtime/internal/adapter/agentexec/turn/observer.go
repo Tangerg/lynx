@@ -361,7 +361,7 @@ func denialReason(reason string) string {
 }
 
 func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
-	t.dispatcher.emit(t.st, ToolCallStart{
+	t.dispatcher.emit(t.st, runs.ToolCallStart{
 		CallID:      callID,
 		ToolName:    toolName,
 		Arguments:   arguments,
@@ -383,7 +383,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 	// is a no-progress repeat. The gate reads this count before the next call.
 	t.st.recordToolOutcome(toolName, arguments, output)
 	result := decodeToolResult(toolName, arguments, output)
-	end := ToolCallEnd{
+	end := runs.ToolCallEnd{
 		CallID:       callID,
 		Arguments:    arguments,
 		Result:       result,
@@ -406,7 +406,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 	// arg schema.
 	if err == nil && toolName == "todo_write" && t.dispatcher.todos != nil {
 		if items, lerr := t.dispatcher.todos.List(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.dispatcher.emit(t.st, TodosUpdated{Todos: items})
+			t.dispatcher.emit(t.st, runs.TodosUpdated{Todos: items})
 		}
 	}
 
@@ -422,7 +422,7 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 }
 
 func (t *turnObserver) OnMessageDelta(text string) {
-	t.dispatcher.emit(t.st, MessageDelta{
+	t.dispatcher.emit(t.st, runs.MessageDelta{
 		Text: text,
 	})
 }
@@ -432,7 +432,7 @@ func (t *turnObserver) OnMessageDelta(text string) {
 // about reasoning can ignore the type in their dispatch switch —
 // no event is dropped on the engine side.
 func (t *turnObserver) OnReasoningDelta(text string) {
-	t.dispatcher.emit(t.st, ReasoningDelta{
+	t.dispatcher.emit(t.st, runs.ReasoningDelta{
 		Text: text,
 	})
 }
@@ -441,7 +441,7 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 // the mid-run token / cost readout (transport maps it to segment.progress).
 // contextTokens is this round's prompt size (the live context occupancy).
 func (t *turnObserver) OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
-	t.dispatcher.emit(t.st, UsageReported{
+	t.dispatcher.emit(t.st, runs.UsageReported{
 		TokenUsage:    usage,
 		CostUSD:       costUSD,
 		ContextTokens: contextTokens,

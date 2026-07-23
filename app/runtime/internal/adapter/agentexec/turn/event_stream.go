@@ -3,9 +3,11 @@ package turn
 import (
 	"context"
 	"iter"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[Event], error) {
+func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[runs.EngineEvent], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err == nil {
 		if !state.claimEvents() {
@@ -27,7 +29,7 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 	return eventSequence(ctx, state), nil
 }
 
-func eventSequence(ctx context.Context, state *turnState) iter.Seq[Event] {
+func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEvent] {
 	// Single-consumer pull stream. The internal select multiplexes the
 	// turn's event channel against ctx so the iterator stops promptly
 	// when the caller stops listening; even while parked waiting for
@@ -41,9 +43,9 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[Event] {
 	// (hub.go), without touching the durable transcript (item.completed still
 	// carries the full text) or adding latency: the drain is non-blocking, so a
 	// trickling stream still yields each token the moment it arrives.
-	return func(yield func(Event) bool) {
-		var spill Event // a different-kind event pulled off mid-coalesce, yielded next
-		recv := func() (Event, bool) {
+	return func(yield func(runs.EngineEvent) bool) {
+		var spill runs.EngineEvent // a different-kind event pulled off mid-coalesce, yielded next
+		recv := func() (runs.EngineEvent, bool) {
 			if spill != nil {
 				ev := spill
 				spill = nil
@@ -71,16 +73,16 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[Event] {
 // pulled off mid-drain is parked in *spill for the caller to yield next, so
 // ordering is preserved. The merged event keeps the head event's metadata; deltas are
 // ephemeral (no SSE id, §5.2), so a merged delta's seq is immaterial.
-func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
+func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill *runs.EngineEvent) runs.EngineEvent {
 	switch h := head.(type) {
-	case MessageDelta:
+	case runs.MessageDelta:
 		for {
 			select {
 			case ev, ok := <-ch:
 				if !ok {
 					return h // channel closed; recv() sees the close next and stops
 				}
-				if d, same := ev.(MessageDelta); same {
+				if d, same := ev.(runs.MessageDelta); same {
 					h.Text += d.Text
 					continue
 				}
@@ -89,14 +91,14 @@ func coalesceTextDeltas(head Event, ch <-chan Event, spill *Event) Event {
 			}
 			return h
 		}
-	case ReasoningDelta:
+	case runs.ReasoningDelta:
 		for {
 			select {
 			case ev, ok := <-ch:
 				if !ok {
 					return h
 				}
-				if d, same := ev.(ReasoningDelta); same {
+				if d, same := ev.(runs.ReasoningDelta); same {
 					h.Text += d.Text
 					continue
 				}

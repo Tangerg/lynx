@@ -8,7 +8,7 @@ import (
 )
 
 func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
-	result := &RunResult{
+	result := &transcript.RunResult{
 		Usage: r.turnUsage(e), Steps: r.step, Duration: e.Duration,
 	}
 	detail := ""
@@ -50,7 +50,7 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 	}
 }
 
-func (r *reducer) finishedRun(outcome execution.Outcome, result *RunResult, detail string) (SegmentFinished, error) {
+func (r *reducer) finishedRun(outcome execution.Outcome, result *transcript.RunResult, detail string) (SegmentFinished, error) {
 	state, ok := execution.Running.Terminate(outcome)
 	if !ok {
 		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
@@ -81,8 +81,8 @@ func stepDetail(e TurnEnd) string {
 	return "reached the configured step limit"
 }
 
-func (r *reducer) turnUsage(e TurnEnd) *Usage {
-	usage := &Usage{ModelUsage: modelUsageFrom(
+func (r *reducer) turnUsage(e TurnEnd) *transcript.Usage {
+	usage := &transcript.Usage{ModelUsage: modelUsageFrom(
 		e.TokenUsage.PromptTokens,
 		e.TokenUsage.CompletionTokens,
 		e.TokenUsage.ReasoningTokens,
@@ -106,8 +106,8 @@ func (r *reducer) turnUsage(e TurnEnd) *Usage {
 	return usage
 }
 
-func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) ModelUsage {
-	return ModelUsage{
+func modelUsageFrom(prompt, completion, reasoning, cacheRead, cacheWrite int64, cost float64) transcript.ModelUsage {
+	return transcript.ModelUsage{
 		InputTokens: prompt, OutputTokens: completion,
 		ReasoningTokens: reasoning, CacheReadTokens: cacheRead,
 		CacheWriteTokens: cacheWrite, CostUSD: optCostUSD(cost),

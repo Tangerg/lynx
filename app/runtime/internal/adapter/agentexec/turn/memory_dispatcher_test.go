@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -52,21 +53,21 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	// Spot-check each event's content.
 	for _, ev := range got {
 		switch e := ev.(type) {
-		case turn.TurnStart:
+		case runs.TurnStart:
 			if e.SessionID != "sess-1" {
 				t.Errorf("TurnStart.SessionID = %q, want sess-1", e.SessionID)
 			}
 			if !strings.HasPrefix(e.TurnID, "turn_") {
 				t.Errorf("TurnStart.TurnID = %q, want turn_ namespace", e.TurnID)
 			}
-		case turn.ToolCallStart:
+		case runs.ToolCallStart:
 			if e.ToolName != "shell" {
 				t.Errorf("ToolCallStart.ToolName = %q, want shell", e.ToolName)
 			}
 			if !strings.Contains(e.Arguments, "echo lyra") {
 				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
 			}
-		case turn.ToolCallEnd:
+		case runs.ToolCallEnd:
 			if e.Err != "" {
 				t.Errorf("ToolCallEnd.Err = %q, want empty", e.Err)
 			}
@@ -78,11 +79,11 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if !ok || !strings.Contains(output, "lyra") {
 				t.Errorf("ToolCallEnd.Result missing 'lyra': %#v", e.Result)
 			}
-		case turn.MessageDelta:
+		case runs.MessageDelta:
 			if !strings.Contains(e.Text, "lyra") {
 				t.Errorf("MessageDelta.Text missing 'lyra': %q", e.Text)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd.Reason = %s, want completed", e.Reason)
 			}
@@ -116,7 +117,7 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	dispatcher.Close()
 	var endReason execution.Outcome
 	for ev := range events {
-		if end, ok := ev.(turn.TurnEnd); ok {
+		if end, ok := ev.(runs.TurnEnd); ok {
 			endReason = end.Reason
 		}
 	}
@@ -237,7 +238,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
@@ -247,7 +248,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			endReason = e.Reason
 		}
 	}
@@ -287,11 +288,11 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	var endReason execution.Outcome
 	for ev := range events {
 		switch e := ev.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			endReason = e.Reason
 		}
 	}
@@ -349,12 +350,12 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			sawInterrupt = true
 			if err := dispatcher.Cancel(context.Background(), handle); err != nil {
 				t.Errorf("Cancel: %v", err)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			sawEnd = true
 			endReason = e.Reason
 		}
@@ -392,15 +393,15 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	)
 	for ev := range events {
 		switch e := ev.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []string{"approval"})
-		case turn.ToolCallEnd:
+		case runs.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Result carries the reason.
 			if result, ok := e.Result.String(); ok && strings.Contains(result, "denied") {
 				sawDenial = true
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			endReason = e.Reason
 		}
 	}
@@ -427,7 +428,7 @@ func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	events, _ := dispatcher.Events(context.Background(), handle)
 
 	for ev := range events {
-		if _, ok := ev.(turn.TurnInterrupted); ok {
+		if _, ok := ev.(runs.TurnInterrupted); ok {
 			t.Error("TurnInterrupted should NOT fire in yolo mode")
 		}
 	}

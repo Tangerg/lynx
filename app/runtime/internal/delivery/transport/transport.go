@@ -8,11 +8,7 @@
 // mcp transport authors" per its own doc.
 package transport
 
-import (
-	"context"
-
-	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
-)
+import "github.com/modelcontextprotocol/go-sdk/jsonrpc"
 
 // Message is one JSON-RPC 2.0 envelope. Concrete types are
 // [*Request] and [*Response]; type-switch to discriminate.
@@ -48,22 +44,3 @@ func EncodeMessage(msg Message) ([]byte, error) { return jsonrpc.EncodeMessage(m
 // [*Response]. Delegates to the SDK; SDK's wireCombined struct
 // catches invalid envelopes (wrong version tag, malformed id).
 func DecodeMessage(data []byte) (Message, error) { return jsonrpc.DecodeMessage(data) }
-
-// Transport is the bidirectional message pipe. Implementations must be safe
-// for concurrent Send from multiple goroutines, and Recv must yield to exactly
-// one consumer. Close must be idempotent.
-type Transport interface {
-	// Send hands one outbound message to the underlying transport.
-	// Returns when the message has been queued, not when the peer
-	// has processed it. Honors ctx for cancellation / timeout.
-	Send(ctx context.Context, msg Message) error
-
-	// Recv returns the inbound channel. The channel closes when the
-	// transport disconnects; consumers MUST drain it (or risk
-	// goroutine leaks on the sender side).
-	Recv() <-chan Message
-
-	// Close terminates the transport. Pending Sends fail with
-	// context.Canceled; Recv channel closes.
-	Close() error
-}

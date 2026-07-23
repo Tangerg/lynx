@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -39,7 +38,7 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	full := strings.Repeat("Z", 300)
 
 	id := stageToolResult(t, blobs, sess, "shell", full)
-	preview := toolresultpreview.Render(full, string(id), "read_tool_result", 100)
+	preview := "offloaded preview"
 	if len(preview) >= len(full) {
 		t.Fatal("test setup: preview should be smaller than the full body")
 	}
@@ -68,7 +67,7 @@ func TestTranscriptSurfacesMissingOffloadedToolResult(t *testing.T) {
 	const sess = "sess-2"
 	// A typed reference without its blob is durable corruption, not an ordinary
 	// non-offloaded result, and must not be hidden as a harmless preview.
-	preview := toolresultpreview.Render(strings.Repeat("q", 300), "GONE234BLOB", "read_tool_result", 100)
+	preview := "missing offloaded preview"
 	if err := tr.AppendItem(t.Context(), toolItem(sess, "item-1", preview, &resultoffload.Ref{ID: "GONE234BLOB"})); err != nil {
 		t.Fatal(err)
 	}

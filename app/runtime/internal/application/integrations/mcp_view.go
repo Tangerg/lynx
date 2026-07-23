@@ -5,8 +5,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/secretmask"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/secret"
 )
 
 // MCPServerInput is the application command for configuring or testing an MCP
@@ -110,7 +110,7 @@ func mcpConfigView(server mcpserver.Server) MCPServerConfig {
 		Enabled:             server.Enabled,
 		Description:         server.Description,
 		URL:                 server.URL,
-		AuthorizationMasked: secret.Mask(server.Authorization),
+		AuthorizationMasked: secretmask.Mask(server.Authorization),
 		Headers:             maps.Clone(server.Headers),
 		Command:             server.Command,
 		Args:                slices.Clone(server.Args),

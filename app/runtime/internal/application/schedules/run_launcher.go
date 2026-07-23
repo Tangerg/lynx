@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -45,7 +46,7 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, sc schedule.Schedule
 		NewSessionTitle: title,
 		Provider:        sc.Provider,
 		Model:           sc.Model,
-		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: sc.Prompt}},
+		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},
 	})
 	cancel()
 	if err != nil {

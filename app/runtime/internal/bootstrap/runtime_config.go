@@ -43,6 +43,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		WorkspaceMutationStore: stores.WorkspaceMuts,
 		InterruptStore:         stores.Interrupt,
 		TranscriptStore:        stores.Transcript,
+		FeedbackStore:          stores.Feedback,
 		ProviderRegistry:       providers,
 		TodoStore:              stores.Todos,
 		GoalStore:              stores.Goals,

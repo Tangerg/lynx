@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -23,7 +24,7 @@ type turnDriver interface {
 	StartTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
 	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
-	Events(context.Context, turn.TurnHandle) (iter.Seq[turn.Event], error)
+	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, string) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
@@ -74,29 +75,29 @@ func cleanupToolEnvironment(t *testing.T, built toolset.Built) {
 	})
 }
 
-func drainEvents(events iter.Seq[turn.Event]) []turn.Event {
-	var out []turn.Event
+func drainEvents(events iter.Seq[runs.EngineEvent]) []runs.EngineEvent {
+	var out []runs.EngineEvent
 	for ev := range events {
 		out = append(out, ev)
 	}
 	return out
 }
 
-func eventNames(events []turn.Event) []string {
+func eventNames(events []runs.EngineEvent) []string {
 	out := make([]string, len(events))
 	for i, ev := range events {
 		switch ev.(type) {
-		case turn.TurnStart:
+		case runs.TurnStart:
 			out[i] = "TurnStart"
-		case turn.MessageDelta:
+		case runs.MessageDelta:
 			out[i] = "MessageDelta"
-		case turn.ToolCallStart:
+		case runs.ToolCallStart:
 			out[i] = "ToolCallStart"
-		case turn.ToolCallEnd:
+		case runs.ToolCallEnd:
 			out[i] = "ToolCallEnd"
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			out[i] = "TurnEnd"
-		case turn.ErrorEvent:
+		case runs.ErrorEvent:
 			out[i] = "ErrorEvent"
 		default:
 			out[i] = "?"
@@ -117,19 +118,19 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func baseSeq(ev turn.Event) uint64 {
+func baseSeq(ev runs.EngineEvent) uint64 {
 	switch e := ev.(type) {
-	case turn.TurnStart:
+	case runs.TurnStart:
 		return e.Seq
-	case turn.MessageDelta:
+	case runs.MessageDelta:
 		return e.Seq
-	case turn.ToolCallStart:
+	case runs.ToolCallStart:
 		return e.Seq
-	case turn.ToolCallEnd:
+	case runs.ToolCallEnd:
 		return e.Seq
-	case turn.TurnEnd:
+	case runs.TurnEnd:
 		return e.Seq
-	case turn.ErrorEvent:
+	case runs.ErrorEvent:
 		return e.Seq
 	}
 	return 0

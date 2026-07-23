@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
@@ -58,9 +59,9 @@ func TestCancelPreparedTurnNeverEntersEngineAndTerminatesStream(t *testing.T) {
 		t.Fatalf("Cancel: %v", err)
 	}
 
-	var terminal turn.TurnEnd
+	var terminal runs.TurnEnd
 	for event := range events {
-		if end, ok := event.(turn.TurnEnd); ok {
+		if end, ok := event.(runs.TurnEnd); ok {
 			terminal = end
 		}
 	}

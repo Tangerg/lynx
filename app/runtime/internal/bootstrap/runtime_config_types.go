@@ -123,6 +123,10 @@ type Config struct {
 	// injected sqlite-backed, same as SessionStore.
 	TranscriptStore *sqlitestore.TranscriptStore
 
+	// FeedbackStore retains feedback.create quality signals. Required: the
+	// protocol acknowledges feedback only after this durable receiver accepts it.
+	FeedbackStore *sqlitestore.FeedbackStore
+
 	// ProviderRegistry is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required; the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.

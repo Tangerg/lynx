@@ -22,7 +22,7 @@ type resumeBinding struct {
 
 type resumedQuestion struct {
 	itemID   string
-	question *Question
+	question *transcript.Question
 }
 
 func resumeBindingFrom(pending interrupts.Pending) *resumeBinding {
@@ -125,9 +125,9 @@ func (r *reducer) resumeQuestionCompletions() []RunEvent {
 	}
 	out := make([]RunEvent, 0, len(r.resume.questions))
 	for _, question := range r.resume.questions {
-		out = append(out, ItemCompleted{Item: Item{
-			ID: question.itemID, RunID: r.cfg.RunID, Status: ItemSucceeded,
-			Kind: QuestionItem, CreatedAt: r.now(), Question: question.question,
+		out = append(out, ItemCompleted{Item: transcript.Item{
+			ID: question.itemID, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
+			Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: question.question,
 		}})
 	}
 	r.resume.questions = nil

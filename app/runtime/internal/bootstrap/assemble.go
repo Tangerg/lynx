@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -27,6 +28,7 @@ import (
 	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
@@ -57,6 +59,7 @@ type Stack struct {
 	Codebase           *codebase.Coordinator
 	Queries            *queries.Coordinator
 	Usage              *usage.Reporter
+	Feedback           *feedbackapp.Recorder
 	WorkspaceRoots     *workspace.Context
 	WorkspaceFiles     *workspace.Files
 	WorkspaceVCS       *workspace.VCS
@@ -215,6 +218,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	}
 	if cfg.TranscriptStore == nil {
 		return Host{}, errors.New("runtime: TranscriptStore is required")
+	}
+	if cfg.FeedbackStore == nil {
+		return Host{}, errors.New("runtime: FeedbackStore is required")
 	}
 	if cfg.RunStore == nil {
 		return Host{}, errors.New("runtime: RunStore is required")
@@ -378,7 +384,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		ToolResults:        cfg.ToolResultStore,
 		Messages:           messages.conversation,
 		Titles:             maintenance.NewTitler(utilityEnv.resolve),
-		Processes:          runSegmentProcesses{dispatcher: turnDispatcher},
+		Processes:          turnDispatcher,
 		RunState:           cfg.RunStore,
 		Tx:                 runsegment.Transactor(cfg.Transactor),
 		Checkpoints:        checkpoints,
@@ -393,22 +399,19 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	skillChanges := &signal.Signal[struct{}]{}
 
 	admissions := &admission.Gate{}
-	sessionStorage := sessionStores{
-		sessions:    cfg.SessionStore,
-		transcript:  cfg.TranscriptStore,
-		interrupts:  cfg.InterruptStore,
-		runs:        cfg.RunStore,
-		processes:   cfg.ProcessStore,
-		history:     messages.conversation,
-		todos:       cfg.TodoStore,
-		approvals:   cfg.ApprovalRuleStore,
-		toolResults: cfg.ToolResultStore,
-		// goals puts a deleted/rewound session's goal into the atomic cleanup
-		// cascade. cfg.GoalStore is an interface (nil when Goal mode is off), so
-		// the write-sets' own nil check skips it — no guard needed here.
-		goals: cfg.GoalStore,
-		tx:    cfg.Transactor,
-	}
+	sessionStorage := persistence.NewSessionStores(persistence.SessionStoresConfig{
+		Sessions:    cfg.SessionStore,
+		Transcript:  cfg.TranscriptStore,
+		Interrupts:  cfg.InterruptStore,
+		Runs:        cfg.RunStore,
+		Processes:   cfg.ProcessStore,
+		History:     messages.conversation,
+		Todos:       cfg.TodoStore,
+		Approvals:   cfg.ApprovalRuleStore,
+		ToolResults: cfg.ToolResultStore,
+		Goals:       cfg.GoalStore,
+		Tx:          persistence.Transactor(cfg.Transactor),
+	})
 	modelCapabilities := modelcatalog.Capabilities{}
 	modelsCoord := models.New(models.Config{
 		Providers:         cfg.ProviderRegistry,
@@ -431,10 +434,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Snapshots:   sessionStorage,
 		Writes:      sessionStorage,
 		Forgetter:   turnDispatcher,
-		Turns:       sessionsTurns{dispatcher: turnDispatcher},
+		Turns:       turn.NewSessionTurnCleanup(turnDispatcher),
 		Paths:       workspacepath.Resolver{},
 		Models:      modelsCoord,
-		Checkpoints: sessionCheckpoints{cp: checkpoints},
+		Checkpoints: checkpointstore.NewSessionCheckpoints(checkpoints),
 		Mutations:   cfg.WorkspaceMutationStore,
 		Admissions:  admissions,
 	}
@@ -443,14 +446,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if isolator != nil {
 		sessionDeps.Sandbox = isolator
 	}
-	// The session coordinator serializes write-sets with Goal lifecycle commands,
-	// but the Goal driver is built after it (the driver depends on the run
-	// coordinator, which depends on the session coordinator). The guard is
-	// late-bound before serving to break that construction cycle.
-	var goalMutationGuard *goalMutationGuardRef
+	// The shared Goal/session mutation coordinator is created before either
+	// lifecycle owner. The Driver is constructed later because it consumes Runs;
+	// no Bootstrap proxy or post-construction mutation is needed.
+	var goalMutations *goals.SessionMutations
 	if cfg.GoalStore != nil {
-		goalMutationGuard = &goalMutationGuardRef{}
-		sessionDeps.Goals = goalMutationGuard
+		goalMutations = goals.NewSessionMutations()
+		sessionDeps.Goals = goalMutations
 	}
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
@@ -461,10 +463,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Admissions: admissions,
 		Now:        time.Now,
 		NewRunID: func() string {
-			return "run_" + uuid.NewString()
+			return runs.NewRunID(uuid.NewString())
 		},
 		NewSegmentID: func() string {
-			return "seg_" + uuid.NewString()
+			return runs.NewSegmentID(uuid.NewString())
 		},
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
@@ -496,8 +498,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriver(cfg.GoalStore, runCoord, cfg.SessionStore)
-		goalMutationGuard.d = goalDriver // late-bind into the session coordinator
+		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations)
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
@@ -525,11 +526,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	workspaceFiles := workspace.NewFiles(workspaceContext, checkpointstore.Reads{})
 	workspaceVCS := workspace.NewVCS(workspaceContext, checkpointstore.VCS{})
 	workspaceDiscovery := workspace.NewDiscovery(
-		workspaceContext, sessionCoord, promptsource.AgentDocs{}, recipeLister{globalDir: cfg.RecipesGlobalDir},
+		workspaceContext, sessionCoord, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
 	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.Engine.Knowledge)
 	workspaceSkills := workspace.NewSkills(
-		workspaceContext, skillCatalog{globalDir: cfg.SkillsGlobalDir}, skillCurator, skillDrafts, skillChanges.Publish,
+		workspaceContext, promptsource.NewWorkspaceSkills(cfg.SkillsGlobalDir), skillCurator, skillDrafts, skillChanges.Publish,
 	)
 	workspaceHooks := workspace.NewHooks(workspaceContext, cfg.HooksResolver, cfg.HookTrustStore)
 	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
@@ -556,7 +557,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
-				History:    messages.conversation,
 				Interrupts: cfg.InterruptStore,
 			}),
 			Usage: usage.New(usage.Dependencies{
@@ -564,6 +564,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Sessions: cfg.SessionStore,
 				Defaults: modelsCoord,
 			}),
+			Feedback:           feedbackapp.New(cfg.FeedbackStore),
 			WorkspaceRoots:     workspaceContext,
 			WorkspaceFiles:     workspaceFiles,
 			WorkspaceVCS:       workspaceVCS,

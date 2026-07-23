@@ -1446,7 +1446,9 @@ interface HooksListResult {
 | `agentMemory.update` | `{ id: string; content?: string; pinned?: bool }` | `AgentMemoryItem`            | agent memory store |
 | `agentMemory.delete` | `{ id: string }`                                | 无                             | agent memory store |
 | `agentMemory.add`    | `{ scope?; cwd?; content: string }`             | `AgentMemoryItem`              | agent memory store |
-| `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无                  | ——       |
+| `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无                  | runtime feedback ledger |
+
+> **`feedback.create` = 耐久质量记录**：`rating` 存在时只能为 `positive` 或 `negative`；`rating` 与非空白 `text` 至少提供一项。成功响应表示记录已被 runtime 的 append-only feedback ledger 接收（该协议组刻意不提供 readback），无效记录返回 `invalid_params`。
 
 > **`skills.drafts.*` = 自撰 skill 的离线 HITL 审阅队列**：agent 在 turn 边界从会话里蒸馏出 skill 提案，落 `_drafts/`（模型不可见），人经此队列 `promote`（发布进 active 库）/ `reject`（丢弃）。`SkillDraft`（`{ name, revision, description?, createdBy?, sourceSession? }`）的 `name+revision` 是内容寻址 handle；`promote`/`reject` 带 `SkillDraftRef`（`{ name, revision }`），`revision` 把决定绑到审阅时的确切字节（撞名冲突返 `invalid_params`）。仅在 authoring store 装配时可用，否则 `capability_not_negotiated`。
 

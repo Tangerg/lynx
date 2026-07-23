@@ -273,6 +273,65 @@ Acceptance:
 - Every migrated bridge is represented by `component/signal` plus an
   owning-layer payload, rather than a semantic notifier package.
 
+### Batch 10 — Residual ownership closure and non-destructive abstraction audit
+
+Status: **Completed**
+
+Scope:
+
+- Move behaviorful persistence, checkpoint, prompt-catalog, child-session, and
+  turn-cleanup implementations out of Bootstrap; Bootstrap only assembles them.
+- Make archive export/import, rollback presentation, model-role updates, and
+  live-run subscription return one coherent application result, so Delivery
+  cannot join separate application operations after a mutation/admission.
+- Move JSON-RPC replay retention, secret masking, model-facing tool-result
+  preview text, and question-response field encoding out of Domain.
+- Remove transparent application facade aliases where direct domain ownership is
+  clearer; make restore a named durable command rather than an alias of an
+  export read model.
+- Centralize application-owned run/segment/item resource namespaces and add a
+  fitness test that forbids behaviorful Bootstrap receiver methods.
+- Treat an unconsumed capability as a deletion candidate **only after** checking
+  protocol routes, product contracts, and independent semantic use. A frontend
+  that has not yet integrated a supported operation is not proof of dead code.
+
+Acceptance:
+
+- Bootstrap contains assembly, configuration, and host shutdown only; no hidden
+  adapter implementation remains.
+- A Delivery handler invokes one complete application use case for each response
+  it presents; it never re-reads a changed aggregate to finish that response.
+- Domain has no JSON-RPC replay, log/wire masking, executor-tool wording, or
+  client response-key encoding vocabulary.
+- No capability is removed merely because the current frontend has no caller.
+- The expanded architecture suite, full module tests, and focused race suites
+  pass before this batch is marked complete.
+
+### Batch 11 — Final abstraction-leak remediation
+
+Status: **Completed**
+
+Scope:
+
+- Replace the acknowledged-but-discarded `feedback.create` call with one
+  validated Application use case and durable SQLite append-only ledger.
+- Remove unconsumed query, ID-constant, Turn-event, transport, and test-only
+  production facades rather than keeping compatibility aliases.
+- Remove the unconnected sandbox snapshot/resume stack and its schema; retain
+  the live isolated working-copy capability and its safe archive-copy helper.
+- Distinguish the deleted sandbox snapshots from active agent continuation
+  process snapshots, which remain part of the run-resume boundary.
+
+Acceptance:
+
+- A successful feedback acknowledgement means a durable receiver accepted the
+  quality signal; invalid empty or unknown-rating signals map to `invalid_params`.
+- Adapter packages do not re-export the Application Run event vocabulary, and
+  no generic transport interface remains without a consumer.
+- No SQLite table, store, or workspace API exists solely for unconnected
+  sandbox snapshot/resume behavior.
+- Full tests, vet, and directional static scans are clean.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -284,8 +343,13 @@ Acceptance:
 | 5. Fitness tests and final verification | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, relevant race suites, and expanded semantic architecture tests passed. |
 | 6. Semantic boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, test; `go test ./internal/arch`; Delivery adapter-import and construction ownership checks. |
 | 7. Residual abstraction-leak eradication | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; standalone vet/test; focused race suite; expanded filesystem and Session-domain architecture checks. |
+| 8. Delivery abstraction-leak closure | Completed | 2026-07-23 | 2026-07-23 | Portable-session artifact tests, `go test ./internal/arch`, protocol sample validation, and full module verification. |
+| 9. Read-model, secret, and execution-boundary closure | Completed | 2026-07-23 | 2026-07-23 | Delivery/server, application, adapter, architecture, and full-module test suites verified the ownership moves. |
+| 10. Residual ownership closure and non-destructive abstraction audit | Completed | 2026-07-23 | 2026-07-23 | Full module tests and architecture tests verified the Bootstrap, archive, notifier, and consumer-audit changes. |
+| 11. Final abstraction-leak remediation | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; exact-symbol scans for removed query/Turn/Transport/sandbox facades; Application/Domain dependency-direction scan. |
 | 8. Delivery abstraction-leak closure | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; frontend typecheck and RPC sample test; expanded architecture suite. |
 | 9. Read-model, secret, and execution-boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, `go test ./internal/arch`, and race suites for integrations, runs, sessions, schedules, turn, Bootstrap, and Delivery all passed. |
+| 10. Residual ownership closure and non-destructive abstraction audit | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; `go test ./internal/arch`; and source scans for removed seams passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -296,6 +360,38 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Recorded the green validation baseline and the audit findings.
 - Chose root-cause fixes over retry, fallback, compatibility, or caller-discipline patches.
 - Preserved cohesive large packages; package/file size alone is not a refactoring target.
+
+### 2026-07-23 — Batch 10 started
+
+- Reopened the hygiene ledger for residual abstraction leaks found after the
+  earlier closure. The audit explicitly distinguishes a truly superseded
+  abstraction from an otherwise supported capability that has no current
+  frontend consumer.
+- Started moving behavior from Bootstrap into adapters and collapsing Delivery's
+  post-mutation readbacks into application-owned coherent results.
+
+### 2026-07-23 — Batch 10 completed
+
+- Moved Bootstrap-local persistence, checkpoint, prompt-catalog, child-session,
+  and turn-cleanup behavior into their owning adapters. Goal/session mutation
+  coordination is now constructed before both coordinators rather than supplied
+  through a Bootstrap late-binding proxy.
+- Export/import/rollback, role updates, and live subscription now expose one
+  coherent application result. Delivery only decodes and projects it; it no
+  longer reads a Session or live Run again after the operation it presents.
+- Removed domain-owned JSON-RPC replay, masking, model-tool preview text, and
+  `qN` response-key generation. These now live respectively in a neutral
+  component, application read-model code, the agent executor adapter, and the
+  runs application contract.
+- Replaced the `RestorePlan = Snapshot` alias with an explicit durable command,
+  removed application transcript façade aliases, centralized run/segment/item
+  namespaces in Runs, and strengthened the Bootstrap architecture guard so no
+  hidden receiver-based adapter can return.
+- Kept candidates with no current frontend invocation when they still express a
+  protocol or product capability; no deletion was justified solely by absent
+  caller evidence.
+- Full module, standalone, focused race, architecture, formatting, and removed
+  seam source scans passed.
 
 ### 2026-07-22 — Batch 1 started
 

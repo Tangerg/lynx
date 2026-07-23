@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 // TestAskUser_Validation: malformed args and an empty questions list are
@@ -28,7 +27,7 @@ func TestAskUser_Validation(t *testing.T) {
 // answer; multiple questions return labeled lines; multi-select joins values.
 func TestAnswerText(t *testing.T) {
 	single := runs.QuestionPrompt{Questions: []runs.QuestionSpec{{Question: "Proceed?"}}}
-	if got := answerText(single, map[string][]string{interrupts.QuestionFieldName(0): {"yes"}}); got != "yes" {
+	if got := answerText(single, map[string][]string{runs.QuestionFieldID(0): {"yes"}}); got != "yes" {
 		t.Errorf("single = %q, want %q", got, "yes")
 	}
 
@@ -37,8 +36,8 @@ func TestAnswerText(t *testing.T) {
 		{Question: "Pick langs", Header: "Langs", MultiSelect: true},
 	}}
 	answers := map[string][]string{
-		interrupts.QuestionFieldName(0): {"sqlite"},
-		interrupts.QuestionFieldName(1): {"go", "rust"},
+		runs.QuestionFieldID(0): {"sqlite"},
+		runs.QuestionFieldID(1): {"go", "rust"},
 	}
 	got := answerText(multi, answers)
 	if !strings.Contains(got, "DB: sqlite") || !strings.Contains(got, "Langs: go, rust") {

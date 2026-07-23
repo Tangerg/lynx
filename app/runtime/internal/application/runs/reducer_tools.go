@@ -1,9 +1,12 @@
 package runs
 
-import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+import (
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+)
 
-func newToolInvocation(name string, arguments tool.Arguments, result *tool.Result) *ToolInvocation {
-	return &ToolInvocation{
+func newToolInvocation(name string, arguments tool.Arguments, result *tool.Result) *transcript.ToolInvocation {
+	return &transcript.ToolInvocation{
 		Name:      name,
 		Arguments: arguments,
 		Result:    result,

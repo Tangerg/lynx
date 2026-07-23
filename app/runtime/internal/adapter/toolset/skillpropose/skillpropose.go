@@ -150,7 +150,7 @@ func (a proposeArgs) arguments() (string, error) {
 }
 
 func selectedChoice(answer map[string][]string) string {
-	if v := answer[interrupts.QuestionFieldName(0)]; len(v) > 0 {
+	if v := answer[runs.QuestionFieldID(0)]; len(v) > 0 {
 		return v[0]
 	}
 	return ""

@@ -15,7 +15,6 @@ package goals
 import (
 	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -69,33 +68,25 @@ type Driver struct {
 	now      func() time.Time
 	newLease func() string
 
-	// cmdMu serializes the lifecycle commands (Start / Resume / Stop) so their
-	// read → decide → write → launch/cancel sequences never interleave. Without
-	// it a Stop could cancel a loop a concurrent Resume just launched and then
-	// skip its own durable write — it decides on a status read taken before the
-	// cancel — wedging the goal into active-with-no-loop. The loop goroutines and
-	// update_goal deliberately do NOT take this lock; their races are handled by
-	// the store's lease-and-revision CAS, not by serializing against user commands.
-	cmdMu sync.Mutex
-
-	mu      sync.Mutex // guards running
-	running map[string]*loopHandle
+	mutations *SessionMutations
 }
 
 type loopHandle struct{ cancel context.CancelFunc }
 
-// NewDriver builds the goal driver over the goal store, the run entry point, and
-// the session-existence check. It owns a task group for its loops; call Close at
-// shutdown to cancel them.
-func NewDriver(store goal.Store, runUseCases RunUseCases, sessions SessionExists) *Driver {
+// NewDriverWithMutations builds a Driver sharing one session lifecycle
+// coordinator with the sessions use case.
+func NewDriverWithMutations(store goal.Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations) *Driver {
+	if mutations == nil {
+		mutations = NewSessionMutations()
+	}
 	return &Driver{
-		goals:    store,
-		runs:     runUseCases,
-		sessions: sessions,
-		tasks:    &taskgroup.Group{},
-		now:      time.Now,
-		newLease: uuid.NewString,
-		running:  map[string]*loopHandle{},
+		goals:     store,
+		runs:      runUseCases,
+		sessions:  sessions,
+		tasks:     &taskgroup.Group{},
+		now:       time.Now,
+		newLease:  uuid.NewString,
+		mutations: mutations,
 	}
 }
 
@@ -105,8 +96,8 @@ func NewDriver(store goal.Store, runUseCases RunUseCases, sessions SessionExists
 // does not exist. The new goal gets a fresh lease so a straggler from any
 // previously-cleared goal can no longer write.
 func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error) {
-	d.cmdMu.Lock()
-	defer d.cmdMu.Unlock()
+	d.mutations.lock()
+	defer d.mutations.unlock()
 	exists, err := d.sessions.Exists(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -145,8 +136,8 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 // idempotent on an already-active goal. The resume renews the lease so
 // the fresh loop owns the goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
-	d.cmdMu.Lock()
-	defer d.cmdMu.Unlock()
+	d.mutations.lock()
+	defer d.mutations.unlock()
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -175,8 +166,8 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 // not commit, it restores a driver for the still-authoritative lease before
 // returning the error, so an active Goal never remains without a loop.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
-	d.cmdMu.Lock()
-	defer d.cmdMu.Unlock()
+	d.mutations.lock()
+	defer d.mutations.unlock()
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -188,7 +179,7 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return g, nil
 	}
 	expected := g.Version()
-	d.quiesce(sessionID)
+	d.mutations.quiesce(sessionID)
 	g.Pause("stopped by the user", d.now())
 	g.RenewLease(d.newLease())
 	applied, err := d.goals.Save(ctx, g, expected)
@@ -264,31 +255,12 @@ func (d *Driver) Close() error {
 }
 
 // WithSessionMutation serializes a session write-set with Start, Resume, and
-// Stop. It commits apply before quiescing loops: failed writes leave the active
-// loop untouched, while successful clears reject any straggler write before the
-// loop is canceled. The caller already holds the run-admission slots, so no run
-// can begin between the commit and the quiesce.
+// Stop. It remains on Driver for callers that own only the Driver; runtime
+// assembly shares the same coordinator directly with sessions.
 func (d *Driver) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
-	d.cmdMu.Lock()
-	defer d.cmdMu.Unlock()
-	if err := apply(ctx); err != nil {
-		return err
-	}
-	for _, sessionID := range sessionIDs {
-		d.quiesce(sessionID)
-	}
-	return nil
+	return d.mutations.WithSessionMutation(ctx, sessionIDs, apply)
 }
 
 func (d *Driver) recoverDrive(ctx context.Context, sessionID, leaseID string) {
 	d.launch(ctx, sessionID, leaseID)
-}
-
-func (d *Driver) quiesce(sessionID string) {
-	d.mu.Lock()
-	if h := d.running[sessionID]; h != nil {
-		h.cancel()
-		delete(d.running, sessionID)
-	}
-	d.mu.Unlock()
 }

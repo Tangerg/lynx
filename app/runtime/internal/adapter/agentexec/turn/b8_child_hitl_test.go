@@ -71,7 +71,7 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			wantInterrupt:  runs.QuestionInterruptKind,
 			resolution: interrupts.Resolution{
 				Approved: true,
-				Answer:   map[string][]string{interrupts.QuestionFieldName(0): {"Yes"}},
+				Answer:   map[string][]string{runs.QuestionFieldID(0): {"Yes"}},
 			},
 		},
 	}
@@ -106,13 +106,13 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 
 			var (
 				interruptCount int
-				childStart     *turn.ToolCallStart
-				childEnd       *turn.ToolCallEnd
+				childStart     *runs.ToolCallStart
+				childEnd       *runs.ToolCallEnd
 				endReason      execution.Outcome
 			)
 			for event := range events {
 				switch event := event.(type) {
-				case turn.TurnInterrupted:
+				case runs.TurnInterrupted:
 					interruptCount++
 					if len(event.Interrupts) != 1 {
 						t.Fatalf("interrupts = %#v", event.Interrupts)
@@ -128,17 +128,17 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 					if err := dispatcher.Resume(t.Context(), handle, test.resolution, test.interruptKinds); err != nil {
 						t.Fatalf("Resume: %v", err)
 					}
-				case turn.ToolCallStart:
+				case runs.ToolCallStart:
 					if event.ToolName == test.childTool {
 						copy := event
 						childStart = &copy
 					}
-				case turn.ToolCallEnd:
+				case runs.ToolCallEnd:
 					if childStart != nil && event.CallID == childStart.CallID {
 						copy := event
 						childEnd = &copy
 					}
-				case turn.TurnEnd:
+				case runs.TurnEnd:
 					endReason = event.Reason
 				}
 			}
@@ -212,7 +212,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	endReason := execution.OutcomeError
 	for event := range events {
 		switch event := event.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			interruptCount++
 			if len(event.Interrupts) != 1 || event.Interrupts[0].Kind != runs.QuestionInterruptKind {
 				t.Fatalf("interrupt %d = %#v", interruptCount, event.Interrupts)
@@ -220,12 +220,12 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 			if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{
 				Approved: true,
 				Answer: map[string][]string{
-					interrupts.QuestionFieldName(0): {"answer"},
+					runs.QuestionFieldID(0): {"answer"},
 				},
 			}, []string{"question"}); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			endReason = event.Reason
 		}
 	}
@@ -280,7 +280,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 	sawInterrupt := false
 	for event := range events {
-		if interrupted, ok := event.(turn.TurnInterrupted); ok {
+		if interrupted, ok := event.(runs.TurnInterrupted); ok {
 			sawInterrupt = true
 			if len(interrupted.Interrupts) != 1 {
 				t.Fatalf("interrupts = %#v", interrupted.Interrupts)
@@ -334,11 +334,11 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	)
 	for event := range restoredEvents {
 		switch event := event.(type) {
-		case turn.ToolCallStart:
+		case runs.ToolCallStart:
 			if event.ToolName == "shell" {
 				childArguments = event.Arguments
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			endReason = event.Reason
 		}
 	}
@@ -394,12 +394,12 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	endReason := execution.OutcomeError
 	for event := range events {
 		switch event := event.(type) {
-		case turn.TurnInterrupted:
+		case runs.TurnInterrupted:
 			interruptsSeen++
 			if err := dispatcher.Cancel(t.Context(), handle); err != nil {
 				t.Fatalf("Cancel: %v", err)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			terminalCount++
 			endReason = event.Reason
 		}
@@ -443,7 +443,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 	for event := range events {
-		if _, ok := event.(turn.TurnInterrupted); ok {
+		if _, ok := event.(runs.TurnInterrupted); ok {
 			break
 		}
 	}
@@ -512,7 +512,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		raced := false
 		for event := range events {
 			switch event := event.(type) {
-			case turn.TurnInterrupted:
+			case runs.TurnInterrupted:
 				raced = true
 				start := make(chan struct{})
 				var (
@@ -542,11 +542,11 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				if resumeErr != nil && cancelErr != nil {
 					t.Fatalf("iteration %d both racers lost: resume=%v cancel=%v", index, resumeErr, cancelErr)
 				}
-			case turn.ToolCallEnd:
+			case runs.ToolCallEnd:
 				if !event.Denied && event.Err == "" {
 					successfulChildEnds++
 				}
-			case turn.TurnEnd:
+			case runs.TurnEnd:
 				terminalCount++
 			}
 		}

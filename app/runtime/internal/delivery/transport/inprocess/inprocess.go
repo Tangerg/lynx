@@ -1,6 +1,6 @@
-// Package inprocess implements the [transport.Transport] interface for future
-// same-process clients such as a CLI/TUI that embeds the runtime instead of
-// talking over HTTP. The runtime server binary does not use this package.
+// Package inprocess provides the concrete JSON-RPC transport for same-process
+// clients such as a CLI/TUI that embeds the runtime instead of talking over
+// HTTP. The runtime server binary does not use this package.
 //
 // Two modes of use:
 //
@@ -37,9 +37,8 @@ type messageHandler interface {
 	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
 }
 
-// Transport is the in-process implementation of [transport.Transport].
-// Messages are routed through a dispatch.Dispatcher; responses /
-// notifications come back via the Recv channel.
+// Transport routes in-process JSON-RPC messages through a dispatch.Dispatcher;
+// responses and notifications come back via the Recv channel.
 type Transport struct {
 	dispatcher messageHandler
 

@@ -75,24 +75,15 @@ type sessionsCoordinatorProvider interface {
 }
 
 // queriesCoordinatorProvider is the parallel seam for the read coordinator: a
-// fake that can build the query coordinator over its own transcript/history/
-// interrupt stores. Fakes that never drive a read (live-run tests) may omit it.
+// fake that can build it over its own transcript and interrupt stores. Fakes
+// that never drive a read (live-run tests) may omit it.
 type queriesCoordinatorProvider interface {
 	queriesCoordinator() *queries.Coordinator
-}
-
-// stubHistoryReader adapts the stub's in-memory chat-history map to the query
-// coordinator's history reader port.
-type stubHistoryReader struct{ history map[string][]chat.Message }
-
-func (r stubHistoryReader) Read(_ context.Context, id string) ([]chat.Message, error) {
-	return r.history[id], nil
 }
 
 func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 	return queries.New(queries.Dependencies{
 		Transcript: s.hist,
-		History:    stubHistoryReader{history: s.history},
 		Interrupts: s.interrupts,
 	})
 }

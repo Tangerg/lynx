@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -34,8 +35,8 @@ type sessionUseCases interface {
 	DeleteSession(ctx context.Context, sessionID string) error
 	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.SessionView, error)
 	ListViews(ctx context.Context) ([]sessions.SessionView, error)
-	ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error)
-	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) error
+	ExportSession(ctx context.Context, sessionID string) (sessions.ExportResult, error)
+	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.SessionView, error)
 	RollbackFiles(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
 	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.SessionView, error)
 	View(ctx context.Context, id string) (sessions.SessionView, error)
@@ -64,13 +65,13 @@ type approvalUseCases interface {
 type modelUseCases interface {
 	ConfigureProvider(ctx context.Context, cmd models.ConfigureProviderCommand) (models.ProviderInfo, error)
 	DefaultModel() string
-	EmbeddingRole() (providerID, model string)
+	EmbeddingRole() models.Role
 	ListModels(ctx context.Context, providerID string) []models.Model
 	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)
-	SetEmbeddingRole(ctx context.Context, providerID, model string) error
-	SetUtilityRole(ctx context.Context, provider, model string) error
+	SetEmbeddingRole(ctx context.Context, providerID, model string) (models.Role, error)
+	SetUtilityRole(ctx context.Context, provider, model string) (models.Role, error)
 	TestProvider(ctx context.Context, id string) error
-	UtilityRole() (providerID, model string)
+	UtilityRole() models.Role
 }
 
 type toolUseCases interface {
@@ -89,11 +90,10 @@ type runUseCases interface {
 	ActiveSession(sessionID string) bool
 	Cancel(ctx context.Context, cmd runs.CancelCommand) error
 	List() []runs.Record
-	LiveRun(runID string) (runs.Record, bool)
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error
-	Subscribe(ctx context.Context, runID, fromCursor string) (<-chan runs.Event, bool)
+	SubscribeLive(ctx context.Context, runID, fromCursor string) (runs.Record, <-chan runs.Event, bool)
 }
 
 type queryUseCases interface {
@@ -104,6 +104,10 @@ type queryUseCases interface {
 type usageUseCases interface {
 	Session(ctx context.Context, sessionID string) (usage.SessionReport, error)
 	Summary(ctx context.Context, sinceDays int) (usage.Summary, error)
+}
+
+type feedbackUseCases interface {
+	Record(ctx context.Context, command feedbackapp.Command) error
 }
 
 type scheduleUseCases interface {

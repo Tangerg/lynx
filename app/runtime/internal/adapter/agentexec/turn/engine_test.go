@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -45,9 +46,9 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	var sawDelta, sawEnd bool
 	for ev := range events {
 		switch ev.(type) {
-		case turn.MessageDelta:
+		case runs.MessageDelta:
 			sawDelta = true
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			sawEnd = true
 		}
 	}
@@ -164,7 +165,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	events, _ := dispatcher.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.(turn.TurnEnd); ok {
+		if end, ok := ev.(runs.TurnEnd); ok {
 			if end.Reason != execution.OutcomeMaxBudget {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
@@ -198,9 +199,9 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	var sawError, sawEnd bool
 	for event := range events {
 		switch value := event.(type) {
-		case turn.ErrorEvent:
-			sawError = value.Code == turn.ErrorCodeEngine && strings.Contains(value.Message, "invalid turn stop reason")
-		case turn.TurnEnd:
+		case runs.ErrorEvent:
+			sawError = value.Code == runs.ErrorCodeEngine && strings.Contains(value.Message, "invalid turn stop reason")
+		case runs.TurnEnd:
 			sawEnd = value.Reason == execution.OutcomeError
 		}
 	}
@@ -234,7 +235,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.(turn.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
+		if end, ok := ev.(runs.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
 			return
 		}
 	}
@@ -279,9 +280,9 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	var sawDelta, sawEnd bool
 	for ev := range events {
 		switch e := ev.(type) {
-		case turn.MessageDelta:
+		case runs.MessageDelta:
 			sawDelta = true
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			sawEnd = true
 			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
@@ -321,9 +322,9 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	var sawError, sawEnd bool
 	for ev := range events {
 		switch ev.(type) {
-		case turn.ErrorEvent:
+		case runs.ErrorEvent:
 			sawError = true
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			sawEnd = true
 		}
 	}
@@ -553,20 +554,20 @@ func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHan
 	t.Fatal("turn was not removed after process creation failure")
 }
 
-func assertCreateFailureEvents(t *testing.T, events iter.Seq[turn.Event], startErr error) {
+func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.EngineEvent], startErr error) {
 	t.Helper()
 
 	var starts, failures, terminals int
 	for event := range events {
 		switch value := event.(type) {
-		case turn.TurnStart:
+		case runs.TurnStart:
 			starts++
-		case turn.ErrorEvent:
+		case runs.ErrorEvent:
 			failures++
-			if value.Code != turn.ErrorCodeEngine || !strings.Contains(value.Message, startErr.Error()) {
+			if value.Code != runs.ErrorCodeEngine || !strings.Contains(value.Message, startErr.Error()) {
 				t.Errorf("ErrorEvent = %+v, want ENGINE_ERROR containing %q", value, startErr)
 			}
-		case turn.TurnEnd:
+		case runs.TurnEnd:
 			terminals++
 			if value.Reason != execution.OutcomeError {
 				t.Errorf("TurnEnd reason = %s, want error", value.Reason)

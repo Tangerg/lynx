@@ -9,6 +9,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -24,7 +25,7 @@ import (
 // the entry point and read without locking thereafter.
 type turnState struct {
 	handle TurnHandle
-	events chan Event
+	events chan runs.EngineEvent
 	done   chan struct{}
 	cancel context.CancelFunc
 
@@ -193,7 +194,7 @@ func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
 	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
 		handle:    handle,
-		events:    make(chan Event, 32),
+		events:    make(chan runs.EngineEvent, 32),
 		done:      make(chan struct{}),
 		cancel:    cancel,
 		ctx:       lifeCtx,

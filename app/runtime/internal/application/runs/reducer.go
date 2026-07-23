@@ -38,7 +38,7 @@ type reducerConfig struct {
 	Provider     string
 	Model        string
 	CreatedAt    time.Time
-	UserInput    []ContentBlock
+	UserInput    []transcript.ContentBlock
 	Pending      *interrupts.Pending
 	Now          func() time.Time
 	CancelReason func() string
@@ -53,13 +53,13 @@ type reducer struct {
 	itemSeq    int
 	step       int
 	toolOrder  int
-	userInput  []ContentBlock
+	userInput  []transcript.ContentBlock
 	text       *openText
 	reasoning  *openText
 	tools      openTools
 	drained    []interrupts.DrainedTool
 	errMsg     string
-	errProblem Problem
+	errProblem transcript.Problem
 }
 
 type openText struct {
@@ -101,10 +101,10 @@ func newReducer(cfg reducerConfig) *reducer {
 
 func (r *reducer) nextItemID() string {
 	r.itemSeq++
-	return "item_" + r.cfg.SegmentID + "_" + strconv.Itoa(r.itemSeq)
+	return itemIDPrefix + r.cfg.SegmentID + "_" + strconv.Itoa(r.itemSeq)
 }
 
-func userMessageItemID(segmentID string) string { return "item_" + segmentID + "_u" }
+func userMessageItemID(segmentID string) string { return itemIDPrefix + segmentID + "_u" }
 
 func (r *reducer) open() ([]reduction, error) {
 	if r.resume != nil && r.resume.err != nil {
@@ -183,7 +183,7 @@ func (r *reducer) synthesizeTerminal() ([]reduction, error) {
 		return nil, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
 	}
 	out = append(out, drained...)
-	result := &RunResult{}
+	result := &transcript.RunResult{}
 	outcome := execution.OutcomeCanceled
 	if r.errMsg != "" {
 		outcome = execution.OutcomeError
@@ -206,14 +206,14 @@ func (r *reducer) abort(err error) {
 		return
 	}
 	r.errMsg = err.Error()
-	r.errProblem = Problem{Kind: InternalProblem, Scope: RunProblem, Detail: "the run failed due to an internal error"}
+	r.errProblem = transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}
 }
 
-func (r *reducer) runProblem() *Problem {
+func (r *reducer) runProblem() *transcript.Problem {
 	problem := r.errProblem
-	problem.Scope = RunProblem
+	problem.Scope = transcript.RunProblem
 	if problem.Detail == "" {
-		problem.Kind = InternalProblem
+		problem.Kind = transcript.InternalProblem
 		problem.Detail = "the run failed due to an internal error"
 	}
 	return &problem
@@ -285,7 +285,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		e.Item.SessionID = r.cfg.SessionID
 		event = e
 		commit.Items = []transcript.Item{e.Item}
-		if e.Item.Status == ItemSucceeded && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
+		if e.Item.Status == transcript.ItemCompleted && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
 			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: slices.Clone(e.mutatedPaths)}
 		}
 	case SegmentStarted:

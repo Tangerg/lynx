@@ -9,27 +9,45 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// ReadSnapshot reserves the session's single-writer slot and reads its complete
-// canonical state coherently. Active and parked runs are rejected because their
-// executor state is process-local and therefore cannot be represented by a
-// portable session artifact.
-func (c *Coordinator) ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error) {
+// ExportResult is the complete result of a session archive use case. The
+// archive and its presentation are derived while the same session admission is
+// held, so Delivery cannot accidentally pair one revision's archive with a
+// later revision's session view.
+type ExportResult struct {
+	Session  SessionView
+	Snapshot PortableSnapshot
+	Items    []transcript.Item
+}
+
+// ExportSession reserves the session's single-writer slot and derives its
+// portable archive and presentation from one coherent canonical state. Active
+// and parked runs are rejected because their executor state is process-local
+// and therefore cannot be represented by a portable session artifact.
+func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (ExportResult, error) {
 	admission, err := c.ClaimRunSlot(ctx, sessionID)
 	if err != nil {
-		return Snapshot{}, err
+		return ExportResult{}, err
 	}
 	defer admission.Release()
 	if c.snapshots == nil {
-		return Snapshot{}, errors.New("sessions: snapshot reader is unavailable")
+		return ExportResult{}, errors.New("sessions: snapshot reader is unavailable")
 	}
 	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
-		return Snapshot{}, err
+		return ExportResult{}, err
 	}
 	if err := snapshot.Validate(); err != nil {
-		return Snapshot{}, err
+		return ExportResult{}, err
 	}
-	return snapshot, nil
+	portable, err := snapshot.PortableSnapshot()
+	if err != nil {
+		return ExportResult{}, fmt.Errorf("sessions: prepare portable snapshot: %w", err)
+	}
+	view, err := c.view(ctx, snapshot.Session, SessionIdle)
+	if err != nil {
+		return ExportResult{}, err
+	}
+	return ExportResult{Session: view, Snapshot: portable, Items: snapshot.Items}, nil
 }
 
 // Validate checks a snapshot's referential integrity — the session id is present

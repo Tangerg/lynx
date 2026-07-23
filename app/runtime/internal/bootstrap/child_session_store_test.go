@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/storetest"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	sessionsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -22,7 +23,7 @@ func TestChildSessionStorePreservesRuntimeIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create parent: %v", err)
 	}
-	store := newChildSessionStore(productSessions)
+	store := agentexec.NewChildSessionStore(productSessions)
 	now := time.Unix(1_700_000_000, 123).UTC()
 	metadata, err := core.ParseSessionMetadata([]byte(`{"source":"runtime"}`))
 	if err != nil {
@@ -68,7 +69,7 @@ func TestChildSessionStoreMapsNotFound(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	store := newChildSessionStore(sqlite.NewSessionStore(db))
+	store := agentexec.NewChildSessionStore(sqlite.NewSessionStore(db))
 
 	if _, err := store.Load(t.Context(), "missing"); !errors.Is(err, core.ErrSessionNotFound) {
 		t.Fatalf("Load error = %v, want ErrSessionNotFound", err)
@@ -86,7 +87,7 @@ func TestChildSessionStoreRejectsUserFacingSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create root: %v", err)
 	}
-	store := newChildSessionStore(productSessions)
+	store := agentexec.NewChildSessionStore(productSessions)
 
 	if _, err := store.Load(t.Context(), root.ID); !errors.Is(err, sessionsvc.ErrSubtaskConflict) {
 		t.Fatalf("Load root error = %v, want ErrSubtaskConflict", err)
@@ -99,7 +100,7 @@ func TestChildSessionStoreContract(t *testing.T) {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	store := newChildSessionStore(sqlite.NewSessionStore(db))
+	store := agentexec.NewChildSessionStore(sqlite.NewSessionStore(db))
 
 	if err := storetest.TestSessionStore(t.Context(), store); err != nil {
 		t.Fatal(err)

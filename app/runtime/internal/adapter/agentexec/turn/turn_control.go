@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -96,7 +97,7 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
-		s.emit(state, ErrorEvent{Message: err.Error(), Code: ErrorCodeEngine, Problem: problemFromError(err)})
+		s.emit(state, runs.ErrorEvent{Message: err.Error(), Code: runs.ErrorCodeEngine, Problem: problemFromError(err)})
 		s.finishTurn(state, execution.OutcomeError)
 		return err
 	}

@@ -65,17 +65,11 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	// The live record carries the current segment's id (reconnect rebinds to that
-	// segment, §0.3) — read it before subscribing so the response can return it.
-	record, ok := s.coordinator.LiveRun(runID)
-	if !ok {
-		return nil, nil, protocol.ErrRunNotFound
-	}
 	// The Journal replays after an opaque, prefix-free application cursor; strip
 	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
 	// leaves an empty / unframed id untouched, so replay-from-start still works.
 	fromCursor := strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent)
-	evCh, ok := s.coordinator.Subscribe(ctx, runID, fromCursor)
+	record, evCh, ok := s.coordinator.SubscribeLive(ctx, runID, fromCursor)
 	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}
