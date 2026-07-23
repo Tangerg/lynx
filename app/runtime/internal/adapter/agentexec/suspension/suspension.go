@@ -40,19 +40,6 @@ func Interrupt(ctx context.Context, key string, prompt runs.Interrupt) (interrup
 	return response.resolution()
 }
 
-// EncodePrompt converts an application interrupt to the JSON persisted by an
-// agent process. It is used when an adapter reconstructs a suspension fixture.
-func EncodePrompt(prompt runs.Interrupt) (json.RawMessage, error) {
-	if err := prompt.Validate(); err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(promptWireFrom(prompt))
-	if err != nil {
-		return nil, fmt.Errorf("agent suspension: encode interrupt: %w", err)
-	}
-	return encoded, nil
-}
-
 // DecodePrompt restores an application interrupt from persisted agent-process
 // suspension JSON. Unknown fields and trailing values are rejected.
 func DecodePrompt(raw []byte) (runs.Interrupt, error) {

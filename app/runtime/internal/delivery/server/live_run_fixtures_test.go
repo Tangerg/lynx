@@ -80,7 +80,7 @@ func startLiveRun(t *testing.T, s *Server, cwd string) string {
 	}
 	result, err := s.coordinator.Start(context.Background(), runs.StartCommand{
 		SessionID: sess.ID,
-		Input:     []runs.ContentBlock{{Kind: runs.TextContent, Text: "hold this run open"}},
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hold this run open"}},
 	})
 	if err != nil {
 		t.Fatalf("start live run: %v", err)

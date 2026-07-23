@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/pkg/mime"
@@ -55,7 +56,7 @@ type StartCommand struct {
 	MaxSteps        int
 	Options         *corechat.Options
 	InterruptKinds  []string
-	Input           []ContentBlock
+	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
 	// (see [goal.Store] lease-and-revision CAS). Empty for ordinary runs.
@@ -70,11 +71,11 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 	texts := make([]string, 0, len(c.Input))
 	for index, block := range c.Input {
 		switch block.Kind {
-		case TextContent:
+		case transcript.TextContent:
 			if block.Text != "" {
 				texts = append(texts, block.Text)
 			}
-		case ImageContent:
+		case transcript.ImageContent:
 			parsed, parseErr := mime.Parse(block.Mime)
 			if parseErr != nil || !mime.IsImage(parsed) {
 				return "", nil, "", fmt.Errorf("%w: input block %d has unsupported image mime %q", ErrUnsupportedMedia, index, block.Mime)

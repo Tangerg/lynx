@@ -259,7 +259,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 	if c.turns == nil {
 		return errors.New("runs: turn control is required")
 	}
-	rec, ok := c.LiveRun(cmd.RunID)
+	rec, ok := c.liveRecord(cmd.RunID)
 	if !ok {
 		return ErrRunNotFound
 	}
@@ -270,6 +270,14 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Coordinator) liveRecord(runID string) (Record, bool) {
+	e, ok := c.registry.Get(runID)
+	if !ok {
+		return Record{}, false
+	}
+	return e.record, true
 }
 
 func (c *Coordinator) resolveSession(ctx context.Context, id, defaultCwd, title string) (session.Session, error) {

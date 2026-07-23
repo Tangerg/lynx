@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -41,14 +42,14 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	return &protocol.StartRunResponse{RunID: result.RunID, SegmentID: result.SegmentID, UserItemID: result.UserItemID}, mapRunEvents(ctx, result.Events), nil
 }
 
-func runInputFromWire(blocks []protocol.ContentBlock) []runs.ContentBlock {
-	input := make([]runs.ContentBlock, len(blocks))
+func runInputFromWire(blocks []protocol.ContentBlock) []transcript.ContentBlock {
+	input := make([]transcript.ContentBlock, len(blocks))
 	for i, block := range blocks {
-		kind := runs.TextContent
+		kind := transcript.TextContent
 		if block.Type == protocol.ContentBlockImage {
-			kind = runs.ImageContent
+			kind = transcript.ImageContent
 		}
-		input[i] = runs.ContentBlock{Kind: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
+		input[i] = transcript.ContentBlock{Kind: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
 	}
 	return input
 }

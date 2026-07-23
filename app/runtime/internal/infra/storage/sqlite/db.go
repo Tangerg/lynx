@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 20
+const schemaVersion = 21
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -361,15 +361,20 @@ func installCurrentSchema(db *sql.DB) error {
 			ON tool_result_blobs(session_id)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_result_blobs_item
 			ON tool_result_blobs(item_id) WHERE item_id != ''`,
-		// Immutable workspace snapshots for sandbox stop/resume. The id is the
-		// sha256 digest of the deterministic tar body, so repeated snapshots
-		// naturally deduplicate and no live backend/client state enters storage.
-		`CREATE TABLE IF NOT EXISTS sandbox_snapshots (
-			id         TEXT    PRIMARY KEY,
-			archive    BLOB    NOT NULL,
-			size       INTEGER NOT NULL,
-			created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+		// Append-only quality signals submitted through feedback.create. They are
+		// deliberately not foreign-keyed: a user may report a general issue or
+		// submit feedback after the referenced runtime records are cleaned up.
+		`CREATE TABLE IF NOT EXISTS feedback_entries (
+			id         INTEGER PRIMARY KEY AUTOINCREMENT,
+			session_id TEXT    NOT NULL DEFAULT '',
+			run_id     TEXT    NOT NULL DEFAULT '',
+			item_id    TEXT    NOT NULL DEFAULT '',
+			rating     TEXT    NOT NULL DEFAULT '',
+			text       TEXT    NOT NULL DEFAULT '',
+			created_at INTEGER NOT NULL
 		)`,
+		`CREATE INDEX IF NOT EXISTS idx_feedback_entries_created
+			ON feedback_entries(created_at DESC)`,
 		// Append-only per-project fact ledger. day is the daily-ledger partition
 		// (YYYY-MM-DD); seq is both stable ordering and the curation watermark.
 		// A content digest deduplicates facts independently, so mixed old/new

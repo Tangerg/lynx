@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/idempotency"
 )
 
 // Dispatcher routes inbound JSON-RPC messages to typed Runtime methods and

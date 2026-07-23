@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -342,7 +341,7 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 		return output, nil
 	}
 	id := offload.NewID()
-	preview := toolresultpreview.Render(output, string(id), toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	preview := renderToolResultPreview(output, string(id), toolport.ToolNameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
 		// than the body. Keep the body inline without staging any durable state.

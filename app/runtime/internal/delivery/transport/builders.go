@@ -49,13 +49,6 @@ func NewResponseError(id ID, rpcErr *Error) *Response {
 	return &Response{ID: id, Error: rpcErr}
 }
 
-// NewError builds an [Error] with the canonical message for the
-// code and an optional data payload (typically [ProblemData]).
-// SDK's Error.Code is int64; this helper widens our int constants.
-func NewError(code int, data json.RawMessage) *Error {
-	return &Error{Code: int64(code), Message: CodeMessage(code), Data: data}
-}
-
 // NewErrorWithMessage is the same as [NewError] but lets the caller
 // override the message — useful when wrapping a downstream Go
 // error's String() to surface its detail.

@@ -123,13 +123,13 @@ func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
 }
 
 // answerText renders the human's answers as the tool's result text, pairing
-// each question with its answer (keyed by [interrupts.QuestionFieldName]). A
+// each question with its answer (keyed by [runs.QuestionFieldID]). A
 // single question returns just its answer (no label noise); multiple questions
 // return "header: answer" lines so the model can tell them apart. Multi-select
 // answers are comma-joined.
 func answerText(in runs.QuestionPrompt, answer map[string][]string) string {
 	if len(in.Questions) == 1 {
-		return strings.Join(answer[interrupts.QuestionFieldName(0)], "\n")
+		return strings.Join(answer[runs.QuestionFieldID(0)], "\n")
 	}
 	var b strings.Builder
 	for i, q := range in.Questions {
@@ -137,7 +137,7 @@ func answerText(in runs.QuestionPrompt, answer map[string][]string) string {
 		if label == "" {
 			label = q.Question
 		}
-		fmt.Fprintf(&b, "%s: %s\n", label, strings.Join(answer[interrupts.QuestionFieldName(i)], ", "))
+		fmt.Fprintf(&b, "%s: %s\n", label, strings.Join(answer[runs.QuestionFieldID(i)], ", "))
 	}
 	return strings.TrimSpace(b.String())
 }

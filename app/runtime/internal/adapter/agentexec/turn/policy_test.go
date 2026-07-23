@@ -2,6 +2,7 @@ package turn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -118,14 +119,12 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 	t.Run("remember restored response", func(t *testing.T) {
 		want := errors.New("rule write unavailable")
 		const arguments = `{"command":"go test"}`
-		pending := runs.Interrupt{
-			Kind: runs.ApprovalInterruptKind,
-			Approval: &runs.ApprovalPrompt{
-				CallID: "call_1", ToolName: "shell", Arguments: arguments,
-				SafetyClass: tool.SafetyClassExec,
+		prompt, err := json.Marshal(map[string]any{
+			"kind": "approval",
+			"approval": map[string]any{
+				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec",
 			},
-		}
-		prompt, err := suspension.EncodePrompt(pending)
+		})
 		if err != nil {
 			t.Fatal(err)
 		}

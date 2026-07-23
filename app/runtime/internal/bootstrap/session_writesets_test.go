@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -52,9 +53,23 @@ func bootstrapSnapshotChange(rootID string, snapshots ...core.ProcessSnapshot) c
 	}}
 }
 
-// newWriteSetFixture builds the composition-root sessionStores adapter over a
-// fresh sqlite database so the atomic write-sets run against the real stores +
-// transactor.
+// sessionStores keeps the real durable collaborators visible to this integration
+// fixture while delegating every tested write-set to the persistence adapter.
+type sessionStores struct {
+	*persistence.SessionStores
+	sessions   *sqlite.SessionStore
+	transcript *sqlite.TranscriptStore
+	interrupts *sqlite.InterruptStore
+	runs       *sqlite.RunStateStore
+	processes  *sqlite.ProcessStore
+	history    *conversation.Messages
+	todos      todo.Store
+	approvals  approval.RuleStore
+	goals      goal.Store
+}
+
+// newWriteSetFixture builds the persistence adapter over a fresh sqlite
+// database so the atomic write-sets run against the real stores + transactor.
 func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sqlite.InterruptStore) {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
@@ -76,10 +91,15 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 		todos:      todos,
 		approvals:  approvals,
 		goals:      sqlite.NewGoalStore(db),
-		tx: func(ctx context.Context, fn func(context.Context) error) error {
+	}
+	ss.SessionStores = persistence.NewSessionStores(persistence.SessionStoresConfig{
+		Sessions: ss.sessions, Transcript: ss.transcript, Interrupts: ss.interrupts,
+		Runs: ss.runs, Processes: ss.processes, History: ss.history, Todos: ss.todos,
+		Approvals: ss.approvals, Goals: ss.goals,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},
-	}
+	})
 	return ss, runs, ints
 }
 

@@ -10,13 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/toolresultpreview"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -147,7 +145,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	}); err != nil {
 		t.Fatalf("stage source result: %v", err)
 	}
-	preview := toolresultpreview.Render(body, string(id), "read_tool_result", 100)
+	preview := "offloaded preview " + id.String()
 	ref := &resultoffload.Ref{ID: id}
 	previewValue := tool.StringResult(preview)
 	item := transcript.Item{
@@ -391,9 +389,11 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.sessions.(*sessions.Coordinator).RestoreSession(ctx, sessions.Snapshot{Session: session.Session{
-		ID: ses.ID, Title: "Restored", Cwd: restoreCwd,
-	}}); !errors.Is(err, sessions.ErrSessionBusy) {
+	now := time.Now().UTC()
+	_, err = s.sessions.RestorePortableSession(ctx, sessions.PortableSnapshot{Session: sessions.PortableSession{
+		ID: ses.ID, Title: "Restored", Cwd: restoreCwd, CreatedAt: now, UpdatedAt: now,
+	}})
+	if !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
 	}
 	pending, err := rt.interrupts.List(ctx, ses.ID)

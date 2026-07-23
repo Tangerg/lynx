@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -23,7 +24,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	st.maxBudget = request.MaxBudget
 	st.maxCostUSD = request.MaxCostUSD
 	st.maxSteps = request.MaxSteps
-	s.emit(st, TurnStart{Model: st.model})
+	s.emit(st, runs.TurnStart{Model: st.model})
 
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the engine's
@@ -32,8 +33,8 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	if request.Provider != "" && request.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, request.Provider, request.Model)
 		if err != nil {
-			s.emit(st, ErrorEvent{
-				Message: err.Error(), Code: ErrorCodeModelUnavailable,
+			s.emit(st, runs.ErrorEvent{
+				Message: err.Error(), Code: runs.ErrorCodeModelUnavailable,
 				Problem: problemFromError(err),
 			})
 			s.finishTurn(st, execution.OutcomeError)
@@ -64,7 +65,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		s.emit(st, ErrorEvent{Message: err.Error(), Code: ErrorCodeEngine, Problem: internalRunProblem()})
+		s.emit(st, runs.ErrorEvent{Message: err.Error(), Code: runs.ErrorCodeEngine, Problem: internalRunProblem()})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
@@ -150,9 +151,9 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	}
 	if suspension == nil {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.emit(st, ErrorEvent{
+		s.emit(st, runs.ErrorEvent{
 			Message: "agent process is waiting without a suspension",
-			Code:    ErrorCodeEngine, Problem: internalRunProblem(),
+			Code:    runs.ErrorCodeEngine, Problem: internalRunProblem(),
 		})
 		s.finishTurn(st, execution.OutcomeError)
 		return
@@ -160,15 +161,15 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.emit(st, ErrorEvent{
+		s.emit(st, runs.ErrorEvent{
 			Message: "agent process returned an unsupported interrupt payload",
-			Code:    ErrorCodeEngine, Problem: internalRunProblem(),
+			Code:    runs.ErrorCodeEngine, Problem: internalRunProblem(),
 		})
 		s.finishTurn(st, execution.OutcomeError)
 		return
 	}
 	recordInterruptMetric(st.ctx, string(pending.Kind))
-	if !s.emit(st, TurnInterrupted{Interrupts: []Interrupt{pending}}) {
+	if !s.emit(st, runs.TurnInterrupted{Interrupts: []runs.Interrupt{pending}}) {
 		return
 	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
@@ -195,13 +196,13 @@ func interruptKind(suspension *agent.Suspension) string {
 	return string(pending.Kind)
 }
 
-func typedInterrupt(parked *agent.Suspension) (Interrupt, bool) {
+func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
 	if parked == nil {
-		return Interrupt{}, false
+		return runs.Interrupt{}, false
 	}
 	pending, err := suspension.DecodePrompt(parked.Prompt)
 	if err != nil {
-		return Interrupt{}, false
+		return runs.Interrupt{}, false
 	}
 	return pending, true
 }
@@ -228,9 +229,9 @@ func typedInterrupt(parked *agent.Suspension) (Interrupt, bool) {
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.miner != nil {
 		if err := s.miner.MaybeMine(ctx, sessionID, st.cwd, st.toolCallCount()); err != nil {
-			s.emit(st, ErrorEvent{
+			s.emit(st, runs.ErrorEvent{
 				Message: "skill mining failed: " + err.Error(),
-				Code:    ErrorCodeSkillMaintenance,
+				Code:    runs.ErrorCodeSkillMaintenance,
 				Problem: internalRunProblem(),
 			})
 		}
@@ -239,9 +240,9 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	// rate-limited inside the curator; the turn boundary is just a live tick.
 	if s.curator != nil {
 		if err := s.curator.MaybeSweep(ctx); err != nil {
-			s.emit(st, ErrorEvent{
+			s.emit(st, runs.ErrorEvent{
 				Message: "skill curation failed: " + err.Error(),
-				Code:    ErrorCodeSkillMaintenance,
+				Code:    runs.ErrorCodeSkillMaintenance,
 				Problem: internalRunProblem(),
 			})
 		}
@@ -269,9 +270,9 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	}
 	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, contextWindow, preCompact)
 	if err != nil {
-		s.emit(st, ErrorEvent{
+		s.emit(st, runs.ErrorEvent{
 			Message: "auto-compaction failed: " + err.Error(),
-			Code:    ErrorCodeCompaction,
+			Code:    runs.ErrorCodeCompaction,
 			Problem: internalRunProblem(),
 		})
 		return
@@ -279,7 +280,7 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	if !compaction.Compacted {
 		return
 	}
-	s.emit(st, CompactBoundary{
+	s.emit(st, runs.CompactBoundary{
 		MessagesBefore: compaction.MessagesBefore,
 		MessagesAfter:  compaction.MessagesAfter,
 	})
@@ -288,9 +289,9 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		return
 	}
 	if err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd); err != nil {
-		s.emit(st, ErrorEvent{
+		s.emit(st, runs.ErrorEvent{
 			Message: "memory maintenance failed: " + err.Error(),
-			Code:    ErrorCodeMemoryMaintenance,
+			Code:    runs.ErrorCodeMemoryMaintenance,
 			Problem: internalRunProblem(),
 		})
 	}

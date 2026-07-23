@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // ErrCheckpointUnavailable reports that a file rollback can't restore the working
@@ -43,7 +42,7 @@ type DroppedRun struct {
 }
 
 type RollbackResult struct {
-	Session session.Session
+	Session SessionView
 	Dropped []DroppedRun
 }
 
@@ -67,7 +66,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (Rol
 	if err != nil {
 		return RollbackResult{}, err
 	}
-	result := RollbackResult{Session: ses}
+	result := RollbackResult{}
 
 	admission, err := c.ClaimMutationSlot(spec.SessionID)
 	if err != nil {
@@ -159,6 +158,10 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (Rol
 		if err := c.completeMutationDetached(ctx, spec.SessionID); err != nil {
 			return result, err
 		}
+	}
+	result.Session, err = c.view(ctx, ses, SessionIdle)
+	if err != nil {
+		return result, err
 	}
 	return result, nil
 }

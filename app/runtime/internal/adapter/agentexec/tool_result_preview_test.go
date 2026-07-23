@@ -1,4 +1,4 @@
-package toolresultpreview
+package agentexec
 
 import (
 	"strings"
@@ -6,9 +6,9 @@ import (
 	"unicode/utf8"
 )
 
-func TestRenderIncludesBoundedHeadTailAndRetrievalIdentity(t *testing.T) {
+func TestRenderToolResultPreviewIncludesBoundedHeadTailAndRetrievalIdentity(t *testing.T) {
 	body := strings.Repeat("a", 250) + strings.Repeat("z", 250)
-	preview := Render(body, "ABC234XYZ7", "read_tool_result", 100)
+	preview := renderToolResultPreview(body, "ABC234XYZ7", "read_tool_result", 100)
 
 	if !strings.HasPrefix(preview, strings.Repeat("a", 75)) {
 		t.Fatal("preview does not preserve the configured head")
@@ -21,9 +21,9 @@ func TestRenderIncludesBoundedHeadTailAndRetrievalIdentity(t *testing.T) {
 	}
 }
 
-func TestRenderPreservesUTF8(t *testing.T) {
+func TestRenderToolResultPreviewPreservesUTF8(t *testing.T) {
 	body := strings.Repeat("界", 200)
-	preview := Render(body, "ABCDE234", "read_tool_result", 100)
+	preview := renderToolResultPreview(body, "ABCDE234", "read_tool_result", 100)
 	if !utf8.ValidString(preview) {
 		t.Fatal("preview split a multibyte rune")
 	}

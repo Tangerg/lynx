@@ -6,9 +6,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/idempotency"
 )
 
 type blockingCancelRuntime struct {

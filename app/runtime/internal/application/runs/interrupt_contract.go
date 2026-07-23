@@ -3,11 +3,17 @@ package runs
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+// QuestionFieldID returns the durable identifier for a field created from a
+// QuestionPrompt. It is application-owned transcript vocabulary: adapters use
+// it to correlate a resumed answer with the question item they submitted.
+func QuestionFieldID(index int) string { return "q" + strconv.Itoa(index) }
 
 // InterruptKind discriminates the application-owned durable interrupt
 // envelope. Executor adapters must persist and restore this exact union; they

@@ -44,6 +44,7 @@ type Bundle struct {
 	Process       *sqlitestore.ProcessStore
 	Interrupt     *sqlitestore.InterruptStore
 	Transcript    *sqlitestore.TranscriptStore
+	Feedback      *sqlitestore.FeedbackStore
 	Provider      providersvc.Registry
 	MCPServers    mcpserversvc.Registry
 	ChatHistory   history.Store
@@ -88,6 +89,7 @@ func Open() (*Bundle, error) {
 		Process:       sqlitestore.NewProcessStore(db),
 		Interrupt:     sqlitestore.NewInterruptStore(db),
 		Transcript:    sqlitestore.NewTranscriptStore(db),
+		Feedback:      sqlitestore.NewFeedbackStore(db),
 		Provider:      sqlitestore.NewProviderStore(db),
 		MCPServers:    sqlitestore.NewMCPServerStore(db),
 		ChatHistory:   sqlitestore.NewMessageStore(db),

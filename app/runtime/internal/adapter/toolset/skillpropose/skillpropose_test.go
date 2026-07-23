@@ -39,7 +39,7 @@ func (f *fakeStore) DiscardDraft(ctx context.Context, handle skills.DraftHandle)
 
 func answering(choice string) suspension.Func {
 	return func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
-		return interrupts.Resolution{Answer: map[string][]string{interrupts.QuestionFieldName(0): {choice}}}, nil
+		return interrupts.Resolution{Answer: map[string][]string{runs.QuestionFieldID(0): {choice}}}, nil
 	}
 }
 

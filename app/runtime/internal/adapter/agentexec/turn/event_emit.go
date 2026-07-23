@@ -1,6 +1,10 @@
 package turn
 
-import "time"
+import (
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+)
 
 // emit stamps the event with the next sequence number and timestamp and pushes
 // it onto the turn's channel. Type-specific stamping lives on each concrete
@@ -15,14 +19,14 @@ import "time"
 // TurnEnd misreports the outcome as canceled). The turn-lifetime ctx is the
 // escape hatch: a canceled turn stops blocking producers even when no consumer
 // is left to drain.
-func (s *memoryDispatcher) emit(st *turnState, ev Event) bool {
+func (s *memoryDispatcher) emit(st *turnState, ev runs.EngineEvent) bool {
 	st.eventMu.Lock()
 	defer st.eventMu.Unlock()
 	if st.eventsClosed {
 		return false
 	}
 	st.seq++
-	stamped := ev.WithMeta(EventMeta{
+	stamped := ev.WithMeta(runs.EventMeta{
 		SessionID: st.handle.SessionID,
 		TurnID:    st.handle.TurnID,
 		Seq:       st.seq,

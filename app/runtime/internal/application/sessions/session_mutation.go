@@ -163,61 +163,57 @@ func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string,
 	return c.goals.WithSessionMutation(ctx, sessionIDs, apply)
 }
 
-// RestoreSession recreates a session under its ORIGINAL id from one validated
-// canonical snapshot and replaces its whole history as one atomic write-set (§8.1): it
-// upserts the session record, clears the old interrupts / admission rows /
-// transcript / chat log, then re-seeds the messages, runs, and items. Without
-// the single transaction a mid-sequence failure (after the destructive clear)
-// would leave the session row live but its history half-destroyed.
-//
-// Restore owns the Session admission boundary (including rejection of an open
-// interrupt), then resolves Cwd exactly as Create and Update do before
-// committing the aggregate. It validates regardless of caller, so correctness
-// never depends on a particular protocol adapter.
-func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) error {
+// restoreSession applies a canonical archive and, when requested, derives its
+// session view before releasing the mutation admission. A restoration must not
+// expose a separately-read view because another mutation could otherwise
+// interleave between the durable write and Delivery's response.
+func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, present bool) (SessionView, error) {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {
-		return err
+		return SessionView{}, err
 	}
 	snapshot = normalized
 	admission, err := c.ClaimRunSlot(ctx, snapshot.Session.ID)
 	if err != nil {
-		return err
+		return SessionView{}, err
 	}
 	defer admission.Release()
 	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
 	if err != nil {
-		return err
+		return SessionView{}, err
 	}
 	snapshot.Session.Cwd = cwd
 	if err := c.withGoalMutation(ctx, []string{snapshot.Session.ID}, func(ctx context.Context) error {
 		if c.writes == nil {
 			return errors.New("sessions: write sets are unavailable")
 		}
-		return c.writes.ApplyRestore(ctx, snapshot)
+		return c.writes.ApplyRestore(ctx, restorePlan(snapshot))
 	}); err != nil {
-		return err
+		return SessionView{}, err
 	}
 	// Restore replaced the whole history: any isolated working copy from before
 	// the restore is stale, so drop it post-commit and let the next isolated run
 	// rebuild a fresh copy from the restored project. Best-effort cleanup.
 	if c.sandbox != nil {
 		if err := c.sandbox.Discard(snapshot.Session.ID); err != nil {
-			return fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", err)
+			return SessionView{}, fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", err)
 		}
 	}
-	return nil
+	if !present {
+		return SessionView{}, nil
+	}
+	return c.view(ctx, snapshot.Session, SessionIdle)
 }
 
 // RestorePortableSession rebuilds and restores one transport-neutral archive.
 // Archive decoding belongs to adapters; aggregate reconstruction and invariant
 // enforcement belong here with the restore use case.
-func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) error {
+func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) (SessionView, error) {
 	snapshot, err := portable.CanonicalSnapshot()
 	if err != nil {
-		return err
+		return SessionView{}, err
 	}
-	return c.RestoreSession(ctx, snapshot)
+	return c.restoreSession(ctx, snapshot, true)
 }
 
 // subtaskSessionsAfter resolves the internal subtask subtrees a rollback must

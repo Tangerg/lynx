@@ -83,8 +83,8 @@ func TestInProcessUnknownMethod(t *testing.T) {
 		if !ok {
 			t.Fatalf("Error is %T, want *transport.Error", resp.Error)
 		}
-		if rpcErr.Code != transport.CodeMethodNotFound {
-			t.Fatalf("error.code = %d, want %d", rpcErr.Code, transport.CodeMethodNotFound)
+		if rpcErr.Code != protocol.CodeMethodNotFound {
+			t.Fatalf("error.code = %d, want %d", rpcErr.Code, protocol.CodeMethodNotFound)
 		}
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout waiting for response")

@@ -31,12 +31,7 @@ func (d *Driver) launch(parent context.Context, sessionID, leaseID string) {
 	ctx, cancel := context.WithCancel(ctx)
 	handle := &loopHandle{cancel: cancel}
 
-	d.mu.Lock()
-	if prior := d.running[sessionID]; prior != nil {
-		prior.cancel()
-	}
-	d.running[sessionID] = handle
-	d.mu.Unlock()
+	d.mutations.launch(sessionID, handle)
 
 	go func() {
 		defer release()
@@ -46,11 +41,7 @@ func (d *Driver) launch(parent context.Context, sessionID, leaseID string) {
 }
 
 func (d *Driver) forget(sessionID string, handle *loopHandle) {
-	d.mu.Lock()
-	if d.running[sessionID] == handle {
-		delete(d.running, sessionID)
-	}
-	d.mu.Unlock()
+	d.mutations.forget(sessionID, handle)
 }
 
 // drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
@@ -196,7 +187,7 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 		SessionID: g.SessionID,
 		Provider:  g.Provider,
 		Model:     g.Model,
-		Input:     []runs.ContentBlock{{Kind: runs.TextContent, Text: message}},
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: message}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
 		// update_goal only signals THIS goal: a straggler run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal

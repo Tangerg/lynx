@@ -4,8 +4,6 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -18,34 +16,10 @@ import (
 )
 
 const (
-	snapshotPrefix       = "sha256:"
-	maxSnapshotBytes     = 512 << 20
-	maxSnapshotFileBytes = 128 << 20
-	maxSnapshotEntries   = 100_000
+	maxWorkspaceArchiveBytes     = 512 << 20
+	maxWorkspaceArchiveFileBytes = 128 << 20
+	maxWorkspaceArchiveEntries   = 100_000
 )
-
-// SnapshotID is the content digest of a deterministic workspace tar archive.
-type SnapshotID string
-
-// String returns the durable content-addressed reference.
-func (id SnapshotID) String() string { return string(id) }
-
-// Validate rejects malformed durable references before storage lookup.
-func (id SnapshotID) Validate() error {
-	raw, ok := strings.CutPrefix(string(id), snapshotPrefix)
-	if !ok || len(raw) != sha256.Size*2 {
-		return fmt.Errorf("sandbox: invalid snapshot id %q", id)
-	}
-	if _, err := hex.DecodeString(raw); err != nil {
-		return fmt.Errorf("sandbox: invalid snapshot id %q: %w", id, err)
-	}
-	return nil
-}
-
-func identifySnapshot(archive []byte) SnapshotID {
-	digest := sha256.Sum256(archive)
-	return SnapshotID(snapshotPrefix + hex.EncodeToString(digest[:]))
-}
 
 func archiveTree(ctx context.Context, root string) ([]byte, error) {
 	root, err := filepath.Abs(root)
@@ -78,8 +52,8 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 			return nil
 		}
 		entries++
-		if entries > maxSnapshotEntries {
-			return fmt.Errorf("workspace has more than %d entries", maxSnapshotEntries)
+		if entries > maxWorkspaceArchiveEntries {
+			return fmt.Errorf("workspace has more than %d entries", maxWorkspaceArchiveEntries)
 		}
 		info, err := entry.Info()
 		if err != nil {
@@ -95,8 +69,8 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 		case mode.IsDir():
 			header.Typeflag = tar.TypeDir
 		case mode.IsRegular():
-			if info.Size() > maxSnapshotFileBytes {
-				return fmt.Errorf("file %q is %d bytes; limit is %d", rel, info.Size(), maxSnapshotFileBytes)
+			if info.Size() > maxWorkspaceArchiveFileBytes {
+				return fmt.Errorf("file %q is %d bytes; limit is %d", rel, info.Size(), maxWorkspaceArchiveFileBytes)
 			}
 			header.Typeflag = tar.TypeReg
 			header.Size = info.Size()
@@ -128,8 +102,8 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 		if copyErr != nil || closeErr != nil {
 			return errors.Join(copyErr, closeErr)
 		}
-		if archive.Len() > maxSnapshotBytes {
-			return fmt.Errorf("workspace archive exceeds %d bytes", maxSnapshotBytes)
+		if archive.Len() > maxWorkspaceArchiveBytes {
+			return fmt.Errorf("workspace archive exceeds %d bytes", maxWorkspaceArchiveBytes)
 		}
 		return nil
 	})
@@ -140,8 +114,8 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 	if err := tw.Close(); err != nil {
 		return nil, err
 	}
-	if archive.Len() > maxSnapshotBytes {
-		return nil, fmt.Errorf("workspace archive exceeds %d bytes", maxSnapshotBytes)
+	if archive.Len() > maxWorkspaceArchiveBytes {
+		return nil, fmt.Errorf("workspace archive exceeds %d bytes", maxWorkspaceArchiveBytes)
 	}
 	return archive.Bytes(), nil
 }
@@ -152,8 +126,8 @@ type directoryMode struct {
 }
 
 func extractArchive(ctx context.Context, destination string, archive []byte) error {
-	if len(archive) > maxSnapshotBytes {
-		return fmt.Errorf("archive is %d bytes; limit is %d", len(archive), maxSnapshotBytes)
+	if len(archive) > maxWorkspaceArchiveBytes {
+		return fmt.Errorf("archive is %d bytes; limit is %d", len(archive), maxWorkspaceArchiveBytes)
 	}
 	root, err := os.OpenRoot(destination)
 	if err != nil {
@@ -178,8 +152,8 @@ func extractArchive(ctx context.Context, destination string, archive []byte) err
 			return err
 		}
 		entries++
-		if entries > maxSnapshotEntries {
-			return fmt.Errorf("archive has more than %d entries", maxSnapshotEntries)
+		if entries > maxWorkspaceArchiveEntries {
+			return fmt.Errorf("archive has more than %d entries", maxWorkspaceArchiveEntries)
 		}
 		name, err := cleanArchiveName(header.Name)
 		if err != nil {
@@ -204,12 +178,12 @@ func extractArchive(ctx context.Context, destination string, archive []byte) err
 			}
 			directories = append(directories, directoryMode{name: rootName, mode: mode})
 		case tar.TypeReg:
-			if header.Size < 0 || header.Size > maxSnapshotFileBytes {
+			if header.Size < 0 || header.Size > maxWorkspaceArchiveFileBytes {
 				return fmt.Errorf("archive file %q has invalid size %d", name, header.Size)
 			}
 			total += header.Size
-			if total > maxSnapshotBytes {
-				return fmt.Errorf("archive content exceeds %d bytes", maxSnapshotBytes)
+			if total > maxWorkspaceArchiveBytes {
+				return fmt.Errorf("archive content exceeds %d bytes", maxWorkspaceArchiveBytes)
 			}
 			file, err := root.OpenFile(rootName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 			if err != nil {

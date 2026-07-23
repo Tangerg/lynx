@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // TestSubscribeRun_StreamsLiveRun verifies the streamable-HTTP subscribe
@@ -52,10 +53,10 @@ func TestStartCommandMaterializeInput(t *testing.T) {
 	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
 
 	// text + image: text joins, one media with decoded bytes carried through.
-	text, imgs, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
-		{Kind: runs.TextContent, Text: "look at"},
-		{Kind: runs.TextContent, Text: "this"},
-		{Kind: runs.ImageContent, Mime: "image/png", Data: b64},
+	text, imgs, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
+		{Kind: transcript.TextContent, Text: "look at"},
+		{Kind: transcript.TextContent, Text: "this"},
+		{Kind: transcript.ImageContent, Mime: "image/png", Data: b64},
 	}}).MaterializeInput()
 	if err != nil {
 		t.Fatalf("text+image: %v", err)
@@ -75,25 +76,25 @@ func TestStartCommandMaterializeInput(t *testing.T) {
 	}
 
 	// image-only: no text is fine (the StartRun guard accepts media-only).
-	if text, imgs, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
-		{Kind: runs.ImageContent, Mime: "image/jpeg", Data: b64},
+	if text, imgs, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
+		{Kind: transcript.ImageContent, Mime: "image/jpeg", Data: b64},
 	}}).MaterializeInput(); err != nil || text != "" || len(imgs) != 1 {
 		t.Fatalf("image-only: text=%q imgs=%d err=%v", text, len(imgs), err)
 	}
 
 	// A non-image mime, an unparseable mime, and empty data are all rejected.
-	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
-		{Kind: runs.ImageContent, Mime: "text/plain", Data: b64},
+	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
+		{Kind: transcript.ImageContent, Mime: "text/plain", Data: b64},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("non-image mime: err = %v, want ErrUnsupportedMedia", err)
 	}
-	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
-		{Kind: runs.ImageContent, Mime: "not-a-mime", Data: b64},
+	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
+		{Kind: transcript.ImageContent, Mime: "not-a-mime", Data: b64},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("bad mime: err = %v, want ErrUnsupportedMedia", err)
 	}
-	if _, _, _, err := (runs.StartCommand{Input: []runs.ContentBlock{
-		{Kind: runs.ImageContent, Mime: "image/png", Data: ""},
+	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
+		{Kind: transcript.ImageContent, Mime: "image/png", Data: ""},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("empty data: err = %v, want ErrUnsupportedMedia", err)
 	}

@@ -20,7 +20,7 @@ import (
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	snapshot, err := s.sessions.ReadSnapshot(ctx, in.SessionID)
+	result, err := s.sessions.ExportSession(ctx, in.SessionID)
 	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, in.SessionID)
@@ -32,27 +32,19 @@ func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionReq
 	if format == "" {
 		format = protocol.ExportFormatJSON
 	}
-	view, err := s.sessions.View(ctx, snapshot.Session.ID)
-	if err != nil {
-		return nil, err
-	}
-	presentedSession := sessionViewToWire(view)
+	presentedSession := sessionViewToWire(result.Session)
 
 	switch format {
 	case protocol.ExportFormatMarkdown:
 		return &protocol.ExportSessionResponse{
 			Format:   format,
-			Markdown: renderSessionMarkdown(presentedSession, snapshot.Items),
+			Markdown: renderSessionMarkdown(presentedSession, result.Items),
 		}, nil
 	case protocol.ExportFormatJSON:
 	default:
 		return nil, fmt.Errorf("%w: unsupported export format %q", protocol.ErrInvalidParams, format)
 	}
-	portable, err := snapshot.PortableSnapshot()
-	if err != nil {
-		return nil, fmt.Errorf("sessions.export: prepare portable snapshot: %w", err)
-	}
-	artifact, err := artifactFromPortable(portable)
+	artifact, err := artifactFromPortable(result.Snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("sessions.export: encode artifact: %w", err)
 	}
@@ -87,7 +79,8 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	if err := s.sessions.RestorePortableSession(ctx, portable); err != nil {
+	view, err := s.sessions.RestorePortableSession(ctx, portable)
+	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, id)
 		}
@@ -100,10 +93,6 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		return nil, wireSessionErr(err)
 	}
 
-	view, err := s.sessions.View(ctx, id)
-	if err != nil {
-		return nil, wireSessionErr(err)
-	}
 	out := sessionViewToWire(view)
 	return &protocol.ImportSessionResponse{Session: &out}, nil
 }

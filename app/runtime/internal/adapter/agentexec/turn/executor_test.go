@@ -13,12 +13,12 @@ import (
 
 type executorFakeDispatcher struct {
 	eventsHandle TurnHandle
-	events       iter.Seq[Event]
+	events       iter.Seq[runs.EngineEvent]
 	cancelHandle TurnHandle
 	cancelErr    error
 }
 
-func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.Seq[Event], error) {
+func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.Seq[runs.EngineEvent], error) {
 	f.eventsHandle = h
 	return f.events, nil
 }
@@ -47,7 +47,7 @@ func TestExecutorTranslatesTurnReference(t *testing.T) {
 	ctx := context.Background()
 	handle := TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
 	ref := runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
-	disp := &executorFakeDispatcher{events: func(func(Event) bool) {}}
+	disp := &executorFakeDispatcher{events: func(func(runs.EngineEvent) bool) {}}
 	exec := NewExecutor(disp)
 
 	seq, err := exec.TurnEvents(ctx, ref)

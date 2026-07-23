@@ -237,6 +237,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		SessionStore:     sqlitestore.NewSessionStore(db),
 		InterruptStore:   sqlitestore.NewInterruptStore(db),
 		TranscriptStore:  sqlitestore.NewTranscriptStore(db),
+		FeedbackStore:    sqlitestore.NewFeedbackStore(db),
 		RunStore:         sqlitestore.NewRunStateStore(db),
 		ProcessStore:     processes,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {

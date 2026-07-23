@@ -143,7 +143,7 @@ func TestDomainStaysFrameworkFree(t *testing.T) {
 
 // TestComponentStaysDomainFree keeps the internal/component ring free of DOMAIN
 // coupling: components are no-domain-semantics primitives (signal / taskgroup /
-// pathidentity / httporigin / toolresultpreview) that both application and
+// pathidentity / httporigin) that both application and
 // adapter reuse. layerOf leaves component unclassified, so the ring rule catches
 // only the INBOUND domain → component edge; this covers the OUTBOUND one.
 func TestComponentStaysDomainFree(t *testing.T) {
@@ -378,14 +378,11 @@ func TestCapabilityAdaptersDoNotImportTransportSDKs(t *testing.T) {
 }
 
 // TestBootstrapExposesNoBusinessMethod enforces §16 rule 8: the composition root
-// assembles and closes — it must not become a business facade. Assembly / config
-// / seed FUNCTIONS are fine (they return the Stack); the guard is that exported
-// TYPES in bootstrap (Host / Stack) carry only lifecycle methods, so a business
-// method like `Host.RollbackSession` — which delivery could call instead of a
-// coordinator — can't sneak in.
+// assembles and closes — it must not become a business facade or hide an adapter
+// implementation behind an unexported receiver. Assembly/config/seed functions
+// are fine; Host.Close is the only receiver method Bootstrap may own.
 func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	root := moduleRoot(t)
-	allowedMethods := map[string]struct{}{"Close": {}}
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "bootstrap"), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -400,20 +397,35 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 		}
 		for _, decl := range f.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv == nil || !fn.Name.IsExported() || !receiverIsExported(fn.Recv) {
-				continue // plain funcs (assembly) + methods on unexported types are fine
+			if !ok || fn.Recv == nil {
+				continue // plain assembly/configuration functions are fine
 			}
-			if _, ok := allowedMethods[fn.Name.Name]; ok {
+			if receiverName(fn.Recv) == "Host" && fn.Name.Name == "Close" {
 				continue
 			}
 			rel, _ := filepath.Rel(root, path)
-			t.Errorf("%s: exported method %s on an exported bootstrap type — bootstrap may only assemble/close (§16 rule 8)", rel, fn.Name.Name)
+			t.Errorf("%s: bootstrap receiver method %s.%s is forbidden — move behavior to application or an adapter (§16 rule 8)", rel, receiverName(fn.Recv), fn.Name.Name)
 		}
 		return nil
 	})
 	if walkErr != nil {
 		t.Fatalf("walk bootstrap: %v", walkErr)
 	}
+}
+
+func receiverName(recv *ast.FieldList) string {
+	if recv == nil || len(recv.List) == 0 {
+		return ""
+	}
+	typ := recv.List[0].Type
+	if star, ok := typ.(*ast.StarExpr); ok {
+		typ = star.X
+	}
+	id, _ := typ.(*ast.Ident)
+	if id == nil {
+		return ""
+	}
+	return id.Name
 }
 
 // TestHostOwnsShutdownGraph enforces the B9 resource boundary without relying
@@ -959,20 +971,6 @@ func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
 			t.Fatalf("walk %s: %v", dir, walkErr)
 		}
 	}
-}
-
-// receiverIsExported reports whether a method's receiver is a (pointer to an)
-// exported named type.
-func receiverIsExported(recv *ast.FieldList) bool {
-	if recv == nil || len(recv.List) == 0 {
-		return false
-	}
-	typ := recv.List[0].Type
-	if star, ok := typ.(*ast.StarExpr); ok {
-		typ = star.X
-	}
-	id, ok := typ.(*ast.Ident)
-	return ok && id.IsExported()
 }
 
 // componentPkg is the neutral concurrency/wiring primitive package

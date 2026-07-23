@@ -22,7 +22,7 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 			}},
 		},
 	}
-	raw, err := EncodePrompt(question)
+	raw, err := json.Marshal(promptWireFrom(question))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,7 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 			SafetyClass: tool.SafetyClassNetwork, Risk: tool.RiskHigh,
 		},
 	}
-	raw, err = EncodePrompt(approval)
+	raw, err = json.Marshal(promptWireFrom(approval))
 	if err != nil {
 		t.Fatal(err)
 	}

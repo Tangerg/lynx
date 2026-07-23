@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -212,7 +213,7 @@ type segmentSpec struct {
 	Model           string
 	CreatedAt       time.Time
 	OpeningUserText string
-	Input           []ContentBlock
+	Input           []transcript.ContentBlock
 	Pending         *interrupts.Pending
 	// Activate crosses the executor's side-effect boundary after this segment's
 	// opening write-set commits. For a fresh run it starts model/tool execution;

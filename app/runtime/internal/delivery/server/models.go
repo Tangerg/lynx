@@ -27,36 +27,36 @@ func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) 
 // services run on — empty model when unset, meaning they run on the main turn
 // model (models.getUtilityRole).
 func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
-	p, m := s.models.UtilityRole()
-	return &protocol.UtilityRole{Provider: p, Model: m}, nil
+	role := s.models.UtilityRole()
+	return &protocol.UtilityRole{Provider: role.Provider, Model: role.Model}, nil
 }
 
 // SetUtilityRole points the maintenance services at a (provider, model),
 // validated and persisted by the application use case. Returns the stored role.
 func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
-	if err := s.models.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
+	role, err := s.models.SetUtilityRole(ctx, in.Provider, in.Model)
+	if err != nil {
 		return nil, mapModelError(err)
 	}
-	p, m := s.models.UtilityRole()
-	return &protocol.UtilityRole{Provider: p, Model: m}, nil
+	return &protocol.UtilityRole{Provider: role.Provider, Model: role.Model}, nil
 }
 
 // GetEmbeddingRole reports the (provider, model) the @codebase semantic index
 // embeds with — empty model when unset (the feature is off)
 // (models.getEmbeddingRole).
 func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {
-	p, m := s.models.EmbeddingRole()
-	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
+	role := s.models.EmbeddingRole()
+	return &protocol.EmbeddingRole{Provider: role.Provider, Model: role.Model}, nil
 }
 
 // SetEmbeddingRole points the index at an (embedding-capable provider, model),
 // validated and persisted by the application use case. Returns the stored role.
 func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-	if err := s.models.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
+	role, err := s.models.SetEmbeddingRole(ctx, in.Provider, in.Model)
+	if err != nil {
 		return nil, mapModelError(err)
 	}
-	p, m := s.models.EmbeddingRole()
-	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
+	return &protocol.EmbeddingRole{Provider: role.Provider, Model: role.Model}, nil
 }
 
 func mapModelError(err error) error {

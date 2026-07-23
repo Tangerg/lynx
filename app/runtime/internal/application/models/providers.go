@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/secretmask"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
@@ -186,7 +187,7 @@ func providerInfo(meta provider.Metadata, entry provider.Provider) ProviderInfo 
 	return ProviderInfo{
 		ID:                    meta.ID,
 		BaseURL:               entry.BaseURL,
-		APIKeyMasked:          entry.MaskedAPIKey(),
+		APIKeyMasked:          secretmask.Mask(entry.APIKey),
 		KeySource:             entry.KeySource,
 		RequiresBaseURL:       meta.RequiresBaseURL,
 		EmbeddingCapable:      meta.EmbeddingCapable,

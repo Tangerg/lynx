@@ -13,10 +13,8 @@ import (
 	"time"
 )
 
-// IDPrefix is the type prefix every session id carries (API.md §2.2 —
-// server-generated business ids are prefixed; mirrors the wire-side
-// protocol.IDPrefixSession). Applied at generation so the id shape is
-// identical regardless of backend.
+// IDPrefix is the type prefix every session id carries. Applied at generation
+// so the id shape is identical regardless of persistence backend.
 const IDPrefix = "ses_"
 
 // Kind identifies the lifecycle semantics of a persisted session.

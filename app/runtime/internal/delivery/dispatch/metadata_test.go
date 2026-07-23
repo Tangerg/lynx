@@ -61,8 +61,8 @@ func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
-	if rpcErr.Code != transport.CodeInvalidParams {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, transport.CodeInvalidParams)
+	if rpcErr.Code != protocol.CodeInvalidParams {
+		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidParams)
 	}
 }
 
@@ -77,8 +77,8 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 	if rpcErr == nil {
 		t.Fatalf("expected invalid params error")
 	}
-	if rpcErr.Code != transport.CodeInvalidParams {
-		t.Fatalf("code = %d, want %d", rpcErr.Code, transport.CodeInvalidParams)
+	if rpcErr.Code != protocol.CodeInvalidParams {
+		t.Fatalf("code = %d, want %d", rpcErr.Code, protocol.CodeInvalidParams)
 	}
 }
 

@@ -24,7 +24,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	priorDrained := r.resume.remainingDrainedTools()
 	r.drained = mergeDrainedTools(priorDrained, drainedToolRefs(open, matched))
 
-	approvalItems := make(map[int]Item, len(matched))
+	approvalItems := make(map[int]transcript.Item, len(matched))
 	for _, ref := range open {
 		if index, ok := matched[ref]; ok {
 			item, err := r.approvalItem(*e.Interrupts[index].Approval, ref)
@@ -48,7 +48,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
 	for index, in := range e.Interrupts {
-		var item Item
+		var item transcript.Item
 		var interrupt transcript.Interrupt
 		switch in.Kind {
 		case ApprovalInterruptKind:
@@ -75,21 +75,21 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 	return append(out, SegmentFinished{Run: run}), nil
 }
 
-func (r *reducer) approvalInterrupt(in Interrupt) (Item, transcript.Interrupt, error) {
+func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {
 	if in.Approval == nil {
-		return Item{}, transcript.Interrupt{}, nil
+		return transcript.Item{}, transcript.Interrupt{}, nil
 	}
 	item, err := r.approvalItem(*in.Approval, nil)
 	if err != nil {
-		return Item{}, transcript.Interrupt{}, err
+		return transcript.Item{}, transcript.Interrupt{}, err
 	}
 	return item, approvalTranscriptInterrupt(item.ID, *in.Approval, *item.Tool), nil
 }
 
-func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (Item, error) {
+func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript.Item, error) {
 	arguments, err := parseToolArguments(prompt.Arguments)
 	if err != nil {
-		return Item{}, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
+		return transcript.Item{}, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
 	}
 	id, createdAt := "", r.now()
 	if ref != nil {
@@ -98,15 +98,15 @@ func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (Item, erro
 		id = r.reuseOrNextItemID(prompt.CallID, prompt.ToolName, arguments)
 		r.removeDrained(id)
 	}
-	return Item{
-		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
-		Kind: ToolCall, CreatedAt: createdAt,
+	return transcript.Item{
+		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
+		Kind: transcript.ToolCall, CreatedAt: createdAt,
 		Tool:        newToolInvocation(prompt.ToolName, arguments, nil),
 		SafetyClass: prompt.SafetyClass,
 	}, nil
 }
 
-func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool ToolInvocation) transcript.Interrupt {
+func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool transcript.ToolInvocation) transcript.Interrupt {
 	return transcript.Interrupt{
 		ItemID: itemID,
 		Kind:   transcript.ApprovalInterrupt,
@@ -183,42 +183,42 @@ func (r *reducer) removeDrained(itemID string) {
 }
 
 func incompleteToolItem(runID string, ref *openTool) ItemCompleted {
-	return ItemCompleted{Item: Item{
-		ID: ref.id, RunID: runID, Status: ItemIncomplete,
-		Kind: ToolCall, CreatedAt: ref.createdAt,
+	return ItemCompleted{Item: transcript.Item{
+		ID: ref.id, RunID: runID, Status: transcript.ItemIncomplete,
+		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}}
 }
 
-func (r *reducer) questionInterrupt(in Interrupt) (Item, transcript.Interrupt) {
+func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt) {
 	if in.Question == nil {
-		return Item{}, transcript.Interrupt{}
+		return transcript.Item{}, transcript.Interrupt{}
 	}
 	question := questionFromPrompt(*in.Question)
 	id := r.nextItemID()
-	item := Item{
-		ID: id, RunID: r.cfg.RunID, Status: ItemRunning,
-		Kind: QuestionItem, CreatedAt: r.now(), Question: &question,
+	item := transcript.Item{
+		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
+		Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: &question,
 	}
 	return item, transcript.Interrupt{
 		ItemID: id, Kind: transcript.QuestionInterrupt, Question: &question,
 	}
 }
 
-func questionFromPrompt(prompt QuestionPrompt) Question {
-	fields := make([]QuestionField, len(prompt.Questions))
+func questionFromPrompt(prompt QuestionPrompt) transcript.Question {
+	fields := make([]transcript.QuestionField, len(prompt.Questions))
 	for i, question := range prompt.Questions {
-		field := QuestionField{
-			Name: interrupts.QuestionFieldName(i), Label: question.Question,
-			Header: question.Header, Required: true, Kind: QuestionText,
+		field := transcript.QuestionField{
+			Name: QuestionFieldID(i), Label: question.Question,
+			Header: question.Header, Required: true, Kind: transcript.QuestionText,
 		}
 		if len(question.Options) > 0 {
-			field.Kind = QuestionChoice
+			field.Kind = transcript.QuestionChoice
 			field.Multiple = question.MultiSelect
-			field.Options = make([]QuestionOption, len(question.Options))
+			field.Options = make([]transcript.QuestionOption, len(question.Options))
 			for j, option := range question.Options {
-				field.Options[j] = QuestionOption{Label: option.Label, Description: option.Description}
+				field.Options[j] = transcript.QuestionOption{Label: option.Label, Description: option.Description}
 			}
 		}
 		fields[i] = field
@@ -227,7 +227,7 @@ func questionFromPrompt(prompt QuestionPrompt) Question {
 	if len(prompt.Questions) == 1 {
 		label = prompt.Questions[0].Question
 	}
-	return Question{Prompt: label, Fields: fields}
+	return transcript.Question{Prompt: label, Fields: fields}
 }
 
 type openTools map[string]*openTool

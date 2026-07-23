@@ -7,6 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -134,7 +135,7 @@ type ErrorEvent struct {
 	EventMeta
 	Message string
 	Code    ErrorCode
-	Problem Problem
+	Problem transcript.Problem
 }
 
 type UsageReported struct {

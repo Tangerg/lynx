@@ -17,7 +17,7 @@ import (
 // needs. It lives at the consumer because the concrete dispatcher owns no
 // reusable abstraction boundary.
 type executorDispatcher interface {
-	Events(context.Context, TurnHandle) (iter.Seq[Event], error)
+	Events(context.Context, TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, TurnHandle, string) error
 	PrepareTurn(context.Context, StartTurnRequest) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
