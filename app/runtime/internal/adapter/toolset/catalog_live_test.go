@@ -5,6 +5,7 @@ import (
 	"slices"
 	"testing"
 
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -54,7 +55,7 @@ func catalogTestTool(t *testing.T, name, output string) tools.Tool {
 	return tool
 }
 
-func hasCatalogTool(t *testing.T, registry tool.Registry, name string) bool {
+func hasCatalogTool(t *testing.T, registry toolapp.Registry, name string) bool {
 	t.Helper()
 	catalog, err := registry.List(t.Context())
 	if err != nil {

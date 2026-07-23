@@ -14,7 +14,6 @@ import (
 
 	history "github.com/Tangerg/lynx/chathistory"
 
-	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -42,7 +41,7 @@ type Bundle struct {
 	Transcript    *sqlitestore.TranscriptStore
 	Feedback      *sqlitestore.FeedbackStore
 	Provider      providersvc.Registry
-	MCPServers    mcpserversvc.Registry
+	MCPServers    *sqlitestore.MCPServerStore
 	ChatHistory   history.Store
 	Todos         *sqlitestore.TodoStore
 	Goals         *sqlitestore.GoalStore

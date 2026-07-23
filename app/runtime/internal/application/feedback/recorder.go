@@ -19,13 +19,18 @@ type Command struct {
 	Text      string
 }
 
+// Store is the durable receiver this feedback use case needs.
+type Store interface {
+	Append(ctx context.Context, entry feedbackdomain.Entry) error
+}
+
 // Recorder owns the feedback write use case.
 type Recorder struct {
-	store feedbackdomain.Store
+	store Store
 }
 
 // New wires the real durable receiver for feedback records.
-func New(store feedbackdomain.Store) *Recorder {
+func New(store Store) *Recorder {
 	return &Recorder{store: store}
 }
 

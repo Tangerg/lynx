@@ -10,6 +10,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -20,7 +21,7 @@ const attrGenAIToolName = "gen_ai.tool.name"
 // NewRegistry returns a diagnostic registry over the assembled tool catalog.
 // List snapshots metadata; Invoke calls a registered tool directly without an
 // agent turn.
-func NewRegistry(src *Resolver) (tool.Registry, error) {
+func NewRegistry(src *Resolver) (toolapp.Registry, error) {
 	if src == nil {
 		return nil, errors.New("toolset: tool source is required")
 	}

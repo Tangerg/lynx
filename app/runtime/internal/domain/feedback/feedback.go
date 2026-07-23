@@ -5,7 +5,6 @@
 package feedback
 
 import (
-	"context"
 	"errors"
 	"strings"
 	"time"
@@ -74,9 +73,4 @@ func (e Entry) Validate() error {
 		return ErrInvalid
 	}
 	return nil
-}
-
-// Store is the append-only durable receiver for feedback entries.
-type Store interface {
-	Append(ctx context.Context, entry Entry) error
 }
