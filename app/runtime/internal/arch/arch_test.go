@@ -1075,9 +1075,10 @@ var externalSDKs = []string{
 	"github.com/sourcegraph",
 }
 
-// frameworkImports are the framework / driver / SDK packages an inner ring must
-// never import. Prefix-matched, so e.g. "modernc.org/sqlite" catches the driver
-// and its sub-packages.
+// frameworkImports are the framework / driver / SDK / format-codec packages an
+// inner ring must never import. Prefix-matched, so e.g. "modernc.org/sqlite"
+// catches the driver and its sub-packages. Content codecs belong to adapters or
+// infrastructure, not to Domain or Application values.
 var frameworkImports = []string{
 	"os",
 	"io/fs",
@@ -1089,6 +1090,7 @@ var frameworkImports = []string{
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
 	"github.com/Tangerg/lynx/chathistory",
+	"gopkg.in/yaml.v3",
 }
 
 // forbidExternalImports fails the test for any production file under dir whose

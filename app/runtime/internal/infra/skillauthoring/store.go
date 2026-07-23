@@ -46,11 +46,11 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 	if reason, dangerous := draft.Scan(); dangerous {
 		return skills.DraftHandle{}, fmt.Errorf("skillauthoring: reject draft %q: %s", draft.Name, reason)
 	}
-	content, err := draft.Render()
+	content, err := renderDraft(draft)
 	if err != nil {
 		return skills.DraftHandle{}, err
 	}
-	handle := skills.NewDraftHandle(draft.Name, []byte(content))
+	handle := skills.NewDraftHandle(draft.Name, content)
 	if err := contextError(ctx, "save draft"); err != nil {
 		return skills.DraftHandle{}, err
 	}
@@ -67,7 +67,7 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 	if existing, found, readErr := readSkill(root, draftDir); readErr != nil {
 		return skills.DraftHandle{}, readErr
 	} else if found {
-		if !bytes.Equal(existing, []byte(content)) {
+		if !bytes.Equal(existing, content) {
 			return skills.DraftHandle{}, fmt.Errorf("%w: digest collision for revision %q", skills.ErrDraftChanged, handle.Revision)
 		}
 		return handle, nil
@@ -76,7 +76,7 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 	if err := root.MkdirAll(skills.DraftsSubdir, 0o755); err != nil {
 		return skills.DraftHandle{}, fmt.Errorf("skillauthoring: create draft area: %w", err)
 	}
-	if err := stageDraft(ctx, root, draftDir, []byte(content)); err != nil {
+	if err := stageDraft(ctx, root, draftDir, content); err != nil {
 		return skills.DraftHandle{}, err
 	}
 	return handle, nil

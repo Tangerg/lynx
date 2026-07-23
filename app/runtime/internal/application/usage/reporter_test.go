@@ -1,11 +1,13 @@
 package usage
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 func usd(v float64) *float64 { return &v }
@@ -57,6 +59,40 @@ func TestFoldRunDefaultsAttributeUnnamedRuns(t *testing.T) {
 	}
 	if byModel["claude-opus-4-8"] == nil {
 		t.Errorf("default model not attributed: %+v", byModel)
+	}
+}
+
+type staticRunReader map[string][]transcript.Run
+
+func (r staticRunReader) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
+	return r[sessionID], nil
+}
+
+type staticSessionLister []session.Session
+
+func (l staticSessionLister) List(context.Context) ([]session.Session, error) { return l, nil }
+
+func TestReporterUsesConfiguredDefaults(t *testing.T) {
+	reporter := New(Dependencies{
+		Runs: staticRunReader{
+			"ses_1": {finishedRun(t, "", "", time.Now().UTC(), transcript.Usage{
+				ModelUsage: transcript.ModelUsage{InputTokens: 10},
+			})},
+		},
+		Sessions:        staticSessionLister{{ID: "ses_1"}},
+		DefaultProvider: "anthropic",
+		DefaultModel:    "claude-opus-4-8",
+	})
+
+	summary, err := reporter.Summary(t.Context(), 0)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if len(summary.ByProvider) != 1 || summary.ByProvider[0].Key != "anthropic" {
+		t.Fatalf("provider buckets = %+v, want anthropic", summary.ByProvider)
+	}
+	if len(summary.ByModel) != 1 || summary.ByModel[0].Key != "claude-opus-4-8" {
+		t.Fatalf("model buckets = %+v, want configured default", summary.ByModel)
 	}
 }
 

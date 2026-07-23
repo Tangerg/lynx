@@ -24,13 +24,6 @@ type SessionLister interface {
 	List(ctx context.Context) ([]session.Session, error)
 }
 
-// ModelDefaults attributes runs that intentionally carry no explicit
-// provider/model to the runtime defaults that executed them.
-type ModelDefaults interface {
-	DefaultProvider() string
-	DefaultModel() string
-}
-
 // Bucket is one named portion of a summary report.
 type Bucket struct {
 	Key   string
@@ -57,18 +50,20 @@ type Summary struct {
 
 // Dependencies are the durable projections and model policy a Reporter needs.
 type Dependencies struct {
-	Runs     RunReader
-	Sessions SessionLister
-	Defaults ModelDefaults
-	Now      func() time.Time
+	Runs            RunReader
+	Sessions        SessionLister
+	DefaultProvider string
+	DefaultModel    string
+	Now             func() time.Time
 }
 
 // Reporter folds durable terminal run records into read-only usage reports.
 type Reporter struct {
-	runs     RunReader
-	sessions SessionLister
-	defaults ModelDefaults
-	now      func() time.Time
+	runs            RunReader
+	sessions        SessionLister
+	defaultProvider string
+	defaultModel    string
+	now             func() time.Time
 }
 
 // New constructs a usage Reporter over the supplied projections.
@@ -77,7 +72,13 @@ func New(deps Dependencies) *Reporter {
 	if now == nil {
 		now = time.Now
 	}
-	return &Reporter{runs: deps.Runs, sessions: deps.Sessions, defaults: deps.Defaults, now: now}
+	return &Reporter{
+		runs:            deps.Runs,
+		sessions:        deps.Sessions,
+		defaultProvider: deps.DefaultProvider,
+		defaultModel:    deps.DefaultModel,
+		now:             now,
+	}
 }
 
 // Session returns one session's cumulative metering and per-model split.
@@ -89,7 +90,7 @@ func (r *Reporter) Session(ctx context.Context, sessionID string) (SessionReport
 	total := accumulator{}
 	byModel := map[string]*accumulator{}
 	for _, run := range runs {
-		foldRun(run, time.Time{}, r.defaults.DefaultProvider(), r.defaults.DefaultModel(), &total, nil, byModel, nil)
+		foldRun(run, time.Time{}, r.defaultProvider, r.defaultModel, &total, nil, byModel, nil)
 	}
 	report := SessionReport{Total: total.usage()}
 	if len(byModel) > 0 {
@@ -126,7 +127,7 @@ func (r *Reporter) Summary(ctx context.Context, sinceDays int) (Summary, error) 
 		}
 		before := total.runs
 		for _, run := range runs {
-			foldRun(run, since, r.defaults.DefaultProvider(), r.defaults.DefaultModel(), &total, byProvider, byModel, byDay)
+			foldRun(run, since, r.defaultProvider, r.defaultModel, &total, byProvider, byModel, byDay)
 		}
 		if total.runs > before {
 			sessionCount++

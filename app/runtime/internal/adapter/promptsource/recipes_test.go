@@ -1,4 +1,4 @@
-package promptsource_test
+package promptsource
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 )
 
@@ -55,7 +54,7 @@ func TestListRecipes(t *testing.T) {
 	write(t, project, "notes.txt", "not a recipe")
 	write(t, project, ".hidden.md", "dotfile, skipped")
 
-	got, err := promptsource.ListRecipes(context.Background(), project, global)
+	got, err := listRecipes(context.Background(), project, global)
 	if err != nil {
 		t.Fatalf("ListRecipes: %v", err)
 	}
@@ -108,7 +107,7 @@ func TestListRecipes(t *testing.T) {
 // TestListRecipesMissingDirs: absent directories contribute nothing rather than
 // erroring (a fresh install with no recipes lists empty).
 func TestListRecipesMissingDirs(t *testing.T) {
-	got, err := promptsource.ListRecipes(context.Background(), filepath.Join(t.TempDir(), "nope"), filepath.Join(t.TempDir(), "nope"))
+	got, err := listRecipes(context.Background(), filepath.Join(t.TempDir(), "nope"), filepath.Join(t.TempDir(), "nope"))
 	if err != nil {
 		t.Fatalf("ListRecipes on missing dirs: %v", err)
 	}
@@ -123,7 +122,7 @@ func TestListRecipesDegradesToBody(t *testing.T) {
 	dir := t.TempDir()
 	write(t, dir, "broken.md", "---\nthis is: not: valid: yaml\nunterminated")
 
-	got, err := promptsource.ListRecipes(context.Background(), dir, "")
+	got, err := listRecipes(context.Background(), dir, "")
 	if err != nil {
 		t.Fatalf("ListRecipes: %v", err)
 	}
@@ -133,5 +132,30 @@ func TestListRecipesDegradesToBody(t *testing.T) {
 	}
 	if r.Description != "" {
 		t.Errorf("broken.Description = %q, want empty (no parsed frontmatter)", r.Description)
+	}
+}
+
+func TestRecipeFileConventions(t *testing.T) {
+	if got := recipeDir("/work"); got != "/work/.lyra/recipes" {
+		t.Fatalf("recipeDir(/work) = %q", got)
+	}
+	if got := recipeDir(""); got != "" {
+		t.Fatalf("recipeDir(\"\") = %q, want empty", got)
+	}
+
+	for _, test := range []struct {
+		file string
+		name string
+		ok   bool
+	}{
+		{file: "review.md", name: "review", ok: true},
+		{file: "notes.txt"},
+		{file: ".hidden.md"},
+		{file: "README"},
+	} {
+		name, ok := recipeName(test.file)
+		if name != test.name || ok != test.ok {
+			t.Errorf("recipeName(%q) = %q, %v; want %q, %v", test.file, name, ok, test.name, test.ok)
+		}
 	}
 }

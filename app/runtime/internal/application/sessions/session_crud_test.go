@@ -117,6 +117,18 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	}
 }
 
+func TestViewUsesConfiguredDefaultModel(t *testing.T) {
+	c := New(Dependencies{Paths: testCwdResolver{}, DefaultModel: "claude-opus-4-8"})
+
+	view, err := c.view(t.Context(), session.Session{ID: "ses_1", Cwd: "/repo"}, SessionIdle)
+	if err != nil {
+		t.Fatalf("view: %v", err)
+	}
+	if view.Model != "claude-opus-4-8" {
+		t.Fatalf("view model = %q, want configured default", view.Model)
+	}
+}
+
 func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)

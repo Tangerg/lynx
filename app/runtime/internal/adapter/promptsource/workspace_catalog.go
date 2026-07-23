@@ -20,7 +20,7 @@ func NewWorkspaceRecipes(globalDir string) WorkspaceRecipes {
 var _ workspaceapp.RecipeLister = WorkspaceRecipes{}
 
 func (l WorkspaceRecipes) List(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
-	return ListRecipes(ctx, recipes.ProjectDir(cwd), l.globalDir)
+	return listRecipes(ctx, recipeDir(cwd), l.globalDir)
 }
 
 // WorkspaceSkills lists project skills layered over one configured global
