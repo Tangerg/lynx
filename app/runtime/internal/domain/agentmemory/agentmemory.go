@@ -11,7 +11,6 @@
 package agentmemory
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -226,50 +225,6 @@ type LedgerFact struct {
 type State struct {
 	Watermark int64
 	UpdatedAt time.Time
-}
-
-// Store is the extraction + search face of agent-memory persistence: the fact
-// ledger (project-scoped raw capture), the item set reconciled from it, and the
-// embedding backfill the searcher ranks over. Review commands are defined by
-// their Application consumer, keeping this domain free of Delivery's workflow.
-type Store interface {
-	// AppendLedger inserts facts not already present in the project (dedup by
-	// content digest) and returns the newly inserted facts in sequence order.
-	AppendLedger(ctx context.Context, batch FactBatch) ([]LedgerFact, error)
-
-	// PendingLedger lists a project's facts strictly after watermark in sequence
-	// order. limit must be positive so every curation call has an explicit bound.
-	PendingLedger(ctx context.Context, project string, watermark int64, limit int) ([]LedgerFact, error)
-
-	// State returns the project's curation watermark (zero value for an unknown
-	// project).
-	State(ctx context.Context, project string) (State, error)
-
-	// Reconcile folds the project's ledger through `through` into its
-	// auto-origin item set: it replaces those items with contents (preserving a
-	// stable ID and provenance for any item whose content is unchanged, matched
-	// by digest), never touching pinned or user-authored items, and advances the
-	// watermark. expectedWatermark is a compare-and-swap guard around the LLM
-	// curation call; a lost race returns published=false without clobbering a
-	// fresher fold. `through` must be a ledger sequence greater than
-	// expectedWatermark and belonging to the project.
-	Reconcile(ctx context.Context, project string, expectedWatermark, through int64, contents []string, now time.Time) (published bool, err error)
-
-	// Items lists the active items for (scope, project): pinned first, then most
-	// recently updated. Empty scope/project is valid (returns no items).
-	Items(ctx context.Context, scope Scope, project string) ([]Item, error)
-
-	// ItemsForSearch lists the (scope, project) items with their Embedding
-	// populated, for the [Searcher] to rank. The corpus is small (a project's
-	// curated set), so the searcher scores in-process rather than in SQL.
-	ItemsForSearch(ctx context.Context, scope Scope, project string) ([]Item, error)
-
-	// UnembeddedItems lists the (scope, project) items that still lack an
-	// embedding, so a configured embedder can backfill them.
-	UnembeddedItems(ctx context.Context, scope Scope, project string) ([]Item, error)
-
-	// SetEmbeddings stores a content vector for each item id.
-	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
 }
 
 // NormalizeFacts converts an extraction response into stable markdown bullets.

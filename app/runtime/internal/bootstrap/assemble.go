@@ -271,9 +271,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	embeddingRoleState := models.NewRoleState(embeddingRole)
 	embeddingResolver := modelclient.NewEmbeddingResolver(providers)
 	liveEmbedder := modelclient.NewRoleEmbedder(embeddingResolver, embeddingRoleState)
-	var codebaseIndex codebaseindex.Index
+	var codebaseUseCases codebase.Index
+	var codebaseToolIndex toolset.CodebaseIndex
 	if cfg.CodebaseStore != nil {
-		codebaseIndex = codebaseindex.New(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
+		index := codebaseindex.New(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
+		codebaseUseCases = index
+		codebaseToolIndex = index
 	}
 	// Agent-memory search (memory_search + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
@@ -308,7 +311,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths: workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseIndex, memorySearcher, scheduleCoord, goalState, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseToolIndex, memorySearcher, scheduleCoord, goalState, skillStore)
 	if err != nil {
 		return Host{}, err
 	}
@@ -552,7 +555,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoord := codebase.New(codebaseIndex, workspaceContext)
+	codebaseCoord := codebase.New(codebaseUseCases, workspaceContext)
 	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
 		Store: cfg.AgentMemoryStore,
 		Roots: workspaceContext,

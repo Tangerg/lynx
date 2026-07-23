@@ -108,21 +108,3 @@ type Source interface {
 	Files(ctx context.Context, cwd string) (files []string, truncated bool, err error)
 	Chunks(cwd, path string) (chunks []Chunk, hash string, ok bool)
 }
-
-// Index is the semantic-index surface consumed by the tool, RPC, and file-change hook.
-type Index interface {
-	// Search returns the topK most similar chunks to query in cwd, building or
-	// refreshing the index first when needed. ErrNoEmbeddingModel when off.
-	Search(ctx context.Context, cwd, query string, topK int) ([]Hit, error)
-	// EnsureIndexed builds or incrementally refreshes cwd's index (no-op when
-	// fresh). Synchronous — callers run it inline (tool) or in a goroutine (UI).
-	EnsureIndexed(ctx context.Context, cwd string) error
-	// Reindex forces a full rebuild of cwd's index from scratch.
-	Reindex(ctx context.Context, cwd string) error
-	// Status reports cwd's current index state for the management surface.
-	Status(ctx context.Context, cwd string) (Status, error)
-	// Available reports whether an embedding model is configured (the tool is
-	// offered only when true). Operational resolver failures are returned rather
-	// than being misreported as an unconfigured model.
-	Available(ctx context.Context) (bool, error)
-}

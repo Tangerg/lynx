@@ -343,8 +343,8 @@ Scope:
 - Delete Delivery-only dead dependency chains (workspace-root lookup, singular
   run-activity probe, unused pagination/title helpers) and narrow the remaining
   consumer ports to live handlers.
-- Keep Goal mode and its session-mutation coordination intact: it is an enabled
-  product capability awaiting UI adoption, not dead code.
+- Keep Goal mode and its session-mutation coordination intact: it is a product
+  capability, not dead code.
 - Remove executor-event correlation fields and lifecycle interfaces that are
   written only by the adapter and never consumed by the production run pipeline;
   retain the sealed application event family and the application-owned durable
@@ -392,8 +392,37 @@ Acceptance:
   Schedule firing, or Approval management methods it does not invoke.
 - Goal, Todo, Knowledge, Schedule, and Approval do not reintroduce the removed
   producer-owned domain interface names.
-- Existing, unconnected product capability is preserved; Goal mode remains
-  available for its planned UI integration.
+- Existing product capability is preserved; no capability is removed merely
+  because an individual client has not adopted it.
+
+### Batch 14 — Residual consumer-port closure
+
+Status: **Completed**
+
+Scope:
+
+- Move Feedback persistence, MCP registry mutation, and diagnostic-tool
+  catalog/invocation contracts out of their Domain producers and into their
+  actual Application or Bootstrap consumers.
+- Delete Agent Memory's unused aggregate `Store`, leaving extraction, search,
+  and human-review workflows with their independently owned narrow ports.
+- Replace the producer-owned Codebase `Index` with Application and Tool Adapter
+  consumer views; remove the unconsumed `EnsureIndexed` API and test through
+  the real `Search` path instead.
+- Extend the architecture fitness test to cover every removed producer-owned
+  port from this cleanup.
+
+Acceptance:
+
+- Domain packages retain values, invariants, and only ports consumed directly
+  by a Domain service; Feedback, MCP, Tool, Agent Memory, and Codebase consumer
+  ports cannot return there.
+- No production capability is deleted because its frontend consumer is absent;
+  Goal, the explicitly retained in-process CLI/TUI transport, and test-only
+  approval fixtures remain correctly classified.
+- Workspace and standalone build/vet/test, focused race tests, static analysis,
+  architecture tests, formatting, and dead-code scans are green or have only
+  explicitly retained future/test findings.
 
 ## 6. Progress
 
@@ -412,6 +441,7 @@ Acceptance:
 | 11. Final abstraction-leak remediation | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; exact-symbol scans for removed query/Turn/Transport/sandbox facades; Application/Domain dependency-direction scan. |
 | 12. Runtime ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone test/vet/build; focused race suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed seams passed. |
 | 13. Consumer-port and state-ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race` suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed domain interfaces passed. |
+| 14. Residual consumer-port closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race`; `staticcheck`; `golangci-lint`; architecture tests; exact-symbol scans; and classified `deadcode` output. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -635,9 +665,26 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   capability is likewise local to its consumer.
 - Added a fitness rule preventing the removed Goal/Todo/Knowledge/Schedule/
   Approval producer-owned interface names from returning. Goal mode remains
-  wired and tested as a planned capability, not treated as dead code.
+  wired and tested as a product capability, not treated as dead code.
 - Workspace and standalone build/vet/test, focused race suites, architecture
   tests, `staticcheck`, `golangci-lint`, formatting, and source scans passed.
+
+### 2026-07-23 — Batch 14 completed
+
+- Moved Feedback, MCP, and diagnostic-tool consumer ports to their Application
+  or Bootstrap owners. Domain now retains their values and invariants; SQLite
+  stores remain concrete driven adapters instead of declaring upstream ports.
+- Deleted Agent Memory's unused aggregate store and Codebase's producer-owned
+  index surface. Extraction, search, review, Application codebase use cases,
+  and the tool adapter each name only the methods they consume; the uncalled
+  `EnsureIndexed` API and its private relay are gone.
+- Expanded the architecture fitness rule to prevent all removed producer-owned
+  port names from returning. The audit reconfirmed Goal is frontend-integrated;
+  the in-process transport is explicitly retained for future CLI/TUI use; and
+  `approvaltest` is test-only.
+- Workspace and standalone build/vet/test, focused race suites, architecture
+  tests, `staticcheck`, `golangci-lint`, formatting, exact-symbol scans, and
+  dead-code classification passed.
 
 ## 8. Completion definition
 

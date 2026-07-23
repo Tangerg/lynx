@@ -1,5 +1,5 @@
 // Package codebase owns the @codebase semantic-index use cases — search, status,
-// and background reindex — over the domain [codebaseindex.Index]. A nil index
+// and background reindex. A nil index
 // means @codebase is disabled (no embedding store wired); the methods degrade to
 // "unavailable" rather than erroring construction. The component task group owns
 // the request-detached reindex, canceled + joined by [Coordinator.Close].
@@ -33,6 +33,14 @@ type RootResolver interface {
 	ResolveRoot(cwd string) (string, error)
 }
 
+// Index is the semantic-index capability these use cases consume.
+type Index interface {
+	Search(ctx context.Context, cwd, query string, topK int) ([]codebaseindex.Hit, error)
+	Reindex(ctx context.Context, cwd string) error
+	Status(ctx context.Context, cwd string) (codebaseindex.Status, error)
+	Available(ctx context.Context) (bool, error)
+}
+
 // Status combines the index's durable status with the transient operation id
 // that this coordinator owns. Delivery projects this neutral value onto wire.
 type Status struct {
@@ -42,7 +50,7 @@ type Status struct {
 
 // Coordinator drives the @codebase semantic index.
 type Coordinator struct {
-	index codebaseindex.Index
+	index Index
 	roots RootResolver
 	tasks taskgroup.Group
 
@@ -53,7 +61,7 @@ type Coordinator struct {
 // New returns a Coordinator over index (nil to disable @codebase) scoped by
 // roots. Root resolution belongs here so no Delivery handler must orchestrate
 // workspace context before invoking a codebase use case.
-func New(index codebaseindex.Index, roots RootResolver) *Coordinator {
+func New(index Index, roots RootResolver) *Coordinator {
 	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}
 }
 

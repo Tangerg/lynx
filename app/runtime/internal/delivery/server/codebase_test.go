@@ -12,8 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
 
-// fakeCodebaseIndex is the codebaseindex.Index the codebase coordinator drives;
-// the codebase wire handlers are tested against it.
+// fakeCodebaseIndex is the semantic-index capability the codebase coordinator
+// drives; the codebase wire handlers are tested against it.
 type fakeCodebaseIndex struct {
 	available    bool
 	availableErr error
@@ -42,14 +42,12 @@ func (i *fakeCodebaseIndex) Search(_ context.Context, root, query string, limit 
 	return i.hits, nil
 }
 
-func (*fakeCodebaseIndex) EnsureIndexed(context.Context, string) error { return nil }
-
 func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseindex.Status, error) {
 	i.statusRoot = root
 	return i.status, nil
 }
 
-func serverWithCodebase(root string, idx codebaseindex.Index) *Server {
+func serverWithCodebase(root string, idx codebase.Index) *Server {
 	surfaces := newWorkspaceSurfaces(root, workspaceTestConfig{})
 	s := &Server{codebase: codebase.New(idx, surfaces.roots)}
 	applyWorkspaceSurfaces(s, surfaces)

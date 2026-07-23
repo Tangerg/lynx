@@ -229,8 +229,8 @@ func TestIncrementalReindex(t *testing.T) {
 	store := newMemStore()
 	ix := New(store, func(context.Context) (Embedder, error) { return fakeEmbedder{}, nil }, src)
 
-	if err := ix.EnsureIndexed(context.Background(), cwd); err != nil {
-		t.Fatalf("EnsureIndexed: %v", err)
+	if _, err := ix.Search(context.Background(), cwd, "alpha", 1); err != nil {
+		t.Fatalf("initial Search: %v", err)
 	}
 	src.add("b.go", "h2", "bravo gadget engine piston")
 	if err := ix.Reindex(context.Background(), cwd); err != nil {
@@ -260,8 +260,8 @@ func TestSearchKeepsCorpusAndQueryOnOneEmbedder(t *testing.T) {
 	b := &switchTestEmbedder{id: "fake:b", dim: 3}
 	resolver := &switchTestResolver{embedder: a}
 	ix := New(newMemStore(), resolver.resolve, src)
-	if err := ix.EnsureIndexed(t.Context(), cwd); err != nil {
-		t.Fatalf("EnsureIndexed: %v", err)
+	if _, err := ix.Search(t.Context(), cwd, "preflight", 1); err != nil {
+		t.Fatalf("initial Search: %v", err)
 	}
 
 	type result struct {

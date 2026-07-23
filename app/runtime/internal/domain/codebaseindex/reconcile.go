@@ -5,30 +5,6 @@ import (
 	"time"
 )
 
-// EnsureIndexed builds or incrementally refreshes cwd's index. No-op on the
-// fast path (corpus loaded, same model, scanned within the debounce window).
-func (ix *Indexer) EnsureIndexed(ctx context.Context, cwd string) error {
-	emb, err := ix.resolveEmbedder(ctx)
-	if err != nil {
-		return err
-	}
-	return ix.ensureIndexed(ctx, cwd, emb, emb.ID())
-}
-
-func (ix *Indexer) ensureIndexed(ctx context.Context, cwd string, emb Embedder, modelID string) error {
-	if ix.fresh(cwd, modelID) {
-		return nil
-	}
-
-	lock := ix.cwdLock(cwd)
-	lock.Lock()
-	defer lock.Unlock()
-	if ix.fresh(cwd, modelID) { // another goroutine may have built it while we waited
-		return nil
-	}
-	return ix.reconcile(ctx, cwd, emb, modelID, false)
-}
-
 func (ix *Indexer) corpusFor(ctx context.Context, cwd string, emb Embedder, modelID string) ([]Chunk, error) {
 	lock := ix.cwdLock(cwd)
 	lock.Lock()

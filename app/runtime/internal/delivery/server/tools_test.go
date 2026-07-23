@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// toolRegistryFake is the tool.Registry the tools coordinator drives.
+// toolRegistryFake is the diagnostic tool registry the tools coordinator drives.
 type toolRegistryFake struct {
 	tools          []tool.Tool
 	invokedName    string

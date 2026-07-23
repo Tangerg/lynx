@@ -23,8 +23,7 @@ type RootResolver interface {
 }
 
 // Store is the review-oriented persistence port consumed by this coordinator.
-// It deliberately differs from the extraction/search Store in the domain: this
-// consumer needs only the human review workflow.
+// Extraction and search declare their own narrower consumer views.
 type Store interface {
 	List(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error)
 	SetStatus(ctx context.Context, id string, status domain.Status, now time.Time) error
