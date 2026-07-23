@@ -7,7 +7,9 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -39,6 +41,43 @@ type Resolver struct{}
 // canonical identity.
 func (Resolver) ResolveExistingDir(path string) (string, error) {
 	return ResolveExistingDir(path)
+}
+
+// ResolveInRoot lexically confines a client path to root and returns its
+// root-relative form. The workspace application owns the input-policy errors;
+// this adapter owns filesystem path spelling and cleaning.
+func (Resolver) ResolveInRoot(root, path string) (string, error) {
+	if path == "" {
+		return "", workspaceapp.ErrPathRequired
+	}
+	abs := path
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(root, path)
+	}
+	abs = filepath.Clean(abs)
+	rel, err := filepath.Rel(root, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", workspaceapp.ErrPathOutsideRoot
+	}
+	return rel, nil
+}
+
+// ResolveExistingInRoot also resolves existing symlinks before returning a
+// root-relative path, preventing a file read from escaping through an in-root
+// symlink. Missing targets are left for the consuming file adapter to report.
+func (r Resolver) ResolveExistingInRoot(root, path string) (string, error) {
+	rel, err := r.ResolveInRoot(root, path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(filepath.Join(root, rel))
+	if err != nil {
+		return rel, nil
+	}
+	if !pathInside(Canonical(root), Canonical(resolved)) {
+		return "", workspaceapp.ErrPathOutsideRoot
+	}
+	return rel, nil
 }
 
 // Inspect derives the live workspace projection for an already-admitted cwd.
@@ -98,4 +137,9 @@ func ResolveExistingDir(path string) (string, error) {
 		return "", ErrNotDirectory
 	}
 	return Canonical(path), nil
+}
+
+func pathInside(root, path string) bool {
+	rel, err := filepath.Rel(root, path)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }

@@ -35,7 +35,7 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		}},
 		content: "project notes",
 	}
-	c := New(Config{Memory: store})
+	c := New(Config{Paths: testPaths{}, Memory: store})
 
 	if !c.HasMemory() {
 		t.Fatal("HasMemory = false, want true")

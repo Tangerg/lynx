@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -24,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -65,6 +65,10 @@ type Config struct {
 	// items.list / messages.list / interrupts.list handlers drive it.
 	Queries *queries.Coordinator
 
+	// Usage folds durable run history into session and aggregate metering
+	// reports. Required — delivery only projects its result onto usage.*.
+	Usage *usage.Reporter
+
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
 	// wire workspace events on the hub. Required in production; nil in tests that
@@ -84,8 +88,8 @@ type Config struct {
 	ServerInfo protocol.ServerInfo
 
 	// Schedules is the application coordinator for cron-triggered headless-run
-	// management. nil defaults to a disabled coordinator, so a build without
-	// scheduling reports capability_not_negotiated.
+	// management. Bootstrap supplies an explicit disabled coordinator when the
+	// capability is not negotiated.
 	Schedules *schedules.Coordinator
 
 	// ScheduleFires carries accepted scheduled-run notifications from the
@@ -103,14 +107,18 @@ type Config struct {
 	AgentMemory agentmemory.Management
 
 	// Workspace is the application coordinator for the project developer surface
-	// (memory / skills / recipes / hooks). nil defaults to a disabled coordinator
-	// (every dependency nil), so those workspace.* methods degrade gracefully.
+	// (workspace reads, memory, skills, recipes, and hooks). Bootstrap supplies
+	// an explicit disabled coordinator when a capability is absent.
 	Workspace *workspaceapp.Coordinator
 
 	// Codebase is the application coordinator for the @codebase semantic index
-	// (codebase.search / status / reindex). Required — a nil-index coordinator
-	// still reports "unavailable" gracefully, so the handlers always have one.
+	// (codebase.search / status / reindex). Bootstrap supplies its unavailable
+	// coordinator when no index is configured.
 	Codebase *codebase.Coordinator
+
+	// GitAvailable is the Bootstrap-probed Git capability snapshot. Delivery
+	// projects this static environment fact; it never probes the process itself.
+	GitAvailable bool
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -152,6 +160,10 @@ type Server struct {
 	// execution record (transcript / history / interrupts). Injected by New.
 	queries *queries.Coordinator
 
+	// usage owns durable metering aggregation. Delivery only maps its neutral
+	// result values to the protocol response.
+	usage *usage.Reporter
+
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
 	schedules *schedules.Coordinator
@@ -167,6 +179,8 @@ type Server struct {
 	// workspace owns the project developer-surface use cases (memory / skills /
 	// recipes / hooks), injected by the composition root. Never nil after New.
 	workspace *workspaceapp.Coordinator
+
+	gitAvailable bool
 
 	// wsHub fans non-run workspace events (files/skills/mcp changes) out to
 	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
@@ -241,17 +255,17 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Queries == nil {
 		return nil, errors.New("server: Queries is required")
 	}
-	scheduleCoord := cfg.Schedules
-	if scheduleCoord == nil {
-		scheduleCoord = schedules.New(schedules.Dependencies{}) // disabled: schedules.* report capability_not_negotiated
+	if cfg.Usage == nil {
+		return nil, errors.New("server: Usage is required")
 	}
-	workspaceCoord := cfg.Workspace
-	if workspaceCoord == nil {
-		workspaceCoord = workspaceapp.New(workspaceapp.Config{}) // disabled: memory/skills/recipes/hooks all no-op
+	if cfg.Schedules == nil {
+		return nil, errors.New("server: Schedules is required")
 	}
-	codebaseCoord := cfg.Codebase
-	if codebaseCoord == nil {
-		codebaseCoord = codebase.New(nil) // disabled: codebase.* report unavailable
+	if cfg.Workspace == nil {
+		return nil, errors.New("server: Workspace is required")
+	}
+	if cfg.Codebase == nil {
+		return nil, errors.New("server: Codebase is required")
 	}
 	srv := &Server{
 		sessions:     cfg.Sessions,
@@ -259,15 +273,17 @@ func New(cfg Config) (*Server, error) {
 		approvals:    cfg.Approvals,
 		models:       cfg.Models,
 		tools:        cfg.Tools,
-		codebase:     codebaseCoord,
+		codebase:     cfg.Codebase,
 		coordinator:  cfg.Coordinator,
 		queries:      cfg.Queries,
+		usage:        cfg.Usage,
 		serverInfo:   cfg.ServerInfo,
 		wsHub:        newWorkspaceHub(),
-		schedules:    scheduleCoord,
+		schedules:    cfg.Schedules,
 		goals:        goalRunnerOrDisabled(cfg.Goals),
 		agentMemory:  agentMemoryOrDisabled(cfg.AgentMemory),
-		workspace:    workspaceCoord,
+		workspace:    cfg.Workspace,
+		gitAvailable: cfg.GitAvailable,
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -292,7 +308,7 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.workspace.HasMemory())
+	return Capabilities(s.workspace.HasMemory(), s.gitAvailable)
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises
@@ -300,7 +316,7 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 // return capability_not_negotiated are advertised false, so the client never calls a
 // method this build silently rejects. hasMemory comes from the workspace
 // coordinator (the long-term knowledge store may be absent).
-func Capabilities(hasMemory bool) protocol.ServerCapabilities {
+func Capabilities(hasMemory, gitAvailable bool) protocol.ServerCapabilities {
 	memory := hasMemory
 	return protocol.ServerCapabilities{
 		Events: []protocol.StreamEventType{
@@ -322,14 +338,14 @@ func Capabilities(hasMemory bool) protocol.ServerCapabilities {
 			"mcp":       capability(true),
 			"memory":    capability(memory),
 			"skills":    capability(true),
-			"git":       capability(workspace.GitAvailable()),
+			"git":       capability(gitAvailable),
 			"fileWatch": capability(true),
 			"lsp":       capability(true),
 
 			"sessionExport": capability(true),
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			"checkpoints": capability(workspace.GitAvailable()),
+			"checkpoints": capability(gitAvailable),
 			"multimodal":  capability(true),
 			"relocate":    capability(true),
 			"todos":       capability(true),

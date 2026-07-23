@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -31,6 +33,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
@@ -52,6 +55,7 @@ type Stack struct {
 	Tools        *tools.Coordinator
 	Codebase     *codebase.Coordinator
 	Queries      *queries.Coordinator
+	Usage        *usage.Reporter
 	Workspace    *workspace.Coordinator
 	Schedules    *schedules.Coordinator
 	Goals        *goals.Driver
@@ -74,6 +78,7 @@ type Stack struct {
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
 	ScheduleFires    *schedules.FireNotifier
 	IdempotencyStore *sqlitestore.IdempotencyStore
+	GitAvailable     bool
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -498,6 +503,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		skillCurator = skillStore
 		skillDrafts = skillStore
 	}
+	home, _ := os.UserHomeDir()
 	host := Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
@@ -516,18 +522,31 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				History:    messages.conversation,
 				Interrupts: cfg.InterruptStore,
 			}),
-			Workspace: workspace.New(workspace.Config{
-				Memory:  cfg.Engine.Knowledge,
-				Skills:  skillCatalog{globalDir: cfg.SkillsGlobalDir},
-				Curator: skillCurator,
-				Drafts:  skillDrafts,
-				Hooks:   cfg.HooksResolver,
-				Trust:   cfg.HookTrustStore,
-				Recipes: recipeLister{globalDir: cfg.RecipesGlobalDir},
+			Usage: usage.New(usage.Dependencies{
+				Runs:     cfg.TranscriptStore,
+				Sessions: cfg.SessionStore,
+				Defaults: modelsCoord,
 			}),
-			Schedules:   scheduleCoord,
-			Goals:       goalDriver,
-			AgentMemory: agentMemoryMgmt,
+			Workspace: workspace.New(workspace.Config{
+				DefaultCwd: cfg.DefaultCwd,
+				Home:       home,
+				Paths:      workspacepath.Resolver{},
+				Files:      checkpointstore.Reads{},
+				Git:        checkpointstore.VCS{},
+				Projects:   sessionCoord,
+				AgentDocs:  promptsource.AgentDocs{},
+				Memory:     cfg.Engine.Knowledge,
+				Skills:     skillCatalog{globalDir: cfg.SkillsGlobalDir},
+				Curator:    skillCurator,
+				Drafts:     skillDrafts,
+				Hooks:      cfg.HooksResolver,
+				Trust:      cfg.HookTrustStore,
+				Recipes:    recipeLister{globalDir: cfg.RecipesGlobalDir},
+			}),
+			Schedules:    scheduleCoord,
+			Goals:        goalDriver,
+			AgentMemory:  agentMemoryMgmt,
+			GitAvailable: checkpointstore.GitAvailable(),
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,

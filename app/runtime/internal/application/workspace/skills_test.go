@@ -11,7 +11,7 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
 		skills: []skills.Info{{Name: "lint", Description: "check code", Scope: "project"}},
 	}
-	c := New(Config{Skills: catalog})
+	c := New(Config{Paths: testPaths{}, Skills: catalog})
 
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil {
@@ -26,7 +26,7 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 }
 
 func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
-	c := New(Config{})
+	c := New(Config{Paths: testPaths{}})
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil || got != nil {
 		t.Fatalf("ListSkills = %v, %v; want nil, nil", got, err)
@@ -36,6 +36,14 @@ func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
 type fakeSkillCatalog struct {
 	cwd    string
 	skills []skills.Info
+}
+
+type testPaths struct{}
+
+func (testPaths) ResolveExistingDir(path string) (string, error) { return path, nil }
+func (testPaths) ResolveInRoot(_, path string) (string, error)   { return path, nil }
+func (testPaths) ResolveExistingInRoot(_, path string) (string, error) {
+	return path, nil
 }
 
 func (f *fakeSkillCatalog) ListSkills(_ context.Context, cwd string) ([]skills.Info, error) {

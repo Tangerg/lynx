@@ -10,7 +10,7 @@ import (
 func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	t.Parallel()
 
-	caps := Capabilities(true)
+	caps := Capabilities(true, true)
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,

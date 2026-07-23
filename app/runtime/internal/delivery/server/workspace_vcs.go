@@ -2,56 +2,36 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// workspace.* git-backed reads (AUX_API §2). Three states stay distinct
-// throughout: no git binary → features.git=false (client never calls); git but
-// non-repo → vcs_unavailable; repo + no changes → empty result.
-
-// WorkspaceListFileChanges scans the cwd's working tree (AUX_API §2.2).
+// WorkspaceListFileChanges projects application VCS status onto the wire.
 func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	root, err := s.workspaceRoot(in.Cwd)
+	changes, err := s.workspace.ListFileChanges(ctx, in.Cwd)
 	if err != nil {
-		return nil, err
-	}
-	changes, err := workspace.ListChanges(ctx, root)
-	if err != nil {
-		return nil, mapGitErr(err)
+		return nil, wireWorkspaceError(err)
 	}
 	out := make([]protocol.WorkspaceFileChange, 0, len(changes))
-	for _, c := range changes {
-		w := protocol.WorkspaceFileChange{
-			Path: c.Path, Status: protocol.FileStatus(c.Status), PreviousPath: c.PreviousPath, Binary: c.Binary,
+	for _, change := range changes {
+		entry := protocol.WorkspaceFileChange{
+			Path: change.Path, Status: protocol.FileStatus(change.Status), PreviousPath: change.PreviousPath, Binary: change.Binary,
 		}
-		if !c.Binary {
-			added, removed := c.Added, c.Removed
-			w.Added, w.Removed = &added, &removed
+		if !change.Binary {
+			added, removed := change.Added, change.Removed
+			entry.Added, entry.Removed = &added, &removed
 		}
-		out = append(out, w)
+		out = append(out, entry)
 	}
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceGetDiff returns the structured (rows) or raw (patch) diff for cwd
-// (AUX_API §2.3). mode worktree|base; path is jailed to the root. limit caps
-// rows, truncating at a file boundary.
+// WorkspaceGetDiff validates wire-specific mode values then projects the
+// application-owned diff onto the wire shape.
 func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
-	root, err := s.workspaceRoot(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	rel := ""
-	if in.Path != "" {
-		if rel, err = resolveInRoot(root, in.Path); err != nil {
-			return nil, err
-		}
-	}
-	var base bool
+	base := false
 	switch in.Mode {
 	case "", protocol.DiffModeWorktree:
 	case protocol.DiffModeBase:
@@ -59,66 +39,39 @@ func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffReques
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
-
-	if in.Format == protocol.DiffFormatRaw {
-		patch, err := workspace.RawDiff(ctx, root, rel, base)
-		if err != nil {
-			return nil, mapGitErr(err)
-		}
-		return &protocol.Diff{Patch: patch}, nil
-	}
-	files, err := workspace.Diff(ctx, root, rel, base)
+	diff, err := s.workspace.Diff(ctx, workspaceapp.DiffInput{
+		Cwd: in.Cwd, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
+	})
 	if err != nil {
-		return nil, mapGitErr(err)
+		return nil, wireWorkspaceError(err)
 	}
-	out, truncated := diffFilesToWire(files, in.Limit)
-	return &protocol.Diff{Files: out, Truncated: truncated}, nil
+	if in.Format == protocol.DiffFormatRaw {
+		return &protocol.Diff{Patch: diff.Patch}, nil
+	}
+	return &protocol.Diff{Files: diffFilesWire(diff.Files), Truncated: diff.Truncated}, nil
 }
 
-// mapGitErr maps the git layer's typed errors onto wire sentinels (AUX_API
-// §2.3): non-repo / unavailable → vcs_unavailable; unresolvable base branch →
-// invalid_params (NOT vcs_unavailable — that's the "not a repo" signal).
-func mapGitErr(err error) error {
-	switch {
-	case errors.Is(err, workspace.ErrNotRepo), errors.Is(err, workspace.ErrUnavailable):
-		return protocol.ErrVcsUnavailable
-	case errors.Is(err, workspace.ErrNoBase):
-		return fmt.Errorf("%w: cannot resolve base branch", protocol.ErrInvalidParams)
-	default:
-		return err
-	}
-}
-
-// diffFilesToWire maps git DiffFiles onto the wire, capping total rows at limit
-// with a file-boundary cut (a file is included whole or not at all; a single
-// over-limit file is still included so the client gets something).
-func diffFilesToWire(files []workspace.DiffFile, limit int) ([]protocol.FileDiff, bool) {
+func diffFilesWire(files []workspaceapp.FileDiff) []protocol.FileDiff {
 	out := make([]protocol.FileDiff, 0, len(files))
-	rows, truncated := 0, false
-	for _, f := range files {
-		if limit > 0 && len(out) > 0 && rows+len(f.Rows) > limit {
-			truncated = true
-			break
+	for _, file := range files {
+		entry := protocol.FileDiff{
+			Path: file.Path, Status: protocol.FileStatus(file.Status), PreviousPath: file.PreviousPath,
+			Binary: file.Binary, Rows: diffRowsWire(file.Rows),
 		}
-		fd := protocol.FileDiff{
-			Path: f.Path, Status: protocol.FileStatus(f.Status), PreviousPath: f.PreviousPath,
-			Binary: f.Binary, Rows: rowsToWire(f.Rows),
+		if !file.Binary {
+			added, removed := file.Added, file.Removed
+			entry.Added, entry.Removed = &added, &removed
 		}
-		if !f.Binary {
-			added, removed := f.Added, f.Removed
-			fd.Added, fd.Removed = &added, &removed
-		}
-		out = append(out, fd)
-		rows += len(f.Rows)
+		out = append(out, entry)
 	}
-	return out, truncated
+	return out
 }
 
-func rowsToWire(rows []workspace.Row) []protocol.DiffRow {
+func diffRowsWire(rows []workspaceapp.DiffRow) []protocol.DiffRow {
 	out := make([]protocol.DiffRow, 0, len(rows))
-	for _, r := range rows {
+	for _, row := range rows {
 		out = append(out, protocol.DiffRow{
-			Type: protocol.DiffRowType(r.Type), Text: r.Text, LeftLine: r.LeftLine, RightLine: r.RightLine, Code: r.Code,
+			Type: protocol.DiffRowType(row.Type), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
 		})
 	}
 	return out

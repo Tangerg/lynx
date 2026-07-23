@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
@@ -51,8 +52,8 @@ func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseinde
 
 func serverWithCodebase(root string, idx codebaseindex.Index) *Server {
 	return &Server{
-		serverInfo: protocol.ServerInfo{Cwd: root},
-		codebase:   codebase.New(idx),
+		workspace: newWorkspaceCoordinator(root, workspaceapp.Config{}),
+		codebase:  codebase.New(idx),
 	}
 }
 

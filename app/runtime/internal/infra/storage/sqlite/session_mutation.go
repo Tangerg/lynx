@@ -35,7 +35,7 @@ func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error 
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+		sess.DelegationMetadata.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore session: %w", err)
@@ -184,7 +184,7 @@ func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.S
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		sess.ID, sess.UserID, sess.AgentName, sess.Title, sess.Cwd, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
-		sess.AgentAnnotations.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+		sess.DelegationMetadata.String(), sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: insert session: %w", err)

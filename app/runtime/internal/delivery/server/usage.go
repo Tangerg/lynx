@@ -1,209 +1,62 @@
 package server
 
 import (
-	"cmp"
 	"context"
-	"slices"
-	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// Usage reporting (usage.session / usage.summary). Sum-on-read over the durable
-// run history (history_runs): each finished run already carries its terminal
-// metering (RunResult.Usage, subtree-aggregated), so totals are a fold over run
-// records — no denormalized counters to keep in sync, and a rollback/fork that
-// drops runs is reflected for free (the dropped runs are simply gone).
-//
-// Attribution is at run granularity: per-provider / per-day buckets fold whole
-// runs, so they reconcile with the grand total; per-model uses each run's own
-// ByModel split when present (which captures the utility / sub-agent models a
-// run touched) and otherwise the run's headline model.
-
-// SessionUsage returns one session's cumulative token usage + cost, summed over
-// its finished runs (usage.session).
+// SessionUsage projects the application-owned session usage report onto the
+// usage.session wire contract.
 func (s *Server) SessionUsage(ctx context.Context, sessionID string) (*protocol.Usage, error) {
-	runs, err := s.queries.ListTranscriptRuns(ctx, sessionID)
+	report, err := s.usage.Session(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	total := usageAcc{}
-	byModel := map[string]*usageAcc{}
-	for _, r := range runs {
-		foldRunUsage(r, time.Time{}, s.models.DefaultProvider(), s.models.DefaultModel(), &total, nil, byModel, nil)
-	}
-	out := &protocol.Usage{ModelUsage: total.modelUsage()}
-	if len(byModel) > 0 {
-		out.ByModel = make(map[string]protocol.ModelUsage, len(byModel))
-		for k, v := range byModel {
-			out.ByModel[k] = v.modelUsage()
-		}
-	}
-	return out, nil
+	return sessionUsageWire(report), nil
 }
 
-// UsageSummary returns a cross-session spend report (usage.summary). It iterates
-// the user-facing sessions (session.List excludes sub-agent children, so a
-// parent's subtree-aggregated runs aren't double-counted against the children's
-// own run records) and folds each one's finished runs.
+// UsageSummary projects the application-owned aggregate usage report onto the
+// usage.summary wire contract.
 func (s *Server) UsageSummary(ctx context.Context, in protocol.UsageSummaryRequest) (*protocol.UsageSummary, error) {
-	sessions, err := s.sessions.List(ctx)
+	report, err := s.usage.Summary(ctx, in.SinceDays)
 	if err != nil {
 		return nil, err
 	}
-	var since time.Time
-	if in.SinceDays > 0 {
-		since = time.Now().UTC().AddDate(0, 0, -in.SinceDays)
-	}
-
-	total := usageAcc{}
-	byProvider := map[string]*usageAcc{}
-	byModel := map[string]*usageAcc{}
-	byDay := map[string]*usageAcc{}
-	sessionCount := 0
-	for _, sess := range sessions {
-		runs, lerr := s.queries.ListTranscriptRuns(ctx, sess.ID)
-		if lerr != nil {
-			return nil, lerr
-		}
-		before := total.runs
-		for _, r := range runs {
-			foldRunUsage(r, since, s.models.DefaultProvider(), s.models.DefaultModel(), &total, byProvider, byModel, byDay)
-		}
-		if total.runs > before {
-			sessionCount++
-		}
-	}
-
 	return &protocol.UsageSummary{
-		Total:      total.modelUsage(),
-		ByProvider: bucketsBySpend(byProvider),
-		ByModel:    bucketsBySpend(byModel),
-		ByDay:      bucketsByKey(byDay),
-		Sessions:   sessionCount,
-		Runs:       total.runs,
+		Total:      usageWire(report.Total),
+		ByProvider: usageBucketsWire(report.ByProvider),
+		ByModel:    usageBucketsWire(report.ByModel),
+		ByDay:      usageBucketsWire(report.ByDay),
+		Sessions:   report.Sessions,
+		Runs:       report.Runs,
 	}, nil
 }
 
-// foldRunUsage folds one canonical run's terminal usage into the
-// supplied accumulators. The grouped maps (byProvider/byModel/byDay) are
-// optional — pass nil to skip (usage.session wants only total + byModel). since
-// (when non-zero) drops runs finished before it. defProvider / defModel attribute
-// default-model runs (whose RunRef carries no provider/model). Pure (no Server
-// receiver) so the aggregation is unit-testable from crafted domain values.
-func foldRunUsage(run transcript.Run, since time.Time, defProvider, defModel string, total *usageAcc, byProvider, byModel, byDay map[string]*usageAcc) {
-	if !run.State.IsTerminal() || run.Result == nil || run.Result.Usage == nil {
-		return
-	}
-	if !since.IsZero() && !run.FinishedAt.IsZero() && run.FinishedAt.Before(since) {
-		return
-	}
-	u := run.Result.Usage
-	totalUsage := presentModelUsage(u.ModelUsage)
-
-	if total != nil {
-		total.add(totalUsage)
-		total.runs++
-	}
-	if byProvider != nil {
-		b := accFor(byProvider, cmp.Or(run.Provider, defProvider, "unknown"))
-		b.add(totalUsage)
-		b.runs++
-	}
-	if byDay != nil && !run.FinishedAt.IsZero() {
-		b := accFor(byDay, run.FinishedAt.UTC().Format(time.DateOnly))
-		b.add(totalUsage)
-		b.runs++
-	}
-	if byModel != nil {
-		// Prefer the run's own per-model split (captures utility / sub-agent
-		// models); fall back to the headline model when the run reports no split.
-		if len(u.ByModel) > 0 {
-			for name, mu := range u.ByModel {
-				b := accFor(byModel, name)
-				b.add(presentModelUsage(mu))
-				b.runs++
-			}
-		} else {
-			b := accFor(byModel, cmp.Or(run.Model, defModel, "unknown"))
-			b.add(totalUsage)
-			b.runs++
+func sessionUsageWire(report usage.SessionReport) *protocol.Usage {
+	out := &protocol.Usage{ModelUsage: usageWire(report.Total)}
+	if len(report.ByModel) > 0 {
+		out.ByModel = make(map[string]protocol.ModelUsage, len(report.ByModel))
+		for model, modelUsage := range report.ByModel {
+			out.ByModel[model] = usageWire(modelUsage)
 		}
 	}
+	return out
 }
 
-// usageAcc accumulates token counts plus an optional cost (cost stays absent
-// until a priced run contributes, mirroring ModelUsage.CostUSD's omit-when-
-// unpriced contract — never faked to 0) and the run tally.
-type usageAcc struct {
-	tok     protocol.ModelUsage
-	cost    float64
-	hasCost bool
-	runs    int
-}
-
-func (a *usageAcc) add(m protocol.ModelUsage) {
-	a.tok.InputTokens += m.InputTokens
-	a.tok.OutputTokens += m.OutputTokens
-	a.tok.CacheReadTokens += m.CacheReadTokens
-	a.tok.CacheWriteTokens += m.CacheWriteTokens
-	a.tok.ReasoningTokens += m.ReasoningTokens
-	if m.CostUSD != nil {
-		a.cost += *m.CostUSD
-		a.hasCost = true
-	}
-}
-
-func (a usageAcc) modelUsage() protocol.ModelUsage {
-	out := a.tok
-	if a.hasCost {
-		c := a.cost
-		out.CostUSD = &c
+func usageBucketsWire(buckets []usage.Bucket) []protocol.UsageBucket {
+	out := make([]protocol.UsageBucket, 0, len(buckets))
+	for _, bucket := range buckets {
+		out = append(out, protocol.UsageBucket{Key: bucket.Key, ModelUsage: usageWire(bucket.Usage), Runs: bucket.Runs})
 	}
 	return out
 }
 
-func accFor(m map[string]*usageAcc, key string) *usageAcc {
-	a := m[key]
-	if a == nil {
-		a = &usageAcc{}
-		m[key] = a
+func usageWire(usage usage.ModelUsage) protocol.ModelUsage {
+	return protocol.ModelUsage{
+		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens,
+		CacheReadTokens: usage.CacheReadTokens, CacheWriteTokens: usage.CacheWriteTokens,
+		ReasoningTokens: usage.ReasoningTokens, CostUSD: usage.CostUSD,
 	}
-	return a
-}
-
-// bucketsBySpend renders a key→acc map as wire buckets, sorted by cost desc then
-// input tokens desc — the spend-ranked order a dashboard wants.
-func bucketsBySpend(m map[string]*usageAcc) []protocol.UsageBucket {
-	out := bucketsOf(m)
-	slices.SortFunc(out, func(a, b protocol.UsageBucket) int {
-		return cmp.Or(
-			cmp.Compare(costOf(b.CostUSD), costOf(a.CostUSD)), // cost desc
-			cmp.Compare(b.InputTokens, a.InputTokens),         // then input tokens desc
-		)
-	})
-	return out
-}
-
-// bucketsByKey renders buckets sorted by key ascending (chronological for days).
-func bucketsByKey(m map[string]*usageAcc) []protocol.UsageBucket {
-	out := bucketsOf(m)
-	slices.SortFunc(out, func(a, b protocol.UsageBucket) int { return cmp.Compare(a.Key, b.Key) })
-	return out
-}
-
-func bucketsOf(m map[string]*usageAcc) []protocol.UsageBucket {
-	out := make([]protocol.UsageBucket, 0, len(m))
-	for k, v := range m {
-		out = append(out, protocol.UsageBucket{Key: k, ModelUsage: v.modelUsage(), Runs: v.runs})
-	}
-	return out
-}
-
-func costOf(p *float64) float64 {
-	if p == nil {
-		return 0
-	}
-	return *p
 }

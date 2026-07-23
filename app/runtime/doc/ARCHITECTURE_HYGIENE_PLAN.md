@@ -157,6 +157,30 @@ Acceptance:
 - Relevant concurrency packages pass `go test -race`.
 - Architecture tests fail when any removed leak is reintroduced.
 
+### Batch 6 — Semantic boundary closure
+
+Status: **Completed**
+
+Scope:
+
+- Move durable usage aggregation out of Delivery into `application/usage`.
+- Move workspace path confinement, file/Git reads, project aggregation, and
+  instruction-document discovery behind focused `application/workspace` ports.
+- Make Bootstrap the sole owner of Delivery's application collaborator wiring
+  and environment capability probe.
+- Rename delegated-session continuation metadata and its SQLite column so the
+  Session domain no longer carries an agent-framework-shaped abstraction name.
+
+Acceptance:
+
+- Production Delivery imports no workspace or prompt-source adapter and does
+  not construct application coordinators.
+- Usage and workspace policies are expressed with application values, never
+  protocol DTOs.
+- Domain session continuation metadata is product-neutral and adapter mapping to
+  framework metadata happens only in Bootstrap.
+- Architecture tests fail if the removed Delivery bypasses return.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -166,6 +190,7 @@ Acceptance:
 | 3. Model/provider policy ownership | Completed | 2026-07-23 | 2026-07-23 | `go test -race ./internal/application/models ./internal/delivery/server ./internal/bootstrap`; `go vet ./...`; `go test ./...`; `go test ./internal/arch`. |
 | 4. Abstraction and boundary cleanup | Completed | 2026-07-23 | 2026-07-23 | Full build, vet, test, focused race suites, and architecture tests passed after dispatcher, registry, HITL, and suspension cleanup. |
 | 5. Fitness tests and final verification | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, relevant race suites, and expanded semantic architecture tests passed. |
+| 6. Semantic boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, test; `go test ./internal/arch`; Delivery adapter-import and construction ownership checks. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -250,6 +275,24 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - `go build ./...`, `go vet ./...`, `go test ./...`, the corresponding
   `GOWORK=off` commands, and race tests for the lifecycle-critical packages all
   passed.
+
+### 2026-07-23 — Batch 6 completed
+
+- `application/usage.Reporter` now owns durable run-metering aggregation;
+  Delivery only maps its neutral report values to `usage.*` protocol DTOs.
+- `application/workspace` owns effective-cwd resolution, path confinement,
+  filesystem/Git browsing, project aggregation, and instruction-document
+  discovery through narrow consumer-side ports. Delivery imports no concrete
+  workspace or prompt-source adapter.
+- Bootstrap supplies every application coordinator and the Git capability
+  snapshot; `delivery/server.New` no longer creates disabled application
+  coordinators or probes the process environment.
+- Delegated-session continuation metadata is now `DelegationMetadata`; the
+  agent/core JSON translation is confined to `bootstrap/child_session_store`,
+  and SQLite persists it in `delegation_metadata`.
+- Official OpenTelemetry API use within Application remains intentionally
+  allowed by the repository boundary policy, so no speculative telemetry port
+  was introduced.
 
 ## 8. Completion definition
 

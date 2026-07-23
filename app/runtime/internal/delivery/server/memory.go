@@ -14,13 +14,9 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery)
 	if !s.workspace.HasMemory() {
 		return protocol.NewPage([]protocol.MemoryEntry{}), nil
 	}
-	root, err := s.workspaceRoot(in.Cwd)
+	entries, err := s.workspace.ListMemoryEntries(ctx, in.Cwd)
 	if err != nil {
-		return nil, err
-	}
-	entries, err := s.workspace.ListMemoryEntries(ctx, root)
-	if err != nil {
-		return nil, err
+		return nil, wireWorkspaceError(err)
 	}
 	out := make([]protocol.MemoryEntry, 0, len(entries))
 	for _, e := range entries {
@@ -45,7 +41,7 @@ func (s *Server) GetMemory(ctx context.Context, in protocol.GetMemoryRequest) (*
 	}
 	content, err := s.workspace.Memory(ctx, scope, cwd)
 	if err != nil {
-		return nil, err
+		return nil, wireWorkspaceError(err)
 	}
 	return &protocol.MemoryEntry{Scope: in.Scope, Content: content}, nil
 }
@@ -58,7 +54,7 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	if err != nil {
 		return err
 	}
-	return s.workspace.UpdateMemory(ctx, scope, cwd, in.Content)
+	return wireWorkspaceError(s.workspace.UpdateMemory(ctx, scope, cwd, in.Content))
 }
 
 // memScopeToWire / memScopeFromWire bridge the protocol string enum and
@@ -84,9 +80,5 @@ func (s *Server) memoryTargetFromWire(scope protocol.MemoryScope, cwd string) (k
 	if target == knowledge.ScopeUser {
 		return target, "", nil
 	}
-	root, err := s.workspaceRoot(cwd)
-	if err != nil {
-		return target, "", err
-	}
-	return target, root, nil
+	return target, cwd, nil
 }

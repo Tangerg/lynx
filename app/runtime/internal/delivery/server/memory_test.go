@@ -49,7 +49,7 @@ func (s *fakeMemoryStore) Update(_ context.Context, scope knowledge.Scope, cwd s
 // store (nil store → the disabled memory path).
 func serverWithMemory(store knowledge.Store) *Server {
 	s := newTestServer(&stubRuntime{})
-	s.workspace = workspaceapp.New(workspaceapp.Config{Memory: store})
+	s.workspace = newWorkspaceCoordinator("", workspaceapp.Config{Memory: store})
 	return s
 }
 

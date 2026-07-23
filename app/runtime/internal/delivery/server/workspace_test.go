@@ -2,100 +2,32 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	workspaceadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-// TestProjectsFromSessions: distinct cwds collapse to one project each,
-// session-counted, lastActiveAt = newest session, ordered newest-first;
-// empty-cwd sessions are dropped.
-func TestProjectsFromSessions(t *testing.T) {
-	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
-	sessions := []session.Session{
-		{ID: "s1", Cwd: "/a/proj", UpdatedAt: t0},
-		{ID: "s2", Cwd: "/a/proj", UpdatedAt: t0.Add(2 * time.Hour)}, // newer in /a/proj
-		{ID: "s3", Cwd: "/b/other", UpdatedAt: t0.Add(time.Hour)},
-		{ID: "s4", Cwd: "", UpdatedAt: t0}, // no cwd → dropped
-	}
-
-	got := projectsFromSessions(sessions)
-	if len(got) != 2 {
-		t.Fatalf("projects = %d, want 2 (empty-cwd dropped)", len(got))
-	}
-	// newest-active first: /a/proj (t0+2h) before /b/other (t0+1h)
-	if got[0].Cwd != "/a/proj" || got[0].Name != "proj" || got[0].SessionCount != 2 {
-		t.Fatalf("got[0] = %+v, want /a/proj name=proj count=2", got[0])
-	}
-	if !got[0].LastActiveAt.Equal(t0.Add(2 * time.Hour)) {
-		t.Fatalf("got[0].LastActiveAt = %v, want newest session time", got[0].LastActiveAt)
-	}
-	if got[1].Cwd != "/b/other" || got[1].SessionCount != 1 {
-		t.Fatalf("got[1] = %+v, want /b/other count=1", got[1])
-	}
+func newWorkspaceCoordinator(cwd string, cfg workspaceapp.Config) *workspaceapp.Coordinator {
+	cfg.DefaultCwd = cwd
+	cfg.Home = cwd
+	cfg.Paths = workspacepath.Resolver{}
+	cfg.Files = workspaceadapter.Reads{}
+	cfg.Git = workspaceadapter.VCS{}
+	return workspaceapp.New(cfg)
 }
 
-// TestResolveInRoot pins the path-jail: in-root paths resolve relative to
-// root; anything climbing out (or an absolute path elsewhere) is rejected.
-func TestResolveInRoot(t *testing.T) {
-	root := "/work/proj"
-	ok := []struct{ in, want string }{
-		{"main.go", "main.go"},
-		{"pkg/util.go", "pkg/util.go"},
-		{"./a/../b.go", "b.go"},
-		{"/work/proj/sub/x.go", "sub/x.go"}, // absolute but inside root
-	}
-	for _, c := range ok {
-		got, err := resolveInRoot(root, c.in)
-		if err != nil || got != c.want {
-			t.Errorf("resolveInRoot(%q) = (%q, %v), want (%q, nil)", c.in, got, err, c.want)
-		}
-	}
-	bad := []string{"../escape.go", "../../etc/passwd", "/etc/passwd", "sub/../../out.go"}
-	for _, p := range bad {
-		if _, err := resolveInRoot(root, p); !errors.Is(err, protocol.ErrPathOutsideRoot) {
-			t.Errorf("resolveInRoot(%q) err = %v, want ErrPathOutsideRoot", p, err)
-		}
-	}
-	if _, err := resolveInRoot(root, ""); !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Errorf("resolveInRoot(\"\") err = %v, want ErrInvalidParams", err)
-	}
-}
-
-func TestResolveExistingInRootRejectsSymlinkEscape(t *testing.T) {
-	root := t.TempDir()
-	outside := t.TempDir()
-
-	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	escape := filepath.Join(root, "escape.txt")
-	if err := os.Symlink(filepath.Join(outside, "secret.txt"), escape); err != nil {
-		t.Skipf("symlink unsupported: %v", err)
-	}
-	if _, err := resolveExistingInRoot(root, "escape.txt"); !errors.Is(err, protocol.ErrPathOutsideRoot) {
-		t.Fatalf("resolveExistingInRoot(symlink escape) err = %v, want ErrPathOutsideRoot", err)
-	}
-
-	if err := os.WriteFile(filepath.Join(root, "inside.txt"), []byte("inside"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	inside := filepath.Join(root, "inside-link.txt")
-	if err := os.Symlink(filepath.Join(root, "inside.txt"), inside); err != nil {
-		t.Skipf("symlink unsupported: %v", err)
-	}
-	got, err := resolveExistingInRoot(root, "inside-link.txt")
-	if err != nil || got != "inside-link.txt" {
-		t.Fatalf("resolveExistingInRoot(inside symlink) = (%q, %v), want inside-link.txt", got, err)
-	}
+func newWorkspaceServer(cwd string) *Server {
+	return &Server{workspace: newWorkspaceCoordinator(cwd, workspaceapp.Config{})}
 }
 
 // TestWorkspaceGetFileHead reads the first N lines of a cwd-relative file,
@@ -105,7 +37,7 @@ func TestWorkspaceGetFileHead(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\nc\nd\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 
 	got, err := s.WorkspaceGetFileHead(context.Background(), protocol.GetFileHeadRequest{Path: "f.txt", Lines: 2})
 	if err != nil {
@@ -129,7 +61,7 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 
 	first, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{Recursive: true, PageQuery: protocol.PageQuery{Limit: 2}})
 	if err != nil {
@@ -137,6 +69,9 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	}
 	if len(first.Data) != 2 || first.NextCursor == "" {
 		t.Fatalf("first page = %+v, want two entries and a cursor", first)
+	}
+	if _, err := base64.RawURLEncoding.DecodeString(first.NextCursor); err != nil {
+		t.Fatalf("cursor = %q, want opaque base64 key: %v", first.NextCursor, err)
 	}
 	if first.Data[0].Type != protocol.FileEntryFile || first.Data[0].SizeBytes == nil || *first.Data[0].SizeBytes == 0 || first.Data[0].ModifiedAt == "" {
 		t.Fatalf("entry is not fully inspected: %+v", first.Data[0])
@@ -157,6 +92,18 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	if len(second.Data) != 1 || second.Data[0].Path != "c.txt" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want c.txt and no cursor", second)
 	}
+	if _, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+		Recursive: true,
+		PageQuery: protocol.PageQuery{Limit: -1},
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("negative limit error = %v, want invalid_params", err)
+	}
+	if _, err := s.WorkspaceListFiles(context.Background(), protocol.ListFilesRequest{
+		Recursive: true,
+		PageQuery: protocol.PageQuery{Cursor: "!", Limit: 1},
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("invalid cursor error = %v, want invalid_params", err)
+	}
 }
 
 func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
@@ -168,7 +115,7 @@ func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {
 	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(root, "leak.txt")); err != nil {
 		t.Skipf("symlink unsupported: %v", err)
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: root}}
+	s := newWorkspaceServer(root)
 
 	if _, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "leak.txt"}); !errors.Is(err, protocol.ErrPathOutsideRoot) {
 		t.Fatalf("read symlink escape err = %v, want ErrPathOutsideRoot", err)
@@ -183,7 +130,7 @@ func TestWorkspaceReadFileWindowAndMaxBytes(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "long.txt"), []byte("abcdef"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 
 	got, err := s.WorkspaceReadFile(context.Background(), protocol.ReadFileRequest{Path: "f.txt", StartLine: 2, EndLine: 3})
 	if err != nil {
@@ -207,7 +154,7 @@ func TestWorkspaceReadFileRejectsInvalidRange(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "f.txt"), []byte("a\nb\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 
 	cases := []protocol.ReadFileRequest{
 		{Path: "f.txt", StartLine: -1},
@@ -236,7 +183,7 @@ func TestWorkspaceGrep(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 
 	if _, err := s.WorkspaceGrep(context.Background(), protocol.GrepRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Errorf("empty query err = %v, want ErrInvalidParams", err)
@@ -272,11 +219,10 @@ func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		workspace: workspaceapp.New(workspaceapp.Config{Skills: fakeSkillCatalog{skills: []skills.Info{
+		workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{Skills: fakeSkillCatalog{skills: []skills.Info{
 			{Name: "pdf", Description: "PDF tools", Scope: "project"},
 			{Name: "web", Description: "web tools", Scope: "global"},
 		}}}),
-		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
@@ -292,11 +238,10 @@ func TestWorkspaceListSkills(t *testing.T) {
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
 	s := &Server{
-		workspace: workspaceapp.New(workspaceapp.Config{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
+		workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
 			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
 			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
 		}}}),
-		serverInfo: protocol.ServerInfo{Cwd: dir},
 	}
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
@@ -387,25 +332,8 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 }
 
 // TestAgentDocScope pins the cwd→home cascade classification.
-func TestAgentDocScope(t *testing.T) {
-	cwd, home := "/Users/x/proj", "/Users/x"
-	cases := []struct {
-		path, want string
-	}{
-		{"/Users/x/proj/AGENTS.md", "cwd"},
-		{"/Users/x/proj/pkg/AGENTS.md", "cwd"},
-		{"/Users/x/AGENTS.md", "home"},
-		{"/Users/x/mid/AGENTS.md", "projectRoot"}, // ancestor between cwd and home
-	}
-	for _, c := range cases {
-		if got := agentDocScope(c.path, cwd, home); got != c.want {
-			t.Errorf("agentDocScope(%q) = %q, want %q", c.path, got, c.want)
-		}
-	}
-}
-
 func TestWorkspaceListAgentDocsRejectsUnavailableCwd(t *testing.T) {
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}}
+	s := newWorkspaceServer(t.TempDir())
 	missing := filepath.Join(t.TempDir(), "missing")
 
 	_, err := s.WorkspaceListAgentDocs(context.Background(), protocol.WorkspaceListQuery{

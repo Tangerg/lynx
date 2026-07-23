@@ -73,7 +73,7 @@ func installCurrentSchema(db *sql.DB) error {
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			agent_annotations TEXT NOT NULL DEFAULT '{}',
+			delegation_metadata TEXT NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0,

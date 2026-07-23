@@ -71,6 +71,13 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, 
 	return d.files, nil
 }
 
+// AgentDocs adapts prompt-source discovery to the workspace application port.
+type AgentDocs struct{}
+
+func (AgentDocs) DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, error) {
+	return DiscoverAgentDocs(ctx, cwd, home)
+}
+
 // agentDocScan carries the de-dup state across the walk. Methods return the ctx
 // error and nothing else — file-stat failures and empty files are silently
 // skipped per the best-effort policy.
