@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -45,6 +46,27 @@ func (c *Coordinator) MCPServerStatuses() []mcpserver.ConnectionStatus {
 // MCPRegisteredServer returns one persisted MCP-server registry entry.
 func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
 	return c.mcpRegistry.Get(ctx, name)
+}
+
+// ResolveMCPServerConfiguration applies the registry-owned credential policy to
+// an editable server candidate. An omitted HTTP Authorization retains a stored
+// token only when the transport and origin remain unchanged; credentials must
+// never silently cross to a different endpoint. Delivery supplies a candidate
+// and never reads a secret to implement this policy itself.
+func (c *Coordinator) ResolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error) {
+	if candidate.Authorization != "" || candidate.Name == "" || c.mcpRegistry == nil {
+		return candidate, nil
+	}
+	current, found, err := c.mcpRegistry.Get(ctx, candidate.Name)
+	if err != nil || !found {
+		return candidate, err
+	}
+	if current.Transport == mcpserver.TransportStreamableHTTP &&
+		candidate.Transport == mcpserver.TransportStreamableHTTP &&
+		httporigin.Same(current.URL, candidate.URL) {
+		candidate.Authorization = current.Authorization
+	}
+	return candidate, nil
 }
 
 // ReconnectMCPServer re-dials a configured MCP server and hot-swaps the live tool
@@ -192,6 +214,7 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, srv mcpserver.Serv
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
 		return err
 	}
+	c.notifyMCPStatus(ownerCtx, srv.Name, false)
 	if srv.Enabled {
 		c.redialMCPServer(ownerCtx, srv)
 	}
@@ -217,7 +240,11 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 	if c.mcpRegistryCommands != nil {
 		c.mcpRegistryCommands.Remove(reconcileCtx, name)
 	}
-	return c.refreshMCPToolPolicy(reconcileCtx)
+	if err := c.refreshMCPToolPolicy(reconcileCtx); err != nil {
+		return err
+	}
+	c.notifyMCPStatus(ownerCtx, name, false)
+	return nil
 }
 
 // SetMCPServerEnabled flips a server's enablement in the registry and applies it
@@ -243,6 +270,7 @@ func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enab
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
 		return err
 	}
+	c.notifyMCPStatus(ownerCtx, srv.Name, false)
 	if srv.Enabled {
 		c.redialMCPServer(ownerCtx, srv)
 	}

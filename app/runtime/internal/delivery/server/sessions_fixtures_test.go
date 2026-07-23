@@ -139,6 +139,18 @@ func newTestServer(rt testRuntime) *Server {
 	return s
 }
 
+// testRunCoordinator exposes the concrete lifecycle owner only to tests that
+// deliberately arrange an admission or inspect its registry. Production
+// Delivery receives the narrow runUseCases port and cannot use these probes.
+func testRunCoordinator(t testing.TB, s *Server) *runs.Coordinator {
+	t.Helper()
+	coordinator, ok := s.coordinator.(*runs.Coordinator)
+	if !ok {
+		t.Fatalf("run coordinator = %T, want *runs.Coordinator", s.coordinator)
+	}
+	return coordinator
+}
+
 // serverWithModels builds a Server whose only wired coordinator is the models one
 // — enough for the providers / models handler tests.
 func serverWithModels(cfg models.Config) *Server {

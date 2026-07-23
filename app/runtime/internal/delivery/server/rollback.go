@@ -49,7 +49,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 			out = append(out, protocol.DroppedRun{Run: presentRun(dropped.Run), UserInput: input})
 		}
 	}
-	status, err := s.liveStatus(ctx, result.Session.ID)
+	status, err := s.sessionStatus(ctx, result.Session.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,14 +58,6 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return nil, err
 	}
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
-}
-
-// RecoverRollbacks re-drives any file rollback a crash left unfinished (§8.5),
-// re-restoring the working tree + re-applying the durable truncation for each
-// logged intent. Called once at boot before the server serves, so no run
-// contends. The coordinator resolves canonical transcript boundaries itself.
-func (s *Server) RecoverRollbacks(ctx context.Context) error {
-	return s.sessions.RecoverWorkspaceMutations(ctx)
 }
 
 // wireRollbackErr maps the rollback coordinator's sentinels onto their wire

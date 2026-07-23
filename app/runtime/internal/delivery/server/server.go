@@ -68,6 +68,11 @@ type Config struct {
 	// nil in tests that don't exercise the MCP status stream.
 	MCPStatus MCPStatusSource
 
+	// SkillChanges is the composition-root bridge the workspace skills use case
+	// publishes after a committed library change; the Server maps the nudge to a
+	// skills.changed workspace event. Nil in tests that do not exercise it.
+	SkillChanges SkillChangeSource
+
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
 	// name, since the protocol is consumed by arbitrary clients and the
@@ -204,6 +209,12 @@ type MCPStatusSource interface {
 	Observe(sink func(ctx context.Context, server string, connecting bool))
 }
 
+// SkillChangeSource is the delivery-side view of committed skill-library
+// changes. Its one observer refreshes clients through the workspace event hub.
+type SkillChangeSource interface {
+	Observe(sink func())
+}
+
 // ScheduleFireSource is the delivery-side view of accepted scheduled-run
 // notifications. Its one observer receives a schedule id after the application
 // runner admitted the corresponding Run.
@@ -305,6 +316,9 @@ func New(cfg Config) (*Server, error) {
 	// bridge, mapped to mcp.serverChanged frames.
 	if cfg.MCPStatus != nil {
 		srv.observeMCPStatus(cfg.MCPStatus)
+	}
+	if cfg.SkillChanges != nil {
+		srv.observeSkillChanges(cfg.SkillChanges)
 	}
 	if cfg.ScheduleFires != nil {
 		srv.observeScheduleFires(cfg.ScheduleFires)

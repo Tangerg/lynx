@@ -163,17 +163,17 @@ func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string,
 	return c.goals.WithSessionMutation(ctx, sessionIDs, apply)
 }
 
-// RestoreSession recreates a session under its ORIGINAL id from a decoded
-// artifact and replaces its whole history as one atomic write-set (§8.1): it
+// RestoreSession recreates a session under its ORIGINAL id from one validated
+// canonical snapshot and replaces its whole history as one atomic write-set (§8.1): it
 // upserts the session record, clears the old interrupts / admission rows /
 // transcript / chat log, then re-seeds the messages, runs, and items. Without
 // the single transaction a mid-sequence failure (after the destructive clear)
 // would leave the session row live but its history half-destroyed.
 //
-// The caller decodes the wire artifact into these domain values. Restore owns
-// the Session admission boundary (including rejection of an open interrupt),
-// then resolves Cwd exactly as Create and Update do before committing the
-// decoded aggregate.
+// Restore owns the Session admission boundary (including rejection of an open
+// interrupt), then resolves Cwd exactly as Create and Update do before
+// committing the aggregate. It validates regardless of caller, so correctness
+// never depends on a particular protocol adapter.
 func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) error {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {
@@ -207,6 +207,17 @@ func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) err
 		}
 	}
 	return nil
+}
+
+// RestorePortableSession rebuilds and restores one transport-neutral archive.
+// Archive decoding belongs to adapters; aggregate reconstruction and invariant
+// enforcement belong here with the restore use case.
+func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) error {
+	snapshot, err := portable.CanonicalSnapshot()
+	if err != nil {
+		return err
+	}
+	return c.RestoreSession(ctx, snapshot)
 }
 
 // subtaskSessionsAfter resolves the internal subtask subtrees a rollback must

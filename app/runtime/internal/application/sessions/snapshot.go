@@ -65,6 +65,12 @@ func (snapshot Snapshot) Validate() error {
 		if run.Result.Steps < 0 || run.Result.Duration < 0 {
 			return fmt.Errorf("sessions: snapshot run %q has negative result accounting", run.ID)
 		}
+		if err := validateSnapshotUsage(run.Result.Usage); err != nil {
+			return fmt.Errorf("sessions: snapshot run %q usage: %w", run.ID, err)
+		}
+		if err := validateSnapshotProblem(run.Result.Error, transcript.RunProblem); err != nil {
+			return fmt.Errorf("sessions: snapshot run %q problem: %w", run.ID, err)
+		}
 		if run.MessageMark < 0 || run.MessageMark > len(snapshot.Messages) {
 			return fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID, run.MessageMark)
 		}
@@ -92,8 +98,14 @@ func (snapshot Snapshot) Validate() error {
 		if item.Error != nil && (item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete) {
 			return fmt.Errorf("sessions: snapshot item %q has an invalid tool error", item.ID)
 		}
+		if err := validateSnapshotItem(item); err != nil {
+			return fmt.Errorf("sessions: snapshot item %q: %w", item.ID, err)
+		}
 	}
-	return validateSnapshotRunTree(snapshot.Runs, items)
+	if err := validateSnapshotRunTree(snapshot.Runs, items); err != nil {
+		return err
+	}
+	return snapshot.ValidateToolResults()
 }
 
 func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.Item) error {

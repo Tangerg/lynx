@@ -173,35 +173,158 @@ type ExportSessionResponse struct {
 // SessionArtifactVersion is the artifact schema version. Import rejects an
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
-const SessionArtifactVersion = 5
+const SessionArtifactVersion = 6
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
 // items + runs (the UI transcript), and any structurally bound full tool-result
 // bodies. Offloaded item DTOs carry only their bounded preview; ToolResults is
-// their single full-body source. Messages remain opaque chat.Message values;
-// items and runs are explicit protocol DTOs. Runs are terminal-only: live and
+// their single full-body source. Messages remain opaque chat.Message values.
+//
+// Artifact records intentionally do not reuse the live Session, RunRef, or
+// Item response DTOs. A live response includes process-local and derived
+// presentation state (for example status and workspace inspection), while an
+// artifact is a durable input document. Runs are terminal-only: live and
 // interrupted executor state is process-local and is therefore not portable.
 type SessionArtifact struct {
 	Version     int                  `json:"version"`
-	Session     Session              `json:"session"`
+	Session     ArtifactSession      `json:"session"`
 	Messages    []json.RawMessage    `json:"messages"`
 	Runs        []ArtifactRun        `json:"runs"`
 	Items       []ArtifactItem       `json:"items"`
 	ToolResults []ArtifactToolResult `json:"toolResults"`
 }
 
-// ArtifactRun is one run record plus the storage-side fields not carried by
-// RunRef.
-type ArtifactRun struct {
-	UpdatedAt   time.Time `json:"updatedAt"`
-	MessageMark int       `json:"messageMark"`
-	Run         RunRef    `json:"run"`
+// ArtifactSession is the durable session identity and user-owned metadata. It
+// deliberately excludes live status, revision, and workspace-derived fields.
+type ArtifactSession struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Cwd       string    `json:"cwd"`
+	Model     string    `json:"model"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Favorite  bool      `json:"favorite,omitempty"`
 }
 
-// ArtifactItem is one canonical item projection in a SessionArtifact.
+// ArtifactRun is the durable terminal record of one run. Outcome is stored as
+// the portable terminal fact; the application reconstructs the derived run
+// state when restoring it.
+type ArtifactRun struct {
+	ID              string          `json:"id"`
+	SessionID       string          `json:"sessionId"`
+	SpawnedByItemID string          `json:"spawnedByItemId,omitempty"`
+	Provider        string          `json:"provider,omitempty"`
+	Model           string          `json:"model,omitempty"`
+	Outcome         ArtifactOutcome `json:"outcome"`
+	CreatedAt       time.Time       `json:"createdAt"`
+	FinishedAt      time.Time       `json:"finishedAt"`
+	UpdatedAt       time.Time       `json:"updatedAt"`
+	MessageMark     int             `json:"messageMark"`
+}
+
+// ArtifactOutcome is a non-interrupt terminal fact. Its string discriminator
+// is intentionally independent from the live RunOutcome wire union.
+type ArtifactOutcome struct {
+	Type   string             `json:"type"`
+	Result *ArtifactRunResult `json:"result"`
+	Detail string             `json:"detail,omitempty"`
+}
+
+type ArtifactRunResult struct {
+	Usage      *ArtifactUsage   `json:"usage,omitempty"`
+	Steps      int              `json:"steps"`
+	Error      *ArtifactProblem `json:"error,omitempty"`
+	DurationMs int              `json:"durationMs,omitempty"`
+}
+
+type ArtifactUsage struct {
+	InputTokens      int64                         `json:"inputTokens,omitempty"`
+	OutputTokens     int64                         `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64                         `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64                         `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64                         `json:"reasoningTokens,omitempty"`
+	CostUSD          *float64                      `json:"costUsd,omitempty"`
+	ByModel          map[string]ArtifactModelUsage `json:"byModel,omitempty"`
+}
+
+type ArtifactModelUsage struct {
+	InputTokens      int64    `json:"inputTokens,omitempty"`
+	OutputTokens     int64    `json:"outputTokens,omitempty"`
+	CacheReadTokens  int64    `json:"cacheReadTokens,omitempty"`
+	CacheWriteTokens int64    `json:"cacheWriteTokens,omitempty"`
+	ReasoningTokens  int64    `json:"reasoningTokens,omitempty"`
+	CostUSD          *float64 `json:"costUsd,omitempty"`
+}
+
+// ArtifactItem is the durable transcript representation. It is not the live
+// Item response DTO: archive tool results remain canonical rather than being
+// transformed for a particular client presentation.
 type ArtifactItem struct {
-	Item Item `json:"item"`
+	ID        string    `json:"id"`
+	RunID     string    `json:"runId"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+	Type      string    `json:"type"`
+
+	Content         []ArtifactContentBlock  `json:"content,omitempty"`
+	Text            string                  `json:"text,omitempty"`
+	Redacted        bool                    `json:"redacted,omitempty"`
+	Steps           []ArtifactPlanStep      `json:"steps,omitempty"`
+	Question        *ArtifactQuestion       `json:"question,omitempty"`
+	Tool            *ArtifactToolInvocation `json:"tool,omitempty"`
+	SafetyClass     string                  `json:"safetyClass,omitempty"`
+	Error           *ArtifactProblem        `json:"error,omitempty"`
+	Summary         string                  `json:"summary,omitempty"`
+	DroppedMessages int                     `json:"droppedMessages,omitempty"`
+}
+
+type ArtifactContentBlock struct {
+	Type string `json:"type"`
+	Text string `json:"text,omitempty"`
+	Mime string `json:"mime,omitempty"`
+	Data string `json:"data,omitempty"`
+}
+
+type ArtifactPlanStep struct {
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Status string `json:"status"`
+}
+
+type ArtifactQuestion struct {
+	Prompt string                  `json:"prompt"`
+	Fields []ArtifactQuestionField `json:"fields"`
+}
+
+type ArtifactQuestionField struct {
+	Name     string                   `json:"name"`
+	Label    string                   `json:"label"`
+	Header   string                   `json:"header,omitempty"`
+	Required bool                     `json:"required,omitempty"`
+	Type     string                   `json:"type"`
+	Options  []ArtifactQuestionOption `json:"options,omitempty"`
+	Multiple bool                     `json:"multiple,omitempty"`
+}
+
+type ArtifactQuestionOption struct {
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Preview     string `json:"preview,omitempty"`
+}
+
+type ArtifactToolInvocation struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+	Result    any            `json:"result,omitempty"`
+}
+
+type ArtifactProblem struct {
+	Type              string `json:"type"`
+	Detail            string `json:"detail,omitempty"`
+	DocURL            string `json:"docUrl,omitempty"`
+	Retryable         bool   `json:"retryable,omitempty"`
+	RetryAfterSeconds int    `json:"retryAfterSeconds,omitempty"`
 }
 
 // ArtifactToolResult carries the single full-body source for an offloaded tool

@@ -17,9 +17,13 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err := c.requireUseCaseDependencies(); err != nil {
 		return StartResult{}, err
 	}
+	message, media, openingUserText, err := cmd.MaterializeInput()
+	if err != nil {
+		return StartResult{}, err
+	}
 	draft := StartTurn{
-		Message:        cmd.Message,
-		Media:          cmd.Media,
+		Message:        message,
+		Media:          media,
 		Provider:       cmd.Provider,
 		Model:          cmd.Model,
 		MaxBudget:      cmd.MaxBudget,
@@ -88,7 +92,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Provider:        cmd.Provider,
 		Model:           cmd.Model,
 		CreatedAt:       createdAt,
-		OpeningUserText: cmd.OpeningUserText,
+		OpeningUserText: openingUserText,
 		Input:           cmd.Input,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)

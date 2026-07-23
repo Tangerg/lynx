@@ -28,6 +28,7 @@ type ToolCallInput struct {
 	ApprovalConfigured bool
 	Hook               HookDecision
 	FileMutation       tool.FileMutationScope
+	ShellCommand       string
 }
 
 // ToolCallPlan is the approval policy's verdict before any HITL interrupt is
@@ -78,7 +79,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	// same seam a PreToolUse hook's Ask uses to force a prompt, but
 	// tool/argument-driven and built in. A remembered approval still lets a repeat
 	// call through.
-	immuneReason, unbypassable := tool.BypassImmuneReason(in.Tool, arguments, in.FileMutation)
+	immuneReason, unbypassable := tool.BypassImmuneReason(in.FileMutation, in.ShellCommand)
 	if action == GatePass && (in.Hook.Ask || unbypassable) {
 		action = GatePrompt
 	}

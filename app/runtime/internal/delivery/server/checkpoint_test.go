@@ -190,8 +190,8 @@ func TestRecoverRollbacks(t *testing.T) {
 		t.Fatalf("record intent: %v", err)
 	}
 
-	if err := s.RecoverRollbacks(ctx); err != nil {
-		t.Fatalf("RecoverRollbacks: %v", err)
+	if err := s.sessions.(*sessions.Coordinator).RecoverWorkspaceMutations(ctx); err != nil {
+		t.Fatalf("RecoverWorkspaceMutations: %v", err)
 	}
 
 	if b, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(b) != "v1" {
@@ -226,8 +226,8 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 		t.Fatalf("record intent: %v", err)
 	}
 
-	if err := s.RecoverRollbacks(ctx); err != nil {
-		t.Fatalf("RecoverRollbacks: %v", err)
+	if err := s.sessions.(*sessions.Coordinator).RecoverWorkspaceMutations(ctx); err != nil {
+		t.Fatalf("RecoverWorkspaceMutations: %v", err)
 	}
 	_, runs, _ := rt.hist.List(ctx, sid)
 	if len(runs) != 1 || runs[0].ID != "run1" {
@@ -260,8 +260,8 @@ func TestRecoverRollbacks_FilesOnly(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}
-	if err := s.RecoverRollbacks(ctx); err != nil {
-		t.Fatalf("RecoverRollbacks: %v", err)
+	if err := s.sessions.(*sessions.Coordinator).RecoverWorkspaceMutations(ctx); err != nil {
+		t.Fatalf("RecoverWorkspaceMutations: %v", err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(got) != "v1" {
 		t.Fatalf("a.txt = %q, want v1", got)

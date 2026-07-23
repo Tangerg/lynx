@@ -71,16 +71,16 @@ const (
 // with no process spawn (the declarative fast path). A Matcher (tool-name glob)
 // applies only to tool events; configuration rejects it for other events.
 type Hook struct {
-	Event     Event  `json:"event"`
-	Matcher   string `json:"matcher,omitempty"`
-	Command   string `json:"command,omitempty"`
-	Inject    string `json:"inject,omitempty"`
-	TimeoutMs int    `json:"timeoutMs,omitempty"`
+	Event     Event
+	Matcher   string
+	Command   string
+	Inject    string
+	TimeoutMs int
 
 	// Scope + Source are stamped by the loader (provenance + trust gating), not
 	// parsed from the file.
-	Scope  Scope  `json:"-"`
-	Source string `json:"-"`
+	Scope  Scope
+	Source string
 }
 
 // ErrInvalidHook reports a malformed hook configuration. Invalid policy hooks
@@ -122,33 +122,33 @@ func (h Hook) Validate() error {
 
 // Input is the event payload handed to a hook on stdin (JSON).
 type Input struct {
-	Event     Event          `json:"event"`
-	SessionID string         `json:"sessionId,omitempty"`
-	Cwd       string         `json:"cwd,omitempty"`
-	Tool      *ToolInput     `json:"tool,omitempty"`
-	Subagent  *SubagentInput `json:"subagent,omitempty"`
-	Prompt    string         `json:"prompt,omitempty"`
+	Event     Event
+	SessionID string
+	Cwd       string
+	Tool      *ToolInput
+	Subagent  *SubagentInput
+	Prompt    string
 	// Reason carries a human-readable note for the observe-only events (the Stop
 	// terminal detail, the Notification reason).
-	Reason string `json:"reason,omitempty"`
+	Reason string
 }
 
 // ToolInput is the tool slice of an Input for the tool events.
 type ToolInput struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments,omitempty"` // raw JSON args (PreToolUse)
-	Result    string `json:"result,omitempty"`    // tool output (PostToolUse)
+	Name      string
+	Arguments string // raw JSON args (PreToolUse)
+	Result    string // tool output (PostToolUse)
 }
 
 // SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
 type SubagentInput struct {
-	ProcessID       string `json:"processId"`
-	ParentProcessID string `json:"parentProcessId,omitempty"`
-	Description     string `json:"description,omitempty"`
-	Prompt          string `json:"prompt,omitempty"`
-	Status          string `json:"status,omitempty"`
-	Result          string `json:"result,omitempty"`
-	Error           string `json:"error,omitempty"`
+	ProcessID       string
+	ParentProcessID string
+	Description     string
+	Prompt          string
+	Status          string
+	Result          string
+	Error           string
 }
 
 // Decision is the combined verdict of every hook that fired for one event.
@@ -191,12 +191,6 @@ func (h Hook) matches(in Input) bool {
 
 // hookOutput is the optional JSON a hook prints to stdout to control the
 // outcome beyond the exit code.
-type hookOutput struct {
-	Decision         string `json:"decision,omitempty"` // "allow" | "deny" | "ask"
-	Reason           string `json:"reason,omitempty"`
-	InjectContext    string `json:"injectContext,omitempty"`
-	RewriteArguments string `json:"rewriteArguments,omitempty"`
-}
 
 // fold merges one hook's outcome into the running decision. block latches (the
 // first denying hook owns the reason); ask is a softer escalation; injected

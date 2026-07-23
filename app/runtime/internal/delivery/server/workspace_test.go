@@ -52,7 +52,7 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
 		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
 		knowledge: workspaceapp.NewKnowledge(roots, cfg.Memory),
-		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Drafts),
+		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Drafts, nil),
 		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust),
 		watch:     workspaceapp.NewGitWatch(roots, watcher),
 	}

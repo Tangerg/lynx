@@ -175,22 +175,90 @@ export interface ExportSessionResponse {
 }
 
 // Round-trippable session bundle (sessions.export format:"json" →
-// sessions.import). `messages` is the provider chat-message blob — opaque
-// to the client, carried verbatim.
+// sessions.import). This is a durable input document, not a snapshot of the
+// live RPC projections: it excludes derived session state and process-local run
+// state. `messages` is the provider chat-message blob, opaque to the client.
 export interface SessionArtifact {
-  version: number; // artifact schema version (currently 5); import rejects unknown
-  session: Session;
+  version: number; // artifact schema version (currently 6); import rejects unknown
+  session: ArtifactSession;
   messages: unknown[];
-  runs: { updatedAt: string; messageMark: number; run: RunRef }[];
-  items: { item: Item }[];
-  toolResults: {
-    id: string;
-    itemId: string;
-    toolName: string;
-    preview: string;
-    body: string;
-    createdAt: string;
-  }[];
+  runs: ArtifactRun[];
+  items: ArtifactItem[];
+  toolResults: ArtifactToolResult[];
+}
+
+export interface ArtifactSession {
+  id: SessionId;
+  title: string;
+  cwd: string;
+  model: string;
+  createdAt: string;
+  updatedAt: string;
+  favorite?: boolean;
+}
+
+// A terminal record. Archive outcomes intentionally cannot represent an active
+// or interrupted run because executor state is not portable.
+export interface ArtifactRun {
+  id: RunId;
+  sessionId: SessionId;
+  spawnedByItemId?: ItemId;
+  provider?: string;
+  model?: string;
+  outcome: ArtifactOutcome;
+  createdAt: string;
+  finishedAt: string;
+  updatedAt: string;
+  messageMark: number;
+}
+
+export interface ArtifactOutcome {
+  type: "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
+  result: ArtifactRunResult | null;
+  detail?: string;
+}
+
+export interface ArtifactRunResult {
+  usage?: Usage;
+  steps: number;
+  error?: ArtifactProblem;
+  durationMs?: number;
+}
+
+export type ArtifactProblem = Pick<
+  ProblemData,
+  "type" | "detail" | "docUrl" | "retryable" | "retryAfterSeconds"
+>;
+
+// Direct durable transcript values. A tool result is canonical data rather
+// than the presentation-normalized result returned in live Item events.
+export type ArtifactItem =
+  | (ArtifactItemBase & { type: "userMessage" | "agentMessage"; content: ContentBlock[] })
+  | (ArtifactItemBase & { type: "reasoning"; text: string; redacted?: boolean })
+  | (ArtifactItemBase & { type: "plan"; steps: PlanStep[] })
+  | (ArtifactItemBase & { type: "question"; question: Question })
+  | (ArtifactItemBase & {
+      type: "toolCall";
+      tool: ToolInvocation;
+      safetyClass?: string;
+      error?: ArtifactProblem;
+    })
+  | (ArtifactItemBase & { type: "compaction"; summary?: string; droppedMessages?: number });
+
+export interface ArtifactItemBase {
+  id: ItemId;
+  runId: RunId;
+  status: ItemStatus;
+  createdAt: string;
+}
+
+export interface ArtifactToolResult {
+  id: string;
+  itemId: ItemId;
+  toolName: string;
+  preview: string;
+  body: string;
+  createdAt: string;
 }
 
 // sessions.import — RESTORE semantics: rebuilds the session under the

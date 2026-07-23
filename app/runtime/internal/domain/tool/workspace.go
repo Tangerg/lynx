@@ -1,7 +1,6 @@
 package tool
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 )
@@ -34,27 +33,17 @@ const (
 //   - a shell command matching a high-confidence catastrophic pattern
 //     (rm -rf of / or $HOME, --no-preserve-root, a fork bomb, mkfs/dd to a
 //     device). Tight by design so an ordinary command never trips it.
-func BypassImmuneReason(name, arguments string, mutation FileMutationScope) (reason string, immune bool) {
+func BypassImmuneReason(mutation FileMutationScope, shellCommand string) (reason string, immune bool) {
 	switch mutation {
 	case FileMutationOutsideWorkspace:
 		return "targets a path outside the workspace directory", true
 	case FileMutationUnknown:
 		return "has filesystem mutation targets that could not be verified", true
 	}
-	if name == "shell" && catastrophicCommand(shellCommand(arguments)) {
+	if CatastrophicCommand(shellCommand) {
 		return "runs a high-confidence catastrophic shell command (e.g. rm -rf of a root/home path, mkfs, a fork bomb)", true
 	}
 	return "", false
-}
-
-func shellCommand(arguments string) string {
-	var input struct {
-		Command string `json:"command"`
-	}
-	if json.Unmarshal([]byte(arguments), &input) != nil {
-		return ""
-	}
-	return input.Command
 }
 
 var (
@@ -78,7 +67,10 @@ var (
 // rm -rf of a subdirectory — alone. It is NOT a security boundary (trivially
 // bypassable via quoting/variables); it is a courtesy confirm before an obvious
 // disaster.
-func catastrophicCommand(command string) bool {
+// CatastrophicCommand reports whether a shell command has a high-confidence
+// destructive shape. Adapters extract the command from their concrete tool
+// input schema before invoking this domain policy.
+func CatastrophicCommand(command string) bool {
 	if command == "" {
 		return false
 	}

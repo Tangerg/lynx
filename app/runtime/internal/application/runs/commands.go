@@ -1,12 +1,15 @@
 package runs
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/pkg/mime"
 )
 
 var (
@@ -45,8 +48,6 @@ type StartCommand struct {
 	SessionID       string
 	DefaultCwd      string
 	NewSessionTitle string
-	Message         string
-	Media           []*media.Media
 	Provider        string
 	Model           string
 	MaxBudget       int64
@@ -54,12 +55,48 @@ type StartCommand struct {
 	MaxSteps        int
 	Options         *corechat.Options
 	InterruptKinds  []string
-	OpeningUserText string
 	Input           []ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
 	// (see [goal.Store] lease-and-revision CAS). Empty for ordinary runs.
 	GoalLeaseID string
+}
+
+// MaterializeInput derives the executor message/media pair and the durable
+// opening-item text from the one canonical input representation. Keeping this
+// conversion in Application prevents adapters from supplying three potentially
+// divergent descriptions of a user turn.
+func (c StartCommand) MaterializeInput() (message string, images []*media.Media, openingText string, err error) {
+	texts := make([]string, 0, len(c.Input))
+	for index, block := range c.Input {
+		switch block.Kind {
+		case TextContent:
+			if block.Text != "" {
+				texts = append(texts, block.Text)
+			}
+		case ImageContent:
+			parsed, parseErr := mime.Parse(block.Mime)
+			if parseErr != nil || !mime.IsImage(parsed) {
+				return "", nil, "", fmt.Errorf("%w: input block %d has unsupported image mime %q", ErrUnsupportedMedia, index, block.Mime)
+			}
+			if block.Data == "" {
+				return "", nil, "", fmt.Errorf("%w: input block %d has empty image data", ErrUnsupportedMedia, index)
+			}
+			data, decodeErr := base64.StdEncoding.DecodeString(block.Data)
+			if decodeErr != nil {
+				return "", nil, "", fmt.Errorf("%w: input block %d image data is not valid base64: %v", ErrUnsupportedMedia, index, decodeErr)
+			}
+			image, mediaErr := media.NewBytes(parsed.TypeAndSubType(), data)
+			if mediaErr != nil {
+				return "", nil, "", fmt.Errorf("%w: input block %d: %v", ErrUnsupportedMedia, index, mediaErr)
+			}
+			images = append(images, image)
+		default:
+			return "", nil, "", fmt.Errorf("%w: input block %d has unknown content kind", ErrUnsupportedMedia, index)
+		}
+	}
+	message = strings.Join(texts, "\n")
+	return message, images, strings.TrimSpace(message), nil
 }
 
 // ResumeCommand is the protocol-neutral runs.resume use case input.

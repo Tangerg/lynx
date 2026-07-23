@@ -39,6 +39,11 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if srv.Listen == "" {
 		return errors.New("server.listen is empty (set config server.listen or LYRA_SERVER_LISTEN)")
 	}
+	// Re-drive durable startup recovery before constructing a delivery adapter, so
+	// no transport can observe a session whose working tree and history disagree.
+	if err := bootstrap.RecoverStartup(ctx, host.Stack); err != nil {
+		return err
+	}
 
 	var token *lyrahttp.LocalToken
 	if !srv.NoLocalToken {
@@ -58,12 +63,6 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 		return err
 	}
 	defer api.Close()
-	// Re-drive any file rollback a crash left unfinished (§8.5) before serving, so
-	// a client never observes a session whose working tree + history disagree. A
-	// recovery failure means durable state is inconsistent — fail startup loud.
-	if err := api.RecoverRollbacks(ctx); err != nil {
-		return err
-	}
 	return runServer(ctx, errw, httpServer, host.Stack.Schedules.RunWorker, srv.Listen, token)
 }
 
@@ -90,6 +89,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		Coordinator:        stack.Coordinator,
 		FileChanges:        stack.FileChanges,
 		MCPStatus:          stack.MCPStatus,
+		SkillChanges:       stack.SkillChanges,
 		ScheduleFires:      stack.ScheduleFires,
 		Queries:            stack.Queries,
 		Usage:              stack.Usage,

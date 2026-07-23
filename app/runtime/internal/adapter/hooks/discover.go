@@ -53,7 +53,8 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 		if !ok {
 			return nil
 		}
-		for _, h := range cfg.Hooks {
+		for _, wire := range cfg.Hooks {
+			h := wire.domain()
 			h.Scope = scope
 			h.Source = abs
 			out = append(out, h)
@@ -77,7 +78,22 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 }
 
 type config struct {
-	Hooks []domainhooks.Hook `json:"hooks"`
+	Hooks []hookWire `json:"hooks"`
+}
+
+type hookWire struct {
+	Event     domainhooks.Event `json:"event"`
+	Matcher   string            `json:"matcher,omitempty"`
+	Command   string            `json:"command,omitempty"`
+	Inject    string            `json:"inject,omitempty"`
+	TimeoutMs int               `json:"timeoutMs,omitempty"`
+}
+
+func (wire hookWire) domain() domainhooks.Hook {
+	return domainhooks.Hook{
+		Event: wire.Event, Matcher: wire.Matcher, Command: wire.Command,
+		Inject: wire.Inject, TimeoutMs: wire.TimeoutMs,
+	}
 }
 
 func readConfig(path string) (config, bool, error) {
@@ -102,10 +118,12 @@ func readConfig(path string) (config, bool, error) {
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return config{}, false, err
 	}
-	for index, hook := range cfg.Hooks {
+	for index, wire := range cfg.Hooks {
+		hook := wire.domain()
 		if err := hook.Validate(); err != nil {
 			return config{}, false, fmt.Errorf("hook %d: %w", index, err)
 		}
+		cfg.Hooks[index] = wire
 	}
 	return cfg, true, nil
 }

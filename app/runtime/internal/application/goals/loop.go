@@ -193,12 +193,10 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	message := d.prompt(g)
 	return runs.StartCommand{
-		SessionID:       g.SessionID,
-		Message:         message,
-		Provider:        g.Provider,
-		Model:           g.Model,
-		OpeningUserText: message,
-		Input:           []runs.ContentBlock{{Kind: runs.TextContent, Text: message}},
+		SessionID: g.SessionID,
+		Provider:  g.Provider,
+		Model:     g.Model,
+		Input:     []runs.ContentBlock{{Kind: runs.TextContent, Text: message}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
 		// update_goal only signals THIS goal: a straggler run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal

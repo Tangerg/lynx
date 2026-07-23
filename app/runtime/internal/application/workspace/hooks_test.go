@@ -40,7 +40,7 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 	if inspector.cwd != "/repo" {
 		t.Fatalf("inspect cwd = %q, want /repo", inspector.cwd)
 	}
-	if got.ProjectRoot != "/repo" || !got.ProjectTrusted || len(got.Hooks) != 1 || got.Hooks[0].Command != "make test" {
+	if got.ProjectRoot != "/repo" || !got.ProjectTrusted || len(got.Hooks) != 1 || got.Hooks[0].Hook.Command != "make test" || !got.Hooks[0].Active {
 		t.Fatalf("InspectHooks = %+v", got)
 	}
 }

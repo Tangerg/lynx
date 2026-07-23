@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 // WorkspaceListHooks reports the lifecycle hooks discovered for a cwd — global
@@ -22,7 +21,8 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 		ProjectTrusted: insp.ProjectTrusted,
 		Hooks:          make([]protocol.HookInfo, 0, len(insp.Hooks)),
 	}
-	for _, h := range insp.Hooks {
+	for _, resolved := range insp.Hooks {
+		h := resolved.Hook
 		out.Hooks = append(out.Hooks, protocol.HookInfo{
 			Event:     protocol.HookEvent(h.Event),
 			Matcher:   h.Matcher,
@@ -31,7 +31,7 @@ func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRe
 			TimeoutMs: h.TimeoutMs,
 			Scope:     string(h.Scope),
 			Source:    h.Source,
-			Active:    h.Scope == hooks.ScopeGlobal || insp.ProjectTrusted,
+			Active:    resolved.Active,
 		})
 	}
 	return out, nil

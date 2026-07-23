@@ -210,6 +210,39 @@ Acceptance:
   no catch-all workspace coordinator remains.
 - The architecture suite fails if these ownership boundaries regress.
 
+### Batch 8 — Delivery abstraction-leak closure
+
+Status: **Completed**
+
+Scope:
+
+- Replace the archive's reuse of live `Session` / `RunRef` / `Item` protocol
+  shapes with an explicit v6 durable document and an Application-owned portable
+  snapshot validation/recovery model.
+- Keep archive decoding in Delivery mechanical; move graph binding, offload
+  checks, terminal-state derivation, and restore normalization into
+  `application/sessions`.
+- Move same-origin MCP credential-retention policy, startup mutation recovery,
+  session activity precedence, hook activation, and skill-change publication to
+  their owning Application or composition-root boundary.
+- Keep `runs.StartCommand` to one canonical content representation and move
+  user message/media materialization into Application.
+- Remove runtime JSON tags and process-hook JSON protocol from Domain; let
+  storage and subprocess adapters own their respective codecs.
+- Remove Delivery port methods that no production handler consumes, and add
+  fitness checks for every removed ownership seam.
+
+Acceptance:
+
+- Delivery holds no archive aggregate validation/recovery logic and no manual
+  post-commit skill event publication.
+- The portable artifact cannot carry live status, revision, workspace-derived,
+  active, or interrupted executor state.
+- Domain structs have no JSON field tags; adapters retain external JSON codecs.
+- Every remaining Delivery interface method is invoked by a production handler.
+- The runtime module, its standalone build, and the desktop protocol samples
+  validate against the v6 contract.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -221,6 +254,7 @@ Acceptance:
 | 5. Fitness tests and final verification | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, relevant race suites, and expanded semantic architecture tests passed. |
 | 6. Semantic boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, test; `go test ./internal/arch`; Delivery adapter-import and construction ownership checks. |
 | 7. Residual abstraction-leak eradication | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; standalone vet/test; focused race suite; expanded filesystem and Session-domain architecture checks. |
+| 8. Delivery abstraction-leak closure | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; frontend typecheck and RPC sample test; expanded architecture suite. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -340,6 +374,41 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   capability; typed workspace vocabulary replaces Git adapter type/error
   leakage. Architecture checks prohibit Delivery filesystem technology and
   agent-continuation fields in the product Session domain.
+
+### 2026-07-23 — Batch 8 started
+
+- Re-opened the boundary audit after finding archive restoration code in
+  `delivery/server/artifact_decode.go`. The audit treats protocol mapping as
+  Delivery work but treats aggregate invariants, state reconstruction, durable
+  recovery, and application policy as inward concerns.
+- Chose a breaking artifact schema v6 rather than retaining a v5 compatibility
+  branch: v6 has dedicated durable session/run/item records and excludes live
+  projections by construction.
+- Recorded the additional cross-boundary findings: Delivery-side MCP secret
+  policy and skill notifications, startup recovery, session activity and hook
+  policy, multi-representation run input, domain JSON tags, and dead consumer
+  port methods. The batch is not complete until full verification is recorded.
+
+### 2026-07-23 — Batch 8 completed
+
+- `application/sessions` now owns the terminal-only portable snapshot, archive
+  aggregate reconstruction, tool-result binding, run-tree checks, and typed
+  validation. Delivery's v6 artifact codec is a protocol-format mapper only;
+  the two obsolete Delivery aggregate decoders were removed.
+- The archive contract is deliberately breaking: v6 has dedicated durable
+  session/run/item records, excludes live and derived state, and has no v5
+  compatibility path. Shared frontend samples, TypeScript shapes, and API docs
+  were updated in the same change.
+- Application now owns same-origin MCP credential retention, startup recovery,
+  session state precedence, hook activation, canonical run-input materialization,
+  and committed skill-library refresh signals. Domain hook/process and storage
+  codecs reside in their adapters; all Domain JSON field tags are gone.
+- Removed unconsumed Delivery port methods (including test-only admission and
+  registry probes); tests reach concrete coordinators only through explicit
+  test helpers. New architecture fitness checks guard the removed seams.
+- Verification passed: module and standalone build/vet/test, focused race tests
+  for integrations/runs/sessions/workspace/delivery/bootstrap, frontend
+  typecheck, and the RPC sample contract test.
 
 ## 8. Completion definition
 

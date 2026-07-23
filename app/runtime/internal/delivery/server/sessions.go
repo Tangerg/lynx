@@ -45,14 +45,17 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	if err != nil {
 		return nil, err
 	}
-	running := s.runningSessionSet()
-	waiting, err := s.waitingSessionSet(ctx)
+	ids := make([]string, len(page))
+	for index, ses := range page {
+		ids[index] = ses.ID
+	}
+	states, err := s.sessions.SessionStates(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	data := make([]protocol.Session, 0, len(page))
 	for _, ses := range page {
-		presented, err := s.sessionToWire(ses, sessionStatus(running[ses.ID], waiting[ses.ID]))
+		presented, err := s.sessionToWire(ses, sessionStateToWire(states[ses.ID]))
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +69,7 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.liveStatus(ctx, ses.ID)
+	status, err := s.sessionStatus(ctx, ses.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +133,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.liveStatus(ctx, ses.ID)
+	status, err := s.sessionStatus(ctx, ses.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -172,11 +175,11 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 }
 
 // sessionToWire converts the internal session shape into the wire shape.
-// Status is supplied by the caller (see liveStatus / sessionStatus) so the
-// list path can batch the lookups instead of querying per session. Model falls
-// back to the runtime default when the session never explicitly selected one,
-// so the wire always carries a real model name (the frontend resolves the
-// assistant's displayName from it).
+// Status is supplied by the caller (see sessionStatus) so the application owns
+// the active-vs-interrupt precedence and the list path can batch its read-model
+// lookups. Model falls back to the runtime default when the session never
+// explicitly selected one, so the wire always carries a real model name (the
+// frontend resolves the assistant's displayName from it).
 func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatus) (protocol.Session, error) {
 	workspace, err := s.sessions.InspectWorkspace(ses.Cwd)
 	if err != nil {
@@ -200,50 +203,21 @@ func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatu
 // sessionStatus picks the wire status from the two live signals: running wins
 // (an active run is the loudest state), then waiting (an open HITL interrupt),
 // else idle.
-func sessionStatus(running, waiting bool) protocol.SessionStatus {
-	switch {
-	case running:
+func sessionStateToWire(state sessions.SessionState) protocol.SessionStatus {
+	switch state {
+	case sessions.SessionRunning:
 		return protocol.SessionStatusRunning
-	case waiting:
+	case sessions.SessionWaiting:
 		return protocol.SessionStatusWaiting
 	default:
 		return protocol.SessionStatusIdle
 	}
 }
 
-// liveStatus derives one session's status — running from the in-memory run
-// registry, waiting from a targeted open-interrupt lookup. For the list path
-// use the batched runningSessionSet / waitingSessionSet instead (this would be
-// an N+1 there).
-func (s *Server) liveStatus(ctx context.Context, sessionID string) (protocol.SessionStatus, error) {
-	if s.hasActiveRun(sessionID) {
-		return protocol.SessionStatusRunning, nil
-	}
-	pending, err := s.queries.ListPendingInterrupts(ctx, sessionID)
+func (s *Server) sessionStatus(ctx context.Context, sessionID string) (protocol.SessionStatus, error) {
+	states, err := s.sessions.SessionStates(ctx, []string{sessionID})
 	if err != nil {
-		return "", fmt.Errorf("sessions: resolve live status for session %q: %w", sessionID, err)
+		return "", fmt.Errorf("sessions: resolve activity for session %q: %w", sessionID, err)
 	}
-	return sessionStatus(false, len(pending) > 0), nil
-}
-
-// runningSessionSet snapshots the session ids with a live run, in one lock pass
-// — the list path's batched form of hasActiveRun (rollback.go).
-func (s *Server) runningSessionSet() map[string]bool {
-	return s.coordinator.ActiveSessions()
-}
-
-// waitingSessionSet fetches every open interrupt once and returns the set of
-// sessions awaiting a HITL answer — the list path's batched form, so per-session
-// status costs no extra query. A failed durable read is returned; presenting the
-// affected sessions as idle would be a false state transition.
-func (s *Server) waitingSessionSet(ctx context.Context) (map[string]bool, error) {
-	pending, err := s.queries.ListPendingInterrupts(ctx, "")
-	if err != nil {
-		return nil, fmt.Errorf("sessions: resolve waiting session statuses: %w", err)
-	}
-	set := make(map[string]bool, len(pending))
-	for _, p := range pending {
-		set[p.SessionID] = true
-	}
-	return set, nil
+	return sessionStateToWire(states[sessionID]), nil
 }

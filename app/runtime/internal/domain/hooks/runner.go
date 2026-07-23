@@ -1,9 +1,7 @@
 package hooks
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"slices"
 	"strconv"
@@ -29,17 +27,26 @@ const blockExitCode = 2
 type CommandRequest struct {
 	Command string
 	Cwd     string
-	Stdin   []byte
+	Input   Input
 	Timeout time.Duration
 }
 
 // CommandResult is the process-level outcome returned by the hook adapter.
 type CommandResult struct {
-	Stdout   []byte
+	Decision CommandDecision
 	Stderr   string
 	ExitCode int
 	Err      error
 	TimedOut bool
+}
+
+// CommandDecision is the typed control information returned by a hook command.
+// Its JSON process spelling belongs to the hook adapter, never this domain.
+type CommandDecision struct {
+	Decision         string
+	Reason           string
+	InjectContext    string
+	RewriteArguments string
 }
 
 // CommandRunner executes hook commands for the domain runner.
@@ -93,11 +100,6 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 		r.fail(ctx, h.Source, errors.New("hook command runner is not configured"))
 		return
 	}
-	stdin, err := json.Marshal(in)
-	if err != nil {
-		r.fail(ctx, h.Source, err)
-		return
-	}
 	timeout := DefaultTimeout
 	if h.TimeoutMs > 0 {
 		timeout = time.Duration(h.TimeoutMs) * time.Millisecond
@@ -105,7 +107,7 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	result := r.commands.RunHookCommand(ctx, CommandRequest{
 		Command: h.Command,
 		Cwd:     in.Cwd,
-		Stdin:   stdin,
+		Input:   in,
 		Timeout: timeout,
 	})
 	if result.TimedOut {
@@ -113,7 +115,7 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 		return
 	}
 
-	out := parseOutput(result.Stdout)
+	out := result.Decision
 
 	switch {
 	case result.Err == nil:
@@ -143,17 +145,6 @@ func (r *Runner) fail(ctx context.Context, source string, err error) {
 	if r.onError != nil {
 		r.onError(ctx, source, err)
 	}
-}
-
-// parseOutput decodes a hook's stdout as the control JSON; a non-JSON / empty
-// stdout yields a zero hookOutput (exit code alone decides).
-func parseOutput(b []byte) hookOutput {
-	var out hookOutput
-	if len(bytes.TrimSpace(b)) == 0 {
-		return out
-	}
-	_ = json.Unmarshal(b, &out) // best-effort: non-JSON stdout → exit-code-only
-	return out
 }
 
 // hookError builds a descriptive error for a non-blocking hook failure.

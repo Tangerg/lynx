@@ -2,15 +2,11 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/pkg/mime"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -26,23 +22,16 @@ import (
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
 	options := generationOptionsFromWire(in.Params)
-	userMsg, userMedia, err := collectUserInput(in.Input)
-	if err != nil {
-		return nil, nil, err
-	}
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
-		SessionID:       in.SessionID,
-		DefaultCwd:      s.serverInfo.Cwd,
-		Message:         userMsg,
-		Media:           userMedia,
-		Provider:        in.Provider,
-		Model:           in.Model,
-		MaxCostUSD:      in.MaxBudgetUSD,
-		MaxSteps:        in.MaxSteps,
-		Options:         options,
-		InterruptKinds:  interruptKindsFromContext(ctx),
-		OpeningUserText: userMessageText(in.Input),
-		Input:           runInputFromWire(in.Input),
+		SessionID:      in.SessionID,
+		DefaultCwd:     s.serverInfo.Cwd,
+		Provider:       in.Provider,
+		Model:          in.Model,
+		MaxCostUSD:     in.MaxBudgetUSD,
+		MaxSteps:       in.MaxSteps,
+		Options:        options,
+		InterruptKinds: interruptKindsFromContext(ctx),
+		Input:          runInputFromWire(in.Input),
 	})
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
@@ -95,48 +84,4 @@ func generationOptionsFromWire(in *protocol.GenerationParams) *corechat.Options 
 		TopP:        in.TopP,
 		Stop:        slices.Clone(in.Stop),
 	}
-}
-
-// collectUserInput splits a run's input blocks into the turn's user message:
-// all text blocks joined newline-separated, and all image blocks turned into
-// core media (Mime parsed to a MIME, Data taken as the base64 payload). An
-// image block with a missing / non-image mime or empty data is rejected as
-// invalid_params rather than silently dropped, so a malformed attachment
-// surfaces to the user instead of vanishing. Unknown block types are ignored
-// (forward-compatible). Media flows to the model as UserMessage.Media; the
-// original blocks ride the opening userMessage Item verbatim for echo/replay.
-func collectUserInput(blocks []protocol.ContentBlock) (string, []*media.Media, error) {
-	var (
-		texts  []string
-		images []*media.Media
-	)
-	for _, blk := range blocks {
-		switch blk.Type {
-		case protocol.ContentBlockText:
-			if blk.Text != "" {
-				texts = append(texts, blk.Text)
-			}
-		case protocol.ContentBlockImage:
-			mt, err := mime.Parse(blk.Mime)
-			if err != nil {
-				return "", nil, fmt.Errorf("%w: image block has invalid mime %q", protocol.ErrUnsupportedMime, blk.Mime)
-			}
-			if !mime.IsImage(mt) {
-				return "", nil, fmt.Errorf("%w: block mime %q is not an image type", protocol.ErrUnsupportedMime, blk.Mime)
-			}
-			if blk.Data == "" {
-				return "", nil, fmt.Errorf("%w: image block has empty data", protocol.ErrInvalidParams)
-			}
-			data, err := base64.StdEncoding.DecodeString(blk.Data)
-			if err != nil {
-				return "", nil, fmt.Errorf("%w: image block data is not valid base64: %w", protocol.ErrInvalidParams, err)
-			}
-			m, err := media.NewBytes(mt.TypeAndSubType(), data)
-			if err != nil {
-				return "", nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-			}
-			images = append(images, m)
-		}
-	}
-	return strings.Join(texts, "\n"), images, nil
 }

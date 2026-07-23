@@ -1,36 +1,22 @@
 package server
 
 import (
-	"context"
-	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/component/httporigin"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.ConfigureMCPServerRequest) (mcpserver.Server, error) {
-	auth := in.Authorization
-	if auth == "" && in.Name != "" {
-		cur, ok, err := s.integrations.MCPRegisteredServer(ctx, in.Name)
-		if err != nil {
-			return mcpserver.Server{}, fmt.Errorf("load existing MCP server %q: %w", in.Name, err)
-		}
-		if ok &&
-			cur.Transport == mcpserver.TransportStreamableHTTP &&
-			mcpserver.Transport(in.Transport) == mcpserver.TransportStreamableHTTP &&
-			httporigin.Same(cur.URL, in.URL) {
-			auth = cur.Authorization
-		}
-	}
+// mcpServerCandidateFromRequest only decodes the transport request. Credential
+// carry-forward is application policy because it relies on persisted state.
+func mcpServerCandidateFromRequest(in protocol.ConfigureMCPServerRequest) mcpserver.Server {
 	return mcpserver.Server{
 		Name:             in.Name,
 		Transport:        mcpserver.Transport(in.Transport),
 		Enabled:          in.Enabled,
 		Description:      in.Description,
 		URL:              in.URL,
-		Authorization:    auth,
+		Authorization:    in.Authorization,
 		Headers:          in.Headers,
 		Command:          in.Command,
 		Args:             in.Args,
@@ -39,5 +25,5 @@ func (s *Server) mcpServerFromRequest(ctx context.Context, in protocol.Configure
 		Timeout:          time.Duration(in.TimeoutSeconds) * time.Second,
 		DisabledTools:    in.DisabledTools,
 		AutoApproveTools: in.AutoApproveTools,
-	}, nil
+	}
 }

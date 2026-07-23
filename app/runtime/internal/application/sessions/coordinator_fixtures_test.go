@@ -137,6 +137,8 @@ func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
 // default; the file-rollback tests that need it drive a dedicated claimer.
 func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 
+func (*testClaimer) ActiveSessions() map[string]bool { return nil }
+
 // newCoordinator builds a Coordinator over test stores and turns.
 func newCoordinator(stores testStores, turns Turns) *Coordinator {
 	return newCoordinatorWithAdmissions(stores, turns, new(testClaimer))

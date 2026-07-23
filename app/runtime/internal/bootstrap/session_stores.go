@@ -66,7 +66,7 @@ func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sess
 		snapshot = sessions.Snapshot{
 			Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults,
 		}
-		return snapshot.ValidateToolResults()
+		return nil
 	})
 	return snapshot, err
 }
@@ -166,11 +166,6 @@ func (s sessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollback
 // history atomically: clear the old interrupts / admission rows / transcript /
 // chat log, then seed the decoded messages, runs, and items.
 func (s sessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
-	normalized, err := plan.NormalizeForRestore()
-	if err != nil {
-		return err
-	}
-	plan = normalized
 	id := plan.Session.ID
 	if s.toolResults == nil && len(plan.ToolResults) > 0 {
 		return errors.New("bootstrap: cannot restore tool results without blob persistence")

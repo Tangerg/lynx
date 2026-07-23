@@ -106,6 +106,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		ApprovalConfigured: approvalConfigured,
 		Hook:               hookDecision,
 		FileMutation:       fileMutationScope(target.FileMutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
+		ShellCommand:       shellCommandFromArguments(toolName, cmp.Or(hookDecision.RewriteArguments, arguments)),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	var rememberedArguments tool.Arguments
@@ -197,6 +198,18 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return agentexec.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
+}
+
+func shellCommandFromArguments(toolName, raw string) string {
+	if toolName != "shell" {
+		return ""
+	}
+	arguments, err := tool.ParseArguments(raw)
+	if err != nil {
+		return ""
+	}
+	command, _ := arguments.StringField("command")
+	return command
 }
 
 // doomLoopEscalation brakes a model repeating the same call to no effect. It
