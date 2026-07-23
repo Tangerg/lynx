@@ -13,21 +13,72 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-func newWorkspaceCoordinator(cwd string, cfg workspaceapp.Config) *workspaceapp.Coordinator {
-	cfg.DefaultCwd = cwd
-	cfg.Home = cwd
-	cfg.Paths = workspacepath.Resolver{}
-	cfg.Files = workspaceadapter.Reads{}
-	cfg.Git = workspaceadapter.VCS{}
-	return workspaceapp.New(cfg)
+type workspaceTestConfig struct {
+	Memory  knowledge.Store
+	Skills  workspaceapp.SkillCatalog
+	Curator workspaceapp.SkillCurator
+	Drafts  workspaceapp.SkillDrafts
+	Hooks   workspaceapp.HookInspector
+	Trust   workspaceapp.HookTrustStore
+	Recipes workspaceapp.RecipeLister
+	Watcher workspaceapp.GitStateWatcher
+}
+
+type workspaceSurfaces struct {
+	roots     *workspaceapp.Context
+	files     *workspaceapp.Files
+	vcs       *workspaceapp.VCS
+	discovery *workspaceapp.Discovery
+	knowledge *workspaceapp.Knowledge
+	skills    *workspaceapp.Skills
+	hooks     *workspaceapp.Hooks
+	watch     *workspaceapp.GitWatch
+}
+
+func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces {
+	roots := workspaceapp.NewContext(cwd, cwd, workspacepath.Resolver{})
+	watcher := cfg.Watcher
+	if watcher == nil {
+		watcher = workspaceadapter.GitWatcher{}
+	}
+	return workspaceSurfaces{
+		roots:     roots,
+		files:     workspaceapp.NewFiles(roots, workspaceadapter.Reads{}),
+		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
+		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
+		knowledge: workspaceapp.NewKnowledge(roots, cfg.Memory),
+		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Drafts),
+		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust),
+		watch:     workspaceapp.NewGitWatch(roots, watcher),
+	}
+}
+
+func applyWorkspaceSurfaces(s *Server, surfaces workspaceSurfaces) {
+	s.workspaceRoots = surfaces.roots
+	s.workspaceFiles = surfaces.files
+	s.workspaceVCS = surfaces.vcs
+	s.workspaceDiscovery = surfaces.discovery
+	s.workspaceKnowledge = surfaces.knowledge
+	s.workspaceSkills = surfaces.skills
+	s.workspaceHooks = surfaces.hooks
+	s.workspaceWatch = surfaces.watch
 }
 
 func newWorkspaceServer(cwd string) *Server {
-	return &Server{workspace: newWorkspaceCoordinator(cwd, workspaceapp.Config{})}
+	s := &Server{}
+	applyWorkspaceSurfaces(s, newWorkspaceSurfaces(cwd, workspaceTestConfig{}))
+	return s
+}
+
+func newWorkspaceServerWithConfig(cwd string, cfg workspaceTestConfig) *Server {
+	s := &Server{}
+	applyWorkspaceSurfaces(s, newWorkspaceSurfaces(cwd, cfg))
+	return s
 }
 
 // TestWorkspaceGetFileHead reads the first N lines of a cwd-relative file,
@@ -218,12 +269,10 @@ func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error
 // carrying each one's scope through Source, and defaults cwd to the serve dir.
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
-	s := &Server{
-		workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{Skills: fakeSkillCatalog{skills: []skills.Info{
-			{Name: "pdf", Description: "PDF tools", Scope: "project"},
-			{Name: "web", Description: "web tools", Scope: "global"},
-		}}}),
-	}
+	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []skills.Info{
+		{Name: "pdf", Description: "PDF tools", Scope: "project"},
+		{Name: "web", Description: "web tools", Scope: "global"},
+	}}})
 	got, err := s.WorkspaceListSkills(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listSkills: %v", err)
@@ -237,12 +286,10 @@ func TestWorkspaceListSkills(t *testing.T) {
 // carrying scope + body through, and defaults cwd to the serve dir.
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
-	s := &Server{
-		workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
-			{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
-			{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
-		}}}),
-	}
+	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
+		{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
+		{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
+	}}})
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listRecipes: %v", err)

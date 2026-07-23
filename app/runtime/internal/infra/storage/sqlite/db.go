@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 19
+const schemaVersion = 20
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -66,19 +66,23 @@ func installCurrentSchema(db *sql.DB) error {
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS sessions (
 			id          TEXT    PRIMARY KEY,
-			user_id     TEXT    NOT NULL DEFAULT '',
-			agent_name  TEXT    NOT NULL DEFAULT '',
 			title       TEXT    NOT NULL,
 			cwd         TEXT    NOT NULL DEFAULT '',
 			parent_id   TEXT    NOT NULL DEFAULT '',
 			started_at  INTEGER NOT NULL,
 			updated_at  INTEGER NOT NULL,
-			delegation_metadata TEXT NOT NULL DEFAULT '{}',
 			model       TEXT    NOT NULL DEFAULT '',
 			kind        TEXT    NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0,
 			isolated    INTEGER NOT NULL DEFAULT 0,
 			revision    INTEGER NOT NULL DEFAULT 1
+		)`,
+		// Agent SDK continuation state is a bootstrap/storage sidecar rather than
+		// part of the product Session aggregate. The blob is deliberately opaque
+		// to SQLite and to every domain package.
+		`CREATE TABLE IF NOT EXISTS agent_session_state (
+			session_id   TEXT PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+			session_json BLOB NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_updated_at
 			ON sessions(updated_at DESC)`,

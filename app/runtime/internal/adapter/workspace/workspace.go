@@ -16,24 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
 
-// VCS value types, re-exported so callers render diffs without importing the
-// git infra package. The underlying types are identical, so a git result
-// assigns straight across.
-type (
-	FileChange = git.FileChange
-	DiffFile   = git.DiffFile
-	Row        = git.Row
-	Status     = git.Status
-)
-
-// VCS error sentinels, re-exported for errors.Is at the delivery boundary
-// (these are the same values infra/git returns, so identity matching holds).
-var (
-	ErrNotRepo     = git.ErrNotRepo
-	ErrUnavailable = git.ErrUnavailable
-	ErrNoBase      = git.ErrNoBase
-)
-
 var (
 	// ErrCheckpointUnavailable means the file-checkpoint store is disabled (git
 	// absent) or holds no snapshot for the target run. Delivery maps it onto the
@@ -49,14 +31,14 @@ var (
 func GitAvailable() bool { return git.Available() }
 
 // ListChanges scans root's working tree for changed files.
-func ListChanges(ctx context.Context, root string) ([]FileChange, error) {
+func ListChanges(ctx context.Context, root string) ([]git.FileChange, error) {
 	return git.ListChanges(ctx, root)
 }
 
 // Diff returns the structured diff for root (optionally scoped to relPath).
 // base selects the diff target: false = working tree, true = merge-base with
 // the default branch.
-func Diff(ctx context.Context, root, relPath string, base bool) ([]DiffFile, error) {
+func Diff(ctx context.Context, root, relPath string, base bool) ([]git.DiffFile, error) {
 	return git.Diff(ctx, root, relPath, diffMode(base))
 }
 

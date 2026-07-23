@@ -23,6 +23,7 @@ import (
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
+	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -48,20 +49,28 @@ import (
 // layer drives. It is a pure discovery/delivery aggregate (§5.3) — it owns no
 // resource closers; the Host does.
 type Stack struct {
-	Sessions     *sessions.Coordinator
-	Integrations *integrations.Coordinator
-	Approvals    *approvals.Coordinator
-	Models       *models.Coordinator
-	Tools        *tools.Coordinator
-	Codebase     *codebase.Coordinator
-	Queries      *queries.Coordinator
-	Usage        *usage.Reporter
-	Workspace    *workspace.Coordinator
-	Schedules    *schedules.Coordinator
-	Goals        *goals.Driver
-	// AgentMemory is the HITL review surface over the agent's self-maintained
-	// memory (agentMemory.*). Interface-nil when no memory store is wired.
-	AgentMemory agentmemory.Management
+	Sessions           *sessions.Coordinator
+	Integrations       *integrations.Coordinator
+	Approvals          *approvals.Coordinator
+	Models             *models.Coordinator
+	Tools              *tools.Coordinator
+	Codebase           *codebase.Coordinator
+	Queries            *queries.Coordinator
+	Usage              *usage.Reporter
+	WorkspaceRoots     *workspace.Context
+	WorkspaceFiles     *workspace.Files
+	WorkspaceVCS       *workspace.VCS
+	WorkspaceDiscovery *workspace.Discovery
+	WorkspaceKnowledge *workspace.Knowledge
+	WorkspaceSkills    *workspace.Skills
+	WorkspaceHooks     *workspace.Hooks
+	WorkspaceWatch     *workspace.GitWatch
+	Schedules          *schedules.Coordinator
+	Goals              *goals.Driver
+	// AgentMemory is the HITL review use-case coordinator over the agent's
+	// self-maintained memory (agentMemory.*). It may hold a disabled store, so
+	// Delivery can truthfully negotiate the capability without a domain-port leak.
+	AgentMemory *agentmemoryapp.Coordinator
 	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
 	// per-run event journal, the segment pumps, and cancel. Built + owned by the
 	// Host (its pumps are joined by Host.Close); the delivery layer drives it as a
@@ -463,10 +472,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		MCPStatus:             mcpStatus.Publish,
 	})
 
-	// The @codebase semantic index is its own use-case coordinator (nil index =
-	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoord := codebase.New(embeddingEnv.index)
-
 	// Goal mode: the autonomous-execution loop driver over the run coordinator.
 	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
 	// runs before serving so a goal left active by a crashed process degrades to
@@ -488,12 +493,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		toolClosers = append(toolClosers, isolator.Close)
 	}
 
-	// Interface-nil (not a typed-nil holding a nil pointer) when no store is wired,
-	// so the server's disabled-capability check fires correctly.
-	var agentMemoryMgmt agentmemory.Management
-	if cfg.AgentMemoryStore != nil {
-		agentMemoryMgmt = cfg.AgentMemoryStore
-	}
 	// Same discipline for the skill library: leave the ports interface-nil when
 	// authoring is disabled (empty skills dir), so the coordinator's nil-gate
 	// reports capability_not_negotiated instead of the store's bare disabled error.
@@ -504,6 +503,25 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		skillDrafts = skillStore
 	}
 	home, _ := os.UserHomeDir()
+	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
+	workspaceFiles := workspace.NewFiles(workspaceContext, checkpointstore.Reads{})
+	workspaceVCS := workspace.NewVCS(workspaceContext, checkpointstore.VCS{})
+	workspaceDiscovery := workspace.NewDiscovery(
+		workspaceContext, sessionCoord, promptsource.AgentDocs{}, recipeLister{globalDir: cfg.RecipesGlobalDir},
+	)
+	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.Engine.Knowledge)
+	workspaceSkills := workspace.NewSkills(
+		workspaceContext, skillCatalog{globalDir: cfg.SkillsGlobalDir}, skillCurator, skillDrafts,
+	)
+	workspaceHooks := workspace.NewHooks(workspaceContext, cfg.HooksResolver, cfg.HookTrustStore)
+	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
+	// The @codebase semantic index is its own use-case coordinator (nil index =
+	// disabled); it owns the background reindex task group, closed by the Host.
+	codebaseCoord := codebase.New(embeddingEnv.index, workspaceContext)
+	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
+		Store: cfg.AgentMemoryStore,
+		Roots: workspaceContext,
+	})
 	host := Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
@@ -527,26 +545,18 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 				Sessions: cfg.SessionStore,
 				Defaults: modelsCoord,
 			}),
-			Workspace: workspace.New(workspace.Config{
-				DefaultCwd: cfg.DefaultCwd,
-				Home:       home,
-				Paths:      workspacepath.Resolver{},
-				Files:      checkpointstore.Reads{},
-				Git:        checkpointstore.VCS{},
-				Projects:   sessionCoord,
-				AgentDocs:  promptsource.AgentDocs{},
-				Memory:     cfg.Engine.Knowledge,
-				Skills:     skillCatalog{globalDir: cfg.SkillsGlobalDir},
-				Curator:    skillCurator,
-				Drafts:     skillDrafts,
-				Hooks:      cfg.HooksResolver,
-				Trust:      cfg.HookTrustStore,
-				Recipes:    recipeLister{globalDir: cfg.RecipesGlobalDir},
-			}),
-			Schedules:    scheduleCoord,
-			Goals:        goalDriver,
-			AgentMemory:  agentMemoryMgmt,
-			GitAvailable: checkpointstore.GitAvailable(),
+			WorkspaceRoots:     workspaceContext,
+			WorkspaceFiles:     workspaceFiles,
+			WorkspaceVCS:       workspaceVCS,
+			WorkspaceDiscovery: workspaceDiscovery,
+			WorkspaceKnowledge: workspaceKnowledge,
+			WorkspaceSkills:    workspaceSkills,
+			WorkspaceHooks:     workspaceHooks,
+			WorkspaceWatch:     workspaceWatch,
+			Schedules:          scheduleCoord,
+			Goals:              goalDriver,
+			AgentMemory:        agentMemoryCoord,
+			GitAvailable:       checkpointstore.GitAvailable(),
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,

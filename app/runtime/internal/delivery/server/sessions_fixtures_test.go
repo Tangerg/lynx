@@ -100,16 +100,18 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 func newTestServer(rt testRuntime) *Server {
 	s := &Server{}
 	admissions := &admission.Gate{}
+	var lifecycle runs.SessionLifecycle
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
 		s.sessions = p.sessionsCoordinator(admissions)
+		lifecycle = s.sessions.(runs.SessionLifecycle)
 	}
 	var ids atomic.Uint64
 	s.coordinator = runs.NewCoordinator(runs.Dependencies{
 		Segments:   rt,
 		Turns:      rt,
-		Sessions:   s.sessions,
+		Sessions:   lifecycle,
 		Effects:    rt.RunSegmentEffects(nil, nil),
 		Admissions: admissions,
 		Now:        time.Now,

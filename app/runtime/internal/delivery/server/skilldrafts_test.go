@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
@@ -35,7 +34,7 @@ func (s *stubSkillDrafts) DiscardDraft(_ context.Context, h skills.DraftHandle) 
 }
 
 func TestSkillDraftsHandlersDisabled(t *testing.T) {
-	s := &Server{workspace: workspaceapp.New(workspaceapp.Config{})}
+	s := newWorkspaceServerWithConfig("", workspaceTestConfig{})
 	if _, err := s.WorkspaceListSkillDrafts(context.Background(), protocol.PageQuery{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list err = %v, want capability_not_negotiated", err)
 	}
@@ -53,7 +52,7 @@ func TestSkillDraftsListMapsWire(t *testing.T) {
 	stub := &stubSkillDrafts{list: []skills.DraftInfo{
 		{Handle: handle, Description: "run the tests", CreatedBy: skills.CreatedByAgent, SourceSession: "ses_1"},
 	}}
-	s := &Server{workspace: workspaceapp.New(workspaceapp.Config{Drafts: stub})}
+	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 
 	out, err := s.WorkspaceListSkillDrafts(context.Background(), protocol.PageQuery{})
 	if err != nil {
@@ -71,7 +70,7 @@ func TestSkillDraftsListMapsWire(t *testing.T) {
 
 func TestSkillDraftsPromoteRejectValidateAndDelegate(t *testing.T) {
 	stub := &stubSkillDrafts{}
-	s := &Server{workspace: workspaceapp.New(workspaceapp.Config{Drafts: stub})}
+	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 
 	if err := s.WorkspacePromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Revision: "r"}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("promote missing name → %v, want invalid_params", err)
@@ -98,7 +97,7 @@ func TestSkillDraftsPromoteRejectValidateAndDelegate(t *testing.T) {
 
 func TestSkillDraftsPromoteConflictMapsInvalidParams(t *testing.T) {
 	stub := &stubSkillDrafts{promoteErr: skills.ErrConflict}
-	s := &Server{workspace: workspaceapp.New(workspaceapp.Config{Drafts: stub})}
+	s := newWorkspaceServerWithConfig("", workspaceTestConfig{Drafts: stub})
 	err := s.WorkspacePromoteSkillDraft(context.Background(), protocol.SkillDraftRef{Name: "n", Revision: "r"})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("conflict → %v, want invalid_params", err)

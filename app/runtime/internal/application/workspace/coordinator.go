@@ -1,13 +1,14 @@
-// Package workspace is the application coordinator for the project-scoped
-// developer-surface use cases: long-term memory (LYRA.md), skill + recipe
-// discovery, and lifecycle-hook inspection/trust. It is a thin use-case layer
-// over domain stores and filesystem-backed discovery ports; the delivery
-// layer drives it per workspace request (cwd-scoped).
+// Package workspace contains focused project-scoped application use cases:
+// workspace identity, file and VCS browsing, long-term memory (LYRA.md), skill
+// and recipe discovery, lifecycle-hook inspection/trust, and Git-state
+// subscriptions. Each use case takes only the port it consumes; delivery drives
+// the relevant one per cwd-scoped request.
 package workspace
 
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -22,6 +23,12 @@ var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 // authoring store, so the offline draft-review surface is not negotiated.
 // Delivery maps it to capability_not_negotiated.
 var ErrSkillDraftsUnavailable = errors.New("workspace: skill drafts unavailable")
+
+// ErrFileWatchUnavailable reports that this runtime has no workspace-change
+// observer. A subscription without requested watches remains useful for
+// application-published events; callers requesting Git-state watches receive
+// this explicit capability failure instead of a silent, inert subscription.
+var ErrFileWatchUnavailable = errors.New("workspace: file watch unavailable")
 
 // SkillCatalog enumerates the skills visible from a working directory (project
 // over global). The composition root supplies promptsource-backed discovery.
@@ -73,78 +80,139 @@ type RecipeLister interface {
 	List(ctx context.Context, cwd string) ([]recipes.Recipe, error)
 }
 
-// Coordinator owns the workspace developer-surface use cases. Any of its
-// dependencies may be nil, disabling the corresponding capability.
-type Coordinator struct {
+// GitStateWatcher observes the small set of Git metadata directories that
+// signal a changed repository state. The adapter owns filesystem notification,
+// debounce, repository layout, and goroutine lifetime; the application owns
+// resolving requested workspace roots and exposes only a neutral resync
+// callback. Closing the returned subscription stops all callbacks before it
+// returns.
+type GitStateWatcher interface {
+	WatchGitState(roots []string, notify func()) (io.Closer, error)
+}
+
+// Context resolves the process-facing workspace identity shared by independent
+// workspace use cases. It owns no feature adapter: each capability below takes
+// this small context plus only the port it actually needs.
+type Context struct {
 	defaultCwd string
 	home       string
 	paths      Paths
-	files      FileBrowser
-	git        GitReader
-	projects   ProjectCatalog
-	agentDocs  AgentDocFinder
-	memory     knowledge.Store
-	skills     SkillCatalog
-	curator    SkillCurator
-	drafts     SkillDrafts
-	hooks      HookInspector
-	trust      HookTrustStore
-	recipes    RecipeLister
 }
 
-// Config bundles the Coordinator's dependencies.
-type Config struct {
-	// DefaultCwd and Home are process facts supplied by Bootstrap. Workspace
-	// requests with no cwd use DefaultCwd; instruction-document discovery uses
-	// Home for the user-level portion of its cascade.
-	DefaultCwd string
-	Home       string
-	Paths      Paths
-	Files      FileBrowser
-	Git        GitReader
-	Projects   ProjectCatalog
-	AgentDocs  AgentDocFinder
-	Memory     knowledge.Store
-	Skills     SkillCatalog
-	Curator    SkillCurator
-	Drafts     SkillDrafts
-	Hooks      HookInspector
-	Trust      HookTrustStore
-	// Recipes discovers the prompt recipes visible from a working directory. The
-	// composition root supplies the filesystem-backed implementation; nil disables
-	// recipe discovery (listRecipes returns empty).
-	Recipes RecipeLister
+// NewContext constructs the shared workspace identity resolver.
+func NewContext(defaultCwd, home string, paths Paths) *Context {
+	return &Context{defaultCwd: defaultCwd, home: home, paths: paths}
 }
 
-// New returns a workspace Coordinator over cfg.
-func New(cfg Config) *Coordinator {
-	return &Coordinator{
-		defaultCwd: cfg.DefaultCwd,
-		home:       cfg.Home,
-		paths:      cfg.Paths,
-		files:      cfg.Files,
-		git:        cfg.Git,
-		projects:   cfg.Projects,
-		agentDocs:  cfg.AgentDocs,
-		memory:     cfg.Memory,
-		skills:     cfg.Skills,
-		curator:    cfg.Curator,
-		drafts:     cfg.Drafts,
-		hooks:      cfg.Hooks,
-		trust:      cfg.Trust,
-		recipes:    cfg.Recipes,
-	}
+// Files owns root-scoped file browser operations.
+type Files struct {
+	context *Context
+	files   FileBrowser
+}
+
+func NewFiles(context *Context, files FileBrowser) *Files {
+	return &Files{context: context, files: files}
+}
+
+// VCS owns root-scoped Git status and diff operations.
+type VCS struct {
+	context *Context
+	git     GitReader
+}
+
+func NewVCS(context *Context, git GitReader) *VCS { return &VCS{context: context, git: git} }
+
+// Discovery owns project, recipe, and instruction-document discovery.
+type Discovery struct {
+	context   *Context
+	projects  ProjectCatalog
+	agentDocs AgentDocFinder
+	recipes   RecipeLister
+}
+
+func NewDiscovery(context *Context, projects ProjectCatalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
+	return &Discovery{context: context, projects: projects, agentDocs: agentDocs, recipes: recipes}
+}
+
+// Knowledge owns the human-authored LYRA.md cascade use cases.
+type Knowledge struct {
+	context *Context
+	memory  knowledge.Store
+}
+
+func NewKnowledge(context *Context, memory knowledge.Store) *Knowledge {
+	return &Knowledge{context: context, memory: memory}
+}
+
+// Skills owns skill discovery, library curation, and proposal review.
+type Skills struct {
+	context *Context
+	skills  SkillCatalog
+	curator SkillCurator
+	drafts  SkillDrafts
+}
+
+func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts) *Skills {
+	return &Skills{context: context, skills: skills, curator: curator, drafts: drafts}
+}
+
+// Hooks owns lifecycle-hook inspection and trust decisions.
+type Hooks struct {
+	context *Context
+	hooks   HookInspector
+	trust   HookTrustStore
+}
+
+func NewHooks(context *Context, hooks HookInspector, trust HookTrustStore) *Hooks {
+	return &Hooks{context: context, hooks: hooks, trust: trust}
+}
+
+// GitWatch owns Git-state subscription setup over the technical watch adapter.
+type GitWatch struct {
+	context *Context
+	watcher GitStateWatcher
+}
+
+func NewGitWatch(context *Context, watcher GitStateWatcher) *GitWatch {
+	return &GitWatch{context: context, watcher: watcher}
 }
 
 // HasMemory reports whether this runtime is backed by a long-term knowledge store.
-func (c *Coordinator) HasMemory() bool { return c.memory != nil }
+func (c *Knowledge) HasMemory() bool { return c != nil && c.memory != nil }
+
+// HasFileWatch reports whether Git-state workspace subscriptions are wired.
+func (c *GitWatch) HasFileWatch() bool { return c != nil && c.watcher != nil }
+
+// WatchGitState resolves each requested working directory to its canonical
+// workspace root, removes duplicate roots, then delegates technical watching to
+// the configured adapter. It deliberately carries no delivery/protocol event
+// type: any observed change means only "resync the workspace view".
+func (c *GitWatch) WatchGitState(cwds []string, notify func()) (io.Closer, error) {
+	if c.watcher == nil {
+		return nil, ErrFileWatchUnavailable
+	}
+	seen := make(map[string]struct{}, len(cwds))
+	roots := make([]string, 0, len(cwds))
+	for _, cwd := range cwds {
+		root, err := c.context.root(cwd)
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[root]; duplicate {
+			continue
+		}
+		seen[root] = struct{}{}
+		roots = append(roots, root)
+	}
+	return c.watcher.WatchGitState(roots, notify)
+}
 
 // ListMemoryEntries enumerates LYRA.md entries across scopes.
-func (c *Coordinator) ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error) {
+func (c *Knowledge) ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error) {
 	if c.memory == nil {
 		return nil, ErrMemoryUnavailable
 	}
-	root, err := c.root(cwd)
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -152,14 +220,14 @@ func (c *Coordinator) ListMemoryEntries(ctx context.Context, cwd string) ([]know
 }
 
 // Memory returns the LYRA.md content for one scope.
-func (c *Coordinator) Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
+func (c *Knowledge) Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
 	if c.memory == nil {
 		return "", ErrMemoryUnavailable
 	}
 	if scope == knowledge.ScopeUser {
 		return c.memory.Get(ctx, scope, "")
 	}
-	root, err := c.root(cwd)
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return "", err
 	}
@@ -167,14 +235,14 @@ func (c *Coordinator) Memory(ctx context.Context, scope knowledge.Scope, cwd str
 }
 
 // UpdateMemory overwrites the LYRA.md content for one scope.
-func (c *Coordinator) UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error {
+func (c *Knowledge) UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error {
 	if c.memory == nil {
 		return ErrMemoryUnavailable
 	}
 	if scope == knowledge.ScopeUser {
 		return c.memory.Update(ctx, scope, "", content)
 	}
-	root, err := c.root(cwd)
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return err
 	}
@@ -183,8 +251,8 @@ func (c *Coordinator) UpdateMemory(ctx context.Context, scope knowledge.Scope, c
 
 // ListSkills enumerates the skills visible from cwd (project over global) for
 // skills.discovered.list.
-func (c *Coordinator) ListSkills(ctx context.Context, cwd string) ([]skills.Info, error) {
-	root, err := c.root(cwd)
+func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]skills.Info, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +265,7 @@ func (c *Coordinator) ListSkills(ctx context.Context, cwd string) ([]skills.Info
 // ListManagedSkills returns the global self-authored skill library — active and
 // archived skills, each tagged with its lifecycle (skills.library.list). Empty
 // when no authoring store is wired.
-func (c *Coordinator) ListManagedSkills(ctx context.Context) ([]skills.Entry, error) {
+func (c *Skills) ListManagedSkills(ctx context.Context) ([]skills.Entry, error) {
 	if c.curator == nil {
 		return nil, nil
 	}
@@ -206,7 +274,7 @@ func (c *Coordinator) ListManagedSkills(ctx context.Context) ([]skills.Entry, er
 
 // ArchiveSkill removes a skill from active use without deleting it
 // (skills.library.archive). No-op when no authoring store is wired.
-func (c *Coordinator) ArchiveSkill(ctx context.Context, name string) error {
+func (c *Skills) ArchiveSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
 	}
@@ -215,7 +283,7 @@ func (c *Coordinator) ArchiveSkill(ctx context.Context, name string) error {
 
 // RestoreSkill returns an archived skill to active use
 // (skills.library.restore). No-op when no authoring store is wired.
-func (c *Coordinator) RestoreSkill(ctx context.Context, name string) error {
+func (c *Skills) RestoreSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
 		return nil
 	}
@@ -225,7 +293,7 @@ func (c *Coordinator) RestoreSkill(ctx context.Context, name string) error {
 // ListSkillDrafts enumerates the agent-mined skill proposals awaiting offline
 // review (skills.drafts.list). Reports [ErrSkillDraftsUnavailable] when no
 // authoring store is wired.
-func (c *Coordinator) ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
+func (c *Skills) ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 	if c.drafts == nil {
 		return nil, ErrSkillDraftsUnavailable
 	}
@@ -235,7 +303,7 @@ func (c *Coordinator) ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, 
 // PromoteSkillDraft publishes a reviewed draft into the active skill library
 // (skills.drafts.promote). Reports [ErrSkillDraftsUnavailable] when no authoring
 // store is wired.
-func (c *Coordinator) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
+func (c *Skills) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
 	if c.drafts == nil {
 		return ErrSkillDraftsUnavailable
 	}
@@ -244,7 +312,7 @@ func (c *Coordinator) PromoteSkillDraft(ctx context.Context, handle skills.Draft
 
 // RejectSkillDraft discards a reviewed draft (skills.drafts.reject). Reports
 // [ErrSkillDraftsUnavailable] when no authoring store is wired.
-func (c *Coordinator) RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
+func (c *Skills) RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
 	if c.drafts == nil {
 		return ErrSkillDraftsUnavailable
 	}
@@ -254,8 +322,8 @@ func (c *Coordinator) RejectSkillDraft(ctx context.Context, handle skills.DraftH
 // ListRecipes enumerates the prompt recipes visible from cwd — project recipes
 // (<cwd>/.lyra/recipes) layered over the global directory, project winning on a
 // name collision (recipes.list).
-func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
-	root, err := c.root(cwd)
+func (c *Discovery) ListRecipes(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -267,8 +335,8 @@ func (c *Coordinator) ListRecipes(ctx context.Context, cwd string) ([]recipes.Re
 
 // InspectHooks returns the lifecycle hooks discovered for cwd plus the project's
 // trust status (hooks.list). Empty when hooks are unconfigured.
-func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error) {
-	root, err := c.root(cwd)
+func (c *Hooks) InspectHooks(ctx context.Context, cwd string) (hooks.Inspection, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return hooks.Inspection{}, err
 	}
@@ -280,8 +348,8 @@ func (c *Coordinator) InspectHooks(ctx context.Context, cwd string) (hooks.Inspe
 
 // SetProjectHookTrust trusts (or revokes) a project's hooks (hooks.
 // setTrust). No-op when no trust store is wired.
-func (c *Coordinator) SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error {
-	root, err := c.root(projectRoot)
+func (c *Hooks) SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error {
+	root, err := c.context.root(projectRoot)
 	if err != nil {
 		return err
 	}

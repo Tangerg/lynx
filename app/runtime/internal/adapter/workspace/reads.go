@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
@@ -100,7 +101,7 @@ func (VCS) ListFileChanges(ctx context.Context, root string) ([]workspaceapp.Fil
 	out := make([]workspaceapp.FileChange, 0, len(changes))
 	for _, change := range changes {
 		out = append(out, workspaceapp.FileChange{
-			Path: change.Path, Status: string(change.Status), PreviousPath: change.PreviousPath,
+			Path: change.Path, Status: workspaceapp.FileStatus(change.Status), PreviousPath: change.PreviousPath,
 			Binary: change.Binary, Added: change.Added, Removed: change.Removed,
 		})
 	}
@@ -117,11 +118,11 @@ func (VCS) StructuredDiff(ctx context.Context, root, path string, base bool) ([]
 		rows := make([]workspaceapp.DiffRow, 0, len(file.Rows))
 		for _, row := range file.Rows {
 			rows = append(rows, workspaceapp.DiffRow{
-				Type: string(row.Type), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
+				Type: workspaceapp.DiffRowType(row.Type), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
 			})
 		}
 		out = append(out, workspaceapp.FileDiff{
-			Path: file.Path, Status: string(file.Status), PreviousPath: file.PreviousPath,
+			Path: file.Path, Status: workspaceapp.FileStatus(file.Status), PreviousPath: file.PreviousPath,
 			Binary: file.Binary, Added: file.Added, Removed: file.Removed, Rows: rows,
 		})
 	}
@@ -137,9 +138,9 @@ func vcsError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, ErrNotRepo), errors.Is(err, ErrUnavailable):
+	case errors.Is(err, git.ErrNotRepo), errors.Is(err, git.ErrUnavailable):
 		return workspaceapp.ErrVCSUnavailable
-	case errors.Is(err, ErrNoBase):
+	case errors.Is(err, git.ErrNoBase):
 		return workspaceapp.ErrVCSBaseUnknown
 	default:
 		return err

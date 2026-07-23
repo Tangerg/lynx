@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 	"sync"
 
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -135,19 +137,19 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 // request), at which point the cleanup below runs and the transport's own
 // shutdown joins this still-active handler. Broadcast events (mcp.serverChanged,
 // skills.changed) go to every subscription; when the request carries watches, the
-// subscription also monitors those cwds' git state and emits a debounced resync
+// subscription also asks the workspace use case to monitor those cwds' Git state and emits a debounced resync
 // on any change (commit / stage / checkout / merge) — the client then re-fetches
 // workspace.getDiff. (Working-tree file edits aren't watched directly — see
 // gitWatcher; the agent's own edits arrive as files.changed from its tools.)
 func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
-	gitDirs, err := s.resolveWatchGitDirs(in.Watches)
+	cwds, err := watchCwds(in.Watches)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// WorkspaceSubscribe owns the channel: the hub broadcasts to it and (when
-	// watches are present) the git watcher emits to it. Closing it only after
-	// the watcher has stopped keeps emit from racing the close.
+	// watches are present) the application-owned watcher emits to it. Closing it
+	// only after that watcher has stopped keeps emit from racing the close.
 	out := make(chan protocol.WorkspaceEvent, 64)
 	subscription, unregister, registered := s.wsHub.register(out)
 	if !registered {
@@ -155,21 +157,21 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 		return nil, nil, errServerClosed
 	}
 
-	var watcher *gitWatcher
-	if len(gitDirs) > 0 {
-		watcher, err = startGitWatcher(gitDirs, func(ev protocol.WorkspaceEvent) {
-			s.wsHub.publishTo(subscription, ev)
+	var watcher io.Closer
+	if len(cwds) > 0 {
+		watcher, err = s.workspaceWatch.WatchGitState(cwds, func() {
+			s.wsHub.publishTo(subscription, protocol.WorkspaceEvent{Type: protocol.WorkspaceEventResync})
 		})
 		if err != nil {
 			unregister()
 			close(out)
-			return nil, nil, fmt.Errorf("workspace.subscribe: start git watcher: %w", err)
+			return nil, nil, mapWorkspaceSubscribeError(err)
 		}
 	}
 
 	context.AfterFunc(ctx, func() {
 		if watcher != nil {
-			watcher.Close() // joins the watch goroutine — no emit after this
+			_ = watcher.Close() // joins callbacks — no emit after this
 		}
 		unregister() // hub stops broadcasting to out
 		close(out)
@@ -177,36 +179,28 @@ func (s *Server) WorkspaceSubscribe(ctx context.Context, in protocol.WorkspaceSu
 	return &protocol.WorkspaceSubscribeResponse{}, out, nil
 }
 
-// resolveWatchGitDirs validates each watch spec and resolves the DISTINCT .git
-// directories to monitor. A watch's cwd defaults to the serve directory; a
-// non-repo cwd contributes no git dir (its watch is inert — getDiff would
-// report vcs_unavailable too). Returns invalid_params for a watch missing its
-// id or an unresolvable cwd.
-func (s *Server) resolveWatchGitDirs(specs []protocol.WatchSpec) ([]string, error) {
+// watchCwds validates the wire-only portion of watch specs. Root resolution,
+// repository layout and filesystem notification are application/adapter
+// concerns; Delivery retains only the protocol's required watch identifier.
+func watchCwds(specs []protocol.WatchSpec) ([]string, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
-	seen := map[string]struct{}{}
-	var gitDirs []string
+	cwds := make([]string, 0, len(specs))
 	for _, spec := range specs {
 		if spec.WatchID == "" {
 			return nil, fmt.Errorf("%w: watchId is required", protocol.ErrInvalidParams)
 		}
-		root, err := s.workspaceRoot(spec.Cwd)
-		if err != nil {
-			return nil, err
-		}
-		g, ok := gitDirOf(root)
-		if !ok {
-			continue // not a repo → nothing to watch for this cwd
-		}
-		if _, dup := seen[g]; dup {
-			continue
-		}
-		seen[g] = struct{}{}
-		gitDirs = append(gitDirs, g)
+		cwds = append(cwds, spec.Cwd)
 	}
-	return gitDirs, nil
+	return cwds, nil
+}
+
+func mapWorkspaceSubscribeError(err error) error {
+	if errors.Is(err, workspaceapp.ErrFileWatchUnavailable) {
+		return capabilityNotNegotiated("workspace.subscribe")
+	}
+	return wireWorkspaceError(fmt.Errorf("workspace.subscribe: start git watcher: %w", err))
 }
 
 // PublishWorkspaceEvent fans one workspace event out to subscribers. The

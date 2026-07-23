@@ -21,18 +21,40 @@ import (
 // component is shutting down.
 var errClosed = errors.New("codebase: closed")
 
+// ErrRootResolverUnavailable reports a malformed composition root. Normal
+// deployments always provide the workspace resolver; keeping the failure
+// explicit prevents semantic-index calls from accepting an unscoped path.
+var ErrRootResolverUnavailable = errors.New("codebase: workspace root resolver unavailable")
+
+// RootResolver is the narrow workspace context dependency required by codebase
+// use cases. The codebase component owns when its operations need a canonical
+// project root; resolving paths remains the workspace component's concern.
+type RootResolver interface {
+	ResolveRoot(cwd string) (string, error)
+}
+
+// Status combines the index's durable status with the transient operation id
+// that this coordinator owns. Delivery projects this neutral value onto wire.
+type Status struct {
+	Index       codebaseindex.Status
+	OperationID string
+}
+
 // Coordinator drives the @codebase semantic index.
 type Coordinator struct {
 	index codebaseindex.Index
+	roots RootResolver
 	tasks taskgroup.Group
 
 	activeMu sync.Mutex
 	active   map[string]string // canonical root -> operation ID
 }
 
-// New returns a Coordinator over index (nil to disable @codebase).
-func New(index codebaseindex.Index) *Coordinator {
-	return &Coordinator{index: index, active: make(map[string]string)}
+// New returns a Coordinator over index (nil to disable @codebase) scoped by
+// roots. Root resolution belongs here so no Delivery handler must orchestrate
+// workspace context before invoking a codebase use case.
+func New(index codebaseindex.Index, roots RootResolver) *Coordinator {
+	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}
 }
 
 // Close cancels + joins the background reindex tasks (§10.3).
@@ -41,27 +63,43 @@ func (c *Coordinator) Close() { c.tasks.Close() }
 // HasIndex reports whether this runtime has an index store wired.
 func (c *Coordinator) HasIndex() bool { return c.index != nil }
 
-// Search returns semantic search hits for root, building the index when needed.
-func (c *Coordinator) Search(ctx context.Context, root, query string, limit int) ([]codebaseindex.Hit, error) {
+// Search returns semantic search hits for cwd, building the index when needed.
+func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error) {
 	if c.index == nil {
 		return nil, codebaseindex.ErrNoEmbeddingModel
+	}
+	root, err := c.root(cwd)
+	if err != nil {
+		return nil, err
 	}
 	return c.index.Search(ctx, root, query, limit)
 }
 
-// Status returns root's current semantic-index state.
-func (c *Coordinator) Status(ctx context.Context, root string) (codebaseindex.Status, error) {
-	if c.index == nil {
-		return codebaseindex.Status{State: codebaseindex.StateNone}, nil
+// Status returns cwd's current semantic-index state and any in-flight rebuild.
+func (c *Coordinator) Status(ctx context.Context, cwd string) (Status, error) {
+	root, err := c.root(cwd)
+	if err != nil {
+		return Status{}, err
 	}
-	return c.index.Status(ctx, root)
+	if c.index == nil {
+		return Status{Index: codebaseindex.Status{State: codebaseindex.StateNone}}, nil
+	}
+	status, err := c.index.Status(ctx, root)
+	if err != nil {
+		return Status{}, err
+	}
+	return Status{Index: status, OperationID: c.activeOperation(root)}, nil
 }
 
-// StartReindex starts a full rebuild that outlives the request context, owned by
+// StartReindex starts a full rebuild for cwd that outlives the request context, owned by
 // this component's task group (canceled + joined by Close).
-func (c *Coordinator) StartReindex(ctx context.Context, root string) (string, error) {
+func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, error) {
 	if c.index == nil {
 		return "", codebaseindex.ErrNoEmbeddingModel
+	}
+	root, err := c.root(cwd)
+	if err != nil {
+		return "", err
 	}
 	taskCtx, release, ok := c.tasks.Attach(ctx)
 	if !ok {
@@ -95,12 +133,17 @@ func (c *Coordinator) StartReindex(ctx context.Context, root string) (string, er
 	return operationID, nil
 }
 
-// ActiveOperation returns the in-flight reindex operation for root, or an
-// empty string when that root is idle.
-func (c *Coordinator) ActiveOperation(root string) string {
+func (c *Coordinator) activeOperation(root string) string {
 	c.activeMu.Lock()
 	defer c.activeMu.Unlock()
 	return c.active[root]
+}
+
+func (c *Coordinator) root(cwd string) (string, error) {
+	if c.roots == nil {
+		return "", ErrRootResolverUnavailable
+	}
+	return c.roots.ResolveRoot(cwd)
 }
 
 func (c *Coordinator) beginOperation(root string) (string, bool) {

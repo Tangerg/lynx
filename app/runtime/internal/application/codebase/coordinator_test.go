@@ -30,6 +30,14 @@ type codebaseReindexCall struct {
 	err  error
 }
 
+type staticRootResolver struct{}
+
+func (staticRootResolver) ResolveRoot(cwd string) (string, error) { return cwd, nil }
+
+func newCoordinator(index codebaseindex.Index) *Coordinator {
+	return New(index, staticRootResolver{})
+}
+
 func (i *codebaseIndex) Available(ctx context.Context) (bool, error) {
 	i.availableCtxErr = ctx.Err()
 	if i.availability != nil {
@@ -61,14 +69,14 @@ func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.St
 }
 
 func TestStatusReturnsNoneWhenUnconfigured(t *testing.T) {
-	c := New(nil)
+	c := newCoordinator(nil)
 
 	got, err := c.Status(context.Background(), "/repo")
 	if err != nil {
 		t.Fatalf("status: %v", err)
 	}
-	if got.State != codebaseindex.StateNone {
-		t.Fatalf("state = %q, want none", got.State)
+	if got.Index.State != codebaseindex.StateNone {
+		t.Fatalf("state = %q, want none", got.Index.State)
 	}
 }
 
@@ -77,7 +85,7 @@ func TestSearchUsesSearchPort(t *testing.T) {
 		Path:  "runtime/codebase.go",
 		Score: 0.95,
 	}}}
-	c := New(idx)
+	c := newCoordinator(idx)
 
 	got, err := c.Search(context.Background(), "/repo", "runtime facade", 4)
 	if err != nil {
@@ -93,24 +101,24 @@ func TestSearchUsesSearchPort(t *testing.T) {
 
 func TestStatusUsesStatusPort(t *testing.T) {
 	idx := &codebaseIndex{status: codebaseindex.Status{State: codebaseindex.StateReady}}
-	c := New(idx)
+	c := newCoordinator(idx)
 
 	got, err := c.Status(context.Background(), "/repo")
 	if err != nil {
 		t.Fatalf("Status err = %v", err)
 	}
-	if got.State != codebaseindex.StateReady || idx.statusRoot != "/repo" {
+	if got.Index.State != codebaseindex.StateReady || idx.statusRoot != "/repo" {
 		t.Fatalf("status = %+v, root = %q", got, idx.statusRoot)
 	}
 }
 
 func TestStartReindexRequiresAvailableIndex(t *testing.T) {
-	c := New(nil)
+	c := newCoordinator(nil)
 	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex without index err = %v, want ErrNoEmbeddingModel", err)
 	}
 
-	c = New(&codebaseIndex{})
+	c = newCoordinator(&codebaseIndex{})
 	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		t.Fatalf("start reindex unavailable err = %v, want ErrNoEmbeddingModel", err)
 	}
@@ -118,7 +126,7 @@ func TestStartReindexRequiresAvailableIndex(t *testing.T) {
 
 func TestStartReindexPreservesAvailabilityFailure(t *testing.T) {
 	wantErr := errors.New("provider store unavailable")
-	c := New(&codebaseIndex{availabilityErr: wantErr})
+	c := newCoordinator(&codebaseIndex{availabilityErr: wantErr})
 
 	_, err := c.StartReindex(context.Background(), "/repo")
 	if !errors.Is(err, wantErr) {
@@ -128,7 +136,7 @@ func TestStartReindexPreservesAvailabilityFailure(t *testing.T) {
 
 func TestStartReindexDetachesFromRequestCancel(t *testing.T) {
 	idx := &codebaseIndex{available: true, reindexed: make(chan codebaseReindexCall, 1)}
-	c := New(idx)
+	c := newCoordinator(idx)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -163,7 +171,7 @@ func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
 			return nil
 		},
 	}
-	c := New(idx)
+	c := newCoordinator(idx)
 
 	first, err := c.StartReindex(context.Background(), "/repo")
 	if err != nil {
@@ -174,19 +182,21 @@ func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("start coalesced reindex: %v", err)
 	}
-	if second != first || c.ActiveOperation("/repo") != first {
-		t.Fatalf("coalesced operation = %q, active = %q, want %q", second, c.ActiveOperation("/repo"), first)
+	status, statusErr := c.Status(context.Background(), "/repo")
+	if statusErr != nil || second != first || status.OperationID != first {
+		t.Fatalf("coalesced operation = %q, status = %+v, err=%v, want %q", second, status, statusErr, first)
 	}
 
 	close(finish)
 	c.Close()
-	if active := c.ActiveOperation("/repo"); active != "" {
-		t.Fatalf("active operation after completion = %q, want empty", active)
+	status, statusErr = c.Status(context.Background(), "/repo")
+	if statusErr != nil || status.OperationID != "" {
+		t.Fatalf("status after completion = %+v, err=%v, want no active operation", status, statusErr)
 	}
 }
 
 func TestStartReindexRejectsClosedComponent(t *testing.T) {
-	c := New(&codebaseIndex{available: true})
+	c := newCoordinator(&codebaseIndex{available: true})
 	c.Close()
 	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
 		t.Fatalf("StartReindex error = %v, want %v", err, errClosed)
@@ -200,7 +210,7 @@ func TestCloseCancelsAndJoinsReindexAvailabilityCheck(t *testing.T) {
 		<-ctx.Done()
 		return false, ctx.Err()
 	}}
-	c := New(idx)
+	c := newCoordinator(idx)
 	result := make(chan error, 1)
 	go func() {
 		_, err := c.StartReindex(context.Background(), "/repo")

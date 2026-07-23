@@ -87,17 +87,24 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		// The run coordinator is built + owned by the Host; delivery drives it as a
 		// use-case surface. Its file-change nudges reach the delivery workspace hub
 		// through the notifier the Server observes.
-		Coordinator:   stack.Coordinator,
-		FileChanges:   stack.FileChanges,
-		MCPStatus:     stack.MCPStatus,
-		ScheduleFires: stack.ScheduleFires,
-		Queries:       stack.Queries,
-		Usage:         stack.Usage,
-		Schedules:     stack.Schedules,
-		Goals:         stack.Goals,
-		AgentMemory:   stack.AgentMemory,
-		Workspace:     stack.Workspace,
-		GitAvailable:  stack.GitAvailable,
+		Coordinator:        stack.Coordinator,
+		FileChanges:        stack.FileChanges,
+		MCPStatus:          stack.MCPStatus,
+		ScheduleFires:      stack.ScheduleFires,
+		Queries:            stack.Queries,
+		Usage:              stack.Usage,
+		Schedules:          stack.Schedules,
+		Goals:              stack.Goals,
+		AgentMemory:        stack.AgentMemory,
+		WorkspaceRoots:     stack.WorkspaceRoots,
+		WorkspaceFiles:     stack.WorkspaceFiles,
+		WorkspaceVCS:       stack.WorkspaceVCS,
+		WorkspaceDiscovery: stack.WorkspaceDiscovery,
+		WorkspaceKnowledge: stack.WorkspaceKnowledge,
+		WorkspaceSkills:    stack.WorkspaceSkills,
+		WorkspaceHooks:     stack.WorkspaceHooks,
+		WorkspaceWatch:     stack.WorkspaceWatch,
+		GitAvailable:       stack.GitAvailable,
 	})
 	if err != nil {
 		return nil, nil, err

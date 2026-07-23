@@ -134,14 +134,14 @@ const (
 )
 
 // ListFiles returns one stable cursor page of entries below a workspace root.
-func (c *Coordinator) ListFiles(ctx context.Context, input FileListInput) (FilePage, error) {
-	root, err := c.root(input.Cwd)
+func (c *Files) ListFiles(ctx context.Context, input FileListInput) (FilePage, error) {
+	root, err := c.context.root(input.Cwd)
 	if err != nil {
 		return FilePage{}, err
 	}
 	path := ""
 	if input.Path != "" {
-		path, err = c.paths.ResolveInRoot(root, input.Path)
+		path, err = c.context.paths.ResolveInRoot(root, input.Path)
 		if err != nil {
 			return FilePage{}, err
 		}
@@ -163,15 +163,15 @@ func (c *Coordinator) ListFiles(ctx context.Context, input FileListInput) (FileP
 }
 
 // FileHead returns the first requested lines of one workspace file.
-func (c *Coordinator) FileHead(ctx context.Context, cwd, path string, lines int) (FileHead, error) {
-	root, err := c.root(cwd)
+func (c *Files) FileHead(ctx context.Context, cwd, path string, lines int) (FileHead, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return FileHead{}, err
 	}
 	if path == "" {
 		return FileHead{}, ErrPathRequired
 	}
-	path, err = c.paths.ResolveExistingInRoot(root, path)
+	path, err = c.context.paths.ResolveExistingInRoot(root, path)
 	if err != nil {
 		return FileHead{}, err
 	}
@@ -190,15 +190,15 @@ func (c *Coordinator) FileHead(ctx context.Context, cwd, path string, lines int)
 
 // ReadFile returns all or a one-based inclusive line window of a workspace
 // file. It validates ranges before asking the filesystem adapter to read.
-func (c *Coordinator) ReadFile(ctx context.Context, cwd string, input FileReadInput) (FileReadResult, error) {
+func (c *Files) ReadFile(ctx context.Context, cwd string, input FileReadInput) (FileReadResult, error) {
 	if err := input.validate(); err != nil {
 		return FileReadResult{}, err
 	}
-	root, err := c.root(cwd)
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return FileReadResult{}, err
 	}
-	input.Path, err = c.paths.ResolveExistingInRoot(root, input.Path)
+	input.Path, err = c.context.paths.ResolveExistingInRoot(root, input.Path)
 	if err != nil {
 		return FileReadResult{}, err
 	}
@@ -226,16 +226,16 @@ func (input FileReadInput) validate() error {
 
 // Grep searches a workspace root or an existing subdirectory. A truncated
 // search returns an honest total rather than silently under-reporting hits.
-func (c *Coordinator) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResult, error) {
+func (c *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResult, error) {
 	if input.Query == "" {
 		return GrepResult{}, ErrGrepQueryMissing
 	}
-	root, err := c.root(cwd)
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return GrepResult{}, err
 	}
 	if input.Path != "" {
-		input.Path, err = c.paths.ResolveExistingInRoot(root, input.Path)
+		input.Path, err = c.context.paths.ResolveExistingInRoot(root, input.Path)
 		if err != nil {
 			return GrepResult{}, err
 		}
@@ -295,19 +295,41 @@ func pageFileEntries(entries []FileEntry, cursor string, limit int) ([]FileEntry
 	return page, base64.RawURLEncoding.EncodeToString([]byte(entries[end-1].orderKey())), nil
 }
 
+// FileStatus is the application vocabulary for a working-tree change. It is
+// intentionally independent of both the Git adapter's type and the wire enum.
+type FileStatus string
+
+const (
+	FileStatusAdded     FileStatus = "added"
+	FileStatusModified  FileStatus = "modified"
+	FileStatusDeleted   FileStatus = "deleted"
+	FileStatusRenamed   FileStatus = "renamed"
+	FileStatusUntracked FileStatus = "untracked"
+)
+
 // FileChange is one working-tree change.
 type FileChange struct {
 	Path         string
-	Status       string
+	Status       FileStatus
 	PreviousPath string
 	Binary       bool
 	Added        int
 	Removed      int
 }
 
+// DiffRowType is the application vocabulary for a parsed unified-diff row.
+type DiffRowType string
+
+const (
+	DiffRowHunk    DiffRowType = "hunk"
+	DiffRowContext DiffRowType = "context"
+	DiffRowAdded   DiffRowType = "added"
+	DiffRowDeleted DiffRowType = "deleted"
+)
+
 // DiffRow is one structured diff row.
 type DiffRow struct {
-	Type      string
+	Type      DiffRowType
 	Text      string
 	LeftLine  int
 	RightLine int
@@ -317,7 +339,7 @@ type DiffRow struct {
 // FileDiff is one file's structured diff.
 type FileDiff struct {
 	Path         string
-	Status       string
+	Status       FileStatus
 	PreviousPath string
 	Binary       bool
 	Added        int
@@ -350,8 +372,8 @@ type Diff struct {
 }
 
 // ListFileChanges reads the root's VCS status.
-func (c *Coordinator) ListFileChanges(ctx context.Context, cwd string) ([]FileChange, error) {
-	root, err := c.root(cwd)
+func (c *VCS) ListFileChanges(ctx context.Context, cwd string) ([]FileChange, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -363,14 +385,14 @@ func (c *Coordinator) ListFileChanges(ctx context.Context, cwd string) ([]FileCh
 
 // Diff reads a workspace VCS diff, keeping path confinement and file-boundary
 // truncation in the application use case rather than the delivery projection.
-func (c *Coordinator) Diff(ctx context.Context, input DiffInput) (Diff, error) {
-	root, err := c.root(input.Cwd)
+func (c *VCS) Diff(ctx context.Context, input DiffInput) (Diff, error) {
+	root, err := c.context.root(input.Cwd)
 	if err != nil {
 		return Diff{}, err
 	}
 	path := ""
 	if input.Path != "" {
-		path, err = c.paths.ResolveInRoot(root, input.Path)
+		path, err = c.context.paths.ResolveInRoot(root, input.Path)
 		if err != nil {
 			return Diff{}, err
 		}
@@ -422,7 +444,7 @@ type ProjectCatalog interface {
 }
 
 // ListProjects returns each non-empty session cwd once, newest-active first.
-func (c *Coordinator) ListProjects(ctx context.Context) ([]Project, error) {
+func (c *Discovery) ListProjects(ctx context.Context) ([]Project, error) {
 	if c.projects == nil {
 		return nil, errors.New("workspace: project catalog is not configured")
 	}
@@ -467,10 +489,20 @@ func projectsFromSessions(sessions []session.Session) []Project {
 	return projects
 }
 
+// AgentDocScope identifies where an instruction document participates in the
+// cascade, without leaking a raw delivery enum through the application layer.
+type AgentDocScope string
+
+const (
+	AgentDocScopeHome        AgentDocScope = "home"
+	AgentDocScopeCwd         AgentDocScope = "cwd"
+	AgentDocScopeProjectRoot AgentDocScope = "projectRoot"
+)
+
 // AgentDoc is one discovered instruction document with its cascade scope.
 type AgentDoc struct {
 	Path  string
-	Scope string
+	Scope AgentDocScope
 }
 
 // AgentDocFinder discovers the workspace instruction-document cascade.
@@ -479,33 +511,33 @@ type AgentDocFinder interface {
 }
 
 // ListAgentDocs returns the instruction-document cascade for one workspace.
-func (c *Coordinator) ListAgentDocs(ctx context.Context, cwd string) ([]AgentDoc, error) {
-	root, err := c.root(cwd)
+func (c *Discovery) ListAgentDocs(ctx context.Context, cwd string) ([]AgentDoc, error) {
+	root, err := c.context.root(cwd)
 	if err != nil {
 		return nil, err
 	}
 	if c.agentDocs == nil {
 		return nil, errors.New("workspace: agent document finder is not configured")
 	}
-	files, err := c.agentDocs.DiscoverAgentDocs(ctx, root, c.home)
+	files, err := c.agentDocs.DiscoverAgentDocs(ctx, root, c.context.home)
 	if err != nil {
 		return nil, err
 	}
 	docs := make([]AgentDoc, 0, len(files))
 	for _, file := range files {
-		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, c.home)})
+		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, c.context.home)})
 	}
 	return docs, nil
 }
 
-func agentDocScope(path, cwd, home string) string {
+func agentDocScope(path, cwd, home string) AgentDocScope {
 	dir := filepath.Dir(path)
 	switch {
 	case home != "" && dir == home:
-		return "home"
+		return AgentDocScopeHome
 	case cwd != "" && (dir == cwd || strings.HasPrefix(path, cwd+string(filepath.Separator))):
-		return "cwd"
+		return AgentDocScopeCwd
 	default:
-		return "projectRoot"
+		return AgentDocScopeProjectRoot
 	}
 }

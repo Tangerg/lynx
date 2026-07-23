@@ -101,8 +101,6 @@ func (p Patch) Normalize() (Patch, error) {
 // without recomputing structure.
 type Session struct {
 	ID        string
-	UserID    string // optional principal copied from the Agent runtime session
-	AgentName string // exact compiled Agent identity for delegated conversations
 	Title     string // human-readable; auto-generated from first user message
 	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
@@ -110,10 +108,7 @@ type Session struct {
 	Kind      Kind
 	StartedAt time.Time
 	UpdatedAt time.Time
-	// DelegationMetadata belongs only to an internal delegated session. It is
-	// opaque to the product model and never appears on the public Session API.
-	DelegationMetadata DelegationMetadata
-	Favorite           bool // user-pinned: sorts ahead of the rest in the session list
+	Favorite  bool // user-pinned: sorts ahead of the rest in the session list
 	// Isolated runs the session's tools inside a sandbox copy of Cwd instead of
 	// the real working tree: fs + shell operate on the copy, the shell is
 	// OS-jailed (network denied, $HOME hidden), and changes never touch the
@@ -122,16 +117,14 @@ type Session struct {
 	Revision uint64
 }
 
-// Subtask is the Agent runtime identity that must survive the product
-// session's title/cwd enrichment and SQLite round trip.
+// Subtask is the product lineage and audit projection of a delegated
+// conversation. Agent-runtime continuation state is persisted at the Bootstrap
+// boundary as an opaque sidecar, so this domain never learns agent SDK fields.
 type Subtask struct {
-	ID                 string
-	ParentID           string
-	UserID             string
-	AgentName          string
-	StartedAt          time.Time
-	UpdatedAt          time.Time
-	DelegationMetadata DelegationMetadata
+	ID        string
+	ParentID  string
+	StartedAt time.Time
+	UpdatedAt time.Time
 }
 
 // Validate checks the identity and audit invariants required for a resumable
@@ -143,12 +136,6 @@ func (s Subtask) Validate() error {
 	if strings.TrimSpace(s.ParentID) == "" || strings.TrimSpace(s.ParentID) != s.ParentID || s.ParentID == s.ID {
 		return fmt.Errorf("%w: parent ID must be distinct and non-empty without surrounding whitespace", ErrInvalidSubtask)
 	}
-	if s.UserID != strings.TrimSpace(s.UserID) {
-		return fmt.Errorf("%w: user ID has surrounding whitespace", ErrInvalidSubtask)
-	}
-	if strings.TrimSpace(s.AgentName) == "" || strings.TrimSpace(s.AgentName) != s.AgentName {
-		return fmt.Errorf("%w: agent name must be non-empty without surrounding whitespace", ErrInvalidSubtask)
-	}
 	if s.StartedAt.IsZero() || s.UpdatedAt.IsZero() || s.UpdatedAt.Before(s.StartedAt) {
 		return fmt.Errorf("%w: started and updated times must be ordered and non-zero", ErrInvalidSubtask)
 	}
@@ -156,14 +143,12 @@ func (s Subtask) Validate() error {
 }
 
 // SameIdentity reports whether existing is the durable product projection of
-// this delegated conversation. UpdatedAt and DelegationMetadata are mutable
-// continuation data; the remaining runtime-owned fields are immutable identity.
+// this delegated product session. UpdatedAt is mutable audit data; the remaining
+// fields are immutable product identity.
 func (s Subtask) SameIdentity(existing Session) bool {
 	return existing.Kind == KindSubtask &&
 		existing.ID == s.ID &&
 		existing.ParentID == s.ParentID &&
-		existing.UserID == s.UserID &&
-		existing.AgentName == s.AgentName &&
 		existing.StartedAt.Equal(s.StartedAt)
 }
 
@@ -191,8 +176,6 @@ func (s Session) EffectiveModel(defaultModel string) string {
 func (s Session) Fork(id string, now time.Time) Session {
 	return Session{
 		ID:        id,
-		UserID:    s.UserID,
-		AgentName: s.AgentName,
 		Title:     s.Title + " (fork)",
 		Cwd:       s.Cwd, // inherit the source's cwd (API.md §7.2)
 		ParentID:  s.ID,
@@ -209,10 +192,10 @@ func (s Session) Fork(id string, now time.Time) Session {
 // branch point: a subtask is a fresh delegated conversation, not a branch of
 // the parent's history.
 //
-// The typed Subtask carries the runtime identity and timestamps; the receiver
-// contributes only product-owned presentation state. A parent that does not
-// exist is represented by an ID-only Session, which naturally yields the
-// untitled-parent form. The derivation stays pure and DB-free.
+// The typed Subtask carries only lineage and audit values; the receiver
+// contributes product-owned presentation state. A parent that does not exist
+// is represented by an ID-only Session, which naturally yields the untitled-
+// parent form. The derivation stays pure and DB-free.
 func (s Session) NewSubtask(subtask Subtask) (Session, error) {
 	if err := subtask.Validate(); err != nil {
 		return Session{}, err
@@ -225,16 +208,13 @@ func (s Session) NewSubtask(subtask Subtask) (Session, error) {
 		title = s.Title + " · subtask"
 	}
 	return Session{
-		ID:                 subtask.ID,
-		UserID:             subtask.UserID,
-		AgentName:          subtask.AgentName,
-		Title:              title,
-		Cwd:                s.Cwd,
-		ParentID:           s.ID,
-		Kind:               KindSubtask,
-		Isolated:           s.Isolated, // a subtask runs inside its parent's isolation
-		StartedAt:          subtask.StartedAt,
-		UpdatedAt:          subtask.UpdatedAt,
-		DelegationMetadata: subtask.DelegationMetadata,
+		ID:        subtask.ID,
+		Title:     title,
+		Cwd:       s.Cwd,
+		ParentID:  s.ID,
+		Kind:      KindSubtask,
+		Isolated:  s.Isolated, // a subtask runs inside its parent's isolation
+		StartedAt: subtask.StartedAt,
+		UpdatedAt: subtask.UpdatedAt,
 	}, nil
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
@@ -49,7 +48,7 @@ func (s *fakeMemoryStore) Update(_ context.Context, scope knowledge.Scope, cwd s
 // store (nil store → the disabled memory path).
 func serverWithMemory(store knowledge.Store) *Server {
 	s := newTestServer(&stubRuntime{})
-	s.workspace = newWorkspaceCoordinator("", workspaceapp.Config{Memory: store})
+	applyWorkspaceSurfaces(s, newWorkspaceSurfaces("", workspaceTestConfig{Memory: store}))
 	return s
 }
 

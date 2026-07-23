@@ -11,7 +11,7 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
 		skills: []skills.Info{{Name: "lint", Description: "check code", Scope: "project"}},
 	}
-	c := New(Config{Paths: testPaths{}, Skills: catalog})
+	c := NewSkills(NewContext("", "", testPaths{}), catalog, nil, nil)
 
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil {
@@ -26,7 +26,7 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 }
 
 func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
-	c := New(Config{Paths: testPaths{}})
+	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil)
 	got, err := c.ListSkills(context.Background(), "/repo")
 	if err != nil || got != nil {
 		t.Fatalf("ListSkills = %v, %v; want nil, nil", got, err)

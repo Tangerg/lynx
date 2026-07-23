@@ -29,7 +29,7 @@ func (f *fakeSkillDrafts) DiscardDraft(_ context.Context, h skills.DraftHandle) 
 }
 
 func TestSkillDraftsUnavailableWithoutStore(t *testing.T) {
-	c := New(Config{})
+	c := NewSkills(NewContext("", "", nil), nil, nil, nil)
 	handle := skills.DraftHandle{Name: "x", Revision: "r"}
 	if _, err := c.ListSkillDrafts(context.Background()); !errors.Is(err, ErrSkillDraftsUnavailable) {
 		t.Fatalf("ListSkillDrafts err = %v, want ErrSkillDraftsUnavailable", err)
@@ -45,7 +45,7 @@ func TestSkillDraftsUnavailableWithoutStore(t *testing.T) {
 func TestSkillDraftsDelegateToPort(t *testing.T) {
 	handle := skills.DraftHandle{Name: "run-tests", Revision: "abc"}
 	fake := &fakeSkillDrafts{list: []skills.DraftInfo{{Handle: handle, CreatedBy: skills.CreatedByAgent}}}
-	c := New(Config{Drafts: fake})
+	c := NewSkills(NewContext("", "", nil), nil, nil, fake)
 
 	got, err := c.ListSkillDrafts(context.Background())
 	if err != nil || len(got) != 1 || got[0].Handle != handle {

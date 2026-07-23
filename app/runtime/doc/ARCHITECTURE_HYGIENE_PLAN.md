@@ -168,8 +168,8 @@ Scope:
   instruction-document discovery behind focused `application/workspace` ports.
 - Make Bootstrap the sole owner of Delivery's application collaborator wiring
   and environment capability probe.
-- Rename delegated-session continuation metadata and its SQLite column so the
-  Session domain no longer carries an agent-framework-shaped abstraction name.
+- Establish the initial Bootstrap-owned boundary for delegated-session
+  continuation data, then remove the remaining domain carrier in Batch 7.
 
 Acceptance:
 
@@ -177,9 +177,38 @@ Acceptance:
   not construct application coordinators.
 - Usage and workspace policies are expressed with application values, never
   protocol DTOs.
-- Domain session continuation metadata is product-neutral and adapter mapping to
-  framework metadata happens only in Bootstrap.
+- The transitional Batch 6 continuation boundary is isolated enough to be
+  replaced without changing the Delivery or Run contracts.
 - Architecture tests fail if the removed Delivery bypasses return.
+
+### Batch 7 — Residual abstraction-leak eradication
+
+Status: **Completed**
+
+Scope:
+
+- Move Git-state filesystem watching from Delivery to the workspace adapter and
+  expose it through a workspace application use case.
+- Remove agent continuation identity and opaque state from the Session domain;
+  persist it as Bootstrap-owned opaque sidecar data at the storage boundary.
+- Move agent-memory review/mutation and project-root policy into a dedicated
+  application use case with an atomic storage update.
+- Make codebase operations resolve their workspace root in Application, split
+  the workspace aggregate into focused use cases, and give Delivery only its
+  consumer-side ports.
+- Replace adapter type/error re-exports and duplicate application values with
+  boundary-owned vocabulary; add tests that prohibit Delivery filesystem tech
+  and Session continuation state.
+
+Acceptance:
+
+- Delivery owns no filesystem watcher, path traversal, or filesystem-library
+  dependency for workspace operations.
+- Product Session values carry only product lineage/audit data; agent runtime
+  continuation is opaque outside Bootstrap and storage.
+- Every Delivery handler depends only on the use-case behavior it consumes;
+  no catch-all workspace coordinator remains.
+- The architecture suite fails if these ownership boundaries regress.
 
 ## 6. Progress
 
@@ -191,6 +220,7 @@ Acceptance:
 | 4. Abstraction and boundary cleanup | Completed | 2026-07-23 | 2026-07-23 | Full build, vet, test, focused race suites, and architecture tests passed after dispatcher, registry, HITL, and suspension cleanup. |
 | 5. Fitness tests and final verification | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, relevant race suites, and expanded semantic architecture tests passed. |
 | 6. Semantic boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, test; `go test ./internal/arch`; Delivery adapter-import and construction ownership checks. |
+| 7. Residual abstraction-leak eradication | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; standalone vet/test; focused race suite; expanded filesystem and Session-domain architecture checks. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -287,12 +317,29 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Bootstrap supplies every application coordinator and the Git capability
   snapshot; `delivery/server.New` no longer creates disabled application
   coordinators or probes the process environment.
-- Delegated-session continuation metadata is now `DelegationMetadata`; the
-  agent/core JSON translation is confined to `bootstrap/child_session_store`,
-  and SQLite persists it in `delegation_metadata`.
+- Batch 6's transitional `DelegationMetadata` carrier was later removed in
+  Batch 7: agent/core JSON is now an opaque Bootstrap sidecar persisted in
+  `agent_session_state`, never a Session-domain value.
 - Official OpenTelemetry API use within Application remains intentionally
   allowed by the repository boundary policy, so no speculative telemetry port
   was introduced.
+
+### 2026-07-23 — Batch 7 completed
+
+- Git-state watching now belongs to the workspace adapter; the application
+  resolves and deduplicates requested roots, and Delivery publishes only its
+  neutral resync callback.
+- The Session domain now owns only subtask lineage and audit timestamps.
+  Bootstrap serializes agent runtime continuation as opaque state in the
+  `agent_session_state` storage sidecar, with identity consistency checked at
+  that boundary.
+- `application/agentmemory` now owns memory scope, review, and atomic update
+  policy. `application/codebase` resolves project roots itself. The former
+  workspace coordinator is split into independently wired, focused use cases.
+- Delivery now names narrow consumer-side interfaces for every application
+  capability; typed workspace vocabulary replaces Git adapter type/error
+  leakage. Architecture checks prohibit Delivery filesystem technology and
+  agent-continuation fields in the product Session domain.
 
 ## 8. Completion definition
 

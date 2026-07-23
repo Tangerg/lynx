@@ -10,14 +10,14 @@ import (
 
 // WorkspaceListFileChanges projects application VCS status onto the wire.
 func (s *Server) WorkspaceListFileChanges(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	changes, err := s.workspace.ListFileChanges(ctx, in.Cwd)
+	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
 	out := make([]protocol.WorkspaceFileChange, 0, len(changes))
 	for _, change := range changes {
 		entry := protocol.WorkspaceFileChange{
-			Path: change.Path, Status: protocol.FileStatus(change.Status), PreviousPath: change.PreviousPath, Binary: change.Binary,
+			Path: change.Path, Status: protocol.FileStatus(string(change.Status)), PreviousPath: change.PreviousPath, Binary: change.Binary,
 		}
 		if !change.Binary {
 			added, removed := change.Added, change.Removed
@@ -39,7 +39,7 @@ func (s *Server) WorkspaceGetDiff(ctx context.Context, in protocol.GetDiffReques
 	default:
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
-	diff, err := s.workspace.Diff(ctx, workspaceapp.DiffInput{
+	diff, err := s.workspaceVCS.Diff(ctx, workspaceapp.DiffInput{
 		Cwd: in.Cwd, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
 	})
 	if err != nil {
@@ -55,7 +55,7 @@ func diffFilesWire(files []workspaceapp.FileDiff) []protocol.FileDiff {
 	out := make([]protocol.FileDiff, 0, len(files))
 	for _, file := range files {
 		entry := protocol.FileDiff{
-			Path: file.Path, Status: protocol.FileStatus(file.Status), PreviousPath: file.PreviousPath,
+			Path: file.Path, Status: protocol.FileStatus(string(file.Status)), PreviousPath: file.PreviousPath,
 			Binary: file.Binary, Rows: diffRowsWire(file.Rows),
 		}
 		if !file.Binary {
@@ -71,7 +71,7 @@ func diffRowsWire(rows []workspaceapp.DiffRow) []protocol.DiffRow {
 	out := make([]protocol.DiffRow, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, protocol.DiffRow{
-			Type: protocol.DiffRowType(row.Type), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
+			Type: protocol.DiffRowType(string(row.Type)), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
 		})
 	}
 	return out

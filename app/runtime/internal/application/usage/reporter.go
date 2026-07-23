@@ -31,34 +31,23 @@ type ModelDefaults interface {
 	DefaultModel() string
 }
 
-// ModelUsage is one token and optional-cost roll-up. A nil CostUSD means none
-// of the contributing runs was priced; it is not a synthetic zero.
-type ModelUsage struct {
-	InputTokens      int64
-	OutputTokens     int64
-	CacheReadTokens  int64
-	CacheWriteTokens int64
-	ReasoningTokens  int64
-	CostUSD          *float64
-}
-
 // Bucket is one named portion of a summary report.
 type Bucket struct {
 	Key   string
-	Usage ModelUsage
+	Usage transcript.ModelUsage
 	Runs  int
 }
 
 // SessionReport is one session's cumulative metering and per-model split.
 type SessionReport struct {
-	Total   ModelUsage
-	ByModel map[string]ModelUsage
+	Total   transcript.ModelUsage
+	ByModel map[string]transcript.ModelUsage
 }
 
 // Summary is a cross-session usage report. Provider and day buckets reconcile
 // with Total because every completed run contributes as one whole run.
 type Summary struct {
-	Total      ModelUsage
+	Total      transcript.ModelUsage
 	ByProvider []Bucket
 	ByModel    []Bucket
 	ByDay      []Bucket
@@ -104,7 +93,7 @@ func (r *Reporter) Session(ctx context.Context, sessionID string) (SessionReport
 	}
 	report := SessionReport{Total: total.usage()}
 	if len(byModel) > 0 {
-		report.ByModel = make(map[string]ModelUsage, len(byModel))
+		report.ByModel = make(map[string]transcript.ModelUsage, len(byModel))
 		for name, bucket := range byModel {
 			report.ByModel[name] = bucket.usage()
 		}
@@ -161,7 +150,7 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 	if !since.IsZero() && !run.FinishedAt.IsZero() && run.FinishedAt.Before(since) {
 		return
 	}
-	usage := modelUsage(run.Result.Usage.ModelUsage)
+	usage := run.Result.Usage.ModelUsage
 	if total != nil {
 		total.add(usage)
 		total.runs++
@@ -182,7 +171,7 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 	if len(run.Result.Usage.ByModel) > 0 {
 		for name, split := range run.Result.Usage.ByModel {
 			bucket := accumulatorFor(byModel, name)
-			bucket.add(modelUsage(split))
+			bucket.add(split)
 			bucket.runs++
 		}
 		return
@@ -192,22 +181,14 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 	bucket.runs++
 }
 
-func modelUsage(usage transcript.ModelUsage) ModelUsage {
-	return ModelUsage{
-		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens,
-		CacheReadTokens: usage.CacheReadTokens, CacheWriteTokens: usage.CacheWriteTokens,
-		ReasoningTokens: usage.ReasoningTokens, CostUSD: usage.CostUSD,
-	}
-}
-
 type accumulator struct {
-	tokens  ModelUsage
+	tokens  transcript.ModelUsage
 	cost    float64
 	hasCost bool
 	runs    int
 }
 
-func (a *accumulator) add(usage ModelUsage) {
+func (a *accumulator) add(usage transcript.ModelUsage) {
 	a.tokens.InputTokens += usage.InputTokens
 	a.tokens.OutputTokens += usage.OutputTokens
 	a.tokens.CacheReadTokens += usage.CacheReadTokens
@@ -219,7 +200,7 @@ func (a *accumulator) add(usage ModelUsage) {
 	}
 }
 
-func (a accumulator) usage() ModelUsage {
+func (a accumulator) usage() transcript.ModelUsage {
 	out := a.tokens
 	if a.hasCost {
 		cost := a.cost

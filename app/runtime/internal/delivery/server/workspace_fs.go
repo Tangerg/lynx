@@ -11,7 +11,7 @@ import (
 // WorkspaceListFiles projects a paged application workspace-file listing onto
 // the wire contract.
 func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
-	page, err := s.workspace.ListFiles(ctx, workspaceapp.FileListInput{
+	page, err := s.workspaceFiles.ListFiles(ctx, workspaceapp.FileListInput{
 		Cwd: in.Cwd,
 		FileListOptions: workspaceapp.FileListOptions{
 			Path: in.Path, Glob: in.Glob, Recursive: in.Recursive, IncludeIgnored: in.IncludeIgnored,
@@ -38,7 +38,7 @@ func (s *Server) WorkspaceListFiles(ctx context.Context, in protocol.ListFilesRe
 
 // WorkspaceGetFileHead projects the application file preview onto wire lines.
 func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
-	head, err := s.workspace.FileHead(ctx, in.Cwd, in.Path, in.Lines)
+	head, err := s.workspaceFiles.FileHead(ctx, in.Cwd, in.Path, in.Lines)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -51,7 +51,7 @@ func (s *Server) WorkspaceGetFileHead(ctx context.Context, in protocol.GetFileHe
 
 // WorkspaceReadFile maps the application file read onto the protocol response.
 func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
-	read, err := s.workspace.ReadFile(ctx, in.Cwd, workspaceapp.FileReadInput{
+	read, err := s.workspaceFiles.ReadFile(ctx, in.Cwd, workspaceapp.FileReadInput{
 		Path: in.Path, MaxBytes: in.MaxBytes, StartLine: in.StartLine, EndLine: in.EndLine,
 	})
 	if err != nil {
@@ -69,7 +69,7 @@ func (s *Server) WorkspaceReadFile(ctx context.Context, in protocol.ReadFileRequ
 
 // WorkspaceGrep maps the application content search onto the protocol result.
 func (s *Server) WorkspaceGrep(ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
-	result, err := s.workspace.Grep(ctx, in.Cwd, workspaceapp.GrepInput{Path: in.Path, Query: in.Query, Limit: in.Limit})
+	result, err := s.workspaceFiles.Grep(ctx, in.Cwd, workspaceapp.GrepInput{Path: in.Path, Query: in.Query, Limit: in.Limit})
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
