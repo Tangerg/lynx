@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
@@ -408,11 +409,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		goals: cfg.GoalStore,
 		tx:    cfg.Transactor,
 	}
+	modelCapabilities := modelcatalog.Capabilities{}
 	modelsCoord := models.New(models.Config{
 		Providers:         cfg.ProviderRegistry,
-		Catalog:           providerCatalog{},
-		Prober:            providerProber{},
-		Lister:            providerModelLister{},
+		Catalog:           modelCapabilities,
+		Prober:            modelCapabilities,
+		Lister:            modelCapabilities,
 		UtilityCell:       utilityEnv.cell,
 		UtilityValidator:  resolver,
 		UtilityStore:      cfg.UtilityRoleStore,
