@@ -59,7 +59,6 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 }
 
 func applyWorkspaceSurfaces(s *Server, surfaces workspaceSurfaces) {
-	s.workspaceRoots = surfaces.roots
 	s.workspaceFiles = surfaces.files
 	s.workspaceVCS = surfaces.vcs
 	s.workspaceDiscovery = surfaces.discovery

@@ -509,6 +509,6 @@ func (c *Coordinator) refreshMCPToolPolicy(ctx context.Context) error {
 		return err
 	}
 	policy := mcpserver.NewToolPolicy(servers)
-	c.mcpPolicy.Store(&policy)
+	c.mcpPolicy.Replace(policy)
 	return nil
 }

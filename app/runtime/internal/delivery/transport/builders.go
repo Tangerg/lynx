@@ -49,10 +49,9 @@ func NewResponseError(id ID, rpcErr *Error) *Response {
 	return &Response{ID: id, Error: rpcErr}
 }
 
-// NewErrorWithMessage is the same as [NewError] but lets the caller
-// override the message — useful when wrapping a downstream Go
-// error's String() to surface its detail.
-func NewErrorWithMessage(code int, msg string, data json.RawMessage) *Error {
+// NewError builds an RPC error with a caller-selected message and structured
+// data — useful when a downstream error's detail is safe to surface.
+func NewError(code int, msg string, data json.RawMessage) *Error {
 	return &Error{Code: int64(code), Message: msg, Data: data}
 }
 

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,31 +14,29 @@ import (
 )
 
 func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(mustModelRole(t, "anthropic", "claude-haiku"))
+	state := NewRoleState(*mustModelRole(t, "anthropic", "claude-haiku"))
 	saver := &fakeUtilityRoleSaver{}
-	c := New(Config{UtilityCell: cell, UtilityStore: saver})
+	c := New(Config{UtilityRoleState: state, UtilityStore: saver})
 
 	if _, err := c.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
-	role := cell.Load()
+	role := state.Role()
 	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
 		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
 	}
-	if role == nil || role.Configured() {
+	if role.Configured() {
 		t.Fatalf("role = %+v, want cleared", role)
 	}
 }
 
 func TestSetUtilityRoleUsesChatModelValidatorPort(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(&modelrole.Role{})
+	state := NewRoleState(modelrole.Role{})
 	saver := &fakeUtilityRoleSaver{}
 	validator := &fakeChatModelValidator{}
 	cfg := configuredRoleConfig()
-	cfg.UtilityCell = cell
+	cfg.UtilityRoleState = state
 	cfg.UtilityValidator = validator
 	cfg.UtilityStore = saver
 	c := New(cfg)
@@ -58,10 +55,9 @@ func TestSetUtilityRoleUsesChatModelValidatorPort(t *testing.T) {
 
 func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 	fail := errors.New("build client")
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(&modelrole.Role{})
+	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
-	cfg.UtilityCell = cell
+	cfg.UtilityRoleState = state
 	cfg.UtilityValidator = &fakeChatModelValidator{err: fail}
 	c := New(cfg)
 
@@ -71,10 +67,9 @@ func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 }
 
 func TestSetUtilityRoleRequiresChatModelValidator(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(&modelrole.Role{})
+	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
-	cfg.UtilityCell = cell
+	cfg.UtilityRoleState = state
 	c := New(cfg)
 
 	_, err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku")
@@ -84,10 +79,10 @@ func TestSetUtilityRoleRequiresChatModelValidator(t *testing.T) {
 }
 
 func TestSetUtilityRoleRequiresAConfiguredProvider(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
+	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
 	cfg.Providers = &testProviderRegistry{}
-	cfg.UtilityCell = cell
+	cfg.UtilityRoleState = state
 	cfg.UtilityValidator = staticChatModelValidator{}
 	c := New(cfg)
 
@@ -98,29 +93,27 @@ func TestSetUtilityRoleRequiresAConfiguredProvider(t *testing.T) {
 }
 
 func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(mustModelRole(t, "openai", "text-embedding-3-small"))
+	state := NewRoleState(*mustModelRole(t, "openai", "text-embedding-3-small"))
 	saver := &fakeEmbeddingRoleSaver{}
-	c := New(Config{EmbeddingCell: cell, EmbeddingStore: saver})
+	c := New(Config{EmbeddingRoleState: state, EmbeddingStore: saver})
 
 	if _, err := c.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
 		t.Fatalf("SetEmbeddingRole err = %v", err)
 	}
 
-	role := cell.Load()
+	role := state.Role()
 	if saver.calls != 1 || saver.provider != "" || saver.model != "" {
 		t.Fatalf("saved calls=%d provider=%q model=%q", saver.calls, saver.provider, saver.model)
 	}
-	if role == nil || role.Configured() {
+	if role.Configured() {
 		t.Fatalf("role = %+v, want cleared", role)
 	}
 }
 
 func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
-	cell.Store(&modelrole.Role{})
+	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
-	cfg.EmbeddingCell = cell
+	cfg.EmbeddingRoleState = state
 	c := New(cfg)
 
 	_, err := c.SetEmbeddingRole(context.Background(), "openai", "text-embedding-3-small")
@@ -130,10 +123,10 @@ func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
 }
 
 func TestSetEmbeddingRoleRejectsProviderWithoutEmbeddings(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
+	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
 	cfg.Catalog = testCatalog{metadata: []provider.Metadata{{ID: "anthropic"}}}
-	cfg.EmbeddingCell = cell
+	cfg.EmbeddingRoleState = state
 	cfg.EmbeddingResolver = staticEmbeddingResolver{}
 	c := New(cfg)
 
@@ -144,10 +137,10 @@ func TestSetEmbeddingRoleRejectsProviderWithoutEmbeddings(t *testing.T) {
 }
 
 func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
+	state := NewRoleState(modelrole.Role{})
 	saver := newBlockingUtilitySaver()
 	cfg := configuredRoleConfig()
-	cfg.UtilityCell = cell
+	cfg.UtilityRoleState = state
 	cfg.UtilityValidator = staticChatModelValidator{}
 	cfg.UtilityStore = saver
 	c := New(cfg)
@@ -173,16 +166,16 @@ func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 	if got := saver.savedModel(); got != "second" {
 		t.Fatalf("persisted model = %q, want second", got)
 	}
-	if role := cell.Load(); role == nil || role.Model() != "second" {
+	if role := state.Role(); role.Model() != "second" {
 		t.Fatalf("live role = %+v, want second", role)
 	}
 }
 
 func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
-	cell := &atomic.Pointer[modelrole.Role]{}
+	state := NewRoleState(modelrole.Role{})
 	saver := newBlockingEmbeddingSaver()
 	cfg := configuredRoleConfig()
-	cfg.EmbeddingCell = cell
+	cfg.EmbeddingRoleState = state
 	cfg.EmbeddingResolver = staticEmbeddingResolver{}
 	cfg.EmbeddingStore = saver
 	c := New(cfg)
@@ -208,7 +201,7 @@ func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	if got := saver.savedModel(); got != "second" {
 		t.Fatalf("persisted model = %q, want second", got)
 	}
-	if role := cell.Load(); role == nil || role.Model() != "second" {
+	if role := state.Role(); role.Model() != "second" {
 		t.Fatalf("live role = %+v, want second", role)
 	}
 }

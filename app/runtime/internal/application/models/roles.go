@@ -19,10 +19,7 @@ type Role struct {
 // UtilityRole returns the live utility-model role; both empty when unset
 // (maintenance runs on the main turn model). Backs models.getUtilityRole.
 func (c *Coordinator) UtilityRole() Role {
-	role := c.utilityCell.Load()
-	if role == nil {
-		return Role{}
-	}
+	role := c.utilityRoleState.Role()
 	return Role{Provider: role.ProviderID(), Model: role.Model()}
 }
 
@@ -55,17 +52,14 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 			return Role{}, err
 		}
 	}
-	c.utilityCell.Store(&role)
+	c.utilityRoleState.Store(role)
 	return Role{Provider: role.ProviderID(), Model: role.Model()}, nil
 }
 
 // EmbeddingRole returns the live embedding role; both empty when unset. Backs
 // models.getEmbeddingRole.
 func (c *Coordinator) EmbeddingRole() Role {
-	role := c.embeddingCell.Load()
-	if role == nil {
-		return Role{}
-	}
+	role := c.embeddingRoleState.Role()
 	return Role{Provider: role.ProviderID(), Model: role.Model()}
 }
 
@@ -101,6 +95,6 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 			return Role{}, fmt.Errorf("models: persist embedding role: %w", err)
 		}
 	}
-	c.embeddingCell.Store(&role)
+	c.embeddingRoleState.Store(role)
 	return Role{Provider: role.ProviderID(), Model: role.Model()}, nil
 }

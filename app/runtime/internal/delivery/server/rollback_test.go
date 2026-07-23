@@ -265,11 +265,11 @@ func TestAcquireSession(t *testing.T) {
 	if _, ok := testRunCoordinator(t, s).AcquireSession("s2"); !ok {
 		t.Fatal("a different session must claim independently")
 	}
-	if !s.hasActiveRun("s1") {
+	if !testRunCoordinator(t, s).ActiveSessions()["s1"] {
 		t.Fatal("a claimed (not-yet-registered) session must read as active")
 	}
 	releaseS1()
-	if s.hasActiveRun("s1") {
+	if testRunCoordinator(t, s).ActiveSessions()["s1"] {
 		t.Fatal("a released session must no longer read as active")
 	}
 	if _, ok := testRunCoordinator(t, s).AcquireSession("s1"); !ok {

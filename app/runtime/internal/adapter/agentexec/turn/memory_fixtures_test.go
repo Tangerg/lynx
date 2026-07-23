@@ -118,24 +118,6 @@ func sliceEqual(a, b []string) bool {
 	return true
 }
 
-func baseSeq(ev runs.EngineEvent) uint64 {
-	switch e := ev.(type) {
-	case runs.TurnStart:
-		return e.Seq
-	case runs.MessageDelta:
-		return e.Seq
-	case runs.ToolCallStart:
-		return e.Seq
-	case runs.ToolCallEnd:
-		return e.Seq
-	case runs.TurnEnd:
-		return e.Seq
-	case runs.ErrorEvent:
-		return e.Seq
-	}
-	return 0
-}
-
 type stubChatModel struct{ defaults *chatmodel.Options }
 
 func newStubChatModel() *stubChatModel {

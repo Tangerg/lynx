@@ -11,7 +11,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
@@ -91,18 +90,18 @@ type Coordinator struct {
 	prober    ProviderProber
 	lister    ProviderModelLister
 
-	// utility / embedding model roles: the live cell (shared with the maintenance
-	// titler / codebase index that read it), the resolver that validates a new
-	// role, and the saver that persists it.
-	utilityCell      *atomic.Pointer[modelrole.Role]
+	// utility / embedding model roles: the application-owned live state shared
+	// with driven adapters, the resolver that validates a new role, and the saver
+	// that persists it.
+	utilityRoleState *RoleState
 	utilityValidator ChatModelValidator
 	utilityStore     UtilityRoleSaver
 	utilityMu        sync.Mutex
 
-	embeddingCell     *atomic.Pointer[modelrole.Role]
-	embeddingResolver EmbeddingResolver
-	embeddingStore    EmbeddingRoleSaver
-	embeddingMu       sync.Mutex
+	embeddingRoleState *RoleState
+	embeddingResolver  EmbeddingResolver
+	embeddingStore     EmbeddingRoleSaver
+	embeddingMu        sync.Mutex
 
 	defaultProvider string
 	defaultModel    string
@@ -115,13 +114,13 @@ type Config struct {
 	Prober    ProviderProber
 	Lister    ProviderModelLister
 
-	UtilityCell      *atomic.Pointer[modelrole.Role]
+	UtilityRoleState *RoleState
 	UtilityValidator ChatModelValidator
 	UtilityStore     UtilityRoleSaver
 
-	EmbeddingCell     *atomic.Pointer[modelrole.Role]
-	EmbeddingResolver EmbeddingResolver
-	EmbeddingStore    EmbeddingRoleSaver
+	EmbeddingRoleState *RoleState
+	EmbeddingResolver  EmbeddingResolver
+	EmbeddingStore     EmbeddingRoleSaver
 
 	DefaultProvider string
 	DefaultModel    string
@@ -129,19 +128,25 @@ type Config struct {
 
 // New returns a models Coordinator over cfg.
 func New(cfg Config) *Coordinator {
+	if cfg.UtilityRoleState == nil {
+		cfg.UtilityRoleState = NewRoleState(modelrole.Role{})
+	}
+	if cfg.EmbeddingRoleState == nil {
+		cfg.EmbeddingRoleState = NewRoleState(modelrole.Role{})
+	}
 	return &Coordinator{
-		providers:         cfg.Providers,
-		catalog:           cfg.Catalog,
-		prober:            cfg.Prober,
-		lister:            cfg.Lister,
-		utilityCell:       cfg.UtilityCell,
-		utilityValidator:  cfg.UtilityValidator,
-		utilityStore:      cfg.UtilityStore,
-		embeddingCell:     cfg.EmbeddingCell,
-		embeddingResolver: cfg.EmbeddingResolver,
-		embeddingStore:    cfg.EmbeddingStore,
-		defaultProvider:   cfg.DefaultProvider,
-		defaultModel:      cfg.DefaultModel,
+		providers:          cfg.Providers,
+		catalog:            cfg.Catalog,
+		prober:             cfg.Prober,
+		lister:             cfg.Lister,
+		utilityRoleState:   cfg.UtilityRoleState,
+		utilityValidator:   cfg.UtilityValidator,
+		utilityStore:       cfg.UtilityStore,
+		embeddingRoleState: cfg.EmbeddingRoleState,
+		embeddingResolver:  cfg.EmbeddingResolver,
+		embeddingStore:     cfg.EmbeddingStore,
+		defaultProvider:    cfg.DefaultProvider,
+		defaultModel:       cfg.DefaultModel,
 	}
 }
 

@@ -8,16 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// workspaceRoot adapts the application-owned workspace-context lookup for the
-// few delivery projections that pass a canonical root to another use case.
-func (s *Server) workspaceRoot(cwd string) (string, error) {
-	root, err := s.workspaceRoots.ResolveRoot(cwd)
-	if err != nil {
-		return "", wireWorkspaceError(err)
-	}
-	return root, nil
-}
-
 // wireWorkspaceError is the sole translation from workspace use-case failures
 // to the JSON-RPC error vocabulary. The application never imports protocol.
 func wireWorkspaceError(err error) error {

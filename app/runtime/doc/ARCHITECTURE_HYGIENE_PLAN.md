@@ -239,7 +239,9 @@ Acceptance:
 - The portable artifact cannot carry live status, revision, workspace-derived,
   active, or interrupted executor state.
 - Domain structs have no JSON field tags; adapters retain external JSON codecs.
-- Every remaining Delivery interface method is invoked by a production handler.
+- Delivery interfaces declare only methods driven by production handlers; tests
+  reach concrete coordinators through test-only fixtures rather than widening a
+  production consumer port.
 - The runtime module, its standalone build, and the desktop protocol samples
   validate against the v6 contract.
 
@@ -332,6 +334,38 @@ Acceptance:
   sandbox snapshot/resume behavior.
 - Full tests, vet, and directional static scans are clean.
 
+### Batch 12 — Runtime ownership closure
+
+Status: **Completed**
+
+Scope:
+
+- Delete Delivery-only dead dependency chains (workspace-root lookup, singular
+  run-activity probe, unused pagination/title helpers) and narrow the remaining
+  consumer ports to live handlers.
+- Keep Goal mode and its session-mutation coordination intact: it is an enabled
+  product capability awaiting UI adoption, not dead code.
+- Remove executor-event correlation fields and lifecycle interfaces that are
+  written only by the adapter and never consumed by the production run pipeline;
+  retain the sealed application event family and the application-owned durable
+  event cursor.
+- Split schedule management from firing/worker execution so a complete runner
+  is constructor-injected after Runs exists, with no mutable `BindRunner` seam.
+- Move live model-role and MCP-policy synchronization behind owning application
+  state types; move runtime policy resolution and compactor live-state projection
+  to driven adapters so Bootstrap only loads startup values and assembles parts.
+
+Acceptance:
+
+- No Delivery consumer port carries an uncalled production method or a dead
+  configuration chain.
+- No product capability is removed based solely on current frontend adoption.
+- Bootstrap imports no atomic synchronization primitive and holds no live
+  policy/projection closure.
+- Schedule execution cannot be observed before its Runner is fully constructed.
+- Architecture tests guard the removed seams; full module and standalone
+  verification are green.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -347,9 +381,7 @@ Acceptance:
 | 9. Read-model, secret, and execution-boundary closure | Completed | 2026-07-23 | 2026-07-23 | Delivery/server, application, adapter, architecture, and full-module test suites verified the ownership moves. |
 | 10. Residual ownership closure and non-destructive abstraction audit | Completed | 2026-07-23 | 2026-07-23 | Full module tests and architecture tests verified the Bootstrap, archive, notifier, and consumer-audit changes. |
 | 11. Final abstraction-leak remediation | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; exact-symbol scans for removed query/Turn/Transport/sandbox facades; Application/Domain dependency-direction scan. |
-| 8. Delivery abstraction-leak closure | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; frontend typecheck and RPC sample test; expanded architecture suite. |
-| 9. Read-model, secret, and execution-boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, `go test ./internal/arch`, and race suites for integrations, runs, sessions, schedules, turn, Bootstrap, and Delivery all passed. |
-| 10. Residual ownership closure and non-destructive abstraction audit | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; `go test ./internal/arch`; and source scans for removed seams passed. |
+| 12. Runtime ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone test/vet/build; focused race suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed seams passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -536,6 +568,27 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Verification passed: module and standalone build/vet/test, focused race tests
   for integrations/runs/sessions/workspace/delivery/bootstrap, frontend
   typecheck, and the RPC sample contract test.
+
+### 2026-07-23 — Batch 12 completed
+
+- Removed Delivery-only workspace-root and singular active-session dependency
+  chains, uncalled consumer-port members, and test-only title/pagination helpers.
+  Goal mode and its shared Session mutation coordination remain intact because
+  they are a planned product capability, not evidence of dead code.
+- Replaced adapter-written, production-unread executor event metadata with a
+  sealed application event family; durable event cursors remain owned by
+  `application/runs` where replay actually consumes them.
+- Split schedule management from firing and worker lifecycle, so the runner is
+  fully constructor-injected after Runs exists rather than late-bound through a
+  mutable setter.
+- Moved live role and MCP policy synchronization behind Application-owned state
+  types; client fallback, embedding resolution, and compactor live-state mapping
+  now reside in driven adapters. Bootstrap only loads startup role values and
+  wires collaborators.
+- Added architecture checks against renewed Bootstrap live state, atomic
+  constructor leakage, post-construction schedule wiring, and the removed
+  Delivery port members. Module and standalone test/vet/build, focused race
+  suites, `staticcheck`, and `golangci-lint` passed.
 
 ## 8. Completion definition
 

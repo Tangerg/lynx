@@ -82,7 +82,7 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
-	handle, err := s.schedules.RunNow(ctx, in.ID)
+	handle, err := s.scheduleFiring.RunNow(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.runNow", in.ID)
 	}

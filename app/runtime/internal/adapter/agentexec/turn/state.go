@@ -36,7 +36,6 @@ type turnState struct {
 	eventMu      sync.Mutex
 	eventsClosed bool
 	eventsOpened bool
-	seq          uint64
 	terminalOnce sync.Once
 
 	// cwd is the session working directory the turn ran in — threaded to

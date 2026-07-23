@@ -12,46 +12,34 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// EngineEvent is the application-owned execution event sum type. Driven
-// adapters emit these values at the runs.SegmentExecutor port; delivery therefore
-// projects a stable application contract and never reaches back into an
-// executor adapter. The unexported marker seals the family to this package.
+// EngineEvent is the closed application-owned execution event family. Driven
+// adapters emit these values at the SegmentExecutor port; delivery therefore
+// projects an application contract and never reaches into an executor adapter.
 type EngineEvent interface {
-	execution.Event
-	WithMeta(EventMeta) EngineEvent
 	engineEvent()
 }
 
-// EventMeta is correlation metadata supplied by the executor adapter. Run event
-// replay uses the Coordinator's own cursor; this metadata is diagnostic only.
-type EventMeta struct {
-	SessionID string
-	TurnID    string
-	Seq       uint64
-	Timestamp time.Time
-}
+type engineEventBase struct{}
 
-func (EventMeta) engineEvent()                        {}
-func (EventMeta) Terminal() (execution.Outcome, bool) { return 0, false }
-func (EventMeta) Interrupt() bool                     { return false }
+func (engineEventBase) engineEvent() {}
 
 type TurnStart struct {
-	EventMeta
+	engineEventBase
 	Model string
 }
 
 type MessageDelta struct {
-	EventMeta
+	engineEventBase
 	Text string
 }
 
 type ReasoningDelta struct {
-	EventMeta
+	engineEventBase
 	Text string
 }
 
 type ToolCallStart struct {
-	EventMeta
+	engineEventBase
 	CallID      string
 	ToolName    string
 	Arguments   string
@@ -60,7 +48,7 @@ type ToolCallStart struct {
 }
 
 type ToolCallEnd struct {
-	EventMeta
+	engineEventBase
 	CallID       string
 	Arguments    string
 	Result       *tool.Result
@@ -79,17 +67,15 @@ type FileChange struct {
 }
 
 type CompactBoundary struct {
-	EventMeta
+	engineEventBase
 	MessagesBefore int
 	MessagesAfter  int
 }
 
 type TurnInterrupted struct {
-	EventMeta
+	engineEventBase
 	Interrupts []Interrupt
 }
-
-func (TurnInterrupted) Interrupt() bool { return true }
 
 func (e TurnInterrupted) validate() error {
 	if len(e.Interrupts) == 0 {
@@ -104,7 +90,7 @@ func (e TurnInterrupted) validate() error {
 }
 
 type TurnEnd struct {
-	EventMeta
+	engineEventBase
 	Reason       execution.Outcome
 	TokenUsage   accounting.TokenUsage
 	UsageByModel []accounting.ModelUsage
@@ -114,8 +100,6 @@ type TurnEnd struct {
 	MaxCostUSD   float64
 	MaxSteps     int
 }
-
-func (e TurnEnd) Terminal() (execution.Outcome, bool) { return e.Reason, true }
 
 // ErrorCode identifies the operation that reported an executor error. It is a
 // typed diagnostic tag; user-facing classification is carried by Problem.
@@ -132,38 +116,25 @@ const (
 )
 
 type ErrorEvent struct {
-	EventMeta
+	engineEventBase
 	Message string
 	Code    ErrorCode
 	Problem transcript.Problem
 }
 
 type UsageReported struct {
-	EventMeta
+	engineEventBase
 	TokenUsage    accounting.TokenUsage
 	CostUSD       float64
 	ContextTokens int64
 }
 
 type TodosUpdated struct {
-	EventMeta
+	engineEventBase
 	Todos []todo.Item
 }
 
 type SteerMessage struct {
-	EventMeta
+	engineEventBase
 	Text string
 }
-
-func (e TurnStart) WithMeta(m EventMeta) EngineEvent       { e.EventMeta = m; return e }
-func (e MessageDelta) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }
-func (e ReasoningDelta) WithMeta(m EventMeta) EngineEvent  { e.EventMeta = m; return e }
-func (e ToolCallStart) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
-func (e ToolCallEnd) WithMeta(m EventMeta) EngineEvent     { e.EventMeta = m; return e }
-func (e CompactBoundary) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
-func (e TurnInterrupted) WithMeta(m EventMeta) EngineEvent { e.EventMeta = m; return e }
-func (e TurnEnd) WithMeta(m EventMeta) EngineEvent         { e.EventMeta = m; return e }
-func (e ErrorEvent) WithMeta(m EventMeta) EngineEvent      { e.EventMeta = m; return e }
-func (e UsageReported) WithMeta(m EventMeta) EngineEvent   { e.EventMeta = m; return e }
-func (e TodosUpdated) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }
-func (e SteerMessage) WithMeta(m EventMeta) EngineEvent    { e.EventMeta = m; return e }

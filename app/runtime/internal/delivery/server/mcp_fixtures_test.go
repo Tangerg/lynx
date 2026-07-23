@@ -5,7 +5,6 @@ import (
 	"context"
 	"slices"
 	"sync"
-	"sync/atomic"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
@@ -131,10 +130,8 @@ func (r *mcpRegistryFake) SetEnabled(_ context.Context, name string, enabled boo
 // reach the hub.
 func serverWithMCP(cfg integrations.Config) *Server {
 	if cfg.MCPPolicy == nil {
-		cell := &atomic.Pointer[mcpserver.ToolPolicy]{}
 		policy := mcpserver.NewToolPolicy(nil)
-		cell.Store(&policy)
-		cfg.MCPPolicy = cell
+		cfg.MCPPolicy = integrations.NewToolPolicyState(policy)
 	}
 	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
 	cfg.MCPStatus = mcpStatus.Publish

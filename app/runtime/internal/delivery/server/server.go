@@ -85,10 +85,13 @@ type Config struct {
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
 
-	// Schedules is the application coordinator for cron-triggered headless-run
-	// management. Bootstrap supplies an explicit disabled coordinator when the
-	// capability is not negotiated.
-	Schedules scheduleUseCases
+	// Schedules manages cron-triggered headless runs. Bootstrap supplies an
+	// explicit disabled coordinator when the capability is not negotiated.
+	Schedules scheduleManagementUseCases
+
+	// ScheduleFiring starts an accepted schedule without coupling Delivery to
+	// worker construction or the Runs coordinator.
+	ScheduleFiring scheduleFiringUseCases
 
 	// ScheduleFires carries accepted scheduled-run notifications from the
 	// composition root. Delivery projects them to workspace events; it does not
@@ -106,7 +109,6 @@ type Config struct {
 
 	// Workspace capabilities are independent application use cases. Delivery
 	// depends on each narrow consumer port, never a catch-all workspace facade.
-	WorkspaceRoots     workspaceRootUseCases
 	WorkspaceFiles     workspaceFileUseCases
 	WorkspaceVCS       workspaceVCSUseCases
 	WorkspaceDiscovery workspaceDiscoveryUseCases
@@ -171,9 +173,11 @@ type Server struct {
 	// feedback owns the feedback.create durable write use case.
 	feedback feedbackUseCases
 
-	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
-	// background worker), injected by the composition root. Never nil after New.
-	schedules scheduleUseCases
+	// schedules owns editable cron-triggered headless-run management.
+	schedules scheduleManagementUseCases
+	// scheduleFiring owns accepted manual fires; worker lifetime remains outside
+	// Delivery in the command host.
+	scheduleFiring scheduleFiringUseCases
 
 	// goals drives the autonomous-execution loop (goals.* — Goal mode). Never nil
 	// after New (a disabled stub when Goal mode is off).
@@ -184,7 +188,6 @@ type Server struct {
 	agentMemory agentMemoryUseCases
 
 	// Workspace use cases are intentionally separate bounded capabilities.
-	workspaceRoots     workspaceRootUseCases
 	workspaceFiles     workspaceFileUseCases
 	workspaceVCS       workspaceVCSUseCases
 	workspaceDiscovery workspaceDiscoveryUseCases
@@ -283,7 +286,10 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Schedules == nil {
 		return nil, errors.New("server: Schedules is required")
 	}
-	if cfg.WorkspaceRoots == nil || cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
+	if cfg.ScheduleFiring == nil {
+		return nil, errors.New("server: ScheduleFiring is required")
+	}
+	if cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
 		cfg.WorkspaceDiscovery == nil || cfg.WorkspaceKnowledge == nil || cfg.WorkspaceSkills == nil ||
 		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
 		return nil, errors.New("server: workspace use cases are required")
@@ -305,9 +311,9 @@ func New(cfg Config) (*Server, error) {
 		serverInfo:         cfg.ServerInfo,
 		wsHub:              newWorkspaceHub(),
 		schedules:          cfg.Schedules,
+		scheduleFiring:     cfg.ScheduleFiring,
 		goals:              goalRunnerOrDisabled(cfg.Goals),
 		agentMemory:        cfg.AgentMemory,
-		workspaceRoots:     cfg.WorkspaceRoots,
 		workspaceFiles:     cfg.WorkspaceFiles,
 		workspaceVCS:       cfg.WorkspaceVCS,
 		workspaceDiscovery: cfg.WorkspaceDiscovery,

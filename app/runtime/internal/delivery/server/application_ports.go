@@ -46,7 +46,6 @@ type integrationUseCases interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
 	ConfigureMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServerConfig, error)
 	ListMCPServerConfigs(ctx context.Context) ([]integrations.MCPServerConfig, error)
-	MCPServerStatus(ctx context.Context, name string) integrations.MCPServerStatus
 	MCPServerStatuses(ctx context.Context) []integrations.MCPServerStatus
 	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error
@@ -64,7 +63,6 @@ type approvalUseCases interface {
 
 type modelUseCases interface {
 	ConfigureProvider(ctx context.Context, cmd models.ConfigureProviderCommand) (models.ProviderInfo, error)
-	DefaultModel() string
 	EmbeddingRole() models.Role
 	ListModels(ctx context.Context, providerID string) []models.Model
 	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)
@@ -87,7 +85,6 @@ type codebaseUseCases interface {
 }
 
 type runUseCases interface {
-	ActiveSession(sessionID string) bool
 	Cancel(ctx context.Context, cmd runs.CancelCommand) error
 	List() []runs.Record
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
@@ -110,16 +107,15 @@ type feedbackUseCases interface {
 	Record(ctx context.Context, command feedbackapp.Command) error
 }
 
-type scheduleUseCases interface {
+type scheduleManagementUseCases interface {
 	Create(ctx context.Context, cmd schedules.CreateCommand) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context) ([]schedule.Schedule, error)
-	RunNow(ctx context.Context, id string) (schedules.RunHandle, error)
 	Update(ctx context.Context, cmd schedules.UpdateCommand) (schedule.Schedule, error)
 }
 
-type workspaceRootUseCases interface {
-	ResolveRoot(cwd string) (string, error)
+type scheduleFiringUseCases interface {
+	RunNow(ctx context.Context, id string) (schedules.RunHandle, error)
 }
 
 type workspaceFileUseCases interface {

@@ -1,17 +1,8 @@
 package turn
 
-import (
-	"time"
+import "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-)
-
-// emit stamps the event with the next sequence number and timestamp and pushes
-// it onto the turn's channel. Type-specific stamping lives on each concrete
-// event (via the unexported [Event.stamp] method) so this dispatcher stays
-// open-closed — adding a new event variant means writing the struct + one stamp
-// method, nothing here.
-//
+// emit pushes an application event onto the turn's channel.
 // Sends block when the consumer falls behind: the durable history (items.list)
 // is built from this stream, so backpressure — the turn slowing to the
 // consumer's persistence speed — is correct where dropping would silently
@@ -25,13 +16,6 @@ func (s *memoryDispatcher) emit(st *turnState, ev runs.EngineEvent) bool {
 	if st.eventsClosed {
 		return false
 	}
-	st.seq++
-	stamped := ev.WithMeta(runs.EventMeta{
-		SessionID: st.handle.SessionID,
-		TurnID:    st.handle.TurnID,
-		Seq:       st.seq,
-		Timestamp: time.Now(),
-	})
 	// Prefer delivery: when the buffer has room the event lands regardless of
 	// whether the turn ctx was already canceled. This is what makes a canceled
 	// turn's TERMINAL event (TurnEnd / the ErrorEvent before it) reach a
@@ -42,14 +26,14 @@ func (s *memoryDispatcher) emit(st *turnState, ev runs.EngineEvent) bool {
 	// consumer has drained the buffer by terminal time, so the fast path lands
 	// it; only a backed-up buffer falls through to the escape below.
 	select {
-	case st.events <- stamped:
+	case st.events <- ev:
 		return true
 	default:
 	}
 	// Buffer full: block until the consumer drains, or bail when the turn ctx is
 	// canceled so a producer never wedges on an abandoned channel.
 	select {
-	case st.events <- stamped:
+	case st.events <- ev:
 		return true
 	case <-st.ctx.Done():
 		return false

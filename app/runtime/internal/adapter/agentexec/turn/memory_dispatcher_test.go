@@ -53,13 +53,6 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	// Spot-check each event's content.
 	for _, ev := range got {
 		switch e := ev.(type) {
-		case runs.TurnStart:
-			if e.SessionID != "sess-1" {
-				t.Errorf("TurnStart.SessionID = %q, want sess-1", e.SessionID)
-			}
-			if !strings.HasPrefix(e.TurnID, "turn_") {
-				t.Errorf("TurnStart.TurnID = %q, want turn_ namespace", e.TurnID)
-			}
 		case runs.ToolCallStart:
 			if e.ToolName != "shell" {
 				t.Errorf("ToolCallStart.ToolName = %q, want shell", e.ToolName)
@@ -131,27 +124,6 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 		t.Fatalf("StartTurn after Close = %v, want ErrDispatcherClosed", err)
 	}
 	dispatcher.Close()
-}
-
-// TestDispatcher_SeqMonotone verifies every event in a turn carries a
-// strictly increasing Seq starting at 1 — transport adapters rely
-// on monotonicity for resume-from-seq semantics.
-func TestDispatcher_SeqMonotone(t *testing.T) {
-	dispatcher, _ := buildDispatcher(t)
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "s", Message: "hi",
-	})
-	events, _ := dispatcher.Events(context.Background(), handle)
-	got := drainEvents(events)
-
-	var prev uint64
-	for i, ev := range got {
-		seq := baseSeq(ev)
-		if seq != prev+1 {
-			t.Errorf("event[%d] seq = %d, want %d (%T)", i, seq, prev+1, ev)
-		}
-		prev = seq
-	}
 }
 
 // TestDispatcher_InjectSteering_LandsInNextTurn verifies the "next-turn"

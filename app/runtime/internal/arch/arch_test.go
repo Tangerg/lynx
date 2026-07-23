@@ -204,7 +204,7 @@ func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
 func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 	root := moduleRoot(t)
 	forbidSelectorCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
-		"BindRunner":        "Bootstrap owns schedule runner wiring",
+		"BindRunner":        "post-construction schedule wiring is forbidden",
 		"NewRunLauncher":    "Bootstrap owns scheduled-run launcher construction",
 		"NewWorker":         "Bootstrap owns background worker construction",
 		"RunWorker":         "Bootstrap owns background worker lifetime",
@@ -410,6 +410,33 @@ func TestBootstrapExposesNoBusinessMethod(t *testing.T) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk bootstrap: %v", walkErr)
+	}
+}
+
+// TestBootstrapDoesNotOwnLiveRuntimeState keeps the composition root limited to
+// startup loading and assembly. Long-lived synchronization, fallback policy,
+// and adapter projections belong to their owning application or adapter type.
+func TestBootstrapDoesNotOwnLiveRuntimeState(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "bootstrap")
+	forbidExternalImports(t, dir, []string{"sync/atomic"})
+	forbidTopLevelNames(t, dir, map[string]string{
+		"buildUtilityEnvironment":   "utility role resolution belongs to modelclient",
+		"buildEmbeddingEnvironment": "embedding role resolution belongs to modelclient",
+		"liveStateSnapshot":         "maintenance live-state projection belongs to the maintenance adapter",
+	})
+}
+
+// TestApplicationCoordinatorsDoNotExposeAtomicState makes live-state
+// synchronization an implementation detail of RoleState and ToolPolicyState,
+// rather than a cross-boundary constructor dependency.
+func TestApplicationCoordinatorsDoNotExposeAtomicState(t *testing.T) {
+	root := moduleRoot(t)
+	for _, path := range []string{
+		filepath.Join(root, "internal", "application", "models", "coordinator.go"),
+		filepath.Join(root, "internal", "application", "integrations", "coordinator.go"),
+	} {
+		forbidExternalImports(t, path, []string{"sync/atomic"})
 	}
 }
 
@@ -701,8 +728,9 @@ func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
 		"sessionUseCases": {
 			"ClaimWorkingTreeMutation": {}, "ClaimWorkingTreeRun": {}, "RestoreSession": {},
 		},
-		"integrationUseCases": {"MCPRegisteredServer": {}},
-		"runUseCases":         {"AcquireSession": {}, "ActiveSessions": {}, "Contains": {}},
+		"integrationUseCases": {"MCPRegisteredServer": {}, "MCPServerStatus": {}},
+		"modelUseCases":       {"DefaultModel": {}},
+		"runUseCases":         {"AcquireSession": {}, "ActiveSession": {}, "ActiveSessions": {}, "Contains": {}},
 	}
 	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {

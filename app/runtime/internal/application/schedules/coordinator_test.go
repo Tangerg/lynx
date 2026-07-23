@@ -27,7 +27,7 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("Delete err = %v, want ErrUnavailable", err)
 	}
-	if _, err := c.RunNow(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := NewFiring(nil, nil).RunNow(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("RunNow err = %v, want ErrUnavailable", err)
 	}
 }
@@ -35,13 +35,12 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	registry := &runNowRegistry{schedule: schedule.Schedule{ID: "sch_1", Prompt: "review"}}
-	c := New(Dependencies{Registry: registry})
-	c.now = func() time.Time { return now }
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
-	c.BindRunner(&runner)
+	firing := NewFiring(registry, &runner)
+	firing.now = func() time.Time { return now }
 
-	if _, err := c.RunNow(ctx, "sch_1"); err != nil {
+	if _, err := firing.RunNow(ctx, "sch_1"); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
 	if registry.recordedID != "sch_1" || !registry.recordedAt.Equal(now) {
@@ -54,12 +53,11 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 
 func TestRunNowDoesNotRecordCancellationAbortedRun(t *testing.T) {
 	registry := &runNowRegistry{schedule: schedule.Schedule{ID: "sch_1", Prompt: "review"}}
-	c := New(Dependencies{Registry: registry})
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
-	c.BindRunner(&runner)
+	firing := NewFiring(registry, &runner)
 
-	if _, err := c.RunNow(ctx, "sch_1"); !errors.Is(err, context.Canceled) {
+	if _, err := firing.RunNow(ctx, "sch_1"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunNow error = %v, want context.Canceled", err)
 	}
 	if registry.recordedID != "" {
@@ -203,13 +201,13 @@ func (r *runNowRegistry) RecordRun(ctx context.Context, id string, at time.Time)
 	return nil
 }
 
-// TestRunWorkerNoOpWithoutWorker: no worker store → RunWorker returns at once
-// instead of entering the scan loop, so a build without scheduling doesn't hang.
+// TestRunWorkerNoOpWithoutScheduling ensures a disabled schedule capability
+// returns at once rather than entering a scan loop.
 func TestRunWorkerNoOpWithoutWorker(t *testing.T) {
-	c := New(Dependencies{})
+	firing := NewFiring(nil, nil)
 	done := make(chan struct{})
 	go func() {
-		c.RunWorker(context.Background())
+		firing.RunWorker(context.Background())
 		close(done)
 	}()
 	select {

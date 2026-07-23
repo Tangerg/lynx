@@ -277,7 +277,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	if outcome.err != nil {
 		t.Fatalf("Start: %v", outcome.err)
 	}
-	if !c.ActiveSession("ses_1") {
+	if !hasActiveSession(c, "ses_1") {
 		t.Fatal("Start release erased the in-flight terminal-maintenance claim")
 	}
 	if release, ok := c.AcquireSession("ses_1"); ok {
@@ -289,7 +289,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	for range outcome.result.Events {
 	}
 	c.Close()
-	if c.ActiveSession("ses_1") {
+	if hasActiveSession(c, "ses_1") {
 		t.Fatal("terminal maintenance did not release its claim")
 	}
 }
@@ -385,8 +385,8 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	if turns.rehydrateReq.Cwd != "/work" {
 		t.Fatalf("rehydrate cwd = %q, want /work", turns.rehydrateReq.Cwd)
 	}
-	if sessions.treeReleases != 1 || c.ActiveSession("ses_1") {
-		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, c.ActiveSession("ses_1"))
+	if sessions.treeReleases != 1 || hasActiveSession(c, "ses_1") {
+		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, hasActiveSession(c, "ses_1"))
 	}
 
 	_, err = c.Resume(t.Context(), ResumeCommand{RunID: "run_1"})
@@ -430,8 +430,8 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("lost recovery = %q ops=%v, want run_1 marked lost", sessions.lostRunID, operations)
 	}
-	if sessions.treeReleases != 1 || c.ActiveSession("ses_1") {
-		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, c.ActiveSession("ses_1"))
+	if sessions.treeReleases != 1 || hasActiveSession(c, "ses_1") {
+		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, hasActiveSession(c, "ses_1"))
 	}
 }
 
@@ -465,7 +465,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "turn.cancel" {
 		t.Fatalf("cancel operations = %v, want durable commit before process cleanup", operations)
 	}
-	if c.ActiveSession("ses_1") {
+	if hasActiveSession(c, "ses_1") {
 		t.Fatal("parked cancel leaked the session admission claim")
 	}
 }
