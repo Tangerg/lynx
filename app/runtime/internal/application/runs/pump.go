@@ -122,8 +122,9 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			}
 			cancelTeardown()
 		}
-		entry, releaseMaintenance, maintenanceHeld := c.registry.BeginMaintenance(spec.RunID)
-		if maintenanceHeld {
+		releaseMaintenance, maintenanceHeld := c.admission.BeginMaintenance(spec.RunID)
+		entry, tracked := c.registry.Remove(spec.RunID)
+		if tracked {
 			// A parked run keeps its live turn alive for resume — only cancel +
 			// forget on a true terminal.
 			if !parked && entry.Payload != nil {

@@ -18,6 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -195,6 +196,8 @@ type Coordinator struct {
 	// mutations is the §8.5 recoverable operation log guarding a file+history
 	// rollback across the working tree and the durable history; nil disables it.
 	mutations WorkspaceMutations
+	// admissions is shared with Runs and owns the process-local session facts.
+	admissions SessionAdmissions
 	// trees serializes short run admissions against destructive working-tree
 	// mutations (file rollback) for every transport using this coordinator.
 	trees WorkingTreeGate
@@ -212,6 +215,7 @@ type Dependencies struct {
 	Sandbox     SandboxDiscarder
 	Goals       GoalMutationGuard
 	Mutations   WorkspaceMutations
+	Admissions  SessionAdmissions
 }
 
 // ErrSessionBusy reports that a session already has an active or parked run.
@@ -219,6 +223,10 @@ var ErrSessionBusy = errors.New("sessions: session busy")
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
+	admissions := deps.Admissions
+	if admissions == nil {
+		admissions = &admission.Gate{}
+	}
 	return &Coordinator{
 		s:           deps.Stores,
 		turns:       deps.Turns,
@@ -227,6 +235,7 @@ func New(deps Dependencies) *Coordinator {
 		sandbox:     deps.Sandbox,
 		goals:       deps.Goals,
 		mutations:   deps.Mutations,
+		admissions:  admissions,
 	}
 }
 

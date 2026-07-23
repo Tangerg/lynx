@@ -59,14 +59,14 @@ type RollbackResult struct {
 // writes a working tree a sibling session sharing the cwd would race, and that
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
 // any in-flight run on the tree (ActiveSessionWithCwd), not just this session's.
-func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, spec RollbackSpec) (RollbackResult, error) {
+func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (RollbackResult, error) {
 	ses, err := c.s.Session().Get(ctx, spec.SessionID)
 	if err != nil {
 		return RollbackResult{}, err
 	}
 	result := RollbackResult{Session: ses}
 
-	admission, err := c.ClaimMutationSlot(claims, spec.SessionID)
+	admission, err := c.ClaimMutationSlot(spec.SessionID)
 	if err != nil {
 		return result, err
 	}
@@ -83,7 +83,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 			return result, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)
 		}
 		defer treeAdmission.Release()
-		if busy := claims.ActiveSessionWithCwd(cwd); busy != "" {
+		if busy := c.admissions.ActiveSessionWithCwd(cwd); busy != "" {
 			return result, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", ErrSessionBusy, busy)
 		}
 	}
@@ -105,7 +105,7 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, claims SessionClaimer, 
 	var dropSessionIDs []string
 	var childAdmissions []RunAdmission
 	if spec.RestoreHistory {
-		dropSessionIDs, childAdmissions, err = c.prepareRollbackSessions(ctx, claims, spec.SessionID, boundary)
+		dropSessionIDs, childAdmissions, err = c.prepareRollbackSessions(ctx, spec.SessionID, boundary)
 		if err != nil {
 			return result, err
 		}

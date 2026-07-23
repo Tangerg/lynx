@@ -17,8 +17,8 @@ import (
 // are read up front so the abandoned turns can be canceled after the durable
 // state is gone. Checkpoint cleanup runs last, after the durable delete has
 // already succeeded; all post-commit cleanup failures are returned together.
-func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, sessionID string) error {
-	admissions, sessionIDs, err := c.claimDeleteTree(ctx, claims, sessionID)
+func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
+	admissions, sessionIDs, err := c.claimDeleteTree(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -67,8 +67,8 @@ func (c *Coordinator) DeleteSession(ctx context.Context, claims SessionClaimer, 
 	return errors.Join(cleanupErrs...)
 }
 
-func (c *Coordinator) claimDeleteTree(ctx context.Context, claims SessionClaimer, sessionID string) ([]RunAdmission, []string, error) {
-	root, err := c.ClaimMutationSlot(claims, sessionID)
+func (c *Coordinator) claimDeleteTree(ctx context.Context, sessionID string) ([]RunAdmission, []string, error) {
+	root, err := c.ClaimMutationSlot(sessionID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,7 +90,7 @@ func (c *Coordinator) claimDeleteTree(ctx context.Context, claims SessionClaimer
 				return fmt.Errorf("sessions: delete tree contains duplicate or cyclic session %q", child.ID)
 			}
 			seen[child.ID] = struct{}{}
-			admission, err := c.ClaimMutationSlot(claims, child.ID)
+			admission, err := c.ClaimMutationSlot(child.ID)
 			if err != nil {
 				return err
 			}
@@ -111,23 +111,20 @@ func (c *Coordinator) claimDeleteTree(ctx context.Context, claims SessionClaimer
 	return admissions, append(sessionIDs, sessionID), nil
 }
 
-func claimMutationSlots(claims SessionClaimer, sessionIDs []string) ([]RunAdmission, error) {
-	if claims == nil {
-		return nil, nil
-	}
+func (c *Coordinator) claimMutationSlots(sessionIDs []string) ([]RunAdmission, error) {
 	admissions := make([]RunAdmission, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		release, ok := claims.AcquireSession(sessionID)
-		if !ok {
+		admission, err := c.ClaimMutationSlot(sessionID)
+		if err != nil {
 			releaseAdmissions(admissions)
-			return nil, ErrSessionBusy
+			return nil, err
 		}
-		admissions = append(admissions, heldAdmission(sessionID, release))
+		admissions = append(admissions, admission)
 	}
 	return admissions, nil
 }
 
-func (c *Coordinator) prepareRollbackSessions(ctx context.Context, claims SessionClaimer, sessionID string, boundary transcript.Boundary) ([]string, []RunAdmission, error) {
+func (c *Coordinator) prepareRollbackSessions(ctx context.Context, sessionID string, boundary transcript.Boundary) ([]string, []RunAdmission, error) {
 	if len(boundary.Dropped) == 0 {
 		return nil, nil, nil
 	}
@@ -135,7 +132,7 @@ func (c *Coordinator) prepareRollbackSessions(ctx context.Context, claims Sessio
 	if err != nil {
 		return nil, nil, err
 	}
-	admissions, err := claimMutationSlots(claims, sessionIDs)
+	admissions, err := c.claimMutationSlots(sessionIDs)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -166,13 +163,13 @@ func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string,
 // the Session admission boundary (including rejection of an open interrupt),
 // then resolves Cwd exactly as Create and Update do before committing the
 // decoded aggregate.
-func (c *Coordinator) RestoreSession(ctx context.Context, claims SessionClaimer, snapshot Snapshot) error {
+func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) error {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {
 		return err
 	}
 	snapshot = normalized
-	admission, err := c.ClaimRunSlot(ctx, claims, snapshot.Session.ID)
+	admission, err := c.ClaimRunSlot(ctx, snapshot.Session.ID)
 	if err != nil {
 		return err
 	}

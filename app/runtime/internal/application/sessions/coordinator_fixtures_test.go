@@ -130,7 +130,11 @@ func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 
 // newCoordinator builds a Coordinator over test stores and turns.
 func newCoordinator(stores Stores, turns Turns) *Coordinator {
-	return New(Dependencies{Stores: stores, Turns: turns, Paths: testCwdResolver{}})
+	return newCoordinatorWithAdmissions(stores, turns, new(testClaimer))
+}
+
+func newCoordinatorWithAdmissions(stores Stores, turns Turns, admissions SessionAdmissions) *Coordinator {
+	return New(Dependencies{Stores: stores, Turns: turns, Paths: testCwdResolver{}, Admissions: admissions})
 }
 
 type testCwdResolver struct {

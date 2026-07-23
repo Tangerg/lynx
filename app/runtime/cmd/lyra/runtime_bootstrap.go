@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"os"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
@@ -68,7 +69,11 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 
 	hookResolver := bootstrap.NewHookResolver(stores.Trust)
 
-	host, err := bootstrap.Assemble(ctx, bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver, buildID))
+	runtimeCfg := bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver, buildID)
+	if cwd, cwdErr := os.UserHomeDir(); cwdErr == nil {
+		runtimeCfg.DefaultCwd = cwd
+	}
+	host, err := bootstrap.Assemble(ctx, runtimeCfg)
 	if err != nil {
 		return bootstrap.Host{}, config.Config{}, err
 	}

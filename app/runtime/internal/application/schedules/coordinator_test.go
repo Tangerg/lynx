@@ -27,7 +27,7 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	if err := c.Delete(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("Delete err = %v, want ErrUnavailable", err)
 	}
-	if _, err := c.RunNow(ctx, "sch_1", nil); !errors.Is(err, schedule.ErrUnavailable) {
+	if _, err := c.RunNow(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("RunNow err = %v, want ErrUnavailable", err)
 	}
 }
@@ -39,8 +39,9 @@ func TestRunNowRecordsAcceptedRunAfterRequestCancellation(t *testing.T) {
 	c.now = func() time.Time { return now }
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: true}
+	c.BindRunner(&runner)
 
-	if _, err := c.RunNow(ctx, "sch_1", &runner); err != nil {
+	if _, err := c.RunNow(ctx, "sch_1"); err != nil {
 		t.Fatalf("RunNow: %v", err)
 	}
 	if registry.recordedID != "sch_1" || !registry.recordedAt.Equal(now) {
@@ -56,8 +57,9 @@ func TestRunNowDoesNotRecordCancellationAbortedRun(t *testing.T) {
 	c := New(Dependencies{Registry: registry})
 	ctx, cancel := context.WithCancel(context.Background())
 	runner := cancelingWorkerRunner{cancel: cancel, succeed: false}
+	c.BindRunner(&runner)
 
-	if _, err := c.RunNow(ctx, "sch_1", &runner); !errors.Is(err, context.Canceled) {
+	if _, err := c.RunNow(ctx, "sch_1"); !errors.Is(err, context.Canceled) {
 		t.Fatalf("RunNow error = %v, want context.Canceled", err)
 	}
 	if registry.recordedID != "" {
@@ -207,7 +209,7 @@ func TestRunWorkerNoOpWithoutWorker(t *testing.T) {
 	c := New(Dependencies{})
 	done := make(chan struct{})
 	go func() {
-		c.RunWorker(context.Background(), nil)
+		c.RunWorker(context.Background())
 		close(done)
 	}()
 	select {

@@ -119,16 +119,17 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 
 func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
-	c, _ := newCRUDCoordinator(store)
-	ctx := context.Background()
 	claims := new(testClaimer)
+	stores := &crudStores{session: store}
+	c := New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}, Admissions: claims})
+	ctx := context.Background()
 
 	title := "  Renamed  "
 	model := "claude-opus-4-8"
 	cwd := t.TempDir()
 	favorite := true
 
-	got, err := c.Update(ctx, claims, "ses_1", session.Patch{
+	got, err := c.Update(ctx, "ses_1", session.Patch{
 		Title:    &title,
 		Model:    &model,
 		Cwd:      &cwd,
@@ -159,11 +160,12 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 
 func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
-	c, _ := newCRUDCoordinator(store)
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
+	stores := &crudStores{session: store}
+	c := New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}, Admissions: claims})
 	cwd := t.TempDir()
 
-	_, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Cwd: &cwd})
+	_, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &cwd})
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("Update relocation error = %v, want ErrSessionBusy", err)
 	}
@@ -175,10 +177,9 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	c, _ := newCRUDCoordinator(store)
-	claims := new(testClaimer)
 
 	blank := "  "
-	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
 		t.Fatalf("blank title err = %v, want ErrTitleRequired", err)
 	}
 	if store.renamed != ([2]string{}) {
@@ -186,7 +187,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	ghost := "/no/such/dir"
-	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
 		t.Fatalf("ghost cwd err = %v, want ErrCwdUnavailable", err)
 	}
 	if store.cwd != ([2]string{}) {
@@ -194,7 +195,7 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	title := "Renamed"
-	if _, err := c.Update(t.Context(), claims, "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
 		t.Fatalf("mixed patch err = %v, want ErrCwdUnavailable", err)
 	}
 	if store.renamed != ([2]string{}) {

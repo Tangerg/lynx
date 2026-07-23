@@ -24,9 +24,8 @@ const workerTick = time.Minute
 // again on restart because MarkFired observed only the canceled worker context.
 const firingStateWriteTimeout = 5 * time.Second
 
-// Runner starts one scheduled prompt as a headless run. The delivery layer
-// supplies it; it is the application-owned seam between a fired schedule and a
-// run start.
+// Runner starts one scheduled prompt as a headless run. It is the
+// application-owned seam between a fired schedule and a run start.
 type Runner interface {
 	StartScheduledRun(ctx context.Context, sc schedule.Schedule) (RunHandle, error)
 }
@@ -51,24 +50,11 @@ type WorkerStore interface {
 type Worker struct {
 	schedules WorkerStore
 	runner    Runner
-	// fireRetries counts consecutive failed start attempts per schedule so a due
-	// occurrence that failed to admit (e.g. transient session-busy) is retried on
-	// later ticks instead of being silently skipped — bounded by maxFireRetries so
-	// a persistently-failing schedule can't re-fire forever. The worker Run loop is
-	// single-goroutine, so the map needs no synchronization; a value receiver shares
-	// it because it is a reference type. Cleared on success or after the budget.
-	fireRetries map[string]int
 }
-
-// maxFireRetries bounds how many consecutive ticks a due schedule is retried after
-// a failed start before its occurrence is abandoned and the cron cursor advances.
-// The bound is uniform — the worker does not classify errors as transient vs
-// permanent (a rejected reverse-invariant).
-const maxFireRetries = 5
 
 // NewWorker wires a scheduled-run worker.
 func NewWorker(schedules WorkerStore, runner Runner) Worker {
-	return Worker{schedules: schedules, runner: runner, fireRetries: make(map[string]int)}
+	return Worker{schedules: schedules, runner: runner}
 }
 
 // Run starts the scheduled-run loop until ctx is canceled.
@@ -127,22 +113,14 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 		if fireErr != nil && ctx.Err() != nil && errors.Is(fireErr, ctx.Err()) {
 			return
 		}
-		// A run that failed to start was NOT fired: advancing the cron cursor now
-		// would silently drop the occurrence (e.g. a transient session-busy at the
-		// serve dir). Leave the cursor so the next tick retries — bounded, so a
-		// persistently-failing schedule doesn't re-fire every tick forever. Only on
-		// success, or once the retry budget is spent, does the cursor advance.
 		if fireErr != nil {
-			w.fireRetries[sc.ID]++
-			if w.fireRetries[sc.ID] < maxFireRetries {
-				recordWorkerError(ctx, "run start failed, retrying next tick",
-					fmt.Errorf("schedule %s (attempt %d/%d): %w", sc.ID, w.fireRetries[sc.ID], maxFireRetries, fireErr))
-				continue
-			}
-			recordWorkerError(ctx, "run start failed, abandoning occurrence",
-				fmt.Errorf("schedule %s (after %d attempts): %w", sc.ID, w.fireRetries[sc.ID], fireErr))
+			// A rejected run never consumes its occurrence. The durable NextRunAt
+			// stays due, so both the next worker tick and a restarted process see
+			// the same truthful state. There is deliberately no in-memory retry
+			// budget or error classification here.
+			recordWorkerError(ctx, "run start failed", fmt.Errorf("schedule %s: %w", sc.ID, fireErr))
+			continue
 		}
-		delete(w.fireRetries, sc.ID)
 
 		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
 		markErr := w.schedules.MarkFired(writeCtx, sc.ID, now, sc.NextRunAt, next)

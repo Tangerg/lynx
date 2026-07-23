@@ -23,7 +23,7 @@ import (
 // Returned inline: lyra is a local loopback runtime, so there's no out-of-band
 // file channel nor a giant-payload concern.
 func (s *Server) ExportSession(ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
-	snapshot, err := s.sessions.ReadSnapshot(ctx, s.coordinator, in.SessionID)
+	snapshot, err := s.sessions.ReadSnapshot(ctx, in.SessionID)
 	if err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return nil, fmt.Errorf("%w: session %q has a run in flight or open interrupt", protocol.ErrSessionBusy, in.SessionID)
@@ -136,7 +136,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 	// delete/truncate can't leave the session row live but its history
 	// half-destroyed (an import-over losing the prior history with nothing to
 	// replace it).
-	if err := s.sessions.RestoreSession(ctx, s.coordinator, sessions.Snapshot{
+	if err := s.sessions.RestoreSession(ctx, sessions.Snapshot{
 		Session: artifactToSession(art.Session), Messages: msgs, Runs: runs, Items: items, ToolResults: toolResults,
 	}); err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {

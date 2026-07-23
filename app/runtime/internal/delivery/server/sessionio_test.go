@@ -391,7 +391,7 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	if err := s.sessions.RestoreSession(ctx, s.coordinator, sessions.Snapshot{Session: session.Session{
+	if err := s.sessions.RestoreSession(ctx, sessions.Snapshot{Session: session.Session{
 		ID: ses.ID, Title: "Restored", Cwd: restoreCwd,
 	}}); !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)

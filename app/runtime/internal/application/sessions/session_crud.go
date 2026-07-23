@@ -57,7 +57,7 @@ func (c *Coordinator) SetModel(ctx context.Context, id, model string) error {
 // model, cwd (relocate), and favorite are each optional;
 // nil fields are left alone. The whole patch commits as one transaction so a
 // mid-sequence failure leaves the session unmodified.
-func (c *Coordinator) Update(ctx context.Context, claims SessionClaimer, id string, patch session.Patch) (session.Session, error) {
+func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch) (session.Session, error) {
 	patch, err := patch.Normalize()
 	if err != nil {
 		return session.Session{}, err
@@ -68,7 +68,7 @@ func (c *Coordinator) Update(ctx context.Context, claims SessionClaimer, id stri
 			return session.Session{}, err
 		}
 		patch.Cwd = &cwd
-		admission, err := c.ClaimMutationSlot(claims, id)
+		admission, err := c.ClaimMutationSlot(id)
 		if err != nil {
 			return session.Session{}, err
 		}

@@ -103,7 +103,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	// The lifecycle coordinator claims the addressed session and every owned
 	// internal-subtask descendant before deleting their durable state atomically.
 	// User-created forks remain independent conversations.
-	if err := s.sessions.DeleteSession(ctx, s.coordinator, id); err != nil {
+	if err := s.sessions.DeleteSession(ctx, id); err != nil {
 		if errors.Is(err, sessions.ErrSessionBusy) {
 			return fmt.Errorf("%w: session %q or its subtask tree has a run in flight", protocol.ErrSessionBusy, id)
 		}
@@ -117,7 +117,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.sessions.Update(ctx, s.coordinator, in.SessionID, session.Patch{
+	ses, err := s.sessions.Update(ctx, in.SessionID, session.Patch{
 		Title:            in.Title,
 		Model:            in.Model,
 		Cwd:              in.Cwd,

@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
@@ -68,7 +69,10 @@ type Stack struct {
 	FileChanges *filechanges.Notifier
 	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatus        *mcpstatus.Notifier
+	MCPStatus *mcpstatus.Notifier
+	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
+	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
+	ScheduleFires    *schedules.FireNotifier
 	IdempotencyStore *sqlitestore.IdempotencyStore
 }
 
@@ -359,6 +363,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &mcpstatus.Notifier{}
 
+	admissions := &admission.Gate{}
 	sessionDeps := sessions.Dependencies{
 		Stores: sessionStores{
 			sessions:    cfg.SessionStore,
@@ -381,6 +386,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
+		Admissions:  admissions,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -398,11 +404,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	}
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
-		Segments: runExecutor,
-		Turns:    runExecutor,
-		Sessions: sessionCoord,
-		Effects:  runEffects,
-		Now:      time.Now,
+		Segments:   runExecutor,
+		Turns:      runExecutor,
+		Sessions:   sessionCoord,
+		Effects:    runEffects,
+		Admissions: admissions,
+		Now:        time.Now,
 		NewRunID: func() string {
 			return "run_" + uuid.NewString()
 		},
@@ -416,6 +423,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		runDeps.Isolation = isolator
 	}
 	runCoord := runs.NewCoordinator(runDeps)
+	scheduleFires := &schedules.FireNotifier{}
+	scheduleCoord.BindRunner(schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish))
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
@@ -497,6 +506,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Coordinator:      runCoord,
 			FileChanges:      fileChanges,
 			MCPStatus:        mcpStatus,
+			ScheduleFires:    scheduleFires,
 			IdempotencyStore: cfg.IdempotencyStore,
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
