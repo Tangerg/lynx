@@ -4,7 +4,7 @@
 // InProcess) are derived from this surface; delivery/server realizes it on
 // top of Lyra's internal kernel + domain layer.
 //
-// docs/API.md describes the wire contract; every method on [Runtime]
+// ../desktop/docs/protocol/API.md describes the wire contract; every method on [Runtime]
 // maps to one row in API.md §7. The model is Session → Run → Item
 // (API.md §0): Item is the single history+streaming primitive, runs
 // finish with a discriminated RunOutcome, and human-in-the-loop uses
