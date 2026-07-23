@@ -147,7 +147,7 @@ func (h Host) Close() error {
 }
 
 // Assemble builds the application Host from cfg: it constructs the engine, turn
-// dispatcher, tool registry, and the utility/embedding/mcp environments, builds
+// dispatcher, tool registry, and the utility/embedding/mcp environments, then builds
 // the application coordinators + adapters (run lifecycle, sessions, integrations,
 // queries, turn control, workspace, schedules) from those materials, and hands the
 // process resources to the Host for shutdown. Returns an error when a required
