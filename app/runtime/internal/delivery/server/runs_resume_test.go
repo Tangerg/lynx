@@ -15,7 +15,7 @@ import (
 // resumeOKTurns is a turn dispatcher whose Resume succeeds and whose Cancel is a
 // no-op — enough to carry ResumeRun past the interrupt consume + turn resume so
 // the failing continuation Start is what's under test.
-type resumeOKTurns struct{ turn.Dispatcher }
+type resumeOKTurns struct{ turnRuntime }
 
 func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error {
 	return nil

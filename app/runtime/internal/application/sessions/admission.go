@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 	"sync"
 )
 
@@ -58,7 +59,11 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, sessionID string) (RunAd
 		return RunAdmission{}, ErrSessionBusy
 	}
 	admission := heldAdmission(sessionID, release)
-	open, err := c.s.Interrupts().List(ctx, sessionID)
+	if c.interrupts == nil {
+		admission.Release()
+		return RunAdmission{}, errors.New("sessions: interrupt store is unavailable")
+	}
+	open, err := c.interrupts.List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
 		return RunAdmission{}, err

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
@@ -88,7 +89,7 @@ type ApprovalResponse struct {
 	Approved      bool
 	Arguments     string
 	Reason        string
-	RememberScope string
+	RememberScope approval.Scope
 }
 
 type QuestionResponse struct {

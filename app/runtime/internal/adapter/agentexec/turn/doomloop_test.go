@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
@@ -73,7 +74,7 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	if !errors.As(v.Interrupt, &suspended) {
 		t.Fatalf("escalation should suspend for human input, got %v", v.Interrupt)
 	}
-	pending, err := runs.DecodeInterrupt(suspended.Suspension.Prompt)
+	pending, err := suspension.DecodePrompt(suspended.Suspension.Prompt)
 	if err != nil {
 		t.Fatalf("decode doom-loop interrupt: %v", err)
 	}

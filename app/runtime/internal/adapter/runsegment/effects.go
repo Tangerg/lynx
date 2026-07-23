@@ -75,21 +75,18 @@ type RunStateWriter interface {
 // transactor rather than silently weakening atomicity.
 type Transactor func(ctx context.Context, fn func(context.Context) error) error
 
-// Stores is the consumer-defined surface the Effects coordinator drives. It is
-// intentionally narrower than the runtime bundle: this use-case needs only
-// durable transcript/interrupt stores, a tiny session view, chat history count,
-// and title generation.
-type Stores interface {
-	Interrupts() InterruptStore
-	Session() SessionStore
-	Transcript() TranscriptStore
-	ToolResults() ToolResultStore
-	MessageCount(ctx context.Context, sessionID string) (int, error)
-	GenerateTitle(ctx context.Context, firstMessage string) (string, error)
+// MessageCounter resolves the conversation watermark a terminal run records.
+type MessageCounter interface {
+	Count(ctx context.Context, sessionID string) (int, error)
 }
 
-// ProcessLookup resolves the agent process backing a live turn. The full
-// turn.Dispatcher has many operations; runsegment needs only this one.
+// TitleGenerator derives an initial session title from its opening request.
+type TitleGenerator interface {
+	Generate(ctx context.Context, firstMessage string) (string, error)
+}
+
+// ProcessLookup resolves the agent process backing a live turn. The concrete
+// turn dispatcher has many operations; runsegment needs only this one.
 type ProcessLookup interface {
 	ProcessID(ctx context.Context, handle turn.TurnHandle) (string, error)
 }
@@ -113,7 +110,12 @@ type FileChangePublisher func(cwd string, paths []string)
 
 // Config bundles the Effects dependencies.
 type Config struct {
-	Stores             Stores
+	Interrupts         InterruptStore
+	Sessions           SessionStore
+	Transcript         TranscriptStore
+	ToolResults        ToolResultStore
+	Messages           MessageCounter
+	Titles             TitleGenerator
 	Processes          ProcessLookup
 	RunState           RunStateWriter
 	Tx                 Transactor
@@ -125,7 +127,12 @@ type Config struct {
 // Effects coordinates run-segment side effects. It is stateless beyond its
 // dependencies and safe to share.
 type Effects struct {
-	stores      Stores
+	interrupts  InterruptStore
+	sessions    SessionStore
+	transcript  TranscriptStore
+	toolResults ToolResultStore
+	messages    MessageCounter
+	titles      TitleGenerator
 	processes   ProcessLookup
 	runState    RunStateWriter
 	tx          Transactor
@@ -141,7 +148,12 @@ const runsegmentTracerName = "lynx/lyra/runsegment"
 // New returns an Effects coordinator.
 func New(cfg Config) *Effects {
 	return &Effects{
-		stores:      cfg.Stores,
+		interrupts:  cfg.Interrupts,
+		sessions:    cfg.Sessions,
+		transcript:  cfg.Transcript,
+		toolResults: cfg.ToolResults,
+		messages:    cfg.Messages,
+		titles:      cfg.Titles,
 		processes:   cfg.Processes,
 		runState:    cfg.RunState,
 		tx:          cfg.Tx,
@@ -228,7 +240,7 @@ const stagedToolResultCleanupTimeout = 5 * time.Second
 // event. Cleanup is request-detached because cancellation is one of the failure
 // paths; Discard's unbound predicate makes an ambiguous successful commit safe.
 func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventCommit, commitErr error) error {
-	if e.stores == nil || e.stores.ToolResults() == nil {
+	if e.toolResults == nil {
 		return commitErr
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), stagedToolResultCleanupTimeout)
@@ -238,7 +250,7 @@ func (e *Effects) compensateFailedCommit(ctx context.Context, commit runs.EventC
 		if item.Tool == nil || item.Tool.Offload == nil {
 			continue
 		}
-		if err := e.stores.ToolResults().Discard(cleanupCtx, item.SessionID, *item.Tool.Offload); err != nil {
+		if err := e.toolResults.Discard(cleanupCtx, item.SessionID, *item.Tool.Offload); err != nil {
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("runsegment: discard staged tool result %q: %w", item.Tool.Offload.ID, err))
 		}
 	}
@@ -265,10 +277,10 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pend
 }
 
 func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraft) error {
-	if e.stores == nil || e.stores.Interrupts() == nil {
+	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
-	pending, ok, err := e.stores.Interrupts().Consume(ctx, resume.RunID)
+	pending, ok, err := e.interrupts.Consume(ctx, resume.RunID)
 	if err != nil {
 		return fmt.Errorf("runsegment: consume resume interrupt: %w", err)
 	}
@@ -375,20 +387,20 @@ func (e *Effects) interruptProcessID(ctx context.Context, p interrupts.Pending) 
 }
 
 func (e *Effects) putInterrupt(ctx context.Context, p interrupts.Pending) error {
-	if e.stores == nil || e.stores.Interrupts() == nil {
+	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}
-	if err := e.stores.Interrupts().Put(ctx, p); err != nil {
+	if err := e.interrupts.Put(ctx, p); err != nil {
 		return fmt.Errorf("runsegment: persist interrupt: %w", err)
 	}
 	return nil
 }
 
 func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
-	if e.stores == nil || e.stores.Transcript() == nil {
+	if e.transcript == nil {
 		return errors.New("runsegment: transcript persistence is unavailable")
 	}
-	if err := e.stores.Transcript().AppendItem(ctx, item); err != nil {
+	if err := e.transcript.AppendItem(ctx, item); err != nil {
 		return err
 	}
 	if item.Tool == nil || item.Tool.Offload == nil {
@@ -401,10 +413,10 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	if !ok {
 		return errors.New("runsegment: offloaded tool result has no preview string")
 	}
-	if e.stores.ToolResults() == nil {
+	if e.toolResults == nil {
 		return errors.New("runsegment: tool-result persistence is unavailable")
 	}
-	if err := e.stores.ToolResults().Bind(ctx, item.SessionID, item.ID, preview, *item.Tool.Offload); err != nil {
+	if err := e.toolResults.Bind(ctx, item.SessionID, item.ID, preview, *item.Tool.Offload); err != nil {
 		return fmt.Errorf("runsegment: bind offloaded tool result: %w", err)
 	}
 	return nil
@@ -415,11 +427,14 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 // truncates the chat log to. The message log is in its terminal post-maintenance
 // (post-compaction) shape by the time the terminal event reaches here.
 func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool) error {
-	if e.stores == nil || e.stores.Transcript() == nil {
+	if e.transcript == nil {
 		return errors.New("runsegment: transcript persistence is unavailable")
 	}
 	if terminal && run.MessageMark < 0 {
-		mark, err := e.stores.MessageCount(ctx, run.SessionID)
+		if e.messages == nil {
+			return errors.New("runsegment: message persistence is unavailable")
+		}
+		mark, err := e.messages.Count(ctx, run.SessionID)
 		if err != nil {
 			return fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
 		}
@@ -428,7 +443,7 @@ func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool)
 	if run.UpdatedAt.IsZero() {
 		run.UpdatedAt = time.Now().UTC()
 	}
-	return e.stores.Transcript().PutRun(ctx, run)
+	return e.transcript.PutRun(ctx, run)
 }
 
 func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error {
@@ -456,21 +471,24 @@ func (e *Effects) snapshot(ctx context.Context, sessionID, cwd, runID string) er
 }
 
 func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
-	if e.stores == nil || e.stores.Session() == nil {
+	if e.sessions == nil {
 		return errors.New("runsegment: session persistence is unavailable for title generation")
 	}
 	prompt = strings.TrimSpace(prompt)
 	if prompt == "" {
 		return nil
 	}
-	sess, err := e.stores.Session().Get(ctx, sessionID)
+	sess, err := e.sessions.Get(ctx, sessionID)
 	if err != nil {
 		return fmt.Errorf("runsegment: load session %q for title generation: %w", sessionID, err)
 	}
 	if strings.TrimSpace(sess.Title) != "" {
 		return nil
 	}
-	title, err := e.stores.GenerateTitle(ctx, prompt)
+	if e.titles == nil {
+		return errors.New("runsegment: title generation is unavailable")
+	}
+	title, err := e.titles.Generate(ctx, prompt)
 	if err != nil {
 		return fmt.Errorf("runsegment: generate title for session %q: %w", sessionID, err)
 	}
@@ -478,7 +496,7 @@ func (e *Effects) title(ctx context.Context, sessionID, prompt string) error {
 	if title == "" {
 		return fmt.Errorf("runsegment: generated title for session %q is empty", sessionID)
 	}
-	if err := e.stores.Session().RenameIfUntitled(ctx, sessionID, title); err != nil {
+	if err := e.sessions.RenameIfUntitled(ctx, sessionID, title); err != nil {
 		return fmt.Errorf("runsegment: rename untitled session %q: %w", sessionID, err)
 	}
 	return nil

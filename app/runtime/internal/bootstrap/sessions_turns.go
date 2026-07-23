@@ -12,7 +12,11 @@ import (
 // narrow parked-process cleanup port. Complete run commands use turn.Executor
 // through application/runs instead.
 type sessionsTurns struct {
-	dispatcher turn.Dispatcher
+	dispatcher turnCanceler
+}
+
+type turnCanceler interface {
+	Cancel(context.Context, turn.TurnHandle) error
 }
 
 func (t sessionsTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {

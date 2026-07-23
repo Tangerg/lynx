@@ -8,10 +8,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 type executorFakeDispatcher struct {
-	Dispatcher
 	eventsHandle TurnHandle
 	events       iter.Seq[Event]
 	cancelHandle TurnHandle
@@ -26,6 +26,19 @@ func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.S
 func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
 	f.cancelHandle = h
 	return f.cancelErr
+}
+
+func (*executorFakeDispatcher) InjectSteering(context.Context, TurnHandle, string) error { return nil }
+func (*executorFakeDispatcher) PrepareTurn(context.Context, StartTurnRequest) (TurnHandle, error) {
+	return TurnHandle{}, nil
+}
+func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
+func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []string) error {
+	return nil
+}
+func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }
+func (*executorFakeDispatcher) Rehydrate(context.Context, RehydrateRequest) (TurnHandle, error) {
+	return TurnHandle{}, nil
 }
 
 // TestExecutorTranslatesTurnReference verifies the application-owned durable

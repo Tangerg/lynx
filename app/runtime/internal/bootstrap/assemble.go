@@ -344,14 +344,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
 	runEffects := runsegment.New(runsegment.Config{
-		Stores: runSegmentStores{
-			interrupts:   cfg.InterruptStore,
-			session:      cfg.SessionStore,
-			transcript:   cfg.TranscriptStore,
-			toolResults:  cfg.ToolResultStore,
-			conversation: messages.conversation,
-			titler:       maintenance.NewTitler(utilityEnv.resolve),
-		},
+		Interrupts:         cfg.InterruptStore,
+		Sessions:           cfg.SessionStore,
+		Transcript:         cfg.TranscriptStore,
+		ToolResults:        cfg.ToolResultStore,
+		Messages:           messages.conversation,
+		Titles:             maintenance.NewTitler(utilityEnv.resolve),
 		Processes:          runSegmentProcesses{dispatcher: turnDispatcher},
 		RunState:           cfg.RunStore,
 		Tx:                 runsegment.Transactor(cfg.Transactor),
@@ -364,24 +362,29 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	mcpStatus := &mcpstatus.Notifier{}
 
 	admissions := &admission.Gate{}
+	sessionStorage := sessionStores{
+		sessions:    cfg.SessionStore,
+		transcript:  cfg.TranscriptStore,
+		interrupts:  cfg.InterruptStore,
+		runs:        cfg.RunStore,
+		processes:   cfg.ProcessStore,
+		history:     messages.conversation,
+		todos:       cfg.TodoStore,
+		approvals:   cfg.ApprovalRuleStore,
+		toolResults: cfg.ToolResultStore,
+		// goals puts a deleted/rewound session's goal into the atomic cleanup
+		// cascade. cfg.GoalStore is an interface (nil when Goal mode is off), so
+		// the write-sets' own nil check skips it — no guard needed here.
+		goals: cfg.GoalStore,
+		tx:    cfg.Transactor,
+	}
 	sessionDeps := sessions.Dependencies{
-		Stores: sessionStores{
-			sessions:    cfg.SessionStore,
-			transcript:  cfg.TranscriptStore,
-			interrupts:  cfg.InterruptStore,
-			runs:        cfg.RunStore,
-			processes:   cfg.ProcessStore,
-			history:     messages.conversation,
-			todos:       cfg.TodoStore,
-			approvals:   cfg.ApprovalRuleStore,
-			toolResults: cfg.ToolResultStore,
-			// goals puts a deleted/rewound session's goal into the atomic cleanup
-			// cascade. cfg.GoalStore is an interface (nil when Goal mode is off), so
-			// the write-sets' own nil check skips it — no guard needed here.
-			goals:     cfg.GoalStore,
-			forgetter: turnDispatcher,
-			tx:        cfg.Transactor,
-		},
+		Sessions:    cfg.SessionStore,
+		Interrupts:  cfg.InterruptStore,
+		Transcript:  cfg.TranscriptStore,
+		Snapshots:   sessionStorage,
+		Writes:      sessionStorage,
+		Forgetter:   turnDispatcher,
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: sessionCheckpoints{cp: checkpoints},

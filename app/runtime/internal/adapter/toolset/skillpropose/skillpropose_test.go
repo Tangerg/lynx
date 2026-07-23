@@ -9,6 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
@@ -35,8 +37,8 @@ func (f *fakeStore) DiscardDraft(ctx context.Context, handle skills.DraftHandle)
 	return f.discardErr
 }
 
-func answering(choice string) interrupts.Func {
-	return func(context.Context, string, any) (interrupts.Resolution, error) {
+func answering(choice string) suspension.Func {
+	return func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 		return interrupts.Resolution{Answer: map[string][]string{interrupts.QuestionFieldName(0): {choice}}}, nil
 	}
 }
@@ -107,7 +109,7 @@ func TestPropose_InterruptCleansDraftAndPreservesSuspension(t *testing.T) {
 	discardErr := errors.New("discard failed")
 	store := &fakeStore{enabled: true, discardErr: discardErr}
 	ctx, cancel := context.WithCancel(t.Context())
-	interrupt := func(context.Context, string, any) (interrupts.Resolution, error) {
+	interrupt := func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 		cancel()
 		return interrupts.Resolution{}, fmt.Errorf("park proposal: %w", interaction.ErrSuspended)
 	}

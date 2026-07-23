@@ -20,51 +20,53 @@ type Record struct {
 	CancelReason string
 }
 
-// Entry pairs a run record with the payload the delivery layer attaches.
-type Entry[P any] struct {
-	Record  Record
-	Payload P
+// liveSegment is the coordinator's process-local state for a currently active
+// run. The registry only ever manages run handles, so making it generic would
+// hide its actual lifecycle ownership.
+type liveSegment struct {
+	record Record
+	handle *handle
 }
 
-// Registry is the process-local registry of LIVE run segments. Session admission
-// is owned separately by application/admission because Sessions and Runs share
-// that invariant; durable run history lives in transcript.
+// registry is the process-local registry of live run segments. Session
+// admission is owned separately by application/admission because Sessions and
+// Runs share that invariant; durable run history lives in transcript.
 //
 // Its zero value is usable.
-type Registry[P any] struct {
+type registry struct {
 	mu   sync.Mutex
-	runs map[string]Entry[P]
+	runs map[string]liveSegment
 }
 
 // Open registers an active run segment.
-func (r *Registry[P]) Open(record Record, payload P) {
+func (r *registry) Open(record Record, handle *handle) {
 	r.mu.Lock()
 	r.initLocked()
-	r.runs[record.ID] = Entry[P]{Record: record, Payload: payload}
+	r.runs[record.ID] = liveSegment{record: record, handle: handle}
 	r.mu.Unlock()
 }
 
-// Remove drops one completed segment and returns its former live entry.
-func (r *Registry[P]) Remove(id string) (entry Entry[P], ok bool) {
+// Remove drops one completed segment and returns its former live state.
+func (r *registry) Remove(id string) (segment liveSegment, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	entry, ok = r.runs[id]
+	segment, ok = r.runs[id]
 	if ok {
 		delete(r.runs, id)
 	}
-	return entry, ok
+	return segment, ok
 }
 
 // Get returns an active run segment.
-func (r *Registry[P]) Get(id string) (Entry[P], bool) {
+func (r *registry) Get(id string) (liveSegment, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	e, ok := r.runs[id]
-	return e, ok
+	segment, ok := r.runs[id]
+	return segment, ok
 }
 
 // Contains reports whether a run segment is active.
-func (r *Registry[P]) Contains(id string) bool {
+func (r *registry) Contains(id string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	_, ok := r.runs[id]
@@ -72,37 +74,37 @@ func (r *Registry[P]) Contains(id string) bool {
 }
 
 // MarkCancel records the human-facing cancel reason and returns the live run.
-func (r *Registry[P]) MarkCancel(id, reason string) (Entry[P], bool) {
+func (r *registry) MarkCancel(id, reason string) (liveSegment, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	e, ok := r.runs[id]
+	segment, ok := r.runs[id]
 	if !ok {
-		return Entry[P]{}, false
+		return liveSegment{}, false
 	}
-	e.Record.CancelReason = reason
-	r.runs[id] = e
-	return e, true
+	segment.record.CancelReason = reason
+	r.runs[id] = segment
+	return segment, true
 }
 
-// List snapshots active run segments.
-func (r *Registry[P]) List() []Entry[P] {
+// List snapshots active run records.
+func (r *registry) List() []Record {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]Entry[P], 0, len(r.runs))
-	for _, entry := range r.runs {
-		out = append(out, entry)
+	out := make([]Record, 0, len(r.runs))
+	for _, segment := range r.runs {
+		out = append(out, segment.record)
 	}
-	slices.SortFunc(out, func(left, right Entry[P]) int {
-		if order := left.Record.CreatedAt.Compare(right.Record.CreatedAt); order != 0 {
+	slices.SortFunc(out, func(left, right Record) int {
+		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
 			return order
 		}
-		return strings.Compare(left.Record.ID, right.Record.ID)
+		return strings.Compare(left.ID, right.ID)
 	})
 	return out
 }
 
-func (r *Registry[P]) initLocked() {
+func (r *registry) initLocked() {
 	if r.runs == nil {
-		r.runs = map[string]Entry[P]{}
+		r.runs = map[string]liveSegment{}
 	}
 }

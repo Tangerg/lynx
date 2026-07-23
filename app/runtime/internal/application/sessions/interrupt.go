@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
@@ -28,13 +29,19 @@ func (r RunTurnBinding) ref() RunRef {
 
 // ListOpenInterrupts exposes the run-admission read needed by application/runs.
 func (c *Coordinator) ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	return c.s.Interrupts().List(ctx, sessionID)
+	if c.interrupts == nil {
+		return nil, errors.New("sessions: interrupt store is unavailable")
+	}
+	return c.interrupts.List(ctx, sessionID)
 }
 
 // GetOpenInterrupt returns the parked run identified by runID without claiming
 // or consuming it. The run use case owns the subsequent admission ordering.
 func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
-	return c.s.Interrupts().Get(ctx, runID)
+	if c.interrupts == nil {
+		return interrupts.Pending{}, false, errors.New("sessions: interrupt store is unavailable")
+	}
+	return c.interrupts.Get(ctx, runID)
 }
 
 // ApplyRunCancel commits the atomic durable abandon write-set. Executor
@@ -55,14 +62,17 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	if finishedAt.IsZero() {
 		return fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
 	}
-	pending, found, err := c.s.Interrupts().Get(ctx, runID)
+	if c.interrupts == nil || c.snapshots == nil || c.writes == nil {
+		return errors.New("sessions: interrupt lifecycle persistence is unavailable")
+	}
+	pending, found, err := c.interrupts.Get(ctx, runID)
 	if err != nil {
 		return err
 	}
 	if !found || pending.SessionID != sessionID {
 		return fmt.Errorf("sessions: terminalize parked run %q: open interrupt not found for session %q", runID, sessionID)
 	}
-	snapshot, err := c.s.ReadSnapshot(ctx, sessionID)
+	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -130,13 +140,16 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	run.FinishedAt = finishedAt.UTC()
 	run.UpdatedAt = run.FinishedAt
 	run.MessageMark = len(snapshot.Messages)
-	return c.s.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
+	return c.writes.ApplyTerminal(ctx, TerminalPlan{Run: run, Items: items, ProcessID: pending.ProcessID})
 }
 
 func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {
 	var out []RunTurnBinding
 	for _, runID := range runIDs {
-		pending, found, err := c.s.Interrupts().Get(ctx, runID)
+		if c.interrupts == nil {
+			return nil, errors.New("sessions: interrupt store is unavailable")
+		}
+		pending, found, err := c.interrupts.Get(ctx, runID)
 		if err != nil {
 			return nil, err
 		}

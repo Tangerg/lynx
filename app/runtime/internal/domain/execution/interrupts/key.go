@@ -1,20 +1,9 @@
 package interrupts
 
 import (
-	"context"
-	"errors"
 	"hash/fnv"
 	"strconv"
 )
-
-// Func is the narrow contract for resumable control flow in runtime tools.
-type Func func(ctx context.Context, key string, value any) (Resolution, error)
-
-// Unavailable is the explicit failure path when the runtime does not wire a
-// resume-aware interrupt function.
-func Unavailable(context.Context, string, any) (Resolution, error) {
-	return Resolution{}, errors.New("interrupt contract is unavailable")
-}
 
 // InterruptKey is the stable identity used by HITL questions and approvals.
 //

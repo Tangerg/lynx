@@ -15,7 +15,7 @@ type Event struct {
 	Payload   RunEvent
 }
 
-// Durable, Terminal, and Cursor satisfy the [Journal]'s [Streamable] interface.
+// Durable, Terminal, and Cursor supply the Journal's replay and queue policy.
 func (e Event) Durable() bool  { return e.Payload != nil && e.Payload.Durable() }
 func (e Event) Terminal() bool { return e.Payload != nil && e.Payload.Terminal() }
 func (e Event) Cursor() string { return e.Seq }

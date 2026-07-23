@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -63,18 +64,18 @@ func (a proposeArgs) draft() skills.Draft {
 
 type tool struct {
 	store     Authoring
-	interrupt interrupts.Func
+	interrupt suspension.Func
 }
 
 // New builds the propose_skill tool. A nil store (or one reporting Enabled()
 // false) yields a nil tool so the caller omits the feature; a nil interrupt
 // resolves to the unavailable one (the tool then can't gate and reports so).
-func New(store Authoring, interrupt interrupts.Func) (tools.Tool, error) {
+func New(store Authoring, interrupt suspension.Func) (tools.Tool, error) {
 	if store == nil || !store.Enabled() {
 		return nil, nil
 	}
 	if interrupt == nil {
-		interrupt = interrupts.Unavailable
+		interrupt = suspension.Unavailable
 	}
 	return tools.New[proposeArgs, string](
 		tools.Config{Name: toolName, Description: description},

@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -88,11 +89,15 @@ func (p *turnProcess) Cancel(ctx context.Context) error {
 }
 
 func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
-	suspension := p.process.Suspension()
-	if suspension == nil {
+	parked := p.process.Suspension()
+	if parked == nil {
 		return nil, fmt.Errorf("engine: process %s has no suspension", p.process.ID())
 	}
-	if err := p.engine.Resume(p.process.ID(), suspension.ID, resolution); err != nil {
+	response, err := suspension.EncodeResolution(resolution)
+	if err != nil {
+		return nil, err
+	}
+	if err := p.engine.Resume(p.process.ID(), parked.ID, response); err != nil {
 		return nil, err
 	}
 	return p.engine.ContinueAsync(ctx, p.process.ID())

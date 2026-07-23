@@ -13,18 +13,32 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-// Executor adapts the turn [Dispatcher] to the application's run executor port
+// executorDispatcher is the turn control slice the application run adapter
+// needs. It lives at the consumer because the concrete dispatcher owns no
+// reusable abstraction boundary.
+type executorDispatcher interface {
+	Events(context.Context, TurnHandle) (iter.Seq[Event], error)
+	InjectSteering(context.Context, TurnHandle, string) error
+	PrepareTurn(context.Context, StartTurnRequest) (TurnHandle, error)
+	ActivateTurn(context.Context, TurnHandle) error
+	Resume(context.Context, TurnHandle, interrupts.Resolution, []string) error
+	ProcessID(context.Context, TurnHandle) (string, error)
+	Rehydrate(context.Context, RehydrateRequest) (TurnHandle, error)
+	Cancel(context.Context, TurnHandle) error
+}
+
+// Executor adapts a turn dispatcher to the application's run executor port
 // (application/runs.SegmentExecutor): it drives, observes, and cancels the agent turn
 // backing a run segment. The application holds the run lifecycle and drives
 // execution through this port, so both durable turn identity and observed
 // events are normalized into the application-owned families. Construct
 // via [NewExecutor]; the composition root injects it into the run coordinator.
 type Executor struct {
-	dispatcher Dispatcher
+	dispatcher executorDispatcher
 }
 
 // NewExecutor returns an Executor over the turn dispatcher.
-func NewExecutor(dispatcher Dispatcher) *Executor {
+func NewExecutor(dispatcher executorDispatcher) *Executor {
 	return &Executor{dispatcher: dispatcher}
 }
 

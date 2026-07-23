@@ -79,23 +79,15 @@ type WriteSets interface {
 	ApplyTerminal(ctx context.Context, plan TerminalPlan) error
 }
 
-// Stores is the consumer-defined surface the Coordinator drives — the atomic
-// write-sets, the session-scoped read/create/patch store, open-interrupt reads,
-// coherent aggregate snapshots, and the process-local resume gate. Every
-// durable mutation goes through an atomic write-set port
-// ([WriteSets] or [SessionStore.Patch]); the coordinator no longer stitches a
-// transaction across table-CRUD calls (§8.4). The composition root supplies an
-// adapter so the Coordinator depends only on what it calls, not the whole runtime.
-type Stores interface {
-	WriteSets
-	Session() SessionStore
-	Interrupts() InterruptStore
-	Transcript() TranscriptStore
-	// ReadSnapshot returns the session aggregate, conversation history, and
-	// transcript from one storage transaction.
+// SnapshotReader returns the canonical session aggregate from one storage
+// transaction.
+type SnapshotReader interface {
 	ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error)
-	// ForgetSession releases the executor's process-local state for a session
-	// that is being removed (the SessionStart gate).
+}
+
+// SessionForgetter releases process-local executor state after a session is
+// removed from durable storage.
+type SessionForgetter interface {
 	ForgetSession(sessionID string)
 }
 
@@ -180,9 +172,14 @@ type Turns interface {
 // run. Stateless beyond its collaborators and the in-process admission gates;
 // safe to share.
 type Coordinator struct {
-	s     Stores
-	turns Turns
-	paths CwdResolver
+	sessions   SessionStore
+	interrupts InterruptStore
+	transcript TranscriptStore
+	snapshots  SnapshotReader
+	writes     WriteSets
+	forgetter  SessionForgetter
+	turns      Turns
+	paths      CwdResolver
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -203,12 +200,16 @@ type Coordinator struct {
 	trees WorkingTreeGate
 }
 
-// Dependencies is the collaborator set [New] wires into a Coordinator: the
-// consumer-defined store surface (including the atomic durable write-sets), the
-// turn dispatcher, the working-tree checkpoint store, and the recoverable
-// rollback operation log.
+// Dependencies is the collaborator set [New] wires into a Coordinator. Durable
+// mutations cross one cohesive WriteSets transaction; reads and process-local
+// cleanup are independent ports rather than accessor methods on a store bag.
 type Dependencies struct {
-	Stores      Stores
+	Sessions    SessionStore
+	Interrupts  InterruptStore
+	Transcript  TranscriptStore
+	Snapshots   SnapshotReader
+	Writes      WriteSets
+	Forgetter   SessionForgetter
 	Turns       Turns
 	Paths       CwdResolver
 	Checkpoints WorkspaceCheckpoints
@@ -228,7 +229,12 @@ func New(deps Dependencies) *Coordinator {
 		admissions = &admission.Gate{}
 	}
 	return &Coordinator{
-		s:           deps.Stores,
+		sessions:    deps.Sessions,
+		interrupts:  deps.Interrupts,
+		transcript:  deps.Transcript,
+		snapshots:   deps.Snapshots,
+		writes:      deps.Writes,
+		forgetter:   deps.Forgetter,
 		turns:       deps.Turns,
 		paths:       deps.Paths,
 		checkpoints: deps.Checkpoints,

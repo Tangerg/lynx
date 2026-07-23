@@ -30,7 +30,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}, mark: 7}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
@@ -61,7 +61,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 	toolResults := new(fakeToolResults)
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
-	effects := New(Config{Stores: stores, Tx: new(fakeTx).run})
+	effects := testEffects(stores, Config{Tx: new(fakeTx).run})
 	ref := &offload.Ref{ID: "BLOB234"}
 	preview := tool.StringResult("preview")
 
@@ -88,8 +88,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 	want := errors.New("transaction failed")
 	toolResults := new(fakeToolResults)
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
-	effects := New(Config{
-		Stores: stores,
+	effects := testEffects(stores, Config{
 		Tx: func(context.Context, func(context.Context) error) error {
 			return want
 		},
@@ -116,7 +115,7 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 	want := errors.New("message count unavailable")
 	stores := &fakeStores{transcript: &fakeTranscript{}, markErr: want}
 	runState := &fakeRunState{}
-	effects := New(Config{Stores: stores, RunState: runState, Tx: new(fakeTx).run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: new(fakeTx).run})
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
 		RunID:     "run_1",
@@ -137,8 +136,7 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 }
 
 func TestCommitEventRejectsUnknownStateChange(t *testing.T) {
-	effects := New(Config{
-		Stores:   &fakeStores{transcript: &fakeTranscript{}},
+	effects := testEffects(&fakeStores{transcript: &fakeTranscript{}}, Config{
 		RunState: &fakeRunState{},
 		Tx:       new(fakeTx).run,
 	})
@@ -155,7 +153,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
 	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
@@ -179,7 +177,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := New(Config{Stores: stores, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
 	resume := execution.ResumeDraft{RunID: "run_1", SessionID: "ses_1"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
@@ -205,7 +203,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{Processes: fakeProcess{processID: "proc_1"}, RunState: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(context.Background(), runs.EventCommit{
 		RunID:     "run_1",
@@ -256,7 +254,7 @@ func TestCommitEventRejectsUnresumableInterrupt(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
-	effects := New(Config{Stores: stores, Processes: fakeProcess{err: want}, RunState: runState, Tx: tx.run})
+	effects := testEffects(stores, Config{Processes: fakeProcess{err: want}, RunState: runState, Tx: tx.run})
 
 	err := effects.CommitEvent(context.Background(), runs.EventCommit{
 		RunID:     "run_1",
@@ -302,8 +300,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		},
 		title: "Generated title",
 	}
-	effects := New(Config{
-		Stores:      stores,
+	effects := testEffects(stores, Config{
 		Checkpoints: fakeCheckpoints{snapshotted: snapshotted},
 	})
 
@@ -339,8 +336,7 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 		title:      "Generated title",
 		operations: &operations,
 	}
-	effects := New(Config{
-		Stores: stores,
+	effects := testEffects(stores, Config{
 		Checkpoints: fakeCheckpoints{
 			operations: &operations,
 			err:        snapshotErr,
@@ -403,11 +399,10 @@ func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 		}
 	})
 	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
-	effects := New(Config{
-		Stores: &fakeStores{
-			session:  &fakeSession{sess: session.Session{ID: "ses_1"}},
-			titleErr: titleErr,
-		},
+	effects := testEffects(&fakeStores{
+		session:  &fakeSession{sess: session.Session{ID: "ses_1"}},
+		titleErr: titleErr,
+	}, Config{
 		Tasks: inlineTaskLauncher{},
 	})
 
@@ -451,14 +446,24 @@ type fakeStores struct {
 	operations  *[]string
 }
 
+func testEffects(stores *fakeStores, cfg Config) *Effects {
+	cfg.Interrupts = stores.interrupts
+	cfg.Sessions = stores.session
+	cfg.Transcript = stores.transcript
+	cfg.ToolResults = stores.toolResults
+	cfg.Messages = stores
+	cfg.Titles = stores
+	return New(cfg)
+}
+
 func (s *fakeStores) Interrupts() InterruptStore   { return s.interrupts }
 func (s *fakeStores) Session() SessionStore        { return s.session }
 func (s *fakeStores) Transcript() TranscriptStore  { return s.transcript }
 func (s *fakeStores) ToolResults() ToolResultStore { return s.toolResults }
-func (s *fakeStores) MessageCount(context.Context, string) (int, error) {
+func (s *fakeStores) Count(context.Context, string) (int, error) {
 	return s.mark, s.markErr
 }
-func (s *fakeStores) GenerateTitle(context.Context, string) (string, error) {
+func (s *fakeStores) Generate(context.Context, string) (string, error) {
 	if s.operations != nil {
 		*s.operations = append(*s.operations, "title.generate")
 	}

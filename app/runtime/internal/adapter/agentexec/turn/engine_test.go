@@ -539,7 +539,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesOnce(t *testing.T)
 	assertCreateFailureEvents(t, events, startErr)
 }
 
-func waitForTurnRemoval(t *testing.T, dispatcher turn.Dispatcher, handle turn.TurnHandle) {
+func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHandle) {
 	t.Helper()
 
 	deadline := time.Now().Add(2 * time.Second)

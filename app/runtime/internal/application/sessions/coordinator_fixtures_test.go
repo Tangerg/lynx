@@ -16,7 +16,16 @@ type coordinatorStores struct {
 	snapshotReads *int
 }
 
-func (s coordinatorStores) Session() SessionStore       { panic("unused") }
+type testStores interface {
+	WriteSets
+	Session() SessionStore
+	Interrupts() InterruptStore
+	Transcript() TranscriptStore
+	ReadSnapshot(context.Context, string) (Snapshot, error)
+	ForgetSession(string)
+}
+
+func (s coordinatorStores) Session() SessionStore       { return nil }
 func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (s coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
@@ -129,12 +138,24 @@ func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
 func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
 
 // newCoordinator builds a Coordinator over test stores and turns.
-func newCoordinator(stores Stores, turns Turns) *Coordinator {
+func newCoordinator(stores testStores, turns Turns) *Coordinator {
 	return newCoordinatorWithAdmissions(stores, turns, new(testClaimer))
 }
 
-func newCoordinatorWithAdmissions(stores Stores, turns Turns, admissions SessionAdmissions) *Coordinator {
-	return New(Dependencies{Stores: stores, Turns: turns, Paths: testCwdResolver{}, Admissions: admissions})
+func newCoordinatorWithAdmissions(stores testStores, turns Turns, admissions SessionAdmissions) *Coordinator {
+	return New(testDependencies(stores, Dependencies{
+		Turns: turns, Paths: testCwdResolver{}, Admissions: admissions,
+	}))
+}
+
+func testDependencies(stores testStores, deps Dependencies) Dependencies {
+	deps.Sessions = stores.Session()
+	deps.Interrupts = stores.Interrupts()
+	deps.Transcript = stores.Transcript()
+	deps.Snapshots = stores
+	deps.Writes = stores
+	deps.Forgetter = stores
+	return deps
 }
 
 type testCwdResolver struct {

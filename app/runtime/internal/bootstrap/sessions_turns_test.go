@@ -10,7 +10,6 @@ import (
 )
 
 type cancelDispatcher struct {
-	turn.Dispatcher
 	err error
 }
 

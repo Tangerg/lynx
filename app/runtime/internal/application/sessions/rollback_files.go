@@ -60,7 +60,10 @@ type RollbackResult struct {
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
 // any in-flight run on the tree (ActiveSessionWithCwd), not just this session's.
 func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (RollbackResult, error) {
-	ses, err := c.s.Session().Get(ctx, spec.SessionID)
+	if c.sessions == nil {
+		return RollbackResult{}, errors.New("sessions: session store is unavailable")
+	}
+	ses, err := c.sessions.Get(ctx, spec.SessionID)
 	if err != nil {
 		return RollbackResult{}, err
 	}
@@ -88,7 +91,10 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (Rol
 		}
 	}
 
-	items, runs, err := c.s.Transcript().List(ctx, spec.SessionID)
+	if c.transcript == nil {
+		return RollbackResult{}, errors.New("sessions: transcript store is unavailable")
+	}
+	items, runs, err := c.transcript.List(ctx, spec.SessionID)
 	if err != nil {
 		return result, err
 	}
@@ -197,7 +203,10 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 	var boundary transcript.Boundary
 	var dropSessionIDs []string
 	if m.RestoreHistory {
-		_, runs, err := c.s.Transcript().List(ctx, m.SessionID)
+		if c.transcript == nil {
+			return errors.New("sessions: transcript store is unavailable")
+		}
+		_, runs, err := c.transcript.List(ctx, m.SessionID)
 		if err != nil {
 			return err
 		}

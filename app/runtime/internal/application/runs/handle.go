@@ -20,7 +20,7 @@ type handle struct {
 	mu              sync.Mutex
 	cancel          context.CancelFunc
 	owner           context.Context
-	hub             *Journal[Event]
+	hub             *Journal
 	cancelRequested bool
 	cancelReason    string
 	interruptDone   chan struct{}

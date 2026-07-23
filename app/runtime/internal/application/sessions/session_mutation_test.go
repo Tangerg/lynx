@@ -52,12 +52,11 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 
 func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
-	coordinator := New(Dependencies{
-		Stores: stores,
-		Turns:  mutationTurns{operations: &stores.operations},
-		Paths:  testCwdResolver{},
-		Goals:  mutationGoalGuard{operations: &stores.operations},
-	})
+	coordinator := New(testDependencies(stores, Dependencies{
+		Turns: mutationTurns{operations: &stores.operations},
+		Paths: testCwdResolver{},
+		Goals: mutationGoalGuard{operations: &stores.operations},
+	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
@@ -70,12 +69,11 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 
 func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
-	coordinator := New(Dependencies{
-		Stores: stores,
-		Turns:  mutationTurns{operations: &stores.operations},
-		Paths:  testCwdResolver{},
-		Goals:  mutationGoalGuard{operations: &stores.operations},
-	})
+	coordinator := New(testDependencies(stores, Dependencies{
+		Turns: mutationTurns{operations: &stores.operations},
+		Paths: testCwdResolver{},
+		Goals: mutationGoalGuard{operations: &stores.operations},
+	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
@@ -110,12 +108,11 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	checkpointErr := errors.New("checkpoint cleanup failed")
 	stores := newMutationStores("")
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
-	coordinator := New(Dependencies{
-		Stores:      stores,
+	coordinator := New(testDependencies(stores, Dependencies{
 		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
 		Paths:       testCwdResolver{},
 		Checkpoints: checkpoints,
-	})
+	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
@@ -133,13 +130,12 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	sandboxErr := errors.New("sandbox discard failed")
 	stores := newMutationStores("")
-	coordinator := New(Dependencies{
-		Stores:      stores,
+	coordinator := New(testDependencies(stores, Dependencies{
 		Turns:       mutationTurns{operations: &stores.operations},
 		Paths:       testCwdResolver{},
 		Checkpoints: &mutationCheckpoints{operations: &stores.operations},
 		Sandbox:     &mutationSandbox{operations: &stores.operations, err: sandboxErr},
-	})
+	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, sandboxErr) {
@@ -161,12 +157,11 @@ func TestRollbackDropsSubtaskCheckpointsAndReportsCleanupFailures(t *testing.T) 
 	checkpointErr := errors.New("checkpoint cleanup failed")
 	stores := newMutationStores("")
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
-	coordinator := New(Dependencies{
-		Stores:      stores,
+	coordinator := New(testDependencies(stores, Dependencies{
 		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
 		Paths:       testCwdResolver{},
 		Checkpoints: checkpoints,
-	})
+	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
 	err := coordinator.applyRollback(t.Context(), "ses_1", boundary, []string{"ses_sub"})
@@ -269,11 +264,10 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]interrupts.Pending{}
 	want := errors.New("missing workspace")
-	coordinator := New(Dependencies{
-		Stores: stores,
-		Turns:  mutationTurns{operations: &stores.operations},
-		Paths:  testCwdResolver{err: want},
-	})
+	coordinator := New(testDependencies(stores, Dependencies{
+		Turns: mutationTurns{operations: &stores.operations},
+		Paths: testCwdResolver{err: want},
+	}))
 
 	err := coordinator.RestoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}})
 	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
@@ -297,7 +291,7 @@ func (g mutationGoalGuard) WithSessionMutation(ctx context.Context, _ []string, 
 	return nil
 }
 
-// mutationStores is the coordinator's Stores view for the mutation write-sets: it
+// mutationStores supplies the coordinator's named persistence ports for mutation write-sets: it
 // records the atomic Apply* calls + the process cleanup, and lists a single open
 // interrupt so DeleteSession has a parked turn to cancel.
 type mutationStores struct {

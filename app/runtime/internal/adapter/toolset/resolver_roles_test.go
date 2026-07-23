@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -33,7 +34,7 @@ func TestSubtaskRoleCanAskAndExitPlanWithoutDelegating(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
 		Approval: policy,
-		Interrupt: func(context.Context, string, any) (interrupts.Resolution, error) {
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
 	})
