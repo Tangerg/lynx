@@ -145,30 +145,7 @@ func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 	cfg.UtilityStore = saver
 	c := New(cfg)
 
-	first := make(chan error, 1)
-	go func() { _, err := c.SetUtilityRole(t.Context(), "provider", "first"); first <- err }()
-	<-saver.firstStarted
-	second := make(chan error, 1)
-	go func() { _, err := c.SetUtilityRole(t.Context(), "provider", "second"); second <- err }()
-
-	select {
-	case <-saver.secondEntered:
-		t.Fatal("second utility mutation entered persistence before the first published")
-	case <-time.After(20 * time.Millisecond):
-	}
-	close(saver.releaseFirst)
-	if err := <-first; err != nil {
-		t.Fatal(err)
-	}
-	if err := <-second; err != nil {
-		t.Fatal(err)
-	}
-	if got := saver.savedModel(); got != "second" {
-		t.Fatalf("persisted model = %q, want second", got)
-	}
-	if role := state.Role(); role.Model() != "second" {
-		t.Fatalf("live role = %+v, want second", role)
-	}
+	assertRoleMutationSerializesPersistAndPublish(t, state, saver.blockingRoleSaver, c.SetUtilityRole)
 }
 
 func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
@@ -180,15 +157,21 @@ func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	cfg.EmbeddingStore = saver
 	c := New(cfg)
 
+	assertRoleMutationSerializesPersistAndPublish(t, state, saver.blockingRoleSaver, c.SetEmbeddingRole)
+}
+
+type roleMutation func(context.Context, string, string) (Role, error)
+
+func assertRoleMutationSerializesPersistAndPublish(t *testing.T, state *RoleState, saver *blockingRoleSaver, setRole roleMutation) {
+	t.Helper()
 	first := make(chan error, 1)
-	go func() { _, err := c.SetEmbeddingRole(t.Context(), "provider", "first"); first <- err }()
+	go func() { _, err := setRole(t.Context(), "provider", "first"); first <- err }()
 	<-saver.firstStarted
 	second := make(chan error, 1)
-	go func() { _, err := c.SetEmbeddingRole(t.Context(), "provider", "second"); second <- err }()
-
+	go func() { _, err := setRole(t.Context(), "provider", "second"); second <- err }()
 	select {
 	case <-saver.secondEntered:
-		t.Fatal("second embedding mutation entered persistence before the first published")
+		t.Fatal("second mutation entered persistence before the first published")
 	case <-time.After(20 * time.Millisecond):
 	}
 	close(saver.releaseFirst)

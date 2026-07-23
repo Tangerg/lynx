@@ -204,35 +204,8 @@ type toolEnvironmentBuilder func(
 ) (toolset.Built, error)
 
 func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (_ Host, err error) {
-	if cfg.Engine.ChatClient == nil {
-		return Host{}, errors.New("runtime: Engine.ChatClient is required")
-	}
-	if cfg.ProviderRegistry == nil {
-		return Host{}, errors.New("runtime: ProviderRegistry is required")
-	}
-	if cfg.MCPRegistry == nil {
-		return Host{}, errors.New("runtime: MCPRegistry is required")
-	}
-	if cfg.SessionStore == nil {
-		return Host{}, errors.New("runtime: SessionStore is required")
-	}
-	if cfg.InterruptStore == nil {
-		return Host{}, errors.New("runtime: InterruptStore is required")
-	}
-	if cfg.TranscriptStore == nil {
-		return Host{}, errors.New("runtime: TranscriptStore is required")
-	}
-	if cfg.FeedbackStore == nil {
-		return Host{}, errors.New("runtime: FeedbackStore is required")
-	}
-	if cfg.RunStore == nil {
-		return Host{}, errors.New("runtime: RunStore is required")
-	}
-	if cfg.ProcessStore == nil {
-		return Host{}, errors.New("runtime: ProcessStore is required")
-	}
-	if cfg.Transactor == nil {
-		return Host{}, errors.New("runtime: Transactor is required")
+	if err := validateAssemblyConfig(cfg); err != nil {
+		return Host{}, err
 	}
 	// Offloads are staged before their ordered transcript event commits so a
 	// following model round can read them immediately. A process crash may leave
@@ -611,6 +584,40 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	dispatcherTransferred = true
 	transferred = true
 	return host, nil
+}
+
+func validateAssemblyConfig(cfg Config) error {
+	if cfg.Engine.ChatClient == nil {
+		return errors.New("runtime: Engine.ChatClient is required")
+	}
+	if cfg.ProviderRegistry == nil {
+		return errors.New("runtime: ProviderRegistry is required")
+	}
+	if cfg.MCPRegistry == nil {
+		return errors.New("runtime: MCPRegistry is required")
+	}
+	if cfg.SessionStore == nil {
+		return errors.New("runtime: SessionStore is required")
+	}
+	if cfg.InterruptStore == nil {
+		return errors.New("runtime: InterruptStore is required")
+	}
+	if cfg.TranscriptStore == nil {
+		return errors.New("runtime: TranscriptStore is required")
+	}
+	if cfg.FeedbackStore == nil {
+		return errors.New("runtime: FeedbackStore is required")
+	}
+	if cfg.RunStore == nil {
+		return errors.New("runtime: RunStore is required")
+	}
+	if cfg.ProcessStore == nil {
+		return errors.New("runtime: ProcessStore is required")
+	}
+	if cfg.Transactor == nil {
+		return errors.New("runtime: Transactor is required")
+	}
+	return nil
 }
 
 // runClosers closes creation-ordered tool resources in reverse.

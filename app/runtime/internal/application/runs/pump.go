@@ -26,64 +26,11 @@ import (
 // cancels it.
 func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inner iter.Seq[EngineEvent], live *handle, reducer *reducer) {
 	hub := live.hub
+	publisher := segmentPublisher{coordinator: c, spec: spec, live: live}
 	finished := false
 	parked := false
 	abortTurn := false
 	commitCtx := ownerCtx
-
-	// publish validates the whole batch before side effects, then drives
-	// commit-before-publish. published=false with no error means cancellation won
-	// the interrupt-commit race.
-	publish := func(reductions []reduction) (published bool, err error) {
-		if err := validateReductionBatch(reductions); err != nil {
-			return false, err
-		}
-		if len(reductions) > 0 && reductions[0].Interrupt {
-			// Park is a batch boundary, not one event: commit every transcript
-			// projection + the open interrupt + Suspend, then publish the complete
-			// batch under one reserved boundary. A cancellation therefore observes
-			// either no park or the complete park and cancels + joins an in-flight
-			// durable commit without waiting on a mutex held across I/O.
-			committed, err := live.commitInterrupt(commitCtx, func(interruptCtx context.Context) error {
-				if err := c.effects.CommitEvent(interruptCtx, *reductions[0].Commit); err != nil {
-					return err
-				}
-				finished = true
-				parked = true
-				for _, reduced := range reductions {
-					hub.Append(c.event(spec, reduced))
-					if reduced.Nudge != nil {
-						c.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
-					}
-				}
-				return nil
-			})
-			if err != nil {
-				return false, fmt.Errorf("runs: commit interrupt: %w", err)
-			}
-			return committed, nil
-		}
-		for _, reduced := range reductions {
-			// Commit before publish: a durable event's atomic commit (for a terminal,
-			// recording the run + terminalizing the run-state) lands before the event
-			// is delivered or retained for replay, so a subscriber never observes an
-			// event the store doesn't yet back. A commit failure aborts the turn (as
-			// the interrupt path does) rather than publishing an unbacked event.
-			if reduced.Commit != nil {
-				if err := c.effects.CommitEvent(commitCtx, *reduced.Commit); err != nil {
-					return false, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
-				}
-			}
-			if reduced.Event.Terminal() {
-				finished = true
-			}
-			hub.Append(c.event(spec, reduced))
-			if reduced.Nudge != nil {
-				c.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
-			}
-		}
-		return true, nil
-	}
 
 	fail := func(err error) {
 		abortTurn = true
@@ -110,8 +57,14 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			reductions, err := reducer.synthesizeTerminal()
 			if err != nil {
 				fail(err)
-			} else if _, err := publish(reductions); err != nil {
-				fail(err)
+			} else {
+				publication, err := publisher.publish(commitCtx, reductions)
+				if err != nil {
+					fail(err)
+				} else {
+					finished = publication.finished
+					parked = publication.parked
+				}
 			}
 			cancelTerminal()
 		}
@@ -164,12 +117,14 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			fail(err)
 			return
 		}
-		published, err := publish(reductions)
+		publication, err := publisher.publish(commitCtx, reductions)
 		if err != nil {
 			fail(err)
 			return
 		}
-		if !published {
+		finished = finished || publication.finished
+		parked = parked || publication.parked
+		if !publication.published {
 			return
 		}
 		if parked {
@@ -185,6 +140,79 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			// a terminal" here rather than trusting the upstream event ordering.
 			return
 		}
+	}
+}
+
+type reductionPublication struct {
+	published bool
+	finished  bool
+	parked    bool
+}
+
+// segmentPublisher owns the one batch boundary between canonical reductions
+// and their durable/live projections. It returns the lifecycle state the pump
+// must carry into the next executor event and final cleanup.
+type segmentPublisher struct {
+	coordinator *Coordinator
+	spec        segmentSpec
+	live        *handle
+}
+
+// publish validates a complete batch before any side effect, then commits every
+// durable fact before appending its event. published=false without an error
+// means cancellation won the interrupt-commit race.
+func (p segmentPublisher) publish(ctx context.Context, reductions []reduction) (reductionPublication, error) {
+	if err := validateReductionBatch(reductions); err != nil {
+		return reductionPublication{}, err
+	}
+	if len(reductions) > 0 && reductions[0].Interrupt {
+		return p.publishInterrupt(ctx, reductions)
+	}
+	publication := reductionPublication{published: true}
+	for _, reduced := range reductions {
+		// Commit before publish: a durable event's atomic commit (for a terminal,
+		// recording the run + terminalizing the run-state) lands before the event
+		// is delivered or retained for replay, so a subscriber never observes an
+		// event the store doesn't yet back. A commit failure aborts the turn (as
+		// the interrupt path does) rather than publishing an unbacked event.
+		if reduced.Commit != nil {
+			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
+				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
+			}
+		}
+		if reduced.Event.Terminal() {
+			publication.finished = true
+		}
+		p.append(reduced)
+	}
+	return publication, nil
+}
+
+func (p segmentPublisher) publishInterrupt(ctx context.Context, reductions []reduction) (reductionPublication, error) {
+	// Park is a batch boundary, not one event: commit every transcript
+	// projection + the open interrupt + Suspend, then publish the complete
+	// batch under one reserved boundary. A cancellation therefore observes
+	// either no park or the complete park and cancels + joins an in-flight
+	// durable commit without waiting on a mutex held across I/O.
+	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
+		if err := p.coordinator.effects.CommitEvent(interruptCtx, *reductions[0].Commit); err != nil {
+			return err
+		}
+		for _, reduced := range reductions {
+			p.append(reduced)
+		}
+		return nil
+	})
+	if err != nil {
+		return reductionPublication{}, fmt.Errorf("runs: commit interrupt: %w", err)
+	}
+	return reductionPublication{published: committed, finished: committed, parked: committed}, nil
+}
+
+func (p segmentPublisher) append(reduced reduction) {
+	p.live.hub.Append(p.coordinator.event(p.spec, reduced))
+	if reduced.Nudge != nil {
+		p.coordinator.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
 	}
 }
 
