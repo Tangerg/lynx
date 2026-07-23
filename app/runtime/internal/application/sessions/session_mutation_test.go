@@ -21,7 +21,7 @@ func TestDeleteSessionAppliesThenCleansUpProcesses(t *testing.T) {
 	stores := newMutationStores("")
 	turns := mutationTurns{operations: &stores.operations}
 
-	if err := newCoordinator(stores, turns).DeleteSession(t.Context(), new(testClaimer), "ses_1"); err != nil {
+	if err := newCoordinator(stores, turns).DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
@@ -41,7 +41,7 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	turns := mutationTurns{operations: &stores.operations}
 
-	err := newCoordinator(stores, turns).DeleteSession(t.Context(), new(testClaimer), "ses_1")
+	err := newCoordinator(stores, turns).DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
 	}
@@ -59,7 +59,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 		Goals:  mutationGoalGuard{operations: &stores.operations},
 	})
 
-	if err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1"); err != nil {
+	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 	want := []string{"goal.mutation", "interrupts.list", "apply.delete", "goal.quiesce", "turn.cancel", "session.forget"}
@@ -77,7 +77,7 @@ func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 		Goals:  mutationGoalGuard{operations: &stores.operations},
 	})
 
-	if err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1"); !errors.Is(err, errMutationStage) {
+	if err := coordinator.DeleteSession(t.Context(), "ses_1"); !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
 	}
 	if slices.Contains(stores.operations, "goal.quiesce") {
@@ -91,7 +91,7 @@ func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := newCoordinator(stores, turns).DeleteSession(ctx, new(testClaimer), "ses_1"); err != nil {
+	if err := newCoordinator(stores, turns).DeleteSession(ctx, "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 	if turns.calls != 1 {
@@ -117,7 +117,7 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 		Checkpoints: checkpoints,
 	})
 
-	err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1")
+	err := coordinator.DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
 		t.Fatalf("DeleteSession error = %v, want turn and checkpoint cleanup failures", err)
 	}
@@ -141,7 +141,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 		Sandbox:     &mutationSandbox{operations: &stores.operations, err: sandboxErr},
 	})
 
-	err := coordinator.DeleteSession(t.Context(), new(testClaimer), "ses_1")
+	err := coordinator.DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, sandboxErr) {
 		t.Fatalf("DeleteSession error = %v, want sandbox discard failure surfaced", err)
 	}
@@ -197,7 +197,7 @@ func TestDeleteSessionRemovesOwnedSubtaskTreeButPreservesUserForks(t *testing.T)
 	stores.pending["ses_sub"] = []interrupts.Pending{{RunID: "run_sub", SessionID: "ses_sub", TurnID: "turn_sub"}}
 	claims := new(testClaimer)
 
-	if err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).DeleteSession(t.Context(), claims, "ses_1"); err != nil {
+	if err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 	wantDeleted := []string{"ses_nested", "ses_sub", "ses_1"}
@@ -216,7 +216,7 @@ func TestDeleteSessionRejectsActiveSubtaskDescendant(t *testing.T) {
 	}
 	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
 
-	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).DeleteSession(t.Context(), claims, "ses_1")
+	err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("DeleteSession error = %v, want ErrSessionBusy", err)
 	}
@@ -236,7 +236,7 @@ func TestRollbackRejectsActiveSubtaskDescendantBeforeWriteSet(t *testing.T) {
 	claims := &testClaimer{claimed: map[string]bool{"ses_sub": true}}
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_drop"}}}
 
-	_, _, err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).prepareRollbackSessions(t.Context(), claims, "ses_1", boundary)
+	_, _, err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).prepareRollbackSessions(t.Context(), "ses_1", boundary)
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("Rollback error = %v, want ErrSessionBusy", err)
 	}
@@ -252,7 +252,6 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	stores.pending = map[string][]interrupts.Pending{}
 	err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).RestoreSession(
 		t.Context(),
-		new(testClaimer),
 		Snapshot{
 			Session:  session.Session{ID: "ses_1", Cwd: "/workspace"},
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
@@ -276,9 +275,7 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 		Paths:  testCwdResolver{err: want},
 	})
 
-	err := coordinator.RestoreSession(
-		t.Context(), new(testClaimer), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}},
-	)
+	err := coordinator.RestoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}})
 	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}

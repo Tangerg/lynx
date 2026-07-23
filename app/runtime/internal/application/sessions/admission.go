@@ -5,12 +5,12 @@ import (
 	"sync"
 )
 
-// SessionClaimer is the run-admission slot used to enforce one writer per
+// SessionAdmissions is the run-admission slot used to enforce one writer per
 // session across active runs and start/resume races. ActiveSessionWithCwd
 // widens the guard to a shared working tree: a file rollback's `git reset
 // --hard` writes the tree a sibling session sharing the cwd would race, so the
 // mutation must see any in-flight run on that tree, not just this session.
-type SessionClaimer interface {
+type SessionAdmissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
 	ActiveSessionWithCwd(cwd string) string
 }
@@ -52,8 +52,8 @@ func heldAdmission(sessionID string, release func()) RunAdmission {
 
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
 // rejects sessions already parked on an open interrupt.
-func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, sessionID string) (RunAdmission, error) {
-	release, ok := claims.AcquireSession(sessionID)
+func (c *Coordinator) ClaimRunSlot(ctx context.Context, sessionID string) (RunAdmission, error) {
+	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return RunAdmission{}, ErrSessionBusy
 	}
@@ -74,8 +74,8 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, claims SessionClaimer, s
 // session mutation. Unlike [Coordinator.ClaimRunSlot], it does not reject open
 // interrupts: rollback/delete/import decide what to do with parked runs inside
 // their own lifecycle write-set.
-func (c *Coordinator) ClaimMutationSlot(claims SessionClaimer, sessionID string) (RunAdmission, error) {
-	release, ok := claims.AcquireSession(sessionID)
+func (c *Coordinator) ClaimMutationSlot(sessionID string) (RunAdmission, error) {
+	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return RunAdmission{}, ErrSessionBusy
 	}

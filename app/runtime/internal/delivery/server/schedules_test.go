@@ -75,6 +75,7 @@ func serverWithSchedules(reg schedule.Registry) *Server {
 		Registry: reg,
 		Worker:   reg,
 		Paths:    workspacepath.Resolver{},
+		Runner:   schedules.NewRunLauncher(s.coordinator, s.serverInfo.Cwd, nil),
 	})
 	return s
 }
@@ -188,22 +189,5 @@ func TestScheduleUnavailableIsCapabilityNotNegotiated(t *testing.T) {
 	_, err := s.ListSchedules(context.Background(), protocol.PageQuery{})
 	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list unavailable err = %v, want capability_not_negotiated", err)
-	}
-}
-
-// TestRunSchedulerNoOpWhenDisabled: the default (disabled) coordinator has no
-// worker store, so RunScheduler returns immediately rather than blocking on a
-// scan loop — the delivery wiring's no-scheduling path.
-func TestRunSchedulerNoOpWhenDisabled(t *testing.T) {
-	s := newTestServer(&stubRuntime{}) // default disabled schedules coordinator
-	done := make(chan struct{})
-	go func() {
-		s.RunScheduler(context.Background())
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("RunScheduler blocked with no worker store")
 	}
 }

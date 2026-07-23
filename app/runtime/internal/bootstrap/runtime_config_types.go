@@ -182,6 +182,12 @@ type Config struct {
 	// store.
 	ScheduleRegistry schedule.Registry
 
+	// DefaultCwd is the serving process's default working directory. The
+	// scheduled-run launcher uses it only when a saved schedule leaves Cwd empty.
+	// It is supplied by the outer process composition root because it is a
+	// process/environment choice, not schedule policy.
+	DefaultCwd string
+
 	// EmbeddingRoleStore persists the embedding-model role the @codebase index
 	// uses (models.setEmbeddingRole). nil disables persistence. CodebaseStore
 	// persists the index itself; nil disables the @codebase feature entirely

@@ -210,6 +210,43 @@ func TestScheduleDueSkipsDisabled(t *testing.T) {
 	}
 }
 
+// TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen covers the durable
+// half of worker restart semantics. The worker only calls MarkFired after the
+// application admits a Run; when it cannot, this unchanged due row must still
+// be discoverable through a fresh store after process restart.
+func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "lyra.db")
+	db, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("open initial store: %v", err)
+	}
+	store := sqlite.NewScheduleStore(db)
+	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	created, err := store.Create(ctx, schedule.Schedule{
+		Prompt: "p", Cron: "@daily", Enabled: true, NextRunAt: past,
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close initial store: %v", err)
+	}
+
+	reopenedDB, err := sqlite.Open(path)
+	if err != nil {
+		t.Fatalf("reopen store: %v", err)
+	}
+	t.Cleanup(func() { _ = reopenedDB.Close() })
+	due, err := sqlite.NewScheduleStore(reopenedDB).Due(ctx, time.Now())
+	if err != nil {
+		t.Fatalf("due after reopen: %v", err)
+	}
+	if len(due) != 1 || due[0].ID != created.ID {
+		t.Fatalf("due after reopen = %+v, want unacknowledged %q", due, created.ID)
+	}
+}
+
 func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {

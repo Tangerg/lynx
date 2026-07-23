@@ -83,10 +83,15 @@ type Config struct {
 	// rpc/protocol package is the codegen SSOT for other languages.
 	ServerInfo protocol.ServerInfo
 
-	// Schedules is the application coordinator for cron-triggered headless runs
-	// (schedules.* + the background worker). nil defaults to a disabled
-	// coordinator, so a build without scheduling reports capability_not_negotiated.
+	// Schedules is the application coordinator for cron-triggered headless-run
+	// management. nil defaults to a disabled coordinator, so a build without
+	// scheduling reports capability_not_negotiated.
 	Schedules *schedules.Coordinator
+
+	// ScheduleFires carries accepted scheduled-run notifications from the
+	// composition root. Delivery projects them to workspace events; it does not
+	// construct or run the scheduler.
+	ScheduleFires ScheduleFireSource
 
 	// Goals is the autonomous-execution loop driver (goals.* — Goal mode). nil
 	// makes goals.* report capability_not_negotiated.
@@ -186,6 +191,13 @@ type MCPStatusSource interface {
 	Observe(sink func(ctx context.Context, server string, connecting bool))
 }
 
+// ScheduleFireSource is the delivery-side view of accepted scheduled-run
+// notifications. Its one observer receives a schedule id after the application
+// runner admitted the corresponding Run.
+type ScheduleFireSource interface {
+	Observe(sink func(scheduleID string))
+}
+
 // Close marks the Server shut down so new workspace subscriptions are rejected;
 // in-flight streams end with their request contexts, and the run coordinator's
 // pumps are joined by the Host, not here (§11.1). Safe to call repeatedly.
@@ -199,8 +211,8 @@ func (s *Server) Close() {
 }
 
 // New builds a Server. Returns an error when a required coordinator is nil. The
-// concrete *Server is returned (it satisfies [protocol.Runtime]) so the
-// composition root can also reach process entry points like RunScheduler.
+// concrete *Server is returned because it satisfies [protocol.Runtime] and owns
+// delivery-local workspace subscriptions.
 func New(cfg Config) (*Server, error) {
 	if cfg.Sessions == nil {
 		return nil, errors.New("server: Sessions is required")
@@ -269,6 +281,9 @@ func New(cfg Config) (*Server, error) {
 	// bridge, mapped to mcp.serverChanged frames.
 	if cfg.MCPStatus != nil {
 		srv.observeMCPStatus(cfg.MCPStatus)
+	}
+	if cfg.ScheduleFires != nil {
+		srv.observeScheduleFires(cfg.ScheduleFires)
 	}
 	return srv, nil
 }

@@ -64,7 +64,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if err := api.RecoverRollbacks(ctx); err != nil {
 		return err
 	}
-	return runServer(ctx, errw, httpServer, api, srv.Listen, token)
+	return runServer(ctx, errw, httpServer, host.Stack.Schedules.RunWorker, srv.Listen, token)
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
@@ -87,14 +87,15 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		// The run coordinator is built + owned by the Host; delivery drives it as a
 		// use-case surface. Its file-change nudges reach the delivery workspace hub
 		// through the notifier the Server observes.
-		Coordinator: stack.Coordinator,
-		FileChanges: stack.FileChanges,
-		MCPStatus:   stack.MCPStatus,
-		Queries:     stack.Queries,
-		Schedules:   stack.Schedules,
-		Goals:       stack.Goals,
-		AgentMemory: stack.AgentMemory,
-		Workspace:   stack.Workspace,
+		Coordinator:   stack.Coordinator,
+		FileChanges:   stack.FileChanges,
+		MCPStatus:     stack.MCPStatus,
+		ScheduleFires: stack.ScheduleFires,
+		Queries:       stack.Queries,
+		Schedules:     stack.Schedules,
+		Goals:         stack.Goals,
+		AgentMemory:   stack.AgentMemory,
+		Workspace:     stack.Workspace,
 	})
 	if err != nil {
 		return nil, nil, err
@@ -127,7 +128,7 @@ func resolvedVersion() string {
 
 // runServer launches the server, blocks until it returns or a shutdown signal
 // arrives, then drains with a 10s budget.
-func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, api *server.Server, addr string, token *lyrahttp.LocalToken) error {
+func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server, runScheduler func(context.Context), addr string, token *lyrahttp.LocalToken) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 
 	// The scheduled-run worker shares the server lifetime: it fires due
@@ -135,7 +136,7 @@ func runServer(ctx context.Context, errw io.Writer, httpServer *lyrahttp.Server,
 	schedulerDone := make(chan struct{})
 	go func() {
 		defer close(schedulerDone)
-		api.RunScheduler(ctx)
+		runScheduler(ctx)
 	}()
 	defer func() {
 		stop()

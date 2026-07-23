@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
@@ -15,8 +16,7 @@ import (
 // it accepts no new run segments.
 var ErrClosed = errors.New("runs: coordinator closed")
 
-// Coordinator owns the live run segments: admission (one writer per session, via
-// the embedded [Registry]), the per-run event [Journal], the segment pump that
+// Coordinator owns the live run segments, the per-run event [Journal], the segment pump that
 // drives a run from Start to terminal, and the request-detached task group that
 // keeps runs alive across client disconnects and cancels + joins them on Close.
 //
@@ -35,9 +35,21 @@ type Coordinator struct {
 	// stamps every event with the next value, fixed-width so the Journal's lexical
 	// replay stays correct. It is an opaque application cursor — the evt_ wire
 	// framing is applied by the delivery layer, which owns the protocol format.
-	seq      atomic.Uint64
-	tasks    taskgroup.Group
-	registry Registry[*handle]
+	seq       atomic.Uint64
+	tasks     taskgroup.Group
+	registry  Registry[*handle]
+	admission AdmissionGate
+}
+
+// AdmissionGate is the Run use case's view of the application-wide session
+// admission invariant. Sessions consume their own narrow view of the same gate.
+type AdmissionGate interface {
+	AcquireSession(sessionID string) (release func(), ok bool)
+	OpenRun(runID, sessionID, cwd string)
+	BeginMaintenance(runID string) (release func(), ok bool)
+	ActiveSession(sessionID string) bool
+	ActiveSessionWithCwd(cwd string) string
+	ActiveSessions() map[string]bool
 }
 
 // Dependencies is the complete collaborator set for the user-visible run use
@@ -47,6 +59,7 @@ type Dependencies struct {
 	Turns        TurnControl
 	Sessions     SessionLifecycle
 	Effects      Effects
+	Admissions   AdmissionGate
 	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
 	Now          func() time.Time
 	NewRunID     func() string
@@ -58,6 +71,9 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 	if deps.Now == nil {
 		deps.Now = time.Now
 	}
+	if deps.Admissions == nil {
+		deps.Admissions = &admission.Gate{}
+	}
 	return &Coordinator{
 		executor:     deps.Segments,
 		turns:        deps.Turns,
@@ -67,6 +83,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		now:          deps.Now,
 		newRunID:     deps.NewRunID,
 		newSegmentID: deps.NewSegmentID,
+		admission:    deps.Admissions,
 	}
 }
 
@@ -139,6 +156,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		Provider:  spec.Provider,
 		Model:     spec.Model,
 	}, live)
+	c.admission.OpenRun(spec.RunID, spec.SessionID, spec.Cwd)
 	events, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
 	for _, pe := range opening {
@@ -283,23 +301,23 @@ func (c *Coordinator) List() []Record {
 // ActiveSession reports whether the session has a run in flight (open or an
 // in-progress admission claim) — the session-busy guard.
 func (c *Coordinator) ActiveSession(sessionID string) bool {
-	return c.registry.ActiveSession(sessionID)
+	return c.admission.ActiveSession(sessionID)
 }
 
 // ActiveSessionWithCwd returns the session id of a live run whose canonical
 // working tree is cwd, or "" — the cwd-sharing busy guard a file restore needs.
 func (c *Coordinator) ActiveSessionWithCwd(cwd string) string {
-	return c.registry.ActiveSessionWithCwd(cwd)
+	return c.admission.ActiveSessionWithCwd(cwd)
 }
 
 // ActiveSessions snapshots the session ids with a live run or admission claim.
-func (c *Coordinator) ActiveSessions() map[string]bool { return c.registry.ActiveSessions() }
+func (c *Coordinator) ActiveSessions() map[string]bool { return c.admission.ActiveSessions() }
 
 // AcquireSession reserves the single-writer admission slot and returns its
 // ownership-bound release. The Coordinator satisfies the lifecycle
 // session-claimer port the runtime consumes.
 func (c *Coordinator) AcquireSession(sessionID string) (func(), bool) {
-	return c.registry.AcquireSession(sessionID)
+	return c.admission.AcquireSession(sessionID)
 }
 
 // Close stops accepting new runs and cancels + joins the in-flight pumps.

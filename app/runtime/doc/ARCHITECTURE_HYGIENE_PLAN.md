@@ -83,7 +83,7 @@ Acceptance:
 
 ### Batch 2 — Application collaboration ownership
 
-Status: **pending**
+Status: **Completed**
 
 Scope:
 
@@ -162,7 +162,7 @@ Acceptance:
 | Batch | Status | Started | Completed | Evidence |
 |---|---|---|---|---|
 | 1. Run boundary semantics | Completed | 2026-07-22 | 2026-07-22 | `go test -race ./internal/application/runs ./internal/application/goals`; `go vet` for both packages; `go test ./internal/arch`. |
-| 2. Application collaboration ownership | Pending | — | — | — |
+| 2. Application collaboration ownership | Completed | 2026-07-22 | 2026-07-23 | `go test -race` for admission, runs, sessions, schedules, delivery/server, bootstrap; focused `go vet`; `go test ./internal/arch`. |
 | 3. Model/provider policy ownership | Pending | — | — | — |
 | 4. Abstraction and boundary cleanup | Pending | — | — | — |
 | 5. Fitness tests and final verification | Pending | — | — | — |
@@ -187,6 +187,20 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Run journal closure now follows synchronous terminal maintenance and admission release.
 - Goal delegates one next-run start to the Run contract and pauses on a malformed terminal outcome.
 - Focused race, vet, and architecture checks passed.
+
+### 2026-07-22 — Batch 2 started
+
+- Began moving cross-use-case session admission into one application-owned gate.
+- Began moving scheduled-run launch construction and worker lifetime out of Delivery.
+
+### 2026-07-23 — Batch 2 completed
+
+- Runs and Sessions now share one constructor-injected application admission gate;
+  Delivery no longer supplies a Run coordinator to Session use cases.
+- Bootstrap constructs the scheduled-run launcher, the outer command owns worker
+  lifetime, and Delivery only projects accepted firings to workspace events.
+- A failed schedule start leaves its durable occurrence due; focused race, vet,
+  persistence, and architecture checks passed.
 
 ## 8. Completion definition
 

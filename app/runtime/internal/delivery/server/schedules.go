@@ -11,7 +11,7 @@ import (
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the
-// scheduler worker (scheduler.go) fires. A schedule stores the final prompt
+// application scheduler fires. A schedule stores the final prompt
 // text, so the runtime fires it without resolving a recipe.
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
@@ -82,7 +82,7 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
-	handle, err := s.schedules.RunNow(ctx, in.ID, s.scheduledRunLauncher())
+	handle, err := s.schedules.RunNow(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.runNow", in.ID)
 	}

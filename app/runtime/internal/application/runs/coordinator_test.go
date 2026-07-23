@@ -265,10 +265,10 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	if coordinator.registry.Contains("run_1") {
 		t.Fatal("terminal run remained in the live registry during maintenance")
 	}
-	if !coordinator.registry.ActiveSession("ses_1") {
+	if !coordinator.ActiveSession("ses_1") {
 		t.Fatal("session admission was released before terminal maintenance completed")
 	}
-	if _, ok := coordinator.registry.AcquireSession("ses_1"); ok {
+	if _, ok := coordinator.AcquireSession("ses_1"); ok {
 		t.Fatal("new run admission crossed the terminal-maintenance fence")
 	}
 	select {
@@ -284,7 +284,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 		t.Fatal("stream did not close after terminal maintenance released admission")
 	}
 	coordinator.Close()
-	if coordinator.registry.ActiveSession("ses_1") {
+	if coordinator.ActiveSession("ses_1") {
 		t.Fatal("terminal-maintenance claim was not released")
 	}
 }

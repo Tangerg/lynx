@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -56,7 +57,7 @@ type stubRuntime struct {
 // own in-memory stores (stubRuntime). Fakes that never drive a lifecycle
 // write-set may omit it, leaving s.sessions nil.
 type sessionsCoordinatorProvider interface {
-	sessionsCoordinator() *sessions.Coordinator
+	sessionsCoordinator(admissions sessions.SessionAdmissions) *sessions.Coordinator
 }
 
 // queriesCoordinatorProvider is the parallel seam for the read coordinator: a
@@ -84,18 +85,20 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 
 func newTestServer(rt testRuntime) *Server {
 	s := &Server{}
+	admissions := &admission.Gate{}
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
-		s.sessions = p.sessionsCoordinator()
+		s.sessions = p.sessionsCoordinator(admissions)
 	}
 	var ids atomic.Uint64
 	s.coordinator = runs.NewCoordinator(runs.Dependencies{
-		Segments: rt,
-		Turns:    rt,
-		Sessions: s.sessions,
-		Effects:  rt.RunSegmentEffects(nil, nil),
-		Now:      time.Now,
+		Segments:   rt,
+		Turns:      rt,
+		Sessions:   s.sessions,
+		Effects:    rt.RunSegmentEffects(nil, nil),
+		Admissions: admissions,
+		Now:        time.Now,
 		NewRunID: func() string {
 			return fmt.Sprintf("run_test_%d", ids.Add(1))
 		},
@@ -441,17 +444,22 @@ func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, er
 // composition root does — delivery drives every lifecycle write-set through it.
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
-func (s *stubRuntime) sessionsCoordinator() *sessions.Coordinator {
-	return s.sessionsCoordinatorWithRestorer(nil)
+func (s *stubRuntime) sessionsCoordinator(admissions sessions.SessionAdmissions) *sessions.Coordinator {
+	return s.sessionsCoordinatorWithRestorer(nil, admissions)
 }
 
-func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints) *sessions.Coordinator {
+func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints, shared ...sessions.SessionAdmissions) *sessions.Coordinator {
+	admissions := sessions.SessionAdmissions(&admission.Gate{})
+	if len(shared) > 0 && shared[0] != nil {
+		admissions = shared[0]
+	}
 	return sessions.New(sessions.Dependencies{
 		Stores:      stubLifecycleStores{rt: s},
 		Turns:       stubLifecycleTurns{rt: s},
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: checkpoints,
 		Mutations:   s.muts,
+		Admissions:  admissions,
 	})
 }
 

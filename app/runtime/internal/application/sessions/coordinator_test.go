@@ -17,7 +17,7 @@ func TestClaimRunSlotHoldsAndReleasesSession(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{}
 
-	admission, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	admission, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimRunSlot(context.Background(), "ses_1")
 	if err != nil {
 		t.Fatalf("claim run slot: %v", err)
 	}
@@ -49,7 +49,7 @@ func TestClaimRunSlotRejectsOpenInterrupt(t *testing.T) {
 	}
 	claimer := &testClaimer{}
 
-	_, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	_, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimRunSlot(context.Background(), "ses_1")
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("err = %v, want ErrSessionBusy", err)
 	}
@@ -65,7 +65,7 @@ func TestClaimRunSlotRejectsActiveClaim(t *testing.T) {
 	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
 	claimer := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 
-	_, err := newCoordinator(stores, nil).ClaimRunSlot(context.Background(), claimer, "ses_1")
+	_, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimRunSlot(context.Background(), "ses_1")
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("err = %v, want ErrSessionBusy", err)
 	}
@@ -84,7 +84,7 @@ func TestClaimMutationSlotAllowsOpenInterrupt(t *testing.T) {
 	}
 	claimer := &testClaimer{}
 
-	admission, err := newCoordinator(stores, nil).ClaimMutationSlot(claimer, "ses_1")
+	admission, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimMutationSlot("ses_1")
 	if err != nil {
 		t.Fatalf("claim mutation slot: %v", err)
 	}

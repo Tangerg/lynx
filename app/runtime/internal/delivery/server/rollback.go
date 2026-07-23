@@ -27,7 +27,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return nil, err
 	}
 
-	result, err := s.sessions.RollbackFiles(ctx, s.coordinator, sessions.RollbackSpec{
+	result, err := s.sessions.RollbackFiles(ctx, sessions.RollbackSpec{
 		SessionID:      in.SessionID,
 		ToRunID:        in.ToRunID,
 		RestoreFiles:   intent.restoreFiles,

@@ -13,8 +13,8 @@ import (
 // canonical state coherently. Active and parked runs are rejected because their
 // executor state is process-local and therefore cannot be represented by a
 // portable session artifact.
-func (c *Coordinator) ReadSnapshot(ctx context.Context, claims SessionClaimer, sessionID string) (Snapshot, error) {
-	admission, err := c.ClaimRunSlot(ctx, claims, sessionID)
+func (c *Coordinator) ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error) {
+	admission, err := c.ClaimRunSlot(ctx, sessionID)
 	if err != nil {
 		return Snapshot{}, err
 	}
