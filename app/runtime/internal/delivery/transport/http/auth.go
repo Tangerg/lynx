@@ -12,7 +12,7 @@ import (
 )
 
 // LocalToken is the per-process gate token described in
-// docs/TRANSPORT.md §11 (本地门禁 token). It only protects
+// ../desktop/docs/protocol/TRANSPORT.md §11 (本地门禁 token). It only protects
 // against other processes on the same machine — it is NOT user
 // auth. The Web frontend reads the token from Path and sends
 //
