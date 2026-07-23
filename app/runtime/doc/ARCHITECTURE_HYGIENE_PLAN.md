@@ -424,6 +424,33 @@ Acceptance:
   architecture tests, formatting, and dead-code scans are green or have only
   explicitly retained future/test findings.
 
+### Batch 15 — Protocol, static-config, and content-codec closure
+
+Status: **Completed**
+
+Scope:
+
+- Make every `memory.*` method honor the same negotiated-capability contract;
+  Delivery must not fabricate an empty UI state for a disabled feature.
+- Remove the unreachable test-fixture methods reported by `deadcode`.
+- Treat the startup provider/model defaults as immutable configuration values,
+  not live cross-application getter ports.
+- Move recipe Markdown/YAML decoding and skill `SKILL.md` YAML encoding to the
+  filesystem adapters that own those formats; Domain keeps only typed product
+  values, validation, and lifecycle policy.
+- Extend the purity fitness test so Domain/Application cannot import the YAML
+  codec again.
+
+Acceptance:
+
+- `features.memory=false` makes all `memory.*` calls return
+  `capability_not_negotiated`, matching the protocol contract.
+- The test dead-code scan is empty; no removed test-fixture method remains.
+- Session views and usage reports consume constructor-provided default values
+  without a getter interface or a nil collaborator path.
+- Production Domain imports no YAML codec; all recipe/skill frontmatter tests
+  run from the owning adapter or infrastructure package.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -442,6 +469,7 @@ Acceptance:
 | 12. Runtime ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone test/vet/build; focused race suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed seams passed. |
 | 13. Consumer-port and state-ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race` suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed domain interfaces passed. |
 | 14. Residual consumer-port closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race`; `staticcheck`; `golangci-lint`; architecture tests; exact-symbol scans; and classified `deadcode` output. |
+| 15. Protocol, static-config, and content-codec closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test; focused race suite; architecture test; `staticcheck`; `golangci-lint`; exact-symbol scans; and `deadcode -test ./...` all passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -685,6 +713,33 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Workspace and standalone build/vet/test, focused race suites, architecture
   tests, `staticcheck`, `golangci-lint`, formatting, exact-symbol scans, and
   dead-code classification passed.
+
+### 2026-07-23 — Batch 15 started
+
+- Reopened the hygiene ledger for a protocol capability inconsistency, two
+  static-config getter interfaces, test-only dead methods, and the residual
+  recipe/skill YAML codec dependencies in Domain.
+- Chose one coherent ownership rule: disabled protocol capabilities are never
+  projected as UI-shaped success values; startup defaults are value snapshots;
+  file-format parsing and rendering belong to the adapters that read or write
+  those files.
+
+### 2026-07-23 — Batch 15 completed
+
+- `memory.list` now follows the same capability-gated error contract as
+  `memory.get` and `memory.update`; an unwired store cannot produce a synthetic
+  empty collection while discovery advertises `features.memory=false`.
+- Removed the six unreachable `sqliteOpeningStores` fixture methods. The full
+  test-aware dead-code scan is now empty.
+- Session read models and usage aggregation receive the immutable startup
+  default values directly. The former single-implementation getter interfaces
+  and their nil collaborator path are gone.
+- Recipe Markdown/YAML parsing now lives in `adapter/promptsource`; SKILL.md
+  frontmatter encoding now lives in `infra/skillauthoring`. Domain retains
+  recipe/skill values, validation, provenance meaning, and lifecycle rules.
+- The architecture suite now rejects YAML codec imports in Domain/Application.
+  Workspace and standalone build/vet/test, focused race tests, static analysis,
+  exact-symbol scans, and formatting passed.
 
 ## 8. Completion definition
 

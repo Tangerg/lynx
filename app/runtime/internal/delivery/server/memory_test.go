@@ -53,17 +53,14 @@ func serverWithMemory(store workspaceapp.KnowledgeStore) *Server {
 	return s
 }
 
-func TestListMemoryWithoutStoreReturnsEmptyPage(t *testing.T) {
+func TestListMemoryWithoutStoreReturnsCapabilityError(t *testing.T) {
 	s := serverWithMemory(nil)
 
-	got, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
+	_, err := s.ListMemory(context.Background(), protocol.WorkspaceListQuery{
 		WorkspaceQuery: protocol.WorkspaceQuery{Cwd: "/repo"},
 	})
-	if err != nil {
-		t.Fatalf("list memory: %v", err)
-	}
-	if len(got.Data) != 0 {
-		t.Fatalf("memory entries = %+v, want empty", got.Data)
+	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Fatalf("list memory err = %v, want capability_not_negotiated", err)
 	}
 }
 

@@ -7,16 +7,21 @@ import (
 	"slices"
 	"strings"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
 )
 
-// ListRecipes enumerates the recipes visible from projectDir layered over
-// globalDir, the project copy winning on a name collision (the same precedence
-// the skill source gives the model). A missing directory contributes nothing; a
-// file that can't be read is skipped rather than failing the whole listing.
-// Result is sorted by name. Each file's frontmatter/body split is the domain's
-// ([recipes.Parse]); this function only supplies the filesystem walk + reads.
-func ListRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.Recipe, error) {
+const (
+	recipeProjectSubdir = ".lyra/recipes"
+	recipeFileExt       = ".md"
+)
+
+// listRecipes enumerates recipe files from projectDir layered over globalDir,
+// with the project copy winning on name collisions. This adapter owns the
+// directory convention and the Markdown/YAML format; malformed frontmatter is
+// preserved as a plain prompt rather than discarding user-authored content.
+func listRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.Recipe, error) {
 	seen := make(map[string]struct{})
 	var out []recipes.Recipe
 	add := func(dir, scope string) error {
@@ -31,7 +36,7 @@ func ListRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.R
 			if entry.IsDir() {
 				continue
 			}
-			name, ok := recipes.RecipeName(entry.Name())
+			name, ok := recipeName(entry.Name())
 			if !ok {
 				continue
 			}
@@ -44,7 +49,7 @@ func ListRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.R
 				continue
 			}
 			seen[name] = struct{}{}
-			out = append(out, recipes.Parse(name, scope, path, data))
+			out = append(out, parseRecipe(name, scope, path, data))
 		}
 		return nil
 	}
@@ -56,4 +61,59 @@ func ListRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.R
 	}
 	slices.SortFunc(out, func(a, b recipes.Recipe) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
+}
+
+func recipeDir(workdir string) string {
+	if workdir == "" {
+		return ""
+	}
+	return filepath.Join(workdir, recipeProjectSubdir)
+}
+
+func recipeName(filename string) (string, bool) {
+	if strings.HasPrefix(filename, ".") || !strings.HasSuffix(filename, recipeFileExt) {
+		return "", false
+	}
+	return strings.TrimSuffix(filename, recipeFileExt), true
+}
+
+type recipeFrontmatter struct {
+	Description  string `yaml:"description"`
+	ArgumentHint string `yaml:"argumentHint"`
+}
+
+func parseRecipe(name, scope, source string, content []byte) recipes.Recipe {
+	frontmatter, body := parseRecipeBody(content)
+	return recipes.Recipe{
+		Name:         name,
+		Description:  strings.TrimSpace(frontmatter.Description),
+		ArgumentHint: strings.TrimSpace(frontmatter.ArgumentHint),
+		Body:         body,
+		Scope:        scope,
+		Source:       source,
+	}
+}
+
+func parseRecipeBody(content []byte) (recipeFrontmatter, string) {
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	text = strings.TrimPrefix(text, "\ufeff")
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return recipeFrontmatter{}, strings.TrimSpace(text)
+	}
+	end := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			end = i
+			break
+		}
+	}
+	if end < 0 {
+		return recipeFrontmatter{}, strings.TrimSpace(text)
+	}
+	var frontmatter recipeFrontmatter
+	if err := yaml.Unmarshal([]byte(strings.Join(lines[1:end], "\n")), &frontmatter); err != nil {
+		return recipeFrontmatter{}, strings.TrimSpace(text)
+	}
+	return frontmatter, strings.TrimSpace(strings.Join(lines[end+1:], "\n"))
 }

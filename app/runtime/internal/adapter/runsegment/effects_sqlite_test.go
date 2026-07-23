@@ -188,10 +188,3 @@ func sqliteEffects(stores sqliteOpeningStores, cfg Config) *Effects {
 	cfg.Transcript = stores.transcript
 	return New(cfg)
 }
-
-func (s sqliteOpeningStores) Interrupts() InterruptStore                          { return s.interrupts }
-func (sqliteOpeningStores) Session() SessionStore                                 { return nil }
-func (s sqliteOpeningStores) Transcript() TranscriptStore                         { return s.transcript }
-func (sqliteOpeningStores) ToolResults() ToolResultStore                          { return nil }
-func (sqliteOpeningStores) MessageCount(context.Context, string) (int, error)     { return 0, nil }
-func (sqliteOpeningStores) GenerateTitle(context.Context, string) (string, error) { return "", nil }

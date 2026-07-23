@@ -172,15 +172,15 @@ type Turns interface {
 // run. Stateless beyond its collaborators and the in-process admission gates;
 // safe to share.
 type Coordinator struct {
-	sessions   SessionStore
-	interrupts InterruptStore
-	transcript TranscriptStore
-	snapshots  SnapshotReader
-	writes     WriteSets
-	forgetter  SessionForgetter
-	turns      Turns
-	paths      CwdResolver
-	models     ModelDefaults
+	sessions     SessionStore
+	interrupts   InterruptStore
+	transcript   TranscriptStore
+	snapshots    SnapshotReader
+	writes       WriteSets
+	forgetter    SessionForgetter
+	turns        Turns
+	paths        CwdResolver
+	defaultModel string
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -205,20 +205,20 @@ type Coordinator struct {
 // mutations cross one cohesive WriteSets transaction; reads and process-local
 // cleanup are independent ports rather than accessor methods on a store bag.
 type Dependencies struct {
-	Sessions    SessionStore
-	Interrupts  InterruptStore
-	Transcript  TranscriptStore
-	Snapshots   SnapshotReader
-	Writes      WriteSets
-	Forgetter   SessionForgetter
-	Turns       Turns
-	Paths       CwdResolver
-	Models      ModelDefaults
-	Checkpoints WorkspaceCheckpoints
-	Sandbox     SandboxDiscarder
-	Goals       GoalMutationGuard
-	Mutations   WorkspaceMutations
-	Admissions  SessionAdmissions
+	Sessions     SessionStore
+	Interrupts   InterruptStore
+	Transcript   TranscriptStore
+	Snapshots    SnapshotReader
+	Writes       WriteSets
+	Forgetter    SessionForgetter
+	Turns        Turns
+	Paths        CwdResolver
+	DefaultModel string
+	Checkpoints  WorkspaceCheckpoints
+	Sandbox      SandboxDiscarder
+	Goals        GoalMutationGuard
+	Mutations    WorkspaceMutations
+	Admissions   SessionAdmissions
 }
 
 // ErrSessionBusy reports that a session already has an active or parked run.
@@ -231,20 +231,20 @@ func New(deps Dependencies) *Coordinator {
 		admissions = &admission.Gate{}
 	}
 	return &Coordinator{
-		sessions:    deps.Sessions,
-		interrupts:  deps.Interrupts,
-		transcript:  deps.Transcript,
-		snapshots:   deps.Snapshots,
-		writes:      deps.Writes,
-		forgetter:   deps.Forgetter,
-		turns:       deps.Turns,
-		paths:       deps.Paths,
-		models:      deps.Models,
-		checkpoints: deps.Checkpoints,
-		sandbox:     deps.Sandbox,
-		goals:       deps.Goals,
-		mutations:   deps.Mutations,
-		admissions:  admissions,
+		sessions:     deps.Sessions,
+		interrupts:   deps.Interrupts,
+		transcript:   deps.Transcript,
+		snapshots:    deps.Snapshots,
+		writes:       deps.Writes,
+		forgetter:    deps.Forgetter,
+		turns:        deps.Turns,
+		paths:        deps.Paths,
+		defaultModel: deps.DefaultModel,
+		checkpoints:  deps.Checkpoints,
+		sandbox:      deps.Sandbox,
+		goals:        deps.Goals,
+		mutations:    deps.Mutations,
+		admissions:   admissions,
 	}
 }
 

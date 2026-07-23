@@ -165,8 +165,8 @@ func (c *Coordinator) view(ctx context.Context, value session.Session, state Ses
 		return SessionView{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.Cwd, err)
 	}
 	model := value.Model
-	if model == "" && c.models != nil {
-		model = c.models.DefaultModel()
+	if model == "" {
+		model = c.defaultModel
 	}
 	return SessionView{
 		ID:          value.ID,

@@ -8,11 +8,11 @@ import (
 )
 
 // ListMemory enumerates LYRA.md entries across scopes (API.md §7.7).
-// Empty (not an error) when no memory store is configured, so the UI
-// renders an empty state rather than a banner.
+// The entire memory.* group is capability-gated, so an unwired store is a
+// capability error rather than a synthetic empty collection.
 func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 	if !s.workspaceKnowledge.HasMemory() {
-		return protocol.NewPage([]protocol.MemoryEntry{}), nil
+		return nil, capabilityNotNegotiated("memory.list")
 	}
 	entries, err := s.workspaceKnowledge.ListMemoryEntries(ctx, in.Cwd)
 	if err != nil {
