@@ -110,10 +110,10 @@ type Session struct {
 	Kind      Kind
 	StartedAt time.Time
 	UpdatedAt time.Time
-	// AgentAnnotations belongs only to an internal delegated session. It is
+	// DelegationMetadata belongs only to an internal delegated session. It is
 	// opaque to the product model and never appears on the public Session API.
-	AgentAnnotations AgentAnnotations
-	Favorite         bool // user-pinned: sorts ahead of the rest in the session list
+	DelegationMetadata DelegationMetadata
+	Favorite           bool // user-pinned: sorts ahead of the rest in the session list
 	// Isolated runs the session's tools inside a sandbox copy of Cwd instead of
 	// the real working tree: fs + shell operate on the copy, the shell is
 	// OS-jailed (network denied, $HOME hidden), and changes never touch the
@@ -125,13 +125,13 @@ type Session struct {
 // Subtask is the Agent runtime identity that must survive the product
 // session's title/cwd enrichment and SQLite round trip.
 type Subtask struct {
-	ID               string
-	ParentID         string
-	UserID           string
-	AgentName        string
-	StartedAt        time.Time
-	UpdatedAt        time.Time
-	AgentAnnotations AgentAnnotations
+	ID                 string
+	ParentID           string
+	UserID             string
+	AgentName          string
+	StartedAt          time.Time
+	UpdatedAt          time.Time
+	DelegationMetadata DelegationMetadata
 }
 
 // Validate checks the identity and audit invariants required for a resumable
@@ -156,8 +156,8 @@ func (s Subtask) Validate() error {
 }
 
 // SameIdentity reports whether existing is the durable product projection of
-// this delegated conversation. UpdatedAt and AgentAnnotations are mutable
-// agent-owned data; the remaining runtime-owned fields are immutable identity.
+// this delegated conversation. UpdatedAt and DelegationMetadata are mutable
+// continuation data; the remaining runtime-owned fields are immutable identity.
 func (s Subtask) SameIdentity(existing Session) bool {
 	return existing.Kind == KindSubtask &&
 		existing.ID == s.ID &&
@@ -225,16 +225,16 @@ func (s Session) NewSubtask(subtask Subtask) (Session, error) {
 		title = s.Title + " · subtask"
 	}
 	return Session{
-		ID:               subtask.ID,
-		UserID:           subtask.UserID,
-		AgentName:        subtask.AgentName,
-		Title:            title,
-		Cwd:              s.Cwd,
-		ParentID:         s.ID,
-		Kind:             KindSubtask,
-		Isolated:         s.Isolated, // a subtask runs inside its parent's isolation
-		StartedAt:        subtask.StartedAt,
-		UpdatedAt:        subtask.UpdatedAt,
-		AgentAnnotations: subtask.AgentAnnotations,
+		ID:                 subtask.ID,
+		UserID:             subtask.UserID,
+		AgentName:          subtask.AgentName,
+		Title:              title,
+		Cwd:                s.Cwd,
+		ParentID:           s.ID,
+		Kind:               KindSubtask,
+		Isolated:           s.Isolated, // a subtask runs inside its parent's isolation
+		StartedAt:          subtask.StartedAt,
+		UpdatedAt:          subtask.UpdatedAt,
+		DelegationMetadata: subtask.DelegationMetadata,
 	}, nil
 }

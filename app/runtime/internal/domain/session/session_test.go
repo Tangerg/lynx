@@ -114,18 +114,18 @@ func TestSessionFork(t *testing.T) {
 func TestSessionNewSubtask(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8"}
-	annotations, err := ParseAgentAnnotations([]byte(`{"source":"agent"}`))
+	metadata, err := ParseDelegationMetadata([]byte(`{"source":"agent"}`))
 	if err != nil {
-		t.Fatalf("ParseAgentAnnotations: %v", err)
+		t.Fatalf("ParseDelegationMetadata: %v", err)
 	}
 	subtask := Subtask{
-		ID:               "ses_child",
-		ParentID:         parent.ID,
-		UserID:           "user-1",
-		AgentName:        "research-agent",
-		StartedAt:        now,
-		UpdatedAt:        now,
-		AgentAnnotations: annotations,
+		ID:                 "ses_child",
+		ParentID:           parent.ID,
+		UserID:             "user-1",
+		AgentName:          "research-agent",
+		StartedAt:          now,
+		UpdatedAt:          now,
+		DelegationMetadata: metadata,
 	}
 
 	child, err := parent.NewSubtask(subtask)
@@ -148,7 +148,7 @@ func TestSessionNewSubtask(t *testing.T) {
 	if child.Kind != KindSubtask {
 		t.Errorf("Kind = %q, want %q", child.Kind, KindSubtask)
 	}
-	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.AgentAnnotations.String() != `{"source":"agent"}` {
+	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.DelegationMetadata.String() != `{"source":"agent"}` {
 		t.Errorf("runtime identity = %#v, want %#v", child, subtask)
 	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
@@ -196,9 +196,9 @@ func TestSubtaskSameIdentity(t *testing.T) {
 		t.Fatalf("NewSubtask: %v", err)
 	}
 	existing.UpdatedAt = existing.UpdatedAt.Add(time.Hour)
-	existing.AgentAnnotations, err = ParseAgentAnnotations([]byte(`{"mutable":true}`))
+	existing.DelegationMetadata, err = ParseDelegationMetadata([]byte(`{"mutable":true}`))
 	if err != nil {
-		t.Fatalf("ParseAgentAnnotations: %v", err)
+		t.Fatalf("ParseDelegationMetadata: %v", err)
 	}
 	if !subtask.SameIdentity(existing) {
 		t.Fatal("SameIdentity rejected mutable audit fields")

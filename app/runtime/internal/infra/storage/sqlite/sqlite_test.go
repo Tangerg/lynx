@@ -115,13 +115,13 @@ func TestSessionFork(t *testing.T) {
 		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
 	}
 
-	// child round-trips through Get with canonical empty agent annotations.
+	// child round-trips through Get with canonical empty delegation metadata.
 	gotChild, err := svc.Get(ctx, child.ID)
 	if err != nil {
 		t.Fatalf("Get child: %v", err)
 	}
-	if gotChild.AgentAnnotations.String() != "{}" {
-		t.Fatalf("agent annotations round trip = %s, want {}", gotChild.AgentAnnotations.String())
+	if gotChild.DelegationMetadata.String() != "{}" {
+		t.Fatalf("delegation metadata round trip = %s, want {}", gotChild.DelegationMetadata.String())
 	}
 }
 
@@ -475,7 +475,7 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 // TestSessionSubtaskLineage covers the delegation-lineage recording: a
 // subtask child is stored under a caller-supplied id, inherits the parent's
 // cwd, is marked KindSubtask, is hidden from List, yet is reachable via
-// Children and Get. Re-saving may update agent annotations but not identity.
+// Children and Get. Re-saving may update delegation metadata but not identity.
 func TestSessionSubtaskLineage(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
@@ -486,18 +486,18 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	annotations, err := session.ParseAgentAnnotations([]byte(`{"source":"runtime"}`))
+	metadata, err := session.ParseDelegationMetadata([]byte(`{"source":"runtime"}`))
 	if err != nil {
-		t.Fatalf("ParseAgentAnnotations: %v", err)
+		t.Fatalf("ParseDelegationMetadata: %v", err)
 	}
 	subtask := session.Subtask{
-		ID:               "proc-123",
-		ParentID:         parent.ID,
-		UserID:           "user-1",
-		AgentName:        "research-agent",
-		StartedAt:        now,
-		UpdatedAt:        now,
-		AgentAnnotations: annotations,
+		ID:                 "proc-123",
+		ParentID:           parent.ID,
+		UserID:             "user-1",
+		AgentName:          "research-agent",
+		StartedAt:          now,
+		UpdatedAt:          now,
+		DelegationMetadata: metadata,
 	}
 	child, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil {
@@ -515,21 +515,21 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	if child.Cwd != "/work/proj" {
 		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
 	}
-	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.AgentAnnotations.String() != `{"source":"runtime"}` {
+	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.DelegationMetadata.String() != `{"source":"runtime"}` {
 		t.Errorf("child runtime identity = %#v, want %#v", child, subtask)
 	}
 
 	// Re-saving the same identity updates the durable runtime fields without
 	// losing product-owned title/cwd enrichment.
 	subtask.UpdatedAt = now.Add(time.Second)
-	subtask.AgentAnnotations, err = session.ParseAgentAnnotations([]byte(`{"source":"updated"}`))
+	subtask.DelegationMetadata, err = session.ParseDelegationMetadata([]byte(`{"source":"updated"}`))
 	if err != nil {
-		t.Fatalf("ParseAgentAnnotations update: %v", err)
+		t.Fatalf("ParseDelegationMetadata update: %v", err)
 	}
 	again, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil || again.ID != child.ID ||
 		again.Title != child.Title || again.Cwd != child.Cwd || again.Kind != child.Kind ||
-		!again.UpdatedAt.Equal(subtask.UpdatedAt) || again.AgentAnnotations.String() != `{"source":"updated"}` {
+		!again.UpdatedAt.Equal(subtask.UpdatedAt) || again.DelegationMetadata.String() != `{"source":"updated"}` {
 		t.Fatalf("SaveSubtask update = (%#v, %v)", again, err)
 	}
 	for name, mutate := range map[string]func(*session.Subtask){

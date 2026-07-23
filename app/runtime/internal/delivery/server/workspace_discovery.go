@@ -2,151 +2,67 @@ package server
 
 import (
 	"context"
-	"path/filepath"
-	"slices"
-	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// workspace.* discovery reads (API.md §7.5): the distinct-cwd Project view,
-// skills, and the AGENTS.md cascade — derived from sessions / the engine /
-// AGENTS.md discovery rather than the filesystem or git.
-
-// WorkspaceListProjects derives the Project view from sessions: one
-// entry per distinct Session.cwd (API.md §0.2 / §7.5), newest-active first.
-// Filesystem identity is inspected after the pure aggregation so projects and
-// sessions report the same canonical root/missing state.
+// WorkspaceListProjects projects the application-owned distinct-workspace view
+// derived from user-facing sessions.
 func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	sessions, err := s.sessions.List(ctx)
+	projects, err := s.workspace.ListProjects(ctx)
 	if err != nil {
-		return nil, err
+		return nil, wireWorkspaceError(err)
 	}
-	projects := projectsFromSessions(sessions)
-	for i := range projects {
-		identity, err := s.sessions.InspectWorkspace(projects[i].Cwd)
-		if err != nil {
-			return nil, err
-		}
-		projects[i].Cwd = identity.Cwd
-		projects[i].ProjectRoot = identity.ProjectRoot
-		projects[i].CwdMissing = identity.Missing
-	}
-	return protocol.NewPage(projects), nil
-}
-
-// projectsFromSessions collapses sessions into the distinct-cwd Project
-// view: one entry per non-empty Session.cwd, session-counted, newest-
-// active first. Pure (no I/O) so it's unit-testable on its own.
-func projectsFromSessions(sessions []session.Session) []protocol.Project {
-	byCwd := map[string]*protocol.Project{}
-	for _, s := range sessions {
-		if s.Cwd == "" {
-			continue // no cwd ⇒ no project identity
-		}
-		p := byCwd[s.Cwd]
-		if p == nil {
-			p = &protocol.Project{Cwd: s.Cwd, Name: filepath.Base(s.Cwd)}
-			byCwd[s.Cwd] = p
-		}
-		p.SessionCount++
-		if p.LastActiveAt == nil || s.UpdatedAt.After(*p.LastActiveAt) {
-			t := s.UpdatedAt
-			p.LastActiveAt = &t
-		}
-	}
-	out := make([]protocol.Project, 0, len(byCwd))
-	for _, p := range byCwd {
-		out = append(out, *p)
-	}
-	slices.SortFunc(out, func(a, b protocol.Project) int {
-		return b.LastActiveAt.Compare(*a.LastActiveAt) // most-recently-active first
-	})
-	return out
-}
-
-// WorkspaceListSkills enumerates the skills visible from cwd — project skills
-// (<cwd>/.lyra/skills) layered over the global directory, project winning on a
-// name collision (the same set + precedence the engine gives the model). Each
-// entry's Source records its scope ("project" | "global"). cwd defaults to the
-// serve directory (API.md §7.5).
-func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
-	root, err := s.workspaceRoot(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	found, err := s.workspace.ListSkills(ctx, root)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.Skill, 0, len(found))
-	for _, sk := range found {
-		out = append(out, protocol.Skill{Name: sk.Name, Description: sk.Description, Source: protocol.SkillSource(sk.Scope)})
-	}
-	return protocol.NewPage(out), nil
-}
-
-// WorkspaceListRecipes enumerates the prompt recipes visible from cwd — project
-// recipes (<cwd>/.lyra/recipes) layered over the global directory, project
-// winning on a name collision. Each entry carries its full Body so the client
-// can expand ($ARGUMENTS / $1..$9) and send it. cwd defaults to the serve
-// directory (recipes.list, API.md §7.5).
-func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
-	root, err := s.workspaceRoot(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	found, err := s.workspace.ListRecipes(ctx, root)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.Recipe, 0, len(found))
-	for _, r := range found {
-		out = append(out, protocol.Recipe{
-			Name:         r.Name,
-			Description:  r.Description,
-			ArgumentHint: r.ArgumentHint,
-			Body:         r.Body,
-			Scope:        protocol.RecipeScope(r.Scope),
-			Source:       r.Source,
+	out := make([]protocol.Project, 0, len(projects))
+	for _, project := range projects {
+		lastActiveAt := project.LastActiveAt
+		out = append(out, protocol.Project{
+			Name: project.Name, Cwd: project.Cwd, ProjectRoot: project.ProjectRoot, CwdMissing: project.CwdMissing,
+			SessionCount: project.SessionCount, LastActiveAt: &lastActiveAt,
 		})
 	}
 	return protocol.NewPage(out), nil
 }
 
-// WorkspaceListAgentDocs lists the AGENTS.md files discovered from cwd
-// (or the serve cwd) up to home — the same cascade the engine injects
-// into the system prompt (API.md §7.5).
-func (s *Server) WorkspaceListAgentDocs(ctx context.Context, q protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
-	root, err := s.workspaceRoot(q.Cwd)
+// WorkspaceListSkills maps application skill discovery to the protocol shape.
+func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
+	found, err := s.workspace.ListSkills(ctx, in.Cwd)
 	if err != nil {
-		return nil, err
+		return nil, wireWorkspaceError(err)
 	}
-	home := s.serverInfo.Home
-	files, err := promptsource.DiscoverAgentDocs(ctx, root, home)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.AgentDoc, 0, len(files))
-	for _, f := range files {
-		out = append(out, protocol.AgentDoc{Path: f.Path, Scope: protocol.AgentDocScope(agentDocScope(f.Path, root, home))})
+	out := make([]protocol.Skill, 0, len(found))
+	for _, skill := range found {
+		out = append(out, protocol.Skill{Name: skill.Name, Description: skill.Description, Source: protocol.SkillSource(skill.Scope)})
 	}
 	return protocol.NewPage(out), nil
 }
 
-// agentDocScope classifies a discovered AGENTS.md by where it sits in the
-// cwd→home cascade: the home dir → "home", anything under cwd → "cwd",
-// else an ancestor in between → "projectRoot" (API.md §4.10 scope).
-func agentDocScope(path, cwd, home string) string {
-	dir := filepath.Dir(path)
-	switch {
-	case home != "" && dir == home:
-		return "home"
-	case cwd != "" && (dir == cwd || strings.HasPrefix(path, cwd+string(filepath.Separator))):
-		return "cwd"
-	default:
-		return "projectRoot"
+// WorkspaceListRecipes maps application recipe discovery to the protocol shape.
+func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
+	found, err := s.workspace.ListRecipes(ctx, in.Cwd)
+	if err != nil {
+		return nil, wireWorkspaceError(err)
 	}
+	out := make([]protocol.Recipe, 0, len(found))
+	for _, recipe := range found {
+		out = append(out, protocol.Recipe{
+			Name: recipe.Name, Description: recipe.Description, ArgumentHint: recipe.ArgumentHint,
+			Body: recipe.Body, Scope: protocol.RecipeScope(recipe.Scope), Source: recipe.Source,
+		})
+	}
+	return protocol.NewPage(out), nil
+}
+
+// WorkspaceListAgentDocs maps the application-owned instruction-document
+// cascade onto the protocol shape.
+func (s *Server) WorkspaceListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
+	docs, err := s.workspace.ListAgentDocs(ctx, in.Cwd)
+	if err != nil {
+		return nil, wireWorkspaceError(err)
+	}
+	out := make([]protocol.AgentDoc, 0, len(docs))
+	for _, doc := range docs {
+		out = append(out, protocol.AgentDoc{Path: doc.Path, Scope: protocol.AgentDocScope(doc.Scope)})
+	}
+	return protocol.NewPage(out), nil
 }

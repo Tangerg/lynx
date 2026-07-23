@@ -211,6 +211,24 @@ func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 		"RunWorker":         "Bootstrap owns background worker lifetime",
 		"StartScheduledRun": "the schedule application owns scheduled Run starts",
 	})
+	forbidQualifiedCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
+		"schedules.New":    "Bootstrap owns schedule coordinator construction",
+		"workspaceapp.New": "Bootstrap owns workspace coordinator construction",
+		"codebase.New":     "Bootstrap owns codebase coordinator construction",
+	})
+}
+
+// TestDeliveryDoesNotBypassWorkspaceUseCases keeps filesystem path handling,
+// file/Git reads, and prompt-source discovery behind application/workspace.
+// Delivery may project their values to protocol, but must not reach a concrete
+// adapter to complete a workspace request.
+func TestDeliveryDoesNotBypassWorkspaceUseCases(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), []string{
+		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace",
+		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath",
+		"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource",
+	})
 }
 
 // TestDeliveryDoesNotOwnModelPolicy keeps the static catalog behind the
@@ -870,6 +888,46 @@ func forbidSelectorCalls(t *testing.T, dir string, banned map[string]string) {
 			}
 			rel, _ := filepath.Rel(root, path)
 			t.Errorf("%s: delivery calls %s; %s", rel, selector.Sel.Name, reason)
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", dir, walkErr)
+	}
+}
+
+// forbidQualifiedCalls rejects a named package-selector call while allowing
+// unrelated methods with the same selector. It guards composition ownership
+// seams such as delivery's application-coordinator constructors.
+func forbidQualifiedCalls(t *testing.T, dir string, banned map[string]string) {
+	t.Helper()
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			name := exprString(selector.X) + "." + selector.Sel.Name
+			if reason, forbidden := banned[name]; forbidden {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s: delivery calls %s; %s", rel, name, reason)
+			}
 			return true
 		})
 		return nil

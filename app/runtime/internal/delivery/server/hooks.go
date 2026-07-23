@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -14,13 +13,9 @@ import (
 // (global always; project only when the project is trusted). The client renders
 // this for review + a trust toggle (hooks.list, API.md §7.5).
 func (s *Server) WorkspaceListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
-	root, err := s.workspaceRoot(in.Cwd)
+	insp, err := s.workspace.InspectHooks(ctx, in.Cwd)
 	if err != nil {
-		return nil, err
-	}
-	insp, err := s.workspace.InspectHooks(ctx, root)
-	if err != nil {
-		return nil, fmt.Errorf("workspace: inspect hooks for %q: %w", root, err)
+		return nil, wireWorkspaceError(fmt.Errorf("workspace: inspect hooks: %w", err))
 	}
 	out := &protocol.HooksListResult{
 		ProjectRoot:    insp.ProjectRoot,
@@ -49,9 +44,5 @@ func (s *Server) WorkspaceSetHookTrust(ctx context.Context, in protocol.SetHookT
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams
 	}
-	root, err := workspacepath.ResolveExistingDir(in.ProjectRoot)
-	if err != nil {
-		return fmt.Errorf("%w: %s: %w", protocol.ErrCwdUnavailable, in.ProjectRoot, err)
-	}
-	return s.workspace.SetProjectHookTrust(ctx, root, in.Trusted)
+	return wireWorkspaceError(s.workspace.SetProjectHookTrust(ctx, in.ProjectRoot, in.Trusted))
 }

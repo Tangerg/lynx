@@ -41,7 +41,7 @@ func (s *SessionStore) Fork(ctx context.Context, parentID string) (session.Sessi
 
 // SaveSubtask persists the complete Agent runtime identity while enriching a
 // new product session with the parent's title and cwd. Re-saving the same
-// child updates audit/agent-annotation fields; changing immutable identity or reusing
+// child updates audit/delegation-metadata fields; changing immutable identity or reusing
 // its ID for a user-facing session fails closed.
 func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask) (session.Session, error) {
 	if err := subtask.Validate(); err != nil {
@@ -67,7 +67,7 @@ func (s *SessionStore) SaveSubtask(ctx context.Context, subtask session.Subtask)
 			}
 			saved = existing
 			saved.UpdatedAt = subtask.UpdatedAt
-			saved.AgentAnnotations = subtask.AgentAnnotations
+			saved.DelegationMetadata = subtask.DelegationMetadata
 			return s.updateSubtaskAudit(ctx, saved)
 		case errors.Is(err, session.ErrNotFound):
 			parent, parentErr := s.Get(ctx, subtask.ParentID)
@@ -95,9 +95,9 @@ func (s *SessionStore) updateSubtaskAudit(ctx context.Context, subtask session.S
 	return s.updateByID(
 		ctx,
 		"save subtask",
-		`UPDATE sessions SET updated_at = ?, agent_annotations = ? WHERE id = ?`,
+		`UPDATE sessions SET updated_at = ?, delegation_metadata = ? WHERE id = ?`,
 		subtask.UpdatedAt.UnixNano(),
-		subtask.AgentAnnotations.String(),
+		subtask.DelegationMetadata.String(),
 		subtask.ID,
 	)
 }

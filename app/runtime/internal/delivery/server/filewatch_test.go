@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -24,7 +25,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v0"), 0o644); err != nil {
 		t.Fatalf("seed index: %v", err)
 	}
-	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := &Server{wsHub: newWorkspaceHub(), workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{})}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -61,7 +62,7 @@ func TestStartGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {
 // contributes no watcher (and doesn't error) — the broadcast stream still works.
 func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	dir := t.TempDir() // no .git
-	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := &Server{wsHub: newWorkspaceHub(), workspace: newWorkspaceCoordinator(dir, workspaceapp.Config{})}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	_, events, err := s.WorkspaceSubscribe(ctx, protocol.WorkspaceSubscribeRequest{
@@ -110,7 +111,7 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 
 // TestWorkspaceSubscribe_MissingWatchID rejects a watch with no id.
 func TestWorkspaceSubscribe_MissingWatchID(t *testing.T) {
-	s := &Server{wsHub: newWorkspaceHub(), serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}}
+	s := &Server{wsHub: newWorkspaceHub(), workspace: newWorkspaceCoordinator(t.TempDir(), workspaceapp.Config{})}
 	if _, _, err := s.WorkspaceSubscribe(context.Background(), protocol.WorkspaceSubscribeRequest{
 		Watches: []protocol.WatchSpec{{}},
 	}); err == nil {

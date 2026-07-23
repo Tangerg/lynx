@@ -9,7 +9,7 @@ import (
 )
 
 func TestRuntimeInspectHooksReturnsEmptyWhenUnconfigured(t *testing.T) {
-	c := New(Config{})
+	c := New(Config{Paths: testPaths{}})
 
 	got, err := c.InspectHooks(context.Background(), "/repo")
 	if err != nil {
@@ -31,7 +31,7 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 			}},
 		},
 	}
-	c := New(Config{Hooks: inspector})
+	c := New(Config{Paths: testPaths{}, Hooks: inspector})
 
 	got, err := c.InspectHooks(context.Background(), "/repo")
 	if err != nil {
@@ -58,7 +58,7 @@ func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (hooks.Inspec
 
 func TestRuntimeInspectHooksPreservesInspectorFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
-	c := New(Config{Hooks: &fakeHookInspector{err: wantErr}})
+	c := New(Config{Paths: testPaths{}, Hooks: &fakeHookInspector{err: wantErr}})
 
 	if _, err := c.InspectHooks(context.Background(), "/repo"); !errors.Is(err, wantErr) {
 		t.Fatalf("InspectHooks error = %v, want %v", err, wantErr)

@@ -16,7 +16,7 @@ func TestWorkspaceVcsUnavailable(t *testing.T) {
 	if !workspace.GitAvailable() {
 		t.Skip("git not on PATH")
 	}
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: t.TempDir()}}
+	s := newWorkspaceServer(t.TempDir())
 	if _, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{}); !errors.Is(err, protocol.ErrVcsUnavailable) {
 		t.Errorf("listFileChanges err = %v, want ErrVcsUnavailable", err)
 	}
@@ -48,7 +48,7 @@ func TestWorkspaceGitWireMapping(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := &Server{serverInfo: protocol.ServerInfo{Cwd: dir}}
+	s := newWorkspaceServer(dir)
 	page, err := s.WorkspaceListFileChanges(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {
 		t.Fatalf("listFileChanges: %v", err)

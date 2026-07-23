@@ -45,20 +45,20 @@ func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
 	}
 	metadata, err := json.Marshal(sess.Metadata)
 	if err != nil {
-		return fmt.Errorf("child session store: encode annotations for %q: %w", sess.ID, err)
+		return fmt.Errorf("child session store: encode delegation metadata for %q: %w", sess.ID, err)
 	}
-	annotations, err := sessionsvc.ParseAgentAnnotations(metadata)
+	delegationMetadata, err := sessionsvc.ParseDelegationMetadata(metadata)
 	if err != nil {
-		return fmt.Errorf("child session store: validate annotations for %q: %w", sess.ID, err)
+		return fmt.Errorf("child session store: validate delegation metadata for %q: %w", sess.ID, err)
 	}
 	_, err = s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
-		ID:               sess.ID,
-		ParentID:         sess.ParentID,
-		UserID:           sess.UserID,
-		AgentName:        sess.AgentName,
-		StartedAt:        sess.StartedAt,
-		UpdatedAt:        sess.UpdatedAt,
-		AgentAnnotations: annotations,
+		ID:                 sess.ID,
+		ParentID:           sess.ParentID,
+		UserID:             sess.UserID,
+		AgentName:          sess.AgentName,
+		StartedAt:          sess.StartedAt,
+		UpdatedAt:          sess.UpdatedAt,
+		DelegationMetadata: delegationMetadata,
 	})
 	if err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
@@ -84,9 +84,9 @@ func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, 
 			ls.Kind,
 		)
 	}
-	metadata, err := core.ParseSessionMetadata(ls.AgentAnnotations.JSON())
+	metadata, err := core.ParseSessionMetadata(ls.DelegationMetadata.JSON())
 	if err != nil {
-		return core.Session{}, fmt.Errorf("child session store: decode annotations for %q: %w", id, err)
+		return core.Session{}, fmt.Errorf("child session store: decode delegation metadata for %q: %w", id, err)
 	}
 	loaded := core.Session{
 		ID:        ls.ID,

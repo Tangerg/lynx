@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 func TestCanonicalNormalizesSpellingsAndSymlinks(t *testing.T) {
@@ -30,6 +31,44 @@ func TestCanonicalNormalizesSpellingsAndSymlinks(t *testing.T) {
 	}
 	if got := workspacepath.Canonical(""); got != "" {
 		t.Fatalf("Canonical(empty) = %q", got)
+	}
+}
+
+func TestResolverConfinesWorkspacePaths(t *testing.T) {
+	resolver := workspacepath.Resolver{}
+	root := t.TempDir()
+	for path, want := range map[string]string{
+		"main.go":                       "main.go",
+		"pkg/util.go":                   "pkg/util.go",
+		"./a/../b.go":                   "b.go",
+		filepath.Join(root, "sub/x.go"): "sub/x.go",
+	} {
+		got, err := resolver.ResolveInRoot(root, path)
+		if err != nil || got != want {
+			t.Errorf("ResolveInRoot(%q) = (%q, %v), want (%q, nil)", path, got, err, want)
+		}
+	}
+	for _, path := range []string{"../escape.go", "../../etc/passwd", "/etc/passwd", "sub/../../out.go"} {
+		if _, err := resolver.ResolveInRoot(root, path); !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
+			t.Errorf("ResolveInRoot(%q) error = %v, want ErrPathOutsideRoot", path, err)
+		}
+	}
+	if _, err := resolver.ResolveInRoot(root, ""); !errors.Is(err, workspaceapp.ErrPathRequired) {
+		t.Fatalf("ResolveInRoot empty error = %v, want ErrPathRequired", err)
+	}
+}
+
+func TestResolverRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("secret"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.txt"), filepath.Join(root, "escape.txt")); err != nil {
+		t.Skipf("symlink unsupported: %v", err)
+	}
+	if _, err := (workspacepath.Resolver{}).ResolveExistingInRoot(root, "escape.txt"); !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
+		t.Fatalf("ResolveExistingInRoot escape error = %v, want ErrPathOutsideRoot", err)
 	}
 }
 

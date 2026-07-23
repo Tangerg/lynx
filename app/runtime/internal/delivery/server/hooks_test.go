@@ -35,7 +35,7 @@ func (f *fakeHookTrust) Untrust(_ context.Context, projectRoot string) error {
 }
 
 func serverWithHookTrust(trust workspaceapp.HookTrustStore) *Server {
-	return &Server{workspace: workspaceapp.New(workspaceapp.Config{Trust: trust})}
+	return &Server{workspace: newWorkspaceCoordinator("", workspaceapp.Config{Trust: trust})}
 }
 
 func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
@@ -87,8 +87,7 @@ func (i staticHookInspector) Inspect(context.Context, string) (domainhooks.Inspe
 func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	root := t.TempDir()
 	s := &Server{
-		serverInfo: protocol.ServerInfo{Cwd: root},
-		workspace: workspaceapp.New(workspaceapp.Config{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
+		workspace: newWorkspaceCoordinator(root, workspaceapp.Config{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
 			ProjectRoot: root,
 			Hooks: []domainhooks.Hook{{
 				Event: domainhooks.SubagentStart, Command: "audit", TimeoutMs: 2500,
@@ -114,8 +113,7 @@ func TestWorkspaceListHooksPreservesInspectionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	root := t.TempDir()
 	s := &Server{
-		serverInfo: protocol.ServerInfo{Cwd: root},
-		workspace: workspaceapp.New(workspaceapp.Config{
+		workspace: newWorkspaceCoordinator(root, workspaceapp.Config{
 			Hooks: failingHookInspector{err: wantErr},
 		}),
 	}
