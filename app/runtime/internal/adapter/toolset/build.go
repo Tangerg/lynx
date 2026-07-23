@@ -223,12 +223,8 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	goalActive := goalActiveReader(config.Goals)
 
-	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(config.MCPServers))
-	if err != nil {
-		return Built{}, err
-	}
-
-	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(config.A2AAgents))
+	connections, err := dialToolConnections(ctx, config)
+	mcpConns, a2aConns = connections.mcp, connections.a2a
 	if err != nil {
 		return Built{}, err
 	}
@@ -238,7 +234,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		DefaultWorkdir:  config.Workdir,
 		SkillsGlobalDir: config.SkillsGlobalDir,
 		Online:          online,
-		A2A:             a2aTools,
+		A2A:             connections.a2aTools,
 		LSP:             lspTools,
 		Shell:           shellTools,
 		AskUser:         askUserTool,
@@ -260,7 +256,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)
 	}
-	resolver.SetMCPTools(mcpTools)             // seed the hot-swappable MCP set
+	resolver.SetMCPTools(connections.mcpTools) // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
 
 	// Build the immutable catalog core. Resolver.Tools projects MCP, search_tools,
@@ -269,7 +265,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// Only `task` is appended later by the engine (it needs the engine).
 	tools := resolver.workdirTools(config.Workdir)
 	tools = append(tools, online...)
-	tools = append(tools, a2aTools...)
+	tools = append(tools, connections.a2aTools...)
 	tools = append(tools, lspTools...)
 	tools = append(tools, shellTools...)
 	tools = append(tools, askUserTool)

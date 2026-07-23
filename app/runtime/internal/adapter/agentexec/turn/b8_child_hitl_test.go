@@ -25,18 +25,7 @@ import (
 )
 
 func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
-	tests := []struct {
-		name             string
-		childTool        string
-		childArguments   string
-		interruptKinds   []string
-		wantInterrupt    runs.InterruptKind
-		resolution       interrupts.Resolution
-		rewriteArguments string
-		wantArguments    string
-		wantDenied       bool
-		wantDenyReason   string
-	}{
+	tests := []childHITLScenario{
 		{
 			name:             "approval with human edited arguments",
 			childTool:        "shell",
@@ -78,108 +67,133 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			recorder := &hookCommandRecorder{rewriteTool: test.childTool, rewriteArguments: test.rewriteArguments}
-			bound := hooks.NewBound([]hooks.Hook{
-				{Event: hooks.PreToolUse, Command: "record", Source: "test"},
-				{Event: hooks.PostToolUse, Command: "record", Source: "test"},
-			}, hooks.NewRunner(recorder, nil))
-			policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-			dispatcher := buildB8Dispatcher(t, &childToolModel{
-				defaults:       &chat.Options{Model: "b8-child-hitl"},
-				childTool:      test.childTool,
-				childArguments: test.childArguments,
-			}, policy, staticHookResolver{bound: bound})
-
-			handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
-				SessionID:      "sess-b8-" + strings.ReplaceAll(test.name, " ", "-"),
-				Message:        "delegate this work",
-				Cwd:            t.TempDir(),
-				InterruptKinds: test.interruptKinds,
-			})
-			if err != nil {
-				t.Fatalf("StartTurn: %v", err)
-			}
-			events, err := dispatcher.Events(t.Context(), handle)
-			if err != nil {
-				t.Fatalf("Events: %v", err)
-			}
-
-			var (
-				interruptCount int
-				childStart     *runs.ToolCallStart
-				childEnd       *runs.ToolCallEnd
-				endReason      execution.Outcome
-			)
-			for event := range events {
-				switch event := event.(type) {
-				case runs.TurnInterrupted:
-					interruptCount++
-					if len(event.Interrupts) != 1 {
-						t.Fatalf("interrupts = %#v", event.Interrupts)
-					}
-					pending := event.Interrupts[0]
-					if pending.Kind != test.wantInterrupt {
-						t.Fatalf("interrupt kind = %q, want %q", pending.Kind, test.wantInterrupt)
-					}
-					toolName, _ := pending.Tool()
-					if toolName != test.childTool {
-						t.Fatalf("interrupt tool = %q, want child %q (task must not be gated)", toolName, test.childTool)
-					}
-					if err := dispatcher.Resume(t.Context(), handle, test.resolution, test.interruptKinds); err != nil {
-						t.Fatalf("Resume: %v", err)
-					}
-				case runs.ToolCallStart:
-					if event.ToolName == test.childTool {
-						copy := event
-						childStart = &copy
-					}
-				case runs.ToolCallEnd:
-					if childStart != nil && event.CallID == childStart.CallID {
-						copy := event
-						childEnd = &copy
-					}
-				case runs.TurnEnd:
-					endReason = event.Reason
-				}
-			}
-
-			if test.wantInterrupt == "" && interruptCount != 0 {
-				t.Fatalf("safe child interrupt count = %d, want 0", interruptCount)
-			}
-			if test.wantInterrupt != "" && interruptCount != 1 {
-				t.Fatalf("interrupt count = %d, want 1", interruptCount)
-			}
-			if endReason != execution.OutcomeCompleted {
-				t.Fatalf("turn end = %q, want completed", endReason)
-			}
-			if childStart == nil || childEnd == nil {
-				t.Fatalf("child lifecycle start/end = %#v / %#v", childStart, childEnd)
-			}
-			if test.wantArguments != "" && childStart.Arguments != test.wantArguments {
-				t.Fatalf("child arguments = %s, want %s", childStart.Arguments, test.wantArguments)
-			}
-			if childEnd.Denied != test.wantDenied {
-				t.Fatalf("child denied = %v, want %v", childEnd.Denied, test.wantDenied)
-			}
-			if test.wantDenyReason != "" {
-				result, ok := childEnd.Result.String()
-				if !ok || result != test.wantDenyReason {
-					t.Fatalf("child deny result = %#v, want %q", childEnd.Result, test.wantDenyReason)
-				}
-			}
-			if got := recorder.count(hooks.PreToolUse, test.childTool); got != 1 {
-				t.Fatalf("PreToolUse(%s) count = %d, want 1", test.childTool, got)
-			}
-			if got := recorder.count(hooks.PostToolUse, test.childTool); got != 1 {
-				t.Fatalf("PostToolUse(%s) count = %d, want 1", test.childTool, got)
-			}
-			if got := recorder.count(hooks.PreToolUse, "task"); got != 0 {
-				t.Fatalf("PreToolUse(task) count = %d, want 0", got)
-			}
-			if got := recorder.count(hooks.PostToolUse, "task"); got != 0 {
-				t.Fatalf("PostToolUse(task) count = %d, want 0", got)
-			}
+			outcome, recorder := runChildHITLScenario(t, test)
+			assertChildHITLOutcome(t, test, outcome, recorder)
 		})
+	}
+}
+
+type childHITLScenario struct {
+	name             string
+	childTool        string
+	childArguments   string
+	interruptKinds   []string
+	wantInterrupt    runs.InterruptKind
+	resolution       interrupts.Resolution
+	rewriteArguments string
+	wantArguments    string
+	wantDenied       bool
+	wantDenyReason   string
+}
+
+type childHITLOutcome struct {
+	interruptCount int
+	childStart     *runs.ToolCallStart
+	childEnd       *runs.ToolCallEnd
+	endReason      execution.Outcome
+}
+
+func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOutcome, *hookCommandRecorder) {
+	t.Helper()
+	recorder := &hookCommandRecorder{rewriteTool: scenario.childTool, rewriteArguments: scenario.rewriteArguments}
+	bound := hooks.NewBound([]hooks.Hook{
+		{Event: hooks.PreToolUse, Command: "record", Source: "test"},
+		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
+	}, hooks.NewRunner(recorder, nil))
+	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
+	dispatcher := buildB8Dispatcher(t, &childToolModel{
+		defaults:       &chat.Options{Model: "b8-child-hitl"},
+		childTool:      scenario.childTool,
+		childArguments: scenario.childArguments,
+	}, policy, staticHookResolver{bound: bound})
+
+	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
+		Message:        "delegate this work",
+		Cwd:            t.TempDir(),
+		InterruptKinds: scenario.interruptKinds,
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+
+	var outcome childHITLOutcome
+	for event := range events {
+		switch event := event.(type) {
+		case runs.TurnInterrupted:
+			outcome.interruptCount++
+			if len(event.Interrupts) != 1 {
+				t.Fatalf("interrupts = %#v", event.Interrupts)
+			}
+			pending := event.Interrupts[0]
+			if pending.Kind != scenario.wantInterrupt {
+				t.Fatalf("interrupt kind = %q, want %q", pending.Kind, scenario.wantInterrupt)
+			}
+			toolName, _ := pending.Tool()
+			if toolName != scenario.childTool {
+				t.Fatalf("interrupt tool = %q, want child %q (task must not be gated)", toolName, scenario.childTool)
+			}
+			if err := dispatcher.Resume(t.Context(), handle, scenario.resolution, scenario.interruptKinds); err != nil {
+				t.Fatalf("Resume: %v", err)
+			}
+		case runs.ToolCallStart:
+			if event.ToolName == scenario.childTool {
+				copy := event
+				outcome.childStart = &copy
+			}
+		case runs.ToolCallEnd:
+			if outcome.childStart != nil && event.CallID == outcome.childStart.CallID {
+				copy := event
+				outcome.childEnd = &copy
+			}
+		case runs.TurnEnd:
+			outcome.endReason = event.Reason
+		}
+	}
+	return outcome, recorder
+}
+
+func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome childHITLOutcome, recorder *hookCommandRecorder) {
+	t.Helper()
+	if scenario.wantInterrupt == "" && outcome.interruptCount != 0 {
+		t.Fatalf("safe child interrupt count = %d, want 0", outcome.interruptCount)
+	}
+	if scenario.wantInterrupt != "" && outcome.interruptCount != 1 {
+		t.Fatalf("interrupt count = %d, want 1", outcome.interruptCount)
+	}
+	if outcome.endReason != execution.OutcomeCompleted {
+		t.Fatalf("turn end = %q, want completed", outcome.endReason)
+	}
+	if outcome.childStart == nil || outcome.childEnd == nil {
+		t.Fatalf("child lifecycle start/end = %#v / %#v", outcome.childStart, outcome.childEnd)
+	}
+	if scenario.wantArguments != "" && outcome.childStart.Arguments != scenario.wantArguments {
+		t.Fatalf("child arguments = %s, want %s", outcome.childStart.Arguments, scenario.wantArguments)
+	}
+	if outcome.childEnd.Denied != scenario.wantDenied {
+		t.Fatalf("child denied = %v, want %v", outcome.childEnd.Denied, scenario.wantDenied)
+	}
+	if scenario.wantDenyReason != "" {
+		result, ok := outcome.childEnd.Result.String()
+		if !ok || result != scenario.wantDenyReason {
+			t.Fatalf("child deny result = %#v, want %q", outcome.childEnd.Result, scenario.wantDenyReason)
+		}
+	}
+	if got := recorder.count(hooks.PreToolUse, scenario.childTool); got != 1 {
+		t.Fatalf("PreToolUse(%s) count = %d, want 1", scenario.childTool, got)
+	}
+	if got := recorder.count(hooks.PostToolUse, scenario.childTool); got != 1 {
+		t.Fatalf("PostToolUse(%s) count = %d, want 1", scenario.childTool, got)
+	}
+	if got := recorder.count(hooks.PreToolUse, "task"); got != 0 {
+		t.Fatalf("PreToolUse(task) count = %d, want 0", got)
+	}
+	if got := recorder.count(hooks.PostToolUse, "task"); got != 0 {
+		t.Fatalf("PostToolUse(task) count = %d, want 0", got)
 	}
 }
 
