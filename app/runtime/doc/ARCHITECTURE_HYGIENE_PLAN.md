@@ -1,6 +1,6 @@
 # Runtime Architecture Hygiene Plan
 
-> Status: active  
+> Status: completed
 > Started: 2026-07-22  
 > Scope: `app/runtime`  
 > Architecture baseline: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
@@ -141,7 +141,7 @@ Acceptance:
 
 ### Batch 5 — Fitness tests and final verification
 
-Status: **pending**
+Status: **Completed**
 
 Scope:
 
@@ -165,7 +165,7 @@ Acceptance:
 | 2. Application collaboration ownership | Completed | 2026-07-22 | 2026-07-23 | `go test -race` for admission, runs, sessions, schedules, delivery/server, bootstrap; focused `go vet`; `go test ./internal/arch`. |
 | 3. Model/provider policy ownership | Completed | 2026-07-23 | 2026-07-23 | `go test -race ./internal/application/models ./internal/delivery/server ./internal/bootstrap`; `go vet ./...`; `go test ./...`; `go test ./internal/arch`. |
 | 4. Abstraction and boundary cleanup | Completed | 2026-07-23 | 2026-07-23 | Full build, vet, test, focused race suites, and architecture tests passed after dispatcher, registry, HITL, and suspension cleanup. |
-| 5. Fitness tests and final verification | Pending | — | — | — |
+| 5. Fitness tests and final verification | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, relevant race suites, and expanded semantic architecture tests passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -233,6 +233,23 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   Agent suspension prompt and resolution JSON codecs now live in the agent adapter,
   leaving Domain and Application values typed and wire-free.
 - Full build, vet, test, focused race suites, and architecture tests passed.
+
+### 2026-07-23 — Batch 5 started
+
+- Began encoding the completed ownership decisions as architecture fitness checks and
+  validating the module both inside and outside the workspace.
+
+### 2026-07-23 — Batch 5 completed
+
+- Added architecture checks that keep Delivery out of schedule-worker wiring and
+  static model catalog policy, keep suspension values wire-free and approval
+  scope typed, and prevent the removed dispatcher interface and one-use
+  lifecycle generics from returning.
+- Updated the architecture and extensibility references for concrete turn control
+  with consumer-owned narrow ports, and corrected the stale Goal admission note.
+- `go build ./...`, `go vet ./...`, `go test ./...`, the corresponding
+  `GOWORK=off` commands, and race tests for the lifecycle-critical packages all
+  passed.
 
 ## 8. Completion definition
 

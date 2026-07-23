@@ -198,6 +198,30 @@ func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
 		[]string{"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"})
 }
 
+// TestDeliveryDoesNotWireApplicationCollaborators keeps construction cycles and
+// background execution ownership in Bootstrap. Delivery can invoke a schedule
+// use case and project an accepted firing, but it must not bind a Runner, build
+// a worker/launcher, or start the worker loop itself.
+func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
+	root := moduleRoot(t)
+	forbidSelectorCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
+		"BindRunner":        "Bootstrap owns schedule runner wiring",
+		"NewRunLauncher":    "Bootstrap owns scheduled-run launcher construction",
+		"NewWorker":         "Bootstrap owns background worker construction",
+		"RunWorker":         "Bootstrap owns background worker lifetime",
+		"StartScheduledRun": "the schedule application owns scheduled Run starts",
+	})
+}
+
+// TestDeliveryDoesNotOwnModelPolicy keeps the static catalog behind the
+// application/models coordinator. Delivery maps policy results to the protocol;
+// it must not enumerate catalog data or duplicate provider capability rules.
+func TestDeliveryDoesNotOwnModelPolicy(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "server"),
+		[]string{"github.com/Tangerg/lynx/models/catalog"})
+}
+
 // TestUseCasesDoNotDependOnConcreteAgentEngine keeps the agent runtime behind
 // bootstrap and the turn dispatcher. Application owns consumer-side ports and
 // delivery invokes use cases; neither ring may regain a dependency on the
@@ -537,6 +561,140 @@ func TestCanonicalExecutionRecordsStayTyped(t *testing.T) {
 	}
 }
 
+// TestRuntimeInterruptValuesStayWireFree keeps the application interrupt plan
+// and the domain resume decision free of the JSON shape used by persisted agent
+// suspensions. The agent adapter owns that codec; these values retain only
+// business vocabulary.
+func TestRuntimeInterruptValuesStayWireFree(t *testing.T) {
+	root := moduleRoot(t)
+	paths := []string{
+		filepath.Join(root, "internal", "application", "runs", "interrupt_contract.go"),
+		filepath.Join(root, "internal", "domain", "execution", "interrupts", "resolution.go"),
+	}
+	for _, path := range paths {
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, imp := range f.Imports {
+			if strings.Trim(imp.Path.Value, `"`) == "encoding/json" {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s: runtime interrupt value must not import encoding/json", rel)
+			}
+		}
+		ast.Inspect(f, func(node ast.Node) bool {
+			field, ok := node.(*ast.Field)
+			if !ok || field.Tag == nil || !strings.Contains(field.Tag.Value, `json:`) {
+				return true
+			}
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: runtime interrupt value must not carry JSON tag %s", rel, field.Tag.Value)
+			return true
+		})
+	}
+}
+
+// TestRememberScopeUsesApprovalDomainType prevents a second raw-string scope
+// vocabulary from growing beside approval.Scope at the application/agent seam.
+func TestRememberScopeUsesApprovalDomainType(t *testing.T) {
+	root := moduleRoot(t)
+	checks := []struct {
+		path       string
+		structName string
+	}{
+		{filepath.Join(root, "internal", "application", "runs", "commands.go"), "ApprovalResponse"},
+		{filepath.Join(root, "internal", "domain", "execution", "interrupts", "resolution.go"), "Resolution"},
+	}
+	for _, check := range checks {
+		if got := namedStructFieldType(t, check.path, check.structName, "RememberScope"); got != "approval.Scope" {
+			rel, _ := filepath.Rel(root, check.path)
+			t.Errorf("%s: %s.RememberScope = %s, want approval.Scope", rel, check.structName, got)
+		}
+	}
+}
+
+// TestRunLifecycleStateStaysConcrete prevents the registry and journal from
+// regaining one-use type parameters. A second production payload would be
+// evidence for a deliberately redesigned abstraction, not a silent generality
+// increase to these lifecycle owners.
+func TestRunLifecycleStateStaysConcrete(t *testing.T) {
+	root := moduleRoot(t)
+	checks := []struct {
+		path string
+		name string
+	}{
+		{filepath.Join(root, "internal", "application", "runs", "registry.go"), "registry"},
+		{filepath.Join(root, "internal", "application", "runs", "journal.go"), "Journal"},
+	}
+	for _, check := range checks {
+		f, err := parser.ParseFile(token.NewFileSet(), check.path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", check.path, err)
+		}
+		found := false
+		for _, decl := range f.Decls {
+			general, ok := decl.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range general.Specs {
+				named, ok := spec.(*ast.TypeSpec)
+				if !ok || named.Name.Name != check.name {
+					continue
+				}
+				found = true
+				if named.TypeParams != nil && len(named.TypeParams.List) > 0 {
+					rel, _ := filepath.Rel(root, check.path)
+					t.Errorf("%s: %s must stay concrete over its only production payload", rel, check.name)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("%s: type %s not found", check.path, check.name)
+		}
+	}
+}
+
+// TestTurnControlHasNoProducerDispatcherPort keeps the removed fat dispatcher
+// interface from returning. The concrete turn implementation has consumers,
+// and each consumer defines only the slice it needs.
+func TestTurnControlHasNoProducerDispatcherPort(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "adapter", "agentexec", "turn")
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, decl := range f.Decls {
+			general, ok := decl.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range general.Specs {
+				named, ok := spec.(*ast.TypeSpec)
+				if !ok || named.Name.Name != "Dispatcher" {
+					continue
+				}
+				if _, interfaceType := named.Type.(*ast.InterfaceType); interfaceType {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s: producer-owned turn.Dispatcher interface must not return", rel)
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk turn adapter: %v", walkErr)
+	}
+}
+
 // TestRunReductionHasNoOuterProjectionSeam locks in the ownership cutover:
 // application/runs reduces EngineEvent into canonical RunEvent itself, and
 // delivery cannot recreate the former stateful Projector/translator or derive
@@ -677,6 +835,85 @@ func forbidExternalImports(t *testing.T, dir string, banned []string) {
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", dir, walkErr)
 	}
+}
+
+// forbidSelectorCalls rejects direct calls whose selector name belongs to a
+// forbidden construction or lifecycle operation. The package receiver does not
+// matter here: these names are intentionally specific to the ownership seams
+// guarded above.
+func forbidSelectorCalls(t *testing.T, dir string, banned map[string]string) {
+	t.Helper()
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(f, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			selector, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			reason, forbidden := banned[selector.Sel.Name]
+			if !forbidden {
+				return true
+			}
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: delivery calls %s; %s", rel, selector.Sel.Name, reason)
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s: %v", dir, walkErr)
+	}
+}
+
+// namedStructFieldType returns one named struct field's rendered type. It keeps
+// value-object vocabulary assertions AST-based instead of depending on source
+// formatting or comments.
+func namedStructFieldType(t *testing.T, path, structName, fieldName string) string {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range f.Decls {
+		general, ok := decl.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range general.Specs {
+			named, ok := spec.(*ast.TypeSpec)
+			if !ok || named.Name.Name != structName {
+				continue
+			}
+			value, ok := named.Type.(*ast.StructType)
+			if !ok || value.Fields == nil {
+				t.Fatalf("%s: %s is not a struct", path, structName)
+			}
+			for _, field := range value.Fields.List {
+				for _, name := range field.Names {
+					if name.Name == fieldName {
+						return exprString(field.Type)
+					}
+				}
+			}
+			t.Fatalf("%s: %s.%s not found", path, structName, fieldName)
+		}
+	}
+	t.Fatalf("%s: type %s not found", path, structName)
+	return ""
 }
 
 const (

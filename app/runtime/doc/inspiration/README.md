@@ -48,7 +48,7 @@
 
 **T5 · Goal mode —— 受监督的自主多轮执行循环**　`✅ 已落地（前后端）`　`唯一：Kimi`
 - typed runtime state + 最小 4 态机（active/paused/blocked/complete）+ continuation-prompt 驱动 + **opt-in 预算硬顶** + 重启降级(active→paused) + **入口 HITL 门**。lyra 有 plan-mode/steer/scheduler/durable-resume，但**无自主自续执行循环**——用户现在得每轮敲 continue。保持为独立机制、别折进 steer/plan。详见 [Kimi K1](KIMI_CODE.md)。
-- **落地形态**：`domain/goal`（session-keyed 独立 durable store，与 per-run RunState 正交）+ `update_goal` 工具（**机器信号**才结束循环，prose"done"不算；resolver 只在 goal active 时对 coding 角色出现）+ `application/goals` GoalDriver（镜像 schedules，消费 run 的 `SegmentFinished` terminal 决策：complete→clear · blocked/预算→停 · error/cancel→paused · 否则注入 continuation 开下一 run；**不在 pump 内**，back-to-back launch 用 ErrSessionBusy 有界退避等 admission 释放）+ goals.start/get/stop/resume RPC + boot Reconcile(active→paused)。自主 run headless（现有全局 approval stance 治理）。**complete 是 machine-signal 纪律 + 预算硬顶**是设计价值本身。前端 goal box 随后已跟上。
+- **落地形态**：`domain/goal`（session-keyed 独立 durable store，与 per-run RunState 正交）+ `update_goal` 工具（**机器信号**才结束循环，prose"done"不算；resolver 只在 goal active 时对 coding 角色出现）+ `application/goals` GoalDriver（镜像 schedules，消费 run 的 `SegmentFinished` terminal 决策：complete→clear · blocked/预算→停 · error/cancel→paused · 否则注入 continuation 开下一 run；**不在 pump 内**，back-to-back launch 等待 Run 完成边界释放 admission，不以 `ErrSessionBusy` 退避轮询补偿生命周期缺口）+ goals.start/get/stop/resume RPC + boot Reconcile(active→paused)。自主 run headless（现有全局 approval stance 治理）。**complete 是 machine-signal 纪律 + 预算硬顶**是设计价值本身。前端 goal box 随后已跟上。
 
 **T6 · 结构化执行 TODO 追踪**　`✅ 原已实现`　`唯一：Claude Code`
 - lyra 已有 `todo_write` 工具 + `todo` 域（`todo.Validate` 强制"恰好一个 in_progress / 完成即标 / 一次一个"、`todo.Render`、session-keyed、两个角色），字段比 CC V1 更全（blocked_reason / next_action）。无需再做。
