@@ -29,11 +29,11 @@ func TestRenderDraftEmitsProvenanceMetadata(t *testing.T) {
 	if front.Name != draft.Name || front.Description != draft.Description {
 		t.Fatalf("frontmatter round-trip mismatch: %+v", front)
 	}
-	if got := front.Metadata[skills.MetadataCreatedBy]; got != skills.CreatedByAgent {
-		t.Errorf("metadata[%q] = %q, want %q", skills.MetadataCreatedBy, got, skills.CreatedByAgent)
+	if got := front.Metadata[metadataCreatedBy]; got != skills.CreatedByAgent {
+		t.Errorf("metadata[%q] = %q, want %q", metadataCreatedBy, got, skills.CreatedByAgent)
 	}
-	if got := front.Metadata[skills.MetadataSourceSession]; got != "ses_1" {
-		t.Errorf("metadata[%q] = %q, want %q", skills.MetadataSourceSession, got, "ses_1")
+	if got := front.Metadata[metadataSourceSession]; got != "ses_1" {
+		t.Errorf("metadata[%q] = %q, want %q", metadataSourceSession, got, "ses_1")
 	}
 	if !strings.Contains(body, "go test") {
 		t.Errorf("body round-trip lost the instruction: %q", body)
@@ -55,8 +55,8 @@ func TestRenderDraftEmitsRevisesMarker(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if front.Metadata[skills.MetadataRevises] != skills.MetadataTrue {
-		t.Fatalf("metadata[%q] = %q, want %q", skills.MetadataRevises, front.Metadata[skills.MetadataRevises], skills.MetadataTrue)
+	if front.Metadata[metadataRevises] != metadataTrue {
+		t.Fatalf("metadata[%q] = %q, want %q", metadataRevises, front.Metadata[metadataRevises], metadataTrue)
 	}
 }
 

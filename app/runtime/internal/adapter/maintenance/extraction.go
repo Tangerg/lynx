@@ -119,7 +119,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) err
 		Project:    project,
 		SessionID:  sessionID,
 		Day:        now.Format(time.DateOnly),
-		Facts:      agentmemory.NormalizeFacts(markdown),
+		Facts:      parseMemoryFacts(markdown),
 		CapturedAt: now,
 	})
 	if err != nil {
@@ -154,7 +154,7 @@ func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Ti
 		return false, fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, e.config.MaxTokens)
 	}
 	through := pending[len(pending)-1].Sequence
-	published, err := e.memory.Reconcile(ctx, project, state.Watermark, through, agentmemory.NormalizeFacts(content), now)
+	published, err := e.memory.Reconcile(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
 	if err != nil {
 		return false, fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}

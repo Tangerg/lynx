@@ -73,7 +73,7 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 		return handle, nil
 	}
 
-	if err := root.MkdirAll(skills.DraftsSubdir, 0o755); err != nil {
+	if err := root.MkdirAll(draftsSubdir, 0o755); err != nil {
 		return skills.DraftHandle{}, fmt.Errorf("skillauthoring: create draft area: %w", err)
 	}
 	if err := stageDraft(ctx, root, draftDir, content); err != nil {
@@ -173,7 +173,7 @@ func draftRevises(content []byte) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("skillauthoring: parse draft frontmatter: %w", err)
 	}
-	return front.Metadata[skills.MetadataRevises] == skills.MetadataTrue, nil
+	return front.Metadata[metadataRevises] == metadataTrue, nil
 }
 
 // replaceActive installs a revising draft as the active skill, archiving the
@@ -217,7 +217,7 @@ func (s *Store) archiveActive(root *os.Root, name string) error {
 	if err := root.RemoveAll(archiveDir); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("skillauthoring: clear archive slot for %q: %w", name, err)
 	}
-	if err := root.MkdirAll(skills.ArchivedSubdir, 0o755); err != nil {
+	if err := root.MkdirAll(archivedSubdir, 0o755); err != nil {
 		return fmt.Errorf("skillauthoring: create archive area: %w", err)
 	}
 	if err := root.Rename(s.activeDir(name), archiveDir); err != nil {
@@ -350,7 +350,7 @@ func (s *Store) List(ctx context.Context) ([]skills.Entry, error) {
 	if err != nil {
 		return nil, err
 	}
-	archived, err := entries(ctx, filepath.Join(s.root, skills.ArchivedSubdir), skills.Archived)
+	archived, err := entries(ctx, filepath.Join(s.root, archivedSubdir), skills.Archived)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 	}
 	defer root.Close()
 
-	dirEntries, err := fs.ReadDir(root.FS(), skills.DraftsSubdir)
+	dirEntries, err := fs.ReadDir(root.FS(), draftsSubdir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -404,7 +404,7 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 			continue
 		}
 		revision := entry.Name()
-		content, found, err := readSkill(root, filepath.Join(skills.DraftsSubdir, revision))
+		content, found, err := readSkill(root, filepath.Join(draftsSubdir, revision))
 		if err != nil {
 			return nil, err
 		}
@@ -422,9 +422,9 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 		out = append(out, skills.DraftInfo{
 			Handle:        handle,
 			Description:   front.Description,
-			CreatedBy:     front.Metadata[skills.MetadataCreatedBy],
-			SourceSession: front.Metadata[skills.MetadataSourceSession],
-			Revises:       front.Metadata[skills.MetadataRevises] == skills.MetadataTrue,
+			CreatedBy:     front.Metadata[metadataCreatedBy],
+			SourceSession: front.Metadata[metadataSourceSession],
+			Revises:       front.Metadata[metadataRevises] == metadataTrue,
 		})
 	}
 	return out, nil
@@ -491,11 +491,11 @@ func (s *Store) validateHandle(handle skills.DraftHandle) error {
 func (s *Store) activeDir(name string) string { return name }
 
 func (s *Store) archiveDir(name string) string {
-	return filepath.Join(skills.ArchivedSubdir, name)
+	return filepath.Join(archivedSubdir, name)
 }
 
 func (s *Store) draftDir(handle skills.DraftHandle) string {
-	return filepath.Join(skills.DraftsSubdir, handle.Revision)
+	return filepath.Join(draftsSubdir, handle.Revision)
 }
 
 func validateSkill(name string, content []byte) error {

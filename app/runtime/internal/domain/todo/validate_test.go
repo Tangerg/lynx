@@ -51,14 +51,3 @@ func TestValidate(t *testing.T) {
 		})
 	}
 }
-
-func TestRender(t *testing.T) {
-	if got := Render(nil); got != "" {
-		t.Fatalf("Render(nil) = %q, want empty", got)
-	}
-	got := Render(items("write tests:completed", "ship it:in_progress", "celebrate:pending"))
-	want := "[x] write tests\n[~] ship it\n[ ] celebrate\n"
-	if got != want {
-		t.Fatalf("Render mismatch:\n got %q\nwant %q", got, want)
-	}
-}

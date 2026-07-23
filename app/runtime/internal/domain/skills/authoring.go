@@ -28,36 +28,6 @@ var (
 	ErrNotFound = errors.New("skills: entry not found")
 )
 
-// DraftsSubdir is the reserved directory, under a skills root, where proposed
-// skills wait for promotion. Its underscore-prefixed name is deliberately not a
-// valid skill name ([skillspec]'s name rule forbids '_'), so the read-only skill
-// source skips it during discovery — a draft is invisible to the agent until a
-// human promotes it out.
-const DraftsSubdir = "_drafts"
-
-// ArchivedSubdir is the reserved directory holding archived skills. Archiving is
-// "remove from active use without deleting" — the skill moves here (skipped by
-// discovery, same as _drafts) and can be restored. Never a valid skill name.
-const ArchivedSubdir = "_archive"
-
-// Skill provenance is recorded under these SKILL.md frontmatter metadata keys.
-// The curator reads them back (through the loader's
-// [skillspec.Frontmatter.Metadata]) to tell an agent-authored skill — eligible
-// for automatic idle archival — from one a human wrote by hand.
-const (
-	MetadataCreatedBy     = "created_by"
-	MetadataSourceSession = "source_session"
-	// MetadataRevises marks a draft as a new version of the already-active skill
-	// of the same name (value "true"). Promotion of a marked draft replaces the
-	// active skill — archiving the superseded version — instead of conflicting;
-	// an unmarked draft never overwrites an existing skill, so a mined new skill
-	// that happens to collide can't silently clobber one.
-	MetadataRevises = "revises"
-)
-
-// MetadataTrue is the value MetadataRevises carries when set.
-const MetadataTrue = "true"
-
 // CreatedByAgent marks a skill whose content an agent authored through the
 // draft flow (background trajectory mining or propose_skill), as distinct from
 // a hand-written one. Only agent-authored skills are subject to automatic idle
@@ -100,7 +70,8 @@ type Draft struct {
 	// Revises marks this draft as a new version of the already-active skill of
 	// the same name — a feedback-driven refinement rather than a new skill.
 	// Promotion of a revising draft replaces the active skill (archiving the old
-	// version) instead of conflicting. See [MetadataRevises].
+	// version) instead of conflicting. Its file-store representation is an
+	// infrastructure concern.
 	Revises bool
 }
 

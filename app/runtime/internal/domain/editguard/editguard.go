@@ -1,7 +1,7 @@
 // Package editguard enforces the read-before-edit invariant: a file must be
 // READ before it is edited, and must not have CHANGED since (a user or a tool —
-// e.g. a formatter — may have rewritten it), or the modification is refused with
-// a message telling the agent to re-read. This is the reliability rule mature
+// e.g. a formatter — may have rewritten it), or the modification is refused.
+// This is the reliability rule mature
 // coding agents rely on instead of a patch format: re-read rather than blindly
 // clobber stale content.
 //
@@ -13,7 +13,6 @@ package editguard
 
 import (
 	"crypto/sha256"
-	"fmt"
 	"sync"
 )
 
@@ -63,15 +62,15 @@ func (t *Tracker) Refresh(session, path string, fingerprint Fingerprint) {
 func (t *Tracker) Check(session, path string, current Fingerprint, requireFull bool) Result {
 	st, ok := t.get(session, path)
 	if !ok {
-		return resultMissing
+		return ResultReadRequired
 	}
 	if current != st.hash {
-		return resultStale
+		return ResultChanged
 	}
 	if requireFull && st.partial {
-		return resultPartial
+		return ResultFullReadRequired
 	}
-	return resultOK
+	return ResultAllowed
 }
 
 func (t *Tracker) put(session, abs string, st stamp) {
@@ -92,29 +91,20 @@ func (t *Tracker) get(session, abs string) (stamp, bool) {
 	return st, ok
 }
 
-// Result is the verdict of [Tracker.Check]: whether — and if not, why not — a
-// file may be modified. Its zero value is the passing result.
+// Result is the structured verdict of [Tracker.Check]. It carries no model or
+// tool wording; the tool adapter decides how to present a refusal.
 type Result int
 
 const (
-	resultOK Result = iota
-	resultMissing
-	resultStale
-	resultPartial
+	// ResultAllowed permits the mutation.
+	ResultAllowed Result = iota
+	// ResultReadRequired means the session has not read the file.
+	ResultReadRequired
+	// ResultChanged means the file differs from the last read fingerprint.
+	ResultChanged
+	// ResultFullReadRequired means only a partial read is recorded.
+	ResultFullReadRequired
 )
 
-// Message renders the model-facing instruction for a non-passing result ("" when
-// the file may be modified). verb is the blocked action ("editing" /
-// "overwriting").
-func (r Result) Message(path, verb string) string {
-	switch r {
-	case resultMissing:
-		return fmt.Sprintf("You must read %s before %s it. Use the read tool first.", path, verb)
-	case resultStale:
-		return fmt.Sprintf("%s changed since you last read it (edited by the user or a tool). Read it again before %s it.", path, verb)
-	case resultPartial:
-		return fmt.Sprintf("You only read part of %s. Read the whole file before %s it.", path, verb)
-	default:
-		return ""
-	}
-}
+// Allowed reports whether the mutation may proceed.
+func (r Result) Allowed() bool { return r == ResultAllowed }

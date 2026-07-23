@@ -9,8 +9,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 const skillFile = "SKILL.md"
@@ -45,7 +43,7 @@ func writeFile(root *os.Root, path string, content []byte) (err error) {
 }
 
 func stageDraft(ctx context.Context, root *os.Root, destination string, content []byte) (err error) {
-	temporary := filepath.Join(skills.DraftsSubdir, ".stage-"+rand.Text())
+	temporary := filepath.Join(draftsSubdir, ".stage-"+rand.Text())
 	if err := root.Mkdir(temporary, 0o755); err != nil {
 		return fmt.Errorf("skillauthoring: create draft staging directory: %w", err)
 	}

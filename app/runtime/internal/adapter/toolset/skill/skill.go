@@ -12,7 +12,6 @@ import (
 	skillstool "github.com/Tangerg/lynx/tools/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 // UsageRecorder records that a skill was loaded, feeding the idle-lifecycle
@@ -42,7 +41,7 @@ func Build(workdir, globalDir string, recorder UsageRecorder) tools.Tool {
 			return recordingSource{ResourceSource: global, recorder: recorder}
 		}
 	}
-	source := promptsource.MergeSkillSource(skills.ProjectDir(workdir), globalDir, decorateGlobal)
+	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(workdir), globalDir, decorateGlobal)
 	if source == nil {
 		return nil
 	}

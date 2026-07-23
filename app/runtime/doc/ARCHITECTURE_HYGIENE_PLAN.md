@@ -1,6 +1,6 @@
 # Runtime Architecture Hygiene Plan
 
-> Status: completed
+> Status: Completed
 > Started: 2026-07-22  
 > Scope: `app/runtime`  
 > Architecture baseline: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
@@ -451,6 +451,33 @@ Acceptance:
 - Production Domain imports no YAML codec; all recipe/skill frontmatter tests
   run from the owning adapter or infrastructure package.
 
+### Batch 16 — Prompt and content-convention boundary closure
+
+Status: **Completed**
+
+Scope:
+
+- Move Skills project-layout, draft/archive directory, and SKILL.md
+  frontmatter-key conventions from Domain to their prompt-source and
+  skill-authoring adapters.
+- Move AGENTS.md, curated-memory, Todo, and edit-guard model/tool text
+  rendering to the agent or tool adapters that consume it.
+- Move the maintenance model's Markdown/sentinel fact parsing out of Agent
+  Memory Domain while retaining its structured fact normalization invariant.
+- Remove the Application unit test's direct adapter dependency and add fitness
+  tests that prevent the removed presentation and layout seams from returning.
+
+Acceptance:
+
+- Domain imports no filesystem path package and declares no Skill layout or
+  SKILL.md metadata helpers.
+- Domain returns structured document, memory, Todo, and edit-guard values; no
+  model prompt or tool-refusal text originates there.
+- `NO_FACTS` / `NO_MEMORY`, fenced Markdown, and list-marker parsing occur only
+  in the maintenance adapter.
+- Application unit tests use consumer-side fakes, and architecture tests fail
+  if a removed Domain presentation helper returns.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -470,6 +497,7 @@ Acceptance:
 | 13. Consumer-port and state-ownership closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race` suites; `staticcheck`; `golangci-lint`; `go test ./internal/arch`; and source scans for removed domain interfaces passed. |
 | 14. Residual consumer-port closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race`; `staticcheck`; `golangci-lint`; architecture tests; exact-symbol scans; and classified `deadcode` output. |
 | 15. Protocol, static-config, and content-codec closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test; focused race suite; architecture test; `staticcheck`; `golangci-lint`; exact-symbol scans; and `deadcode -test ./...` all passed. |
+| 16. Prompt and content-convention boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused race suite; `staticcheck`; `golangci-lint`; `deadcode -test`; architecture tests; and exact-source scans passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -480,6 +508,31 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Recorded the green validation baseline and the audit findings.
 - Chose root-cause fixes over retry, fallback, compatibility, or caller-discipline patches.
 - Preserved cohesive large packages; package/file size alone is not a refactoring target.
+
+### 2026-07-23 — Batch 16 started
+
+- Reopened the hygiene ledger after a post-closure audit found residual Skills
+  file-layout/frontmatter vocabulary and model/tool rendering inside Domain.
+- Classified JSON Schema and canonical tool JSON values as retained semantic
+  values, not codecs to move; classified Goal as an active product capability,
+  not an unconsumed frontend placeholder.
+
+### 2026-07-23 — Batch 16 completed
+
+- Moved Skills file-layout, draft/archive, and frontmatter conventions into the
+  prompt-source and skill-authoring adapters. Domain now retains only skill
+  values, lifecycle, and validation vocabulary.
+- Moved agent-document, curated-memory, Todo, and edit-guard presentation to
+  their consuming adapters. Domain now returns structured values and semantic
+  guard verdicts rather than prompt or tool-response wording.
+- Moved Markdown, sentinel, and list-marker fact parsing into the maintenance
+  adapter, while preserving Agent Memory's canonical structured-fact invariant.
+  Replaced the Application session test's adapter dependency with a
+  consumer-side fake.
+- Added architecture guards against filesystem layout and removed Domain
+  presentation helpers. Workspace/standalone build, vet, and test; focused
+  race suites; `staticcheck`; `golangci-lint`; `deadcode -test ./...`; exact
+  source scans; and `go test ./internal/arch` all passed.
 
 ### 2026-07-23 — Batch 10 started
 

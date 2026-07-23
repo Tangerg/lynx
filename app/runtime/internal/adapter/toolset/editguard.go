@@ -3,6 +3,7 @@ package toolset
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
@@ -64,8 +65,8 @@ func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tool
 			if err != nil {
 				continue
 			}
-			if msg := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, false).Message(path, "editing"); msg != "" {
-				return msg, nil
+			if verdict := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, false); !verdict.Allowed() {
+				return editGuardMessage(verdict, path, "editing"), nil
 			}
 		}
 		out, err := inner.Call(ctx, arguments)
@@ -100,8 +101,8 @@ func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) too
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)
 				if err == nil {
-					if msg := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, true).Message(a.Path, "overwriting"); msg != "" {
-						return msg, nil
+					if verdict := tr.Check(turnctx.TurnSession(ctx), abs, fingerprint, true); !verdict.Allowed() {
+						return editGuardMessage(verdict, a.Path, "overwriting"), nil
 					}
 				}
 			}
@@ -118,6 +119,19 @@ func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) too
 		}
 		return out, nil
 	})
+}
+
+func editGuardMessage(verdict editguard.Result, path, verb string) string {
+	switch verdict {
+	case editguard.ResultReadRequired:
+		return fmt.Sprintf("You must read %s before %s it. Use the read tool first.", path, verb)
+	case editguard.ResultChanged:
+		return fmt.Sprintf("%s changed since you last read it (edited by the user or a tool). Read it again before %s it.", path, verb)
+	case editguard.ResultFullReadRequired:
+		return fmt.Sprintf("You only read part of %s. Read the whole file before %s it.", path, verb)
+	default:
+		return fmt.Sprintf("Cannot %s %s until its current contents have been read.", verb, path)
+	}
 }
 
 func fingerprintFile(path string) (editguard.Fingerprint, error) {

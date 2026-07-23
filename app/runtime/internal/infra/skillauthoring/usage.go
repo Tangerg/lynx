@@ -119,7 +119,7 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 		if err != nil {
 			continue
 		}
-		if front.Metadata[skills.MetadataCreatedBy] != skills.CreatedByAgent {
+		if front.Metadata[metadataCreatedBy] != skills.CreatedByAgent {
 			continue // provenance gate: only agent-authored skills auto-curate
 		}
 		record := usage[name]

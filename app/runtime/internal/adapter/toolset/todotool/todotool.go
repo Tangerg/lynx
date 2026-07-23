@@ -15,6 +15,7 @@ import (
 	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -112,7 +113,7 @@ func (t *tool) write(ctx context.Context, a writeArgs) (string, error) {
 	if err := t.store.Replace(ctx, sessionID, items); err != nil {
 		return "", err
 	}
-	if rendered := todo.Render(items); rendered != "" {
+	if rendered := todopresentation.Render(items); rendered != "" {
 		return "Todo list updated:\n" + rendered, nil
 	}
 	return "Todo list cleared.", nil
