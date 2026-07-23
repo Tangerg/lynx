@@ -37,7 +37,7 @@ type Coordinator struct {
 	// framing is applied by the delivery layer, which owns the protocol format.
 	seq       atomic.Uint64
 	tasks     taskgroup.Group
-	registry  Registry[*handle]
+	registry  registry
 	admission AdmissionGate
 }
 
@@ -129,7 +129,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		release()
 		return nil, err
 	}
-	hub := NewJournal[Event]()
+	hub := NewJournal()
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
 	reducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
@@ -254,12 +254,12 @@ func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (Ca
 	if !ok {
 		return CancelBinding{}, nil, nil, false
 	}
-	if e.Payload != nil {
-		e.Payload.requestCancel(reason)
+	if e.handle != nil {
+		e.handle.requestCancel(reason)
 	}
 	c.registry.MarkCancel(runID, reason)
-	cleanupCtx, cancel := e.Payload.cleanupContext(ctx)
-	return CancelBinding{SessionID: e.Record.SessionID, TurnID: e.Record.TurnID}, cleanupCtx, cancel, true
+	cleanupCtx, cancel := e.handle.cleanupContext(ctx)
+	return CancelBinding{SessionID: e.record.SessionID, TurnID: e.record.TurnID}, cleanupCtx, cancel, true
 }
 
 // Subscribe attaches a fresh subscriber to a live run's Journal, replaying the
@@ -267,10 +267,10 @@ func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (Ca
 // subscription when ctx ends. ok=false when the run isn't actively streaming.
 func (c *Coordinator) Subscribe(ctx context.Context, runID, fromCursor string) (<-chan Event, bool) {
 	e, ok := c.registry.Get(runID)
-	if !ok || e.Payload == nil || e.Payload.hub == nil {
+	if !ok || e.handle == nil || e.handle.hub == nil {
 		return nil, false
 	}
-	events, unsubscribe := e.Payload.hub.Subscribe(fromCursor)
+	events, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	context.AfterFunc(ctx, unsubscribe)
 	return events, true
 }
@@ -282,7 +282,7 @@ func (c *Coordinator) LiveRun(runID string) (Record, bool) {
 	if !ok {
 		return Record{}, false
 	}
-	return e.Record, true
+	return e.record, true
 }
 
 // Contains reports whether a run is actively tracked.
@@ -290,12 +290,7 @@ func (c *Coordinator) Contains(runID string) bool { return c.registry.Contains(r
 
 // List snapshots the records of the currently-live runs.
 func (c *Coordinator) List() []Record {
-	entries := c.registry.List()
-	out := make([]Record, 0, len(entries))
-	for _, e := range entries {
-		out = append(out, e.Record)
-	}
-	return out
+	return c.registry.List()
 }
 
 // ActiveSession reports whether the session has a run in flight (open or an

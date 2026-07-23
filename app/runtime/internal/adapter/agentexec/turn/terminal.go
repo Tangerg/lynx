@@ -56,7 +56,7 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)
 // and tears the turn down. It serves the emergency-teardown paths —
-// [Dispatcher.Cancel] and a failed [Dispatcher.Resume] — where no drive
+// Cancel and a failed Resume — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by endTurn in [drive].
 func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {

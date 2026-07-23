@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -51,7 +52,7 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 		Workdir:  t.TempDir(),
 		Approval: policy,           // backs exit_plan_mode
 		Goals:    emptyGoalStore{}, // backs update_goal (Goal mode wired)
-		Interrupt: func(context.Context, string, any) (interrupts.Resolution, error) {
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
 	})

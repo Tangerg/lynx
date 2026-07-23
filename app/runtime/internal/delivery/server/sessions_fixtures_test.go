@@ -38,6 +38,20 @@ type testRuntime interface {
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
+// turnRuntime is this integration harness's complete executor view. Production
+// consumers do not share this surface: turn.Executor, session cleanup, and
+// run-segment persistence each declare their own smaller ports.
+type turnRuntime interface {
+	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
+	InjectSteering(context.Context, turn.TurnHandle, string) error
+	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
+	ActivateTurn(context.Context, turn.TurnHandle) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
+	ProcessID(context.Context, turn.TurnHandle) (string, error)
+	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+	Cancel(context.Context, turn.TurnHandle) error
+}
+
 // stubRuntime is the delivery session/lifecycle test double: it provides the run
 // executor + effects (testRuntime) over its own in-memory + sqlite stores, and
 // the coordinator-provider seams (sessions / queries / turn control).
@@ -49,7 +63,7 @@ type stubRuntime struct {
 	toolResults *sqlite.ToolResultStore
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
-	turns       turn.Dispatcher
+	turns       turnRuntime
 }
 
 // sessionsCoordinatorProvider is the optional test seam newTestServer uses to
@@ -162,14 +176,14 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 	return nil
 }
 
-// turnStub satisfies turn.Dispatcher by embedding it. Most session tests never
-// drive a turn, so no method is implemented unless a specific case needs it.
-type turnStub struct{ turn.Dispatcher }
+// turnStub supplies the default inert executor. Most session tests never drive
+// a turn, so no method is implemented unless a specific case needs it.
+type turnStub struct{ turnRuntime }
 
 func (turnStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
 
 type recordingTurns struct {
-	turn.Dispatcher
+	turnRuntime
 	canceled []turn.TurnHandle
 }
 
@@ -178,7 +192,7 @@ func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
 	return nil
 }
 
-func (s stubRuntime) turnDispatcher() turn.Dispatcher {
+func (s stubRuntime) turnDispatcher() turnRuntime {
 	if s.turns != nil {
 		return s.turns
 	}
@@ -277,8 +291,6 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 	}
 	return sessions.Snapshot{Session: ses, Messages: messages, Items: items, Runs: runs, ToolResults: toolResults}, nil
 }
-
-func (s stubLifecycleStores) ForgetSession(id string) { s.rt.ForgetSession(id) }
 
 func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
 	child, err := s.rt.sess.Fork(ctx, plan.ParentID)
@@ -419,25 +431,15 @@ func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID str
 	return nil
 }
 
-type stubRunSegmentStores struct {
-	rt stubRuntime
-}
+type stubMessageCounter struct{ rt stubRuntime }
 
-func (s stubRunSegmentStores) Interrupts() runsegment.InterruptStore { return s.rt.interrupts }
-
-func (s stubRunSegmentStores) Session() runsegment.SessionStore { return s.rt.sess }
-
-func (s stubRunSegmentStores) Transcript() runsegment.TranscriptStore { return s.rt.hist }
-
-func (s stubRunSegmentStores) ToolResults() runsegment.ToolResultStore { return s.rt.toolResults }
-
-func (s stubRunSegmentStores) MessageCount(ctx context.Context, id string) (int, error) {
+func (s stubMessageCounter) Count(ctx context.Context, id string) (int, error) {
 	return s.rt.MessageCount(ctx, id)
 }
 
-func (s stubRunSegmentStores) GenerateTitle(context.Context, string) (string, error) {
-	return "", nil
-}
+type stubTitleGenerator struct{}
+
+func (stubTitleGenerator) Generate(context.Context, string) (string, error) { return "", nil }
 
 // sessionsCoordinator builds the real lifecycle coordinator over the stub's
 // in-memory stores and turns, so newTestServer can wire s.sessions the way the
@@ -453,8 +455,14 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	if len(shared) > 0 && shared[0] != nil {
 		admissions = shared[0]
 	}
+	stores := stubLifecycleStores{rt: s}
 	return sessions.New(sessions.Dependencies{
-		Stores:      stubLifecycleStores{rt: s},
+		Sessions:    s.sess,
+		Interrupts:  s.interrupts,
+		Transcript:  s.hist,
+		Snapshots:   stores,
+		Writes:      stores,
+		Forgetter:   s,
 		Turns:       stubLifecycleTurns{rt: s},
 		Paths:       workspacepath.Resolver{},
 		Checkpoints: checkpoints,
@@ -465,7 +473,12 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 
 func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
-		Stores:             stubRunSegmentStores{rt: s},
+		Interrupts:         s.interrupts,
+		Sessions:           s.sess,
+		Transcript:         s.hist,
+		ToolResults:        s.toolResults,
+		Messages:           stubMessageCounter{rt: s},
+		Titles:             stubTitleGenerator{},
 		Processes:          stubRunSegmentProcesses{rt: s},
 		RunState:           stubRunState{},
 		Tx:                 s.RunInTx,

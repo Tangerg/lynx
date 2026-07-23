@@ -7,16 +7,16 @@ import (
 )
 
 func TestRegistryListIsStableByCreationAndRunIdentity(t *testing.T) {
-	var registry Registry[struct{}]
+	var registry registry
 	createdAt := time.Unix(42, 0).UTC()
-	registry.Open(Record{ID: "run_b", CreatedAt: createdAt}, struct{}{})
-	registry.Open(Record{ID: "run_c", CreatedAt: createdAt.Add(time.Second)}, struct{}{})
-	registry.Open(Record{ID: "run_a", CreatedAt: createdAt}, struct{}{})
+	registry.Open(Record{ID: "run_b", CreatedAt: createdAt}, nil)
+	registry.Open(Record{ID: "run_c", CreatedAt: createdAt.Add(time.Second)}, nil)
+	registry.Open(Record{ID: "run_a", CreatedAt: createdAt}, nil)
 
-	entries := registry.List()
-	ids := make([]string, len(entries))
-	for index, entry := range entries {
-		ids[index] = entry.Record.ID
+	records := registry.List()
+	ids := make([]string, len(records))
+	for index, record := range records {
+		ids[index] = record.ID
 	}
 	if want := []string{"run_a", "run_b", "run_c"}; !slices.Equal(ids, want) {
 		t.Fatalf("List IDs = %v, want %v", ids, want)
@@ -24,17 +24,18 @@ func TestRegistryListIsStableByCreationAndRunIdentity(t *testing.T) {
 }
 
 func TestRegistryRemovesCompletedRun(t *testing.T) {
-	var r Registry[int]
+	var r registry
 	started := time.Unix(42, 0).UTC()
-	r.Open(Record{ID: "run_1", SessionID: "ses_1", Cwd: "/repo", CreatedAt: started}, 7)
+	handle := &handle{}
+	r.Open(Record{ID: "run_1", SessionID: "ses_1", Cwd: "/repo", CreatedAt: started}, handle)
 
 	e, ok := r.Get("run_1")
-	if !ok || e.Record.CreatedAt != started || e.Payload != 7 {
+	if !ok || e.record.CreatedAt != started || e.handle != handle {
 		t.Fatalf("entry = %+v, ok=%v", e, ok)
 	}
 
 	closed, ok := r.Remove("run_1")
-	if !ok || closed.Payload != 7 {
+	if !ok || closed.handle != handle {
 		t.Fatalf("removed entry = %+v, ok=%v", closed, ok)
 	}
 	if r.Contains("run_1") {
@@ -43,14 +44,14 @@ func TestRegistryRemovesCompletedRun(t *testing.T) {
 }
 
 func TestRegistryCancelReason(t *testing.T) {
-	var r Registry[struct{}]
-	r.Open(Record{ID: "run_1", SessionID: "ses_1"}, struct{}{})
+	var r registry
+	r.Open(Record{ID: "run_1", SessionID: "ses_1"}, nil)
 	e, ok := r.MarkCancel("run_1", "user asked")
 	if !ok {
 		t.Fatal("mark cancel must find the run")
 	}
-	if e.Record.CancelReason != "user asked" {
-		t.Fatalf("cancel reason = %q", e.Record.CancelReason)
+	if e.record.CancelReason != "user asked" {
+		t.Fatalf("cancel reason = %q", e.record.CancelReason)
 	}
 	if _, ok := r.MarkCancel("missing", "x"); ok {
 		t.Fatal("mark cancel must miss unknown runs")

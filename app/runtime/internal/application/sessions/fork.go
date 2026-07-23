@@ -2,6 +2,7 @@ package sessions
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -85,7 +86,10 @@ func ResolveForkHistoryPrefix(msgs []chat.Message, runs []transcript.Run, fromRu
 // owns only wire decoding; the boundary semantics + chat history prefix live
 // here (the application resolves the prefix; the adapter commits the branch).
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
-	snapshot, err := c.s.ReadSnapshot(ctx, spec.ParentID)
+	if c.snapshots == nil || c.writes == nil {
+		return session.Session{}, errors.New("sessions: fork persistence is unavailable")
+	}
+	snapshot, err := c.snapshots.ReadSnapshot(ctx, spec.ParentID)
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -93,7 +97,7 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	if err != nil {
 		return session.Session{}, err
 	}
-	return c.s.ApplyFork(ctx, ForkPlan{
+	return c.writes.ApplyFork(ctx, ForkPlan{
 		ParentID: spec.ParentID,
 		Messages: msgs,
 		Title:    spec.Title,

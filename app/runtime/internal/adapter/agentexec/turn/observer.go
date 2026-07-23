@@ -3,13 +3,13 @@ package turn
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -166,7 +166,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 			Interrupt: fmt.Errorf("turn: build approval interrupt: %w", err),
 		}
 	}
-	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
+	res, err := suspension.Interrupt(ctx,
 		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, plan.Arguments),
 		pending,
 	)
@@ -179,7 +179,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// editedArgs override stays one-shot, never folded into the rule.
 	if res.RememberScope != "" && t.dispatcher.approval != nil {
 		if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
-			Scope:      approval.Scope(res.RememberScope),
+			Scope:      res.RememberScope,
 			SessionID:  sessionID,
 			ProjectDir: t.st.cwd,
 			Tool:       toolName,
@@ -225,7 +225,7 @@ func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName,
 	if err := pending.Validate(); err != nil {
 		return agentexec.ToolApprovalVerdict{Interrupt: fmt.Errorf("turn: build doom-loop interrupt: %w", err)}
 	}
-	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
+	res, err := suspension.Interrupt(ctx,
 		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments),
 		pending,
 	)
@@ -279,11 +279,11 @@ func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) 
 	if process == nil {
 		return agentexec.ToolApprovalVerdict{}, false
 	}
-	suspension := process.Suspension()
-	if suspension == nil || !suspension.Responded() {
+	parked := process.Suspension()
+	if parked == nil || !parked.Responded() {
 		return agentexec.ToolApprovalVerdict{}, false
 	}
-	pending, err := runs.DecodeInterrupt(suspension.Prompt)
+	pending, err := suspension.DecodePrompt(parked.Prompt)
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{
 			Interrupt: fmt.Errorf("turn: decode responded tool interrupt: %w", err),
@@ -304,15 +304,15 @@ func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) 
 				Interrupt: fmt.Errorf("turn: validate restored approval tool %q arguments: %w", toolName, err),
 			}, true
 		}
-		var resolution interrupts.Resolution
-		if err := json.Unmarshal(suspension.Response, &resolution); err != nil {
+		resolution, err := suspension.DecodeResolution(parked.Response)
+		if err != nil {
 			return agentexec.ToolApprovalVerdict{
 				Interrupt: fmt.Errorf("turn: decode approval resolution: %w", err),
 			}, true
 		}
 		if resolution.RememberScope != "" && t.dispatcher.approval != nil {
 			if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
-				Scope:      approval.Scope(resolution.RememberScope),
+				Scope:      resolution.RememberScope,
 				SessionID:  t.st.handle.SessionID,
 				ProjectDir: t.st.cwd,
 				Tool:       toolName,

@@ -2,13 +2,13 @@ package turn
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
@@ -125,12 +125,12 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 				SafetyClass: tool.SafetyClassExec,
 			},
 		}
-		prompt, err := json.Marshal(pending)
+		prompt, err := suspension.EncodePrompt(pending)
 		if err != nil {
 			t.Fatal(err)
 		}
-		response, err := json.Marshal(interrupts.Resolution{
-			Approved: true, RememberScope: string(approval.ScopeSession),
+		response, err := suspension.EncodeResolution(interrupts.Resolution{
+			Approved: true, RememberScope: approval.ScopeSession,
 		})
 		if err != nil {
 			t.Fatal(err)

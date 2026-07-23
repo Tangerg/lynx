@@ -17,12 +17,18 @@ type CwdResolver interface {
 
 // List returns every user-facing session, newest-updated first.
 func (c *Coordinator) List(ctx context.Context) ([]session.Session, error) {
-	return c.s.Session().List(ctx)
+	if c.sessions == nil {
+		return nil, errors.New("sessions: session store is unavailable")
+	}
+	return c.sessions.List(ctx)
 }
 
 // Get returns one saved session by id.
 func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, error) {
-	return c.s.Session().Get(ctx, id)
+	if c.sessions == nil {
+		return session.Session{}, errors.New("sessions: session store is unavailable")
+	}
+	return c.sessions.Get(ctx, id)
 }
 
 // InspectWorkspace resolves the live filesystem projection of an admitted cwd.
@@ -42,14 +48,20 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 	if err != nil {
 		return session.Session{}, err
 	}
-	return c.s.Session().Create(ctx, title, cwd)
+	if c.sessions == nil {
+		return session.Session{}, errors.New("sessions: session store is unavailable")
+	}
+	return c.sessions.Create(ctx, title, cwd)
 }
 
 // SetModel records the model explicitly selected for a run. It is the narrow
 // mutation consumed by application/runs; callers that need the full editable
 // session surface use Update.
 func (c *Coordinator) SetModel(ctx context.Context, id, model string) error {
-	_, err := c.s.Session().Patch(ctx, id, session.Patch{Model: &model})
+	if c.sessions == nil {
+		return errors.New("sessions: session store is unavailable")
+	}
+	_, err := c.sessions.Patch(ctx, id, session.Patch{Model: &model})
 	return err
 }
 
@@ -75,7 +87,10 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 		defer admission.Release()
 	}
 
-	return c.s.Session().Patch(ctx, id, patch)
+	if c.sessions == nil {
+		return session.Session{}, errors.New("sessions: session store is unavailable")
+	}
+	return c.sessions.Patch(ctx, id, patch)
 }
 
 // resolveSessionCwd canonicalizes cwd and requires it to be an existing

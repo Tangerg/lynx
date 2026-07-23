@@ -14,7 +14,7 @@ import (
 
 // turnState holds the per-turn bookkeeping the implementation needs:
 // the event channel subscribers read from, the cancel func that fires
-// when [Dispatcher.Cancel] is called, and a monotone sequence number stamped
+// when Cancel is called, and a monotone sequence number stamped
 // onto every emitted event.
 //
 // The turn owns its own synchronization: mu guards the cross-goroutine
@@ -54,7 +54,7 @@ type turnState struct {
 	// StartTurn caller's cancellation yet KEEPS the entry trace span, then
 	// wrapped with the turn span so the engine's LLM / tool / agent spans
 	// nest under one trace (full-link). It bounds the run, the resume
-	// continuation, and post-turn maintenance; canceled by [Dispatcher.Cancel].
+	// continuation, and post-turn maintenance; canceled by Cancel.
 	// Set once at the entry point (StartTurn / Rehydrate).
 	ctx context.Context
 
@@ -95,7 +95,7 @@ type turnState struct {
 	mu sync.Mutex
 
 	// agentProcess is the process backing this turn, set once setProcess dispatches
-	// it. [Dispatcher.Cancel] / [Dispatcher.Resume] / [Dispatcher.ProcessID] read it
+	// it. Cancel, Resume, and ProcessID read it
 	// via process() from other goroutines.
 	agentProcess agentexec.TurnProcess
 
@@ -108,13 +108,13 @@ type turnState struct {
 	activated    bool
 
 	// parked is true while the turn is suspended on a HITL interrupt
-	// (StatusWaiting) awaiting [Dispatcher.Resume]. A parked turn stays
+	// (StatusWaiting) awaiting Resume. A parked turn stays
 	// registered (events channel open) until claimPark drives it to a
 	// terminal state.
 	parked bool
 
 	// steering is the queue of mid-turn user messages injected via
-	// [Dispatcher.InjectSteering]. The runtime flushes it to the chat history
+	// InjectSteering. The runtime flushes it to the chat history
 	// store after the turn ends so the messages land in conversation
 	// history for the next turn.
 	steering []string
@@ -185,7 +185,7 @@ func (st *turnState) cancelPrepared() bool {
 // newTurnState builds a fresh per-turn state. Its lifetime ctx derives from the
 // entry ctx via context.WithoutCancel: the caller's ctx ending (e.g. the
 // StartTurn RPC returning) doesn't kill the in-flight turn; only
-// [Dispatcher.Cancel] (st.cancel) does; yet the entry trace span is preserved,
+// Cancel (st.cancel) does; yet the entry trace span is preserved,
 // so the engine's spans chain onto the same trace. The turn span is layered on
 // in StartTurn / Rehydrate. Shared by both entry points so they produce an
 // identically-initialized turn.
@@ -325,7 +325,7 @@ func (st *turnState) parkIfLive() bool {
 }
 
 // claimPark atomically tests-and-clears the parked flag, reporting whether
-// THIS caller claimed the suspended turn. [Dispatcher.Resume] and [Dispatcher.Cancel]
+// THIS caller claimed the suspended turn. Resume and Cancel
 // both race to act on a parked turn; whoever flips the flag false wins and owns
 // driving it to a terminal state, so the loser is a no-op. Returns false for a
 // turn that isn't parked (never suspended, or already claimed).

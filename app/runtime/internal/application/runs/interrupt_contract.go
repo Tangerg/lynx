@@ -1,11 +1,8 @@
 package runs
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"unicode/utf8"
 
@@ -27,43 +24,44 @@ const (
 // continuation (including one restored after restart) can resume without
 // running the hook or policy decision a second time.
 type ApprovalPrompt struct {
-	CallID      string           `json:"callId,omitempty"`
-	ToolName    string           `json:"toolName"`
-	Arguments   string           `json:"arguments"`
-	SafetyClass tool.SafetyClass `json:"safetyClass"`
-	Risk        tool.RiskLevel   `json:"risk,omitempty"`
-	Reason      string           `json:"reason,omitempty"`
+	CallID      string
+	ToolName    string
+	Arguments   string
+	SafetyClass tool.SafetyClass
+	Risk        tool.RiskLevel
+	Reason      string
 }
 
 // QuestionPrompt is the complete durable plan for a question-producing tool
 // call. ToolName and Arguments preserve the logical call that owns the
 // question; Questions are the client-facing answer schema.
 type QuestionPrompt struct {
-	ToolName  string         `json:"toolName"`
-	Arguments string         `json:"arguments"`
-	Questions []QuestionSpec `json:"questions"`
+	ToolName  string
+	Arguments string
+	Questions []QuestionSpec
 }
 
 // QuestionSpec is one required answer field. An empty Options slice means
 // free-text; otherwise 2-4 unique options are accepted.
 type QuestionSpec struct {
-	Question    string               `json:"question"`
-	Header      string               `json:"header,omitempty"`
-	Options     []QuestionOptionSpec `json:"options,omitempty"`
-	MultiSelect bool                 `json:"multiSelect,omitempty"`
+	Question    string
+	Header      string
+	Options     []QuestionOptionSpec
+	MultiSelect bool
 }
 
 type QuestionOptionSpec struct {
-	Label       string `json:"label"`
-	Description string `json:"description,omitempty"`
+	Label       string
+	Description string
 }
 
-// Interrupt is the only JSON payload allowed in a runtime Suspension prompt.
-// Exactly one payload must be present and must match Kind.
+// Interrupt is the durable application plan for a runtime suspension. Exactly
+// one payload must be present and must match Kind. Agent-process JSON encoding
+// belongs to the adapter boundary.
 type Interrupt struct {
-	Kind     InterruptKind   `json:"kind"`
-	Approval *ApprovalPrompt `json:"approval,omitempty"`
-	Question *QuestionPrompt `json:"question,omitempty"`
+	Kind     InterruptKind
+	Approval *ApprovalPrompt
+	Question *QuestionPrompt
 }
 
 // Tool returns the logical tool call that owns this interrupt.
@@ -173,25 +171,4 @@ func validateArguments(arguments string) error {
 	}
 	_, err := tool.ParseArguments(arguments)
 	return err
-}
-
-// DecodeInterrupt performs the adapter-boundary decode exactly once. It
-// rejects unknown fields, trailing JSON and every malformed union shape.
-func DecodeInterrupt(raw []byte) (Interrupt, error) {
-	var interrupt Interrupt
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&interrupt); err != nil {
-		return Interrupt{}, fmt.Errorf("runs: decode interrupt: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return Interrupt{}, errors.New("runs: decode interrupt: trailing JSON")
-		}
-		return Interrupt{}, fmt.Errorf("runs: decode interrupt: %w", err)
-	}
-	if err := interrupt.Validate(); err != nil {
-		return Interrupt{}, err
-	}
-	return interrupt, nil
 }

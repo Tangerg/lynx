@@ -17,18 +17,9 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-// sessionForgetter releases the turn dispatcher's process-local state for a
-// session being removed (the SessionStart gate). The turn dispatcher
-// satisfies it; the sessions coordinator's Stores surface calls it after a
-// delete/purge cascade commits.
-type sessionForgetter interface {
-	ForgetSession(sessionID string)
-}
-
 // sessionStores is the composition root's adapter from the assembled durable
-// stores to the sessions coordinator's [sessions.Stores] surface. Besides the
-// session-scoped read stores and the resume gate, it OWNS the atomic durable
-// write-sets ([sessions.WriteSets]): each applies its whole multi-store mutation
+// stores to the session lifecycle's durable read and write ports. It owns the
+// atomic durable write-sets ([sessions.WriteSets]): each applies its whole multi-store mutation
 // in one transaction here, so the coordinator commits an atomic decision (roll
 // back / restore / delete / cancel) rather than stitching a transaction across
 // table-CRUD calls (§8.1/§8.4).
@@ -43,7 +34,6 @@ type sessionStores struct {
 	approvals   approval.RuleStore
 	toolResults *sqlitestore.ToolResultStore
 	goals       goal.Store
-	forgetter   sessionForgetter
 	tx          Transactor
 }
 
@@ -80,8 +70,6 @@ func (s sessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sess
 	})
 	return snapshot, err
 }
-
-func (s sessionStores) ForgetSession(sessionID string) { s.forgetter.ForgetSession(sessionID) }
 
 // runInTx runs fn inside the required storage transaction. The Apply* write-sets
 // below drive it; it is the one transactional seam left, behind atomic ports

@@ -31,13 +31,19 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 	var pending []interrupts.Pending
 	if err := c.withGoalMutation(ctx, sessionIDs, func(ctx context.Context) error {
 		for _, id := range sessionIDs {
-			open, err := c.s.Interrupts().List(ctx, id)
+			if c.interrupts == nil {
+				return errors.New("sessions: interrupt store is unavailable")
+			}
+			open, err := c.interrupts.List(ctx, id)
 			if err != nil {
 				return err
 			}
 			pending = append(pending, open...)
 		}
-		return c.s.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
+		if c.writes == nil {
+			return errors.New("sessions: write sets are unavailable")
+		}
+		return c.writes.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
 	}); err != nil {
 		return err
 	}
@@ -52,7 +58,9 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 		}
 	}
 	for _, id := range sessionIDs {
-		c.s.ForgetSession(id)
+		if c.forgetter != nil {
+			c.forgetter.ForgetSession(id)
+		}
 		if c.checkpoints != nil {
 			if err := c.checkpoints.DropSession(id); err != nil {
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for deleted session %q: %w", id, err))
@@ -78,7 +86,10 @@ func (c *Coordinator) claimDeleteTree(ctx context.Context, sessionID string) ([]
 
 	var visit func(string, bool) error
 	visit = func(parentID string, ownedSubtree bool) error {
-		children, err := c.s.Session().Children(ctx, parentID)
+		if c.sessions == nil {
+			return errors.New("sessions: session store is unavailable")
+		}
+		children, err := c.sessions.Children(ctx, parentID)
 		if err != nil {
 			return err
 		}
@@ -180,7 +191,10 @@ func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) err
 	}
 	snapshot.Session.Cwd = cwd
 	if err := c.withGoalMutation(ctx, []string{snapshot.Session.ID}, func(ctx context.Context) error {
-		return c.s.ApplyRestore(ctx, snapshot)
+		if c.writes == nil {
+			return errors.New("sessions: write sets are unavailable")
+		}
+		return c.writes.ApplyRestore(ctx, snapshot)
 	}); err != nil {
 		return err
 	}
@@ -200,7 +214,10 @@ func (c *Coordinator) RestoreSession(ctx context.Context, snapshot Snapshot) err
 // independent conversations; only KindSubtask roots are attributed to runs.
 // IDs are post-order so descendants are deleted before their parent.
 func (c *Coordinator) subtaskSessionsAfter(ctx context.Context, parentID string, boundary time.Time) ([]string, error) {
-	children, err := c.s.Session().Children(ctx, parentID)
+	if c.sessions == nil {
+		return nil, errors.New("sessions: session store is unavailable")
+	}
+	children, err := c.sessions.Children(ctx, parentID)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +242,10 @@ func (c *Coordinator) appendSessionSubtree(ctx context.Context, sessionID string
 		return fmt.Errorf("sessions: rollback tree contains duplicate or cyclic session %q", sessionID)
 	}
 	seen[sessionID] = struct{}{}
-	children, err := c.s.Session().Children(ctx, sessionID)
+	if c.sessions == nil {
+		return errors.New("sessions: session store is unavailable")
+	}
+	children, err := c.sessions.Children(ctx, sessionID)
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,10 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	// The partial unique index guarantees at most one non-terminal row per session.
 	sessionIDs := append([]string{sessionID}, dropSessionIDs...)
 	if err := c.withGoalMutation(ctx, sessionIDs, func(ctx context.Context) error {
-		return c.s.ApplyRollback(ctx, RollbackPlan{
+		if c.writes == nil {
+			return errors.New("sessions: write sets are unavailable")
+		}
+		return c.writes.ApplyRollback(ctx, RollbackPlan{
 			SessionID:      sessionID,
 			RunID:          parkedRunID(parked),
 			KeepMark:       boundary.KeepMark,
@@ -56,7 +59,9 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 		}
 	}
 	for _, id := range dropSessionIDs {
-		c.s.ForgetSession(id)
+		if c.forgetter != nil {
+			c.forgetter.ForgetSession(id)
+		}
 		if c.checkpoints != nil {
 			if err := c.checkpoints.DropSession(id); err != nil {
 				cleanupErrs = append(cleanupErrs, fmt.Errorf("sessions: drop checkpoints for rolled-back subtask session %q: %w", id, err))
@@ -91,7 +96,10 @@ func parkedRunID(parked []RunTurnBinding) string {
 func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []string) ([]RunTurnBinding, error) {
 	var out []RunTurnBinding
 	for _, sessionID := range sessionIDs {
-		pending, err := c.s.Interrupts().List(ctx, sessionID)
+		if c.interrupts == nil {
+			return nil, errors.New("sessions: interrupt store is unavailable")
+		}
+		pending, err := c.interrupts.List(ctx, sessionID)
 		if err != nil {
 			return nil, err
 		}

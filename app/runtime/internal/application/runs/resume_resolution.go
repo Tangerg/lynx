@@ -76,9 +76,7 @@ func resolveApprovalResponse(_ transcript.Interrupt, response ResumeResponse) (i
 		return interrupts.Resolution{}, errors.New("approval response is required")
 	}
 	approval := response.Approval
-	switch approval.RememberScope {
-	case "", "session", "project", "global":
-	default:
+	if approval.RememberScope != "" && !approval.RememberScope.Valid() {
 		return interrupts.Resolution{}, fmt.Errorf("unknown remember scope %q", approval.RememberScope)
 	}
 	if approval.Arguments != "" {

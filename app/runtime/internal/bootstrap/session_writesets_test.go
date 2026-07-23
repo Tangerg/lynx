@@ -24,10 +24,6 @@ import (
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-type noopForgetter struct{}
-
-func (noopForgetter) ForgetSession(string) {}
-
 func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 	started := time.Date(2026, time.July, 16, 8, 0, 0, 0, time.UTC)
 	return core.ProcessSnapshot{
@@ -80,7 +76,6 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 		todos:      todos,
 		approvals:  approvals,
 		goals:      sqlite.NewGoalStore(db),
-		forgetter:  noopForgetter{},
 		tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},

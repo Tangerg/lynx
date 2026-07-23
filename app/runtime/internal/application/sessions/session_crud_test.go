@@ -69,21 +69,21 @@ type crudStores struct {
 }
 
 func (s *crudStores) Session() SessionStore                                { return s.session }
-func (*crudStores) Interrupts() InterruptStore                             { panic("unused") }
+func (*crudStores) Interrupts() InterruptStore                             { return nil }
 func (*crudStores) Transcript() TranscriptStore                            { return emptyTranscript{} }
-func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
+func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error) { return Snapshot{}, nil }
 func (*crudStores) ForgetSession(string)                                   {}
 func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
-	panic("unused")
+	return session.Session{}, nil
 }
-func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { panic("unused") }
-func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { panic("unused") }
-func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { panic("unused") }
-func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { panic("unused") }
+func (*crudStores) ApplyRollback(context.Context, RollbackPlan) error { return nil }
+func (*crudStores) ApplyRestore(context.Context, RestorePlan) error   { return nil }
+func (*crudStores) ApplyDelete(context.Context, DeletePlan) error     { return nil }
+func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { return nil }
 
 func newCRUDCoordinator(store *crudSessionStore) (*Coordinator, *crudStores) {
 	stores := &crudStores{session: store}
-	return New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}}), stores
+	return New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}})), stores
 }
 
 func TestCoordinatorSessionCRUD(t *testing.T) {
@@ -121,7 +121,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)
 	stores := &crudStores{session: store}
-	c := New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}, Admissions: claims})
+	c := New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}, Admissions: claims}))
 	ctx := context.Background()
 
 	title := "  Renamed  "
@@ -162,7 +162,7 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 	stores := &crudStores{session: store}
-	c := New(Dependencies{Stores: stores, Paths: workspacepath.Resolver{}, Admissions: claims})
+	c := New(testDependencies(stores, Dependencies{Paths: workspacepath.Resolver{}, Admissions: claims}))
 	cwd := t.TempDir()
 
 	_, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &cwd})

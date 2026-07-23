@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
@@ -36,7 +35,7 @@ func buildToolEnvironment(
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           ecfg.Todos,
 		Approval:        approvalPolicy,
-		Interrupt:       hitl.Interrupt[interrupts.Resolution],
+		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.toolDisabled,
 		CodebaseIndex:   codebaseIdx,
 		// propose_skill writes to the global skills dir; an empty dir yields a

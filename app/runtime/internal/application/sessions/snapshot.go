@@ -19,7 +19,10 @@ func (c *Coordinator) ReadSnapshot(ctx context.Context, sessionID string) (Snaps
 		return Snapshot{}, err
 	}
 	defer admission.Release()
-	snapshot, err := c.s.ReadSnapshot(ctx, sessionID)
+	if c.snapshots == nil {
+		return Snapshot{}, errors.New("sessions: snapshot reader is unavailable")
+	}
+	snapshot, err := c.snapshots.ReadSnapshot(ctx, sessionID)
 	if err != nil {
 		return Snapshot{}, err
 	}

@@ -1,6 +1,10 @@
 package interrupts
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+)
 
 // Resolution is the human's structured answer to a HITL interrupt — the payload
 // runs.resume delivers back into the parked tool call (tool approval, plan
@@ -8,17 +12,15 @@ import "strconv"
 // participant — engine, turn loop, protocol adapter, ask_user tool — shares one
 // vocabulary without importing each other.
 type Resolution struct {
-	Approved  bool                `json:"approved"`
-	Arguments string              `json:"arguments,omitempty"`
-	Answer    map[string][]string `json:"answer,omitempty"`
-	Reason    string              `json:"reason,omitempty"`
+	Approved  bool
+	Arguments string
+	Answer    map[string][]string
+	Reason    string
 	// RememberScope, when non-empty, asks the runtime to persist this
 	// approve/deny decision as a rule so matching future calls skip the prompt
-	// (AUX_API §6). The value is the wire scope — "session" | "project" |
-	// "global"; empty means "don't remember". A plain string (not the approval
-	// domain's Scope type) because this leaf must not import a sibling domain;
-	// the chat gate maps it across.
-	RememberScope string `json:"remember_scope,omitempty"`
+	// (AUX_API §6). Empty means "don't remember"; non-empty values use the
+	// approval domain's canonical rule scope.
+	RememberScope approval.Scope
 }
 
 // QuestionFieldName is the stable wire field name for the i-th question, shared

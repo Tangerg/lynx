@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -195,11 +195,11 @@ func interruptKind(suspension *agent.Suspension) string {
 	return string(pending.Kind)
 }
 
-func typedInterrupt(suspension *agent.Suspension) (Interrupt, bool) {
-	if suspension == nil {
+func typedInterrupt(parked *agent.Suspension) (Interrupt, bool) {
+	if parked == nil {
 		return Interrupt{}, false
 	}
-	pending, err := runs.DecodeInterrupt(suspension.Prompt)
+	pending, err := suspension.DecodePrompt(parked.Prompt)
 	if err != nil {
 		return Interrupt{}, false
 	}

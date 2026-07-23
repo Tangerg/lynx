@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -82,7 +83,7 @@ func (o optionArg) toInterrupt() runs.QuestionOptionSpec {
 
 type tool struct {
 	approval  approval.Policy
-	interrupt interrupts.Func
+	interrupt suspension.Func
 }
 
 // New builds the exit_plan_mode tool over the approval policy (it flips the
@@ -90,9 +91,9 @@ type tool struct {
 //
 // The toolset composes the interrupt suspension contract from the composition
 // root.
-func New(appr approval.Policy, interrupt interrupts.Func) (tools.Tool, error) {
+func New(appr approval.Policy, interrupt suspension.Func) (tools.Tool, error) {
 	if interrupt == nil {
-		interrupt = interrupts.Unavailable
+		interrupt = suspension.Unavailable
 	}
 	if appr == nil {
 		return nil, nil

@@ -10,15 +10,17 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // newHistoryStore re-exports history.NewInMemoryStore under a
@@ -182,9 +184,15 @@ type hitlApprovalObserver struct {
 }
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string, _ ToolApprovalTarget) ToolApprovalVerdict {
-	res, err := hitl.Interrupt[interrupts.Resolution](ctx,
+	pending := runs.Interrupt{
+		Kind: runs.ApprovalInterruptKind,
+		Approval: &runs.ApprovalPrompt{
+			ToolName: toolName, Arguments: arguments, SafetyClass: tool.SafetyClassExec,
+		},
+	}
+	res, err := suspension.Interrupt(ctx,
 		interrupts.InterruptKey("kernel-test.approval", toolName, arguments),
-		map[string]string{"tool": toolName, "arguments": arguments},
+		pending,
 	)
 	if err != nil {
 		return ToolApprovalVerdict{Interrupt: err}

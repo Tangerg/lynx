@@ -57,7 +57,7 @@ func (s *memoryDispatcher) firstTurnForSession(sessionID string) bool {
 
 // ForgetSession drops sessionID's SessionStart fire-once marker on session
 // delete, so the gate set doesn't leak one entry per session over the process
-// lifetime. See [Dispatcher.ForgetSession].
+// lifetime. See ForgetSession.
 func (s *memoryDispatcher) ForgetSession(sessionID string) {
 	s.mu.Lock()
 	delete(s.seenSessions, sessionID)

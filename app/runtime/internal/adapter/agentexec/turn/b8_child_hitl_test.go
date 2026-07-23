@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -567,18 +567,16 @@ func buildB8Dispatcher(
 	model chat.Model,
 	policy approval.Policy,
 	hookResolver staticHookResolver,
-) turn.Dispatcher {
+) turnDriver {
 	t.Helper()
 	client, err := chatclient.New(model)
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
-		Workdir:  t.TempDir(),
-		Approval: policy,
-		Interrupt: func(ctx context.Context, key string, prompt any) (interrupts.Resolution, error) {
-			return hitl.Interrupt[interrupts.Resolution](ctx, key, prompt)
-		},
+		Workdir:   t.TempDir(),
+		Approval:  policy,
+		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -609,18 +607,16 @@ func buildB8PersistentDispatcher(
 	store core.ProcessStore,
 	historyStore history.Store,
 	buildID string,
-) turn.Dispatcher {
+) turnDriver {
 	t.Helper()
 	client, err := chatclient.New(model)
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
-		Workdir:  t.TempDir(),
-		Approval: policy,
-		Interrupt: func(ctx context.Context, key string, prompt any) (interrupts.Resolution, error) {
-			return hitl.Interrupt[interrupts.Resolution](ctx, key, prompt)
-		},
+		Workdir:   t.TempDir(),
+		Approval:  policy,
+		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)

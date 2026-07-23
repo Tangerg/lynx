@@ -127,8 +127,8 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		if tracked {
 			// A parked run keeps its live turn alive for resume — only cancel +
 			// forget on a true terminal.
-			if !parked && entry.Payload != nil {
-				entry.Payload.stop()
+			if !parked && entry.handle != nil {
+				entry.handle.stop()
 			}
 		}
 		// Maintenance may only observe a boundary the store actually committed.

@@ -58,20 +58,11 @@ func (*blockingRunRuntime) Activate(context.Context, runs.TurnRef) error { retur
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{
-		Stores:   blockingRunStores{},
-		RunState: stubRunState{},
-		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
+		Transcript: blockingTranscript{},
+		RunState:   stubRunState{},
+		Tx:         func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 	})
 }
-
-type blockingRunStores struct{}
-
-func (blockingRunStores) Interrupts() runsegment.InterruptStore                 { return nil }
-func (blockingRunStores) Session() runsegment.SessionStore                      { return nil }
-func (blockingRunStores) Transcript() runsegment.TranscriptStore                { return blockingTranscript{} }
-func (blockingRunStores) ToolResults() runsegment.ToolResultStore               { return nil }
-func (blockingRunStores) MessageCount(context.Context, string) (int, error)     { return 0, nil }
-func (blockingRunStores) GenerateTitle(context.Context, string) (string, error) { return "", nil }
 
 type blockingTranscript struct{}
 

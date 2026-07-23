@@ -13,9 +13,27 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-func buildDispatcher(t *testing.T) (turn.Dispatcher, *agentexec.Engine) {
+// turnDriver is the external-package test's view of a constructed dispatcher.
+// Production consumers each use smaller ports; these integration tests exercise
+// the complete turn lifecycle.
+type turnDriver interface {
+	StartTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
+	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
+	ActivateTurn(context.Context, turn.TurnHandle) error
+	Events(context.Context, turn.TurnHandle) (iter.Seq[turn.Event], error)
+	InjectSteering(context.Context, turn.TurnHandle, string) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
+	ProcessID(context.Context, turn.TurnHandle) (string, error)
+	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+	Cancel(context.Context, turn.TurnHandle) error
+	Close() error
+	ForgetSession(string)
+}
+
+func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {
 	t.Helper()
 
 	model := newStubChatModel()
@@ -202,7 +220,7 @@ func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) i
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
 
-func mustTurn(dispatcher turn.Dispatcher, err error) turn.Dispatcher {
+func mustTurn(dispatcher turnDriver, err error) turnDriver {
 	if err != nil {
 		panic(err)
 	}

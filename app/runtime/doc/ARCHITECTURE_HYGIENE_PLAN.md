@@ -121,7 +121,7 @@ Acceptance:
 
 ### Batch 4 — Abstraction and boundary cleanup
 
-Status: **pending**
+Status: **Completed**
 
 Scope:
 
@@ -164,7 +164,7 @@ Acceptance:
 | 1. Run boundary semantics | Completed | 2026-07-22 | 2026-07-22 | `go test -race ./internal/application/runs ./internal/application/goals`; `go vet` for both packages; `go test ./internal/arch`. |
 | 2. Application collaboration ownership | Completed | 2026-07-22 | 2026-07-23 | `go test -race` for admission, runs, sessions, schedules, delivery/server, bootstrap; focused `go vet`; `go test ./internal/arch`. |
 | 3. Model/provider policy ownership | Completed | 2026-07-23 | 2026-07-23 | `go test -race ./internal/application/models ./internal/delivery/server ./internal/bootstrap`; `go vet ./...`; `go test ./...`; `go test ./internal/arch`. |
-| 4. Abstraction and boundary cleanup | Pending | — | — | — |
+| 4. Abstraction and boundary cleanup | Completed | 2026-07-23 | 2026-07-23 | Full build, vet, test, focused race suites, and architecture tests passed after dispatcher, registry, HITL, and suspension cleanup. |
 | 5. Fitness tests and final verification | Pending | — | — | — |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
@@ -217,6 +217,22 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Delivery maps application values and typed policy errors only; it no longer
   imports the static model catalog. Focused race plus full build, vet, test, and
   architecture checks passed.
+
+### 2026-07-23 — Batch 4 started
+
+- Began auditing producer-owned dispatcher interfaces, single-use generics,
+  dependency accessor bags, and wire-shaped HITL/suspension values.
+
+### 2026-07-23 — Batch 4 completed
+
+- Turn construction now returns a concrete dispatcher; each consumer owns a narrow
+  local port. The Run registry and event journal are concrete over their only
+  production payloads, and dependency accessor bags were replaced by named ports
+  or the cohesive session write-set phase port.
+- Approval remembrance uses the canonical `approval.Scope` vocabulary end to end.
+  Agent suspension prompt and resolution JSON codecs now live in the agent adapter,
+  leaving Domain and Application values typed and wire-free.
+- Full build, vet, test, focused race suites, and architecture tests passed.
 
 ## 8. Completion definition
 

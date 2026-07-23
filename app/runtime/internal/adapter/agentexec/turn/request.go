@@ -23,7 +23,7 @@ var ErrInvalidTurnLimit = errors.New("turn: invalid limit")
 // ErrInvalidTurnOptions reports malformed per-run generation tuning.
 var ErrInvalidTurnOptions = errors.New("turn: invalid options")
 
-// StartTurnRequest is the input to [Dispatcher.StartTurn]. SessionID
+// StartTurnRequest is the input to StartTurn. SessionID
 // binds the turn to its conversation; Message is the user's input.
 type StartTurnRequest struct {
 	SessionID string
@@ -143,7 +143,7 @@ func validateOptions(options *corechat.Options) error {
 }
 
 // TurnHandle uniquely identifies an in-flight turn. Returned by
-// [Dispatcher.StartTurn] and used to address subsequent operations
+// StartTurn and used to address subsequent operations
 // (steering injection, cancellation).
 type TurnHandle struct {
 	SessionID string

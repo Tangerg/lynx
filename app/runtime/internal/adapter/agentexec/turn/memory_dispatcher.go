@@ -16,7 +16,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/chatclient"
 )
+
+// clientResolver resolves a per-turn chat client for an explicit
+// (provider, model). It is turn's own narrow dependency on the runtime model
+// registry; an unavailable provider or model is reported as an error.
+type clientResolver interface {
+	ResolveClient(ctx context.Context, provider, model string) (*chatclient.Client, error)
+}
 
 // todoLister reads a session's current todo list — narrow consumer view of the
 // todo store (the turn only reads, never writes). The turn projects the list
@@ -36,7 +44,7 @@ type hookResolver interface {
 	For(ctx context.Context, cwd string) (*hooks.Bound, error)
 }
 
-// Dependencies names the collaborators needed by the in-process [Dispatcher].
+// Dependencies names the collaborators needed by the in-process dispatcher.
 // Engine is required; every other field is optional and has a nil-default
 // behavior documented on the field.
 type Dependencies struct {
@@ -80,12 +88,11 @@ type Dependencies struct {
 	Hooks hookResolver
 }
 
-// New returns the [Dispatcher] implementation. The implementation is
+// New builds the concrete in-process dispatcher. The dispatcher is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
 // The implementation is split across files by concern:
-//   - dispatcher.go     — Dispatcher interface + package entry points
 //   - request.go        — Start/Rehydrate request shapes + validation
 //   - event.go          — turn event model + terminal reason vocabulary
 //   - memory_dispatcher.go       — in-process dispatcher construction + shared state
@@ -103,9 +110,9 @@ type Dependencies struct {
 //   - lifecycle.go      — terminal-event capture from the agent runtime
 //   - observer.go       — engine tool-observer → turn.Event translation
 //
-// The Dispatcher interface is the consumer-side process-control boundary used
-// by the application adapters; delivery never drives it directly.
-func New(deps Dependencies) (Dispatcher, error) {
+// Consumers define the narrow control ports they need; delivery never drives
+// this adapter directly.
+func New(deps Dependencies) (*memoryDispatcher, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
 	}
@@ -126,7 +133,7 @@ func New(deps Dependencies) (Dispatcher, error) {
 	}, nil
 }
 
-// memoryDispatcher is the single-process [Dispatcher] implementation. It
+// memoryDispatcher is the single-process turn implementation. It
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type memoryDispatcher struct {

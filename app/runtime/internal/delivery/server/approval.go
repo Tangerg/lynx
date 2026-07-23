@@ -93,13 +93,16 @@ func approvalModeToWire(m approval.Mode) (protocol.ApprovalMode, bool) {
 
 // rememberScopeFromWire validates a wire remember scope; ok=false for an
 // unknown value (the caller raises invalid_params, like approvalModeFromWire).
-// The returned string is what the domain stores — identical to the wire kind,
-// so the boundary rejects garbage instead of letting it flow through to the
-// rule store (where an unkeyable scope would be silently dropped).
-func rememberScopeFromWire(s protocol.RememberScopeKind) (string, bool) {
+// The returned domain scope keeps the protocol vocabulary from leaking into
+// application commands while the boundary still rejects unknown wire values.
+func rememberScopeFromWire(s protocol.RememberScopeKind) (approval.Scope, bool) {
 	switch s {
-	case protocol.RememberSession, protocol.RememberProject, protocol.RememberGlobal:
-		return string(s), true
+	case protocol.RememberSession:
+		return approval.ScopeSession, true
+	case protocol.RememberProject:
+		return approval.ScopeProject, true
+	case protocol.RememberGlobal:
+		return approval.ScopeGlobal, true
 	}
 	return "", false
 }

@@ -58,8 +58,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1"}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
-	effects := New(Config{
-		Stores:   sqliteOpeningStores{interrupts: ints, transcript: history},
+	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
@@ -93,8 +92,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := ints.Put(ctx, interrupts.Pending{RunID: "run_1", SessionID: "ses_1"}); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
-	effects := New(Config{
-		Stores:   sqliteOpeningStores{interrupts: ints, transcript: history},
+	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
@@ -148,8 +146,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	}
 	question := &transcript.Question{Prompt: "Continue?"}
 	open := []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt, Question: question}}
-	effects := New(Config{
-		Stores:    sqliteOpeningStores{interrupts: ints, transcript: history},
+	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		Processes: fakeProcess{processID: "proc_1"},
 		RunState:  state,
 		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
@@ -184,6 +181,12 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 type sqliteOpeningStores struct {
 	interrupts *sqlite.InterruptStore
 	transcript *sqlite.TranscriptStore
+}
+
+func sqliteEffects(stores sqliteOpeningStores, cfg Config) *Effects {
+	cfg.Interrupts = stores.interrupts
+	cfg.Transcript = stores.transcript
+	return New(cfg)
 }
 
 func (s sqliteOpeningStores) Interrupts() InterruptStore                          { return s.interrupts }
