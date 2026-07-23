@@ -27,20 +27,20 @@ func TestBudgetExceeded(t *testing.T) {
 		name   string
 		budget Budget
 		used   Usage
-		axis   string
+		limit  BudgetLimit
 		want   bool
 	}{
-		{"unbounded", Budget{}, Usage{Turns: 100, CostUSD: 999, Steps: 999}, "", false},
-		{"under", Budget{MaxTurns: 5}, Usage{Turns: 4}, "", false},
-		{"turns", Budget{MaxTurns: 5}, Usage{Turns: 5}, "turn", true},
-		{"cost", Budget{MaxCostUSD: 1.0}, Usage{CostUSD: 1.0}, "cost", true},
-		{"steps", Budget{MaxSteps: 10}, Usage{Steps: 11}, "step", true},
+		{"unbounded", Budget{}, Usage{Turns: 100, CostUSD: 999, Steps: 999}, BudgetLimitNone, false},
+		{"under", Budget{MaxTurns: 5}, Usage{Turns: 4}, BudgetLimitNone, false},
+		{"turns", Budget{MaxTurns: 5}, Usage{Turns: 5}, BudgetLimitTurns, true},
+		{"cost", Budget{MaxCostUSD: 1.0}, Usage{CostUSD: 1.0}, BudgetLimitCost, true},
+		{"steps", Budget{MaxSteps: 10}, Usage{Steps: 11}, BudgetLimitSteps, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			axis, ok := tt.budget.Exceeded(tt.used)
-			if ok != tt.want || axis != tt.axis {
-				t.Fatalf("Exceeded = (%q, %v), want (%q, %v)", axis, ok, tt.axis, tt.want)
+			limit, ok := tt.budget.Exceeded(tt.used)
+			if ok != tt.want || limit != tt.limit {
+				t.Fatalf("Exceeded = (%v, %v), want (%v, %v)", limit, ok, tt.limit, tt.want)
 			}
 		})
 	}
@@ -56,16 +56,16 @@ func TestTransitions(t *testing.T) {
 		t.Fatalf("usage accumulation = %+v", g.Used)
 	}
 
-	g.Block("budget", now)
-	if g.Status != StatusBlocked || g.Reason != "budget" {
-		t.Fatalf("Block = (%q, %q)", g.Status, g.Reason)
+	g.Block(ReasonTurnBudgetReached, "", now)
+	if g.Status != StatusBlocked || g.Reason != (Reason{Cause: ReasonTurnBudgetReached}) {
+		t.Fatalf("Block = (%q, %+v)", g.Status, g.Reason)
 	}
 	g.Resume(now)
-	if g.Status != StatusActive || g.Reason != "" {
-		t.Fatalf("Resume = (%q, %q), want (active, \"\")", g.Status, g.Reason)
+	if g.Status != StatusActive || g.Reason != (Reason{}) {
+		t.Fatalf("Resume = (%q, %+v), want (active, zero reason)", g.Status, g.Reason)
 	}
-	g.Pause("user stop", now)
-	if g.Status != StatusPaused || g.Reason != "user stop" {
-		t.Fatalf("Pause = (%q, %q)", g.Status, g.Reason)
+	g.Pause(ReasonStoppedByUser, "", now)
+	if g.Status != StatusPaused || g.Reason != (Reason{Cause: ReasonStoppedByUser}) {
+		t.Fatalf("Pause = (%q, %+v)", g.Status, g.Reason)
 	}
 }

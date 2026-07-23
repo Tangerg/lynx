@@ -16,7 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/tools"
@@ -47,7 +47,7 @@ type Resolver struct {
 	a2a             []tools.Tool                                // working-directory-independent remote A2A agents
 	lsp             []tools.Tool                                // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
 	codeIntel       *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *editguard.Tracker                          // backs the read-before-edit + stale guards on read/edit/write
+	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            tools.Tool                                  // delegation tool; coding role only, nil until set
@@ -106,7 +106,7 @@ type Deps struct {
 	GoalUpdate      tools.Tool                                  // update_goal loop-signal tool (coding role only); nil → omitted
 	GoalActive      func(context.Context, string) (bool, error) // reports an active goal for the session; nil → update_goal never offered
 	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
-	ReadTracker     *editguard.Tracker                          // backs the read/edit/write guards
+	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
 	CodebaseIndex   CodebaseIndex                               // backs codebase_search (both roles); nil → omitted
 	DownloadAllow   httpreq.Allowlist                           // host allowlist gating/guarding download; empty → omitted
 

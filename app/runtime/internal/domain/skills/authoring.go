@@ -154,19 +154,28 @@ var dangerousSkillPattern = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bdd\b[^\n|]*\bof=/dev/`),
 }
 
-// Scan is a CONSERVATIVE static check over a proposed skill's content.
+// DraftSafetyIssue is the domain classification produced by a conservative
+// static scan. Presentation of an issue belongs to the adapter that rejects a
+// draft for its own consumer.
+type DraftSafetyIssue uint8
+
+const (
+	DraftSafe DraftSafetyIssue = iota
+	DraftDangerousInstruction
+)
+
+// SafetyIssue is a CONSERVATIVE static check over a proposed skill's content.
 // It is explicitly NOT a security boundary — a skill is prose the agent reads,
 // not code that runs, and the check is trivially evadable — it only refuses a
 // draft that spells out an obviously-catastrophic instruction (rm -rf of a
 // root/home path, --no-preserve-root, a fork bomb, curl|sh, a device wipe)
-// before it reaches the human promotion gate. Returns a reason + true when the
-// draft should be refused outright.
-func (d Draft) Scan() (reason string, dangerous bool) {
+// before it reaches the human promotion gate.
+func (d Draft) SafetyIssue() DraftSafetyIssue {
 	content := d.Name + "\n" + d.Description + "\n" + d.Body
 	for _, re := range dangerousSkillPattern {
 		if re.MatchString(content) {
-			return "the proposed skill contains an obviously-dangerous instruction (e.g. rm -rf of a root/home path, a fork bomb, or piping a remote script into a shell)", true
+			return DraftDangerousInstruction
 		}
 	}
-	return "", false
+	return DraftSafe
 }

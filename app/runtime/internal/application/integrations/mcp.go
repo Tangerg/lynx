@@ -280,7 +280,7 @@ func (c *Coordinator) mcpServerKnown(name string) bool {
 func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecting bool) {
 	if c.mcpStatus != nil {
 		if connecting {
-			c.mcpStatus(MCPServerStatus{Name: name, Known: true, State: MCPConnecting})
+			c.mcpStatus(MCPServerStatus{Name: name, Known: true, State: mcpserver.ConnectionConnecting})
 			return
 		}
 		c.mcpStatus(c.MCPServerStatus(ctx, name))
@@ -487,7 +487,7 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (
 		return MCPTestResult{}, ErrUnknownMCPServer
 	}
 	if err := c.mcpRegistryCommands.Probe(ctx, mcpserver.ConfigFromServer(srv)); err != nil {
-		return MCPTestResult{Problem: &MCPProblem{Type: "mcp_dial_failed", Detail: "MCP connection test failed."}}, nil
+		return MCPTestResult{}, nil
 	}
 	return MCPTestResult{OK: true}, nil
 }

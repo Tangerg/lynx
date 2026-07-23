@@ -53,6 +53,18 @@ type SessionExists interface {
 	Exists(ctx context.Context, sessionID string) (bool, error)
 }
 
+// PromptInput is the semantic context required to construct one autonomous
+// model turn. The model-facing instruction belongs to an execution adapter;
+// application/goals only declares when a first or continuing turn is needed.
+type PromptInput struct {
+	Objective  string
+	Continuing bool
+}
+
+// PromptBuilder renders an autonomous-turn instruction for the execution
+// adapter selected by the composition root.
+type PromptBuilder func(PromptInput) string
+
 // Driver owns the per-session autonomous loops. Each active goal has at most one
 // loop goroutine, spawned into a task group so shutdown cancels and joins them.
 //
@@ -67,6 +79,7 @@ type Driver struct {
 	tasks    *taskgroup.Group
 	now      func() time.Time
 	newLease func() string
+	prompt   PromptBuilder
 
 	mutations *SessionMutations
 }
@@ -75,9 +88,12 @@ type loopHandle struct{ cancel context.CancelFunc }
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
-func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations) *Driver {
+func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations, prompt PromptBuilder) *Driver {
 	if mutations == nil {
 		mutations = NewSessionMutations()
+	}
+	if prompt == nil {
+		panic("goals: prompt builder is required")
 	}
 	return &Driver{
 		goals:     store,
@@ -86,6 +102,7 @@ func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions Sessi
 		tasks:     &taskgroup.Group{},
 		now:       time.Now,
 		newLease:  uuid.NewString,
+		prompt:    prompt,
 		mutations: mutations,
 	}
 }
@@ -180,7 +197,7 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	}
 	expected := g.Version()
 	d.mutations.quiesce(sessionID)
-	g.Pause("stopped by the user", d.now())
+	g.Pause(goal.ReasonStoppedByUser, "", d.now())
 	g.RenewLease(d.newLease())
 	applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
@@ -234,7 +251,7 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 		switch g.Status {
 		case goal.StatusActive:
 			expected := g.Version()
-			g.Pause("the runtime restarted — resume to continue", d.now())
+			g.Pause(goal.ReasonRuntimeRestarted, "", d.now())
 			g.RenewLease(d.newLease())
 			if _, err := d.goals.Save(ctx, g, expected); err != nil {
 				return err

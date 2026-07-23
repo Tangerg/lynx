@@ -215,6 +215,7 @@ func (e *Extractor) currentMemory(ctx context.Context, project string) (string, 
 		if b.Len() > 0 {
 			b.WriteByte('\n')
 		}
+		b.WriteString("- ")
 		b.WriteString(item.Content)
 	}
 	return b.String(), nil

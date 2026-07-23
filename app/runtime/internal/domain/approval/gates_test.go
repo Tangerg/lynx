@@ -55,21 +55,3 @@ func TestGateFor_Matrix(t *testing.T) {
 		}
 	}
 }
-
-func TestRiskForPreservesSafetyMeaning(t *testing.T) {
-	for _, test := range []struct {
-		class tool.SafetyClass
-		risk  tool.RiskLevel
-	}{
-		{class: tool.SafetyClassSafe, risk: tool.RiskLow},
-		{class: tool.SafetyClassWrite, risk: tool.RiskMedium},
-		{class: tool.SafetyClassExec, risk: tool.RiskHigh},
-		{class: tool.SafetyClassNetwork, risk: tool.RiskHigh},
-		{class: "", risk: tool.RiskHigh},
-	} {
-		risk, reason := RiskFor(test.class)
-		if risk != test.risk || reason == "" {
-			t.Errorf("RiskFor(%q) = %q, %q; want %q and a reason", test.class, risk, reason, test.risk)
-		}
-	}
-}

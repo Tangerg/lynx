@@ -64,19 +64,62 @@ type Version struct {
 	Revision int64
 }
 
-// Exceeded reports the first budget axis u has reached, or ("", false) when the
-// goal is still within budget. Checked after each turn commits its usage.
-func (b Budget) Exceeded(u Usage) (axis string, exceeded bool) {
+// BudgetLimit identifies the cross-turn cap that stopped a goal.
+type BudgetLimit uint8
+
+const (
+	BudgetLimitNone BudgetLimit = iota
+	BudgetLimitTurns
+	BudgetLimitCost
+	BudgetLimitSteps
+)
+
+// Exceeded reports the first budget limit u has reached, or (BudgetLimitNone,
+// false) when the goal is still within budget. Checked after each turn commits
+// its usage.
+func (b Budget) Exceeded(u Usage) (limit BudgetLimit, exceeded bool) {
 	switch {
 	case b.MaxTurns > 0 && u.Turns >= b.MaxTurns:
-		return "turn", true
+		return BudgetLimitTurns, true
 	case b.MaxCostUSD > 0 && u.CostUSD >= b.MaxCostUSD:
-		return "cost", true
+		return BudgetLimitCost, true
 	case b.MaxSteps > 0 && u.Steps >= b.MaxSteps:
-		return "step", true
+		return BudgetLimitSteps, true
 	default:
-		return "", false
+		return BudgetLimitNone, false
 	}
+}
+
+// ReasonCause classifies why a paused or blocked goal stopped. It deliberately
+// carries no display text: delivery maps the stable cause to client wording,
+// while Detail carries only the raw model, run, or infrastructure value when
+// one exists.
+type ReasonCause uint8
+
+const (
+	ReasonNone ReasonCause = iota
+	ReasonStoppedByUser
+	ReasonRuntimeRestarted
+	ReasonRunStartFailed
+	ReasonAwaitingInput
+	ReasonTerminalOutcomeMissing
+	ReasonRunNotCompleted
+	ReasonTurnBudgetReached
+	ReasonCostBudgetReached
+	ReasonStepBudgetReached
+	ReasonBlockedByModel
+)
+
+// Valid reports whether c is a recognized stopping cause.
+func (c ReasonCause) Valid() bool {
+	return c >= ReasonNone && c <= ReasonBlockedByModel
+}
+
+// Reason is the typed stopping context stored with a paused or blocked goal.
+// Detail must stay raw: it is never a domain-authored presentation sentence.
+type Reason struct {
+	Cause  ReasonCause
+	Detail string
 }
 
 // Goal is one session's autonomous objective and loop state.
@@ -84,7 +127,7 @@ type Goal struct {
 	SessionID string
 	Objective string
 	Status    Status
-	Reason    string // why it is paused or blocked; empty while active
+	Reason    Reason // why it is paused or blocked; zero while active
 	Provider  string // model the loop runs each turn against
 	Model     string
 	Budget    Budget
@@ -138,31 +181,31 @@ func (g *Goal) AddTurn(costUSD float64, steps int, now time.Time) {
 // durable resting state (see [Status]).
 func (g *Goal) Complete(now time.Time) {
 	g.Status = StatusComplete
-	g.Reason = ""
+	g.Reason = Reason{}
 	g.UpdatedAt = now
 }
 
-// Pause stops the loop with a reason (user stop, restart degrade, a run that
-// parked for HITL, or a transient run error). A paused goal can be resumed.
-func (g *Goal) Pause(reason string, now time.Time) {
+// Pause stops the loop with a typed cause (user stop, restart degrade, a run
+// that parked for HITL, or a transient run error). A paused goal can be resumed.
+func (g *Goal) Pause(cause ReasonCause, detail string, now time.Time) {
 	g.Status = StatusPaused
-	g.Reason = reason
+	g.Reason = Reason{Cause: cause, Detail: detail}
 	g.UpdatedAt = now
 }
 
-// Block records a deadlock the user must resolve (budget spent, or the model
-// declared itself stuck). Like paused, it is resumable, but it signals the loop
-// stopped itself rather than the user stopping it.
-func (g *Goal) Block(reason string, now time.Time) {
+// Block records a typed deadlock the user must resolve (budget spent, or the
+// model declared itself stuck). Like paused, it is resumable, but it signals
+// the loop stopped itself rather than the user stopping it.
+func (g *Goal) Block(cause ReasonCause, detail string, now time.Time) {
 	g.Status = StatusBlocked
-	g.Reason = reason
+	g.Reason = Reason{Cause: cause, Detail: detail}
 	g.UpdatedAt = now
 }
 
 // Resume returns a paused or blocked goal to active so the driver drives it again.
 func (g *Goal) Resume(now time.Time) {
 	g.Status = StatusActive
-	g.Reason = ""
+	g.Reason = Reason{}
 	g.UpdatedAt = now
 }
 

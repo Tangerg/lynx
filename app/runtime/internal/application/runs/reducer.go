@@ -206,7 +206,7 @@ func (r *reducer) abort(err error) {
 		return
 	}
 	r.errMsg = err.Error()
-	r.errProblem = transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}
+	r.errProblem = transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
 }
 
 func (r *reducer) runProblem() *transcript.Problem {
@@ -214,7 +214,6 @@ func (r *reducer) runProblem() *transcript.Problem {
 	problem.Scope = transcript.RunProblem
 	if problem.Detail == "" {
 		problem.Kind = transcript.InternalProblem
-		problem.Detail = "the run failed due to an internal error"
 	}
 	return &problem
 }

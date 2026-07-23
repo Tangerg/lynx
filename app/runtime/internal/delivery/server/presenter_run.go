@@ -41,7 +41,21 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 			kind = protocol.OutcomeMaxSteps
 		}
 	}
-	return protocol.RunOutcome{Type: kind, Result: presentRunResult(run.Result), Detail: run.Detail}
+	return protocol.RunOutcome{Type: kind, Result: presentRunResult(run.Result), Detail: presentOutcomeDetail(kind, run.Detail)}
+}
+
+func presentOutcomeDetail(kind protocol.RunOutcomeType, detail string) string {
+	if detail != "" {
+		return detail
+	}
+	switch kind {
+	case protocol.OutcomeMaxBudget:
+		return "reached the configured budget"
+	case protocol.OutcomeMaxSteps:
+		return "reached the configured step limit"
+	default:
+		return ""
+	}
 }
 
 func presentRunResult(result *transcript.RunResult) *protocol.RunResult {
@@ -115,8 +129,26 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 		scope = protocol.ErrorChannelTool
 	}
 	return &protocol.ProblemData{
-		Type: kind, Channel: scope, Detail: problem.Detail, DocURL: problem.DocURL,
+		Type: kind, Channel: scope, Detail: presentProblemDetail(problem), DocURL: problem.DocURL,
 		Retryable: problem.Retryable, RetryAfterSeconds: problem.RetryAfterSeconds,
+	}
+}
+
+func presentProblemDetail(problem *transcript.Problem) string {
+	if problem.Detail != "" {
+		return problem.Detail
+	}
+	switch problem.Kind {
+	case transcript.RunLostProblem:
+		return "run process state is unavailable"
+	case transcript.DeniedByUserProblem:
+		return "tool call denied by user"
+	case transcript.ToolFailedProblem:
+		return "tool execution did not complete"
+	case transcript.InternalProblem:
+		return "the run failed due to an internal error"
+	default:
+		return ""
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -507,7 +506,7 @@ type AgentDoc struct {
 
 // AgentDocFinder discovers the workspace instruction-document cascade.
 type AgentDocFinder interface {
-	DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]agentdoc.File, error)
+	DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]AgentDocFile, error)
 }
 
 // ListAgentDocs returns the instruction-document cascade for one workspace.

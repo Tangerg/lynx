@@ -9,7 +9,7 @@ import (
 
 	sdk "github.com/Tangerg/lynx/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 const projectSkillsSubdir = ".lyra/skills"
@@ -59,9 +59,9 @@ func MergeSkillSource(projectDir, globalDir string, decorateGlobal func(sdk.Reso
 // globalDir, project winning on a name collision (the same precedence
 // MergeSkillSource gives the model). A missing directory contributes nothing
 // rather than erroring. Result is sorted by name.
-func ListSkills(ctx context.Context, projectDir, globalDir string) ([]skills.Info, error) {
+func ListSkills(ctx context.Context, projectDir, globalDir string) ([]workspaceapp.SkillInfo, error) {
 	seen := make(map[string]struct{})
-	var out []skills.Info
+	var out []workspaceapp.SkillInfo
 	add := func(dir, scope string) error {
 		if !dirExists(dir) {
 			return nil
@@ -75,7 +75,7 @@ func ListSkills(ctx context.Context, projectDir, globalDir string) ([]skills.Inf
 				continue // a higher-precedence (project) source already provided it
 			}
 			seen[s.Name] = struct{}{}
-			out = append(out, skills.Info{Name: s.Name, Description: s.Description, Scope: scope})
+			out = append(out, workspaceapp.SkillInfo{Name: s.Name, Description: s.Description, Scope: scope})
 		}
 		return nil
 	}
@@ -85,7 +85,7 @@ func ListSkills(ctx context.Context, projectDir, globalDir string) ([]skills.Inf
 	if err := add(globalDir, "global"); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(out, func(a, b skills.Info) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(out, func(a, b workspaceapp.SkillInfo) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
 

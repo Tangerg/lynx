@@ -4,8 +4,6 @@ import (
 	"context"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 // WorkspaceRecipes lists project recipes layered over one configured global
@@ -19,7 +17,7 @@ func NewWorkspaceRecipes(globalDir string) WorkspaceRecipes {
 
 var _ workspaceapp.RecipeLister = WorkspaceRecipes{}
 
-func (l WorkspaceRecipes) List(ctx context.Context, cwd string) ([]recipes.Recipe, error) {
+func (l WorkspaceRecipes) List(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error) {
 	return listRecipes(ctx, recipeDir(cwd), l.globalDir)
 }
 
@@ -34,6 +32,6 @@ func NewWorkspaceSkills(globalDir string) WorkspaceSkills {
 
 var _ workspaceapp.SkillCatalog = WorkspaceSkills{}
 
-func (c WorkspaceSkills) ListSkills(ctx context.Context, cwd string) ([]skills.Info, error) {
+func (c WorkspaceSkills) ListSkills(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error) {
 	return ListSkills(ctx, ProjectSkillDir(cwd), c.globalDir)
 }

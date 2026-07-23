@@ -272,7 +272,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		CostUSD: 4.2, MaxCostUSD: 4,
 	})
 	finished := terminal[len(terminal)-1].Event.(SegmentFinished)
-	if finished.Run.Result == nil || finished.Run.Result.Duration != 1500*time.Millisecond || !strings.Contains(finished.Run.Detail, "$4.20") {
+	if finished.Run.Result == nil || finished.Run.Result.Duration != 1500*time.Millisecond || finished.Run.Detail != "" {
 		t.Fatalf("budget terminal = %+v", finished.Run)
 	}
 }

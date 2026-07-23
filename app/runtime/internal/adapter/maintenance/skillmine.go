@@ -204,7 +204,7 @@ func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft, kind str
 	if err := draft.Validate(); err != nil {
 		return nil
 	}
-	if _, dangerous := draft.Scan(); dangerous {
+	if draft.SafetyIssue() != skills.DraftSafe {
 		return nil
 	}
 	if _, err := m.store.SaveDraft(ctx, draft); err != nil {

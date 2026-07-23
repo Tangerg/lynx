@@ -13,8 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 type workspaceTestConfig struct {
@@ -251,15 +249,15 @@ func TestWorkspaceGrep(t *testing.T) {
 	}
 }
 
-type fakeSkillCatalog struct{ skills []skills.Info }
+type fakeSkillCatalog struct{ skills []workspaceapp.SkillInfo }
 
-func (f fakeSkillCatalog) ListSkills(context.Context, string) ([]skills.Info, error) {
+func (f fakeSkillCatalog) ListSkills(context.Context, string) ([]workspaceapp.SkillInfo, error) {
 	return f.skills, nil
 }
 
-type fakeRecipeLister struct{ recipes []recipes.Recipe }
+type fakeRecipeLister struct{ recipes []workspaceapp.Recipe }
 
-func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error) {
+func (f fakeRecipeLister) List(context.Context, string) ([]workspaceapp.Recipe, error) {
 	return f.recipes, nil
 }
 
@@ -267,7 +265,7 @@ func (f fakeRecipeLister) List(context.Context, string) ([]recipes.Recipe, error
 // carrying each one's scope through Source, and defaults cwd to the serve dir.
 func TestWorkspaceListSkills(t *testing.T) {
 	dir := t.TempDir()
-	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []skills.Info{
+	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []workspaceapp.SkillInfo{
 		{Name: "pdf", Description: "PDF tools", Scope: "project"},
 		{Name: "web", Description: "web tools", Scope: "global"},
 	}}})
@@ -284,9 +282,9 @@ func TestWorkspaceListSkills(t *testing.T) {
 // carrying scope + body through, and defaults cwd to the serve dir.
 func TestWorkspaceListRecipes(t *testing.T) {
 	dir := t.TempDir()
-	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Recipes: fakeRecipeLister{recipes: []recipes.Recipe{
-		{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: "project", Source: "/p/review.md"},
-		{Name: "commit", Body: "Write a commit", Scope: "global", Source: "/g/commit.md"},
+	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Recipes: fakeRecipeLister{recipes: []workspaceapp.Recipe{
+		{Name: "review", Description: "review diff", Body: "Review $ARGUMENTS", Scope: workspaceapp.RecipeScopeProject, Source: "/p/review.md"},
+		{Name: "commit", Body: "Write a commit", Scope: workspaceapp.RecipeScopeGlobal, Source: "/g/commit.md"},
 	}}})
 	got, err := s.WorkspaceListRecipes(context.Background(), protocol.WorkspaceListQuery{})
 	if err != nil {

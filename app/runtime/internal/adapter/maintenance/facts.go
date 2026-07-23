@@ -17,12 +17,11 @@ func parseMemoryFacts(markdown string) []string {
 		if line == "" {
 			continue
 		}
-		fact := "- " + line
-		if _, duplicate := seen[fact]; duplicate {
+		if _, duplicate := seen[line]; duplicate {
 			continue
 		}
-		seen[fact] = struct{}{}
-		facts = append(facts, fact)
+		seen[line] = struct{}{}
+		facts = append(facts, line)
 	}
 	return facts
 }

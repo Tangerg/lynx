@@ -9,7 +9,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/recipes"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 const (
@@ -21,10 +21,10 @@ const (
 // with the project copy winning on name collisions. This adapter owns the
 // directory convention and the Markdown/YAML format; malformed frontmatter is
 // preserved as a plain prompt rather than discarding user-authored content.
-func listRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.Recipe, error) {
+func listRecipes(ctx context.Context, projectDir, globalDir string) ([]workspaceapp.Recipe, error) {
 	seen := make(map[string]struct{})
-	var out []recipes.Recipe
-	add := func(dir, scope string) error {
+	var out []workspaceapp.Recipe
+	add := func(dir string, scope workspaceapp.RecipeScope) error {
 		entries, err := os.ReadDir(dir)
 		if err != nil {
 			return nil // missing / unreadable dir contributes nothing
@@ -53,13 +53,13 @@ func listRecipes(ctx context.Context, projectDir, globalDir string) ([]recipes.R
 		}
 		return nil
 	}
-	if err := add(projectDir, recipes.ScopeProject); err != nil {
+	if err := add(projectDir, workspaceapp.RecipeScopeProject); err != nil {
 		return nil, err
 	}
-	if err := add(globalDir, recipes.ScopeGlobal); err != nil {
+	if err := add(globalDir, workspaceapp.RecipeScopeGlobal); err != nil {
 		return nil, err
 	}
-	slices.SortFunc(out, func(a, b recipes.Recipe) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(out, func(a, b workspaceapp.Recipe) int { return strings.Compare(a.Name, b.Name) })
 	return out, nil
 }
 
@@ -82,9 +82,9 @@ type recipeFrontmatter struct {
 	ArgumentHint string `yaml:"argumentHint"`
 }
 
-func parseRecipe(name, scope, source string, content []byte) recipes.Recipe {
+func parseRecipe(name string, scope workspaceapp.RecipeScope, source string, content []byte) workspaceapp.Recipe {
 	frontmatter, body := parseRecipeBody(content)
-	return recipes.Recipe{
+	return workspaceapp.Recipe{
 		Name:         name,
 		Description:  strings.TrimSpace(frontmatter.Description),
 		ArgumentHint: strings.TrimSpace(frontmatter.ArgumentHint),

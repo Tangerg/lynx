@@ -39,11 +39,43 @@ type ToolCallPlan struct {
 	Action           GateAction
 	Arguments        string
 	ArgumentOverride string
-	DenyReason       string
+	Denial           Denial
 	SafetyClass      tool.SafetyClass
 	Risk             tool.RiskLevel
-	PromptReason     string
+	PromptCause      PromptCause
 }
+
+// Denial identifies why the gate refused a call. Detail preserves hook-owned
+// text; generated wording belongs to the adapter that presents the denial.
+type Denial struct {
+	Cause  DenialCause
+	Detail string
+}
+
+// DenialCause is the policy source of a refusal.
+type DenialCause uint8
+
+const (
+	DenialNone DenialCause = iota
+	DenialHook
+	DenialPlanMode
+	DenialRememberedRule
+)
+
+// PromptCause is the policy fact an approval surface explains to a user.
+type PromptCause uint8
+
+const (
+	PromptCauseNone PromptCause = iota
+	PromptCauseRead
+	PromptCauseWorkspaceWrite
+	PromptCauseWorkspaceCommand
+	PromptCauseNetworkAccess
+	PromptCauseUnknownSafety
+	PromptCauseOutsideWorkspace
+	PromptCauseUnknownMutation
+	PromptCauseCatastrophicCommand
+)
 
 // Plan applies hook and approval-mode policy to one tool call. It does not
 // read remembered rules and it does not trigger HITL; callers only do those
@@ -64,7 +96,7 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	}
 	if in.Hook.Block {
 		plan.Action = GateDeny
-		plan.DenyReason = cmp.Or(in.Hook.Reason, "denied by a PreToolUse hook")
+		plan.Denial = Denial{Cause: DenialHook, Detail: in.Hook.Reason}
 		return plan
 	}
 	if !in.ApprovalConfigured {
@@ -79,18 +111,20 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	// same seam a PreToolUse hook's Ask uses to force a prompt, but
 	// tool/argument-driven and built in. A remembered approval still lets a repeat
 	// call through.
-	immuneReason, unbypassable := tool.BypassImmuneReason(in.FileMutation, in.ShellCommand)
-	if action == GatePass && (in.Hook.Ask || unbypassable) {
+	immunity := tool.BypassImmunityFor(in.FileMutation, in.ShellCommand)
+	if action == GatePass && (in.Hook.Ask || immunity != tool.BypassAllowed) {
 		action = GatePrompt
 	}
 	plan.Action = action
 	switch action {
 	case GateDeny:
-		plan.DenyReason = planModeDenyReason(in.Tool)
+		plan.Denial = Denial{Cause: DenialPlanMode}
 	case GatePrompt:
-		plan.Risk, plan.PromptReason = RiskFor(cls)
-		if unbypassable {
-			plan.Risk, plan.PromptReason = tool.RiskHigh, immuneReason
+		plan.Risk = cls.Risk()
+		plan.PromptCause = promptCauseForSafetyClass(cls)
+		if immunity != tool.BypassAllowed {
+			plan.Risk = tool.RiskHigh
+			plan.PromptCause = promptCauseForBypassImmunity(immunity)
 		}
 	}
 	return plan
@@ -106,7 +140,7 @@ func (p ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoAppr
 	if standing.Matched {
 		if standing.Decision == Deny {
 			p.Action = GateDeny
-			p.DenyReason = "tool call denied by a remembered rule"
+			p.Denial = Denial{Cause: DenialRememberedRule}
 			return p
 		}
 		p.Action = GatePass
@@ -132,6 +166,30 @@ func DecisionOf(approved bool) Decision {
 	return Deny
 }
 
-func planModeDenyReason(toolName string) string {
-	return "plan mode is active (read-only): " + toolName + " is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval."
+func promptCauseForSafetyClass(class tool.SafetyClass) PromptCause {
+	switch class {
+	case tool.SafetyClassSafe:
+		return PromptCauseRead
+	case tool.SafetyClassWrite:
+		return PromptCauseWorkspaceWrite
+	case tool.SafetyClassExec:
+		return PromptCauseWorkspaceCommand
+	case tool.SafetyClassNetwork:
+		return PromptCauseNetworkAccess
+	default:
+		return PromptCauseUnknownSafety
+	}
+}
+
+func promptCauseForBypassImmunity(immunity tool.BypassImmunity) PromptCause {
+	switch immunity {
+	case tool.BypassImmuneOutsideWorkspace:
+		return PromptCauseOutsideWorkspace
+	case tool.BypassImmuneUnknownMutation:
+		return PromptCauseUnknownMutation
+	case tool.BypassImmuneCatastrophicCommand:
+		return PromptCauseCatastrophicCommand
+	default:
+		return PromptCauseNone
+	}
 }

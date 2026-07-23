@@ -166,10 +166,10 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	if applied.Run.State != execution.Failed || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeError {
 		t.Fatalf("terminal run = %+v, want failed/error", applied.Run)
 	}
-	if applied.Run.Result == nil || applied.Run.Result.Error == nil || applied.Run.Result.Error.Kind != transcript.RunLostProblem {
+	if applied.Run.Result == nil || applied.Run.Result.Error == nil || applied.Run.Result.Error.Kind != transcript.RunLostProblem || applied.Run.Result.Error.Detail != "" {
 		t.Fatalf("terminal result = %+v, want run_lost", applied.Run.Result)
 	}
-	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete || applied.Items[0].Error == nil {
+	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete || applied.Items[0].Error == nil || applied.Items[0].Error.Detail != "" {
 		t.Fatalf("terminal items = %+v, want incomplete failed tool", applied.Items)
 	}
 	if applied.ProcessID != "proc_1" || !applied.Run.FinishedAt.Equal(finishedAt) || applied.Run.MessageMark != 1 {

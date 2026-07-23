@@ -43,8 +43,8 @@ func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.Draft
 	if err := draft.Validate(); err != nil {
 		return skills.DraftHandle{}, err
 	}
-	if reason, dangerous := draft.Scan(); dangerous {
-		return skills.DraftHandle{}, fmt.Errorf("skillauthoring: reject draft %q: %s", draft.Name, reason)
+	if issue := draft.SafetyIssue(); issue != skills.DraftSafe {
+		return skills.DraftHandle{}, draftSafetyError(draft.Name, issue)
 	}
 	content, err := renderDraft(draft)
 	if err != nil {
@@ -510,10 +510,19 @@ func validateSkill(name string, content []byte) error {
 	if frontmatter.Name != name {
 		return fmt.Errorf("skillauthoring: skill name mismatch: frontmatter %q, path %q", frontmatter.Name, name)
 	}
-	if reason, dangerous := draft.Scan(); dangerous {
-		return fmt.Errorf("skillauthoring: reject skill %q: %s", name, reason)
+	if issue := draft.SafetyIssue(); issue != skills.DraftSafe {
+		return draftSafetyError(name, issue)
 	}
 	return nil
+}
+
+func draftSafetyError(name string, issue skills.DraftSafetyIssue) error {
+	switch issue {
+	case skills.DraftDangerousInstruction:
+		return fmt.Errorf("skillauthoring: reject skill %q: dangerous instruction", name)
+	default:
+		return fmt.Errorf("skillauthoring: reject skill %q: unknown safety issue", name)
+	}
 }
 
 func contextError(ctx context.Context, operation string) error {

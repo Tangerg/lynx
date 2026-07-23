@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentdoc"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
 func TestRenderAgentDocsAnnotatesEachSource(t *testing.T) {
-	out := renderAgentDocs([]agentdoc.File{
+	out := renderAgentDocs([]workspace.AgentDocFile{
 		{Path: "/a/AGENTS.md", Content: "alpha"},
 		{Path: "/b/AGENTS.md", Content: "beta"},
 	}, agentDocPromptMaxBytes)
@@ -24,7 +24,7 @@ func TestRenderAgentDocsAnnotatesEachSource(t *testing.T) {
 }
 
 func TestRenderAgentDocsKeepsMostSpecificFilesWithinBudget(t *testing.T) {
-	files := []agentdoc.File{
+	files := []workspace.AgentDocFile{
 		{Path: "/root/AGENTS.md", Content: strings.Repeat("a", 1000)},
 		{Path: "/leaf/AGENTS.md", Content: "leaf"},
 	}

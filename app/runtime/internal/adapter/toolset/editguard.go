@@ -9,13 +9,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/tools"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the
-// [editguard.Tracker] invariant (read-before-edit + staleness). The invariant
-// itself lives in domain/editguard; these wrappers parse the tool's arguments,
+// [editguardstate.Tracker] invariant (read-before-edit + staleness). These
+// wrappers parse the tool's arguments,
 // resolve the path against the turn's working directory, read the session id off
 // the blackboard, and turn a refused check into a model-facing message. They are
 // to the editguard domain what the wire translator is to a domain event —
@@ -23,7 +23,7 @@ import (
 
 // withReadTracking wraps the read tool to stamp every successfully read file,
 // marking it partial when only a line range was requested.
-func withReadTracking(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
+func withReadTracking(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -50,7 +50,7 @@ func withReadTracking(inner tools.Tool, tr *editguard.Tracker, workdir string) t
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
 // unchanged since, then refreshes the stamp after a successful edit.
-func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
+func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -86,7 +86,7 @@ func withEditGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tool
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
 // full, current read (a new file or an append is exempt — there's nothing to
 // clobber). The stamp is refreshed after a successful write.
-func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) tools.Tool {
+func withWriteGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string) tools.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -121,25 +121,25 @@ func withWriteGuard(inner tools.Tool, tr *editguard.Tracker, workdir string) too
 	})
 }
 
-func editGuardMessage(verdict editguard.Result, path, verb string) string {
+func editGuardMessage(verdict editguardstate.Result, path, verb string) string {
 	switch verdict {
-	case editguard.ResultReadRequired:
+	case editguardstate.ResultReadRequired:
 		return fmt.Sprintf("You must read %s before %s it. Use the read tool first.", path, verb)
-	case editguard.ResultChanged:
+	case editguardstate.ResultChanged:
 		return fmt.Sprintf("%s changed since you last read it (edited by the user or a tool). Read it again before %s it.", path, verb)
-	case editguard.ResultFullReadRequired:
+	case editguardstate.ResultFullReadRequired:
 		return fmt.Sprintf("You only read part of %s. Read the whole file before %s it.", path, verb)
 	default:
 		return fmt.Sprintf("Cannot %s %s until its current contents have been read.", verb, path)
 	}
 }
 
-func fingerprintFile(path string) (editguard.Fingerprint, error) {
+func fingerprintFile(path string) (editguardstate.Fingerprint, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return editguard.Fingerprint{}, err
+		return editguardstate.Fingerprint{}, err
 	}
-	return editguard.FingerprintOf(content), nil
+	return editguardstate.FingerprintOf(content), nil
 }
 
 func isExistingFile(path string) bool {

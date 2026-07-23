@@ -143,7 +143,7 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 	}
 	state, _ = memory.State(t.Context(), "/repo")
 	items, _ := memory.List(t.Context(), agentmemory.ScopeProject, "/repo")
-	if state.Watermark != pending[0].Sequence || len(items) != 1 || items[0].Content != "- durable fact" {
+	if state.Watermark != pending[0].Sequence || len(items) != 1 || items[0].Content != "durable fact" {
 		t.Fatalf("recovered curation: state=%+v items=%+v", state, items)
 	}
 }

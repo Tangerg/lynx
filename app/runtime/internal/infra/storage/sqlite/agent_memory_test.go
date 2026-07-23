@@ -37,7 +37,7 @@ func appendAgentFacts(t *testing.T, store *sqlite.AgentMemoryStore, project, day
 
 func TestAgentMemoryLedgerIsDailyDeduplicatedAndProjectScoped(t *testing.T) {
 	store := newAgentMemoryStore(t)
-	first := appendAgentFacts(t, store, "/repo/a", "2026-07-18", "- one", "- two")
+	first := appendAgentFacts(t, store, "/repo/a", "2026-07-18", "one", "two")
 	second := appendAgentFacts(t, store, "/repo/a", "2026-07-19", "two", "three")
 	other := appendAgentFacts(t, store, "/repo/b", "2026-07-19", "one")
 	if len(first) != 2 || len(second) != 1 || len(other) != 1 {
@@ -52,7 +52,7 @@ func TestAgentMemoryLedgerIsDailyDeduplicatedAndProjectScoped(t *testing.T) {
 		t.Fatalf("pending = %+v", pending)
 	}
 	otherPending, err := store.PendingLedger(t.Context(), "/repo/b", 0, 10)
-	if err != nil || len(otherPending) != 1 || otherPending[0].Content != "- one" {
+	if err != nil || len(otherPending) != 1 || otherPending[0].Content != "one" {
 		t.Fatalf("other project pending = (%+v, %v)", otherPending, err)
 	}
 }
@@ -62,7 +62,7 @@ func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
 	through := facts[len(facts)-1].Sequence
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
-	published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- one", "- two"}, now)
+	published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"one", "two"}, now)
 	if err != nil || !published {
 		t.Fatalf("Reconcile = (%v, %v)", published, err)
 	}
@@ -86,7 +86,7 @@ func TestAgentMemoryReconcileAdvancesWatermarkAndItems(t *testing.T) {
 
 	// A second reconcile that expects watermark 0 again has lost the CAS: it must
 	// neither advance the watermark nor rewrite the item set.
-	stale, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- three"}, now.Add(time.Hour))
+	stale, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"three"}, now.Add(time.Hour))
 	if err != nil || stale {
 		t.Fatalf("stale reconcile = (%v, %v), want false, nil", stale, err)
 	}
@@ -102,7 +102,7 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two", "three")
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
-	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"one", "two"}, now); err != nil {
 		t.Fatal(err)
 	}
 	before, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
@@ -111,8 +111,8 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 		idByContent[item.Content] = item.ID
 	}
 
-	// Drop "- two", keep "- one", add "- three" — all still pending proposals.
-	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, facts[2].Sequence, []string{"- one", "- three"}, now.Add(time.Hour)); err != nil {
+	// Drop "two", keep "one", add "three" — all still pending proposals.
+	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, facts[2].Sequence, []string{"one", "three"}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
@@ -120,13 +120,13 @@ func TestAgentMemoryReconcilePreservesUnchangedAndPrunesRemoved(t *testing.T) {
 	for _, item := range after {
 		got[item.Content] = item.ID
 	}
-	if len(after) != 2 || got["- two"] != "" {
+	if len(after) != 2 || got["two"] != "" {
 		t.Fatalf("prune failed: %+v", after)
 	}
-	if got["- one"] == "" || got["- one"] != idByContent["- one"] {
-		t.Fatalf("unchanged item lost its stable id: %q -> %q", idByContent["- one"], got["- one"])
+	if got["one"] == "" || got["one"] != idByContent["one"] {
+		t.Fatalf("unchanged item lost its stable id: %q -> %q", idByContent["one"], got["one"])
 	}
-	if got["- three"] == "" {
+	if got["three"] == "" {
 		t.Fatal("new item was not inserted")
 	}
 }
@@ -135,7 +135,7 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
-	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"one", "two"}, now); err != nil {
 		t.Fatal(err)
 	}
 	proposals, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
@@ -163,7 +163,7 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 	appendAgentFacts(t, store, "/repo", "2026-07-20", "three")
 	pending, _ := store.PendingLedger(t.Context(), "/repo", facts[1].Sequence, 10)
 	if _, err := store.Reconcile(t.Context(), "/repo", facts[1].Sequence, pending[len(pending)-1].Sequence,
-		[]string{"- one", "- two", "- three"}, now.Add(time.Hour)); err != nil {
+		[]string{"one", "two", "three"}, now.Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	listed, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
@@ -171,7 +171,7 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 	for _, item := range listed {
 		contents = append(contents, item.Content)
 	}
-	if slices.Contains(contents, "- two") {
+	if slices.Contains(contents, "two") {
 		t.Fatalf("rejected fact was re-proposed: %+v", listed)
 	}
 }
@@ -180,7 +180,7 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
 
-	item, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "- always run make lint", now)
+	item, err := store.Add(t.Context(), agentmemory.ScopeProject, "/repo", "always run make lint", now)
 	if err != nil || item.ID == "" || item.Origin != agentmemory.OriginUser || item.Status != agentmemory.StatusActive {
 		t.Fatalf("add = (%+v, %v)", item, err)
 	}
@@ -190,11 +190,11 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	if err := store.SetPinned(t.Context(), item.ID, true, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.UpdateContent(t.Context(), item.ID, "- always run make lint before commit", now); err != nil {
+	if err := store.UpdateContent(t.Context(), item.ID, "always run make lint before commit", now); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := store.Get(t.Context(), item.ID)
-	if err != nil || !ok || !got.Pinned || got.Content != "- always run make lint before commit" {
+	if err != nil || !ok || !got.Pinned || got.Content != "always run make lint before commit" {
 		t.Fatalf("after edit = (%+v, %v, %v)", got, ok, err)
 	}
 	// Editing content clears the now-stale embedding.
@@ -228,7 +228,7 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	store := newAgentMemoryStore(t)
 	facts := appendAgentFacts(t, store, "/repo", "2026-07-19", "one", "two")
 	now := time.Date(2026, 7, 19, 4, 0, 0, 0, time.UTC)
-	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"- one", "- two"}, now); err != nil {
+	if _, err := store.Reconcile(t.Context(), "/repo", 0, facts[1].Sequence, []string{"one", "two"}, now); err != nil {
 		t.Fatal(err)
 	}
 	// Only approved (active) items are embedded; approve the proposals first.
@@ -276,7 +276,7 @@ func TestAgentMemoryReconcileCASHasOneWinner(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 2 {
 		wg.Go(func() {
-			published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"- body"}, time.Now())
+			published, err := store.Reconcile(t.Context(), "/repo", 0, through, []string{"body"}, time.Now())
 			if err != nil {
 				t.Errorf("reconcile: %v", err)
 				return

@@ -142,7 +142,7 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 
 	// A same-lease mutation advances revision and rejects the prior revision.
 	blocked := paused
-	blocked.Block("budget", now)
+	blocked.Block(goal.ReasonTurnBudgetReached, "", now)
 	blocked.AdvanceRevision()
 	if applied, err := store.Save(ctx, blocked, paused.Version()); err != nil || !applied {
 		t.Fatalf("same-lease update: applied=%v err=%v", applied, err)
@@ -179,7 +179,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 		t.Fatalf("seed fresh goal: applied=%v err=%v", applied, err)
 	}
 
-	stale.Pause("old loop finished", now)
+	stale.Pause(goal.ReasonRunNotCompleted, "error", now)
 	stale.AdvanceRevision()
 	if applied, err := store.Save(t.Context(), stale, goal.Version{LeaseID: "lease-old", Revision: 1}); err != nil || applied {
 		t.Fatalf("stale Save: applied=%v err=%v, want false/nil", applied, err)

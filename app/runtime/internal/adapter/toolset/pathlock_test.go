@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/editguard"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 )
@@ -28,7 +28,7 @@ func TestPathLockUsesCanonicalConcurrencyKey(t *testing.T) {
 
 	executor := fs.NewLocalExecutor(workdir)
 	locker := newPathLocker()
-	tracker := editguard.NewTracker()
+	tracker := editguardstate.NewTracker()
 	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
 	edit := editMutationTool(fs.NewEditTool(executor), nil, tracker, locker, workdir)
 
@@ -60,7 +60,7 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 
 	executor := fs.NewLocalExecutor(workdir)
 	locker := newPathLocker()
-	tracker := editguard.NewTracker()
+	tracker := editguardstate.NewTracker()
 	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
 	write := writeMutationTool(fs.NewWriteTool(executor), nil, tracker, locker, workdir)
 	realKey := concurrentKey(t, read, pathArguments(realPath))

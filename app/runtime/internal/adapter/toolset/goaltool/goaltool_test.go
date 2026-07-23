@@ -116,8 +116,8 @@ func TestUpdateGoal_BlockedRequiresReason(t *testing.T) {
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
-	if got := store.goals["s1"]; got.Status != goal.StatusBlocked || got.Reason != "needs a key" {
-		t.Fatalf("stored = (%q, %q)", got.Status, got.Reason)
+	if got := store.goals["s1"]; got.Status != goal.StatusBlocked || got.Reason != (goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: "needs a key"}) {
+		t.Fatalf("stored = (%q, %+v)", got.Status, got.Reason)
 	}
 }
 
@@ -135,7 +135,7 @@ func TestUpdateGoal_NoActiveGoal(t *testing.T) {
 func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
 	store := newMemStore()
 	g := activeGoal("s1")
-	g.Pause("user stop", time.Unix(0, 0))
+	g.Pause(goal.ReasonStoppedByUser, "", time.Unix(0, 0))
 	store.put(g)
 
 	out, _ := newTool(t, store).update(sessionCtx("s1"), updateArgs{Status: "complete"})

@@ -18,10 +18,20 @@ const (
 	FileMutationUnknown
 )
 
-// BypassImmuneReason reports whether a tool call is dangerous enough to confirm
+// BypassImmunity identifies a call that must still be confirmed under an
+// auto-approve mode. It is policy data; adapters decide how to explain it.
+type BypassImmunity uint8
+
+const (
+	BypassAllowed BypassImmunity = iota
+	BypassImmuneOutsideWorkspace
+	BypassImmuneUnknownMutation
+	BypassImmuneCatastrophicCommand
+)
+
+// BypassImmunityFor reports whether a tool call is dangerous enough to confirm
 // with a human EVEN under an auto-approve mode (Yolo, or Balanced for
-// write/download), returning a short reason for the approval card. immune is
-// false (reason "") for an ordinary call.
+// write/download).
 //
 // Two independent, deliberately-conservative checks, both DEFENSE-IN-DEPTH
 // CONFIRMS — not security jails (real confinement is a sandbox executor, the
@@ -33,17 +43,17 @@ const (
 //   - a shell command matching a high-confidence catastrophic pattern
 //     (rm -rf of / or $HOME, --no-preserve-root, a fork bomb, mkfs/dd to a
 //     device). Tight by design so an ordinary command never trips it.
-func BypassImmuneReason(mutation FileMutationScope, shellCommand string) (reason string, immune bool) {
+func BypassImmunityFor(mutation FileMutationScope, shellCommand string) BypassImmunity {
 	switch mutation {
 	case FileMutationOutsideWorkspace:
-		return "targets a path outside the workspace directory", true
+		return BypassImmuneOutsideWorkspace
 	case FileMutationUnknown:
-		return "has filesystem mutation targets that could not be verified", true
+		return BypassImmuneUnknownMutation
 	}
 	if CatastrophicCommand(shellCommand) {
-		return "runs a high-confidence catastrophic shell command (e.g. rm -rf of a root/home path, mkfs, a fork bomb)", true
+		return BypassImmuneCatastrophicCommand
 	}
-	return "", false
+	return BypassAllowed
 }
 
 var (
