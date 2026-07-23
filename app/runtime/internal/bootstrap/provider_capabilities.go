@@ -2,16 +2,19 @@ package bootstrap
 
 import (
 	"context"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
+	modelcatalog "github.com/Tangerg/lynx/models/catalog"
 
+	modelsapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
-// providerCatalog projects the infra provider adapter table into domain metadata
-// for the capabilities coordinator. Only the composition root reads the infra
-// catalog, so this projection lives here rather than in the application ring.
+// providerCatalog projects infrastructure provider adapters and the static model
+// catalog into application values. Only the composition root reads those sources,
+// so this projection lives here rather than in the application ring.
 type providerCatalog struct{}
 
 func (providerCatalog) Supported() []provider.Metadata {
@@ -30,6 +33,23 @@ func (providerCatalog) Metadata(id string) (provider.Metadata, bool) {
 	return providerMetadata(llm.Provider(id)), true
 }
 
+func (providerCatalog) Models(providerID string) []modelsapp.Model {
+	entries := modelcatalog.Models(providerID)
+	out := make([]modelsapp.Model, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, catalogModel(providerID, entry))
+	}
+	return out
+}
+
+func (providerCatalog) LookupModel(providerID, modelID string) (modelsapp.Model, bool) {
+	entry, ok := modelcatalog.Lookup(providerID, modelID)
+	if !ok {
+		return modelsapp.Model{}, false
+	}
+	return catalogModel(providerID, entry), true
+}
+
 func providerMetadata(p llm.Provider) provider.Metadata {
 	return provider.Metadata{
 		ID:                    string(p),
@@ -38,6 +58,46 @@ func providerMetadata(p llm.Provider) provider.Metadata {
 		DefaultEmbeddingModel: p.DefaultEmbeddingModel(),
 		ProbeModels:           p.ProbeModels(),
 	}
+}
+
+func catalogModel(providerID string, entry modelcatalog.Model) modelsapp.Model {
+	details := &modelsapp.ModelDetails{
+		DisplayName:      entry.DisplayName,
+		ContextWindow:    int(entry.Limits.ContextWindow),
+		MaxInputTokens:   int(entry.Limits.MaxInputTokens),
+		MaxOutputTokens:  int(entry.Limits.MaxOutputTokens),
+		KnowledgeCutoff:  entry.KnowledgeCutoff,
+		Deprecated:       entry.Deprecated,
+		Reasoning:        entry.Reasoning.Supported,
+		ReasoningLevels:  slices.Clone(entry.Reasoning.Levels),
+		ReasoningDefault: entry.Reasoning.DefaultLevel,
+		Multimodal:       entry.Modalities.AcceptsInput(modelcatalog.ModalityImage),
+		InputModalities:  catalogModalities(entry.Modalities.Input),
+		OutputModalities: catalogModalities(entry.Modalities.Output),
+		ToolUse:          entry.ToolCall,
+		StructuredOutput: entry.StructuredOutput,
+	}
+	if len(entry.Pricing) > 0 {
+		primary := entry.Pricing[0]
+		details.Pricing = &modelsapp.Pricing{
+			InputPerMillion:      primary.InputPer1M,
+			OutputPerMillion:     primary.OutputPer1M,
+			CacheReadPerMillion:  primary.CacheReadPer1M,
+			CacheWritePerMillion: primary.CacheWritePer1M,
+		}
+	}
+	return modelsapp.Model{ID: entry.ID, Provider: providerID, Details: details}
+}
+
+func catalogModalities(in []modelcatalog.Modality) []string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]string, len(in))
+	for i, modality := range in {
+		out[i] = string(modality)
+	}
+	return out
 }
 
 // providerProber validates a provider's credentials by building its default-model

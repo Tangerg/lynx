@@ -4,71 +4,56 @@ import (
 	"context"
 	"errors"
 
+	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ListProviders reports the full supported-provider set (the providers Lyra
-// has an adapter for), each annotated from the registry: enabled ⇔ a masked
-// key is present (API.md §4.9 / §7.6). The per-provider model list isn't
-// here — it unlocks via models.list.
+// ListProviders projects the application-owned supported-provider set onto the
+// protocol page. The application combines static support and runtime state.
 func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Provider], error) {
-	configured, err := s.models.ListRegisteredProviders(ctx)
+	providers, err := s.models.ListProviders(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return protocol.NewPage(providerListWire(configured, s.models.SupportedProviders())), nil
+	out := make([]protocol.Provider, 0, len(providers))
+	for _, provider := range providers {
+		out = append(out, providerToWire(provider))
+	}
+	return protocol.NewPage(out), nil
 }
 
-// ConfigureProvider upserts a provider's credentials (key + base URL) into
-// the registry and returns the masked result (API.md §7.6). The provider
-// must be one Lyra supports.
+// ConfigureProvider validates and persists one provider through the application
+// use case, then projects its redacted result onto the wire.
 func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigureProviderRequest) (*protocol.Provider, error) {
-	meta, ok := s.models.ProviderMetadata(in.Provider)
-	if !ok {
-		return nil, protocol.ErrInvalidParams
-	}
-	if meta.RequiresBaseURL && in.BaseURL == "" {
-		return nil, protocol.ErrInvalidParams
-	}
-	if err := s.models.ConfigureProvider(ctx, provider.Provider{
+	configured, err := s.models.ConfigureProvider(ctx, modelapp.ConfigureProviderCommand{
 		ID:      in.Provider,
 		APIKey:  in.APIKey,
 		BaseURL: in.BaseURL,
-	}); err != nil {
-		return nil, err
-	}
-	entry, ok, err := s.models.RegisteredProvider(ctx, in.Provider)
+	})
 	if err != nil {
-		return nil, err
+		return nil, mapModelError(err)
 	}
-	if !ok {
-		return nil, errors.New("configured provider not found")
-	}
-	out := providerToWire(meta, entry)
+	out := providerToWire(configured)
 	return &out, nil
 }
 
-// TestProvider probes a configured provider with a minimal (max_tokens=1)
-// completion to validate its key + endpoint (API.md §7.6). Returns
-// {ok:false, error} on failure rather than erroring the RPC, so the UI can
-// show "test failed: <reason>" inline.
+// TestProvider returns an inline verdict for a supported, configured provider.
+// The application owns eligibility and probing; Delivery selects the protocol
+// failure envelope.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	entry, ok, err := s.models.RegisteredProvider(ctx, providerID)
-	if err != nil {
-		return nil, err
+	err := s.models.TestProvider(ctx, providerID)
+	if err == nil {
+		return &protocol.ProviderTestResult{OK: true}, nil
 	}
-	if !ok || !entry.Enabled() {
+	if errors.Is(err, modelapp.ErrProviderUnsupported) {
+		return nil, mapModelError(err)
+	}
+	if errors.Is(err, modelapp.ErrProviderUnconfigured) {
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_not_configured", Detail: "set the API key first",
 		}}, nil
 	}
-	// The build-client + ping lives on the runtime, which owns client
-	// construction (clientResolver); this layer just maps the verdict to wire.
-	if err := s.models.ProbeProvider(ctx, entry); err != nil {
-		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
-			Type: "provider_test_failed", Detail: err.Error(),
-		}}, nil
-	}
-	return &protocol.ProviderTestResult{OK: true}, nil
+	return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
+		Type: "provider_test_failed", Detail: err.Error(),
+	}}, nil
 }

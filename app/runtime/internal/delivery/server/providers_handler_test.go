@@ -37,6 +37,10 @@ func (r *providerFake) Metadata(id string) (provider.Metadata, bool) {
 	}
 	return provider.Metadata{}, false
 }
+func (*providerFake) Models(string) []models.Model { return nil }
+func (*providerFake) LookupModel(string, string) (models.Model, bool) {
+	return models.Model{}, false
+}
 
 func (r *providerFake) List(context.Context) ([]provider.Provider, error) {
 	out := make([]provider.Provider, 0, len(r.entries))

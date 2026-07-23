@@ -2,40 +2,23 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/models/catalog"
-
+	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
-// ListModels enumerates the models a provider offers (API.md §7.6). For most
-// providers this is the embedded catalog with full metadata (context window,
-// capabilities, pricing), served straight — no key required. For providers whose
-// model set is user-defined rather than cataloged (a local Ollama daemon, a
-// bring-your-own-endpoint compat passthrough), it live-probes the provider's
-// /v1/models and enriches each id from the catalog when known, falling back to
-// the static catalog if the probe fails or returns nothing.
+// ListModels projects the application-owned model-discovery result onto the
+// protocol page. Discovery policy, remote fallback, and catalog enrichment all
+// remain in application/models.
 func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) (*protocol.Page[protocol.Model], error) {
-	if meta, ok := s.models.ProviderMetadata(in.Provider); ok && meta.ProbeModels {
-		if ids, err := s.models.ListRemoteModels(ctx, in.Provider); err == nil && len(ids) > 0 {
-			out := make([]protocol.Model, 0, len(ids))
-			for _, id := range ids {
-				if m, found := catalog.Lookup(in.Provider, id); found {
-					out = append(out, modelToWire(in.Provider, m))
-				} else {
-					out = append(out, protocol.Model{ID: id, Provider: in.Provider})
-				}
-			}
-			return protocol.NewPage(out), nil
-		}
-		// Probe unwired, failed, or empty — fall back to the static catalog.
-	}
-	models := catalog.Models(in.Provider)
+	models := s.models.ListModels(ctx, in.Provider)
 	out := make([]protocol.Model, 0, len(models))
-	for _, m := range models {
-		out = append(out, modelToWire(in.Provider, m))
+	for _, model := range models {
+		out = append(out, modelToWire(model))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -49,14 +32,10 @@ func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error
 }
 
 // SetUtilityRole points the maintenance services at a (provider, model),
-// validated by building its client; an empty model clears the role back to the
-// main turn model (models.setUtilityRole). Returns the stored role.
+// validated and persisted by the application use case. Returns the stored role.
 func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*protocol.UtilityRole, error) {
-	if err := s.validateUtilityRole(ctx, in); err != nil {
-		return nil, err
-	}
 	if err := s.models.SetUtilityRole(ctx, in.Provider, in.Model); err != nil {
-		return nil, err
+		return nil, mapModelError(err)
 	}
 	p, m := s.models.UtilityRole()
 	return &protocol.UtilityRole{Provider: p, Model: m}, nil
@@ -70,95 +49,75 @@ func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, e
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
-// SetEmbeddingRole points the index at an (embedding-capable provider, model);
-// an empty model clears it (models.setEmbeddingRole). The user-correctable
-// preconditions are checked here as invalid_params; the runtime then builds the
-// client + persists the role (a failure there is internal_error).
+// SetEmbeddingRole points the index at an (embedding-capable provider, model),
+// validated and persisted by the application use case. Returns the stored role.
 func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) (*protocol.EmbeddingRole, error) {
-	if err := s.validateEmbeddingRole(ctx, in); err != nil {
-		return nil, err
-	}
 	if err := s.models.SetEmbeddingRole(ctx, in.Provider, in.Model); err != nil {
-		return nil, err
+		return nil, mapModelError(err)
 	}
 	p, m := s.models.EmbeddingRole()
 	return &protocol.EmbeddingRole{Provider: p, Model: m}, nil
 }
 
-func (s *Server) validateUtilityRole(ctx context.Context, in protocol.UtilityRole) error {
-	if in.Model == "" {
+func mapModelError(err error) error {
+	if err == nil {
 		return nil
 	}
-	if _, ok := s.models.ProviderMetadata(in.Provider); !ok {
-		return fmt.Errorf("%w: provider %q is not supported", protocol.ErrInvalidParams, in.Provider)
+	if errors.Is(err, modelapp.ErrProviderUnsupported) ||
+		errors.Is(err, modelapp.ErrProviderBaseURLRequired) ||
+		errors.Is(err, modelapp.ErrProviderUnconfigured) ||
+		errors.Is(err, modelapp.ErrEmbeddingUnsupported) ||
+		errors.Is(err, modelrole.ErrProviderRequired) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
-	return s.requireConfiguredProvider(ctx, in.Provider)
+	return err
 }
 
-func (s *Server) validateEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole) error {
-	if in.Model == "" {
-		return nil
+func modelToWire(model modelapp.Model) protocol.Model {
+	if model.Details == nil {
+		return protocol.Model{ID: model.ID, Provider: model.Provider}
 	}
-	meta, ok := s.models.ProviderMetadata(in.Provider)
-	if !ok || !meta.EmbeddingCapable {
-		return fmt.Errorf("%w: provider %q has no embeddings adapter", protocol.ErrInvalidParams, in.Provider)
-	}
-	return s.requireConfiguredProvider(ctx, in.Provider)
-}
-
-func (s *Server) requireConfiguredProvider(ctx context.Context, providerID string) error {
-	entry, ok, err := s.models.RegisteredProvider(ctx, providerID)
-	if err != nil {
-		return err
-	}
-	if !ok || !entry.Enabled() {
-		return fmt.Errorf("%w: provider %q is not configured (set its API key first)", protocol.ErrInvalidParams, providerID)
-	}
-	return nil
-}
-
-func modelToWire(providerID string, m catalog.Model) protocol.Model {
+	details := model.Details
 	out := protocol.Model{
-		ID:              m.ID,
-		Provider:        providerID,
-		DisplayName:     m.DisplayName,
-		ContextWindow:   int(m.Limits.ContextWindow),
-		MaxInputTokens:  int(m.Limits.MaxInputTokens),
-		MaxOutputTokens: int(m.Limits.MaxOutputTokens),
-		Deprecated:      m.Deprecated,
+		ID:              model.ID,
+		Provider:        model.Provider,
+		DisplayName:     details.DisplayName,
+		ContextWindow:   details.ContextWindow,
+		MaxInputTokens:  details.MaxInputTokens,
+		MaxOutputTokens: details.MaxOutputTokens,
+		Deprecated:      details.Deprecated,
 		Capabilities: &protocol.ModelCapabilities{
-			Reasoning:             m.Reasoning.Supported,
-			ReasoningLevels:       m.Reasoning.Levels,
-			ReasoningDefaultLevel: m.Reasoning.DefaultLevel,
-			Multimodal:            m.Modalities.AcceptsInput(catalog.ModalityImage),
-			InputModalities:       toWireModalities(m.Modalities.Input),
-			OutputModalities:      toWireModalities(m.Modalities.Output),
-			ToolUse:               m.ToolCall,
-			StructuredOutput:      m.StructuredOutput,
+			Reasoning:             details.Reasoning,
+			ReasoningLevels:       details.ReasoningLevels,
+			ReasoningDefaultLevel: details.ReasoningDefault,
+			Multimodal:            details.Multimodal,
+			InputModalities:       toWireModalities(details.InputModalities),
+			OutputModalities:      toWireModalities(details.OutputModalities),
+			ToolUse:               details.ToolUse,
+			StructuredOutput:      details.StructuredOutput,
 		},
 	}
-	if !m.KnowledgeCutoff.IsZero() {
-		out.KnowledgeCutoff = m.KnowledgeCutoff.Format(time.DateOnly)
+	if !details.KnowledgeCutoff.IsZero() {
+		out.KnowledgeCutoff = details.KnowledgeCutoff.Format(time.DateOnly)
 	}
-	if len(m.Pricing) > 0 {
-		p := m.Pricing[0]
+	if details.Pricing != nil {
 		out.Pricing = &protocol.ModelPricing{
-			InputUsdPerMillionTokens:      p.InputPer1M,
-			OutputUsdPerMillionTokens:     p.OutputPer1M,
-			CacheReadUsdPerMillionTokens:  p.CacheReadPer1M,
-			CacheWriteUsdPerMillionTokens: p.CacheWritePer1M,
+			InputUsdPerMillionTokens:      details.Pricing.InputPerMillion,
+			OutputUsdPerMillionTokens:     details.Pricing.OutputPerMillion,
+			CacheReadUsdPerMillionTokens:  details.Pricing.CacheReadPerMillion,
+			CacheWriteUsdPerMillionTokens: details.Pricing.CacheWritePerMillion,
 		}
 	}
 	return out
 }
 
-func toWireModalities(in []catalog.Modality) []protocol.Modality {
+func toWireModalities(in []string) []protocol.Modality {
 	if len(in) == 0 {
 		return nil
 	}
 	out := make([]protocol.Modality, len(in))
-	for i, m := range in {
-		out[i] = protocol.Modality(m)
+	for i, modality := range in {
+		out[i] = protocol.Modality(modality)
 	}
 	return out
 }

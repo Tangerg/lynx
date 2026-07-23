@@ -4,34 +4,38 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/models/catalog"
-
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// TestModelToWire pins the catalog → wire capability mapping (models.list): the
+// TestModelToWire pins the application-model → wire capability mapping (models.list): the
 // full set a model picker renders — reasoning support + effort levels, the
 // input/output modalities, structured output, cache pricing, and the
 // identity/limit metadata — all flow through.
 func TestModelToWire(t *testing.T) {
-	info := catalog.Model{
-		ID:              "claude-x",
-		DisplayName:     "Claude X",
-		Deprecated:      true,
-		KnowledgeCutoff: time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC),
-		Reasoning:       catalog.Reasoning{Supported: true, Levels: []string{"low", "high"}, DefaultLevel: "low"},
-		Modalities: catalog.Modalities{
-			Input:  []catalog.Modality{catalog.ModalityText, catalog.ModalityImage},
-			Output: []catalog.Modality{catalog.ModalityText},
+	info := models.Model{
+		ID:       "claude-x",
+		Provider: "anthropic",
+		Details: &models.ModelDetails{
+			DisplayName:      "Claude X",
+			Deprecated:       true,
+			KnowledgeCutoff:  time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC),
+			Reasoning:        true,
+			ReasoningLevels:  []string{"low", "high"},
+			ReasoningDefault: "low",
+			Multimodal:       true,
+			InputModalities:  []string{"text", "image"},
+			OutputModalities: []string{"text"},
+			ToolUse:          true,
+			StructuredOutput: true,
+			ContextWindow:    200000,
+			MaxInputTokens:   190000,
+			MaxOutputTokens:  8192,
+			Pricing:          &models.Pricing{InputPerMillion: 3, OutputPerMillion: 15, CacheReadPerMillion: 0.3, CacheWritePerMillion: 3.75},
 		},
-		ToolCall:         true,
-		StructuredOutput: true,
-		Limits:           catalog.Limits{ContextWindow: 200000, MaxInputTokens: 190000, MaxOutputTokens: 8192},
-		Pricing:          []catalog.Pricing{{InputPer1M: 3, OutputPer1M: 15, CacheReadPer1M: 0.3, CacheWritePer1M: 3.75}},
 	}
 
-	m := modelToWire("anthropic", info)
+	m := modelToWire(info)
 
 	if m.ID != "claude-x" || m.Provider != "anthropic" || m.DisplayName != "Claude X" {
 		t.Fatalf("identity = %+v", m)
@@ -75,9 +79,10 @@ func TestModelToWire(t *testing.T) {
 // TestModelToWire_TextOnly verifies the convenience flags read false for a
 // plain text model: no image → multimodal false, no reasoning levels.
 func TestModelToWire_TextOnly(t *testing.T) {
-	m := modelToWire("openai", catalog.Model{
-		ID:         "tiny",
-		Modalities: catalog.Modalities{Input: []catalog.Modality{catalog.ModalityText}},
+	m := modelToWire(models.Model{
+		ID:       "tiny",
+		Provider: "openai",
+		Details:  &models.ModelDetails{InputModalities: []string{"text"}},
 	})
 	if m.Capabilities.Multimodal {
 		t.Error("text-only model must not be multimodal")
@@ -94,13 +99,13 @@ func TestModelToWire_TextOnly(t *testing.T) {
 // base-URL field off: set for the no-built-in-endpoint providers, clear for
 // the named vendors.
 func TestProviderToWire_RequiresBaseURL(t *testing.T) {
-	if !providerToWire(provider.Metadata{ID: "openai-compatible", RequiresBaseURL: true}, provider.Provider{}).RequiresBaseURL {
+	if !providerToWire(models.ProviderInfo{ID: "openai-compatible", RequiresBaseURL: true}).RequiresBaseURL {
 		t.Error("openai-compatible must require a base URL")
 	}
-	if !providerToWire(provider.Metadata{ID: "azureopenai", RequiresBaseURL: true}, provider.Provider{}).RequiresBaseURL {
+	if !providerToWire(models.ProviderInfo{ID: "azureopenai", RequiresBaseURL: true}).RequiresBaseURL {
 		t.Error("azureopenai must require a base URL")
 	}
-	if providerToWire(provider.Metadata{ID: "anthropic"}, provider.Provider{}).RequiresBaseURL {
+	if providerToWire(models.ProviderInfo{ID: "anthropic"}).RequiresBaseURL {
 		t.Error("anthropic must not require a base URL")
 	}
 }
