@@ -354,8 +354,8 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	child, err := ss.sessions.SaveSubtask(ctx, session.Subtask{
-		ID: "ses_child", ParentID: parent.ID, AgentName: "subtask-agent", StartedAt: now, UpdatedAt: now,
-	})
+		ID: "ses_child", ParentID: parent.ID, StartedAt: now, UpdatedAt: now,
+	}, []byte(`{"agent":"subtask"}`))
 	if err != nil {
 		t.Fatalf("create child: %v", err)
 	}

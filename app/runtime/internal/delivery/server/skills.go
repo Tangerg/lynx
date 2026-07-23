@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/fs"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -16,7 +15,7 @@ import (
 // (skills.library.list). The library is small, so it comes back in one page
 // (same as skills.discovered.list). Empty when no authoring store is wired.
 func (s *Server) WorkspaceListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
-	entries, err := s.workspace.ListManagedSkills(ctx)
+	entries, err := s.workspaceSkills.ListManagedSkills(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -38,7 +37,7 @@ func (s *Server) WorkspaceArchiveSkill(ctx context.Context, in protocol.SkillNam
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.workspace.ArchiveSkill(ctx, in.Name); err != nil {
+	if err := s.workspaceSkills.ArchiveSkill(ctx, in.Name); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
@@ -51,7 +50,7 @@ func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNam
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.workspace.RestoreSkill(ctx, in.Name); err != nil {
+	if err := s.workspaceSkills.RestoreSkill(ctx, in.Name); err != nil {
 		return err
 	}
 	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
@@ -62,7 +61,7 @@ func (s *Server) WorkspaceRestoreSkill(ctx context.Context, in protocol.SkillNam
 // review (skills.drafts.list). The draft area is small, so it comes back in one
 // page. capability_not_negotiated when authoring is disabled.
 func (s *Server) WorkspaceListSkillDrafts(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
-	drafts, err := s.workspace.ListSkillDrafts(ctx)
+	drafts, err := s.workspaceSkills.ListSkillDrafts(ctx)
 	if err != nil {
 		return nil, mapSkillDraftErr(err, "skills.drafts.list")
 	}
@@ -86,7 +85,7 @@ func (s *Server) WorkspacePromoteSkillDraft(ctx context.Context, in protocol.Ski
 	if err != nil {
 		return err
 	}
-	if err := s.workspace.PromoteSkillDraft(ctx, handle); err != nil {
+	if err := s.workspaceSkills.PromoteSkillDraft(ctx, handle); err != nil {
 		return mapSkillDraftErr(err, "skills.drafts.promote")
 	}
 	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
@@ -99,7 +98,7 @@ func (s *Server) WorkspaceRejectSkillDraft(ctx context.Context, in protocol.Skil
 	if err != nil {
 		return err
 	}
-	return mapSkillDraftErr(s.workspace.RejectSkillDraft(ctx, handle), "skills.drafts.reject")
+	return mapSkillDraftErr(s.workspaceSkills.RejectSkillDraft(ctx, handle), "skills.drafts.reject")
 }
 
 // skillDraftHandle validates the wire ref and reconstructs the content-addressed
@@ -121,7 +120,7 @@ func mapSkillDraftErr(err error, method string) error {
 		return fmt.Errorf("%w: a skill with that name already exists", protocol.ErrInvalidParams)
 	case errors.Is(err, skills.ErrDraftChanged):
 		return fmt.Errorf("%w: the staged draft changed", protocol.ErrInvalidParams)
-	case errors.Is(err, fs.ErrNotExist):
+	case errors.Is(err, skills.ErrNotFound):
 		return fmt.Errorf("%w: no such draft", protocol.ErrInvalidParams)
 	default:
 		return err

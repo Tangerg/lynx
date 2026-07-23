@@ -212,9 +212,9 @@ func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 		"StartScheduledRun": "the schedule application owns scheduled Run starts",
 	})
 	forbidQualifiedCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
-		"schedules.New":    "Bootstrap owns schedule coordinator construction",
-		"workspaceapp.New": "Bootstrap owns workspace coordinator construction",
-		"codebase.New":     "Bootstrap owns codebase coordinator construction",
+		"schedules.New":        "Bootstrap owns schedule coordinator construction",
+		"workspace.NewContext": "Bootstrap owns workspace use-case construction",
+		"codebase.New":         "Bootstrap owns codebase coordinator construction",
 	})
 }
 
@@ -228,7 +228,72 @@ func TestDeliveryDoesNotBypassWorkspaceUseCases(t *testing.T) {
 		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace",
 		"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath",
 		"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource",
+		"github.com/fsnotify/fsnotify",
 	})
+}
+
+// TestDeliveryServerDoesNotOwnFilesystemTechnology keeps filesystem traversal,
+// path policy, and file-notification lifecycle in the workspace application
+// and its adapter. Server handlers may project use-case values only.
+func TestDeliveryServerDoesNotOwnFilesystemTechnology(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "server"), []string{
+		"os",
+		"path/filepath",
+		"io/fs",
+		"github.com/fsnotify/fsnotify",
+	})
+}
+
+// TestProductSessionsDoNotCarryAgentContinuation prevents agent-core identity
+// and opaque continuation JSON from drifting back into the Session bounded
+// context. Bootstrap/storage owns the opaque sidecar; the product domain owns
+// only lineage and presentation.
+func TestProductSessionsDoNotCarryAgentContinuation(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "domain", "session")
+	forbiddenFields := map[string]struct{}{
+		"UserID": {}, "AgentName": {}, "Metadata": {}, "DelegationMetadata": {},
+	}
+	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range file.Imports {
+			if strings.HasPrefix(strings.Trim(imp.Path.Value, `"`), "github.com/Tangerg/lynx/agent/") {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("%s: product sessions must not import Agent runtime packages", rel)
+			}
+		}
+		file, err = parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			field, ok := node.(*ast.Field)
+			if !ok {
+				return true
+			}
+			for _, name := range field.Names {
+				if _, forbidden := forbiddenFields[name.Name]; forbidden {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("%s: product Session field %s leaks Agent continuation state", rel, name.Name)
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk session domain: %v", walkErr)
+	}
 }
 
 // TestDeliveryDoesNotOwnModelPolicy keeps the static catalog behind the
@@ -799,6 +864,7 @@ const protocolPkg = "github.com/Tangerg/lynx/app/runtime/internal/delivery/proto
 // covered by the ring rule). Prefix-matched.
 var externalSDKs = []string{
 	"github.com/Tangerg/lynx/agent",
+	"github.com/fsnotify/fsnotify",
 	"modernc.org/sqlite",
 	"github.com/go-git",
 	"github.com/mark3labs",

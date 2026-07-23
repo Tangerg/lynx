@@ -115,13 +115,13 @@ func TestSessionFork(t *testing.T) {
 		t.Fatalf("Fork unknown parent = %v, want ErrNotFound", err)
 	}
 
-	// child round-trips through Get with canonical empty delegation metadata.
+	// Child round-trips through Get as a pure product Session projection.
 	gotChild, err := svc.Get(ctx, child.ID)
 	if err != nil {
 		t.Fatalf("Get child: %v", err)
 	}
-	if gotChild.DelegationMetadata.String() != "{}" {
-		t.Fatalf("delegation metadata round trip = %s, want {}", gotChild.DelegationMetadata.String())
+	if gotChild.Kind != session.KindConversation {
+		t.Fatalf("fork kind = %q, want conversation", gotChild.Kind)
 	}
 }
 
@@ -457,8 +457,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 19 {
-				t.Fatalf("schema version = %d, err=%v, want 19", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 20 {
+				t.Fatalf("schema version = %d, err=%v, want 20", version, err)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {
@@ -475,7 +475,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 // TestSessionSubtaskLineage covers the delegation-lineage recording: a
 // subtask child is stored under a caller-supplied id, inherits the parent's
 // cwd, is marked KindSubtask, is hidden from List, yet is reachable via
-// Children and Get. Re-saving may update delegation metadata but not identity.
+// Children and Get. Re-saving may update opaque continuation data but not
+// product identity.
 func TestSessionSubtaskLineage(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
@@ -486,20 +487,13 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	}
 
 	now := time.Now().UTC()
-	metadata, err := session.ParseDelegationMetadata([]byte(`{"source":"runtime"}`))
-	if err != nil {
-		t.Fatalf("ParseDelegationMetadata: %v", err)
-	}
 	subtask := session.Subtask{
-		ID:                 "proc-123",
-		ParentID:           parent.ID,
-		UserID:             "user-1",
-		AgentName:          "research-agent",
-		StartedAt:          now,
-		UpdatedAt:          now,
-		DelegationMetadata: metadata,
+		ID:        "proc-123",
+		ParentID:  parent.ID,
+		StartedAt: now,
+		UpdatedAt: now,
 	}
-	child, err := svc.SaveSubtask(ctx, subtask)
+	child, err := svc.SaveSubtask(ctx, subtask, []byte(`{"agent":"v1"}`))
 	if err != nil {
 		t.Fatalf("SaveSubtask: %v", err)
 	}
@@ -515,33 +509,27 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	if child.Cwd != "/work/proj" {
 		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
 	}
-	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.DelegationMetadata.String() != `{"source":"runtime"}` {
-		t.Errorf("child runtime identity = %#v, want %#v", child, subtask)
-	}
-
-	// Re-saving the same identity updates the durable runtime fields without
+	// Re-saving the same identity updates audit and opaque continuation state without
 	// losing product-owned title/cwd enrichment.
 	subtask.UpdatedAt = now.Add(time.Second)
-	subtask.DelegationMetadata, err = session.ParseDelegationMetadata([]byte(`{"source":"updated"}`))
-	if err != nil {
-		t.Fatalf("ParseDelegationMetadata update: %v", err)
-	}
-	again, err := svc.SaveSubtask(ctx, subtask)
+	again, err := svc.SaveSubtask(ctx, subtask, []byte(`{"agent":"v2"}`))
 	if err != nil || again.ID != child.ID ||
 		again.Title != child.Title || again.Cwd != child.Cwd || again.Kind != child.Kind ||
-		!again.UpdatedAt.Equal(subtask.UpdatedAt) || again.DelegationMetadata.String() != `{"source":"updated"}` {
+		!again.UpdatedAt.Equal(subtask.UpdatedAt) {
 		t.Fatalf("SaveSubtask update = (%#v, %v)", again, err)
+	}
+	_, state, err := svc.LoadSubtask(ctx, subtask.ID)
+	if err != nil || string(state) != `{"agent":"v2"}` {
+		t.Fatalf("LoadSubtask state = %q, %v", state, err)
 	}
 	for name, mutate := range map[string]func(*session.Subtask){
 		"parent": func(s *session.Subtask) { s.ParentID = "other-parent" },
-		"user":   func(s *session.Subtask) { s.UserID = "other-user" },
-		"agent":  func(s *session.Subtask) { s.AgentName = "other-agent" },
 		"start":  func(s *session.Subtask) { s.StartedAt = s.StartedAt.Add(time.Second) },
 	} {
 		t.Run("conflicting "+name, func(t *testing.T) {
 			conflict := subtask
 			mutate(&conflict)
-			if _, err := svc.SaveSubtask(ctx, conflict); !errors.Is(err, session.ErrSubtaskConflict) {
+			if _, err := svc.SaveSubtask(ctx, conflict, []byte(`{"agent":"v3"}`)); !errors.Is(err, session.ErrSubtaskConflict) {
 				t.Fatalf("SaveSubtask conflict = %v, want ErrSubtaskConflict", err)
 			}
 		})

@@ -4,9 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"path/filepath"
-	"time"
 
+	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
@@ -15,46 +14,26 @@ import (
 // memory: proposals wait as pending until the user approves them, and only
 // approved memory reaches the prompt or the memory_search tool.
 
-// A disabled build injects agentMemoryUnavailable so agentMemory.* report
-// capability_not_negotiated. The server drives the domain's [agentmemory.Management]
-// review surface directly.
+// Delivery consumes application use cases. It holds neither a persistence port
+// nor a disabled fake: nil simply means the capability was not negotiated.
 var errAgentMemoryDisabled = errors.New("agentMemory: disabled")
 
-var _ agentmemory.Management = agentMemoryUnavailable{}
-
-type agentMemoryUnavailable struct{}
-
-func (agentMemoryUnavailable) List(context.Context, agentmemory.Scope, string) ([]agentmemory.Item, error) {
-	return nil, errAgentMemoryDisabled
-}
-func (agentMemoryUnavailable) Get(context.Context, string) (agentmemory.Item, bool, error) {
-	return agentmemory.Item{}, false, errAgentMemoryDisabled
-}
-func (agentMemoryUnavailable) SetStatus(context.Context, string, agentmemory.Status, time.Time) error {
-	return errAgentMemoryDisabled
-}
-func (agentMemoryUnavailable) SetPinned(context.Context, string, bool, time.Time) error {
-	return errAgentMemoryDisabled
-}
-func (agentMemoryUnavailable) UpdateContent(context.Context, string, string, time.Time) error {
-	return errAgentMemoryDisabled
-}
-func (agentMemoryUnavailable) Delete(context.Context, string) error { return errAgentMemoryDisabled }
-func (agentMemoryUnavailable) Add(context.Context, agentmemory.Scope, string, string, time.Time) (agentmemory.Item, error) {
-	return agentmemory.Item{}, errAgentMemoryDisabled
-}
-
-func agentMemoryOrDisabled(store agentmemory.Management) agentmemory.Management {
-	if store == nil {
-		return agentMemoryUnavailable{}
-	}
-	return store
+// agentMemoryUseCases is Delivery's consumer-side port. Its methods express
+// complete review use cases, rather than exposing the domain store workflow.
+type agentMemoryUseCases interface {
+	List(ctx context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error)
+	Review(ctx context.Context, id string, status agentmemory.Status) error
+	Update(ctx context.Context, id string, content *string, pinned *bool) (agentmemory.Item, error)
+	Delete(ctx context.Context, id string) error
+	Add(ctx context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error)
 }
 
 // ListAgentMemory returns a project's active + pending memory (agentMemory.list).
 func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
-	scope, project := agentMemoryTarget(in.Scope, in.Cwd)
-	items, err := s.agentMemory.List(ctx, scope, project)
+	if s.agentMemory == nil {
+		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.list")
+	}
+	items, err := s.agentMemory.List(ctx, agentMemoryScope(in.Scope), in.Cwd)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.list")
 	}
@@ -76,28 +55,20 @@ func (s *Server) ReviewAgentMemory(ctx context.Context, in protocol.AgentMemoryR
 	default:
 		return fmt.Errorf("%w: decision must be \"approve\" or \"reject\"", protocol.ErrInvalidParams)
 	}
-	return mapAgentMemoryErr(s.agentMemory.SetStatus(ctx, in.ID, status, time.Now()), "agentMemory.review")
+	if s.agentMemory == nil {
+		return mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.review")
+	}
+	return mapAgentMemoryErr(s.agentMemory.Review(ctx, in.ID, status), "agentMemory.review")
 }
 
 // UpdateAgentMemory edits and/or pins an item (agentMemory.update).
 func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
-	now := time.Now()
-	if in.Content != nil {
-		if err := s.agentMemory.UpdateContent(ctx, in.ID, *in.Content, now); err != nil {
-			return nil, mapAgentMemoryErr(err, "agentMemory.update")
-		}
+	if s.agentMemory == nil {
+		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.update")
 	}
-	if in.Pinned != nil {
-		if err := s.agentMemory.SetPinned(ctx, in.ID, *in.Pinned, now); err != nil {
-			return nil, mapAgentMemoryErr(err, "agentMemory.update")
-		}
-	}
-	item, ok, err := s.agentMemory.Get(ctx, in.ID)
+	item, err := s.agentMemory.Update(ctx, in.ID, in.Content, in.Pinned)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.update")
-	}
-	if !ok {
-		return nil, mapAgentMemoryErr(agentmemory.ErrNotFound, "agentMemory.update")
 	}
 	w := agentMemoryItemToWire(item)
 	return &w, nil
@@ -105,13 +76,18 @@ func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryU
 
 // DeleteAgentMemory removes an item (agentMemory.delete).
 func (s *Server) DeleteAgentMemory(ctx context.Context, in protocol.AgentMemoryItemRequest) error {
+	if s.agentMemory == nil {
+		return mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.delete")
+	}
 	return mapAgentMemoryErr(s.agentMemory.Delete(ctx, in.ID), "agentMemory.delete")
 }
 
 // AddAgentMemory stores a user-authored active item (agentMemory.add).
 func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
-	scope, project := agentMemoryTarget(in.Scope, in.Cwd)
-	item, err := s.agentMemory.Add(ctx, scope, project, in.Content, time.Now())
+	if s.agentMemory == nil {
+		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.add")
+	}
+	item, err := s.agentMemory.Add(ctx, agentMemoryScope(in.Scope), in.Cwd, in.Content)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.add")
 	}
@@ -119,17 +95,13 @@ func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddR
 	return &w, nil
 }
 
-// agentMemoryTarget resolves the wire (scope, cwd) to the stored (scope,
-// project) key: the user scope ignores cwd; the project scope cleans it, the
-// same form the extractor writes under.
-func agentMemoryTarget(scope, cwd string) (agentmemory.Scope, string) {
+// agentMemoryScope maps the wire vocabulary to the domain's bounded scope.
+// Project-root resolution happens inside the Application use case.
+func agentMemoryScope(scope string) agentmemory.Scope {
 	if scope == "user" {
-		return agentmemory.ScopeUser, ""
+		return agentmemory.ScopeUser
 	}
-	if cwd == "" {
-		return agentmemory.ScopeProject, ""
-	}
-	return agentmemory.ScopeProject, filepath.Clean(cwd)
+	return agentmemory.ScopeProject
 }
 
 func mapAgentMemoryErr(err error, method string) error {
@@ -138,10 +110,12 @@ func mapAgentMemoryErr(err error, method string) error {
 		return nil
 	case errors.Is(err, errAgentMemoryDisabled):
 		return capabilityNotNegotiated(method)
+	case errors.Is(err, agentmemoryapp.ErrUnavailable):
+		return capabilityNotNegotiated(method)
 	case errors.Is(err, agentmemory.ErrNotFound):
 		return fmt.Errorf("%w: no such memory item", protocol.ErrInvalidParams)
 	default:
-		return err
+		return wireWorkspaceError(err)
 	}
 }
 

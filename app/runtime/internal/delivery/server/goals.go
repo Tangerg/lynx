@@ -40,7 +40,7 @@ func (goalsUnavailable) Get(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, errGoalsDisabled
 }
 
-func goalRunnerOrDisabled(d *goals.Driver) goalRunner {
+func goalRunnerOrDisabled(d goalRunner) goalRunner {
 	if d == nil {
 		return goalsUnavailable{}
 	}

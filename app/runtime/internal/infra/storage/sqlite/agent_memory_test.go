@@ -202,6 +202,20 @@ func TestAgentMemoryManagementOps(t *testing.T) {
 	if len(forSearch) != 1 || len(forSearch[0].Embedding) != 0 {
 		t.Fatalf("edit did not clear the stale embedding: %+v", forSearch)
 	}
+	// A combined review update is all-or-nothing: invalid content must not leave
+	// a requested pin behind.
+	if err := store.SetPinned(t.Context(), item.ID, false, now); err != nil {
+		t.Fatal(err)
+	}
+	pinned := true
+	blank := "  "
+	if _, err := store.Update(t.Context(), item.ID, &blank, &pinned, now.Add(time.Second)); err == nil {
+		t.Fatal("Update accepted blank content")
+	}
+	unchanged, ok, err := store.Get(t.Context(), item.ID)
+	if err != nil || !ok || unchanged.Pinned {
+		t.Fatalf("failed Update changed item = (%+v, %v, %v)", unchanged, ok, err)
+	}
 	if err := store.Delete(t.Context(), item.ID); err != nil {
 		t.Fatal(err)
 	}

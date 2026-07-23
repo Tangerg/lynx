@@ -230,8 +230,8 @@ type State struct {
 
 // Store is the extraction + search face of agent-memory persistence: the fact
 // ledger (project-scoped raw capture), the item set reconciled from it, and the
-// embedding backfill the searcher ranks over. The human review operations are a
-// separate port, [Management], so each consumer depends only on its slice.
+// embedding backfill the searcher ranks over. Review commands are defined by
+// their Application consumer, keeping this domain free of Delivery's workflow.
 type Store interface {
 	// AppendLedger inserts facts not already present in the project (dedup by
 	// content digest) and returns the newly inserted facts in sequence order.
@@ -270,30 +270,6 @@ type Store interface {
 
 	// SetEmbeddings stores a content vector for each item id.
 	SetEmbeddings(ctx context.Context, vectors map[string][]float32) error
-}
-
-// Management is the human-in-the-loop review surface over agent memory: the
-// operations the runtime protocol drives (list / approve / reject / edit / pin /
-// delete / add). Kept apart from the extraction-facing [Store] methods so the
-// delivery layer depends only on what it uses.
-type Management interface {
-	// List returns a (scope, project)'s active + pending items for review,
-	// pending first; rejected tombstones are hidden.
-	List(ctx context.Context, scope Scope, project string) ([]Item, error)
-	// Get returns one item by id (false when absent).
-	Get(ctx context.Context, id string) (Item, bool, error)
-	// SetStatus moves an item through the review lifecycle (approve → active,
-	// reject → rejected tombstone). ErrNotFound when the id is unknown.
-	SetStatus(ctx context.Context, id string, status Status, now time.Time) error
-	// SetPinned pins or unpins an item. ErrNotFound when the id is unknown.
-	SetPinned(ctx context.Context, id string, pinned bool, now time.Time) error
-	// UpdateContent edits an item's content (re-embedded on the next fold).
-	// ErrNotFound when the id is unknown.
-	UpdateContent(ctx context.Context, id, content string, now time.Time) error
-	// Delete removes an item. ErrNotFound when the id is unknown.
-	Delete(ctx context.Context, id string) error
-	// Add stores a user-authored active item, returning it.
-	Add(ctx context.Context, scope Scope, project, content string, now time.Time) (Item, error)
 }
 
 // NormalizeFacts converts an extraction response into stable markdown bullets.

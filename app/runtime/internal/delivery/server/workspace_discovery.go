@@ -9,7 +9,7 @@ import (
 // WorkspaceListProjects projects the application-owned distinct-workspace view
 // derived from user-facing sessions.
 func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.Project], error) {
-	projects, err := s.workspace.ListProjects(ctx)
+	projects, err := s.workspaceDiscovery.ListProjects(ctx)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -26,7 +26,7 @@ func (s *Server) WorkspaceListProjects(ctx context.Context, _ protocol.PageQuery
 
 // WorkspaceListSkills maps application skill discovery to the protocol shape.
 func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
-	found, err := s.workspace.ListSkills(ctx, in.Cwd)
+	found, err := s.workspaceSkills.ListSkills(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -39,7 +39,7 @@ func (s *Server) WorkspaceListSkills(ctx context.Context, in protocol.WorkspaceL
 
 // WorkspaceListRecipes maps application recipe discovery to the protocol shape.
 func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Recipe], error) {
-	found, err := s.workspace.ListRecipes(ctx, in.Cwd)
+	found, err := s.workspaceDiscovery.ListRecipes(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -56,13 +56,13 @@ func (s *Server) WorkspaceListRecipes(ctx context.Context, in protocol.Workspace
 // WorkspaceListAgentDocs maps the application-owned instruction-document
 // cascade onto the protocol shape.
 func (s *Server) WorkspaceListAgentDocs(ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.AgentDoc], error) {
-	docs, err := s.workspace.ListAgentDocs(ctx, in.Cwd)
+	docs, err := s.workspaceDiscovery.ListAgentDocs(ctx, in.Cwd)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
 	out := make([]protocol.AgentDoc, 0, len(docs))
 	for _, doc := range docs {
-		out = append(out, protocol.AgentDoc{Path: doc.Path, Scope: protocol.AgentDocScope(doc.Scope)})
+		out = append(out, protocol.AgentDoc{Path: doc.Path, Scope: protocol.AgentDocScope(string(doc.Scope))})
 	}
 	return protocol.NewPage(out), nil
 }

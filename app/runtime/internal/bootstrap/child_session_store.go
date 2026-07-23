@@ -11,12 +11,12 @@ import (
 )
 
 type childSessionPersistence interface {
-	Get(ctx context.Context, id string) (sessionsvc.Session, error)
-	SaveSubtask(ctx context.Context, subtask sessionsvc.Subtask) (sessionsvc.Session, error)
+	LoadSubtask(ctx context.Context, id string) (sessionsvc.Session, []byte, error)
+	SaveSubtask(ctx context.Context, subtask sessionsvc.Subtask, agentSession []byte) (sessionsvc.Session, error)
 }
 
-// childSessionStore adapts lyra's [sessionsvc.Store] to the agent runtime's
-// [core.SessionStore] SPI. Wiring it into the agent engine makes the runtime
+// childSessionStore adapts Lyra product-session persistence to the agent
+// runtime's [core.SessionStore] SPI. Wiring it into the agent engine makes the runtime
 // persist a sub-agent's session when it spawns one (the `task` delegation), so
 // the parent→child lineage is durably queryable on the lyra side rather than
 // living only in the agent's in-process ProcessOptions.
@@ -37,68 +37,79 @@ func newChildSessionStore(sessions childSessionPersistence) *childSessionStore {
 }
 
 // Save records the spawned child session as a subtask session linked to its
-// parent. The agent supplies the complete durable child identity; the product
-// store enriches it with title and working directory inherited from the parent.
+// parent. The agent session is serialized as an opaque Bootstrap-owned sidecar;
+// the product store receives only its lineage/audit projection and enriches it
+// with title and working directory inherited from the parent.
 func (s *childSessionStore) Save(ctx context.Context, sess core.Session) error {
 	if err := sess.Validate(); err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
 	}
-	metadata, err := json.Marshal(sess.Metadata)
-	if err != nil {
-		return fmt.Errorf("child session store: encode delegation metadata for %q: %w", sess.ID, err)
+	if _, encoded, err := s.sessions.LoadSubtask(ctx, sess.ID); err == nil {
+		stored, decodeErr := decodeAgentSession(encoded)
+		if decodeErr != nil {
+			return fmt.Errorf("child session store: decode stored session %q: %w", sess.ID, decodeErr)
+		}
+		if !sameAgentSessionIdentity(stored, sess) {
+			return fmt.Errorf("child session store: save %q: %w", sess.ID, sessionsvc.ErrSubtaskConflict)
+		}
+	} else if !errors.Is(err, sessionsvc.ErrNotFound) {
+		return fmt.Errorf("child session store: inspect existing session %q: %w", sess.ID, err)
 	}
-	delegationMetadata, err := sessionsvc.ParseDelegationMetadata(metadata)
+	encoded, err := json.Marshal(sess)
 	if err != nil {
-		return fmt.Errorf("child session store: validate delegation metadata for %q: %w", sess.ID, err)
+		return fmt.Errorf("child session store: encode agent session %q: %w", sess.ID, err)
 	}
 	_, err = s.sessions.SaveSubtask(ctx, sessionsvc.Subtask{
-		ID:                 sess.ID,
-		ParentID:           sess.ParentID,
-		UserID:             sess.UserID,
-		AgentName:          sess.AgentName,
-		StartedAt:          sess.StartedAt,
-		UpdatedAt:          sess.UpdatedAt,
-		DelegationMetadata: delegationMetadata,
-	})
+		ID:        sess.ID,
+		ParentID:  sess.ParentID,
+		StartedAt: sess.StartedAt,
+		UpdatedAt: sess.UpdatedAt,
+	}, encoded)
 	if err != nil {
 		return fmt.Errorf("child session store: save %q: %w", sess.ID, err)
 	}
 	return nil
 }
 
-// Load returns the lineage-relevant fields of a stored session, mapping
-// lyra's not-found to the SPI sentinel.
+// Load restores the complete agent runtime session from Bootstrap's opaque
+// sidecar, mapping product-store not-found to the SPI sentinel.
 func (s *childSessionStore) Load(ctx context.Context, id string) (core.Session, error) {
-	ls, err := s.sessions.Get(ctx, id)
+	ls, encoded, err := s.sessions.LoadSubtask(ctx, id)
 	if errors.Is(err, sessionsvc.ErrNotFound) {
 		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, core.ErrSessionNotFound)
 	}
 	if err != nil {
 		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)
 	}
-	if ls.Kind != sessionsvc.KindSubtask {
-		return core.Session{}, fmt.Errorf(
-			"child session store: load %q: %w: stored kind %q",
-			id,
-			sessionsvc.ErrSubtaskConflict,
-			ls.Kind,
-		)
-	}
-	metadata, err := core.ParseSessionMetadata(ls.DelegationMetadata.JSON())
+	loaded, err := decodeAgentSession(encoded)
 	if err != nil {
-		return core.Session{}, fmt.Errorf("child session store: decode delegation metadata for %q: %w", id, err)
+		return core.Session{}, fmt.Errorf("child session store: decode agent session %q: %w", id, err)
 	}
-	loaded := core.Session{
-		ID:        ls.ID,
-		ParentID:  ls.ParentID,
-		UserID:    ls.UserID,
-		AgentName: ls.AgentName,
-		StartedAt: ls.StartedAt,
-		UpdatedAt: ls.UpdatedAt,
-		Metadata:  metadata,
-	}
-	if err := loaded.Validate(); err != nil {
-		return core.Session{}, fmt.Errorf("child session store: load %q: %w", id, err)
+	if loaded.ID != ls.ID || loaded.ParentID != ls.ParentID ||
+		!loaded.StartedAt.Equal(ls.StartedAt) || !loaded.UpdatedAt.Equal(ls.UpdatedAt) {
+		return core.Session{}, fmt.Errorf("child session store: load %q: %w: product and agent session state disagree", id, sessionsvc.ErrSubtaskConflict)
 	}
 	return loaded, nil
+}
+
+func decodeAgentSession(encoded []byte) (core.Session, error) {
+	var loaded core.Session
+	if err := json.Unmarshal(encoded, &loaded); err != nil {
+		return core.Session{}, err
+	}
+	if err := loaded.Validate(); err != nil {
+		return core.Session{}, err
+	}
+	return loaded, nil
+}
+
+// sameAgentSessionIdentity preserves the Agent runtime's immutable identity
+// contract without making that contract a Session-domain concern. UpdatedAt and
+// Metadata are expected to evolve on continuation saves.
+func sameAgentSessionIdentity(existing, next core.Session) bool {
+	return existing.ID == next.ID &&
+		existing.ParentID == next.ParentID &&
+		existing.UserID == next.UserID &&
+		existing.AgentName == next.AgentName &&
+		existing.StartedAt.Equal(next.StartedAt)
 }

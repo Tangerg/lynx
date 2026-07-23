@@ -54,7 +54,11 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	}
 
 	// Close the run coordinator so continuation admission fails before opening.
-	s.coordinator.Close()
+	closer, ok := s.coordinator.(interface{ Close() })
+	if !ok {
+		t.Fatal("test run coordinator does not expose Close")
+	}
+	closer.Close()
 
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
 		RunID: "run_1",

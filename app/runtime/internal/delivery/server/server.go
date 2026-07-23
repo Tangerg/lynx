@@ -13,20 +13,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
-	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
 // Config bundles construction inputs.
@@ -35,39 +22,39 @@ type Config struct {
 	// write-sets and single-writer admission (rollback / delete cascade / fork /
 	// restore / resume / working-tree gates). Required — the delivery layer drives
 	// every lifecycle mutation through it.
-	Sessions *sessions.Coordinator
+	Sessions sessionUseCases
 
 	// Integrations is the application coordinator for the runtime's MCP
 	// integration surface (server registry / live pool / tool policy). Required —
 	// the delivery mcp.* handlers drive it directly.
-	Integrations *integrations.Coordinator
+	Integrations integrationUseCases
 
 	// Approvals is the application coordinator for the tool-permission stance +
 	// approval rules. Required — the approval.* settings handlers drive it.
-	Approvals *approvals.Coordinator
+	Approvals approvalUseCases
 
 	// Models is the application coordinator for provider + model configuration
 	// (providers.* / models.* / the default provider+model). Required — the
 	// provider/model settings handlers + the capability snapshot drive it.
-	Models *models.Coordinator
+	Models modelUseCases
 
 	// Tools is the application coordinator for the diagnostic tool registry
 	// (tools.list / tools.invoke). Required — the tools.* handlers drive it.
-	Tools *tools.Coordinator
+	Tools toolUseCases
 
 	// Coordinator owns the run lifecycle (admission / journal / pump / cancel),
 	// built + owned by the composition root (bootstrap.Host). Required — delivery
 	// drives it as a use-case surface but never constructs or closes it (§11.1).
-	Coordinator *runs.Coordinator
+	Coordinator runUseCases
 
 	// Queries is the application read coordinator for a session's durable
 	// execution record (transcript / history / interrupts). Required — the
 	// items.list / messages.list / interrupts.list handlers drive it.
-	Queries *queries.Coordinator
+	Queries queryUseCases
 
 	// Usage folds durable run history into session and aggregate metering
 	// reports. Required — delivery only projects its result onto usage.*.
-	Usage *usage.Reporter
+	Usage usageUseCases
 
 	// FileChanges is the composition-root bridge the run pump publishes live
 	// file-change nudges through; the Server installs a consumer that maps them to
@@ -90,7 +77,7 @@ type Config struct {
 	// Schedules is the application coordinator for cron-triggered headless-run
 	// management. Bootstrap supplies an explicit disabled coordinator when the
 	// capability is not negotiated.
-	Schedules *schedules.Coordinator
+	Schedules scheduleUseCases
 
 	// ScheduleFires carries accepted scheduled-run notifications from the
 	// composition root. Delivery projects them to workspace events; it does not
@@ -99,22 +86,28 @@ type Config struct {
 
 	// Goals is the autonomous-execution loop driver (goals.* — Goal mode). nil
 	// makes goals.* report capability_not_negotiated.
-	Goals *goals.Driver
+	Goals goalRunner
 
-	// AgentMemory is the HITL review surface over the agent's self-maintained
-	// memory (agentMemory.*). nil makes agentMemory.* report
+	// AgentMemory is the HITL review use-case surface over the agent's
+	// self-maintained memory (agentMemory.*). nil makes agentMemory.* report
 	// capability_not_negotiated.
-	AgentMemory agentmemory.Management
+	AgentMemory agentMemoryUseCases
 
-	// Workspace is the application coordinator for the project developer surface
-	// (workspace reads, memory, skills, recipes, and hooks). Bootstrap supplies
-	// an explicit disabled coordinator when a capability is absent.
-	Workspace *workspaceapp.Coordinator
+	// Workspace capabilities are independent application use cases. Delivery
+	// depends on each narrow consumer port, never a catch-all workspace facade.
+	WorkspaceRoots     workspaceRootUseCases
+	WorkspaceFiles     workspaceFileUseCases
+	WorkspaceVCS       workspaceVCSUseCases
+	WorkspaceDiscovery workspaceDiscoveryUseCases
+	WorkspaceKnowledge workspaceKnowledgeUseCases
+	WorkspaceSkills    workspaceSkillUseCases
+	WorkspaceHooks     workspaceHookUseCases
+	WorkspaceWatch     workspaceWatchUseCases
 
 	// Codebase is the application coordinator for the @codebase semantic index
 	// (codebase.search / status / reindex). Bootstrap supplies its unavailable
 	// coordinator when no index is configured.
-	Codebase *codebase.Coordinator
+	Codebase codebaseUseCases
 
 	// GitAvailable is the Bootstrap-probed Git capability snapshot. Delivery
 	// projects this static environment fact; it never probes the process itself.
@@ -128,57 +121,63 @@ type Server struct {
 	// sessions owns the session/run lifecycle write-sets and single-writer
 	// admission gates (rollback / delete cascade / fork / restore / resume /
 	// working-tree). Injected by the composition root; never nil after New.
-	sessions *sessions.Coordinator
+	sessions sessionUseCases
 
 	// integrations owns the MCP integration use cases (server registry / live pool
 	// / tool policy). Injected by the composition root; never nil after New.
-	integrations *integrations.Coordinator
+	integrations integrationUseCases
 
 	// approvals owns the tool-permission stance + approval-rule use cases. Injected
 	// by the composition root; never nil after New.
-	approvals *approvals.Coordinator
+	approvals approvalUseCases
 
 	// models owns provider + model configuration (registry / catalog / roles /
 	// defaults). Injected by the composition root; never nil after New.
-	models *models.Coordinator
+	models modelUseCases
 
 	// tools owns the diagnostic tool-registry read/invoke use cases. Injected by
 	// the composition root; never nil after New.
-	tools *tools.Coordinator
+	tools toolUseCases
 
 	// codebase owns the @codebase semantic-index use cases (search / status /
 	// reindex). Injected by the composition root; never nil after New.
-	codebase *codebase.Coordinator
+	codebase codebaseUseCases
 
 	// coordinator owns the run lifecycle — admission, the per-run event Journal,
 	// the segment pumps, cancel. Built + owned by the composition root
 	// (bootstrap.Host); delivery drives it as a use-case surface and never closes
 	// it (§11.1). Injected by New; never nil after New.
-	coordinator *runs.Coordinator
+	coordinator runUseCases
 
 	// queries is the application read coordinator for a session's durable
 	// execution record (transcript / history / interrupts). Injected by New.
-	queries *queries.Coordinator
+	queries queryUseCases
 
 	// usage owns durable metering aggregation. Delivery only maps its neutral
 	// result values to the protocol response.
-	usage *usage.Reporter
+	usage usageUseCases
 
 	// schedules owns the cron-triggered headless-run use cases (schedules.* + the
 	// background worker), injected by the composition root. Never nil after New.
-	schedules *schedules.Coordinator
+	schedules scheduleUseCases
 
 	// goals drives the autonomous-execution loop (goals.* — Goal mode). Never nil
 	// after New (a disabled stub when Goal mode is off).
 	goals goalRunner
 
-	// agentMemory is the HITL review surface over agent memory (agentMemory.*).
-	// Never nil after New (a disabled stub when agent memory is off).
-	agentMemory agentmemory.Management
+	// agentMemory is the HITL review use-case surface over agent memory
+	// (agentMemory.*). nil means the capability was not negotiated.
+	agentMemory agentMemoryUseCases
 
-	// workspace owns the project developer-surface use cases (memory / skills /
-	// recipes / hooks), injected by the composition root. Never nil after New.
-	workspace *workspaceapp.Coordinator
+	// Workspace use cases are intentionally separate bounded capabilities.
+	workspaceRoots     workspaceRootUseCases
+	workspaceFiles     workspaceFileUseCases
+	workspaceVCS       workspaceVCSUseCases
+	workspaceDiscovery workspaceDiscoveryUseCases
+	workspaceKnowledge workspaceKnowledgeUseCases
+	workspaceSkills    workspaceSkillUseCases
+	workspaceHooks     workspaceHookUseCases
+	workspaceWatch     workspaceWatchUseCases
 
 	gitAvailable bool
 
@@ -261,29 +260,38 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Schedules == nil {
 		return nil, errors.New("server: Schedules is required")
 	}
-	if cfg.Workspace == nil {
-		return nil, errors.New("server: Workspace is required")
+	if cfg.WorkspaceRoots == nil || cfg.WorkspaceFiles == nil || cfg.WorkspaceVCS == nil ||
+		cfg.WorkspaceDiscovery == nil || cfg.WorkspaceKnowledge == nil || cfg.WorkspaceSkills == nil ||
+		cfg.WorkspaceHooks == nil || cfg.WorkspaceWatch == nil {
+		return nil, errors.New("server: workspace use cases are required")
 	}
 	if cfg.Codebase == nil {
 		return nil, errors.New("server: Codebase is required")
 	}
 	srv := &Server{
-		sessions:     cfg.Sessions,
-		integrations: cfg.Integrations,
-		approvals:    cfg.Approvals,
-		models:       cfg.Models,
-		tools:        cfg.Tools,
-		codebase:     cfg.Codebase,
-		coordinator:  cfg.Coordinator,
-		queries:      cfg.Queries,
-		usage:        cfg.Usage,
-		serverInfo:   cfg.ServerInfo,
-		wsHub:        newWorkspaceHub(),
-		schedules:    cfg.Schedules,
-		goals:        goalRunnerOrDisabled(cfg.Goals),
-		agentMemory:  agentMemoryOrDisabled(cfg.AgentMemory),
-		workspace:    cfg.Workspace,
-		gitAvailable: cfg.GitAvailable,
+		sessions:           cfg.Sessions,
+		integrations:       cfg.Integrations,
+		approvals:          cfg.Approvals,
+		models:             cfg.Models,
+		tools:              cfg.Tools,
+		codebase:           cfg.Codebase,
+		coordinator:        cfg.Coordinator,
+		queries:            cfg.Queries,
+		usage:              cfg.Usage,
+		serverInfo:         cfg.ServerInfo,
+		wsHub:              newWorkspaceHub(),
+		schedules:          cfg.Schedules,
+		goals:              goalRunnerOrDisabled(cfg.Goals),
+		agentMemory:        cfg.AgentMemory,
+		workspaceRoots:     cfg.WorkspaceRoots,
+		workspaceFiles:     cfg.WorkspaceFiles,
+		workspaceVCS:       cfg.WorkspaceVCS,
+		workspaceDiscovery: cfg.WorkspaceDiscovery,
+		workspaceKnowledge: cfg.WorkspaceKnowledge,
+		workspaceSkills:    cfg.WorkspaceSkills,
+		workspaceHooks:     cfg.WorkspaceHooks,
+		workspaceWatch:     cfg.WorkspaceWatch,
+		gitAvailable:       cfg.GitAvailable,
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -308,7 +316,7 @@ func New(cfg Config) (*Server, error) {
 // delegating to the package-level [Capabilities] so the /v2/info
 // sidecar can build the same snapshot without a constructed Server.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.workspace.HasMemory(), s.gitAvailable)
+	return Capabilities(s.workspaceKnowledge.HasMemory(), s.gitAvailable, s.workspaceWatch.HasFileWatch())
 }
 
 // Capabilities builds the capability snapshot a Runtime advertises
@@ -316,7 +324,7 @@ func (s *Server) Capabilities() protocol.ServerCapabilities {
 // return capability_not_negotiated are advertised false, so the client never calls a
 // method this build silently rejects. hasMemory comes from the workspace
 // coordinator (the long-term knowledge store may be absent).
-func Capabilities(hasMemory, gitAvailable bool) protocol.ServerCapabilities {
+func Capabilities(hasMemory, gitAvailable, hasFileWatch bool) protocol.ServerCapabilities {
 	memory := hasMemory
 	return protocol.ServerCapabilities{
 		Events: []protocol.StreamEventType{
@@ -339,7 +347,7 @@ func Capabilities(hasMemory, gitAvailable bool) protocol.ServerCapabilities {
 			"memory":    capability(memory),
 			"skills":    capability(true),
 			"git":       capability(gitAvailable),
-			"fileWatch": capability(true),
+			"fileWatch": capability(hasFileWatch),
 			"lsp":       capability(true),
 
 			"sessionExport": capability(true),

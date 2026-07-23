@@ -35,7 +35,7 @@ func (f *fakeHookTrust) Untrust(_ context.Context, projectRoot string) error {
 }
 
 func serverWithHookTrust(trust workspaceapp.HookTrustStore) *Server {
-	return &Server{workspace: newWorkspaceCoordinator("", workspaceapp.Config{Trust: trust})}
+	return newWorkspaceServerWithConfig("", workspaceTestConfig{Trust: trust})
 }
 
 func TestWorkspaceSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
@@ -86,15 +86,13 @@ func (i staticHookInspector) Inspect(context.Context, string) (domainhooks.Inspe
 
 func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{
-		workspace: newWorkspaceCoordinator(root, workspaceapp.Config{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
-			ProjectRoot: root,
-			Hooks: []domainhooks.Hook{{
-				Event: domainhooks.SubagentStart, Command: "audit", TimeoutMs: 2500,
-				Scope: domainhooks.ScopeGlobal, Source: "/home/user/.lyra/hooks.json",
-			}},
-		}}}),
-	}
+	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
+		ProjectRoot: root,
+		Hooks: []domainhooks.Hook{{
+			Event: domainhooks.SubagentStart, Command: "audit", TimeoutMs: 2500,
+			Scope: domainhooks.ScopeGlobal, Source: "/home/user/.lyra/hooks.json",
+		}},
+	}}})
 
 	result, err := s.WorkspaceListHooks(t.Context(), protocol.ListHooksRequest{})
 	if err != nil {
@@ -112,11 +110,7 @@ func TestWorkspaceListHooksPreservesCompleteHookDefinition(t *testing.T) {
 func TestWorkspaceListHooksPreservesInspectionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	root := t.TempDir()
-	s := &Server{
-		workspace: newWorkspaceCoordinator(root, workspaceapp.Config{
-			Hooks: failingHookInspector{err: wantErr},
-		}),
-	}
+	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: failingHookInspector{err: wantErr}})
 
 	if _, err := s.WorkspaceListHooks(context.Background(), protocol.ListHooksRequest{}); !errors.Is(err, wantErr) {
 		t.Fatalf("WorkspaceListHooks error = %v, want %v", err, wantErr)

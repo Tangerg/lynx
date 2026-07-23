@@ -14,8 +14,7 @@ type AgentMemoryStore struct {
 }
 
 var (
-	_ agentmemory.Store      = (*AgentMemoryStore)(nil)
-	_ agentmemory.Management = (*AgentMemoryStore)(nil)
+	_ agentmemory.Store = (*AgentMemoryStore)(nil)
 )
 
 // NewAgentMemoryStore binds a database opened by Open.

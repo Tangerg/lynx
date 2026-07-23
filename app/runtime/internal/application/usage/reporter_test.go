@@ -96,11 +96,11 @@ func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
 
 func TestAccumulatorOmitsCostWhenUnpriced(t *testing.T) {
 	a := accumulator{}
-	a.add(ModelUsage{InputTokens: 10})
+	a.add(transcript.ModelUsage{InputTokens: 10})
 	if got := a.usage(); got.CostUSD != nil {
 		t.Errorf("CostUSD = %v, want nil", *got.CostUSD)
 	}
-	a.add(ModelUsage{InputTokens: 5, CostUSD: usd(0.3)})
+	a.add(transcript.ModelUsage{InputTokens: 5, CostUSD: usd(0.3)})
 	if got := a.usage(); got.CostUSD == nil || *got.CostUSD != 0.3 {
 		t.Errorf("CostUSD = %v, want 0.3", got.CostUSD)
 	}
@@ -108,8 +108,8 @@ func TestAccumulatorOmitsCostWhenUnpriced(t *testing.T) {
 
 func TestBucketsBySpendRanksByCostDesc(t *testing.T) {
 	m := map[string]*accumulator{
-		"cheap": {tokens: ModelUsage{InputTokens: 1}, cost: 0.1, hasCost: true},
-		"dear":  {tokens: ModelUsage{InputTokens: 1}, cost: 9, hasCost: true},
+		"cheap": {tokens: transcript.ModelUsage{InputTokens: 1}, cost: 0.1, hasCost: true},
+		"dear":  {tokens: transcript.ModelUsage{InputTokens: 1}, cost: 9, hasCost: true},
 	}
 	out := bucketsBySpend(m)
 	if out[0].Key != "dear" {

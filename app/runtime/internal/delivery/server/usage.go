@@ -5,6 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // SessionUsage projects the application-owned session usage report onto the
@@ -53,7 +54,7 @@ func usageBucketsWire(buckets []usage.Bucket) []protocol.UsageBucket {
 	return out
 }
 
-func usageWire(usage usage.ModelUsage) protocol.ModelUsage {
+func usageWire(usage transcript.ModelUsage) protocol.ModelUsage {
 	return protocol.ModelUsage{
 		InputTokens: usage.InputTokens, OutputTokens: usage.OutputTokens,
 		CacheReadTokens: usage.CacheReadTokens, CacheWriteTokens: usage.CacheWriteTokens,

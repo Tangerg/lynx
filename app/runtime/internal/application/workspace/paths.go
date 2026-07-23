@@ -24,7 +24,7 @@ type Paths interface {
 	ResolveExistingInRoot(root, path string) (string, error)
 }
 
-func (c *Coordinator) root(cwd string) (string, error) {
+func (c *Context) root(cwd string) (string, error) {
 	root := cwd
 	if root == "" {
 		root = c.defaultCwd
@@ -41,6 +41,6 @@ func (c *Coordinator) root(cwd string) (string, error) {
 
 // ResolveRoot returns the effective, existing working directory for a workspace
 // request. Empty cwd selects the host-provided default working directory.
-func (c *Coordinator) ResolveRoot(cwd string) (string, error) {
+func (c *Context) ResolveRoot(cwd string) (string, error) {
 	return c.root(cwd)
 }

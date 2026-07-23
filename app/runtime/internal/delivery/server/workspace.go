@@ -11,7 +11,7 @@ import (
 // workspaceRoot adapts the application-owned workspace-context lookup for the
 // few delivery projections that pass a canonical root to another use case.
 func (s *Server) workspaceRoot(cwd string) (string, error) {
-	root, err := s.workspace.ResolveRoot(cwd)
+	root, err := s.workspaceRoots.ResolveRoot(cwd)
 	if err != nil {
 		return "", wireWorkspaceError(err)
 	}

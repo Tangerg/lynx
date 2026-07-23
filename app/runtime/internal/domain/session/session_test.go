@@ -77,12 +77,10 @@ func TestParseKindRejectsUnknownStorageValue(t *testing.T) {
 func TestSessionFork(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{
-		ID:        "ses_parent",
-		UserID:    "user-1",
-		AgentName: "research-agent",
-		Title:     "research",
-		Cwd:       "/work/proj",
-		Model:     "claude-opus-4-8",
+		ID:    "ses_parent",
+		Title: "research",
+		Cwd:   "/work/proj",
+		Model: "claude-opus-4-8",
 	}
 
 	child := parent.Fork("ses_child", now)
@@ -99,9 +97,6 @@ func TestSessionFork(t *testing.T) {
 	if child.Cwd != parent.Cwd {
 		t.Errorf("Cwd = %q, want inherited %q", child.Cwd, parent.Cwd)
 	}
-	if child.UserID != parent.UserID || child.AgentName != parent.AgentName {
-		t.Errorf("runtime identity = %q/%q, want %q/%q", child.UserID, child.AgentName, parent.UserID, parent.AgentName)
-	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
 	}
@@ -114,18 +109,11 @@ func TestSessionFork(t *testing.T) {
 func TestSessionNewSubtask(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	parent := Session{ID: "ses_parent", Title: "research", Cwd: "/work/proj", Model: "claude-opus-4-8"}
-	metadata, err := ParseDelegationMetadata([]byte(`{"source":"agent"}`))
-	if err != nil {
-		t.Fatalf("ParseDelegationMetadata: %v", err)
-	}
 	subtask := Subtask{
-		ID:                 "ses_child",
-		ParentID:           parent.ID,
-		UserID:             "user-1",
-		AgentName:          "research-agent",
-		StartedAt:          now,
-		UpdatedAt:          now,
-		DelegationMetadata: metadata,
+		ID:        "ses_child",
+		ParentID:  parent.ID,
+		StartedAt: now,
+		UpdatedAt: now,
 	}
 
 	child, err := parent.NewSubtask(subtask)
@@ -147,9 +135,6 @@ func TestSessionNewSubtask(t *testing.T) {
 	}
 	if child.Kind != KindSubtask {
 		t.Errorf("Kind = %q, want %q", child.Kind, KindSubtask)
-	}
-	if child.UserID != subtask.UserID || child.AgentName != subtask.AgentName || child.DelegationMetadata.String() != `{"source":"agent"}` {
-		t.Errorf("runtime identity = %#v, want %#v", child, subtask)
 	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)
@@ -174,7 +159,7 @@ func TestSessionNewSubtask(t *testing.T) {
 
 func TestSubtaskValidate(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
-	valid := Subtask{ID: "ses_c", ParentID: "ses_p", AgentName: "agent", StartedAt: now, UpdatedAt: now}
+	valid := Subtask{ID: "ses_c", ParentID: "ses_p", StartedAt: now, UpdatedAt: now}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid subtask: %v", err)
 	}
@@ -188,7 +173,7 @@ func TestSubtaskValidate(t *testing.T) {
 func TestSubtaskSameIdentity(t *testing.T) {
 	now := time.Unix(1700000000, 0).UTC()
 	subtask := Subtask{
-		ID: "ses_c", ParentID: "ses_p", UserID: "user-1", AgentName: "agent",
+		ID: "ses_c", ParentID: "ses_p",
 		StartedAt: now, UpdatedAt: now,
 	}
 	existing, err := (Session{ID: subtask.ParentID}).NewSubtask(subtask)
@@ -196,10 +181,6 @@ func TestSubtaskSameIdentity(t *testing.T) {
 		t.Fatalf("NewSubtask: %v", err)
 	}
 	existing.UpdatedAt = existing.UpdatedAt.Add(time.Hour)
-	existing.DelegationMetadata, err = ParseDelegationMetadata([]byte(`{"mutable":true}`))
-	if err != nil {
-		t.Fatalf("ParseDelegationMetadata: %v", err)
-	}
 	if !subtask.SameIdentity(existing) {
 		t.Fatal("SameIdentity rejected mutable audit fields")
 	}
@@ -208,8 +189,6 @@ func TestSubtaskSameIdentity(t *testing.T) {
 		"kind":       func(s *Session) { s.Kind = "" },
 		"ID":         func(s *Session) { s.ID = "other" },
 		"parent ID":  func(s *Session) { s.ParentID = "other" },
-		"user ID":    func(s *Session) { s.UserID = "other" },
-		"agent name": func(s *Session) { s.AgentName = "other" },
 		"started at": func(s *Session) { s.StartedAt = s.StartedAt.Add(time.Second) },
 	} {
 		t.Run(name, func(t *testing.T) {

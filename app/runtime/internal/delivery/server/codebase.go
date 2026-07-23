@@ -23,11 +23,7 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 	if in.Query == "" {
 		return nil, fmt.Errorf("%w: query is required", protocol.ErrInvalidParams)
 	}
-	root, err := s.workspaceRoot(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	hits, err := s.codebase.Search(ctx, root, in.Query, in.Limit)
+	hits, err := s.codebase.Search(ctx, in.Cwd, in.Query, in.Limit)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
@@ -46,16 +42,12 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 
 // CodebaseStatus reports the cwd's index state (codebase.status).
 func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
-	root, err := s.workspaceRoot(in.Cwd)
+	st, err := s.codebase.Status(ctx, in.Cwd)
 	if err != nil {
-		return nil, err
+		return nil, mapCodebaseErr(err)
 	}
-	st, err := s.codebase.Status(ctx, root)
-	if err != nil {
-		return nil, err
-	}
-	out := codebaseStatusToWire(st)
-	out.OperationID = s.codebase.ActiveOperation(root)
+	out := codebaseStatusToWire(st.Index)
+	out.OperationID = st.OperationID
 	return out, nil
 }
 
@@ -63,11 +55,7 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 // (codebase.reindex) — a big reindex can take seconds, so the status surface
 // polls codebase.status for progress rather than blocking the call.
 func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
-	root, err := s.workspaceRoot(in.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	operationID, err := s.codebase.StartReindex(ctx, root)
+	operationID, err := s.codebase.StartReindex(ctx, in.Cwd)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
@@ -80,7 +68,7 @@ func mapCodebaseErr(err error) error {
 	if errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		return fmt.Errorf("%w: no embedding model configured — set one in Settings (models.setEmbeddingRole)", protocol.ErrInvalidParams)
 	}
-	return err
+	return wireWorkspaceError(err)
 }
 
 func codebaseStatusToWire(st codebaseindex.Status) *protocol.CodebaseStatus {

@@ -105,7 +105,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 		return err
 	}
 	if !found {
-		return fmt.Errorf("skillauthoring: no draft %q at revision %q: %w", handle.Name, handle.Revision, fs.ErrNotExist)
+		return fmt.Errorf("skillauthoring: no draft %q at revision %q: %w", handle.Name, handle.Revision, skills.ErrNotFound)
 	}
 	if !handle.Matches(content) {
 		return fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
@@ -288,6 +288,7 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 		} else if !errors.Is(destinationErr, fs.ErrNotExist) {
 			return fmt.Errorf("skillauthoring: inspect %s destination for %q: %w", operation, name, destinationErr)
 		}
+		return fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
 	}
 	if err != nil {
 		return fmt.Errorf("skillauthoring: cannot %s %q: %w", operation, name, err)
@@ -300,7 +301,7 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 		return err
 	}
 	if !found {
-		return fmt.Errorf("skillauthoring: cannot %s %q: %w", operation, name, fs.ErrNotExist)
+		return fmt.Errorf("%w: cannot %s %q", skills.ErrNotFound, operation, name)
 	}
 	if err := validateSkill(name, content); err != nil {
 		return err

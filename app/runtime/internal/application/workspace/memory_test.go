@@ -9,7 +9,7 @@ import (
 )
 
 func TestRuntimeMemoryUnavailable(t *testing.T) {
-	c := New(Config{})
+	c := NewKnowledge(NewContext("", "", nil), nil)
 	ctx := context.Background()
 
 	if c.HasMemory() {
@@ -35,7 +35,7 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 		}},
 		content: "project notes",
 	}
-	c := New(Config{Paths: testPaths{}, Memory: store})
+	c := NewKnowledge(NewContext("", "", testPaths{}), store)
 
 	if !c.HasMemory() {
 		t.Fatal("HasMemory = false, want true")

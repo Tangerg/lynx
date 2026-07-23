@@ -24,6 +24,10 @@ var (
 	// promotion or discard was issued against. Neither the draft nor the active
 	// library is touched.
 	ErrDraftChanged = errors.New("skills: staged draft content changed")
+	// ErrNotFound reports a requested draft or lifecycle entry that is absent.
+	// It is a product outcome, not a filesystem sentinel, so Application and
+	// Delivery can classify it without importing io/fs.
+	ErrNotFound = errors.New("skills: entry not found")
 )
 
 // DraftsSubdir is the reserved directory, under a skills root, where proposed

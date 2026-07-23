@@ -4,19 +4,17 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
-// recordingAgentMemory captures the management calls the agentMemory.* handlers
-// make, so the delivery mapping (target resolution, decision → status, wire
-// projection) can be asserted without a real store.
+// recordingAgentMemory captures application use cases driven by agentMemory.*
+// handlers, so Delivery's wire mapping is tested without a persistence port.
 type recordingAgentMemory struct {
-	listScope   agentmemory.Scope
-	listProject string
-	items       []agentmemory.Item
+	listScope agentmemory.Scope
+	listCwd   string
+	items     []agentmemory.Item
 
 	statusID string
 	status   agentmemory.Status
@@ -27,34 +25,30 @@ type recordingAgentMemory struct {
 	deleted  string
 
 	addScope   agentmemory.Scope
-	addProject string
+	addCwd     string
 	addContent string
 
 	getItem agentmemory.Item
 }
 
-func (r *recordingAgentMemory) List(_ context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error) {
-	r.listScope, r.listProject = scope, project
+func (r *recordingAgentMemory) List(_ context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error) {
+	r.listScope, r.listCwd = scope, cwd
 	return r.items, nil
 }
 
-func (r *recordingAgentMemory) Get(_ context.Context, _ string) (agentmemory.Item, bool, error) {
-	return r.getItem, r.getItem.ID != "", nil
-}
-
-func (r *recordingAgentMemory) SetStatus(_ context.Context, id string, status agentmemory.Status, _ time.Time) error {
+func (r *recordingAgentMemory) Review(_ context.Context, id string, status agentmemory.Status) error {
 	r.statusID, r.status = id, status
 	return nil
 }
 
-func (r *recordingAgentMemory) SetPinned(_ context.Context, id string, pinned bool, _ time.Time) error {
-	r.pinnedID, r.pinned = id, pinned
-	return nil
-}
-
-func (r *recordingAgentMemory) UpdateContent(_ context.Context, id, content string, _ time.Time) error {
-	r.editedID, r.editedTx = id, content
-	return nil
+func (r *recordingAgentMemory) Update(_ context.Context, id string, content *string, pinned *bool) (agentmemory.Item, error) {
+	if content != nil {
+		r.editedID, r.editedTx = id, *content
+	}
+	if pinned != nil {
+		r.pinnedID, r.pinned = id, *pinned
+	}
+	return r.getItem, nil
 }
 
 func (r *recordingAgentMemory) Delete(_ context.Context, id string) error {
@@ -62,14 +56,13 @@ func (r *recordingAgentMemory) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, project, content string, _ time.Time) (agentmemory.Item, error) {
-	r.addScope, r.addProject, r.addContent = scope, project, content
+func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error) {
+	r.addScope, r.addCwd, r.addContent = scope, cwd, content
 	return agentmemory.Item{ID: "mem_new", Scope: scope, Content: content, Origin: agentmemory.OriginUser, Status: agentmemory.StatusActive}, nil
 }
 
 func TestAgentMemoryHandlersDisabled(t *testing.T) {
 	s := newTestServer(&stubRuntime{})
-	s.agentMemory = agentMemoryUnavailable{}
 	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
 		t.Fatalf("list err = %v, want capability_not_negotiated", err)
 	}
@@ -89,8 +82,8 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.listScope != agentmemory.ScopeProject || rec.listProject != "/repo" {
-		t.Fatalf("target = %v %q, want project /repo", rec.listScope, rec.listProject)
+	if rec.listScope != agentmemory.ScopeProject || rec.listCwd != "/repo/" {
+		t.Fatalf("input = %v %q, want project /repo/", rec.listScope, rec.listCwd)
 	}
 	if len(out.Items) != 1 || out.Items[0].Status != "pending" || out.Items[0].Origin != "auto" {
 		t.Fatalf("wire = %+v", out.Items)
@@ -99,8 +92,8 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{Scope: "user", Cwd: "/ignored"}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.listScope != agentmemory.ScopeUser || rec.listProject != "" {
-		t.Fatalf("user target = %v %q, want user ''", rec.listScope, rec.listProject)
+	if rec.listScope != agentmemory.ScopeUser || rec.listCwd != "/ignored" {
+		t.Fatalf("user input = %v %q, want user /ignored", rec.listScope, rec.listCwd)
 	}
 }
 
@@ -148,7 +141,7 @@ func TestAgentMemoryUpdateAndAdd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.addContent != "- new note" || rec.addProject != "/repo" || added.Origin != "user" {
+	if rec.addContent != "- new note" || rec.addCwd != "/repo" || added.Origin != "user" {
 		t.Fatalf("add recorded=%+v wire=%+v", rec, added)
 	}
 }

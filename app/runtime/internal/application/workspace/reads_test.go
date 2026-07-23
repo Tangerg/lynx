@@ -31,7 +31,10 @@ func TestProjectsFromSessions(t *testing.T) {
 
 func TestAgentDocScope(t *testing.T) {
 	cwd, home := "/Users/x/proj", "/Users/x"
-	cases := []struct{ path, want string }{
+	cases := []struct {
+		path string
+		want AgentDocScope
+	}{
 		{"/Users/x/proj/AGENTS.md", "cwd"},
 		{"/Users/x/proj/pkg/AGENTS.md", "cwd"},
 		{"/Users/x/AGENTS.md", "home"},

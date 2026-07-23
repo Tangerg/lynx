@@ -241,7 +241,7 @@ func (s *AgentMemoryStore) List(ctx context.Context, scope agentmemory.Scope, pr
 
 // Get returns one item by id.
 func (s *AgentMemoryStore) Get(ctx context.Context, id string) (agentmemory.Item, bool, error) {
-	item, err := scanItem(s.db.QueryRowContext(ctx,
+	item, err := scanItem(conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+agentMemoryItemColumns+` FROM agent_memory_items WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return agentmemory.Item{}, false, nil
@@ -250,6 +250,38 @@ func (s *AgentMemoryStore) Get(ctx context.Context, id string) (agentmemory.Item
 		return agentmemory.Item{}, false, err
 	}
 	return item, true, nil
+}
+
+// Update applies the review surface's content/pin patch atomically. Content
+// edits clear stale embeddings; either validation or persistence failure rolls
+// back every requested field, so callers never observe a half-applied update.
+func (s *AgentMemoryStore) Update(ctx context.Context, id string, content *string, pinned *bool, now time.Time) (agentmemory.Item, error) {
+	var updated agentmemory.Item
+	err := RunInTx(ctx, s.db, func(ctx context.Context) error {
+		if content != nil {
+			if err := s.UpdateContent(ctx, id, *content, now); err != nil {
+				return err
+			}
+		}
+		if pinned != nil {
+			if err := s.SetPinned(ctx, id, *pinned, now); err != nil {
+				return err
+			}
+		}
+		item, found, err := s.Get(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return agentmemory.ErrNotFound
+		}
+		updated = item
+		return nil
+	})
+	if err != nil {
+		return agentmemory.Item{}, err
+	}
+	return updated, nil
 }
 
 // SetStatus moves an item through the review lifecycle (approve → active,
