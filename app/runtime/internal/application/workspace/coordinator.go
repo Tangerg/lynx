@@ -150,10 +150,10 @@ type Skills struct {
 	skills        SkillCatalog
 	curator       SkillCurator
 	drafts        SkillDrafts
-	skillsChanged func()
+	skillsChanged func(struct{})
 }
 
-func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts, skillsChanged func()) *Skills {
+func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts, skillsChanged func(struct{})) *Skills {
 	return &Skills{context: context, skills: skills, curator: curator, drafts: drafts, skillsChanged: skillsChanged}
 }
 
@@ -339,7 +339,7 @@ func (c *Skills) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandl
 
 func (c *Skills) notifySkillsChanged() {
 	if c.skillsChanged != nil {
-		c.skillsChanged()
+		c.skillsChanged(struct{}{})
 	}
 }
 

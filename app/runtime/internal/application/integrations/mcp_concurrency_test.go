@@ -20,7 +20,10 @@ func (*mcpLiveSet) Probe(context.Context, mcpserver.LiveConfig) error {
 	return nil
 }
 
-func (s *mcpLiveSet) Configure(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (s *mcpLiveSet) Configure(ctx context.Context, cfg mcpserver.LiveConfig) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	s.servers[cfg.Name] = true
 	s.mu.Unlock()
@@ -78,7 +81,10 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 
 	configured := make(chan error, 1)
-	go func() { configured <- c.ConfigureMCPServer(context.Background(), server) }()
+	go func() {
+		_, err := c.ConfigureMCPServer(context.Background(), mcpInput(server))
+		configured <- err
+	}()
 	<-registry.configureCommitted
 	removed := make(chan error, 1)
 	go func() { removed <- c.RemoveMCPServer(context.Background(), server.Name) }()
@@ -120,7 +126,10 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- c.ConfigureMCPServer(ctx, server) }()
+	go func() {
+		_, err := c.ConfigureMCPServer(ctx, mcpInput(server))
+		done <- err
+	}()
 
 	<-registry.configureCommitted
 	cancel()
@@ -145,6 +154,16 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 			t.Fatal("request cancellation abandoned post-commit live reconciliation")
 		case <-time.After(time.Millisecond):
 		}
+	}
+}
+
+func mcpInput(server mcpserver.Server) MCPServerInput {
+	return MCPServerInput{
+		Name: server.Name, Transport: string(server.Transport), Enabled: server.Enabled,
+		Description: server.Description, URL: server.URL, Authorization: server.Authorization,
+		Headers: server.Headers, Command: server.Command, Args: server.Args, Env: server.Env,
+		Dir: server.Dir, Timeout: server.Timeout, DisabledTools: server.DisabledTools,
+		AutoApproveTools: server.AutoApproveTools,
 	}
 }
 

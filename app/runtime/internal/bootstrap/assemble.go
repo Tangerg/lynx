@@ -36,9 +36,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/filechanges"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/mcpstatus"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/skillchanges"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -80,16 +78,16 @@ type Stack struct {
 	// FileChanges bridges the run pump's live file-change nudges to the delivery
 	// workspace hub (the seam that lets the coordinator be built here rather than
 	// inside the delivery Server, §2.5). Delivery installs the consumer via Observe.
-	FileChanges *filechanges.Notifier
+	FileChanges *signal.Signal[runs.FileChange]
 	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatus *mcpstatus.Notifier
+	MCPStatus *signal.Signal[integrations.MCPServerStatus]
 	// SkillChanges bridges committed skill-library mutations to the delivery
 	// workspace hub. Delivery maps the nudge to a skills.changed event.
-	SkillChanges *skillchanges.Notifier
+	SkillChanges *signal.Signal[struct{}]
 	// ScheduleFires bridges accepted scheduled-run notifications to the delivery
 	// workspace hub. Bootstrap owns the runner; delivery only observes this nudge.
-	ScheduleFires    *schedules.FireNotifier
+	ScheduleFires    *signal.Signal[string]
 	IdempotencyStore *sqlitestore.IdempotencyStore
 	GitAvailable     bool
 }
@@ -367,7 +365,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// inside delivery (§11.1/§13.2). It drives the agent turn through the turn
 	// Executor (§6.1); the same adapter implements the complete neutral turn-control
 	// surface consumed by application/runs.
-	fileChanges := &filechanges.Notifier{}
+	fileChanges := &signal.Signal[runs.FileChange]{}
 	runExecutor := turn.NewExecutor(turnDispatcher)
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
@@ -388,10 +386,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	})
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
-	mcpStatus := &mcpstatus.Notifier{}
+	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
 	// skillChanges bridges successful skill-library curation and draft promotion
 	// to the delivery workspace stream.
-	skillChanges := &skillchanges.Notifier{}
+	skillChanges := &signal.Signal[struct{}]{}
 
 	admissions := &admission.Gate{}
 	sessionStorage := sessionStores{
@@ -410,6 +408,20 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		goals: cfg.GoalStore,
 		tx:    cfg.Transactor,
 	}
+	modelsCoord := models.New(models.Config{
+		Providers:         cfg.ProviderRegistry,
+		Catalog:           providerCatalog{},
+		Prober:            providerProber{},
+		Lister:            providerModelLister{},
+		UtilityCell:       utilityEnv.cell,
+		UtilityValidator:  resolver,
+		UtilityStore:      cfg.UtilityRoleStore,
+		EmbeddingCell:     embeddingEnv.cell,
+		EmbeddingResolver: embeddingEnv.resolver,
+		EmbeddingStore:    cfg.EmbeddingRoleStore,
+		DefaultProvider:   cfg.Provider,
+		DefaultModel:      cfg.Model,
+	})
 	sessionDeps := sessions.Dependencies{
 		Sessions:    cfg.SessionStore,
 		Interrupts:  cfg.InterruptStore,
@@ -419,6 +431,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Forgetter:   turnDispatcher,
 		Turns:       sessionsTurns{dispatcher: turnDispatcher},
 		Paths:       workspacepath.Resolver{},
+		Models:      modelsCoord,
 		Checkpoints: sessionCheckpoints{cp: checkpoints},
 		Mutations:   cfg.WorkspaceMutationStore,
 		Admissions:  admissions,
@@ -458,25 +471,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		runDeps.Isolation = isolator
 	}
 	runCoord := runs.NewCoordinator(runDeps)
-	scheduleFires := &schedules.FireNotifier{}
+	scheduleFires := &signal.Signal[string]{}
 	scheduleCoord.BindRunner(schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish))
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
-
-	modelsCoord := models.New(models.Config{
-		Providers:         cfg.ProviderRegistry,
-		Catalog:           providerCatalog{},
-		Prober:            providerProber{},
-		Lister:            providerModelLister{},
-		UtilityCell:       utilityEnv.cell,
-		UtilityValidator:  resolver,
-		UtilityStore:      cfg.UtilityRoleStore,
-		EmbeddingCell:     embeddingEnv.cell,
-		EmbeddingResolver: embeddingEnv.resolver,
-		EmbeddingStore:    cfg.EmbeddingRoleStore,
-		DefaultProvider:   cfg.Provider,
-		DefaultModel:      cfg.Model,
-	})
 
 	toolsCoord := tools.New(toolRegistry)
 

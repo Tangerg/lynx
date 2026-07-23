@@ -3,16 +3,16 @@ package server
 import (
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 // mcpServerCandidateFromRequest only decodes the transport request. Credential
 // carry-forward is application policy because it relies on persisted state.
-func mcpServerCandidateFromRequest(in protocol.ConfigureMCPServerRequest) mcpserver.Server {
-	return mcpserver.Server{
+func mcpServerInputFromRequest(in protocol.ConfigureMCPServerRequest) integrations.MCPServerInput {
+	return integrations.MCPServerInput{
 		Name:             in.Name,
-		Transport:        mcpserver.Transport(in.Transport),
+		Transport:        in.Transport,
 		Enabled:          in.Enabled,
 		Description:      in.Description,
 		URL:              in.URL,

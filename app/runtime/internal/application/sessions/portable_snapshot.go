@@ -22,11 +22,24 @@ var ErrInvalidPortableSnapshot = errors.New("sessions: invalid portable snapshot
 // accepted by restore. It deliberately separates a portable run's outcome from
 // its derived lifecycle state: restore owns rebuilding that state machine.
 type PortableSnapshot struct {
-	Session     session.Session
+	Session     PortableSession
 	Messages    []chat.Message
 	Items       []transcript.Item
 	Runs        []PortableRun
 	ToolResults []offload.ToolResultBlob
+}
+
+// PortableSession is the terminal archive identity. It intentionally excludes
+// live aggregate details such as lineage, kind, isolation, and revision: an
+// imported archive is always admitted as a standalone conversation.
+type PortableSession struct {
+	ID        string
+	Title     string
+	Cwd       string
+	Model     string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	Favorite  bool
 }
 
 // PortableRun is one terminal run in a portable snapshot. State is not carried
@@ -51,7 +64,7 @@ type PortableRun struct {
 // decode their wire document into PortableSnapshot values.
 func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	snapshot := Snapshot{
-		Session:     p.Session,
+		Session:     p.Session.session(),
 		Messages:    p.Messages,
 		Items:       append([]transcript.Item(nil), p.Items...),
 		ToolResults: append([]offload.ToolResultBlob(nil), p.ToolResults...),
@@ -95,6 +108,18 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	return normalized, nil
 }
 
+func (p PortableSession) session() session.Session {
+	return session.Session{
+		ID:        p.ID,
+		Title:     p.Title,
+		Cwd:       p.Cwd,
+		Model:     p.Model,
+		StartedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+		Favorite:  p.Favorite,
+	}
+}
+
 func bindPortableToolResults(snapshot *Snapshot) error {
 	items := make(map[string]int, len(snapshot.Items))
 	for index, item := range snapshot.Items {
@@ -128,7 +153,15 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		return PortableSnapshot{}, err
 	}
 	portable := PortableSnapshot{
-		Session:     normalized.Session,
+		Session: PortableSession{
+			ID:        normalized.Session.ID,
+			Title:     normalized.Session.Title,
+			Cwd:       normalized.Session.Cwd,
+			Model:     normalized.Session.Model,
+			CreatedAt: normalized.Session.StartedAt,
+			UpdatedAt: normalized.Session.UpdatedAt,
+			Favorite:  normalized.Session.Favorite,
+		},
 		Messages:    normalized.Messages,
 		Items:       normalized.Items,
 		ToolResults: normalized.ToolResults,

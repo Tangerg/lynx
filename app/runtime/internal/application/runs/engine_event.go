@@ -54,6 +54,7 @@ type ToolCallStart struct {
 	CallID      string
 	ToolName    string
 	Arguments   string
+	Activity    string
 	SafetyClass tool.SafetyClass
 }
 
@@ -67,6 +68,13 @@ type ToolCallEnd struct {
 	MutatedPaths []string
 	Err          string
 	Denied       bool
+}
+
+// FileChange is a live workspace refresh nudge emitted after a tool-owned file
+// mutation commits. Delivery only encodes these already-resolved values.
+type FileChange struct {
+	Cwd   string
+	Paths []string
 }
 
 type CompactBoundary struct {

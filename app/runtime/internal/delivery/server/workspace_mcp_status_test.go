@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -31,23 +32,23 @@ func TestWorkspaceMCPListServers(t *testing.T) {
 		t.Fatalf("fs = %+v, want connected toolCount=2 no error", fs)
 	}
 	down := page.Data[1]
-	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil || down.Error.Detail != "connection refused" {
-		t.Fatalf("down = %+v, want failed + Error(connection refused) no toolCount", down)
+	if down.Status != "failed" || down.ToolCount != nil || down.Error == nil || down.Error.Detail != "MCP connection failed." {
+		t.Fatalf("down = %+v, want failed + safe error no toolCount", down)
 	}
 }
 
 func TestMCPStateWire(t *testing.T) {
 	tests := []struct {
 		name  string
-		state mcpserver.ConnectionState
+		state integrations.MCPConnectionState
 		want  protocol.McpStatus
 		ok    bool
 	}{
-		{"connecting", mcpserver.ConnectionConnecting, protocol.McpConnecting, true},
-		{"connected", mcpserver.ConnectionConnected, protocol.McpConnected, true},
-		{"failed", mcpserver.ConnectionFailed, protocol.McpFailed, true},
-		{"needs auth", mcpserver.ConnectionNeedsAuth, protocol.McpNeedsAuth, true},
-		{"unknown", mcpserver.ConnectionState("typo"), "", false},
+		{"connecting", integrations.MCPConnecting, protocol.McpConnecting, true},
+		{"connected", integrations.MCPConnected, protocol.McpConnected, true},
+		{"failed", integrations.MCPFailed, protocol.McpFailed, true},
+		{"needs auth", integrations.MCPNeedsAuth, protocol.McpNeedsAuth, true},
+		{"unknown", integrations.MCPConnectionState("typo"), "", false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -61,9 +62,8 @@ func TestMCPStateWire(t *testing.T) {
 
 func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{}))
-	got := s.mcpServerWire(context.Background(), mcpserver.ConnectionStatus{
-		Name:  "broken",
-		State: mcpserver.ConnectionState("typo"),
+	got := s.mcpServerWire(integrations.MCPServerStatus{
+		Name: "broken", Known: true, State: integrations.MCPConnectionState("typo"),
 	})
 	if got.Status != protocol.McpFailed || got.Error == nil || got.Error.Type != "mcp_invalid_connection_state" {
 		t.Fatalf("mcpServerWire(unknown state) = %+v, want explicit failed projection", got)

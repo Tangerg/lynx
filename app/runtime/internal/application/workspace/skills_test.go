@@ -38,7 +38,7 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	curator := &fakeSkillCurator{}
 	drafts := &fakeSkillDrafts{}
 	notifications := 0
-	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, drafts, func() { notifications++ })
+	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, drafts, func(struct{}) { notifications++ })
 
 	if err := c.ArchiveSkill(context.Background(), "lint"); err != nil {
 		t.Fatal(err)

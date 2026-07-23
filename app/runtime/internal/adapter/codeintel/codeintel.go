@@ -10,14 +10,21 @@ package codeintel
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/lsp"
 )
 
-// ServerSpec is the language-server table entry, re-exported so callers
-// configure code intelligence without importing the infra package. The
-// yaml/config layer unmarshals into the identical underlying type.
-type ServerSpec = lsp.ServerSpec
+// ServerSpec is code intelligence's own configuration contract. The adapter
+// translates it to infra/lsp only when constructing its client set.
+type ServerSpec struct {
+	Name        string
+	Command     string
+	Args        []string
+	LanguageID  string
+	Extensions  []string
+	RootMarkers []string
+}
 
 // noServerMsg is returned (with a nil error) when no language server
 // handles the target file type, so an unsupported file informs the model
@@ -35,9 +42,35 @@ type Analyzer struct {
 // falls back to the built-in LSP server table.
 func New(servers []ServerSpec) *Analyzer {
 	if len(servers) == 0 {
-		servers = lsp.DefaultServers()
+		servers = defaultServers()
 	}
-	return &Analyzer{servers: lsp.NewServers(servers)}
+	return &Analyzer{servers: lsp.NewServers(lspServerSpecs(servers))}
+}
+
+func defaultServers() []ServerSpec {
+	return serverSpecsFromLSP(lsp.DefaultServers())
+}
+
+func lspServerSpecs(servers []ServerSpec) []lsp.ServerSpec {
+	out := make([]lsp.ServerSpec, len(servers))
+	for index, server := range servers {
+		out[index] = lsp.ServerSpec{
+			Name: server.Name, Command: server.Command, Args: slices.Clone(server.Args), LanguageID: server.LanguageID,
+			Extensions: slices.Clone(server.Extensions), RootMarkers: slices.Clone(server.RootMarkers),
+		}
+	}
+	return out
+}
+
+func serverSpecsFromLSP(servers []lsp.ServerSpec) []ServerSpec {
+	out := make([]ServerSpec, len(servers))
+	for index, server := range servers {
+		out[index] = ServerSpec{
+			Name: server.Name, Command: server.Command, Args: slices.Clone(server.Args), LanguageID: server.LanguageID,
+			Extensions: slices.Clone(server.Extensions), RootMarkers: slices.Clone(server.RootMarkers),
+		}
+	}
+	return out
 }
 
 // Close shuts down every launched language server. Safe on a nil receiver

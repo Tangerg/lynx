@@ -8,6 +8,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -72,11 +73,11 @@ func (h *workspaceHub) closeAdmissions() {
 // workspace event fanned to subscribers. The wire WorkspaceEvent shape stays
 // here in delivery; the bridge itself carries only neutral (cwd, paths).
 func (h *workspaceHub) observe(src FileChangeSource) {
-	src.Observe(func(cwd string, paths []string) {
+	src.Observe(func(change runs.FileChange) {
 		h.publish(protocol.WorkspaceEvent{
 			Type:  protocol.WorkspaceEventFilesChanged,
-			Cwd:   cwd,
-			Paths: paths,
+			Cwd:   change.Cwd,
+			Paths: change.Paths,
 		})
 	})
 }

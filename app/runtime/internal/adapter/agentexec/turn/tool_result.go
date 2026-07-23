@@ -7,13 +7,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func decodeToolResult(output string) *tool.Result {
+func decodeToolResult(toolName, arguments, output string) *tool.Result {
 	if output == "" {
 		return nil
 	}
 	result, err := tool.ParseResult([]byte(output))
 	if err != nil {
 		result = tool.StringResult(output)
+	}
+	var args map[string]any
+	if json.Unmarshal([]byte(arguments), &args) != nil {
+		args = nil
+	}
+	normalized := normalizeToolResult(toolName, args, result.Any())
+	if encoded, err := json.Marshal(normalized); err == nil {
+		if projected, err := tool.ParseResult(encoded); err == nil {
+			result = projected
+		}
 	}
 	return &result
 }
@@ -27,18 +37,10 @@ func toolOutputText(toolName string, result *tool.Result) string {
 		return ""
 	}
 	var output struct {
-		Stdout string `json:"stdout"`
-		Stderr string `json:"stderr"`
+		Output string `json:"output"`
 	}
 	if err := json.Unmarshal(data, &output); err != nil {
 		return ""
 	}
-	switch {
-	case output.Stderr == "":
-		return output.Stdout
-	case output.Stdout == "":
-		return output.Stderr
-	default:
-		return output.Stdout + "\n" + output.Stderr
-	}
+	return output.Output
 }

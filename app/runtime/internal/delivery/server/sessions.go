@@ -37,46 +37,27 @@ const defaultSessionPageLimit = 100
 // NextCursor is the "has more" signal — never a silent truncation. The
 // store returns the full ordered list; pagination is applied here.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	sessions, err := s.sessions.List(ctx)
+	views, err := s.sessions.ListViews(ctx)
 	if err != nil {
 		return nil, err
 	}
-	page, next, err := pageByCursor(sessions, func(ses session.Session) string { return ses.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]string, len(page))
-	for index, ses := range page {
-		ids[index] = ses.ID
-	}
-	states, err := s.sessions.SessionStates(ctx, ids)
+	page, next, err := pageByCursor(views, func(view sessions.SessionView) string { return view.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
 	if err != nil {
 		return nil, err
 	}
 	data := make([]protocol.Session, 0, len(page))
-	for _, ses := range page {
-		presented, err := s.sessionToWire(ses, sessionStateToWire(states[ses.ID]))
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, presented)
+	for _, view := range page {
+		data = append(data, sessionViewToWire(view))
 	}
 	return &protocol.Page[protocol.Session]{Data: data, NextCursor: next}, nil
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {
-	ses, err := s.sessions.Get(ctx, id)
+	view, err := s.sessions.View(ctx, id)
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.sessionStatus(ctx, ses.ID)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.sessionToWire(ses, status)
-	if err != nil {
-		return nil, err
-	}
+	out := sessionViewToWire(view)
 	return &out, nil
 }
 
@@ -87,15 +68,11 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if cwd == "" {
 		cwd = s.serverInfo.Cwd
 	}
-	ses, err := s.sessions.Create(ctx, in.Title, cwd)
+	view, err := s.sessions.CreateView(ctx, in.Title, cwd)
 	if err != nil {
 		return nil, err
 	}
-	// A freshly created session has no run and no interrupt — idle.
-	out, err := s.sessionToWire(ses, protocol.SessionStatusIdle)
-	if err != nil {
-		return nil, err
-	}
+	out := sessionViewToWire(view)
 	return &out, nil
 }
 
@@ -120,7 +97,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 // fields are left alone; the updated session is returned. The
 // dispatch layer already rejects an empty SessionID.
 func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
-	ses, err := s.sessions.Update(ctx, in.SessionID, session.Patch{
+	view, err := s.sessions.UpdateView(ctx, in.SessionID, session.Patch{
 		Title:            in.Title,
 		Model:            in.Model,
 		Cwd:              in.Cwd,
@@ -133,14 +110,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		return nil, wireSessionErr(err)
 	}
-	status, err := s.sessionStatus(ctx, ses.ID)
-	if err != nil {
-		return nil, err
-	}
-	out, err := s.sessionToWire(ses, status)
-	if err != nil {
-		return nil, err
-	}
+	out := sessionViewToWire(view)
 	return &out, nil
 }
 
@@ -155,7 +125,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 // all of its mutable history tail are excluded. Forking deletes nothing, so
 // unlike rollback it needs no session_busy guard.
 func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
-	child, err := s.sessions.Fork(ctx, sessions.ForkSpec{
+	child, err := s.sessions.ForkView(ctx, sessions.ForkSpec{
 		ParentID:  in.SessionID,
 		FromRunID: in.FromRunID,
 		Title:     in.Title,
@@ -166,38 +136,27 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 		return nil, wireSessionErr(err)
 	}
-	// A freshly forked child has no run of its own yet — idle.
-	out, err := s.sessionToWire(child, protocol.SessionStatusIdle)
-	if err != nil {
-		return nil, err
-	}
+	out := sessionViewToWire(child)
 	return &out, nil
 }
 
-// sessionToWire converts the internal session shape into the wire shape.
-// Status is supplied by the caller (see sessionStatus) so the application owns
-// the active-vs-interrupt precedence and the list path can batch its read-model
-// lookups. Model falls back to the runtime default when the session never
-// explicitly selected one, so the wire always carries a real model name (the
-// frontend resolves the assistant's displayName from it).
-func (s *Server) sessionToWire(ses session.Session, status protocol.SessionStatus) (protocol.Session, error) {
-	workspace, err := s.sessions.InspectWorkspace(ses.Cwd)
-	if err != nil {
-		return protocol.Session{}, fmt.Errorf("sessions: inspect workspace %q: %w", ses.Cwd, err)
-	}
+// sessionViewToWire projects the complete Application read model into the
+// selected protocol shape. It intentionally performs no filesystem, live-run,
+// or model-default lookup.
+func sessionViewToWire(view sessions.SessionView) protocol.Session {
 	return protocol.Session{
-		ID:          ses.ID,
-		Title:       ses.Title,
-		Cwd:         workspace.Cwd,
-		ProjectRoot: workspace.ProjectRoot,
-		CwdMissing:  workspace.Missing,
-		Model:       ses.EffectiveModel(s.models.DefaultModel()),
-		Status:      status,
-		CreatedAt:   ses.StartedAt,
-		UpdatedAt:   ses.UpdatedAt,
-		Favorite:    ses.Favorite,
-		Revision:    ses.Revision,
-	}, nil
+		ID:          view.ID,
+		Title:       view.Title,
+		Cwd:         view.Cwd,
+		ProjectRoot: view.ProjectRoot,
+		CwdMissing:  view.CwdMissing,
+		Model:       view.Model,
+		Status:      sessionStateToWire(view.State),
+		CreatedAt:   view.CreatedAt,
+		UpdatedAt:   view.UpdatedAt,
+		Favorite:    view.Favorite,
+		Revision:    view.Revision,
+	}
 }
 
 // sessionStatus picks the wire status from the two live signals: running wins
@@ -212,12 +171,4 @@ func sessionStateToWire(state sessions.SessionState) protocol.SessionStatus {
 	default:
 		return protocol.SessionStatusIdle
 	}
-}
-
-func (s *Server) sessionStatus(ctx context.Context, sessionID string) (protocol.SessionStatus, error) {
-	states, err := s.sessions.SessionStates(ctx, []string{sessionID})
-	if err != nil {
-		return "", fmt.Errorf("sessions: resolve activity for session %q: %w", sessionID, err)
-	}
-	return sessionStateToWire(states[sessionID]), nil
 }

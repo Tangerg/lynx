@@ -74,7 +74,7 @@ func (blockingTranscript) PutRun(context.Context, transcript.Run) error      { r
 // and schedules teardown. Use for tests that need a live run present.
 func startLiveRun(t *testing.T, s *Server, cwd string) string {
 	t.Helper()
-	sess, err := s.sessions.Create(context.Background(), "", cwd)
+	sess, err := s.sessions.CreateView(context.Background(), "", cwd)
 	if err != nil {
 		t.Fatalf("create live-run session: %v", err)
 	}

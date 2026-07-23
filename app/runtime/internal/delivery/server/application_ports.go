@@ -5,6 +5,7 @@ import (
 	"io"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -29,30 +30,28 @@ import (
 // application coordinators or their unrelated methods.
 
 type sessionUseCases interface {
-	Create(ctx context.Context, title, cwd string) (session.Session, error)
+	CreateView(ctx context.Context, title, cwd string) (sessions.SessionView, error)
 	DeleteSession(ctx context.Context, sessionID string) error
-	Fork(ctx context.Context, spec sessions.ForkSpec) (session.Session, error)
-	Get(ctx context.Context, id string) (session.Session, error)
-	InspectWorkspace(cwd string) (session.WorkspaceIdentity, error)
-	List(ctx context.Context) ([]session.Session, error)
+	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.SessionView, error)
+	ListViews(ctx context.Context) ([]sessions.SessionView, error)
 	ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error)
 	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) error
 	RollbackFiles(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
-	SessionStates(ctx context.Context, sessionIDs []string) (map[string]sessions.SessionState, error)
-	Update(ctx context.Context, id string, patch session.Patch) (session.Session, error)
+	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.SessionView, error)
+	View(ctx context.Context, id string) (sessions.SessionView, error)
 }
 
 type integrationUseCases interface {
 	AuthorizeMCPServer(ctx context.Context, name string) error
-	ConfigureMCPServer(ctx context.Context, server mcpserver.Server) error
-	ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error)
-	ResolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error)
-	MCPServerStatuses() []mcpserver.ConnectionStatus
+	ConfigureMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServerConfig, error)
+	ListMCPServerConfigs(ctx context.Context) ([]integrations.MCPServerConfig, error)
+	MCPServerStatus(ctx context.Context, name string) integrations.MCPServerStatus
+	MCPServerStatuses(ctx context.Context) []integrations.MCPServerStatus
 	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
 	ReconnectMCPServer(ctx context.Context, name string) error
 	RemoveMCPServer(ctx context.Context, name string) error
 	SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error
-	TestMCPServer(ctx context.Context, server mcpserver.Server) error
+	TestMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPTestResult, error)
 }
 
 type approvalUseCases interface {

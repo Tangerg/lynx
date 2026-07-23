@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -106,7 +107,7 @@ type TaskLauncher interface {
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file
 // mutation. It is deliberately path-only: the protocol adapter owns the wire
 // WorkspaceEvent shape.
-type FileChangePublisher func(cwd string, paths []string)
+type FileChangePublisher func(runs.FileChange)
 
 // Config bundles the Effects dependencies.
 type Config struct {
@@ -302,7 +303,7 @@ func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraf
 // Nudge publishes a non-durable live workspace change to subscribers.
 func (e *Effects) Nudge(cwd string, paths []string) {
 	if e.publish != nil && len(paths) > 0 {
-		e.publish(cwd, paths)
+		e.publish(runs.FileChange{Cwd: cwd, Paths: slices.Clone(paths)})
 	}
 }
 

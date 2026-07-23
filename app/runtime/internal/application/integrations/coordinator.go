@@ -56,17 +56,18 @@ type Coordinator struct {
 	mcpRegistryCommands   MCPRegistryCommands
 	mcpPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
 	mcpMutationMu         sync.Mutex
+	mcpDialMu             sync.Mutex
+	mcpDials              map[string]*mcpDial
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
 	// mutations outlive the request but are canceled + joined by Close (§10.2
 	// component context, §10.3).
 	tasks taskgroup.Group
 
-	// mcpStatus publishes an MCP server's connection transitions (connecting →
-	// settled) so a delivery consumer can republish them on the workspace event
-	// stream; nil disables the notification (the reconnect still runs). The
-	// composition root injects the notifier's Publish.
-	mcpStatus func(ctx context.Context, server string, connecting bool)
+	// mcpStatus publishes fully resolved, safe MCP status read models so a
+	// delivery consumer can republish them without reaching back into live
+	// infrastructure. The composition root injects the notifier's Publish.
+	mcpStatus func(status MCPServerStatus)
 }
 
 // Config bundles the Coordinator's dependencies.
@@ -77,9 +78,9 @@ type Config struct {
 	MCPConnectionCommands MCPConnectionCommands
 	MCPRegistryCommands   MCPRegistryCommands
 	MCPPolicy             *atomic.Pointer[mcpserver.ToolPolicy]
-	// MCPStatus publishes MCP connection transitions to the delivery workspace
-	// stream (the notifier's Publish). nil disables the notification.
-	MCPStatus func(ctx context.Context, server string, connecting bool)
+	// MCPStatus publishes safe MCP connection status read models to the delivery
+	// workspace stream bridge. nil disables notification.
+	MCPStatus func(status MCPServerStatus)
 }
 
 // New returns an integrations Coordinator over cfg.
@@ -92,7 +93,12 @@ func New(cfg Config) *Coordinator {
 		mcpRegistryCommands:   cfg.MCPRegistryCommands,
 		mcpPolicy:             cfg.MCPPolicy,
 		mcpStatus:             cfg.MCPStatus,
+		mcpDials:              make(map[string]*mcpDial),
 	}
+}
+
+type mcpDial struct {
+	cancel context.CancelFunc
 }
 
 // Close cancels and joins this component's post-commit reconcile work (§10.3).

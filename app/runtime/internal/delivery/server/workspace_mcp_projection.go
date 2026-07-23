@@ -4,20 +4,21 @@ import (
 	"context"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
 func (s *Server) mcpServersWire(ctx context.Context) []protocol.McpServer {
-	statuses := s.integrations.MCPServerStatuses()
+	statuses := s.integrations.MCPServerStatuses(ctx)
 	out := make([]protocol.McpServer, 0, len(statuses))
 	for _, st := range statuses {
-		out = append(out, s.mcpServerWire(ctx, st))
+		out = append(out, s.mcpServerWire(st))
 	}
 	return out
 }
 
-func (s *Server) mcpServerWire(ctx context.Context, st mcpserver.ConnectionStatus) protocol.McpServer {
+func (s *Server) mcpServerWire(st integrations.MCPServerStatus) protocol.McpServer {
 	status, ok := mcpStateWire(st.State)
 	if !ok {
 		return protocol.McpServer{
@@ -29,75 +30,29 @@ func (s *Server) mcpServerWire(ctx context.Context, st mcpserver.ConnectionStatu
 			},
 		}
 	}
-	entry := protocol.McpServer{Name: st.Name, Status: status}
-	switch st.State {
-	case mcpserver.ConnectionConnected:
-		entry.ToolCount = s.mcpToolCount(ctx, st.Name)
-	case mcpserver.ConnectionFailed, mcpserver.ConnectionNeedsAuth:
-		entry.Error = mcpDialFailedProblem(st.Err)
-	}
-	return entry
+	return protocol.McpServer{Name: st.Name, Status: status, ToolCount: st.ToolCount, Error: mcpProblemWire(st.Problem)}
 }
 
-func mcpStateWire(state mcpserver.ConnectionState) (protocol.McpStatus, bool) {
+func mcpStateWire(state integrations.MCPConnectionState) (protocol.McpStatus, bool) {
 	switch state {
-	case mcpserver.ConnectionConnecting:
+	case integrations.MCPConnecting:
 		return protocol.McpConnecting, true
-	case mcpserver.ConnectionConnected:
+	case integrations.MCPConnected:
 		return protocol.McpConnected, true
-	case mcpserver.ConnectionFailed:
+	case integrations.MCPFailed:
 		return protocol.McpFailed, true
-	case mcpserver.ConnectionNeedsAuth:
+	case integrations.MCPNeedsAuth:
 		return protocol.McpNeedsAuth, true
 	default:
 		return "", false
 	}
 }
 
-func (s *Server) mcpLiveStatus(ctx context.Context, name string) (protocol.McpStatus, *int, *protocol.ProblemData, bool) {
-	st, ok := s.mcpStatusByName(name)
-	if !ok {
-		return "", nil, nil, false
-	}
-	wire := s.mcpServerWire(ctx, st)
-	return wire.Status, wire.ToolCount, wire.Error, true
-}
-
-func (s *Server) mcpStatusByName(name string) (mcpserver.ConnectionStatus, bool) {
-	for _, st := range s.integrations.MCPServerStatuses() {
-		if st.Name == name {
-			return st, true
-		}
-	}
-	return mcpserver.ConnectionStatus{}, false
-}
-
-// mcpServerChangedEvent builds the settled mcp.serverChanged frame for name,
-// reading its live status back from the pool (connected + tool count, or failed
-// + reason). A name no longer tracked yields a bare frame (status omitted).
-func (s *Server) mcpServerChangedEvent(ctx context.Context, server string) protocol.WorkspaceEvent {
-	ev := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: server}
-	if status, toolCount, problem, ok := s.mcpLiveStatus(ctx, server); ok {
-		ev.Status, ev.ToolCount, ev.Error = status, toolCount, problem
-	}
-	return ev
-}
-
-func (s *Server) mcpToolCount(ctx context.Context, server string) *int {
-	tools, err := s.integrations.MCPTools(ctx, server)
-	if err != nil {
+func mcpProblemWire(problem *integrations.MCPProblem) *protocol.ProblemData {
+	if problem == nil {
 		return nil
 	}
-	count := len(tools)
-	return &count
-}
-
-func mcpDialFailedProblem(err error) *protocol.ProblemData {
-	detail := ""
-	if err != nil {
-		detail = err.Error()
-	}
-	return &protocol.ProblemData{Type: "mcp_dial_failed", Detail: detail}
+	return &protocol.ProblemData{Type: problem.Type, Detail: problem.Detail}
 }
 
 func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
@@ -109,14 +64,14 @@ func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
 	}
 }
 
-func mcpConfigWire(srv mcpserver.Server) protocol.McpServerConfig {
+func mcpConfigWire(srv integrations.MCPServerConfig) protocol.McpServerConfig {
 	return protocol.McpServerConfig{
 		Name:                srv.Name,
 		Transport:           string(srv.Transport),
 		Enabled:             srv.Enabled,
 		Description:         srv.Description,
 		URL:                 srv.URL,
-		AuthorizationMasked: srv.MaskedAuthorization(),
+		AuthorizationMasked: srv.AuthorizationMasked,
 		Headers:             srv.Headers,
 		Command:             srv.Command,
 		Args:                srv.Args,

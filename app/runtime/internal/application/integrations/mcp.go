@@ -22,38 +22,82 @@ var errClosed = errors.New("integrations: closed")
 // use-case boundary instead of letting a detached task fail asynchronously.
 var errMCPConnectionUnavailable = errors.New("integrations: MCP connection service is unavailable")
 
+// ErrInvalidMCPServerConfiguration marks a malformed MCP configuration command.
+// Outer adapters map it to their validation error without re-running domain
+// validation or inspecting persistence state.
+var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP server configuration")
+
+// ErrUnknownMCPServer is the application boundary's stable unknown-server
+// result. The underlying domain sentinel remains internal to this package.
+var ErrUnknownMCPServer = errors.New("integrations: unknown MCP server")
+
 // MCP-server registry orchestration: the coordinator owns both the persisted
 // registry (mcpserver.Registry) and the live connection pool, so a
 // configure/remove/enable both persists and applies to the live tool set in one
 // place. Registry entries are projected to dial-level descriptors only at the
 // live-connection boundary.
 
-// ListMCPRegisteredServers returns the persisted MCP-server registry entries,
-// distinct from the live connection statuses returned by MCPServerStatuses.
-func (c *Coordinator) ListMCPRegisteredServers(ctx context.Context) ([]mcpserver.Server, error) {
-	return c.mcpRegistry.List(ctx)
+// ListMCPServerConfigs returns safe editable MCP configurations. The durable
+// domain entries never cross the application boundary because they carry raw
+// authorization tokens.
+func (c *Coordinator) ListMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {
+	if c.mcpRegistry == nil {
+		return nil, errors.New("integrations: MCP registry is unavailable")
+	}
+	servers, err := c.mcpRegistry.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	configs := make([]MCPServerConfig, 0, len(servers))
+	for _, server := range servers {
+		configs = append(configs, mcpConfigView(server))
+	}
+	return configs, nil
 }
 
-// MCPServerStatuses returns the per-server connection state of every configured
-// MCP server (connected and boot-failed alike) for mcp.servers.list.
-func (c *Coordinator) MCPServerStatuses() []mcpserver.ConnectionStatus {
+// MCPServerStatuses resolves the safe live status read model for every tracked
+// server. Raw adapter errors are intentionally reduced to stable diagnostics.
+func (c *Coordinator) MCPServerStatuses(ctx context.Context) []MCPServerStatus {
 	if c.mcpStatusReader == nil {
 		return nil
 	}
-	return c.mcpStatusReader.Statuses()
+	statuses := c.mcpStatusReader.Statuses()
+	views := make([]MCPServerStatus, 0, len(statuses))
+	for _, status := range statuses {
+		views = append(views, c.mcpStatusView(ctx, status))
+	}
+	return views
 }
 
-// MCPRegisteredServer returns one persisted MCP-server registry entry.
-func (c *Coordinator) MCPRegisteredServer(ctx context.Context, name string) (mcpserver.Server, bool, error) {
-	return c.mcpRegistry.Get(ctx, name)
+// MCPServerStatus resolves one safe live status read model.
+func (c *Coordinator) MCPServerStatus(ctx context.Context, name string) MCPServerStatus {
+	if c.mcpStatusReader == nil {
+		return MCPServerStatus{Name: name}
+	}
+	for _, status := range c.mcpStatusReader.Statuses() {
+		if status.Name == name {
+			return c.mcpStatusView(ctx, status)
+		}
+	}
+	return MCPServerStatus{Name: name}
 }
 
-// ResolveMCPServerConfiguration applies the registry-owned credential policy to
-// an editable server candidate. An omitted HTTP Authorization retains a stored
-// token only when the transport and origin remain unchanged; credentials must
-// never silently cross to a different endpoint. Delivery supplies a candidate
-// and never reads a secret to implement this policy itself.
-func (c *Coordinator) ResolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error) {
+func (c *Coordinator) mcpStatusView(ctx context.Context, status mcpserver.ConnectionStatus) MCPServerStatus {
+	var toolCount *int
+	if status.State == mcpserver.ConnectionConnected && c.mcpToolCatalog != nil {
+		if tools, err := c.mcpToolCatalog.Tools(ctx, status.Name); err == nil {
+			count := len(tools)
+			toolCount = &count
+		}
+	}
+	return mcpStatusView(status, toolCount)
+}
+
+// resolveMCPServerConfiguration applies the registry-owned credential policy to
+// an editable command. An omitted HTTP Authorization retains a stored token only
+// when the transport and origin remain unchanged; credentials never silently
+// cross to a different endpoint.
+func (c *Coordinator) resolveMCPServerConfiguration(ctx context.Context, candidate mcpserver.Server) (mcpserver.Server, error) {
 	if candidate.Authorization != "" || candidate.Name == "" || c.mcpRegistry == nil {
 		return candidate, nil
 	}
@@ -106,7 +150,7 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 		return errMCPConnectionUnavailable
 	}
 	if !c.mcpServerKnown(name) {
-		return mcpserver.ErrUnknownServer
+		return ErrUnknownMCPServer
 	}
 	return c.dispatchMCPConnection(ctx, name, dial)
 }
@@ -121,8 +165,18 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 // which is exactly how the registry-write methods dispatch their live dial without
 // holding the lock across the network handshake. Returns errClosed only when the
 // task group is shutting down.
-func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, dial func(context.Context) error) error {
-	if !c.tasks.Start(ctx, func(ctx context.Context) {
+func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, connect func(context.Context) error) error {
+	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
+	if !ok {
+		return errClosed
+	}
+	dialCtx, operation := c.replaceMCPDial(ownerCtx, name)
+	if !c.tasks.StartLinked(dialCtx, func(ctx context.Context) {
+		defer releaseOwner()
+		defer c.clearMCPDial(name, operation)
+		if err := ctx.Err(); err != nil {
+			return
+		}
 		c.mcpMutationMu.Lock()
 		srv, ok, err := c.mcpRegistry.Get(ctx, name)
 		if err != nil {
@@ -141,7 +195,7 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, di
 		// adapter owns per-server generation/cancellation, so no application-wide
 		// mutation lock is held while dialing. A configure/remove can supersede it
 		// immediately; stale adapter completion cannot swap itself back in.
-		_ = dial(ctx)
+		_ = connect(ctx)
 
 		c.mcpMutationMu.Lock()
 		defer c.mcpMutationMu.Unlock()
@@ -161,9 +215,46 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, di
 		}
 		c.notifyMCPStatus(ctx, name, false)
 	}) {
+		operation.cancel()
+		c.clearMCPDial(name, operation)
+		releaseOwner()
 		return errClosed
 	}
 	return nil
+}
+
+// replaceMCPDial gives each server exactly one current connection operation.
+// A registry mutation, reconnect, or authorize supersedes the previous dial by
+// canceling its context; adapters must honor ctx while dialing. The generation
+// check after a dial remains a defensive cleanup for adapters whose transport
+// cannot stop synchronously.
+func (c *Coordinator) replaceMCPDial(ctx context.Context, name string) (context.Context, *mcpDial) {
+	dialCtx, cancel := context.WithCancel(ctx)
+	dial := &mcpDial{cancel: cancel}
+	c.mcpDialMu.Lock()
+	if previous := c.mcpDials[name]; previous != nil {
+		previous.cancel()
+	}
+	c.mcpDials[name] = dial
+	c.mcpDialMu.Unlock()
+	return dialCtx, dial
+}
+
+func (c *Coordinator) cancelMCPDial(name string) {
+	c.mcpDialMu.Lock()
+	if dial := c.mcpDials[name]; dial != nil {
+		dial.cancel()
+		delete(c.mcpDials, name)
+	}
+	c.mcpDialMu.Unlock()
+}
+
+func (c *Coordinator) clearMCPDial(name string, dial *mcpDial) {
+	c.mcpDialMu.Lock()
+	if c.mcpDials[name] == dial {
+		delete(c.mcpDials, name)
+	}
+	c.mcpDialMu.Unlock()
 }
 
 func recordMCPConnectionError(ctx context.Context, err error) {
@@ -188,7 +279,11 @@ func (c *Coordinator) mcpServerKnown(name string) bool {
 
 func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecting bool) {
 	if c.mcpStatus != nil {
-		c.mcpStatus(ctx, name, connecting)
+		if connecting {
+			c.mcpStatus(MCPServerStatus{Name: name, Known: true, State: MCPConnecting})
+			return
+		}
+		c.mcpStatus(c.MCPServerStatus(ctx, name))
 	}
 }
 
@@ -197,28 +292,32 @@ func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecti
 // the live set (it stays in the registry). A dial failure does not fail the call
 // — the server is persisted and tracked "failed" (reconnectable); the
 // connectivity feedback path is TestMCPServer.
-func (c *Coordinator) ConfigureMCPServer(ctx context.Context, srv mcpserver.Server) error {
+func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInput) (MCPServerConfig, error) {
+	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	if err != nil {
+		return MCPServerConfig{}, err
+	}
 	if err := srv.Validate(); err != nil {
-		return err
+		return MCPServerConfig{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
 	if err != nil {
-		return err
+		return MCPServerConfig{}, err
 	}
 	defer release()
 	if err := c.mcpRegistry.Configure(requestCtx, srv); err != nil {
-		return err
+		return MCPServerConfig{}, err
 	}
 	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
-		return err
+		return MCPServerConfig{}, err
 	}
 	c.notifyMCPStatus(ownerCtx, srv.Name, false)
 	if srv.Enabled {
 		c.redialMCPServer(ownerCtx, srv)
 	}
-	return nil
+	return mcpConfigView(srv), nil
 }
 
 // RemoveMCPServer deletes a server from the registry and drops it from the live
@@ -229,6 +328,7 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 		return err
 	}
 	defer release()
+	c.cancelMCPDial(name)
 	if err := c.mcpRegistry.Remove(requestCtx, name); err != nil {
 		return err
 	}
@@ -265,7 +365,10 @@ func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enab
 		return err
 	}
 	if !ok {
-		return mcpserver.ErrUnknownServer
+		return ErrUnknownMCPServer
+	}
+	if !srv.Enabled {
+		c.cancelMCPDial(name)
 	}
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
 		return err
@@ -372,14 +475,21 @@ func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server)
 // reuses an active OAuth sign-in for the same-named server (so an authorized
 // OAuth server tests as connected, not "unauthorized"). Returns the dial /
 // tools-list error, or nil on success.
-func (c *Coordinator) TestMCPServer(ctx context.Context, srv mcpserver.Server) error {
+func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (MCPTestResult, error) {
+	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	if err != nil {
+		return MCPTestResult{}, err
+	}
 	if err := srv.Validate(); err != nil {
-		return err
+		return MCPTestResult{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	if c.mcpRegistryCommands == nil {
-		return mcpserver.ErrUnknownServer
+		return MCPTestResult{}, ErrUnknownMCPServer
 	}
-	return c.mcpRegistryCommands.Probe(ctx, mcpserver.ConfigFromServer(srv))
+	if err := c.mcpRegistryCommands.Probe(ctx, mcpserver.ConfigFromServer(srv)); err != nil {
+		return MCPTestResult{Problem: &MCPProblem{Type: "mcp_dial_failed", Detail: "MCP connection test failed."}}, nil
+	}
+	return MCPTestResult{OK: true}, nil
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server

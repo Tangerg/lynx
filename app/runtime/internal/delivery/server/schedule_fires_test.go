@@ -3,12 +3,12 @@ package server
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 func TestScheduleFireNotificationProjectsToWorkspaceEvent(t *testing.T) {
-	notifier := &schedules.FireNotifier{}
+	notifier := &signal.Signal[string]{}
 	s := &Server{wsHub: newWorkspaceHub()}
 	s.observeScheduleFires(notifier)
 	events, unsubscribe := s.wsHub.subscribe()

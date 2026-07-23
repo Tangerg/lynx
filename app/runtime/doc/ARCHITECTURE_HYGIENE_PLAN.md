@@ -243,6 +243,35 @@ Acceptance:
 - The runtime module, its standalone build, and the desktop protocol samples
   validate against the v6 contract.
 
+### Batch 9 — Read-model, secret, and execution-boundary closure
+
+Status: **Completed**
+
+Scope:
+
+- Make Application own the complete user-facing Session read model and the
+  terminal portable-session identity; Delivery only paginates and projects it.
+- Replace raw MCP registry/status values at the Delivery boundary with
+  Application commands and safe read models; retain credentials only inside
+  Application and never surface adapter errors verbatim.
+- Normalize concrete tool results and activity text at the executor adapter so
+  Delivery has no concrete-tool schema or activity registry.
+- Collapse semantic single-sink notifier packages into the neutral generic
+  `component/signal` primitive, with Application-owned payloads.
+- Remove remaining transparent adapter aliases encountered on these paths and
+  preserve ordering/cancellation with focused tests.
+
+Acceptance:
+
+- Delivery performs no session filesystem/state/default-model join, no MCP
+  registry or live-pool readback, and no concrete-tool result transformation.
+- Portable archive input cannot carry live Session lineage, kind, isolation, or
+  revision fields.
+- Raw MCP authorization and adapter error text have no route to a protocol
+  response or event.
+- Every migrated bridge is represented by `component/signal` plus an
+  owning-layer payload, rather than a semantic notifier package.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -255,6 +284,7 @@ Acceptance:
 | 6. Semantic boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, test; `go test ./internal/arch`; Delivery adapter-import and construction ownership checks. |
 | 7. Residual abstraction-leak eradication | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; standalone vet/test; focused race suite; expanded filesystem and Session-domain architecture checks. |
 | 8. Delivery abstraction-leak closure | Completed | 2026-07-23 | 2026-07-23 | `go test ./...`; `go vet ./...`; `go build ./...`; standalone (`GOWORK=off`) build/vet/test; focused `-race`; frontend typecheck and RPC sample test; expanded architecture suite. |
+| 9. Read-model, secret, and execution-boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test, `go test ./internal/arch`, and race suites for integrations, runs, sessions, schedules, turn, Bootstrap, and Delivery all passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 

@@ -280,8 +280,8 @@ func TestNudgePublishesFileChange(t *testing.T) {
 		cwd   string
 		paths []string
 	}
-	effects := New(Config{PublishFileChanges: func(cwd string, paths []string) {
-		published.cwd, published.paths = cwd, paths
+	effects := New(Config{PublishFileChanges: func(change runs.FileChange) {
+		published.cwd, published.paths = change.Cwd, change.Paths
 	}})
 
 	effects.Nudge("/work", []string{"a.go"})

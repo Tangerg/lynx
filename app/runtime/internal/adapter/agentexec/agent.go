@@ -72,19 +72,23 @@ type turnInput struct {
 }
 
 // StopReason identifies why an otherwise successful turn stopped before or at
-// its final interaction boundary. The Agent interaction protocol owns its
-// values and validation.
-type StopReason = agent.InteractionStopReason
+// its final interaction boundary. It is adapter-owned; framework values are
+// translated at the managed-interaction boundary.
+type StopReason string
 
 const (
 	// StopReasonNone means the interaction reached a tagged final event.
-	StopReasonNone = agent.InteractionStopNone
+	StopReasonNone StopReason = ""
 	// StopReasonBudget means token or cost limits stopped continuation.
-	StopReasonBudget = agent.InteractionStopBudget
+	StopReasonBudget StopReason = "budget"
 	// StopReasonSteps means the delegation-tree model-call limit stopped
 	// continuation.
-	StopReasonSteps = agent.InteractionStopSteps
+	StopReasonSteps StopReason = "steps"
 )
+
+func (r StopReason) Valid() bool {
+	return r == StopReasonNone || r == StopReasonBudget || r == StopReasonSteps
+}
 
 // TurnOutput is the typed output of one turn. Reply is the assistant's
 // final text. Usage / UsageByModel / CostUSD are read back from the

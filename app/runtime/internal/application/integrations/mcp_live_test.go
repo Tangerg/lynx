@@ -19,7 +19,7 @@ func TestMCPStatusAndToolsUsePorts(t *testing.T) {
 	}
 	c := New(configWithMCPPorts(ports))
 
-	if got := c.MCPServerStatuses(); len(got) != 1 || got[0].Name != "fs" {
+	if got := c.MCPServerStatuses(context.Background()); len(got) != 1 || got[0].Name != "fs" {
 		t.Fatalf("MCPServerStatuses = %+v", got)
 	}
 	tools, err := c.MCPTools(context.Background(), "fs")
@@ -39,9 +39,9 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 	ports := &fakeMCPPorts{statuses: []mcpserver.ConnectionStatus{{Name: "fs"}, {Name: "github"}}}
 	settled := make(chan string, 2)
 	cfg := configWithMCPPorts(ports)
-	cfg.MCPStatus = func(_ context.Context, server string, connecting bool) {
-		if !connecting {
-			settled <- server
+	cfg.MCPStatus = func(status MCPServerStatus) {
+		if status.State != MCPConnecting {
+			settled <- status.Name
 		}
 	}
 	c := New(cfg)
@@ -64,8 +64,8 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 		t.Fatalf("reconnect=%q authorize=%q", ports.reconnectName, ports.authorizeName)
 	}
 
-	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
-		t.Fatalf("reconnect unknown = %v, want ErrUnknownServer", err)
+	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, ErrUnknownMCPServer) {
+		t.Fatalf("reconnect unknown = %v, want ErrUnknownMCPServer", err)
 	}
 }
 
@@ -121,15 +121,15 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	ports := &fakeMCPPorts{}
 	c := New(configWithMCPPorts(ports))
 
-	err := c.TestMCPServer(context.Background(), mcpserver.Server{
-		Name:      "fs",
-		Transport: mcpserver.TransportStdio,
-		Command:   "mcp-fs",
-		Args:      []string{"--root", "/repo"},
-		Env:       map[string]string{"A": "1"},
+	result, err := c.TestMCPServer(context.Background(), MCPServerInput{
+		Name: "fs", Transport: string(mcpserver.TransportStdio), Command: "mcp-fs",
+		Args: []string{"--root", "/repo"}, Env: map[string]string{"A": "1"},
 	})
 	if err != nil {
 		t.Fatalf("TestMCPServer err = %v", err)
+	}
+	if !result.OK {
+		t.Fatalf("TestMCPServer result = %+v, want success", result)
 	}
 	if ports.probe.Name != "fs" || ports.probe.Command != "mcp-fs" || len(ports.probe.Env) != 1 || ports.probe.Env[0] != "A=1" {
 		t.Fatalf("probe config = %+v", ports.probe)
