@@ -258,7 +258,8 @@ Scope:
   Delivery has no concrete-tool schema or activity registry.
 - Collapse semantic single-sink notifier packages into the neutral generic
   `component/signal` primitive, with Application-owned payloads.
-- Remove remaining transparent adapter aliases encountered on these paths and
+- Move provider/model catalog probing out of Bootstrap to its driven adapter;
+  remove remaining transparent adapter aliases encountered on these paths and
   preserve ordering/cancellation with focused tests.
 
 Acceptance:
