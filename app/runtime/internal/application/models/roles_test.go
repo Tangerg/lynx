@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
 func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
@@ -37,7 +38,11 @@ func TestSetUtilityRoleUsesChatModelValidatorPort(t *testing.T) {
 	cell.Store(&modelrole.Role{})
 	saver := &fakeUtilityRoleSaver{}
 	validator := &fakeChatModelValidator{}
-	c := New(Config{UtilityCell: cell, UtilityValidator: validator, UtilityStore: saver})
+	cfg := configuredRoleConfig()
+	cfg.UtilityCell = cell
+	cfg.UtilityValidator = validator
+	cfg.UtilityStore = saver
+	c := New(cfg)
 
 	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
@@ -55,7 +60,10 @@ func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 	fail := errors.New("build client")
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
-	c := New(Config{UtilityCell: cell, UtilityValidator: &fakeChatModelValidator{err: fail}})
+	cfg := configuredRoleConfig()
+	cfg.UtilityCell = cell
+	cfg.UtilityValidator = &fakeChatModelValidator{err: fail}
+	c := New(cfg)
 
 	if err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku"); !errors.Is(err, fail) {
 		t.Fatalf("SetUtilityRole err = %v, want %v", err, fail)
@@ -65,11 +73,27 @@ func TestSetUtilityRoleReturnsChatModelValidatorError(t *testing.T) {
 func TestSetUtilityRoleRequiresChatModelValidator(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
-	c := New(Config{UtilityCell: cell})
+	cfg := configuredRoleConfig()
+	cfg.UtilityCell = cell
+	c := New(cfg)
 
 	err := c.SetUtilityRole(context.Background(), "anthropic", "claude-haiku")
 	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
 		t.Fatalf("SetUtilityRole err = %v, want unavailable validation error", err)
+	}
+}
+
+func TestSetUtilityRoleRequiresAConfiguredProvider(t *testing.T) {
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cfg := configuredRoleConfig()
+	cfg.Providers = &testProviderRegistry{}
+	cfg.UtilityCell = cell
+	cfg.UtilityValidator = staticChatModelValidator{}
+	c := New(cfg)
+
+	err := c.SetUtilityRole(t.Context(), "anthropic", "claude-haiku")
+	if !errors.Is(err, ErrProviderUnconfigured) {
+		t.Fatalf("SetUtilityRole error = %v, want ErrProviderUnconfigured", err)
 	}
 }
 
@@ -95,7 +119,9 @@ func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	cell.Store(&modelrole.Role{})
-	c := New(Config{EmbeddingCell: cell})
+	cfg := configuredRoleConfig()
+	cfg.EmbeddingCell = cell
+	c := New(cfg)
 
 	err := c.SetEmbeddingRole(context.Background(), "openai", "text-embedding-3-small")
 	if err == nil || !strings.Contains(err.Error(), "validation is unavailable") {
@@ -103,14 +129,28 @@ func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
 	}
 }
 
+func TestSetEmbeddingRoleRejectsProviderWithoutEmbeddings(t *testing.T) {
+	cell := &atomic.Pointer[modelrole.Role]{}
+	cfg := configuredRoleConfig()
+	cfg.Catalog = testCatalog{metadata: []provider.Metadata{{ID: "anthropic"}}}
+	cfg.EmbeddingCell = cell
+	cfg.EmbeddingResolver = staticEmbeddingResolver{}
+	c := New(cfg)
+
+	err := c.SetEmbeddingRole(t.Context(), "anthropic", "embedding")
+	if !errors.Is(err, ErrEmbeddingUnsupported) {
+		t.Fatalf("SetEmbeddingRole error = %v, want ErrEmbeddingUnsupported", err)
+	}
+}
+
 func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	saver := newBlockingUtilitySaver()
-	c := New(Config{
-		UtilityCell:      cell,
-		UtilityValidator: staticChatModelValidator{},
-		UtilityStore:     saver,
-	})
+	cfg := configuredRoleConfig()
+	cfg.UtilityCell = cell
+	cfg.UtilityValidator = staticChatModelValidator{}
+	cfg.UtilityStore = saver
+	c := New(cfg)
 
 	first := make(chan error, 1)
 	go func() { first <- c.SetUtilityRole(t.Context(), "provider", "first") }()
@@ -141,11 +181,11 @@ func TestSetUtilityRoleSerializesPersistAndPublish(t *testing.T) {
 func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	cell := &atomic.Pointer[modelrole.Role]{}
 	saver := newBlockingEmbeddingSaver()
-	c := New(Config{
-		EmbeddingCell:     cell,
-		EmbeddingResolver: staticEmbeddingResolver{},
-		EmbeddingStore:    saver,
-	})
+	cfg := configuredRoleConfig()
+	cfg.EmbeddingCell = cell
+	cfg.EmbeddingResolver = staticEmbeddingResolver{}
+	cfg.EmbeddingStore = saver
+	c := New(cfg)
 
 	first := make(chan error, 1)
 	go func() { first <- c.SetEmbeddingRole(t.Context(), "provider", "first") }()
@@ -235,6 +275,21 @@ type staticEmbedder struct{}
 func (staticEmbedder) ID() string { return "provider:model" }
 func (staticEmbedder) Embed(context.Context, []string) ([][]float32, error) {
 	return nil, nil
+}
+
+func configuredRoleConfig() Config {
+	return Config{
+		Providers: &testProviderRegistry{entries: map[string]provider.Provider{
+			"anthropic": {ID: "anthropic", APIKey: "key"},
+			"openai":    {ID: "openai", APIKey: "key"},
+			"provider":  {ID: "provider", APIKey: "key"},
+		}},
+		Catalog: testCatalog{metadata: []provider.Metadata{
+			{ID: "anthropic", EmbeddingCapable: true},
+			{ID: "openai", EmbeddingCapable: true},
+			{ID: "provider", EmbeddingCapable: true},
+		}},
+	}
 }
 
 type blockingRoleSaver struct {

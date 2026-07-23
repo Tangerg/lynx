@@ -21,8 +21,8 @@ func (c *Coordinator) UtilityRole() (providerID, model string) {
 // SetUtilityRole repoints the maintenance services at (provider, model), persists
 // it, and swaps the live cell so the change takes effect at the next turn
 // boundary. An empty model clears the role back to the main turn model. A
-// non-empty model is validated before persistence — an unconfigured provider or
-// unknown model fails here rather than silently degrading at the next
+// non-empty model is validated before persistence — an unsupported or
+// unconfigured provider fails here rather than silently degrading at the next
 // compaction. Backs models.setUtilityRole.
 func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string) error {
 	c.utilityMu.Lock()
@@ -32,6 +32,9 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 		return err
 	}
 	if role.Configured() {
+		if _, _, err := c.configuredProvider(ctx, role.ProviderID()); err != nil {
+			return err
+		}
 		if c.utilityValidator == nil {
 			return errors.New("models: utility model validation is unavailable")
 		}
@@ -61,10 +64,8 @@ func (c *Coordinator) EmbeddingRole() (providerID, model string) {
 // SetEmbeddingRole repoints the @codebase index at (provider, model), persists
 // it, and swaps the live cell. An empty model clears the role (turns the index
 // off). A non-empty model is validated by building its embedding client, so an
-// unbuildable role fails here rather than at the next search. The caller is
-// expected to have already rejected a non-embedding-capable or unconfigured
-// provider (the delivery layer does, as invalid_params), so a failure here is an
-// internal one. Backs models.setEmbeddingRole.
+// unsupported, unconfigured, or unbuildable role fails here rather than at the
+// next search. Backs models.setEmbeddingRole.
 func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model string) error {
 	c.embeddingMu.Lock()
 	defer c.embeddingMu.Unlock()
@@ -73,6 +74,13 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 		return err
 	}
 	if role.Configured() {
+		meta, _, err := c.configuredProvider(ctx, role.ProviderID())
+		if err != nil {
+			return err
+		}
+		if !meta.EmbeddingCapable {
+			return fmt.Errorf("%w: provider %q", ErrEmbeddingUnsupported, role.ProviderID())
+		}
 		if c.embeddingResolver == nil {
 			return errors.New("models: embedding model validation is unavailable")
 		}

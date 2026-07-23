@@ -23,6 +23,10 @@ func (s stubCatalog) Metadata(id string) (provider.Metadata, bool) {
 	}
 	return provider.Metadata{}, false
 }
+func (stubCatalog) Models(string) []models.Model { return nil }
+func (stubCatalog) LookupModel(string, string) (models.Model, bool) {
+	return models.Model{}, false
+}
 
 // stubLister records whether the probe ran and returns canned ids/err.
 type stubLister struct {

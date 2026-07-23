@@ -9,6 +9,7 @@ package models
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 
@@ -17,13 +18,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderCatalog is the static provider reference data (which providers this
-// build serves + their capabilities), projected from the infra provider table.
-// The composition root supplies it (only it may read the infra catalog).
+// ProviderCatalog is the static provider and model reference data projected
+// from infrastructure catalogs. The composition root supplies it; application
+// owns the use-case policy that consumes the projection.
 type ProviderCatalog interface {
 	Supported() []provider.Metadata
 	Metadata(id string) (provider.Metadata, bool)
+	Models(providerID string) []Model
+	LookupModel(providerID, modelID string) (Model, bool)
 }
+
+var (
+	// ErrProviderUnsupported reports a provider id with no runtime adapter.
+	ErrProviderUnsupported = errors.New("models: provider is unsupported")
+	// ErrProviderBaseURLRequired reports a provider that cannot be configured
+	// without its endpoint.
+	ErrProviderBaseURLRequired = errors.New("models: provider base URL is required")
+	// ErrProviderUnconfigured reports a supported provider with no usable key.
+	ErrProviderUnconfigured = errors.New("models: provider is not configured")
+	// ErrEmbeddingUnsupported reports a provider with no embedding adapter.
+	ErrEmbeddingUnsupported = errors.New("models: provider has no embeddings adapter")
+	// ErrProviderReadBack reports a registry that accepted configuration but did
+	// not subsequently return the configured provider.
+	ErrProviderReadBack = errors.New("models: configured provider was not found")
+)
 
 // ProviderProber validates a provider's credentials with one minimal live call
 // (providers.test). The composition root supplies it (it owns client

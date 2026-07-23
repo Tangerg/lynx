@@ -31,6 +31,10 @@ func (r *modelProviderFake) Metadata(id string) (provider.Metadata, bool) {
 	}
 	return provider.Metadata{}, false
 }
+func (*modelProviderFake) Models(string) []models.Model { return nil }
+func (*modelProviderFake) LookupModel(string, string) (models.Model, bool) {
+	return models.Model{}, false
+}
 
 // okChatModelValidator always accepts the utility model.
 type okChatModelValidator struct{}

@@ -104,7 +104,7 @@ Acceptance:
 
 ### Batch 3 — Model/provider policy ownership
 
-Status: **pending**
+Status: **Completed**
 
 Scope:
 
@@ -163,7 +163,7 @@ Acceptance:
 |---|---|---|---|---|
 | 1. Run boundary semantics | Completed | 2026-07-22 | 2026-07-22 | `go test -race ./internal/application/runs ./internal/application/goals`; `go vet` for both packages; `go test ./internal/arch`. |
 | 2. Application collaboration ownership | Completed | 2026-07-22 | 2026-07-23 | `go test -race` for admission, runs, sessions, schedules, delivery/server, bootstrap; focused `go vet`; `go test ./internal/arch`. |
-| 3. Model/provider policy ownership | Pending | — | — | — |
+| 3. Model/provider policy ownership | Completed | 2026-07-23 | 2026-07-23 | `go test -race ./internal/application/models ./internal/delivery/server ./internal/bootstrap`; `go vet ./...`; `go test ./...`; `go test ./internal/arch`. |
 | 4. Abstraction and boundary cleanup | Pending | — | — | — |
 | 5. Fitness tests and final verification | Pending | — | — | — |
 
@@ -201,6 +201,22 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   lifetime, and Delivery only projects accepted firings to workspace events.
 - A failed schedule start leaves its durable occurrence due; focused race, vet,
   persistence, and architecture checks passed.
+
+### 2026-07-23 — Batch 3 started
+
+- Began tracing model/provider enumeration and configuration policy from the
+  Delivery handlers into the application coordinator.
+
+### 2026-07-23 — Batch 3 completed
+
+- Application now owns static/remote model discovery, catalog enrichment,
+  Provider support and endpoint validation, redacted provider results, and
+  provider probing eligibility.
+- Utility and embedding role writes now enforce supported, configured, and
+  embedding-capable provider policy before client construction or persistence.
+- Delivery maps application values and typed policy errors only; it no longer
+  imports the static model catalog. Focused race plus full build, vet, test, and
+  architecture checks passed.
 
 ## 8. Completion definition
 
