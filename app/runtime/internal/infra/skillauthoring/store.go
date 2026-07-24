@@ -99,16 +99,12 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	}
 	defer root.Close()
 
-	draftDir := s.draftDir(handle)
-	content, found, err := readSkill(root, draftDir)
+	content, found, err := s.readDraft(root, handle)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return fmt.Errorf("skillauthoring: no draft %q at revision %q: %w", handle.Name, handle.Revision, skills.ErrNotFound)
-	}
-	if !handle.Matches(content) {
-		return fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
 	}
 	if err := validateSkill(handle.Name, content); err != nil {
 		return err
@@ -119,7 +115,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	if revises, err := draftRevises(content); err != nil {
 		return err
 	} else if revises {
-		return s.replaceActive(ctx, root, handle, content, draftDir)
+		return s.replaceActive(ctx, root, handle, content, s.draftDir(handle))
 	}
 	if _, statErr := root.Lstat(s.archiveDir(handle.Name)); statErr == nil {
 		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, handle.Name)
@@ -134,7 +130,7 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 		if !bytes.Equal(active, content) {
 			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
 		}
-		if err := root.RemoveAll(draftDir); err != nil {
+		if err := root.RemoveAll(s.draftDir(handle)); err != nil {
 			return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, err)
 		}
 		return nil
@@ -147,13 +143,13 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	if err := contextError(ctx, "promote draft"); err != nil {
 		return err
 	}
-	if err := root.Rename(draftDir, activeDir); err != nil {
+	if err := root.Rename(s.draftDir(handle), activeDir); err != nil {
 		active, exists, readErr := readSkill(root, activeDir)
 		if readErr != nil {
 			return fmt.Errorf("skillauthoring: inspect promotion outcome for %q: %w", handle.Name, errors.Join(err, readErr))
 		}
 		if exists && bytes.Equal(active, content) {
-			if removeErr := root.RemoveAll(draftDir); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+			if removeErr := root.RemoveAll(s.draftDir(handle)); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
 				return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, removeErr)
 			}
 			return nil
@@ -233,7 +229,7 @@ func (s *Store) archiveActive(root *os.Root, name string) error {
 // agent-authored skill would carry a stale last-used time and be re-archived on
 // the next sweep.
 func (s *Store) Archive(ctx context.Context, name string) error {
-	if err := s.move(ctx, name, s.activeDir(name), s.archiveDir(name), "archive"); err != nil {
+	if err := s.moveLifecycle(ctx, name, skills.Active, skills.Archived); err != nil {
 		return err
 	}
 	return s.dropUsage(ctx, name)
@@ -250,15 +246,27 @@ func (s *Store) Restore(ctx context.Context, name string) error {
 	if err := s.dropUsage(ctx, name); err != nil {
 		return err
 	}
-	return s.move(ctx, name, s.archiveDir(name), s.activeDir(name), "restore")
+	return s.moveLifecycle(ctx, name, skills.Archived, skills.Active)
 }
 
-func (s *Store) move(ctx context.Context, name, source, destination, operation string) error {
+func (s *Store) moveLifecycle(ctx context.Context, name string, from, to skills.Lifecycle) error {
 	if !s.Enabled() {
 		return errors.New("skillauthoring: no skills root configured")
 	}
 	if !validName(name) {
 		return fmt.Errorf("skillauthoring: invalid skill name %q", name)
+	}
+	operation, err := lifecycleOperation(from, to)
+	if err != nil {
+		return err
+	}
+	source, err := s.lifecycleDir(from, name)
+	if err != nil {
+		return err
+	}
+	destination, err := s.lifecycleDir(to, name)
+	if err != nil {
+		return err
 	}
 	if err := contextError(ctx, operation+" skill"); err != nil {
 		return err
@@ -337,6 +345,17 @@ func (s *Store) move(ctx context.Context, name, source, destination, operation s
 		return fmt.Errorf("skillauthoring: %s %q: %w", operation, name, err)
 	}
 	return nil
+}
+
+func lifecycleOperation(from, to skills.Lifecycle) (string, error) {
+	switch {
+	case from == skills.Active && to == skills.Archived:
+		return "archive", nil
+	case from == skills.Archived && to == skills.Active:
+		return "restore", nil
+	default:
+		return "", fmt.Errorf("skillauthoring: unsupported lifecycle transition %q to %q", from, to)
+	}
 }
 
 // List returns active and archived skills from one ordered library snapshot.
@@ -448,15 +467,12 @@ func (s *Store) DiscardDraft(ctx context.Context, handle skills.DraftHandle) err
 	defer root.Close()
 
 	draftDir := s.draftDir(handle)
-	content, found, err := readSkill(root, draftDir)
+	_, found, err := s.readDraft(root, handle)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return nil
-	}
-	if !handle.Matches(content) {
-		return fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
 	}
 	if err := root.RemoveAll(draftDir); err != nil {
 		return fmt.Errorf("skillauthoring: discard draft %q: %w", handle.Name, err)
@@ -496,6 +512,28 @@ func (s *Store) archiveDir(name string) string {
 
 func (s *Store) draftDir(handle skills.DraftHandle) string {
 	return filepath.Join(draftsSubdir, handle.Revision)
+}
+
+func (s *Store) lifecycleDir(lifecycle skills.Lifecycle, name string) (string, error) {
+	switch lifecycle {
+	case skills.Active:
+		return s.activeDir(name), nil
+	case skills.Archived:
+		return s.archiveDir(name), nil
+	default:
+		return "", fmt.Errorf("skillauthoring: unknown lifecycle %q", lifecycle)
+	}
+}
+
+func (s *Store) readDraft(root *os.Root, handle skills.DraftHandle) ([]byte, bool, error) {
+	content, found, err := readSkill(root, s.draftDir(handle))
+	if err != nil || !found {
+		return content, found, err
+	}
+	if !handle.Matches(content) {
+		return nil, false, fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
+	}
+	return content, true, nil
 }
 
 func validateSkill(name string, content []byte) error {

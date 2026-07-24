@@ -162,7 +162,7 @@ func artifactItemFromTranscript(item transcript.Item) protocol.ArtifactItem {
 	if len(item.Steps) != 0 {
 		out.Steps = make([]protocol.ArtifactPlanStep, len(item.Steps))
 		for index, step := range item.Steps {
-			out.Steps[index] = protocol.ArtifactPlanStep{ID: step.ID, Title: step.Title, Status: step.Status}
+			out.Steps[index] = protocol.ArtifactPlanStep{ID: step.ID, Title: step.Title, Status: string(step.Status)}
 		}
 	}
 	if item.Question != nil {

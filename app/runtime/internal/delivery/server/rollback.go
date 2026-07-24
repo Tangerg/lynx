@@ -19,7 +19,7 @@ import (
 //
 // The whole guarded operation — single-writer + working-tree admission, working
 // tree restore, durable truncation — lives in the sessions coordinator
-// ([sessions.Coordinator.RollbackFiles]). This adapter only decodes the intent
+// ([sessions.Coordinator.Rollback]). This adapter only decodes the intent
 // and presents the canonical result; boundary resolution stays in application.
 func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	intent, err := rollbackIntentFromWire(in)
@@ -27,7 +27,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 		return nil, err
 	}
 
-	result, err := s.sessions.RollbackFiles(ctx, sessions.RollbackSpec{
+	result, err := s.sessions.Rollback(ctx, sessions.RollbackSpec{
 		SessionID:      in.SessionID,
 		ToRunID:        in.ToRunID,
 		RestoreFiles:   intent.restoreFiles,

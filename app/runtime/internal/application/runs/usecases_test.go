@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -80,21 +81,6 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 	return nil
 }
 
-func (f *fakeRunSessions) AcquireWorkingTreeRun(string) (func(), bool) {
-	if !f.treeOK {
-		return nil, false
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			if f.treeRelease != nil {
-				f.treeRelease()
-			}
-			f.treeReleases++
-		})
-	}, true
-}
-
 type fakeTurnControl struct {
 	validated     StartTurn
 	started       StartTurn
@@ -165,7 +151,7 @@ func (f *fakeTurnControl) Steer(_ context.Context, ref TurnRef, message string) 
 }
 
 func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions SessionLifecycle, effects Effects) *Coordinator {
-	return NewCoordinator(Dependencies{
+	deps := Dependencies{
 		Segments:     exec,
 		Turns:        turns,
 		Sessions:     sessions,
@@ -173,7 +159,36 @@ func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions Ses
 		Now:          func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
-	})
+	}
+	if fake, ok := sessions.(*fakeRunSessions); ok {
+		deps.Admissions = &fakeAdmissionGate{Gate: new(admission.Gate), sessions: fake}
+	}
+	return NewCoordinator(deps)
+}
+
+type fakeAdmissionGate struct {
+	*admission.Gate
+	sessions *fakeRunSessions
+}
+
+func (g *fakeAdmissionGate) AcquireWorkingTreeRun(cwd string) (func(), bool) {
+	if !g.sessions.treeOK {
+		return nil, false
+	}
+	release, ok := g.Gate.AcquireWorkingTreeRun(cwd)
+	if !ok {
+		return nil, false
+	}
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			release()
+			if g.sessions.treeRelease != nil {
+				g.sessions.treeRelease()
+			}
+			g.sessions.treeReleases++
+		})
+	}, true
 }
 
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {

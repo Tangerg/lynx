@@ -36,6 +36,10 @@ type ApprovalPrompt struct {
 	SafetyClass tool.SafetyClass
 	Risk        tool.RiskLevel
 	Reason      string
+	// Rememberable distinguishes ordinary policy approvals from one-off
+	// confirmations such as the doom-loop brake. It must persist with the
+	// prompt so a resumed process cannot accidentally create a standing rule.
+	Rememberable bool
 }
 
 // QuestionPrompt is the complete durable plan for a question-producing tool

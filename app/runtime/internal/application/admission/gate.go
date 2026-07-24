@@ -4,13 +4,16 @@ package admission
 
 import "sync"
 
-// Gate serializes one writer per session and records the live Run that owns a
-// working tree. Its zero value is ready to use.
+// Gate serializes one writer per session, records live Runs, and coordinates
+// their working-tree admissions with destructive workspace mutations. Its zero
+// value is ready to use.
 type Gate struct {
-	mu          sync.Mutex
-	runs        map[string]liveRun
-	claims      map[string]map[uint64]struct{}
-	nextClaimID uint64
+	mu            sync.Mutex
+	runs          map[string]liveRun
+	claims        map[string]map[uint64]struct{}
+	treeRuns      map[string]int
+	treeMutations map[string]struct{}
+	nextClaimID   uint64
 }
 
 type liveRun struct {
@@ -51,19 +54,38 @@ func (g *Gate) BeginMaintenance(runID string) (release func(), ok bool) {
 	return g.addClaimLocked(run.sessionID), true
 }
 
-// ActiveSessionWithCwd returns the session whose live Run owns cwd, if any.
-func (g *Gate) ActiveSessionWithCwd(cwd string) string {
+// AcquireWorkingTreeRun reserves cwd while a run segment is being admitted.
+// A live run keeps the tree unavailable to destructive mutations after this
+// short admission claim is released.
+func (g *Gate) AcquireWorkingTreeRun(cwd string) (release func(), ok bool) {
 	if cwd == "" {
-		return ""
+		return func() {}, true
 	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	for _, run := range g.runs {
-		if run.cwd == cwd {
-			return run.sessionID
-		}
+	g.initLocked()
+	if _, busy := g.treeMutations[cwd]; busy {
+		return nil, false
 	}
-	return ""
+	g.treeRuns[cwd]++
+	return g.releaseTreeRun(cwd), true
+}
+
+// AcquireWorkingTreeMutation reserves exclusive access for a destructive
+// operation such as a checkpoint restore. It rejects both a segment still being
+// admitted and every live run sharing the same working tree.
+func (g *Gate) AcquireWorkingTreeMutation(cwd string) (release func(), ok bool) {
+	if cwd == "" {
+		return func() {}, true
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.initLocked()
+	if _, busy := g.treeMutations[cwd]; busy || g.treeRuns[cwd] > 0 || g.hasLiveRunOnTreeLocked(cwd) {
+		return nil, false
+	}
+	g.treeMutations[cwd] = struct{}{}
+	return g.releaseTreeMutation(cwd), true
 }
 
 // ActiveSessions snapshots every session with a live Run or held admission.
@@ -99,6 +121,21 @@ func (g *Gate) initLocked() {
 	if g.claims == nil {
 		g.claims = map[string]map[uint64]struct{}{}
 	}
+	if g.treeRuns == nil {
+		g.treeRuns = map[string]int{}
+	}
+	if g.treeMutations == nil {
+		g.treeMutations = map[string]struct{}{}
+	}
+}
+
+func (g *Gate) hasLiveRunOnTreeLocked(cwd string) bool {
+	for _, run := range g.runs {
+		if run.cwd == cwd {
+			return true
+		}
+	}
+	return false
 }
 
 func (g *Gate) addClaimLocked(sessionID string) func() {
@@ -122,6 +159,32 @@ func (g *Gate) addClaimLocked(sessionID string) func() {
 			if len(owners) == 0 {
 				delete(g.claims, sessionID)
 			}
+		})
+	}
+}
+
+func (g *Gate) releaseTreeRun(cwd string) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			g.mu.Lock()
+			defer g.mu.Unlock()
+			if g.treeRuns[cwd] <= 1 {
+				delete(g.treeRuns, cwd)
+				return
+			}
+			g.treeRuns[cwd]--
+		})
+	}
+}
+
+func (g *Gate) releaseTreeMutation(cwd string) func() {
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			g.mu.Lock()
+			delete(g.treeMutations, cwd)
+			g.mu.Unlock()
 		})
 	}
 }

@@ -53,7 +53,6 @@ type SessionLifecycle interface {
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
-	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
 }
 
 // TurnRef is the engine-neutral durable address of a turn. Delivery never

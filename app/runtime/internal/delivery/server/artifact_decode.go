@@ -176,7 +176,11 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	if len(artifact.Steps) != 0 {
 		out.Steps = make([]transcript.PlanStep, len(artifact.Steps))
 		for index, step := range artifact.Steps {
-			out.Steps[index] = transcript.PlanStep{ID: step.ID, Title: step.Title, Status: step.Status}
+			status := transcript.PlanStepStatus(step.Status)
+			if !status.Valid() {
+				return transcript.Item{}, invalidArtifact(fmt.Sprintf("%s.steps[%d].status", path, index), "unknown value %q", step.Status)
+			}
+			out.Steps[index] = transcript.PlanStep{ID: step.ID, Title: step.Title, Status: status}
 		}
 	}
 	if artifact.Question != nil {

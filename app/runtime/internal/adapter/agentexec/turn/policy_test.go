@@ -122,7 +122,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		prompt, err := json.Marshal(map[string]any{
 			"kind": "approval",
 			"approval": map[string]any{
-				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec",
+				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec", "rememberable": true,
 			},
 		})
 		if err != nil {
@@ -143,6 +143,36 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		)
 		if !errors.Is(verdict.Interrupt, want) {
 			t.Fatalf("approval verdict = %+v, want remember error", verdict)
+		}
+	})
+
+	t.Run("do not remember resumed doom loop", func(t *testing.T) {
+		want := errors.New("rule write unavailable")
+		const arguments = `{"command":"go test"}`
+		prompt, err := json.Marshal(map[string]any{
+			"kind": "approval",
+			"approval": map[string]any{
+				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec",
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		response, err := suspension.EncodeResolution(interrupts.Resolution{
+			Approved: true, RememberScope: approval.ScopeSession,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		key := interrupts.InterruptKey(string(runs.ApprovalInterruptKind), "shell", arguments)
+		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
+			ID: key, Prompt: prompt, Response: response,
+		}})
+		verdict := approvalObserver(&errorApprovalPolicy{rememberErr: want}).ApproveToolCall(
+			ctx, "call_1", "shell", arguments, agentexec.ToolApprovalTarget{},
+		)
+		if verdict.Interrupt != nil || verdict.Denied {
+			t.Fatalf("doom-loop verdict = %+v, want approved without remembered rule", verdict)
 		}
 	})
 }

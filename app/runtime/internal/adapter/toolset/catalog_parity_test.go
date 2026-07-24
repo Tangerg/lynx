@@ -32,9 +32,9 @@ func toolNameSet(ts []tools.Tool) map[string]bool {
 }
 
 // TestCatalogCoversPerTurnCodingTools is the tools.list parity guard: the
-// construction-time catalog (tools.list) and the per-turn coding manifest are
-// built by separate paths and drifted once (exit_plan_mode / update_goal were
-// dropped from the catalog). The catalog is the "possibly exists" tier — it must
+// direct catalog (tools.list) and the per-turn coding manifest have intentionally
+// different gates and drifted once (exit_plan_mode / update_goal were dropped
+// from the catalog). The catalog is the "possibly exists" tier — it must
 // cover every tool the coding turn can offer EXCEPT `task`, which the engine
 // appends after the catalog is built. Raw MCP tools vs. search_tools stay a
 // deliberate difference and are covered by the raw append in Build.

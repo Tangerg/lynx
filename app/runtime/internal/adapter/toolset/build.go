@@ -259,59 +259,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	resolver.SetMCPTools(connections.mcpTools) // seed the hot-swappable MCP set
 	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
 
-	// Build the immutable catalog core. Resolver.Tools projects MCP, search_tools,
-	// and the cwd-scoped skill tool live so reconnects and session cwd changes do
-	// not leave tools.list or tools.invoke on a stale construction-time snapshot.
-	// Only `task` is appended later by the engine (it needs the engine).
-	tools := resolver.workdirTools(config.Workdir)
-	tools = append(tools, online...)
-	tools = append(tools, connections.a2aTools...)
-	tools = append(tools, lspTools...)
-	tools = append(tools, shellTools...)
-	tools = append(tools, askUserTool)
-	if todoTool != nil {
-		tools = append(tools, todoTool)
-	}
-	if scheduleTool != nil {
-		tools = append(tools, scheduleTool)
-	}
-	if toolResultTool != nil {
-		tools = append(tools, toolResultTool)
-	}
-	if memorySearchTool != nil {
-		tools = append(tools, memorySearchTool)
-	}
-	if sessionSearchTool != nil {
-		tools = append(tools, sessionSearchTool)
-	}
-	if skillProposeTool != nil {
-		tools = append(tools, skillProposeTool)
-	}
-	// exit_plan_mode and update_goal "possibly exist" whenever their backing is
-	// wired, so tools.list must report them even though the per-turn manifest
-	// gates them (approval stance / role / an active goal). Omitting them here is
-	// the drift TestCatalogCoversPerTurnCodingTools guards against.
-	if exitPlanTool != nil {
-		tools = append(tools, exitPlanTool)
-	}
-	if goalTool != nil {
-		tools = append(tools, goalTool)
-	}
-	// codebase_search is in the catalog whenever the index is wired — the tool's
-	// metadata is meaningful regardless of the live embedding model, and the
-	// per-turn resolver is the single live gate (it omits the tool until an
-	// embedding model resolves). Gating the static catalog on Available() instead
-	// would both miss a model configured after startup and resolve an embedding
-	// client at construction.
-	if config.CodebaseIndex != nil {
-		codebaseSearch, err := codebasesearch.New(config.CodebaseIndex)
-		if err != nil {
-			return Built{}, fmt.Errorf("toolset: build codebase_search: %w", err)
-		}
-		tools = append(tools, codebaseSearch)
-	}
-	resolver.setCatalog(tools)
-
 	mcpControl := &mcpControl{inner: mcpConns}
 
 	cleanupOnError = false

@@ -142,7 +142,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	if d.ReadTracker == nil {
 		return nil, errors.New("toolset.NewResolver: ReadTracker is nil")
 	}
-	return &Resolver{
+	resolver := &Resolver{
 		defaultWorkdir:  d.DefaultWorkdir,
 		skillsGlobalDir: d.SkillsGlobalDir,
 		skillUsage:      d.SkillUsage,
@@ -166,7 +166,61 @@ func NewResolver(d Deps) (*Resolver, error) {
 		codebaseIndex:   d.CodebaseIndex,
 		downloadAllow:   d.DownloadAllow,
 		mcpToolDisabled: d.MCPToolDisabled,
-	}, nil
+	}
+	catalog, err := resolver.catalogTools()
+	if err != nil {
+		return nil, err
+	}
+	resolver.catalog = catalog
+	return resolver, nil
+}
+
+// catalogTools builds the direct catalog's immutable capability core. MCP,
+// search_tools, and the cwd-scoped skill tool are intentionally projected live
+// by toolsFor; `task` is appended later because it needs the engine that owns
+// this resolver. The catalog deliberately describes capabilities that may be
+// gated for a given turn (goal, plan mode, or live codebase availability).
+func (r *Resolver) catalogTools() ([]tools.Tool, error) {
+	catalog := r.workdirTools(r.defaultWorkdir)
+	catalog = append(catalog, r.online...)
+	catalog = append(catalog, r.a2a...)
+	catalog = append(catalog, r.lsp...)
+	catalog = append(catalog, r.shell...)
+	if r.askUser != nil {
+		catalog = append(catalog, r.askUser)
+	}
+	if r.todo != nil {
+		catalog = append(catalog, r.todo)
+	}
+	if r.schedule != nil {
+		catalog = append(catalog, r.schedule)
+	}
+	if r.toolResult != nil {
+		catalog = append(catalog, r.toolResult)
+	}
+	if r.memorySearch != nil {
+		catalog = append(catalog, r.memorySearch)
+	}
+	if r.sessionSearch != nil {
+		catalog = append(catalog, r.sessionSearch)
+	}
+	if r.skillPropose != nil {
+		catalog = append(catalog, r.skillPropose)
+	}
+	if r.exitPlan != nil {
+		catalog = append(catalog, r.exitPlan)
+	}
+	if r.goalUpdate != nil {
+		catalog = append(catalog, r.goalUpdate)
+	}
+	if r.codebaseIndex != nil {
+		codebaseSearch, err := codebasesearch.New(r.codebaseIndex)
+		if err != nil {
+			return nil, fmt.Errorf("toolset.NewResolver: build codebase_search: %w", err)
+		}
+		catalog = append(catalog, codebaseSearch)
+	}
+	return catalog, nil
 }
 
 // UseTaskTool installs the `task` delegation tool for the coding role and the
@@ -213,12 +267,6 @@ func (r *Resolver) toolsFor(ctx context.Context) []tools.Tool {
 		catalog = append(catalog, search)
 	}
 	return catalog
-}
-
-func (r *Resolver) setCatalog(tools []tools.Tool) {
-	r.catalogMu.Lock()
-	defer r.catalogMu.Unlock()
-	r.catalog = slices.Clone(tools)
 }
 
 func (r *Resolver) taskTool() tools.Tool {

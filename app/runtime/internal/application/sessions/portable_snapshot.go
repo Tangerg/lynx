@@ -59,9 +59,9 @@ type PortableRun struct {
 	MessageMark     int
 }
 
-// CanonicalSnapshot rebuilds the canonical aggregate from a portable archive.
-// It is the one semantic admission point for imports; protocol adapters only
-// decode their wire document into PortableSnapshot values.
+// CanonicalSnapshot rebuilds and validates the canonical aggregate from a
+// portable archive. Protocol adapters only decode their wire document into
+// PortableSnapshot values; the restore use case owns its one normalization.
 func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	snapshot := Snapshot{
 		Session:     p.Session.session(),
@@ -101,11 +101,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	if err := snapshot.Validate(); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: %w", ErrInvalidPortableSnapshot, err)
 	}
-	normalized, err := snapshot.NormalizeForRestore()
-	if err != nil {
-		return Snapshot{}, fmt.Errorf("%w: %w", ErrInvalidPortableSnapshot, err)
-	}
-	return normalized, nil
+	return snapshot, nil
 }
 
 func (p PortableSession) session() session.Session {

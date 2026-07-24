@@ -30,6 +30,22 @@ type Compactor struct {
 	keepRecent        int
 }
 
+type compactionAction uint8
+
+const (
+	noCompaction compactionAction = iota
+	trimCompaction
+	summarizeCompaction
+)
+
+type compactionPlan struct {
+	action         compactionAction
+	messagesBefore int
+	trimmed        []chat.Message
+	older          []chat.Message
+	recent         []chat.Message
+}
+
 // NewCompactor builds a Compactor over the chat history store and a
 // per-call chat-client resolver. liveState (nil to disable) snapshots a
 // session's still-active execution state so an LLM summary rung can remind the
@@ -108,76 +124,27 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 	if err != nil {
 		return turn.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
-	if !c.shouldCompact(msgs, maxTokens) {
+	plan := c.planCompaction(msgs, maxTokens)
+	if plan.action == noCompaction {
 		return turn.CompactionResult{}, nil
 	}
-	// The whole history is within keep-recent — nothing OLDER to summarize, and
-	// computing a cutoff here would go negative (len-keepRecent < 0 → an
-	// out-of-range index in the boundary scan below). This is reachable: the
-	// token-footprint trigger ([shouldCompact]) fires on a SHORT conversation
-	// bloated by a few large tool results, where len(msgs) < keepRecent. Skip —
-	// you can't compact messages you must keep.
-	if len(msgs) <= c.keepRecent {
-		return turn.CompactionResult{}, nil
-	}
-
-	// PreCompact hook gate: compaction is now committed (triggers + guards
-	// passed), so this fires exactly when a compaction would run — a hook may
-	// veto it. nil = always proceed.
 	if preCompact != nil && !preCompact(ctx) {
 		return turn.CompactionResult{}, nil
 	}
 
-	before := len(msgs)
-
-	// Compaction ladder, cheapest rung first: replace oversized tool-call
-	// arguments and OLD tool-result bodies with previews (deterministic, no LLM).
-	// If that alone brings the footprint under budget, commit the trimmed history
-	// and skip the LLM summary. This drops no messages and is invisible to the UI
-	// transcript (which renders the full tool results) — it only slims the LLM's
-	// re-sent context — so it reports no compaction boundary (Compacted stays
-	// false) and, correctly, triggers no fact-extraction LLM call.
-	trimmed, changed := c.trimForBudget(msgs)
-	if changed && !c.shouldCompact(trimmed, maxTokens) {
-		if err := c.store.Replace(ctx, sessionID, trimmed...); err != nil {
+	if plan.action == trimCompaction {
+		if err := c.store.Replace(ctx, sessionID, plan.trimmed...); err != nil {
 			return turn.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
 		return turn.CompactionResult{}, nil
 	}
 
-	// Still over budget (or nothing was trimmable): fall to the LLM summary rung
-	// over the ORIGINAL older slice — the summariser caps tool bodies for its own
-	// input ([summaryToolResultCap]), so it sees more than the stored trim would
-	// leave and produces a fuller summary.
-	cutoff := len(msgs) - c.keepRecent
-
-	// Advance cutoff to the next UserMessage boundary so that `recent`
-	// never starts mid-turn. Without this, the split can leave a
-	// ToolMessage at the head of `recent` whose preceding AssistantMessage
-	// (with tool_calls) ended up in `older` — producing an invalid
-	// conversation where a tool result has no preceding tool_call, which
-	// DeepSeek (and other strict providers) reject with 400.
-	for cutoff < len(msgs) {
-		if msgs[cutoff].Role == chat.RoleUser {
-			break
-		}
-		cutoff++
-	}
-	if cutoff >= len(msgs) {
-		// No clean UserMessage boundary in the trailing segment —
-		// skip this compaction cycle rather than corrupt the history.
-		return turn.CompactionResult{}, nil
-	}
-
-	older := msgs[:cutoff]
-	recent := msgs[cutoff:]
-
-	summary, err := c.summarize(ctx, older)
+	summary, err := c.summarize(ctx, plan.older)
 	if err != nil {
 		return turn.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
-	rewritten := make([]chat.Message, 0, 2+len(recent))
+	rewritten := make([]chat.Message, 0, 2+len(plan.recent))
 	rewritten = append(rewritten, summary)
 	// Right after the summary, carry over the live execution state the summary
 	// dropped (running background shells, in-progress tasks) so the model does not
@@ -188,7 +155,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 			rewritten = append(rewritten, reminder)
 		}
 	}
-	rewritten = append(rewritten, recent...)
+	rewritten = append(rewritten, plan.recent...)
 	// Atomically swap the history for [summary, ...recent]. The store rolls back
 	// a failed rewrite, so a crash cannot
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
@@ -197,7 +164,31 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 	}
 	return turn.CompactionResult{
 		Compacted:      true,
-		MessagesBefore: before,
+		MessagesBefore: plan.messagesBefore,
 		MessagesAfter:  len(rewritten),
 	}, nil
+}
+
+func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compactionPlan {
+	if !c.shouldCompact(messages, maxTokens) || len(messages) <= c.keepRecent {
+		return compactionPlan{}
+	}
+	trimmed, changed := c.trimForBudget(messages)
+	if changed && !c.shouldCompact(trimmed, maxTokens) {
+		return compactionPlan{action: trimCompaction, trimmed: trimmed}
+	}
+
+	cutoff := len(messages) - c.keepRecent
+	for cutoff < len(messages) && messages[cutoff].Role != chat.RoleUser {
+		cutoff++
+	}
+	if cutoff == len(messages) {
+		return compactionPlan{}
+	}
+	return compactionPlan{
+		action:         summarizeCompaction,
+		messagesBefore: len(messages),
+		older:          messages[:cutoff],
+		recent:         messages[cutoff:],
+	}
 }
