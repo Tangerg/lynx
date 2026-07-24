@@ -62,7 +62,7 @@ func MergeSkillSource(projectDir, globalDir string, decorateGlobal func(sdk.Reso
 func ListSkills(ctx context.Context, projectDir, globalDir string) ([]workspaceapp.SkillInfo, error) {
 	seen := make(map[string]struct{})
 	var out []workspaceapp.SkillInfo
-	add := func(dir, scope string) error {
+	add := func(dir string, scope workspaceapp.SkillScope) error {
 		if !dirExists(dir) {
 			return nil
 		}
@@ -79,10 +79,10 @@ func ListSkills(ctx context.Context, projectDir, globalDir string) ([]workspacea
 		}
 		return nil
 	}
-	if err := add(projectDir, "project"); err != nil {
+	if err := add(projectDir, workspaceapp.SkillScopeProject); err != nil {
 		return nil, err
 	}
-	if err := add(globalDir, "global"); err != nil {
+	if err := add(globalDir, workspaceapp.SkillScopeGlobal); err != nil {
 		return nil, err
 	}
 	slices.SortFunc(out, func(a, b workspaceapp.SkillInfo) int { return strings.Compare(a.Name, b.Name) })

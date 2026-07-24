@@ -52,14 +52,6 @@ type EmbeddingRole struct {
 	Model    string `json:"model,omitempty"`
 }
 
-// Tools is the tools.* method group.
-type Tools interface {
-	ListTools(ctx context.Context, q PageQuery) (*Page[ToolSpec], error)
-	// InvokeTool runs one tool directly, outside a run (diagnostics /
-	// client-driven workflows without the LLM in the loop).
-	InvokeTool(ctx context.Context, in InvokeToolRequest) (any, error)
-}
-
 // ListModelsRequest — models.list body (API.md §7.6). Provider is optional
 // (models are organized by provider; omitted → empty page); PageQuery paginates.
 type ListModelsRequest struct {
@@ -77,7 +69,7 @@ type Provider struct {
 	// providers.configure, editable) or "env" (read from the provider's
 	// environment variable, read-only — shown as "from env"). Omitted when the
 	// provider is unconfigured (apiKeyMasked is also "").
-	KeySource string `json:"keySource,omitempty"`
+	KeySource ProviderKeySource `json:"keySource,omitempty"`
 	// RequiresBaseURL marks providers with no built-in endpoint — the generic
 	// "openai-compatible" / "anthropic-compatible" passthroughs and Azure
 	// (per-resource URL). The client must collect a base URL when configuring
@@ -90,6 +82,15 @@ type Provider struct {
 	EmbeddingCapable      bool   `json:"embeddingCapable,omitempty"`
 	DefaultEmbeddingModel string `json:"defaultEmbeddingModel,omitempty"`
 }
+
+// ProviderKeySource records where the visible API key originates. The empty
+// value means no key is configured and is intentionally omitted on the wire.
+type ProviderKeySource string
+
+const (
+	ProviderKeySourceStored ProviderKeySource = "stored"
+	ProviderKeySourceEnv    ProviderKeySource = "env"
+)
 
 // ConfigureProviderRequest — providers.configure body. Provider is the
 // provider id (Provider.id), e.g. "deepseek" — a meaningful slug, named to
@@ -171,11 +172,4 @@ type ModelPricing struct {
 	OutputUsdPerMillionTokens     float64 `json:"outputUsdPerMillionTokens,omitempty"`
 	CacheReadUsdPerMillionTokens  float64 `json:"cacheReadUsdPerMillionTokens,omitempty"`
 	CacheWriteUsdPerMillionTokens float64 `json:"cacheWriteUsdPerMillionTokens,omitempty"`
-}
-
-// InvokeToolRequest — tools.invoke body (API.md §7.6).
-type InvokeToolRequest struct {
-	Name      string         `json:"name"`
-	Arguments map[string]any `json:"arguments"`
-	Cwd       string         `json:"cwd,omitempty"`
 }

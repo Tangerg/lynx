@@ -24,6 +24,29 @@ import (
 // generic tool failure (and from a green success). errors.Is-matchable.
 var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
 
+// ProcessRef identifies the process that produced an observation. Root and
+// child processes share one engine, but they do not share presentation
+// ownership: consumers can project a child only when their protocol exposes a
+// child-run model.
+type ProcessRef struct {
+	ID       string
+	ParentID string
+}
+
+// Child reports whether this observation belongs to a delegated process.
+func (p ProcessRef) Child() bool { return p.ParentID != "" }
+
+func processRef(process core.ProcessView) ProcessRef {
+	if process == nil {
+		return ProcessRef{}
+	}
+	return ProcessRef{ID: process.ID(), ParentID: process.ParentID()}
+}
+
+func processRefFromContext(ctx context.Context) ProcessRef {
+	return processRef(core.ProcessViewFrom(ctx))
+}
+
 // toolObserver receives both tool-call lifecycle notifications and
 // streaming assistant text deltas as a turn unfolds. Each execution attempt
 // fires OnToolCallStart; a completed attempt then fires OnToolCallEnd with the
@@ -53,19 +76,19 @@ type toolObserver interface {
 	// implementation can pair the gate with the lifecycle.
 	ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target ToolApprovalTarget) ToolApprovalVerdict
 
-	OnToolCallStart(callID, toolName, arguments string)
-	OnToolCallEnd(callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
+	OnToolCallStart(process ProcessRef, callID, toolName, arguments string)
+	OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
 
 	// OnMessageDelta is invoked for every non-empty text chunk the
 	// model streams out. Implementations typically append the chunk
 	// to a UI buffer or forward it to an event channel.
-	OnMessageDelta(text string)
+	OnMessageDelta(process ProcessRef, text string)
 
 	// OnReasoningDelta is invoked for every non-empty reasoning
 	// (extended thinking) chunk the model streams out — distinct
 	// from final-text chunks so UIs can render thinking separately
 	// (e.g. dimmed, collapsed, or behind a "show reasoning" toggle).
-	OnReasoningDelta(text string)
+	OnReasoningDelta(process ProcessRef, text string)
 
 	// OnUsage is invoked once per completed LLM round (right after the
 	// round's tokens are recorded into the process budget), carrying the
@@ -80,7 +103,7 @@ type toolObserver interface {
 	// right now. It grows across rounds/turns as history accumulates and drops
 	// after a compaction, so the client can render a live context-occupancy
 	// gauge (distinct from the summed usage, which only ever grows).
-	OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64)
+	OnUsage(process ProcessRef, usage accounting.TokenUsage, costUSD float64, contextTokens int64)
 }
 
 // ToolApprovalTarget carries the capabilities of the exact tool wrapper being
@@ -162,7 +185,7 @@ type toolObservation struct {
 
 type observedModelCall struct {
 	id        string
-	processID string
+	process   ProcessRef
 	name      string
 	arguments string
 	prepared  bool
@@ -206,13 +229,14 @@ func modelToolCallID(processID string, round int, callID string) string {
 	return fmt.Sprintf("model:%d:%s:%d:%s", len(processID), processID, round, callID)
 }
 
-func (o *toolObservation) begin(processID string, round int, call chat.ToolCall) {
+func (o *toolObservation) begin(process core.ProcessView, round int, call chat.ToolCall) {
+	ref := processRef(process)
 	observed := &observedModelCall{
-		id: modelToolCallID(processID, round, call.ID), processID: processID,
+		id: modelToolCallID(ref.ID, round, call.ID), process: ref,
 		name: call.Name, arguments: call.Arguments, started: make(chan struct{}),
 	}
 	o.mu.Lock()
-	o.model[processToolCallKey{processID: processID, callID: call.ID}] = observed
+	o.model[processToolCallKey{processID: ref.ID, callID: call.ID}] = observed
 	o.pending = append(o.pending, observed)
 	o.mu.Unlock()
 }
@@ -265,7 +289,7 @@ func (o *toolObservation) readyStartsLocked() []*observedModelCall {
 func (o *toolObservation) publishStarts(calls []*observedModelCall) {
 	for len(calls) > 0 {
 		for _, call := range calls {
-			o.target.OnToolCallStart(call.id, call.name, call.arguments)
+			o.target.OnToolCallStart(call.process, call.id, call.name, call.arguments)
 			close(call.started)
 		}
 		o.mu.Lock()
@@ -281,16 +305,17 @@ func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments,
 		o.finished[call.id] = struct{}{}
 		o.mu.Unlock()
 	}
-	o.target.OnToolCallEnd(call.id, call.name, arguments, output, ref, mutatedPaths, err)
+	o.target.OnToolCallEnd(call.process, call.id, call.name, arguments, output, ref, mutatedPaths, err)
 }
 
 // result closes canonical calls that never reached a resolved tool wrapper,
 // such as an unknown tool. Wrapped calls have already emitted their richer
 // completion (effective arguments, mutation paths, and original error), so the
 // matching model result only retires the deduplication marker.
-func (o *toolObservation) result(processID string, round int, result chat.ToolResult) {
-	id := modelToolCallID(processID, round, result.ID)
-	key := processToolCallKey{processID: processID, callID: result.ID}
+func (o *toolObservation) result(process core.ProcessView, round int, result chat.ToolResult) {
+	ref := processRef(process)
+	id := modelToolCallID(ref.ID, round, result.ID)
+	key := processToolCallKey{processID: ref.ID, callID: result.ID}
 	o.mu.Lock()
 	if _, ok := o.finished[id]; ok {
 		delete(o.finished, id)
@@ -320,7 +345,7 @@ func (o *toolObservation) result(processID string, round int, result chat.ToolRe
 	if result.IsError {
 		err = errors.New(result.Result)
 	}
-	o.target.OnToolCallEnd(id, result.Name, call.arguments, result.Result, nil, nil, err)
+	o.target.OnToolCallEnd(call.process, id, result.Name, call.arguments, result.Result, nil, nil, err)
 }
 
 // evict offloads an oversized successful tool result to the blob store and

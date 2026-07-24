@@ -98,7 +98,7 @@ type StartTurn struct {
 	MaxCostUSD     float64
 	MaxSteps       int
 	Options        *corechat.Options
-	InterruptKinds []string
+	InterruptKinds []InterruptKind
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
 	// so update_goal only signals that goal; empty for ordinary runs.
 	GoalLeaseID string
@@ -131,7 +131,7 @@ type TurnControl interface {
 	PrepareStart(ctx context.Context, req StartTurn) (TurnRef, error)
 	Activate(ctx context.Context, ref TurnRef) error
 	Prepare(ctx context.Context, ref TurnRef) (TurnRef, error)
-	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []string) error
+	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []InterruptKind) error
 	Rehydrate(ctx context.Context, req RehydrateTurn) (TurnRef, error)
 	TurnCanceler
 	Steer(ctx context.Context, ref TurnRef, message string) error

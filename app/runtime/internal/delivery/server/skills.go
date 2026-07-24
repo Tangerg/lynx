@@ -21,13 +21,28 @@ func (s *Server) ListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*
 	}
 	out := make([]protocol.ManagedSkill, 0, len(entries))
 	for _, e := range entries {
+		lifecycle, ok := skillLifecycleWire(e.Lifecycle)
+		if !ok {
+			return nil, fmt.Errorf("skills.library.list: unsupported lifecycle %q", e.Lifecycle)
+		}
 		out = append(out, protocol.ManagedSkill{
 			Name:        e.Name,
 			Description: e.Description,
-			Lifecycle:   protocol.SkillLifecycle(e.Lifecycle),
+			Lifecycle:   lifecycle,
 		})
 	}
 	return protocol.NewPage(out), nil
+}
+
+func skillLifecycleWire(lifecycle skills.Lifecycle) (protocol.SkillLifecycle, bool) {
+	switch lifecycle {
+	case skills.Active:
+		return protocol.SkillLifecycleActive, true
+	case skills.Archived:
+		return protocol.SkillLifecycleArchived, true
+	default:
+		return "", false
+	}
 }
 
 // ArchiveSkill removes a skill from active use without deleting it

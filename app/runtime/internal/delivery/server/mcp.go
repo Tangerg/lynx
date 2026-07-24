@@ -100,7 +100,11 @@ func (s *Server) ListMCPServerConfigs(ctx context.Context, _ protocol.PageQuery)
 	}
 	out := make([]protocol.McpServerConfig, 0, len(servers))
 	for _, config := range servers {
-		out = append(out, mcpConfigWire(config))
+		wire, err := mcpConfigWire(config)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, wire)
 	}
 	return protocol.NewPage(out), nil
 }
@@ -112,11 +116,18 @@ func (s *Server) ConfigureMCPServer(ctx context.Context, in protocol.ConfigureMC
 	if in.Name == "" {
 		return nil, protocol.ErrInvalidParams
 	}
-	config, err := s.integrations.ConfigureMCPServer(ctx, mcpServerInputFromRequest(in))
+	input, err := mcpServerInputFromRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	config, err := s.integrations.ConfigureMCPServer(ctx, input)
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out := mcpConfigWire(config)
+	out, err := mcpConfigWire(config)
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 
@@ -149,7 +160,11 @@ func (s *Server) SetMCPServerEnabled(ctx context.Context, in protocol.SetMCPEnab
 // reuses the stored token only for the same HTTP origin, so testing an ordinary
 // edit needn't re-enter the secret and testing a new endpoint cannot leak it.
 func (s *Server) TestMCPServer(ctx context.Context, in protocol.ConfigureMCPServerRequest) (*protocol.McpTestResult, error) {
-	result, err := s.integrations.TestMCPServer(ctx, mcpServerInputFromRequest(in))
+	input, err := mcpServerInputFromRequest(in)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.integrations.TestMCPServer(ctx, input)
 	if err != nil {
 		return nil, wireMCPError(err)
 	}

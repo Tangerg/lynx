@@ -131,7 +131,7 @@ func TestListApprovalRulesMapsToWire(t *testing.T) {
 	if rt.rulesForSession != "ses_1" {
 		t.Fatalf("runtime session = %q, want ses_1", rt.rulesForSession)
 	}
-	if len(got.Rules) != 1 || got.Rules[0].Dir != "/repo" || got.Rules[0].Decision != string(approval.Allow) {
+	if len(got.Rules) != 1 || got.Rules[0].Dir != "/repo" || got.Rules[0].Decision != protocol.ApprovalRuleDecisionAllow {
 		t.Fatalf("wire rules = %+v", got.Rules)
 	}
 }

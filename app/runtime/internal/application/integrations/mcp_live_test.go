@@ -122,7 +122,7 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	c := New(configWithMCPPorts(ports))
 
 	result, err := c.TestMCPServer(context.Background(), MCPServerInput{
-		Name: "fs", Transport: string(mcpserver.TransportStdio), Command: "mcp-fs",
+		Name: "fs", Transport: mcpserver.TransportStdio, Command: "mcp-fs",
 		Args: []string{"--root", "/repo"}, Env: map[string]string{"A": "1"},
 	})
 	if err != nil {
@@ -131,7 +131,7 @@ func TestTestMCPServerUsesLiveRegistryPort(t *testing.T) {
 	if !result.OK {
 		t.Fatalf("TestMCPServer result = %+v, want success", result)
 	}
-	if ports.probe.Name != "fs" || ports.probe.Command != "mcp-fs" || len(ports.probe.Env) != 1 || ports.probe.Env[0] != "A=1" {
+	if ports.probe.Name != "fs" || ports.probe.Command != "mcp-fs" || ports.probe.Env["A"] != "1" {
 		t.Fatalf("probe config = %+v", ports.probe)
 	}
 }
@@ -145,8 +145,8 @@ type fakeMCPPorts struct {
 	reconnectName string
 	authorizeName string
 
-	probe      mcpserver.LiveConfig
-	configure  mcpserver.LiveConfig
+	probe      mcpserver.Server
+	configure  mcpserver.Server
 	removeName string
 }
 
@@ -167,12 +167,12 @@ func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
 	return nil
 }
 
-func (f *fakeMCPPorts) Probe(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (f *fakeMCPPorts) Probe(_ context.Context, cfg mcpserver.Server) error {
 	f.probe = cfg
 	return nil
 }
 
-func (f *fakeMCPPorts) Configure(_ context.Context, cfg mcpserver.LiveConfig) error {
+func (f *fakeMCPPorts) Configure(_ context.Context, cfg mcpserver.Server) error {
 	f.configure = cfg
 	return nil
 }

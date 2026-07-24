@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -12,16 +13,18 @@ import (
 // toolRegistryFake is the diagnostic tool registry the tools coordinator drives.
 type toolRegistryFake struct {
 	tools          []tool.Tool
+	invokedCwd     string
 	invokedName    string
 	invokedPayload string
 }
 
 func (r *toolRegistryFake) List(context.Context) ([]tool.Tool, error) { return r.tools, nil }
 
-func (r *toolRegistryFake) Invoke(_ context.Context, name string, arguments string) (string, error) {
-	r.invokedName = name
-	r.invokedPayload = arguments
-	return "ok", nil
+func (r *toolRegistryFake) Invoke(_ context.Context, in toolapp.Invocation) (tool.Result, error) {
+	r.invokedCwd = in.Cwd
+	r.invokedName = in.Name
+	r.invokedPayload = in.Arguments
+	return tool.StringResult("ok"), nil
 }
 
 func TestListToolsMapsRegisteredToolsToWire(t *testing.T) {
@@ -58,8 +61,9 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	s := serverWithTools(rt)
 
 	got, err := s.InvokeTool(context.Background(), protocol.InvokeToolRequest{
-		Name:      "shell",
-		Arguments: map[string]any{"cmd": "pwd"},
+		Name:      "read",
+		Arguments: map[string]any{"file_path": "main.go"},
+		Cwd:       "/workspace",
 	})
 	if err != nil {
 		t.Fatalf("invoke tool: %v", err)
@@ -67,14 +71,14 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	if got != "ok" {
 		t.Fatalf("result = %v, want ok", got)
 	}
-	if rt.invokedName != "shell" {
-		t.Fatalf("invokedName = %q, want shell", rt.invokedName)
+	if rt.invokedName != "read" || rt.invokedCwd != "/workspace" {
+		t.Fatalf("invocation = %q in %q, want read in /workspace", rt.invokedName, rt.invokedCwd)
 	}
 	var payload map[string]string
 	if err := json.Unmarshal([]byte(rt.invokedPayload), &payload); err != nil {
 		t.Fatalf("payload %q is not JSON: %v", rt.invokedPayload, err)
 	}
-	if payload["cmd"] != "pwd" {
-		t.Fatalf("payload = %+v, want cmd=pwd", payload)
+	if payload["file_path"] != "main.go" {
+		t.Fatalf("payload = %+v, want file_path=main.go", payload)
 	}
 }

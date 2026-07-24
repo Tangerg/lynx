@@ -110,19 +110,19 @@ func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
-		l.runSubagentStopHook(ctx, e, "completed", summarizeHookValue(ev.Result), "")
+		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookValue(ev.Result), "")
 	case event.ProcessFailed:
-		l.runSubagentStopHook(ctx, e, "failed", "", errorString(ev.Err))
+		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, "", errorString(ev.Err))
 	case event.ProcessKilled:
-		l.runSubagentStopHook(ctx, e, "killed", "", ev.Reason)
+		l.runSubagentStopHook(ctx, e, hooks.SubagentKilled, "", ev.Reason)
 	case event.ProcessTerminated:
-		l.runSubagentStopHook(ctx, e, "terminated", "", ev.Reason)
+		l.runSubagentStopHook(ctx, e, hooks.SubagentTerminated, "", ev.Reason)
 	case event.ProcessStuck:
-		l.runSubagentStopHook(ctx, e, "stuck", "", "")
+		l.runSubagentStopHook(ctx, e, hooks.SubagentStuck, "", "")
 	}
 }
 
-func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status, result, errText string) {
+func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, result, errText string) {
 	in := hooks.SubagentInput{ProcessID: e.ProcessID()}
 	l.mu.Lock()
 	if l.subagents != nil {
@@ -140,8 +140,25 @@ func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, 
 		SessionID: l.sessionID,
 		Cwd:       l.cwd,
 		Subagent:  &in,
-		Reason:    string(e.Kind()),
+		Reason:    subagentStopReason(status),
 	})
+}
+
+func subagentStopReason(status hooks.SubagentStatus) string {
+	switch status {
+	case hooks.SubagentCompleted:
+		return "subagent completed"
+	case hooks.SubagentFailed:
+		return "subagent failed"
+	case hooks.SubagentKilled:
+		return "subagent was killed"
+	case hooks.SubagentTerminated:
+		return "subagent was terminated"
+	case hooks.SubagentStuck:
+		return "subagent became stuck"
+	default:
+		return "subagent stopped"
+	}
 }
 
 type subagentTask interface {

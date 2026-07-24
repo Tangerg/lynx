@@ -14,7 +14,7 @@ func TestListMCPServers(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{
 			{Name: "fs", State: mcpserver.ConnectionConnected},
-			{Name: "down", State: mcpserver.ConnectionFailed, Err: errors.New("connection refused")},
+			{Name: "down", State: mcpserver.ConnectionFailed},
 		},
 		tools: []mcpserver.ToolInfo{
 			{Server: "fs", Name: "read"}, {Server: "fs", Name: "write"},

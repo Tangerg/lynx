@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -72,7 +73,7 @@ type modelUseCases interface {
 }
 
 type toolUseCases interface {
-	Invoke(ctx context.Context, name string, arguments string) (string, error)
+	Invoke(ctx context.Context, in toolapp.Invocation) (toolsvc.Result, error)
 	List(ctx context.Context) ([]toolsvc.Tool, error)
 }
 

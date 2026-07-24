@@ -101,7 +101,7 @@ describe("smoke: v2 end-to-end happy path", () => {
     });
     const discovery = await discoverPromise;
     expect(discovery.serverInfo.cwd).toBe("/work");
-    expect(discovery.capabilities.features.reasoning.enabled).toBe(true);
+    expect(discovery.capabilities.features.reasoning?.enabled).toBe(true);
 
     // ---- Step 2: sessions.create ------------------------------------------
     const createPromise = methods.sessions.create({ title: "smoke" });

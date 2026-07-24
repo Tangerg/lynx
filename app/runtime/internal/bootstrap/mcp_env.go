@@ -15,10 +15,10 @@ type mcpServerList interface {
 }
 
 // mcpEnvironment is the boot-time MCP material: the application-owned live
-// policy state and the enabled-server descriptors used to build tools.
+// policy state and the enabled durable server definitions to connect.
 type mcpEnvironment struct {
 	policy  *integrations.ToolPolicyState
-	configs []mcpserver.LiveConfig
+	servers []mcpserver.Server
 }
 
 func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnvironment, error) {
@@ -29,6 +29,16 @@ func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnviro
 	policy := mcpserver.NewToolPolicy(servers)
 	return mcpEnvironment{
 		policy:  integrations.NewToolPolicyState(policy),
-		configs: mcpserver.ConfigsForEnabledServers(servers),
+		servers: enabledMCPServers(servers),
 	}, nil
+}
+
+func enabledMCPServers(servers []mcpserver.Server) []mcpserver.Server {
+	var enabled []mcpserver.Server
+	for _, server := range servers {
+		if server.Enabled {
+			enabled = append(enabled, server)
+		}
+	}
+	return enabled
 }

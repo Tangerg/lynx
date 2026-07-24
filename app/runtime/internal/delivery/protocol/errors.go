@@ -89,7 +89,6 @@ const (
 	CodeRunAlreadyDone         = -32008
 	CodeCheckpointUnavail      = -32009
 	CodeUnsupportedMime        = -32011
-	CodeToolDenied             = -32012
 	CodePathOutsideRoot        = -32013
 	CodeInterruptNotOpen       = -32014
 	CodeInvalidProtocolVersion = -32016
@@ -115,7 +114,6 @@ var (
 	ErrRunAlreadyDone         = errors.New("run_already_finished")
 	ErrCheckpointUnavailable  = errors.New("checkpoint_unavailable")
 	ErrUnsupportedMime        = errors.New("unsupported_mime")
-	ErrToolDenied             = errors.New("tool_denied")
 	ErrPathOutsideRoot        = errors.New("path_outside_root")
 	ErrInterruptNotOpen       = errors.New("interrupt_not_open")
 	ErrInvalidProtocolVersion = errors.New("invalid_protocol_version")

@@ -84,7 +84,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	name := o.inner.Definition().Name
 	call, bound := o.observation.invocation(ctx, name, arguments)
 	if !bound {
-		call = &observedModelCall{id: "direct:" + rand.Text(), name: name, arguments: arguments}
+		call = &observedModelCall{id: "direct:" + rand.Text(), process: processRefFromContext(ctx), name: name, arguments: arguments}
 	}
 
 	mutations, _ := o.inner.(tools.FileMutationReporter)
@@ -102,7 +102,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	if bound {
 		o.observation.prepare(call, arguments)
 	} else {
-		o.observation.target.OnToolCallStart(call.id, name, arguments)
+		o.observation.target.OnToolCallStart(call.process, call.id, name, arguments)
 	}
 	switch {
 	case v.Interrupt != nil:

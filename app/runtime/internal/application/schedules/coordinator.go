@@ -86,11 +86,6 @@ func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return c.registry.List(ctx)
 }
 
-// Get returns one saved schedule by id.
-func (c *Coordinator) Get(ctx context.Context, id string) (schedule.Schedule, error) {
-	return c.registry.Get(ctx, id)
-}
-
 // Create validates, normalizes, schedules, and persists a new schedule.
 func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.Schedule, error) {
 	if !c.enabled {

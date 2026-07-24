@@ -21,14 +21,14 @@ func (r *modelProviderFake) Get(_ context.Context, id string) (provider.Provider
 	return entry, ok, nil
 }
 func (r *modelProviderFake) Configure(context.Context, provider.Provider) error { return nil }
-func (r *modelProviderFake) Supported() []provider.Metadata {
-	return []provider.Metadata{{ID: "anthropic"}}
+func (r *modelProviderFake) Supported() []models.ProviderMetadata {
+	return []models.ProviderMetadata{{ID: "anthropic"}}
 }
-func (r *modelProviderFake) Metadata(id string) (provider.Metadata, bool) {
+func (r *modelProviderFake) Metadata(id string) (models.ProviderMetadata, bool) {
 	if id == "anthropic" {
-		return provider.Metadata{ID: id}, true
+		return models.ProviderMetadata{ID: id}, true
 	}
-	return provider.Metadata{}, false
+	return models.ProviderMetadata{}, false
 }
 func (*modelProviderFake) Models(string) []models.Model { return nil }
 func (*modelProviderFake) LookupModel(string, string) (models.Model, bool) {

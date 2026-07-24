@@ -40,10 +40,21 @@ type CommandResult struct {
 	TimedOut bool
 }
 
+// CommandVerdict is the closed control vocabulary returned by a hook command.
+type CommandVerdict uint8
+
+const (
+	// CommandAllow is the zero-value verdict: a hook may inject or rewrite while
+	// allowing the operation to continue.
+	CommandAllow CommandVerdict = iota
+	CommandDeny
+	CommandAsk
+)
+
 // CommandDecision is the typed control information returned by a hook command.
 // Its JSON process spelling belongs to the hook adapter, never this domain.
 type CommandDecision struct {
-	Decision         string
+	Verdict          CommandVerdict
 	Reason           string
 	InjectContext    string
 	RewriteArguments string
@@ -120,8 +131,8 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 	switch {
 	case result.Err == nil:
 		// Exit 0: success. Apply any stdout-JSON decision (default allow).
-		block := out.Decision == "deny"
-		ask := out.Decision == "ask"
+		block := out.Verdict == CommandDeny
+		ask := out.Verdict == CommandAsk
 		reason := out.Reason
 		if block && reason == "" {
 			reason = strings.TrimSpace(result.Stderr)

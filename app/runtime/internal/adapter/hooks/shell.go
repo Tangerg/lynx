@@ -76,7 +76,7 @@ func hookInputWireFrom(input domainhooks.Input) hookInputWire {
 	if input.Subagent != nil {
 		out.Subagent = &hookSubagentInputWire{
 			ProcessID: input.Subagent.ProcessID, ParentProcessID: input.Subagent.ParentProcessID,
-			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt, Status: input.Subagent.Status,
+			Description: input.Subagent.Description, Prompt: input.Subagent.Prompt, Status: string(input.Subagent.Status),
 			Result: input.Subagent.Result, Error: input.Subagent.Error,
 		}
 	}
@@ -94,8 +94,19 @@ func hookDecisionFromWire(stdout []byte) domainhooks.CommandDecision {
 	var wire hookDecisionWire
 	_ = json.Unmarshal(stdout, &wire) // malformed stdout is exit-code-only.
 	return domainhooks.CommandDecision{
-		Decision: wire.Decision, Reason: wire.Reason,
+		Verdict: hookVerdictFromWire(wire.Decision), Reason: wire.Reason,
 		InjectContext: wire.InjectContext, RewriteArguments: wire.RewriteArguments,
+	}
+}
+
+func hookVerdictFromWire(verdict string) domainhooks.CommandVerdict {
+	switch verdict {
+	case "deny":
+		return domainhooks.CommandDeny
+	case "ask":
+		return domainhooks.CommandAsk
+	default:
+		return domainhooks.CommandAllow
 	}
 }
 

@@ -31,7 +31,6 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 	protocol.ErrRunAlreadyDone:         {code: protocol.CodeRunAlreadyDone},
 	protocol.ErrCheckpointUnavailable:  {code: protocol.CodeCheckpointUnavail},
 	protocol.ErrUnsupportedMime:        {code: protocol.CodeUnsupportedMime},
-	protocol.ErrToolDenied:             {code: protocol.CodeToolDenied},
 	protocol.ErrPathOutsideRoot:        {code: protocol.CodePathOutsideRoot},
 	protocol.ErrInterruptNotOpen:       {code: protocol.CodeInterruptNotOpen},
 	protocol.ErrInvalidProtocolVersion: {code: protocol.CodeInvalidProtocolVersion},

@@ -10,6 +10,7 @@ package goal
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -145,6 +146,7 @@ type Goal struct {
 var (
 	errSessionRequired   = errors.New("goal: session ID is required")
 	errObjectiveRequired = errors.New("goal: objective is required")
+	errInvalidSnapshot   = errors.New("goal: invalid snapshot")
 )
 
 // New builds an active goal for sessionID. now is passed in (not read from the
@@ -166,6 +168,41 @@ func New(sessionID, objective, provider, model string, budget Budget, now time.T
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
+}
+
+// ValidateSnapshot verifies the invariants of one durable goal state. It does
+// not validate a lifecycle transition; persistence adapters use it when they
+// reconstruct a Goal so corrupt or obsolete rows cannot enter the application.
+func (g Goal) ValidateSnapshot() error {
+	if g.SessionID == "" {
+		return errSessionRequired
+	}
+	if g.Objective == "" {
+		return errObjectiveRequired
+	}
+	if !g.Status.Valid() {
+		return fmt.Errorf("%w: unknown status %q", errInvalidSnapshot, g.Status)
+	}
+	if !g.Reason.Cause.Valid() {
+		return fmt.Errorf("%w: unknown reason cause %d", errInvalidSnapshot, g.Reason.Cause)
+	}
+	if g.Budget.MaxTurns < 0 || g.Budget.MaxCostUSD < 0 || g.Budget.MaxSteps < 0 {
+		return fmt.Errorf("%w: negative budget", errInvalidSnapshot)
+	}
+	if g.Used.Turns < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 {
+		return fmt.Errorf("%w: negative usage", errInvalidSnapshot)
+	}
+	switch g.Status {
+	case StatusActive, StatusComplete:
+		if g.Reason.Cause != ReasonNone || g.Reason.Detail != "" {
+			return fmt.Errorf("%w: %s goal must not carry a stop reason", errInvalidSnapshot, g.Status)
+		}
+	case StatusPaused, StatusBlocked:
+		if g.Reason.Cause == ReasonNone {
+			return fmt.Errorf("%w: %s goal requires a stop reason", errInvalidSnapshot, g.Status)
+		}
+	}
+	return nil
 }
 
 // AddTurn folds one completed turn's usage into the accumulator.

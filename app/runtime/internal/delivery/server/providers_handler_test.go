@@ -15,27 +15,27 @@ import (
 // ProviderCatalog (Supported/Metadata), and the ProviderProber (Probe).
 type providerFake struct {
 	entries    map[string]provider.Provider
-	supported  []provider.Metadata
+	supported  []models.ProviderMetadata
 	configured []provider.Provider
 	probeErr   error
 	probed     []provider.Provider
 	dropStored bool
 }
 
-func (r *providerFake) Supported() []provider.Metadata {
+func (r *providerFake) Supported() []models.ProviderMetadata {
 	if r.supported != nil {
 		return r.supported
 	}
-	return []provider.Metadata{{ID: "anthropic"}}
+	return []models.ProviderMetadata{{ID: "anthropic"}}
 }
 
-func (r *providerFake) Metadata(id string) (provider.Metadata, bool) {
+func (r *providerFake) Metadata(id string) (models.ProviderMetadata, bool) {
 	for _, meta := range r.Supported() {
 		if meta.ID == id {
 			return meta, true
 		}
 	}
-	return provider.Metadata{}, false
+	return models.ProviderMetadata{}, false
 }
 func (*providerFake) Models(string) []models.Model { return nil }
 func (*providerFake) LookupModel(string, string) (models.Model, bool) {
@@ -98,7 +98,7 @@ func TestListProvidersMergesSupportedCatalogWithRegistry(t *testing.T) {
 	if anthropic.APIKeyMasked == "" || anthropic.APIKeyMasked == "sk-ant-secret" {
 		t.Fatalf("APIKeyMasked = %q, want masked key", anthropic.APIKeyMasked)
 	}
-	if anthropic.KeySource != string(provider.KeyStored) {
+	if anthropic.KeySource != protocol.ProviderKeySourceStored {
 		t.Fatalf("KeySource = %q, want stored", anthropic.KeySource)
 	}
 }
@@ -127,7 +127,7 @@ func TestConfigureProviderPersistsThenReturnsStoredEntry(t *testing.T) {
 }
 
 func TestConfigureProviderRequiresBaseURLWhenMetadataRequiresIt(t *testing.T) {
-	rt := &providerFake{supported: []provider.Metadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
+	rt := &providerFake{supported: []models.ProviderMetadata{{ID: "openai-compatible", RequiresBaseURL: true}}}
 	s := serverWithProviders(rt)
 
 	_, err := s.ConfigureProvider(context.Background(), protocol.ConfigureProviderRequest{

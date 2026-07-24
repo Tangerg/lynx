@@ -37,14 +37,14 @@ describe("runtime capability store", () => {
 
   it("replace stores capabilities", () => {
     useRuntimeStore.getState().replace(makeCaps());
-    expect(useRuntimeStore.getState().capabilities?.features.reasoning.enabled).toBe(true);
+    expect(useRuntimeStore.getState().capabilities?.features.reasoning?.enabled).toBe(true);
   });
 
   it("replace makes feature flags readable", () => {
     useRuntimeStore.getState().replace(makeCaps());
     const caps = useRuntimeStore.getState().capabilities!;
-    expect(caps.features.reasoning.enabled).toBe(true);
-    expect(caps.features.multimodal.enabled).toBe(false);
+    expect(caps.features.reasoning?.enabled).toBe(true);
+    expect(caps.features.multimodal?.enabled).toBe(false);
   });
 
   it("events are a flat membership list (§9)", () => {

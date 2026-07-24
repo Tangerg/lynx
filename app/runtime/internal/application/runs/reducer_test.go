@@ -258,7 +258,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		Content: "write tests", Status: todo.StatusInProgress, NextAction: "run package",
 	}}})
 	state, ok := snapshot[0].Event.(StateSnapshot)
-	if !ok || len(state.Todos) != 1 || state.Todos[0].Text != "write tests" || state.Todos[0].Status != "in_progress" {
+	if !ok || len(state.Todos) != 1 || state.Todos[0].Text != "write tests" || state.Todos[0].Status != todo.StatusInProgress {
 		t.Fatalf("todo snapshot = %#v", snapshot[0].Event)
 	}
 

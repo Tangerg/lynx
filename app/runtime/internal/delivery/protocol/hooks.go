@@ -43,12 +43,20 @@ type HookInfo struct {
 	Command   string    `json:"command,omitempty"`
 	Inject    string    `json:"inject,omitempty"`
 	TimeoutMs int       `json:"timeoutMs,omitempty"`
-	Scope     string    `json:"scope"`  // "global" | "project"
+	Scope     HookScope `json:"scope"`
 	Source    string    `json:"source"` // absolute path of the hooks.json it came from
 	// Active reports whether this hook currently runs: global hooks always do;
 	// project hooks only when the project is trusted.
 	Active bool `json:"active"`
 }
+
+// HookScope identifies whether a hook came from the user or project layer.
+type HookScope string
+
+const (
+	HookScopeGlobal  HookScope = "global"
+	HookScopeProject HookScope = "project"
+)
 
 // HooksListResult — hooks.list result. ProjectRoot is the trust key
 // (the nearest .git ancestor of the cwd); ProjectTrusted reports whether its

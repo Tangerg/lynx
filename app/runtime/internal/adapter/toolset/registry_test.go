@@ -1,32 +1,28 @@
 package toolset_test
 
 import (
-	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools"
 )
 
-func TestRegistryListsCatalogMetadata(t *testing.T) {
-	registry := buildRegistry(t)
+func TestDiagnosticRegistryListsOnlyDirectTools(t *testing.T) {
+	registry := toolset.NewDiagnosticRegistry()
 
 	found, err := registry.List(t.Context())
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
 	wantClasses := map[string]tool.SafetyClass{
-		"read":        tool.SafetyClassSafe,
-		"glob":        tool.SafetyClassSafe,
-		"grep":        tool.SafetyClassSafe,
-		"write":       tool.SafetyClassWrite,
-		"edit":        tool.SafetyClassWrite,
-		"apply_patch": tool.SafetyClassWrite,
-		"shell":       tool.SafetyClassExec,
-		"task":        tool.SafetyClassSafe,
+		"read": tool.SafetyClassSafe,
+		"glob": tool.SafetyClassSafe,
+		"grep": tool.SafetyClassSafe,
 	}
 	got := make(map[string]tool.SafetyClass, len(found))
 	for _, candidate := range found {
@@ -43,52 +39,52 @@ func TestRegistryListsCatalogMetadata(t *testing.T) {
 			t.Errorf("tool %q safety = %q, want %q", name, got[name], want)
 		}
 	}
+	if len(got) != len(wantClasses) {
+		t.Fatalf("direct tool count = %d, want %d (%v)", len(got), len(wantClasses), got)
+	}
 }
 
-func TestRegistryInvokesCatalogTool(t *testing.T) {
-	registry := buildRegistry(t)
-	output, err := registry.Invoke(t.Context(), "shell", `{"command":"echo lyra"}`)
+func TestDiagnosticRegistryInvokesWithinRoot(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "note.txt"), []byte("lyra"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	registry := toolset.NewDiagnosticRegistry()
+	output, err := registry.Invoke(t.Context(), root, "read", `{"file_path":"note.txt"}`)
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if !strings.Contains(output, "lyra") {
-		t.Errorf("Invoke output missing lyra: %q", output)
+	if value := output.Any(); !strings.Contains(value.(map[string]any)["content"].(string), "lyra") {
+		t.Errorf("Invoke output missing lyra: %#v", value)
 	}
 }
 
-func TestRegistryRejectsUnknownTool(t *testing.T) {
-	registry := buildRegistry(t)
-	if _, err := registry.Invoke(t.Context(), "no-such-tool", "{}"); err == nil {
+func TestDiagnosticRegistryRejectsUnknownOrEscapingTool(t *testing.T) {
+	registry := toolset.NewDiagnosticRegistry()
+	if _, err := registry.Invoke(t.Context(), t.TempDir(), "shell", "{}"); err == nil {
 		t.Fatal("Invoke error = nil, want unknown-tool error")
 	}
+	outside := t.TempDir()
+	if _, err := registry.Invoke(t.Context(), outside, "read", `{"file_path":"../escape"}`); err == nil {
+		t.Fatal("Invoke escaping path error = nil")
+	}
+	if _, err := registry.Invoke(t.Context(), outside, "glob", `{"pattern":"../**/*"}`); err == nil {
+		t.Fatal("Invoke escaping glob pattern error = nil")
+	}
 }
 
-func buildRegistry(t *testing.T) toolapp.Registry {
-	t.Helper()
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
-	if err != nil {
-		t.Fatalf("Build: %v", err)
+func TestDiagnosticRegistryRejectsSymlinkEscape(t *testing.T) {
+	root := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.txt"), []byte("not in workspace"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		for index := len(built.Closers) - 1; index >= 0; index-- {
-			if closeFn := built.Closers[index]; closeFn != nil {
-				_ = closeFn()
-			}
-		}
-	})
-	task, err := tools.New[struct{}, string](tools.Config{
-		Name:        "task",
-		Description: "Delegate one task.",
-	}, func(context.Context, struct{}) (string, error) {
-		return "done", nil
-	})
-	if err != nil {
-		t.Fatalf("task tool: %v", err)
+	if err := os.Symlink(outside, filepath.Join(root, "outside")); err != nil {
+		t.Fatal(err)
 	}
-	built.Resolver.UseTaskTool(task)
-	registry, err := toolset.NewRegistry(built.Resolver)
-	if err != nil {
-		t.Fatalf("NewRegistry: %v", err)
+
+	_, err := toolset.NewDiagnosticRegistry().Invoke(t.Context(), root, "read", `{"file_path":"outside/secret.txt"}`)
+	if !errors.Is(err, workspaceapp.ErrPathOutsideRoot) {
+		t.Fatalf("Invoke symlink escape error = %v, want ErrPathOutsideRoot", err)
 	}
-	return registry
 }

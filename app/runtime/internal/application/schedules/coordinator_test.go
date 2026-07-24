@@ -18,9 +18,6 @@ func TestNilRegistryDisablesCRUD(t *testing.T) {
 	if _, err := c.List(ctx); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("List err = %v, want ErrUnavailable", err)
 	}
-	if _, err := c.Get(ctx, "sch_1"); !errors.Is(err, schedule.ErrUnavailable) {
-		t.Fatalf("Get err = %v, want ErrUnavailable", err)
-	}
 	if _, err := c.Create(ctx, CreateCommand{}); !errors.Is(err, schedule.ErrUnavailable) {
 		t.Fatalf("Create err = %v, want ErrUnavailable", err)
 	}

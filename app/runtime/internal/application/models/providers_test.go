@@ -49,19 +49,19 @@ func (r *testProviderRegistry) Configure(_ context.Context, entry provider.Provi
 }
 
 type testCatalog struct {
-	metadata []provider.Metadata
+	metadata []ProviderMetadata
 	models   map[string][]Model
 }
 
-func (c testCatalog) Supported() []provider.Metadata { return slices.Clone(c.metadata) }
+func (c testCatalog) Supported() []ProviderMetadata { return slices.Clone(c.metadata) }
 
-func (c testCatalog) Metadata(id string) (provider.Metadata, bool) {
+func (c testCatalog) Metadata(id string) (ProviderMetadata, bool) {
 	for _, metadata := range c.metadata {
 		if metadata.ID == id {
 			return metadata, true
 		}
 	}
-	return provider.Metadata{}, false
+	return ProviderMetadata{}, false
 }
 
 func (c testCatalog) Models(providerID string) []Model {
@@ -103,7 +103,7 @@ func TestListModelsPrefersRemoteModelsAndEnrichesKnownEntries(t *testing.T) {
 		"ollama": {ID: "ollama", BaseURL: "http://host:1234/v1", APIKey: "k"},
 	}}
 	catalog := testCatalog{
-		metadata: []provider.Metadata{{ID: "ollama", ProbeModels: true}},
+		metadata: []ProviderMetadata{{ID: "ollama", ProbeModels: true}},
 		models:   map[string][]Model{"ollama": {{ID: "known", Provider: "ollama", Details: &ModelDetails{DisplayName: "Known"}}}},
 	}
 	lister := &fakeLister{ids: []string{"known", "local"}}
@@ -120,7 +120,7 @@ func TestListModelsPrefersRemoteModelsAndEnrichesKnownEntries(t *testing.T) {
 
 func TestListModelsFallsBackToStaticCatalogWhenProbeCannotAnswer(t *testing.T) {
 	catalog := testCatalog{
-		metadata: []provider.Metadata{{ID: "ollama", ProbeModels: true}},
+		metadata: []ProviderMetadata{{ID: "ollama", ProbeModels: true}},
 		models:   map[string][]Model{"ollama": {{ID: "fallback", Provider: "ollama", Details: &ModelDetails{}}}},
 	}
 	c := New(Config{
@@ -139,7 +139,7 @@ func TestListModelsSkipsRemoteProbeForStaticProvider(t *testing.T) {
 	lister := &fakeLister{ids: []string{"must-not-appear"}}
 	c := New(Config{
 		Catalog: testCatalog{
-			metadata: []provider.Metadata{{ID: "anthropic"}},
+			metadata: []ProviderMetadata{{ID: "anthropic"}},
 			models:   map[string][]Model{"anthropic": {{ID: "cataloged", Provider: "anthropic", Details: &ModelDetails{}}}},
 		},
 		Lister: lister,
@@ -155,7 +155,7 @@ func TestConfigureProviderOwnsSupportAndBaseURLPolicy(t *testing.T) {
 	registry := &testProviderRegistry{}
 	c := New(Config{
 		Providers: registry,
-		Catalog:   testCatalog{metadata: []provider.Metadata{{ID: "compat", RequiresBaseURL: true}}},
+		Catalog:   testCatalog{metadata: []ProviderMetadata{{ID: "compat", RequiresBaseURL: true}}},
 	})
 
 	if _, err := c.ConfigureProvider(t.Context(), ConfigureProviderCommand{ID: "compat", APIKey: "sk-secret"}); !errors.Is(err, ErrProviderBaseURLRequired) {
@@ -179,7 +179,7 @@ func TestTestProviderRequiresAConfiguredSupportedProvider(t *testing.T) {
 		Providers: &testProviderRegistry{entries: map[string]provider.Provider{
 			"anthropic": {ID: "anthropic", APIKey: "sk-secret"},
 		}},
-		Catalog: testCatalog{metadata: []provider.Metadata{{ID: "anthropic"}}},
+		Catalog: testCatalog{metadata: []ProviderMetadata{{ID: "anthropic"}}},
 		Prober:  prober,
 	})
 
