@@ -14,7 +14,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		ItemID: "item_approval",
 		Kind:   transcript.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: transcript.ToolInvocation{Name: "shell"},
+			Tool: transcript.ToolInvocation{Name: "shell"}, Rememberable: true,
 		},
 	}}}
 	resolution, err := resolveResumeResponses(approvalPending, []ResumeResponse{{
@@ -83,6 +83,13 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		{name: "invalid choice", pending: questionPending, responses: []ResumeResponse{{
 			ItemID: "item_question", Kind: QuestionResponseKind,
 			Question: &QuestionResponse{Answers: map[string][]string{"q0": {"Rust"}}},
+		}}, want: ErrInvalidInterruptResponse},
+		{name: "one-off approval cannot be remembered", pending: interrupts.Pending{Interrupts: []transcript.Interrupt{{
+			ItemID: "item_one_off", Kind: transcript.ApprovalInterrupt,
+			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
+		}}}, responses: []ResumeResponse{{
+			ItemID: "item_one_off", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true, RememberScope: approval.ScopeSession},
 		}}, want: ErrInvalidInterruptResponse},
 	}
 	for _, test := range tests {

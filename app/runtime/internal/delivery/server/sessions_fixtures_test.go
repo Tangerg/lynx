@@ -63,6 +63,7 @@ type stubRuntime struct {
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	turns       turnRuntime
+	admissions  *admission.Gate
 }
 
 // sessionsCoordinatorProvider is the optional test seam newTestServer uses to
@@ -127,18 +128,6 @@ func newTestServer(rt testRuntime) *Server {
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
 	s.schedules = schedules.New(schedules.Dependencies{})
 	return s
-}
-
-// testRunCoordinator exposes the concrete lifecycle owner only to tests that
-// deliberately arrange an admission or inspect its registry. Production
-// Delivery receives the narrow runUseCases port and cannot use these probes.
-func testRunCoordinator(t testing.TB, s *Server) *runs.Coordinator {
-	t.Helper()
-	coordinator, ok := s.coordinator.(*runs.Coordinator)
-	if !ok {
-		t.Fatalf("run coordinator = %T, want *runs.Coordinator", s.coordinator)
-	}
-	return coordinator
 }
 
 // serverWithModels builds a Server whose only wired coordinator is the models one
@@ -451,6 +440,11 @@ func (stubTitleGenerator) Generate(context.Context, string) (string, error) { re
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
 func (s *stubRuntime) sessionsCoordinator(admissions sessions.SessionAdmissions) *sessions.Coordinator {
+	gate, ok := admissions.(*admission.Gate)
+	if !ok {
+		panic("test runtime requires admission.Gate")
+	}
+	s.admissions = gate
 	return s.sessionsCoordinatorWithRestorer(nil, admissions)
 }
 
@@ -516,7 +510,7 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 	return nil
 }
 
-func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore) {
+func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore, *stubRuntime) {
 	t.Helper()
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -526,5 +520,6 @@ func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore) {
 	svc := sqlite.NewSessionStore(db)
 	// Interrupts is always wired in production (runtime composition root), and
 	// the wire status now reads it (liveStatus), so give the stub a real store.
-	return newTestServer(&stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}), svc
+	runtime := &stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}
+	return newTestServer(runtime), svc, runtime
 }

@@ -13,8 +13,10 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -71,6 +73,19 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 		catalog: built.Resolver,
 		closers: built.Closers,
 	}
+}
+
+func codingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
+	t.Helper()
+	group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	if err != nil || !ok {
+		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+	}
+	values, err := group.Tools(t.Context())
+	if err != nil {
+		t.Fatalf("coding tools: %v", err)
+	}
+	return values
 }
 
 func cleanupBuiltTools(t *testing.T, built toolset.Built) {

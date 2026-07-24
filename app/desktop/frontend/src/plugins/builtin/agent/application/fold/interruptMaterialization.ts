@@ -24,7 +24,12 @@ export function materializeInterrupt(
       return patchBlock(
         withToolStatus,
         (b) => b.kind === "approval" && b.itemId === it.itemId,
-        (b) => ({ ...b, status: "requires-action", runId }),
+        (b) => ({
+          ...b,
+          status: "requires-action",
+          runId,
+          rememberable: it.payload?.rememberable ?? false,
+        }),
       );
     }
     const block: ContentBlock = {
@@ -37,6 +42,7 @@ export function materializeInterrupt(
       reason: it.payload?.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,
       risk: it.payload?.risk,
+      rememberable: it.payload?.rememberable ?? false,
     };
     const withBlock = appendToTurn(withToolStatus, it.itemId, block);
     return appendTimelineEntry({

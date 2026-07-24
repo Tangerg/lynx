@@ -11,7 +11,6 @@ import (
 // both a sibling's segment admission and its already-live run on the same cwd.
 type SessionAdmissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
-	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
 	AcquireWorkingTreeMutation(cwd string) (release func(), ok bool)
 	ActiveSessions() map[string]bool
 }
@@ -71,6 +70,9 @@ func heldWorkingTreeAdmission(release func()) WorkingTreeAdmission {
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
 // rejects sessions already parked on an open interrupt.
 func (c *Coordinator) ClaimRunSlot(ctx context.Context, sessionID string) (RunAdmission, error) {
+	if c.admissions == nil {
+		return RunAdmission{}, errors.New("sessions: admission gate is unavailable")
+	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return RunAdmission{}, ErrSessionBusy
@@ -97,6 +99,9 @@ func (c *Coordinator) ClaimRunSlot(ctx context.Context, sessionID string) (RunAd
 // interrupts: rollback/delete/import decide what to do with parked runs inside
 // their own lifecycle write-set.
 func (c *Coordinator) ClaimMutationSlot(sessionID string) (RunAdmission, error) {
+	if c.admissions == nil {
+		return RunAdmission{}, errors.New("sessions: admission gate is unavailable")
+	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
 		return RunAdmission{}, ErrSessionBusy

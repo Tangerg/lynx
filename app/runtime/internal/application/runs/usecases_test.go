@@ -3,7 +3,6 @@ package runs
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 	"time"
 
@@ -24,9 +23,6 @@ type fakeRunSessions struct {
 	canceledAt    time.Time
 	lostRunID     string
 	lostAt        time.Time
-	treeOK        bool
-	treeReleases  int
-	treeRelease   func()
 	operations    *[]string
 }
 
@@ -160,41 +156,14 @@ func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions Ses
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
 	}
-	if fake, ok := sessions.(*fakeRunSessions); ok {
-		deps.Admissions = &fakeAdmissionGate{Gate: new(admission.Gate), sessions: fake}
-	}
+	deps.Admissions = new(admission.Gate)
 	return NewCoordinator(deps)
-}
-
-type fakeAdmissionGate struct {
-	*admission.Gate
-	sessions *fakeRunSessions
-}
-
-func (g *fakeAdmissionGate) AcquireWorkingTreeRun(cwd string) (func(), bool) {
-	if !g.sessions.treeOK {
-		return nil, false
-	}
-	release, ok := g.Gate.AcquireWorkingTreeRun(cwd)
-	if !ok {
-		return nil, false
-	}
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			release()
-			if g.sessions.treeRelease != nil {
-				g.sessions.treeRelease()
-			}
-			g.sessions.treeReleases++
-		})
-	}, true
 }
 
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}, treeOK: true}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
 	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	activatedAfterOpening := false
 	turns.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
@@ -223,9 +192,6 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if sessions.model != "model" {
 		t.Fatalf("recorded model = %q", sessions.model)
 	}
-	if sessions.treeReleases != 1 {
-		t.Fatalf("working-tree releases = %d, want 1", sessions.treeReleases)
-	}
 	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
 	}
@@ -235,7 +201,7 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	exec := &fakeExecutor{}
 	openingErr := errors.New("opening commit failed")
 	effects := &fakeEffects{openingErr: openingErr}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}, treeOK: true}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
 	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
@@ -254,13 +220,8 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	finishStarted := make(chan struct{}, 1)
 	releaseFinish := make(chan struct{})
-	allowStartReturn := make(chan struct{})
 	sessions := &fakeRunSessions{
-		sess:   session.Session{ID: "ses_1", Cwd: "/work"},
-		treeOK: true,
-		treeRelease: func() {
-			<-allowStartReturn
-		},
+		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 	}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
@@ -285,9 +246,6 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("fast run did not reach terminal maintenance")
 	}
-	// Let Start return only after maintenance has acquired its own claim. Its
-	// deferred opening release used to erase that newer claim by session id.
-	close(allowStartReturn)
 	outcome := <-started
 	if outcome.err != nil {
 		t.Fatalf("Start: %v", outcome.err)
@@ -295,7 +253,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	if !hasActiveSession(c, "ses_1") {
 		t.Fatal("Start release erased the in-flight terminal-maintenance claim")
 	}
-	if release, ok := c.AcquireSession("ses_1"); ok {
+	if release, ok := c.admission.AcquireSession("ses_1"); ok {
 		release()
 		t.Fatal("new admission crossed terminal maintenance after Start returned")
 	}
@@ -312,7 +270,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}, treeOK: true}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
 	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
@@ -323,7 +281,7 @@ func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 	if len(turns.canceled) != 1 || turns.canceled[0] != turns.startTurn {
 		t.Fatalf("canceled turns = %+v, want invalid started turn", turns.canceled)
 	}
-	if len(effects.openings) != 0 || c.Contains("run_new") {
+	if _, ok := c.registry.Get("run_new"); len(effects.openings) != 0 || ok {
 		t.Fatal("invalid turn identity reached run admission")
 	}
 }
@@ -332,8 +290,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{
-		sess:   session.Session{ID: "ses_1", Cwd: "/work"},
-		treeOK: true,
+		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 		pending: map[string]interrupts.Pending{"run_1": {
 			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", RunCreatedAt: createdAt,
 			Interrupts: approvalInterrupt("item_1"),
@@ -367,8 +324,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
-		sess:   session.Session{ID: "ses_1", Cwd: "/work"},
-		treeOK: true,
+		sess: session.Session{ID: "ses_1", Cwd: "/work"},
 		pending: map[string]interrupts.Pending{"run_1": {
 			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
 			Interrupts: approvalInterrupt("item_1"),
@@ -400,8 +356,8 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	if turns.rehydrateReq.Cwd != "/work" {
 		t.Fatalf("rehydrate cwd = %q, want /work", turns.rehydrateReq.Cwd)
 	}
-	if sessions.treeReleases != 1 || hasActiveSession(c, "ses_1") {
-		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, hasActiveSession(c, "ses_1"))
+	if hasActiveSession(c, "ses_1") {
+		t.Fatal("failed resume leaked its run admission")
 	}
 
 	_, err = c.Resume(t.Context(), ResumeCommand{RunID: "run_1"})
@@ -416,8 +372,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
-		sess:   session.Session{ID: "ses_1", Cwd: "/work", Isolated: true},
-		treeOK: true,
+		sess: session.Session{ID: "ses_1", Cwd: "/work", Isolated: true},
 		pending: map[string]interrupts.Pending{"run_1": {
 			RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", ProcessID: "proc_1",
 			Interrupts: approvalInterrupt("item_1"),
@@ -445,8 +400,8 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("lost recovery = %q ops=%v, want run_1 marked lost", sessions.lostRunID, operations)
 	}
-	if sessions.treeReleases != 1 || hasActiveSession(c, "ses_1") {
-		t.Fatalf("tree releases = %d active session = %v", sessions.treeReleases, hasActiveSession(c, "ses_1"))
+	if hasActiveSession(c, "ses_1") {
+		t.Fatal("failed isolated resume leaked its run admission")
 	}
 }
 
@@ -466,7 +421,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}, operations: &operations}
 	turns := &fakeTurnControl{operations: &operations}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
+	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
 
 	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "user stopped"}); err != nil {
 		t.Fatalf("Cancel: %v", err)
@@ -491,7 +446,7 @@ func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T
 		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
+	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
 
 	err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
 	if !errors.Is(err, cleanupErr) {
@@ -507,7 +462,7 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{}
 	turns := &fakeTurnControl{cancelErr: cleanupErr}
-	c := NewCoordinator(Dependencies{Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects})
+	c := NewCoordinator(Dependencies{Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects, Admissions: new(admission.Gate)})
 	stream, err := c.openSegment(t.Context(), testSegment())
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
@@ -529,7 +484,7 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 		RunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
 	}}}
 	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
-	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions})
+	c := NewCoordinator(Dependencies{Turns: turns, Sessions: sessions, Admissions: new(admission.Gate)})
 
 	if err := c.Cancel(t.Context(), CancelCommand{RunID: "run_1"}); err != nil {
 		t.Fatalf("Cancel error = %v, want idempotent success", err)
@@ -553,7 +508,7 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 }
 
 func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
-	sessions := &fakeRunSessions{treeOK: true}
+	sessions := &fakeRunSessions{}
 	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, &fakeEffects{})
 
 	_, err := c.Start(context.Background(), StartCommand{})

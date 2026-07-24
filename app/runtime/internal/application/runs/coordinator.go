@@ -38,17 +38,7 @@ type Coordinator struct {
 	seq       atomic.Uint64
 	tasks     taskgroup.Group
 	registry  registry
-	admission AdmissionGate
-}
-
-// AdmissionGate is the Run use case's view of the application-wide session
-// admission invariant. Sessions consume their own narrow view of the same gate.
-type AdmissionGate interface {
-	AcquireSession(sessionID string) (release func(), ok bool)
-	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
-	OpenRun(runID, sessionID, cwd string)
-	BeginMaintenance(runID string) (release func(), ok bool)
-	ActiveSessions() map[string]bool
+	admission *admission.Gate
 }
 
 // Dependencies is the complete collaborator set for the user-visible run use
@@ -58,7 +48,7 @@ type Dependencies struct {
 	Turns        TurnControl
 	Sessions     SessionLifecycle
 	Effects      Effects
-	Admissions   AdmissionGate
+	Admissions   *admission.Gate
 	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
 	Now          func() time.Time
 	NewRunID     func() string
@@ -69,9 +59,6 @@ type Dependencies struct {
 func NewCoordinator(deps Dependencies) *Coordinator {
 	if deps.Now == nil {
 		deps.Now = time.Now
-	}
-	if deps.Admissions == nil {
-		deps.Admissions = &admission.Gate{}
 	}
 	return &Coordinator{
 		executor:     deps.Segments,
@@ -145,6 +132,9 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		release()
 		return nil, err
 	}
+	if spec.admission != nil && !spec.admission.Admit(spec.RunID) {
+		panic("runs: committed opening without a pending admission")
+	}
 	c.registry.Open(Record{
 		ID:        spec.RunID,
 		SegmentID: spec.SegmentID,
@@ -155,7 +145,6 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		Provider:  spec.Provider,
 		Model:     spec.Model,
 	}, live)
-	c.admission.OpenRun(spec.RunID, spec.SessionID, spec.Cwd)
 	events, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
 	for _, pe := range opening {
@@ -276,22 +265,9 @@ func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor strin
 	return e.record, events, true
 }
 
-// Contains reports whether a run is actively tracked.
-func (c *Coordinator) Contains(runID string) bool { return c.registry.Contains(runID) }
-
 // List snapshots the records of the currently-live runs.
 func (c *Coordinator) List() []Record {
 	return c.registry.List()
-}
-
-// ActiveSessions snapshots the session ids with a live run or admission claim.
-func (c *Coordinator) ActiveSessions() map[string]bool { return c.admission.ActiveSessions() }
-
-// AcquireSession reserves the single-writer admission slot and returns its
-// ownership-bound release. The Coordinator satisfies the lifecycle
-// session-claimer port the runtime consumes.
-func (c *Coordinator) AcquireSession(sessionID string) (func(), bool) {
-	return c.admission.AcquireSession(sessionID)
 }
 
 // Close stops accepting new runs and cancels + joins the in-flight pumps.

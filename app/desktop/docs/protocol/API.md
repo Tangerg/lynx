@@ -630,6 +630,7 @@ interface ApprovalPayload {
   tool: ToolInvocation; // 待批工具（此时 result 尚无；name+arguments 在）
   risk?: "low" | "medium" | "high"; // 由门禁按工具安全类派生（write→medium / exec→high）；客户端无需 join tools.list
   reason?: string; // 为何需要批准（一行）
+  rememberable?: true; // 此次审批允许创建持久化规则；缺省即 false，客户端不得发送 remember
 }
 interface ToolResultPayload {
   tool: ToolInvocation; // 要客户端执行的工具（client-side tools）；结果经 runs.resume 回传
@@ -879,7 +880,7 @@ interface InterruptResponse {
 interface ApprovalResponse {
   type: "approval";
   decision: "approve" | "deny";
-  remember?: { scope: "session" | "project" | "global" }; // 记住这个决策（approve 或 deny），匹配的后续调用免提示（AUX_API §6）
+  remember?: { scope: "session" | "project" | "global" }; // 仅当待答 ApprovalPayload.rememberable=true 时可传；记住这个决策（approve 或 deny），匹配的后续调用免提示（AUX_API §6）
   editedArgs?: Record<string, unknown>; // 批准前一次性改写工具入参（不进 remember）
   reason?: string;
 }

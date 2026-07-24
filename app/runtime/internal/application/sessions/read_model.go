@@ -45,6 +45,9 @@ func (c *Coordinator) SessionStates(ctx context.Context, sessionIDs []string) (m
 	if len(sessionIDs) == 0 {
 		return states, nil
 	}
+	if c.admissions == nil {
+		return nil, errors.New("sessions: admission gate is unavailable")
+	}
 	active := c.admissions.ActiveSessions()
 	hasIdle := false
 	for _, id := range sessionIDs {

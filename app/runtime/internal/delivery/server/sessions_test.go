@@ -17,7 +17,7 @@ import (
 )
 
 func TestUpdateSession(t *testing.T) {
-	s, svc := newSessionServer(t)
+	s, svc, rt := newSessionServer(t)
 	ctx := context.Background()
 	created, _ := svc.Create(ctx, "old", "/w")
 
@@ -67,7 +67,7 @@ func TestUpdateSession(t *testing.T) {
 	if out.Cwd != workspacepath.Canonical(newCwd) {
 		t.Errorf("Cwd = %q, want relocated %q", out.Cwd, workspacepath.Canonical(newCwd))
 	}
-	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(created.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
 	if !ok {
 		t.Fatal("claim active session")
 	}
@@ -130,7 +130,8 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage(chat.NewTextPart("hi"))}}
 
-	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history})
+	runtime := &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}
+	s := newTestServer(runtime)
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -153,19 +154,19 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if _, ok := history[id]; ok {
 		t.Errorf("conversation messages not cascaded: still present")
 	}
-	if testRunCoordinator(t, s).ActiveSessions()[id] {
+	if runtime.admissions.ActiveSessions()[id] {
 		t.Fatal("delete leaked the session mutation claim")
 	}
 }
 
 func TestDeleteSession_RejectsActiveSession(t *testing.T) {
-	s, svc := newSessionServer(t)
+	s, svc, rt := newSessionServer(t)
 	ctx := context.Background()
 	created, err := svc.Create(ctx, "live", "/w")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(created.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
 	if !ok {
 		t.Fatal("claim session")
 	}

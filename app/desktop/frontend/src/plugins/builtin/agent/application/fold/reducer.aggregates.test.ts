@@ -85,7 +85,10 @@ describe("reducer — timeline accumulator", () => {
           {
             itemId: "tc1" as never,
             type: "approval",
-            payload: { tool: { name: "shell", arguments: { command: "psql" } } },
+            payload: {
+              tool: { name: "shell", arguments: { command: "psql" } },
+              rememberable: true,
+            },
           },
         ],
       },

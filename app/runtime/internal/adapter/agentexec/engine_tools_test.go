@@ -15,12 +15,12 @@ func TestToolCatalogReturnsSnapshot(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	first := eng.catalog.Tools()
+	first := codingTools(t, eng.catalog)
 	if len(first) == 0 {
 		t.Fatal("catalog has no tools")
 	}
 	first[0] = nil
-	if second := eng.catalog.Tools(); second[0] == nil {
+	if second := codingTools(t, eng.catalog); second[0] == nil {
 		t.Fatal("catalog exposed its mutable backing slice")
 	}
 }
@@ -34,7 +34,7 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
-	tools := eng.catalog.Tools()
+	tools := codingTools(t, eng.catalog)
 	// 6 filesystem coding tools (download is gated on a host allowlist, so it is
 	// absent in this offline build) + 3 shell tools (shell + its shell_output /
 	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
@@ -77,7 +77,7 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 	})
 	defer eng.Close()
 
-	tools := eng.catalog.Tools()
+	tools := codingTools(t, eng.catalog)
 	if len(tools) != 17 {
 		t.Fatalf("tool count = %d, want 17 (6 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user)", len(tools))
 	}
@@ -98,7 +98,7 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	client, _ := chatclient.New(stub)
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if got := len(eng.catalog.Tools()); got != 14 {
+	if got := len(codingTools(t, eng.catalog)); got != 14 {
 		t.Fatalf("tool count = %d, want 14 (6 fs + 3 shell + 2 lsp + jina + task + ask_user; no download without an http allowlist)", got)
 	}
 }

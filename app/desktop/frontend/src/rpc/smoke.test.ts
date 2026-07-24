@@ -175,7 +175,7 @@ describe("smoke: v2 end-to-end happy path", () => {
           {
             itemId: asItemId("item_tool"),
             type: "approval",
-            payload: { tool: { name: "shell", arguments: { command: "ls" } } },
+            payload: { tool: { name: "shell", arguments: { command: "ls" } }, rememberable: true },
           },
         ],
       });

@@ -36,17 +36,21 @@ func presentItem(item transcript.Item) protocol.Item {
 
 func presentItemStatus(status transcript.ItemStatus) protocol.ItemStatus {
 	switch status {
+	case transcript.ItemRunning:
+		return protocol.ItemStatusRunning
 	case transcript.ItemCompleted:
 		return protocol.ItemStatusCompleted
 	case transcript.ItemIncomplete:
 		return protocol.ItemStatusIncomplete
 	default:
-		return protocol.ItemStatusRunning
+		panic("server: unknown transcript item status")
 	}
 }
 
 func presentItemKind(kind transcript.ItemKind) protocol.ItemType {
 	switch kind {
+	case transcript.UserMessage:
+		return protocol.ItemTypeUserMessage
 	case transcript.AgentMessage:
 		return protocol.ItemTypeAgentMessage
 	case transcript.Reasoning:
@@ -60,14 +64,19 @@ func presentItemKind(kind transcript.ItemKind) protocol.ItemType {
 	case transcript.Compaction:
 		return protocol.ItemTypeCompaction
 	default:
-		return protocol.ItemTypeUserMessage
+		panic("server: unknown transcript item kind")
 	}
 }
 
 func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
-	kind := protocol.ContentBlockText
-	if block.Kind == transcript.ImageContent {
+	var kind protocol.ContentBlockType
+	switch block.Kind {
+	case transcript.TextContent:
+		kind = protocol.ContentBlockText
+	case transcript.ImageContent:
 		kind = protocol.ContentBlockImage
+	default:
+		panic("server: unknown transcript content kind")
 	}
 	return protocol.ContentBlock{Type: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
 }
@@ -75,6 +84,9 @@ func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
 func presentPlanSteps(steps []transcript.PlanStep) []protocol.PlanStep {
 	out := make([]protocol.PlanStep, len(steps))
 	for i, step := range steps {
+		if !step.Status.Valid() {
+			panic("server: unknown transcript plan-step status")
+		}
 		out[i] = protocol.PlanStep{ID: step.ID, Title: step.Title, Status: protocol.PlanStepStatus(step.Status)}
 	}
 	return out
@@ -83,9 +95,14 @@ func presentPlanSteps(steps []transcript.PlanStep) []protocol.PlanStep {
 func presentQuestion(question transcript.Question) protocol.Question {
 	fields := make([]protocol.QuestionField, len(question.Fields))
 	for i, field := range question.Fields {
-		kind := protocol.QuestionFieldText
-		if field.Kind == transcript.QuestionChoice {
+		var kind protocol.QuestionFieldType
+		switch field.Kind {
+		case transcript.QuestionText:
+			kind = protocol.QuestionFieldText
+		case transcript.QuestionChoice:
 			kind = protocol.QuestionFieldChoice
+		default:
+			panic("server: unknown transcript question-field kind")
 		}
 		options := make([]protocol.QuestionOption, len(field.Options))
 		for j, option := range field.Options {
@@ -108,8 +125,10 @@ func presentTool(tool transcript.ToolInvocation) protocol.ToolInvocation {
 }
 
 func presentDelta(delta runs.ItemDelta) protocol.ItemDelta {
-	kind := protocol.DeltaContent
+	var kind protocol.ItemDeltaType
 	switch delta.Kind {
+	case runs.ContentDelta:
+		kind = protocol.DeltaContent
 	case runs.ReasoningDeltaKind:
 		kind = protocol.DeltaReasoning
 	case runs.ToolArgumentsDelta:
@@ -118,6 +137,8 @@ func presentDelta(delta runs.ItemDelta) protocol.ItemDelta {
 		kind = protocol.DeltaToolOutput
 	case runs.PlanDelta:
 		kind = protocol.DeltaPlan
+	default:
+		panic("server: unknown item delta kind")
 	}
 	return protocol.ItemDelta{
 		Type: kind, Index: delta.Index, Text: delta.Text,

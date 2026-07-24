@@ -111,6 +111,18 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrInterruptNotOpen) {
 		t.Fatalf("unknown item error = %v, want interrupt_not_open", err)
 	}
+	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
+		RunID: pending.RunID,
+		Responses: []protocol.InterruptResponse{{
+			ItemID: "item_open",
+			Response: protocol.InterruptResponseValue{
+				Type: protocol.InterruptResponseApproval, Decision: protocol.ApprovalApprove,
+				Remember: &protocol.RememberScope{Scope: protocol.RememberSession},
+			},
+		}},
+	}); !errors.Is(err, protocol.ErrInvalidParams) || !errors.Is(err, runs.ErrInvalidInterruptResponse) {
+		t.Fatalf("remembering one-off approval error = %v, want invalid params", err)
+	}
 	if _, found, err := rt.interrupts.Get(ctx, pending.RunID); err != nil || !found {
 		t.Fatalf("invalid responses consumed interrupt (found=%v err=%v)", found, err)
 	}

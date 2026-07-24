@@ -284,7 +284,7 @@ const (
 // InterruptPayload is the self-contained data for one [Interrupt]. Type
 // determines the legal fields:
 //
-//	approval   -> Tool, optional Risk and Reason
+//	approval   -> Tool, optional Risk and Reason, Rememberable
 //	question   -> Question
 //	toolResult -> Tool
 //
@@ -292,10 +292,11 @@ const (
 // a member whose value happens to be empty while avoiding an open-ended map at
 // the protocol boundary.
 type InterruptPayload struct {
-	Tool     *ToolInvocation `json:"tool,omitempty"`
-	Risk     ApprovalRisk    `json:"risk,omitempty"`
-	Reason   string          `json:"reason,omitempty"`
-	Question *Question       `json:"question,omitempty"`
+	Tool         *ToolInvocation `json:"tool,omitempty"`
+	Risk         ApprovalRisk    `json:"risk,omitempty"`
+	Reason       string          `json:"reason,omitempty"`
+	Rememberable bool            `json:"rememberable,omitempty"`
+	Question     *Question       `json:"question,omitempty"`
 }
 
 // Interrupt is one pending HITL item (API.md §4.8). ItemID is the correlation

@@ -56,7 +56,7 @@ func TestCatalogCoversPerTurnCodingTools(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	catalog := toolNameSet(built.Resolver.Tools())
+	catalog := toolNameSet(built.Resolver.toolsFor(t.Context()))
 	// The two tools the catalog historically dropped.
 	for _, want := range []string{"exit_plan_mode", "update_goal"} {
 		if !catalog[want] {

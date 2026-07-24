@@ -71,13 +71,16 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 	return resolved, nil
 }
 
-func resolveApprovalResponse(_ transcript.Interrupt, response ResumeResponse) (interrupts.Resolution, error) {
+func resolveApprovalResponse(interrupt transcript.Interrupt, response ResumeResponse) (interrupts.Resolution, error) {
 	if response.Kind != ApprovalResponseKind || response.Approval == nil || response.Question != nil {
 		return interrupts.Resolution{}, errors.New("approval response is required")
 	}
 	approval := response.Approval
 	if approval.RememberScope != "" && !approval.RememberScope.Valid() {
 		return interrupts.Resolution{}, fmt.Errorf("unknown remember scope %q", approval.RememberScope)
+	}
+	if approval.RememberScope != "" && (interrupt.Approval == nil || !interrupt.Approval.Rememberable) {
+		return interrupts.Resolution{}, errors.New("approval cannot be remembered")
 	}
 	if approval.Arguments != "" {
 		if !approval.Approved {

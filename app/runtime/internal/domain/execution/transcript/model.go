@@ -205,9 +205,10 @@ type Interrupt struct {
 }
 
 type Approval struct {
-	Tool   ToolInvocation
-	Risk   tool.RiskLevel
-	Reason string
+	Tool         ToolInvocation
+	Risk         tool.RiskLevel
+	Reason       string
+	Rememberable bool
 }
 
 // Validate reports whether the usage accounting is internally consistent.
@@ -347,6 +348,11 @@ func (question Question) Validate() error {
 
 // Validate reports whether the item has exactly the payload allowed by its kind.
 func (item Item) Validate() error {
+	switch item.Status {
+	case ItemRunning, ItemCompleted, ItemIncomplete:
+	default:
+		return fmt.Errorf("unknown status %d", item.Status)
+	}
 	if item.DroppedMessages < 0 {
 		return errors.New("dropped messages must not be negative")
 	}

@@ -38,7 +38,7 @@ func TestRegistryRemovesCompletedRun(t *testing.T) {
 	if !ok || closed.handle != handle {
 		t.Fatalf("removed entry = %+v, ok=%v", closed, ok)
 	}
-	if r.Contains("run_1") {
+	if _, ok := r.Get("run_1"); ok {
 		t.Fatal("removed run remains live")
 	}
 }
