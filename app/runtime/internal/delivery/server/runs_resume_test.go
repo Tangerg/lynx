@@ -17,7 +17,7 @@ import (
 // the failing continuation Start is what's under test.
 type resumeOKTurns struct{ turnRuntime }
 
-func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error {
+func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error {
 	return nil
 }
 func (resumeOKTurns) Cancel(context.Context, turn.TurnHandle) error { return nil }

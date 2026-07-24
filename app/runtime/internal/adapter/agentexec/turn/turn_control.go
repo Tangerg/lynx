@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -72,7 +73,7 @@ func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []string) error {
+func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err

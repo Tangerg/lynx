@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -125,9 +124,9 @@ func TestSetEmbeddingRoleRequiresResolver(t *testing.T) {
 func TestSetEmbeddingRoleRejectsProviderWithoutEmbeddings(t *testing.T) {
 	state := NewRoleState(modelrole.Role{})
 	cfg := configuredRoleConfig()
-	cfg.Catalog = testCatalog{metadata: []provider.Metadata{{ID: "anthropic"}}}
+	cfg.Catalog = testCatalog{metadata: []ProviderMetadata{{ID: "anthropic"}}}
 	cfg.EmbeddingRoleState = state
-	cfg.EmbeddingResolver = staticEmbeddingResolver{}
+	cfg.EmbeddingValidator = staticEmbeddingResolver{}
 	c := New(cfg)
 
 	_, err := c.SetEmbeddingRole(t.Context(), "anthropic", "embedding")
@@ -153,7 +152,7 @@ func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	saver := newBlockingEmbeddingSaver()
 	cfg := configuredRoleConfig()
 	cfg.EmbeddingRoleState = state
-	cfg.EmbeddingResolver = staticEmbeddingResolver{}
+	cfg.EmbeddingValidator = staticEmbeddingResolver{}
 	cfg.EmbeddingStore = saver
 	c := New(cfg)
 
@@ -242,15 +241,8 @@ func (staticChatModelValidator) ValidateChatModel(context.Context, string, strin
 
 type staticEmbeddingResolver struct{}
 
-func (staticEmbeddingResolver) Resolve(context.Context, string, string) (codebaseindex.Embedder, error) {
-	return staticEmbedder{}, nil
-}
-
-type staticEmbedder struct{}
-
-func (staticEmbedder) ID() string { return "provider:model" }
-func (staticEmbedder) Embed(context.Context, []string) ([][]float32, error) {
-	return nil, nil
+func (staticEmbeddingResolver) ValidateEmbeddingModel(context.Context, string, string) error {
+	return nil
 }
 
 func configuredRoleConfig() Config {
@@ -260,7 +252,7 @@ func configuredRoleConfig() Config {
 			"openai":    {ID: "openai", APIKey: "key"},
 			"provider":  {ID: "provider", APIKey: "key"},
 		}},
-		Catalog: testCatalog{metadata: []provider.Metadata{
+		Catalog: testCatalog{metadata: []ProviderMetadata{
 			{ID: "anthropic", EmbeddingCapable: true},
 			{ID: "openai", EmbeddingCapable: true},
 			{ID: "provider", EmbeddingCapable: true},

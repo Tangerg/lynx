@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -15,6 +16,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
+
+// toolEnvironment groups the tool resolver with the separately-owned MCP
+// connection adapter. Bootstrap is the composition root that joins them; the
+// generic toolset does not expose application integration ports.
+type toolEnvironment struct {
+	tools   toolset.Built
+	mcp     *mcpconnection.Connections
+	closers []func() error
+}
 
 func buildToolEnvironment(
 	ctx context.Context,
@@ -27,13 +37,23 @@ func buildToolEnvironment(
 	scheduleCoord *schedules.Coordinator,
 	goalState *goals.State,
 	skillStore *skillauthoring.Store,
-) (toolset.Built, error) {
+) (toolEnvironment, error) {
+	mcpConnections, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers)
+	if err != nil {
+		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
+	}
+	mcpOpen := true
+	defer func() {
+		if mcpOpen {
+			_ = mcpConnections.Close()
+		}
+	}()
 	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.SkillsGlobalDir,
 		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
-		MCPServers:      mcpEnv.configs,
+		MCPTools:        mcpTools,
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Todos:           cfg.TodoStore,
 		Approval:        approvalPolicy,
@@ -77,9 +97,15 @@ func buildToolEnvironment(
 	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {
-		return toolset.Built{}, fmt.Errorf("runtime: build tools: %w", err)
+		return toolEnvironment{}, fmt.Errorf("runtime: build tools: %w", err)
 	}
-	return built, nil
+	mcpConnections.SetToolSink(built.Resolver.SetMCPTools)
+	mcpOpen = false
+	return toolEnvironment{
+		tools:   built,
+		mcp:     mcpConnections,
+		closers: append(built.Closers, mcpConnections.Close),
+	}, nil
 }
 
 func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {

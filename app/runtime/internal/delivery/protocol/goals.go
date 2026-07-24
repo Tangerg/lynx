@@ -32,7 +32,7 @@ type Goals interface {
 type Goal struct {
 	SessionID string     `json:"sessionId"`
 	Objective string     `json:"objective"`
-	Status    string     `json:"status"`
+	Status    GoalStatus `json:"status"`
 	Reason    string     `json:"reason,omitempty"`
 	Provider  string     `json:"provider,omitempty"`
 	Model     string     `json:"model,omitempty"`
@@ -41,6 +41,18 @@ type Goal struct {
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
 }
+
+// GoalStatus is the durable resting-state vocabulary exposed by the
+// autonomous-goal API. The domain's complete state is intentionally absent:
+// it is a loop-internal transient that is cleared before a client can observe
+// a goal again.
+type GoalStatus string
+
+const (
+	GoalActive  GoalStatus = "active"
+	GoalPaused  GoalStatus = "paused"
+	GoalBlocked GoalStatus = "blocked"
+)
 
 // GoalBudget is the opt-in cross-turn cap. A zero field is unbounded on that axis.
 type GoalBudget struct {

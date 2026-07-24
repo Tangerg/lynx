@@ -1,7 +1,7 @@
 // Package models is the application coordinator for provider + model
 // configuration: the runtime-mutable provider registry (credentials), the static
-// provider catalog + credential prober, the utility / embedding model roles, and
-// the default provider/model a run falls back to. It is a thin use-case layer
+// provider catalog + credential prober, and the utility / embedding model roles.
+// It is a thin use-case layer
 // over the domain provider registry + a few composition-injected ports
 // (client/embedding resolvers, catalog, prober); the delivery layer drives it per
 // providers.* / models.* request.
@@ -12,7 +12,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -21,8 +20,8 @@ import (
 // from infrastructure catalogs. The composition root supplies it; application
 // owns the use-case policy that consumes the projection.
 type ProviderCatalog interface {
-	Supported() []provider.Metadata
-	Metadata(id string) (provider.Metadata, bool)
+	Supported() []ProviderMetadata
+	Metadata(id string) (ProviderMetadata, bool)
 	Models(providerID string) []Model
 	LookupModel(providerID, modelID string) (Model, bool)
 }
@@ -64,10 +63,10 @@ type ChatModelValidator interface {
 	ValidateChatModel(ctx context.Context, providerID, model string) error
 }
 
-// EmbeddingResolver validates/builds an embedder for (provider, model). The
-// embedding-role setter uses it to reject an unbuildable role before persisting.
-type EmbeddingResolver interface {
-	Resolve(ctx context.Context, providerID, model string) (codebaseindex.Embedder, error)
+// EmbeddingModelValidator validates that an embedding client can be built for
+// (provider, model) without leaking the concrete embedder into Application.
+type EmbeddingModelValidator interface {
+	ValidateEmbeddingModel(ctx context.Context, providerID, model string) error
 }
 
 // UtilityRoleSaver persists the utility-model role across restarts. nil disables
@@ -99,12 +98,9 @@ type Coordinator struct {
 	utilityMu        sync.Mutex
 
 	embeddingRoleState *RoleState
-	embeddingResolver  EmbeddingResolver
+	embeddingValidator EmbeddingModelValidator
 	embeddingStore     EmbeddingRoleSaver
 	embeddingMu        sync.Mutex
-
-	defaultProvider string
-	defaultModel    string
 }
 
 // Config bundles the Coordinator's dependencies.
@@ -119,11 +115,8 @@ type Config struct {
 	UtilityStore     UtilityRoleSaver
 
 	EmbeddingRoleState *RoleState
-	EmbeddingResolver  EmbeddingResolver
+	EmbeddingValidator EmbeddingModelValidator
 	EmbeddingStore     EmbeddingRoleSaver
-
-	DefaultProvider string
-	DefaultModel    string
 }
 
 // New returns a models Coordinator over cfg.
@@ -143,15 +136,7 @@ func New(cfg Config) *Coordinator {
 		utilityValidator:   cfg.UtilityValidator,
 		utilityStore:       cfg.UtilityStore,
 		embeddingRoleState: cfg.EmbeddingRoleState,
-		embeddingResolver:  cfg.EmbeddingResolver,
+		embeddingValidator: cfg.EmbeddingValidator,
 		embeddingStore:     cfg.EmbeddingStore,
-		defaultProvider:    cfg.DefaultProvider,
-		defaultModel:       cfg.DefaultModel,
 	}
 }
-
-// DefaultModel returns the fallback model a run uses when it selects none.
-func (c *Coordinator) DefaultModel() string { return c.defaultModel }
-
-// DefaultProvider returns the fallback provider a run uses when it selects none.
-func (c *Coordinator) DefaultProvider() string { return c.defaultProvider }

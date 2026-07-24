@@ -201,12 +201,12 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 				switch part.Kind {
 				case chat.PartReasoning:
 					if observer != nil && part.Text != "" {
-						observer.OnReasoningDelta(part.Text)
+						observer.OnReasoningDelta(processRef(pc.Process()), part.Text)
 					}
 				case chat.PartText:
 					partial.WriteString(part.Text)
 					if observer != nil {
-						observer.OnMessageDelta(part.Text)
+						observer.OnMessageDelta(processRef(pc.Process()), part.Text)
 					}
 				}
 			}
@@ -228,11 +228,11 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 				switch boundary.Kind {
 				case agent.InteractionEventToolCall:
 					if boundary.ToolCall != nil {
-						observation.begin(pc.Process().ID(), boundary.Round, *boundary.ToolCall)
+						observation.begin(pc.Process(), boundary.Round, *boundary.ToolCall)
 					}
 				case agent.InteractionEventToolResult:
 					if boundary.ToolResult != nil {
-						observation.result(pc.Process().ID(), boundary.Round, *boundary.ToolResult)
+						observation.result(pc.Process(), boundary.Round, *boundary.ToolResult)
 					}
 				}
 			}
@@ -244,7 +244,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 					cumulative.Add(tokenUsageOf(invocation))
 					cumulativeCost += invocation.CostUSD
 				}
-				observer.OnUsage(cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
+				observer.OnUsage(processRef(pc.Process()), cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
 			}
 			return nil
 		},

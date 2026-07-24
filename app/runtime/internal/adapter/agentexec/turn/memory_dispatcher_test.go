@@ -200,7 +200,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-approve",
 		Message:        "echo lyra",
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
@@ -217,7 +217,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 			} else if p := e.Interrupts[0].Approval; p == nil || p.ToolName != "shell" {
 				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", p)
 			}
-			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
+			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case runs.TurnEnd:
@@ -253,7 +253,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-rmodel",
 		Message:        "echo lyra",
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
@@ -261,7 +261,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case runs.TurnInterrupted:
-			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []string{"approval"}); err != nil {
+			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
 		case runs.TurnEnd:
@@ -311,7 +311,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-cancel-parked",
 		Message:        "echo lyra",
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
@@ -355,7 +355,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "sess-deny",
 		Message:        "echo lyra",
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
@@ -366,7 +366,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	for ev := range events {
 		switch e := ev.(type) {
 		case runs.TurnInterrupted:
-			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []string{"approval"})
+			_ = dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: false}, []runs.InterruptKind{runs.ApprovalInterruptKind})
 		case runs.ToolCallEnd:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Result carries the reason.

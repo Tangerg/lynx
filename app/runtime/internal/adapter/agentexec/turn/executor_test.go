@@ -33,7 +33,7 @@ func (*executorFakeDispatcher) PrepareTurn(context.Context, StartTurnRequest) (T
 	return TurnHandle{}, nil
 }
 func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
-func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []string) error {
+func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Resolution, []runs.InterruptKind) error {
 	return nil
 }
 func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }

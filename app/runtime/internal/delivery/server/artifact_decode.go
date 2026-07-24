@@ -90,17 +90,17 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	}, nil
 }
 
-func portableOutcomeFromArtifact(path, value string) (execution.Outcome, error) {
+func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType) (execution.Outcome, error) {
 	switch value {
-	case "completed":
+	case protocol.ArtifactOutcomeCompleted:
 		return execution.OutcomeCompleted, nil
-	case "canceled":
+	case protocol.ArtifactOutcomeCanceled:
 		return execution.OutcomeCanceled, nil
-	case "error":
+	case protocol.ArtifactOutcomeError:
 		return execution.OutcomeError, nil
-	case "maxBudget":
+	case protocol.ArtifactOutcomeMaxBudget:
 		return execution.OutcomeMaxBudget, nil
-	case "maxSteps":
+	case protocol.ArtifactOutcomeMaxSteps:
 		return execution.OutcomeMaxSteps, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
@@ -160,9 +160,14 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	out := transcript.Item{
 		SessionID: sessionID, ID: artifact.ID, RunID: artifact.RunID, Status: status, Kind: kind,
 		CreatedAt: artifact.CreatedAt, Text: artifact.Text, Redacted: artifact.Redacted,
-		SafetyClass: tool.SafetyClass(artifact.SafetyClass), Error: problem,
+		Error:   problem,
 		Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
+	safetyClass, err := portableSafetyClass(path+".safetyClass", artifact.SafetyClass)
+	if err != nil {
+		return transcript.Item{}, err
+	}
+	out.SafetyClass = safetyClass
 	if len(artifact.Content) != 0 {
 		out.Content = make([]transcript.ContentBlock, len(artifact.Content))
 		for index, block := range artifact.Content {
@@ -176,11 +181,11 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	if len(artifact.Steps) != 0 {
 		out.Steps = make([]transcript.PlanStep, len(artifact.Steps))
 		for index, step := range artifact.Steps {
-			status := transcript.PlanStepStatus(step.Status)
-			if !status.Valid() {
-				return transcript.Item{}, invalidArtifact(fmt.Sprintf("%s.steps[%d].status", path, index), "unknown value %q", step.Status)
+			stepStatus, err := portablePlanStepStatus(fmt.Sprintf("%s.steps[%d].status", path, index), step.Status)
+			if err != nil {
+				return transcript.Item{}, err
 			}
-			out.Steps[index] = transcript.PlanStep{ID: step.ID, Title: step.Title, Status: status}
+			out.Steps[index] = transcript.PlanStep{ID: step.ID, Title: step.Title, Status: stepStatus}
 		}
 	}
 	if artifact.Question != nil {
@@ -200,34 +205,34 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	return out, nil
 }
 
-func portableItemStatus(path, value string) (transcript.ItemStatus, error) {
+func portableItemStatus(path string, value protocol.ItemStatus) (transcript.ItemStatus, error) {
 	switch value {
-	case "running":
+	case protocol.ItemStatusRunning:
 		return transcript.ItemRunning, nil
-	case "completed":
+	case protocol.ItemStatusCompleted:
 		return transcript.ItemCompleted, nil
-	case "incomplete":
+	case protocol.ItemStatusIncomplete:
 		return transcript.ItemIncomplete, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
 	}
 }
 
-func portableItemKind(path, value string) (transcript.ItemKind, error) {
+func portableItemKind(path string, value protocol.ItemType) (transcript.ItemKind, error) {
 	switch value {
-	case "userMessage":
+	case protocol.ItemTypeUserMessage:
 		return transcript.UserMessage, nil
-	case "agentMessage":
+	case protocol.ItemTypeAgentMessage:
 		return transcript.AgentMessage, nil
-	case "reasoning":
+	case protocol.ItemTypeReasoning:
 		return transcript.Reasoning, nil
-	case "plan":
+	case protocol.ItemTypePlan:
 		return transcript.Plan, nil
-	case "question":
+	case protocol.ItemTypeQuestion:
 		return transcript.QuestionItem, nil
-	case "toolCall":
+	case protocol.ItemTypeToolCall:
 		return transcript.ToolCall, nil
-	case "compaction":
+	case protocol.ItemTypeCompaction:
 		return transcript.Compaction, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
@@ -236,9 +241,9 @@ func portableItemKind(path, value string) (transcript.ItemKind, error) {
 
 func portableContentFromArtifact(path string, artifact protocol.ArtifactContentBlock) (transcript.ContentBlock, error) {
 	switch artifact.Type {
-	case "text":
+	case protocol.ContentBlockText:
 		return transcript.ContentBlock{Kind: transcript.TextContent, Text: artifact.Text, Mime: artifact.Mime, Data: artifact.Data}, nil
-	case "image":
+	case protocol.ContentBlockImage:
 		return transcript.ContentBlock{Kind: transcript.ImageContent, Text: artifact.Text, Mime: artifact.Mime, Data: artifact.Data}, nil
 	default:
 		return transcript.ContentBlock{}, invalidArtifact(path+".type", "unknown value %q", artifact.Type)
@@ -264,14 +269,46 @@ func portableQuestionFromArtifact(path string, artifact protocol.ArtifactQuestio
 	return transcript.Question{Prompt: artifact.Prompt, Fields: fields}, nil
 }
 
-func portableQuestionFieldKind(path, value string) (transcript.QuestionFieldKind, error) {
+func portableQuestionFieldKind(path string, value protocol.QuestionFieldType) (transcript.QuestionFieldKind, error) {
 	switch value {
-	case "text":
+	case protocol.QuestionFieldText:
 		return transcript.QuestionText, nil
-	case "choice":
+	case protocol.QuestionFieldChoice:
 		return transcript.QuestionChoice, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
+	}
+}
+
+func portableSafetyClass(path string, value protocol.SafetyClass) (tool.SafetyClass, error) {
+	switch value {
+	case "":
+		return "", nil
+	case protocol.SafetyClassSafe:
+		return tool.SafetyClassSafe, nil
+	case protocol.SafetyClassWrite:
+		return tool.SafetyClassWrite, nil
+	case protocol.SafetyClassExec:
+		return tool.SafetyClassExec, nil
+	case protocol.SafetyClassNetwork:
+		return tool.SafetyClassNetwork, nil
+	default:
+		return "", invalidArtifact(path, "unknown value %q", value)
+	}
+}
+
+func portablePlanStepStatus(path string, value protocol.PlanStepStatus) (transcript.PlanStepStatus, error) {
+	switch value {
+	case protocol.PlanStepPending:
+		return transcript.PlanStepPending, nil
+	case protocol.PlanStepRunning:
+		return transcript.PlanStepRunning, nil
+	case protocol.PlanStepCompleted:
+		return transcript.PlanStepCompleted, nil
+	case protocol.PlanStepFailed:
+		return transcript.PlanStepFailed, nil
+	default:
+		return "", invalidArtifact(path, "unknown value %q", value)
 	}
 }
 
@@ -305,27 +342,27 @@ func portableProblemFromArtifact(path string, artifact *protocol.ArtifactProblem
 	}, nil
 }
 
-func portableProblemKind(path, value string) (transcript.ProblemKind, error) {
+func portableProblemKind(path string, value protocol.ArtifactProblemType) (transcript.ProblemKind, error) {
 	switch value {
-	case "internalError":
+	case protocol.ArtifactProblemInternalError:
 		return transcript.InternalProblem, nil
-	case "runLost":
+	case protocol.ArtifactProblemRunLost:
 		return transcript.RunLostProblem, nil
-	case "agentStuck":
+	case protocol.ArtifactProblemAgentStuck:
 		return transcript.AgentStuckProblem, nil
-	case "rateLimited":
+	case protocol.ArtifactProblemRateLimited:
 		return transcript.RateLimitedProblem, nil
-	case "invalidApiKey":
+	case protocol.ArtifactProblemInvalidAPIKey:
 		return transcript.InvalidAPIKeyProblem, nil
-	case "timeout":
+	case protocol.ArtifactProblemTimeout:
 		return transcript.TimeoutProblem, nil
-	case "providerUnavailable":
+	case protocol.ArtifactProblemProviderUnavailable:
 		return transcript.ProviderUnavailableProblem, nil
-	case "providerRejected":
+	case protocol.ArtifactProblemProviderRejected:
 		return transcript.ProviderRejectedProblem, nil
-	case "deniedByUser":
+	case protocol.ArtifactProblemDeniedByUser:
 		return transcript.DeniedByUserProblem, nil
-	case "toolFailed":
+	case protocol.ArtifactProblemToolFailed:
 		return transcript.ToolFailedProblem, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)

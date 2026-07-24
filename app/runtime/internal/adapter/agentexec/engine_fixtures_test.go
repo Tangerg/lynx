@@ -140,13 +140,13 @@ func (r *recordingObserver) ApproveToolCall(_ context.Context, _, _, _ string, _
 	return ToolApprovalVerdict{} // auto-run; tests don't exercise the approval gate
 }
 
-func (r *recordingObserver) OnToolCallStart(callID, toolName, arguments string) {
+func (r *recordingObserver) OnToolCallStart(_ ProcessRef, callID, toolName, arguments string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.startList = append(r.startList, startCall{callID, toolName, arguments})
 }
 
-func (r *recordingObserver) OnToolCallEnd(callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
+func (r *recordingObserver) OnToolCallEnd(_ ProcessRef, callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endList = append(r.endList, endCall{
@@ -155,7 +155,7 @@ func (r *recordingObserver) OnToolCallEnd(callID, toolName, arguments, output st
 	})
 }
 
-func (r *recordingObserver) OnMessageDelta(text string) {
+func (r *recordingObserver) OnMessageDelta(_ ProcessRef, text string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.deltaList = append(r.deltaList, text)
@@ -164,11 +164,11 @@ func (r *recordingObserver) OnMessageDelta(text string) {
 // OnReasoningDelta is a no-op for the current tests -- reasoning
 // streams aren't asserted at the engine level. Lyra-level tests
 // in chat/impl_test.go cover the propagation path.
-func (r *recordingObserver) OnReasoningDelta(_ string) {}
+func (r *recordingObserver) OnReasoningDelta(ProcessRef, string) {}
 
 // OnUsage is a no-op here -- the mid-run usage signal is asserted at the
 // transport layer (translator_test.go), not the engine level.
-func (r *recordingObserver) OnUsage(accounting.TokenUsage, float64, int64) {}
+func (r *recordingObserver) OnUsage(ProcessRef, accounting.TokenUsage, float64, int64) {}
 
 func (r *recordingObserver) starts() []startCall {
 	r.mu.Lock()

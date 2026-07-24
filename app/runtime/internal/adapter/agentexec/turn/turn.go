@@ -166,9 +166,9 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 }
 
 // interruptKind decodes the application-owned discriminated envelope into its
-// wire interrupt kind (API.md §6). Unknown or malformed payloads return "" and
+// application interrupt kind. Unknown or malformed payloads return "" and
 // are rejected by emitInterrupt; there is no field-shape fallback.
-func interruptKind(suspension *agent.Suspension) string {
+func interruptKind(suspension *agent.Suspension) runs.InterruptKind {
 	if suspension == nil {
 		return ""
 	}
@@ -176,7 +176,7 @@ func interruptKind(suspension *agent.Suspension) string {
 	if !ok {
 		return ""
 	}
-	return string(pending.Kind)
+	return pending.Kind
 }
 
 func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {

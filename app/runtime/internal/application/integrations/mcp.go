@@ -225,7 +225,7 @@ func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server)
 		return
 	}
 	_ = c.dispatchMCPConnection(ctx, srv.Name, func(dialCtx context.Context) error {
-		return c.mcpRegistryCommands.Configure(dialCtx, mcpserver.ConfigFromServer(srv))
+		return c.mcpRegistryCommands.Configure(dialCtx, srv)
 	})
 }
 
@@ -242,7 +242,7 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (
 	if c.mcpRegistryCommands == nil {
 		return MCPTestResult{}, ErrUnknownMCPServer
 	}
-	if err := c.mcpRegistryCommands.Probe(ctx, mcpserver.ConfigFromServer(srv)); err != nil {
+	if err := c.mcpRegistryCommands.Probe(ctx, srv); err != nil {
 		return MCPTestResult{}, nil
 	}
 	return MCPTestResult{OK: true}, nil

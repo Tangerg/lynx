@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
@@ -22,11 +23,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
 )
 
@@ -50,16 +49,18 @@ type BuildConfig struct {
 	SkillsGlobalDir string
 	Online          OnlineConfig
 	LSPServers      []codeintel.ServerSpec
-	MCPServers      []mcpserver.LiveConfig
-	A2AAgents       []A2AAgentConfig
-	Todos           todotool.Store      // backs todo_write; nil → the tool is omitted
-	Approval        exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
-	Interrupt       suspension.Func
-	Schedules       ScheduleManagement     // backs the schedule tool; nil → omitted
-	ToolResults     toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
-	SkillAuthoring  skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
-	SkillUsage      skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
-	Goals           goaltool.State         // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
+	// MCPTools is the initial live MCP catalog. Its owner updates the resolver
+	// after reconnects; toolset deliberately does not own MCP connections.
+	MCPTools       []tools.Tool
+	A2AAgents      []A2AAgentConfig
+	Todos          todotool.Store      // backs todo_write; nil → the tool is omitted
+	Approval       exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+	Interrupt      suspension.Func
+	Schedules      ScheduleManagement     // backs the schedule tool; nil → omitted
+	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
+	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
+	SkillUsage     skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
+	Goals          goaltool.State         // backs update_goal + gates it on an active goal (Goal mode); nil → omitted
 
 	// CodebaseIndex backs codebase_search (semantic code search). nil — or an
 	// index with no embedding model configured — omits the tool.
@@ -89,14 +90,10 @@ type BuildConfig struct {
 }
 
 // Built is the assembled tool environment handed to the composition root: the
-// runtime-scope resolver (also the diagnostic tool catalog), the live MCP ports,
-// and the capability closers owned by bootstrap.Host.
+// runtime-scope resolver (also the diagnostic tool catalog) and the capability
+// closers owned by bootstrap.Host.
 type Built struct {
-	Resolver              *Resolver
-	MCPStatusReader       integrations.MCPStatusReader
-	MCPToolCatalog        integrations.MCPToolCatalog
-	MCPConnectionCommands integrations.MCPConnectionCommands
-	MCPRegistryCommands   integrations.MCPRegistryCommands
+	Resolver *Resolver
 	// Shells is the background-shell set the shell tools run over. Exposed so the
 	// composition root can report a session's still-running jobs (e.g. a
 	// post-compaction live-state reminder) without owning a second shell set.
@@ -105,10 +102,9 @@ type Built struct {
 }
 
 // Build constructs every capability adapter, assembles the resolver, and
-// returns the [Built] environment. A single unreachable MCP server is
-// tolerated (recorded "failed"); a config mistake (duplicate name / invalid
-// entry) fails. An A2A dial failure closes the already-opened MCP sessions so
-// nothing leaks.
+// returns the [Built] environment. Remote MCP connections are constructed by
+// their dedicated adapter before this function and supplied as an initial tool
+// snapshot; this package owns only the local and A2A capability lifecycle.
 func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	online, err := BuildOnlineTools(config.Online)
 	if err != nil {
@@ -146,12 +142,11 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
 	}
-	var mcpConns *mcp.Connections
 	var a2aConns *a2a.Connections
 	cleanupOnError := true
 	defer func() {
 		if cleanupOnError {
-			err = errors.Join(err, shells.KillAll(), codeIntel.Close(), mcpConns.Close(), a2aConns.Close())
+			err = errors.Join(err, shells.KillAll(), codeIntel.Close(), a2aConns.Close())
 		}
 	}()
 
@@ -223,8 +218,8 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 	goalActive := goalActiveReader(config.Goals)
 
-	connections, err := dialToolConnections(ctx, config)
-	mcpConns, a2aConns = connections.mcp, connections.a2a
+	connections, err := dialA2AConnections(ctx, config)
+	a2aConns = connections.a2a
 	if err != nil {
 		return Built{}, err
 	}
@@ -256,23 +251,15 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)
 	}
-	resolver.SetMCPTools(connections.mcpTools) // seed the hot-swappable MCP set
-	mcpConns.SetToolSink(resolver.SetMCPTools) // reconnect hot-swaps the refreshed set in
-
-	mcpControl := &mcpControl{inner: mcpConns}
+	resolver.SetMCPTools(config.MCPTools) // seed the hot-swappable MCP set
 
 	cleanupOnError = false
 	return Built{
-		Resolver:              resolver,
-		MCPStatusReader:       mcpControl,
-		MCPToolCatalog:        mcpControl,
-		MCPConnectionCommands: mcpControl,
-		MCPRegistryCommands:   mcpControl,
-		Shells:                shells,
+		Resolver: resolver,
+		Shells:   shells,
 		Closers: []func() error{
 			codeIntel.Close,
 			shells.KillAll,
-			mcpConns.Close,
 			a2aConns.Close,
 		},
 	}, nil

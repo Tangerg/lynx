@@ -27,7 +27,7 @@ type turnDriver interface {
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, string) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error

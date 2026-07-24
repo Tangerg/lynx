@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -26,8 +27,12 @@ func (Reads) ListFiles(ctx context.Context, root string, options workspaceapp.Fi
 	}
 	out := make([]workspaceapp.FileEntry, 0, len(entries))
 	for _, entry := range entries {
+		kind, ok := fileEntryKind(entry.Kind)
+		if !ok {
+			return nil, fmt.Errorf("workspace: unsupported file entry kind %q", entry.Kind)
+		}
 		out = append(out, workspaceapp.FileEntry{
-			Path: entry.Path, Name: entry.Name, Kind: workspaceapp.FileEntryKind(entry.Kind),
+			Path: entry.Path, Name: entry.Name, Kind: kind,
 			SizeBytes: entry.SizeBytes, ModifiedAt: entry.ModifiedAt,
 		})
 	}
@@ -100,8 +105,12 @@ func (VCS) ListFileChanges(ctx context.Context, root string) ([]workspaceapp.Fil
 	}
 	out := make([]workspaceapp.FileChange, 0, len(changes))
 	for _, change := range changes {
+		status, ok := fileStatus(change.Status)
+		if !ok {
+			return nil, fmt.Errorf("workspace: unsupported git status %q", change.Status)
+		}
 		out = append(out, workspaceapp.FileChange{
-			Path: change.Path, Status: workspaceapp.FileStatus(change.Status), PreviousPath: change.PreviousPath,
+			Path: change.Path, Status: status, PreviousPath: change.PreviousPath,
 			Binary: change.Binary, Added: change.Added, Removed: change.Removed,
 		})
 	}
@@ -115,18 +124,71 @@ func (VCS) StructuredDiff(ctx context.Context, root, path string, base bool) ([]
 	}
 	out := make([]workspaceapp.FileDiff, 0, len(files))
 	for _, file := range files {
+		status, ok := fileStatus(file.Status)
+		if !ok {
+			return nil, fmt.Errorf("workspace: unsupported git status %q", file.Status)
+		}
 		rows := make([]workspaceapp.DiffRow, 0, len(file.Rows))
 		for _, row := range file.Rows {
+			kind, ok := diffRowType(row.Type)
+			if !ok {
+				return nil, fmt.Errorf("workspace: unsupported diff row type %q", row.Type)
+			}
 			rows = append(rows, workspaceapp.DiffRow{
-				Type: workspaceapp.DiffRowType(row.Type), Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
+				Type: kind, Text: row.Text, LeftLine: row.LeftLine, RightLine: row.RightLine, Code: row.Code,
 			})
 		}
 		out = append(out, workspaceapp.FileDiff{
-			Path: file.Path, Status: workspaceapp.FileStatus(file.Status), PreviousPath: file.PreviousPath,
+			Path: file.Path, Status: status, PreviousPath: file.PreviousPath,
 			Binary: file.Binary, Added: file.Added, Removed: file.Removed, Rows: rows,
 		})
 	}
 	return out, nil
+}
+
+func fileEntryKind(kind EntryKind) (workspaceapp.FileEntryKind, bool) {
+	switch kind {
+	case EntryFile:
+		return workspaceapp.FileEntryFile, true
+	case EntryDir:
+		return workspaceapp.FileEntryDir, true
+	case EntrySymlink:
+		return workspaceapp.FileEntrySymlink, true
+	default:
+		return "", false
+	}
+}
+
+func fileStatus(status git.Status) (workspaceapp.FileStatus, bool) {
+	switch status {
+	case git.StatusAdded:
+		return workspaceapp.FileStatusAdded, true
+	case git.StatusModified:
+		return workspaceapp.FileStatusModified, true
+	case git.StatusDeleted:
+		return workspaceapp.FileStatusDeleted, true
+	case git.StatusRenamed:
+		return workspaceapp.FileStatusRenamed, true
+	case git.StatusUntracked:
+		return workspaceapp.FileStatusUntracked, true
+	default:
+		return "", false
+	}
+}
+
+func diffRowType(kind string) (workspaceapp.DiffRowType, bool) {
+	switch kind {
+	case "hunk":
+		return workspaceapp.DiffRowHunk, true
+	case "context":
+		return workspaceapp.DiffRowContext, true
+	case "added":
+		return workspaceapp.DiffRowAdded, true
+	case "deleted":
+		return workspaceapp.DiffRowDeleted, true
+	default:
+		return "", false
+	}
 }
 
 func (VCS) RawDiff(ctx context.Context, root, path string, base bool) (string, error) {

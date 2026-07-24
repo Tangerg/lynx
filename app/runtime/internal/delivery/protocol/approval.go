@@ -30,13 +30,32 @@ type Approval interface {
 // path) matches the Subject glob — so a rule reads "allow `npm run *` in this
 // project", not the blunt whole-tool grant.
 type ApprovalRule struct {
-	ID       string `json:"id"`
-	Scope    string `json:"scope"`             // "session" | "project" | "global"
-	Tool     string `json:"tool"`              // tool name, e.g. "shell"
-	Subject  string `json:"subject,omitempty"` // command / path glob; "" = any arguments
-	Dir      string `json:"dir,omitempty"`     // project-scope directory (display only; omitted otherwise)
-	Decision string `json:"decision"`          // "allow" | "deny"
+	ID       string               `json:"id"`
+	Scope    ApprovalRuleScope    `json:"scope"`
+	Tool     string               `json:"tool"`              // tool name, e.g. "shell"
+	Subject  string               `json:"subject,omitempty"` // command / path glob; "" = any arguments
+	Dir      string               `json:"dir,omitempty"`     // project-scope directory (display only; omitted otherwise)
+	Decision ApprovalRuleDecision `json:"decision"`
 }
+
+// ApprovalRuleScope is how far a remembered tool decision reaches.
+type ApprovalRuleScope string
+
+const (
+	ApprovalRuleScopeSession ApprovalRuleScope = "session"
+	ApprovalRuleScopeProject ApprovalRuleScope = "project"
+	ApprovalRuleScopeGlobal  ApprovalRuleScope = "global"
+)
+
+// ApprovalRuleDecision is the only persisted rule verdict. It is distinct from
+// an interrupt-response decision: one is a durable policy record, the other is
+// a reply to a single pending approval.
+type ApprovalRuleDecision string
+
+const (
+	ApprovalRuleDecisionAllow ApprovalRuleDecision = "allow"
+	ApprovalRuleDecisionDeny  ApprovalRuleDecision = "deny"
+)
 
 // ListApprovalRulesRequest — approval.listRules body. SessionID anchors which
 // session + project rules are visible (global rules always are).

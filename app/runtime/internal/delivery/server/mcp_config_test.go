@@ -23,7 +23,7 @@ func TestConfigureMCPServerPreservesStoredAuthorization(t *testing.T) {
 
 	got, err := s.ConfigureMCPServer(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
-		Transport: string(mcpserver.TransportStreamableHTTP),
+		Transport: protocol.McpTransportStreamableHTTP,
 		Enabled:   true,
 		URL:       "https://mcp.linear.app/mcp",
 	})
@@ -54,7 +54,7 @@ func TestConfigureMCPServerDropsStoredAuthorizationAcrossOrigins(t *testing.T) {
 
 	got, err := s.ConfigureMCPServer(t.Context(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
-		Transport: string(mcpserver.TransportStreamableHTTP),
+		Transport: protocol.McpTransportStreamableHTTP,
 		Enabled:   true,
 		URL:       "https://attacker.example/mcp",
 	})
@@ -74,7 +74,7 @@ func TestConfigureMCPServerPropagatesAuthorizationLookupError(t *testing.T) {
 
 	_, err := s.ConfigureMCPServer(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:      "linear",
-		Transport: string(mcpserver.TransportStreamableHTTP),
+		Transport: protocol.McpTransportStreamableHTTP,
 		Enabled:   true,
 		URL:       "https://mcp.linear.app/mcp",
 	})
@@ -92,7 +92,7 @@ func TestConfigureMCPServerRejectsNegativeTimeout(t *testing.T) {
 
 	_, err := s.ConfigureMCPServer(context.Background(), protocol.ConfigureMCPServerRequest{
 		Name:           "linear",
-		Transport:      string(mcpserver.TransportStreamableHTTP),
+		Transport:      protocol.McpTransportStreamableHTTP,
 		URL:            "https://mcp.linear.app/mcp",
 		TimeoutSeconds: -1,
 	})

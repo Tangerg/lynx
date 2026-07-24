@@ -55,7 +55,7 @@ type StartCommand struct {
 	MaxCostUSD      float64
 	MaxSteps        int
 	Options         *corechat.Options
-	InterruptKinds  []string
+	InterruptKinds  []InterruptKind
 	Input           []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the run's update_goal signal only affects that goal
@@ -104,7 +104,7 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 type ResumeCommand struct {
 	RunID          string
 	Responses      []ResumeResponse
-	InterruptKinds []string
+	InterruptKinds []InterruptKind
 }
 
 type ResumeResponseKind string

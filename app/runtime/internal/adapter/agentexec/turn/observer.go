@@ -336,7 +336,10 @@ func denialReason(reason string) string {
 	return reason
 }
 
-func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
+func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, toolName, arguments string) {
+	if process.Child() {
+		return
+	}
 	t.dispatcher.emit(t.st, runs.ToolCallStart{
 		CallID:      callID,
 		ToolName:    toolName,
@@ -346,7 +349,16 @@ func (t *turnObserver) OnToolCallStart(callID, toolName, arguments string) {
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
+func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
+	if process.Child() {
+		// A suspension is an unfinished call, not a tool result. Its logical
+		// completion will be observed after the resumed child call returns.
+		if hitl.IsInterrupt(err) {
+			return
+		}
+		t.postToolHook(toolName, output, err)
+		return
+	}
 	// HITL interrupt: the tool
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
@@ -389,15 +401,23 @@ func (t *turnObserver) OnToolCallEnd(callID, toolName, arguments, output string,
 	// PostToolUse hooks (observe-only in v1): fire after the result so a user
 	// script can audit / notify / integrate. Result-injection isn't plumbed yet
 	// — the result already streamed to the model — so the Decision is ignored.
-	if toolName != "task" && !t.st.hooks.Empty() {
-		_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
-			Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
-			Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errorString(err),
-		})
-	}
+	t.postToolHook(toolName, output, err)
 }
 
-func (t *turnObserver) OnMessageDelta(text string) {
+func (t *turnObserver) postToolHook(toolName, output string, err error) {
+	if toolName == "task" || t.st.hooks.Empty() {
+		return
+	}
+	_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
+		Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
+		Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errorString(err),
+	})
+}
+
+func (t *turnObserver) OnMessageDelta(process agentexec.ProcessRef, text string) {
+	if process.Child() {
+		return
+	}
 	t.dispatcher.emit(t.st, runs.MessageDelta{
 		Text: text,
 	})
@@ -407,7 +427,10 @@ func (t *turnObserver) OnMessageDelta(text string) {
 // channel as [ReasoningDelta] events. Clients that don't care
 // about reasoning can ignore the type in their dispatch switch —
 // no event is dropped on the engine side.
-func (t *turnObserver) OnReasoningDelta(text string) {
+func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text string) {
+	if process.Child() {
+		return
+	}
 	t.dispatcher.emit(t.st, runs.ReasoningDelta{
 		Text: text,
 	})
@@ -416,7 +439,10 @@ func (t *turnObserver) OnReasoningDelta(text string) {
 // OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
 // the mid-run token / cost readout (transport maps it to segment.progress).
 // contextTokens is this round's prompt size (the live context occupancy).
-func (t *turnObserver) OnUsage(usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
+func (t *turnObserver) OnUsage(process agentexec.ProcessRef, usage accounting.TokenUsage, costUSD float64, contextTokens int64) {
+	if process.Child() {
+		return
+	}
 	t.dispatcher.emit(t.st, runs.UsageReported{
 		TokenUsage:    usage,
 		CostUSD:       costUSD,

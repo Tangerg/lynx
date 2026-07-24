@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
@@ -34,13 +35,26 @@ func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
 		todos := make([]protocol.TodoSnapshot, len(event.Todos))
 		for i, todo := range event.Todos {
 			todos[i] = protocol.TodoSnapshot{
-				ID: todo.ID, Text: todo.Text, Status: todo.Status,
+				ID: todo.ID, Text: todo.Text, Status: presentTodoStatus(todo.Status),
 				BlockedReason: todo.BlockedReason, NextAction: todo.NextAction,
 			}
 		}
 		return protocol.StreamEvent{Type: protocol.StreamStateSnapshot, State: map[string]any{"todos": todos}}
 	default:
 		panic("server: unknown canonical run event")
+	}
+}
+
+func presentTodoStatus(status todo.Status) protocol.TodoStatus {
+	switch status {
+	case todo.StatusPending:
+		return protocol.TodoStatusPending
+	case todo.StatusInProgress:
+		return protocol.TodoStatusInProgress
+	case todo.StatusCompleted:
+		return protocol.TodoStatusCompleted
+	default:
+		panic("server: unknown todo status")
 	}
 }
 

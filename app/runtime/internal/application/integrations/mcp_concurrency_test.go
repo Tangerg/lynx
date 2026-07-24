@@ -15,11 +15,11 @@ type mcpLiveSet struct {
 	servers map[string]bool
 }
 
-func (*mcpLiveSet) Probe(context.Context, mcpserver.LiveConfig) error {
+func (*mcpLiveSet) Probe(context.Context, mcpserver.Server) error {
 	return nil
 }
 
-func (s *mcpLiveSet) Configure(ctx context.Context, cfg mcpserver.LiveConfig) error {
+func (s *mcpLiveSet) Configure(ctx context.Context, cfg mcpserver.Server) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 
 func mcpInput(server mcpserver.Server) MCPServerInput {
 	return MCPServerInput{
-		Name: server.Name, Transport: string(server.Transport), Enabled: server.Enabled,
+		Name: server.Name, Transport: server.Transport, Enabled: server.Enabled,
 		Description: server.Description, URL: server.URL, Authorization: server.Authorization,
 		Headers: server.Headers, Command: server.Command, Args: server.Args, Env: server.Env,
 		Dir: server.Dir, Timeout: server.Timeout, DisabledTools: server.DisabledTools,

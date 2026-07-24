@@ -28,26 +28,9 @@ export interface FeatureCapability {
   stability: "stable" | "experimental";
 }
 
-export interface ServerFeatures {
-  reasoning: FeatureCapability;
-  mcp: FeatureCapability;
-  multimodal: FeatureCapability;
-  git: FeatureCapability;
-  fileWatch: FeatureCapability;
-  checkpoints: FeatureCapability;
-  lsp: FeatureCapability;
-  // todos and automatic compaction are runtime projections; optional means an
-  // older runtime may omit the feature and the client must treat it as off.
-  todos?: FeatureCapability;
-  compaction?: FeatureCapability;
-  subagents: FeatureCapability;
-  skills: FeatureCapability;
-  sessionExport: FeatureCapability;
-  memory: FeatureCapability;
-  relocate: FeatureCapability;
-  clientTools: FeatureCapability;
-  [name: string]: FeatureCapability | undefined;
-}
+// Features are an extensible capability map. Consumers must treat a missing
+// entry as disabled rather than assuming today's known feature set is complete.
+export type ServerFeatures = Record<string, FeatureCapability | undefined>;
 
 export interface ServerCapabilities {
   events: string[]; // event types the server emits
@@ -225,10 +208,27 @@ export interface ArtifactRunResult {
   durationMs?: number;
 }
 
-export type ArtifactProblem = Pick<
-  ProblemData,
-  "type" | "detail" | "docUrl" | "retryable" | "retryAfterSeconds"
->;
+// Portable artifacts preserve a closed historical error vocabulary, distinct
+// from live ProblemData.type which permits plugin-namespaced extensions.
+export type ArtifactProblemType =
+  | "internalError"
+  | "runLost"
+  | "agentStuck"
+  | "rateLimited"
+  | "invalidApiKey"
+  | "timeout"
+  | "providerUnavailable"
+  | "providerRejected"
+  | "deniedByUser"
+  | "toolFailed";
+
+export interface ArtifactProblem {
+  type: ArtifactProblemType;
+  detail?: string;
+  docUrl?: string;
+  retryable?: boolean;
+  retryAfterSeconds?: number;
+}
 
 // Direct durable transcript values. A tool result is canonical data rather
 // than the presentation-normalized result returned in live Item events.
@@ -240,7 +240,7 @@ export type ArtifactItem =
   | (ArtifactItemBase & {
       type: "toolCall";
       tool: ToolInvocation;
-      safetyClass?: string;
+      safetyClass?: SafetyClass;
       error?: ArtifactProblem;
     })
   | (ArtifactItemBase & { type: "compaction"; summary?: string; droppedMessages?: number });
@@ -315,6 +315,10 @@ export interface RunResult {
 
 export type ItemStatus = "running" | "completed" | "incomplete"; // running=in progress; incomplete = interrupted/canceled
 
+// The same closed tool-risk vocabulary is used by live items, portable
+// artifacts, and the tool catalog.
+export type SafetyClass = "safe" | "write" | "exec" | "network";
+
 export interface ItemBase {
   id: ItemId;
   runId: RunId; // owning Run (a subagent's item.runId = the child Run)
@@ -363,7 +367,7 @@ export type Item =
   | (ItemBase & {
       type: "toolCall";
       tool: ToolInvocation;
-      safetyClass?: string;
+      safetyClass?: SafetyClass;
       error?: ProblemData;
     })
   // A context-compaction boundary — the durable marker that "N
@@ -551,7 +555,7 @@ export interface ToolSpec {
   name: string;
   description?: string;
   parameters?: JsonSchema;
-  safetyClass?: string; // "safe" | "write" | "exec" | "network" …
+  safetyClass?: SafetyClass;
 }
 
 export interface GenerationParams {

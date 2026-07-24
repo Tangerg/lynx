@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // artifactFromPortable maps Application's terminal archive projection to the
@@ -80,18 +81,18 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 	}, nil
 }
 
-func artifactOutcomeType(outcome execution.Outcome) (string, error) {
+func artifactOutcomeType(outcome execution.Outcome) (protocol.ArtifactOutcomeType, error) {
 	switch outcome {
 	case execution.OutcomeCompleted:
-		return "completed", nil
+		return protocol.ArtifactOutcomeCompleted, nil
 	case execution.OutcomeCanceled:
-		return "canceled", nil
+		return protocol.ArtifactOutcomeCanceled, nil
 	case execution.OutcomeError:
-		return "error", nil
+		return protocol.ArtifactOutcomeError, nil
 	case execution.OutcomeMaxBudget:
-		return "maxBudget", nil
+		return protocol.ArtifactOutcomeMaxBudget, nil
 	case execution.OutcomeMaxSteps:
-		return "maxSteps", nil
+		return protocol.ArtifactOutcomeMaxSteps, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", outcome)
 	}
@@ -147,28 +148,28 @@ func artifactProblemFromDomain(problem *transcript.Problem) (*protocol.ArtifactP
 	}, nil
 }
 
-func artifactProblemType(kind transcript.ProblemKind) (string, error) {
+func artifactProblemType(kind transcript.ProblemKind) (protocol.ArtifactProblemType, error) {
 	switch kind {
 	case transcript.InternalProblem:
-		return "internalError", nil
+		return protocol.ArtifactProblemInternalError, nil
 	case transcript.RunLostProblem:
-		return "runLost", nil
+		return protocol.ArtifactProblemRunLost, nil
 	case transcript.AgentStuckProblem:
-		return "agentStuck", nil
+		return protocol.ArtifactProblemAgentStuck, nil
 	case transcript.RateLimitedProblem:
-		return "rateLimited", nil
+		return protocol.ArtifactProblemRateLimited, nil
 	case transcript.InvalidAPIKeyProblem:
-		return "invalidApiKey", nil
+		return protocol.ArtifactProblemInvalidAPIKey, nil
 	case transcript.TimeoutProblem:
-		return "timeout", nil
+		return protocol.ArtifactProblemTimeout, nil
 	case transcript.ProviderUnavailableProblem:
-		return "providerUnavailable", nil
+		return protocol.ArtifactProblemProviderUnavailable, nil
 	case transcript.ProviderRejectedProblem:
-		return "providerRejected", nil
+		return protocol.ArtifactProblemProviderRejected, nil
 	case transcript.DeniedByUserProblem:
-		return "deniedByUser", nil
+		return protocol.ArtifactProblemDeniedByUser, nil
 	case transcript.ToolFailedProblem:
-		return "toolFailed", nil
+		return protocol.ArtifactProblemToolFailed, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}
@@ -187,10 +188,14 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	if err != nil {
 		return protocol.ArtifactItem{}, fmt.Errorf("item %q error: %w", item.ID, err)
 	}
+	safetyClass, err := artifactSafetyClass(item.SafetyClass)
+	if err != nil {
+		return protocol.ArtifactItem{}, fmt.Errorf("item %q safety class: %w", item.ID, err)
+	}
 	out := protocol.ArtifactItem{
 		ID: item.ID, RunID: item.RunID, Status: status, CreatedAt: item.CreatedAt,
 		Type: kind, Text: item.Text, Redacted: item.Redacted,
-		SafetyClass: string(item.SafetyClass), Error: problem,
+		SafetyClass: safetyClass, Error: problem,
 		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
 	}
 	if len(item.Content) != 0 {
@@ -206,10 +211,11 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	if len(item.Steps) != 0 {
 		out.Steps = make([]protocol.ArtifactPlanStep, len(item.Steps))
 		for index, step := range item.Steps {
-			if !step.Status.Valid() {
-				return protocol.ArtifactItem{}, fmt.Errorf("item %q plan step %d: unknown status %q", item.ID, index, step.Status)
+			stepStatus, err := artifactPlanStepStatus(step.Status)
+			if err != nil {
+				return protocol.ArtifactItem{}, fmt.Errorf("item %q plan step %d: %w", item.ID, index, err)
 			}
-			out.Steps[index] = protocol.ArtifactPlanStep{ID: step.ID, Title: step.Title, Status: string(step.Status)}
+			out.Steps[index] = protocol.ArtifactPlanStep{ID: step.ID, Title: step.Title, Status: stepStatus}
 		}
 	}
 	if item.Question != nil {
@@ -229,46 +235,46 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	return out, nil
 }
 
-func artifactItemStatus(status transcript.ItemStatus) (string, error) {
+func artifactItemStatus(status transcript.ItemStatus) (protocol.ItemStatus, error) {
 	switch status {
 	case transcript.ItemRunning:
-		return "running", nil
+		return protocol.ItemStatusRunning, nil
 	case transcript.ItemCompleted:
-		return "completed", nil
+		return protocol.ItemStatusCompleted, nil
 	case transcript.ItemIncomplete:
-		return "incomplete", nil
+		return protocol.ItemStatusIncomplete, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", status)
 	}
 }
 
-func artifactItemType(kind transcript.ItemKind) (string, error) {
+func artifactItemType(kind transcript.ItemKind) (protocol.ItemType, error) {
 	switch kind {
 	case transcript.UserMessage:
-		return "userMessage", nil
+		return protocol.ItemTypeUserMessage, nil
 	case transcript.AgentMessage:
-		return "agentMessage", nil
+		return protocol.ItemTypeAgentMessage, nil
 	case transcript.Reasoning:
-		return "reasoning", nil
+		return protocol.ItemTypeReasoning, nil
 	case transcript.Plan:
-		return "plan", nil
+		return protocol.ItemTypePlan, nil
 	case transcript.QuestionItem:
-		return "question", nil
+		return protocol.ItemTypeQuestion, nil
 	case transcript.ToolCall:
-		return "toolCall", nil
+		return protocol.ItemTypeToolCall, nil
 	case transcript.Compaction:
-		return "compaction", nil
+		return protocol.ItemTypeCompaction, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}
 }
 
-func artifactContentType(kind transcript.ContentKind) (string, error) {
+func artifactContentType(kind transcript.ContentKind) (protocol.ContentBlockType, error) {
 	switch kind {
 	case transcript.TextContent:
-		return "text", nil
+		return protocol.ContentBlockText, nil
 	case transcript.ImageContent:
-		return "image", nil
+		return protocol.ContentBlockImage, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}
@@ -281,12 +287,12 @@ func artifactQuestionFromDomain(question transcript.Question) (*protocol.Artifac
 		for optionIndex, option := range field.Options {
 			options[optionIndex] = protocol.ArtifactQuestionOption{Label: option.Label, Description: option.Description, Preview: option.Preview}
 		}
-		var fieldType string
+		var fieldType protocol.QuestionFieldType
 		switch field.Kind {
 		case transcript.QuestionText:
-			fieldType = "text"
+			fieldType = protocol.QuestionFieldText
 		case transcript.QuestionChoice:
-			fieldType = "choice"
+			fieldType = protocol.QuestionFieldChoice
 		default:
 			return nil, fmt.Errorf("field %d has unknown type %d", index, field.Kind)
 		}
@@ -296,4 +302,36 @@ func artifactQuestionFromDomain(question transcript.Question) (*protocol.Artifac
 		}
 	}
 	return &protocol.ArtifactQuestion{Prompt: question.Prompt, Fields: fields}, nil
+}
+
+func artifactSafetyClass(class tool.SafetyClass) (protocol.SafetyClass, error) {
+	switch class {
+	case "":
+		return "", nil
+	case tool.SafetyClassSafe:
+		return protocol.SafetyClassSafe, nil
+	case tool.SafetyClassWrite:
+		return protocol.SafetyClassWrite, nil
+	case tool.SafetyClassExec:
+		return protocol.SafetyClassExec, nil
+	case tool.SafetyClassNetwork:
+		return protocol.SafetyClassNetwork, nil
+	default:
+		return "", fmt.Errorf("unknown value %q", class)
+	}
+}
+
+func artifactPlanStepStatus(status transcript.PlanStepStatus) (protocol.PlanStepStatus, error) {
+	switch status {
+	case transcript.PlanStepPending:
+		return protocol.PlanStepPending, nil
+	case transcript.PlanStepRunning:
+		return protocol.PlanStepRunning, nil
+	case transcript.PlanStepCompleted:
+		return protocol.PlanStepCompleted, nil
+	case transcript.PlanStepFailed:
+		return protocol.PlanStepFailed, nil
+	default:
+		return "", fmt.Errorf("unknown value %q", status)
+	}
 }

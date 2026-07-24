@@ -226,10 +226,22 @@ type ArtifactRun struct {
 // ArtifactOutcome is a non-interrupt terminal fact. Its string discriminator
 // is intentionally independent from the live RunOutcome wire union.
 type ArtifactOutcome struct {
-	Type   string             `json:"type"`
-	Result *ArtifactRunResult `json:"result"`
-	Detail string             `json:"detail,omitempty"`
+	Type   ArtifactOutcomeType `json:"type"`
+	Result *ArtifactRunResult  `json:"result"`
+	Detail string              `json:"detail,omitempty"`
 }
+
+// ArtifactOutcomeType is the closed terminal vocabulary portable across
+// runtime restarts. It deliberately excludes the live-only interrupt outcome.
+type ArtifactOutcomeType string
+
+const (
+	ArtifactOutcomeCompleted ArtifactOutcomeType = "completed"
+	ArtifactOutcomeError     ArtifactOutcomeType = "error"
+	ArtifactOutcomeMaxSteps  ArtifactOutcomeType = "maxSteps"
+	ArtifactOutcomeMaxBudget ArtifactOutcomeType = "maxBudget"
+	ArtifactOutcomeCanceled  ArtifactOutcomeType = "canceled"
+)
 
 type ArtifactRunResult struct {
 	Usage      *ArtifactUsage   `json:"usage,omitempty"`
@@ -261,11 +273,11 @@ type ArtifactModelUsage struct {
 // Item response DTO: archive tool results remain canonical rather than being
 // transformed for a particular client presentation.
 type ArtifactItem struct {
-	ID        string    `json:"id"`
-	RunID     string    `json:"runId"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"createdAt"`
-	Type      string    `json:"type"`
+	ID        string     `json:"id"`
+	RunID     string     `json:"runId"`
+	Status    ItemStatus `json:"status"`
+	CreatedAt time.Time  `json:"createdAt"`
+	Type      ItemType   `json:"type"`
 
 	Content         []ArtifactContentBlock  `json:"content,omitempty"`
 	Text            string                  `json:"text,omitempty"`
@@ -273,23 +285,23 @@ type ArtifactItem struct {
 	Steps           []ArtifactPlanStep      `json:"steps,omitempty"`
 	Question        *ArtifactQuestion       `json:"question,omitempty"`
 	Tool            *ArtifactToolInvocation `json:"tool,omitempty"`
-	SafetyClass     string                  `json:"safetyClass,omitempty"`
+	SafetyClass     SafetyClass             `json:"safetyClass,omitempty"`
 	Error           *ArtifactProblem        `json:"error,omitempty"`
 	Summary         string                  `json:"summary,omitempty"`
 	DroppedMessages int                     `json:"droppedMessages,omitempty"`
 }
 
 type ArtifactContentBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text,omitempty"`
-	Mime string `json:"mime,omitempty"`
-	Data string `json:"data,omitempty"`
+	Type ContentBlockType `json:"type"`
+	Text string           `json:"text,omitempty"`
+	Mime string           `json:"mime,omitempty"`
+	Data string           `json:"data,omitempty"`
 }
 
 type ArtifactPlanStep struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	Status string `json:"status"`
+	ID     string         `json:"id"`
+	Title  string         `json:"title"`
+	Status PlanStepStatus `json:"status"`
 }
 
 type ArtifactQuestion struct {
@@ -302,7 +314,7 @@ type ArtifactQuestionField struct {
 	Label    string                   `json:"label"`
 	Header   string                   `json:"header,omitempty"`
 	Required bool                     `json:"required,omitempty"`
-	Type     string                   `json:"type"`
+	Type     QuestionFieldType        `json:"type"`
 	Options  []ArtifactQuestionOption `json:"options,omitempty"`
 	Multiple bool                     `json:"multiple,omitempty"`
 }
@@ -320,12 +332,30 @@ type ArtifactToolInvocation struct {
 }
 
 type ArtifactProblem struct {
-	Type              string `json:"type"`
-	Detail            string `json:"detail,omitempty"`
-	DocURL            string `json:"docUrl,omitempty"`
-	Retryable         bool   `json:"retryable,omitempty"`
-	RetryAfterSeconds int    `json:"retryAfterSeconds,omitempty"`
+	Type              ArtifactProblemType `json:"type"`
+	Detail            string              `json:"detail,omitempty"`
+	DocURL            string              `json:"docUrl,omitempty"`
+	Retryable         bool                `json:"retryable,omitempty"`
+	RetryAfterSeconds int                 `json:"retryAfterSeconds,omitempty"`
 }
+
+// ArtifactProblemType is the durable transcript error vocabulary. It remains
+// separate from ProblemData.Type because artifacts intentionally retain their
+// earlier portable names and cannot carry live channel-specific plugin errors.
+type ArtifactProblemType string
+
+const (
+	ArtifactProblemInternalError       ArtifactProblemType = "internalError"
+	ArtifactProblemRunLost             ArtifactProblemType = "runLost"
+	ArtifactProblemAgentStuck          ArtifactProblemType = "agentStuck"
+	ArtifactProblemRateLimited         ArtifactProblemType = "rateLimited"
+	ArtifactProblemInvalidAPIKey       ArtifactProblemType = "invalidApiKey"
+	ArtifactProblemTimeout             ArtifactProblemType = "timeout"
+	ArtifactProblemProviderUnavailable ArtifactProblemType = "providerUnavailable"
+	ArtifactProblemProviderRejected    ArtifactProblemType = "providerRejected"
+	ArtifactProblemDeniedByUser        ArtifactProblemType = "deniedByUser"
+	ArtifactProblemToolFailed          ArtifactProblemType = "toolFailed"
+)
 
 // ArtifactToolResult carries the single full-body source for an offloaded tool
 // item. ItemID binds it structurally; Preview is the model-history replacement

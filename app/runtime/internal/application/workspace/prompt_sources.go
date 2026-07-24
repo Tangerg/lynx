@@ -29,10 +29,18 @@ type Recipe struct {
 	Source       string
 }
 
+// SkillScope identifies the source layer selected by prompt-source precedence.
+type SkillScope string
+
+const (
+	SkillScopeProject SkillScope = "project"
+	SkillScopeGlobal  SkillScope = "global"
+)
+
 // SkillInfo is one skill visible to a workspace, including the source layer
 // selected by prompt-source precedence.
 type SkillInfo struct {
 	Name        string
 	Description string
-	Scope       string // "project" (<workdir>/.lyra/skills) | "global"
+	Scope       SkillScope
 }

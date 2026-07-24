@@ -99,12 +99,21 @@ type RunProgress struct {
 // whole each todo_write, so ID is positional — a stable key within a snapshot,
 // not a durable identity. Status is "pending" | "in_progress" | "completed".
 type TodoSnapshot struct {
-	ID            string `json:"id"`
-	Text          string `json:"text"`
-	Status        string `json:"status"`
-	BlockedReason string `json:"blockedReason,omitempty"`
-	NextAction    string `json:"nextAction,omitempty"`
+	ID            string     `json:"id"`
+	Text          string     `json:"text"`
+	Status        TodoStatus `json:"status"`
+	BlockedReason string     `json:"blockedReason,omitempty"`
+	NextAction    string     `json:"nextAction,omitempty"`
 }
+
+// TodoStatus is the model-maintained checklist lifecycle.
+type TodoStatus string
+
+const (
+	TodoStatusPending    TodoStatus = "pending"
+	TodoStatusInProgress TodoStatus = "in_progress"
+	TodoStatusCompleted  TodoStatus = "completed"
+)
 
 // ItemDeltaType discriminates the ItemDelta union (API.md §5.1).
 type ItemDeltaType string

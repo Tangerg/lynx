@@ -2,6 +2,19 @@ package models
 
 import "time"
 
+// ProviderMetadata is static reference data used by the provider/model use
+// cases. It belongs to Application because it describes catalog capabilities,
+// not a durable provider-registry entity or credential.
+type ProviderMetadata struct {
+	ID                    string
+	RequiresBaseURL       bool
+	EmbeddingCapable      bool
+	DefaultEmbeddingModel string
+	// ProbeModels marks a provider whose available models are defined by its live
+	// endpoint rather than the static catalog.
+	ProbeModels bool
+}
+
 // Model is the application-facing catalog record used by model selection. It
 // carries provider capability facts without exposing the infrastructure catalog
 // or a protocol-specific shape.

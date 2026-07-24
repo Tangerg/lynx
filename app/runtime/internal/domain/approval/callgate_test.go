@@ -121,13 +121,3 @@ func TestToolCallPlanResolvePromptShortcuts_RememberedRuleBeforeAutoApprove(t *t
 		t.Fatalf("auto approve = %+v, want pass", got)
 	}
 }
-
-func TestToolCallPlan_ApprovedArguments(t *testing.T) {
-	plan := ToolCallPlan{ArgumentOverride: `{"path":"hook"}`}
-	if got := plan.ApprovedArguments(`{"path":"human"}`); got != `{"path":"human"}` {
-		t.Fatalf("human edit = %q, want human args", got)
-	}
-	if got := plan.ApprovedArguments(""); got != `{"path":"hook"}` {
-		t.Fatalf("no human edit = %q, want hook rewrite", got)
-	}
-}

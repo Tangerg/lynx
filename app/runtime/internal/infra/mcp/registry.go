@@ -29,7 +29,7 @@ func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 	defer c.mu.Unlock()
 	out := make([]mcpserver.ConnectionStatus, 0, len(c.servers))
 	for _, ms := range c.servers {
-		out = append(out, mcpserver.ConnectionStatus{Name: ms.name(), State: ms.state, Err: ms.lastErr})
+		out = append(out, mcpserver.ConnectionStatus{Name: ms.name(), State: ms.state})
 	}
 	return out
 }

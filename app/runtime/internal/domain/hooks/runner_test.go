@@ -63,7 +63,7 @@ func TestRunner_CommandReceivesTypedEvent(t *testing.T) {
 }
 
 func TestRunner_StdoutDenyBlocks(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny", Reason: "no rm allowed"}}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny, Reason: "no rm allowed"}}}}, nil)
 	hooks := []Hook{{
 		Event:   PreToolUse,
 		Command: "hook",
@@ -91,7 +91,7 @@ func TestRunner_Exit2Blocks(t *testing.T) {
 }
 
 func TestRunner_AskEscalates(t *testing.T) {
-	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "ask", Reason: "review"}}}}, nil)
+	r := NewRunner(&commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandAsk, Reason: "review"}}}}, nil)
 	hooks := []Hook{{Event: PreToolUse, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block || !dec.Ask {
@@ -145,7 +145,7 @@ func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 }
 
 func TestRunner_MatcherGatesByToolName(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny", Reason: "x"}}}}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny, Reason: "x"}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []Hook{{Event: PreToolUse, Matcher: "shell", Command: "hook"}}
 
@@ -164,8 +164,8 @@ func TestRunner_MatcherGatesByToolName(t *testing.T) {
 
 func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 	r := NewRunner(&commandStub{results: []CommandResult{
-		{Decision: CommandDecision{Decision: "deny", Reason: "first"}},
-		{Decision: CommandDecision{Decision: "deny", Reason: "second"}},
+		{Decision: CommandDecision{Verdict: CommandDeny, Reason: "first"}},
+		{Decision: CommandDecision{Verdict: CommandDeny, Reason: "second"}},
 	}}, nil)
 	hooks := []Hook{
 		{Event: PostToolUse, Inject: "ctx-a"},
@@ -183,7 +183,7 @@ func TestRunner_FirstBlockWins_ContextConcatenated(t *testing.T) {
 }
 
 func TestRunner_WrongEventDoesNotFire(t *testing.T) {
-	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Decision: "deny"}}}}
+	cmds := &commandStub{results: []CommandResult{{Decision: CommandDecision{Verdict: CommandDeny}}}}
 	r := NewRunner(cmds, nil)
 	hooks := []Hook{{Event: Stop, Command: "hook"}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
