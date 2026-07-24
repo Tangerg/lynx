@@ -43,3 +43,35 @@ func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 		}
 	}
 }
+
+func TestMapRunEvents_ContainsPresenterPanic(t *testing.T) {
+	in := slices.Values([]runs.Event{
+		{RunID: "run_1", Seq: "00000000001"}, // nil payload is invalid
+		{RunID: "run_1", Seq: "00000000002", Payload: runs.SegmentProgressed{}},
+	})
+
+	var count int
+	for range mapRunEvents(context.Background(), in) {
+		count++
+	}
+	if count != 0 {
+		t.Fatalf("events after presenter panic = %d, want 0", count)
+	}
+}
+
+func TestMapRunEvents_DoesNotRecoverConsumerPanic(t *testing.T) {
+	in := slices.Values([]runs.Event{
+		{RunID: "run_1", Seq: "00000000001", Payload: runs.SegmentProgressed{}},
+	})
+	const want = "consumer panic"
+
+	defer func() {
+		if got := recover(); got != want {
+			t.Fatalf("recovered panic = %v, want %q", got, want)
+		}
+	}()
+	for range mapRunEvents(context.Background(), in) {
+		panic(want)
+	}
+	t.Fatal("consumer panic was recovered by mapRunEvents")
+}

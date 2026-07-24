@@ -254,16 +254,19 @@ func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (Ca
 // SubscribeLive opens a coherent subscription to a live run. The record and
 // Journal are captured from the same registry entry, so Delivery cannot return
 // a segment id from one entry and subscribe to a replacement or removed entry.
-// The subscription is dropped when ctx ends. ok=false when the run is not
-// actively streaming.
+// The subscription is dropped when ctx ends or the consumer stops ranging.
+// ok=false when the run is not actively streaming.
 func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string) (Record, iter.Seq[Event], bool) {
 	e, ok := c.registry.Get(runID)
 	if !ok || e.handle == nil || e.handle.hub == nil {
 		return Record{}, nil, false
 	}
 	seq, unsubscribe := e.handle.hub.Subscribe(fromCursor)
-	context.AfterFunc(ctx, unsubscribe)
-	return e.record, seq, true
+	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)
+	return e.record, func(yield func(Event) bool) {
+		defer stopUnsubscribe()
+		seq(yield)
+	}, true
 }
 
 // List snapshots the records of the currently-live runs.

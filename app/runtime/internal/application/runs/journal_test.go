@@ -151,6 +151,26 @@ func TestJournal_CancelDetaches(t *testing.T) {
 	j.Close()             // must not double-anything
 }
 
+func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
+	j := NewJournal()
+	seq, _ := j.Subscribe("")
+	j.Append(ev(1, true))
+
+	for range seq {
+		break
+	}
+
+	j.mu.Lock()
+	subscribers := len(j.subs)
+	j.mu.Unlock()
+	if subscribers != 0 {
+		t.Fatalf("subscribers after range stop = %d, want 0", subscribers)
+	}
+
+	j.Append(ev(2, true)) // must not enqueue into an abandoned subscriber
+	j.Close()
+}
+
 func TestJournal_DurableOverflowIsLossless(t *testing.T) {
 	j := NewJournal()
 	seq, cancel := j.Subscribe("")

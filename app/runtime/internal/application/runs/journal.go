@@ -72,12 +72,9 @@ func (j *Journal) Close() {
 // serialize on the Journal lock, so replay and the first live event form one
 // ordered stream.
 //
-// The sequence blocks in the source between events, so a consumer ranging it
-// cannot break out while waiting: cancel is the only way to end a live
-// subscription early (it also removes the subscriber so Append stops enqueuing).
-// cancel must therefore be wired to the consumer's lifetime (e.g.
-// context.AfterFunc) — a ranged-but-never-canceled live subscription whose run
-// never closes leaks the ranging goroutine.
+// Stopping an active range detaches the subscriber automatically. cancel remains
+// necessary when the consumer must interrupt a range blocked waiting for its
+// next event, so callers should also wire it to the consumer's lifetime.
 func (j *Journal) Subscribe(fromCursor string) (iter.Seq[Event], func()) {
 	j.mu.Lock()
 	replay := make([]Event, 0, len(j.durable))
@@ -108,7 +105,11 @@ func (j *Journal) Subscribe(fromCursor string) (iter.Seq[Event], func()) {
 			subscriber.abort()
 		})
 	}
-	return subscriber.events(), cancel
+	events := subscriber.events()
+	return func(yield func(Event) bool) {
+		defer cancel()
+		events(yield)
+	}, cancel
 }
 
 type journalSubscriber struct {
@@ -161,8 +162,8 @@ func (s *journalSubscriber) abort() {
 }
 
 // events yields queued events until the subscription drains to a finish or is
-// aborted. It runs on the consumer's goroutine; next blocks in the cond, so only
-// finish or abort can end a live subscription — the ranging consumer cannot.
+// aborted. It runs on the consumer's goroutine; next blocks in the cond, so
+// finish or abort must wake a consumer that is waiting between events.
 func (s *journalSubscriber) events() iter.Seq[Event] {
 	return func(yield func(Event) bool) {
 		for {

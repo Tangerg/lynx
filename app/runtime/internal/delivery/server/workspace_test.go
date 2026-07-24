@@ -335,6 +335,28 @@ func TestWorkspaceSubscribe(t *testing.T) {
 	}
 }
 
+func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
+	s := &Server{wsHub: newWorkspaceHub()}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
+	if err != nil {
+		t.Fatalf("subscribe: %v", err)
+	}
+
+	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: protocol.WorkspaceEventSkillsChanged})
+	for range seq {
+		break
+	}
+
+	s.wsHub.mu.Lock()
+	subscribers := len(s.wsHub.subs)
+	s.wsHub.mu.Unlock()
+	if subscribers != 0 {
+		t.Fatalf("subscriptions after range stop = %d, want 0", subscribers)
+	}
+}
+
 // TestWorkspaceSubscribeLifetimeIsTheRequest: a subscription's stream is bounded
 // by its request ctx (client disconnect / the transport's forced shutdown), not
 // by Server.Close — delivery owns no task group (§16 rule 5). Server.Close only

@@ -61,25 +61,32 @@ func presentTodoStatus(status todo.Status) protocol.TodoStatus {
 
 func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) iter.Seq[protocol.RunEvent] {
 	return func(yield func(protocol.RunEvent) bool) {
-		// presentRunEvent asserts an exhaustive event switch and dereferences
-		// payloads; it runs synchronously on the consumer's goroutine, outside the
-		// request-scoped panic recovery. Contain a panic to this one stream — record
-		// it and end the sequence — so an unrecovered presenter bug terminates this
-		// single stream rather than aborting the whole process.
-		defer func() {
-			if r := recover(); r != nil {
-				trace.SpanFromContext(ctx).RecordError(fmt.Errorf("server: run-event presenter panicked, terminating stream: %v", r))
-			}
-		}()
 		for event := range in {
+			presented, ok := safePresentRunEvent(ctx, event.Payload)
+			if !ok {
+				return
+			}
 			wire := protocol.RunEvent{
 				RunID: event.RunID, SegmentID: event.SegmentID,
 				EventID: protocol.IDPrefixEvent + event.Seq, Timestamp: event.Timestamp,
-				Event: presentRunEvent(event.Payload),
+				Event: presented,
 			}
 			if !yield(wire) {
 				return
 			}
 		}
 	}
+}
+
+// safePresentRunEvent contains only presenter failures. In particular, it must
+// not recover a panic raised by the downstream range body through yield.
+func safePresentRunEvent(ctx context.Context, event runs.RunEvent) (presented protocol.StreamEvent, ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			trace.SpanFromContext(ctx).RecordError(fmt.Errorf("server: run-event presenter panicked, terminating stream: %v", r))
+			presented = protocol.StreamEvent{}
+			ok = false
+		}
+	}()
+	return presentRunEvent(event), true
 }

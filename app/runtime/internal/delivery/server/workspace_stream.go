@@ -134,10 +134,9 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 }
 
 // SubscribeWorkspace opens the workspace event stream (AUX_API §3.1). The
-// stream's lifetime is the request ctx: it ends on client disconnect and on
-// server shutdown (the transport force-closes the connection, canceling the
-// request), at which point the cleanup below runs and the transport's own
-// shutdown joins this still-active handler. Broadcast events (mcp.serverChanged,
+// stream's lifetime is bounded by the request ctx and by the consumer's range:
+// it ends on client disconnect, server shutdown (the transport force-closes the
+// connection), or an early range stop. Broadcast events (mcp.serverChanged,
 // skills.changed) go to every subscription; when the request carries watches, the
 // subscription also asks the workspace use case to monitor those cwds' Git state and emits a debounced resync
 // on any change (commit / stage / checkout / merge) — the client then re-fetches
@@ -171,22 +170,28 @@ func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSu
 		}
 	}
 
-	context.AfterFunc(ctx, func() {
+	release := sync.OnceFunc(func() {
 		if watcher != nil {
 			_ = watcher.Close() // joins callbacks — no emit after this
 		}
 		unregister() // hub stops broadcasting to out
 		close(out)
 	})
-	return &protocol.WorkspaceSubscribeResponse{}, eventSeq(out), nil
+	stopContextRelease := context.AfterFunc(ctx, release)
+	stop := sync.OnceFunc(func() {
+		stopContextRelease()
+		release()
+	})
+	return &protocol.WorkspaceSubscribeResponse{}, eventSeq(out, stop), nil
 }
 
 // eventSeq presents a subscription channel as the iter.Seq the wire streaming
 // contract uses. The lossy fan-out hub keeps its channels internally; only this
-// outer boundary is a sequence. The channel closes on request-context
-// cancellation (see the AfterFunc above), so the range terminates.
-func eventSeq(ch <-chan protocol.WorkspaceEvent) iter.Seq[protocol.WorkspaceEvent] {
+// outer boundary is a sequence. stop releases the subscription when the
+// consumer ends the range before its request context does.
+func eventSeq(ch <-chan protocol.WorkspaceEvent, stop func()) iter.Seq[protocol.WorkspaceEvent] {
 	return func(yield func(protocol.WorkspaceEvent) bool) {
+		defer stop()
 		for ev := range ch {
 			if !yield(ev) {
 				return
