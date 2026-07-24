@@ -116,6 +116,7 @@ type journalSubscriber struct {
 	mu         sync.Mutex
 	ready      *sync.Cond
 	queue      []Event
+	head       int
 	queuedLive int
 	finishing  bool
 	aborted    bool
@@ -139,6 +140,12 @@ func (s *journalSubscriber) enqueue(ev Event) {
 		}
 		s.queuedLive++
 	}
+	if s.head > 0 && len(s.queue) == cap(s.queue) {
+		remaining := copy(s.queue, s.queue[s.head:])
+		clear(s.queue[remaining:])
+		s.queue = s.queue[:remaining]
+		s.head = 0
+	}
 	s.queue = append(s.queue, ev)
 	s.ready.Signal()
 }
@@ -157,6 +164,10 @@ func (s *journalSubscriber) finish() {
 func (s *journalSubscriber) abort() {
 	s.mu.Lock()
 	s.aborted = true
+	clear(s.queue[s.head:])
+	s.queue = nil
+	s.head = 0
+	s.queuedLive = 0
 	s.ready.Broadcast()
 	s.mu.Unlock()
 }
@@ -181,15 +192,24 @@ func (s *journalSubscriber) events() iter.Seq[Event] {
 func (s *journalSubscriber) next() (Event, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for len(s.queue) == 0 && !s.finishing && !s.aborted {
+	for s.head == len(s.queue) && !s.finishing && !s.aborted {
 		s.ready.Wait()
 	}
-	if s.aborted || (len(s.queue) == 0 && s.finishing) {
+	if s.aborted || (s.head == len(s.queue) && s.finishing) {
 		return Event{}, false
 	}
-	ev := s.queue[0]
-	s.queue[0] = Event{}
-	s.queue = s.queue[1:]
+	ev := s.queue[s.head]
+	s.queue[s.head] = Event{}
+	s.head++
+	if s.head == len(s.queue) {
+		// Reuse the routine live-event buffer, but do not retain a durable burst.
+		if cap(s.queue) > liveHeadroom {
+			s.queue = nil
+		} else {
+			s.queue = s.queue[:0]
+		}
+		s.head = 0
+	}
 	if !ev.Durable() && !ev.Terminal() {
 		s.queuedLive--
 	}

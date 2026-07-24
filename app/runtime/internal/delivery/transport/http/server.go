@@ -47,7 +47,7 @@ type messageHandler interface {
 // Server is the HTTP transport. One instance per process — a thin
 // adapter over the dispatcher: it decodes a POST, dispatches, and either
 // writes one application/json reply or (for streaming methods) streams
-// the call's event channel as text/event-stream (TRANSPORT §6.4). It
+// the call's event sequence as text/event-stream (TRANSPORT §6.4). It
 // holds no per-run state — the event hubs + replay live in the runtime.
 type Server struct {
 	info     infoResponse

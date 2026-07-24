@@ -33,6 +33,7 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 	// replays it. Pull the first event on a goroutine so the assertion stays
 	// timeout-bounded (a blocked source next cannot be interrupted inline).
 	next, stop := iter.Pull(events)
+	defer stop()
 	first := make(chan protocol.RunEvent, 1)
 	go func() {
 		if ev, ok := next(); ok {
@@ -41,7 +42,6 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 	}()
 	select {
 	case ev := <-first:
-		stop()
 		if ev.RunID != runID {
 			t.Fatalf("first event runId = %q, want %s", ev.RunID, runID)
 		}

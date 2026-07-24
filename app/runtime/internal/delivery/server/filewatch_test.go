@@ -36,7 +36,7 @@ func TestWorkspaceSubscribe_GitWatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	events := drainSeq(seq)
+	events := drainSeq(ctx, seq)
 
 	// A git operation rewrites .git/index → expect a debounced resync.
 	if err := os.WriteFile(filepath.Join(gitDir, "index"), []byte("v1"), 0o644); err != nil {
@@ -66,7 +66,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subscribe (non-repo) must not error: %v", err)
 	}
-	events := drainSeq(seq)
+	events := drainSeq(ctx, seq)
 	// Broadcast events still flow on the subscription.
 	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
 	select {

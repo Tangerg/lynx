@@ -17,9 +17,9 @@ import (
 
 // StartRun translates runs.start into the in-process runtime turn
 // path (API.md §7.3). It returns the runId synchronously; events flow
-// out via the returned channel as RunEvents (wrapped by the transport
+// out via the returned sequence as RunEvents (wrapped by the transport
 // into notifications.run.event). The terminal segment.finished rides this
-// channel — including outcome:interrupt when the run parks for HITL
+// sequence — including outcome:interrupt when the run parks for HITL
 // approval, after which the run suspends and the client answers via
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {

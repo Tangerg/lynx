@@ -20,7 +20,7 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	events := drainSeq(seq)
+	events := drainSeq(ctx, seq)
 	notifier.Publish(struct{}{})
 
 	select {

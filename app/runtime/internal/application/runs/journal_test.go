@@ -171,6 +171,51 @@ func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
 	j.Close()
 }
 
+func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
+	subscriber := newJournalSubscriber(nil)
+	subscriber.enqueue(ev(1, false))
+	if _, ok := subscriber.next(); !ok {
+		t.Fatal("routine event was not delivered")
+	}
+	routineCapacity := cap(subscriber.queue)
+	if routineCapacity == 0 {
+		t.Fatal("routine queue capacity was not retained")
+	}
+
+	subscriber.enqueue(ev(2, false))
+	if _, ok := subscriber.next(); !ok {
+		t.Fatal("reused queue event was not delivered")
+	}
+	if got := cap(subscriber.queue); got != routineCapacity {
+		t.Fatalf("routine queue capacity = %d, want reused capacity %d", got, routineCapacity)
+	}
+
+	for i := 0; i < liveHeadroom*2; i++ {
+		subscriber.enqueue(ev(i+3, true))
+	}
+	for i := 0; i < liveHeadroom*2; i++ {
+		if _, ok := subscriber.next(); !ok {
+			t.Fatalf("durable burst ended at event %d", i)
+		}
+	}
+	if subscriber.queue != nil {
+		t.Fatalf("oversized drained queue retained capacity %d", cap(subscriber.queue))
+	}
+}
+
+func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
+	subscriber := newJournalSubscriber(nil)
+	subscriber.enqueue(ev(1, true))
+	subscriber.abort()
+
+	if subscriber.queue != nil {
+		t.Fatalf("aborted queue retained capacity %d", cap(subscriber.queue))
+	}
+	if _, ok := subscriber.next(); ok {
+		t.Fatal("aborted subscriber delivered a queued event")
+	}
+}
+
 func TestJournal_DurableOverflowIsLossless(t *testing.T) {
 	j := NewJournal()
 	seq, cancel := j.Subscribe("")

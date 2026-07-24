@@ -12,9 +12,8 @@ import (
 type Runs interface {
 	// StartRun starts a new run and opens its event stream. Returns the
 	// runId synchronously; events flow out via notifications.run.event.
-	// The terminal state is the segment.finished event in the stream (not a
-	// separate channel) — the run tree (root + subagents) shares this
-	// one stream (API.md §5 / §5.4).
+	// The terminal state is the segment.finished event; the run tree (root +
+	// subagents) shares this one stream (API.md §5 / §5.4).
 	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, iter.Seq[RunEvent], error)
 
 	// ResumeRun answers open interrupts by opening a new segment of the SAME run

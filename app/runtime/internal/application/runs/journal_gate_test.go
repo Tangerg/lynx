@@ -6,23 +6,15 @@ import (
 	"time"
 )
 
-// The tests in this file pin the Journal contract that the channel→iter.Seq
-// migration must preserve: durable/terminal losslessness, the live-only drop
-// policy, and — the load-bearing one — that an external cancel unblocks a
-// subscriber currently waiting for its next event. They are transport-shape
-// agnostic (they only range the subscription), so they survive the migration
-// unchanged.
-
 // TestJournalDurableLosslessLiveLossyUnderOverflow locks the drop policy: when a
 // subscriber is flooded far past its buffering without draining, every durable
 // event still arrives in order, while live-only events become a lossy but
 // still-ordered subset. The exact surviving live count is deliberately NOT
-// asserted — it is an implementation detail of the buffering (the migration
-// intentionally collapses the incidental double buffer), whereas "durable never
+// asserted because buffering size is an implementation detail; "durable never
 // drops, live-only may" is the contract.
 func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	defer cancel()
 
 	// Flood without reading: far more live-only than any buffer can hold, with
@@ -46,7 +38,7 @@ func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
 
 	var gotDurable []string
 	deliveredLive := 0
-	for e := range ch {
+	for e := range seq {
 		if e.Durable() {
 			gotDurable = append(gotDurable, e.Seq)
 			continue
@@ -68,18 +60,15 @@ func TestJournalDurableLosslessLiveLossyUnderOverflow(t *testing.T) {
 	}
 }
 
-// TestJournalCancelUnblocksWaitingSubscriber is the load-bearing guard for the
-// iter.Seq migration: a subscriber ranging its subscription blocks waiting for
-// the next event, and only an external cancel can end it — a consumer blocked
-// inside the source cannot break out on its own. If a future refactor drops the
-// cancel wakeup, this hangs and the timeout fails it.
+// TestJournalCancelUnblocksWaitingSubscriber guards the external cancellation
+// contract: a consumer blocked inside the source cannot stop its own range.
 func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 
 	done := make(chan struct{})
 	go func() {
-		for range ch { // no events will ever arrive; blocks in the source
+		for range seq { // no events will ever arrive; blocks in the source
 		}
 		close(done)
 	}()
@@ -93,9 +82,8 @@ func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 	}
 }
 
-// BenchmarkJournalAppendDrain records the per-event append→deliver cost through
-// one subscriber — the Batch 0 baseline for the migration's before/after
-// comparison. Live-only events avoid unbounded durable retention.
+// BenchmarkJournalAppendDrain records the steady-state per-event append→deliver
+// cost through one subscriber. Live-only events avoid durable retention.
 func BenchmarkJournalAppendDrain(b *testing.B) {
 	j := NewJournal()
 	seq, cancel := j.Subscribe("")

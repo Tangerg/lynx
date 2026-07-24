@@ -313,7 +313,7 @@ func TestWorkspaceSubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
-	events := drainSeq(seq)
+	events := drainSeq(ctx, seq)
 	s.PublishWorkspaceEvent(protocol.WorkspaceEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
@@ -368,7 +368,7 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubscribeWorkspace: %v", err)
 	}
-	events := drainSeq(seq)
+	events := drainSeq(reqCtx, seq)
 
 	// Server.Close gates new work but must not disturb an in-flight request-owned
 	// stream (the transport joins active handlers on shutdown).

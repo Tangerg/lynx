@@ -161,8 +161,8 @@ type fakeRuns struct {
 	calls    int
 }
 
-// chanSeq adapts the fake's async event channel to the iter.Seq[runs.Event] the
-// run stream now delivers, preserving the hold-then-yield-terminal timing.
+// chanSeq preserves the fake's hold-then-yield-terminal timing behind its
+// iter.Seq contract.
 func chanSeq(ch <-chan runs.Event) iter.Seq[runs.Event] {
 	return func(yield func(runs.Event) bool) {
 		for ev := range ch {
