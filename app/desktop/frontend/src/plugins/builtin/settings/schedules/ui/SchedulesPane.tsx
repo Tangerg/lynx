@@ -1,19 +1,16 @@
 import { useState } from "react";
 import { DataView, EmptyState, Icon, PillButton } from "@/ui";
-import { isUnsupportedMethod } from "@/lib/rpcErrors";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { useT } from "@/lib/i18n";
 import { useScheduleConfigs } from "../application/scheduleCommands";
 import { ScheduleForm } from "./ScheduleForm";
 import { ScheduleRow } from "./ScheduleRow";
 
 export function SchedulesPane() {
+  const enabled = useRuntimeCapability("schedules");
   const t = useT();
-  const cwd = useActiveSessionCwd();
-  const { data, isLoading, isError, error } = useScheduleConfigs();
-  const [adding, setAdding] = useState(false);
-
-  if (isError && isUnsupportedMethod(error)) {
+  if (!enabled) {
     return (
       <EmptyState
         icon="command"
@@ -22,6 +19,14 @@ export function SchedulesPane() {
       />
     );
   }
+  return <EnabledSchedulesPane />;
+}
+
+function EnabledSchedulesPane() {
+  const t = useT();
+  const cwd = useActiveSessionCwd();
+  const { data, isLoading, isError } = useScheduleConfigs();
+  const [adding, setAdding] = useState(false);
 
   return (
     <div className="flex flex-col gap-3">

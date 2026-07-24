@@ -1442,18 +1442,18 @@ interface HooksListResult {
 | `skills.drafts.list`    | `{ cursor?; limit? }` | `Page<SkillDraft>` | `skills`（authoring） |
 | `skills.drafts.promote` | `SkillDraftRef`       | 无                 | `skills`（authoring） |
 | `skills.drafts.reject`  | `SkillDraftRef`       | 无                 | `skills`（authoring） |
-| `agentMemory.list`   | `{ scope?: "project"\|"user"; cwd? }`           | `{ items: AgentMemoryItem[] }` | agent memory store |
-| `agentMemory.review` | `{ id: string; decision: "approve"\|"reject" }` | 无                             | agent memory store |
-| `agentMemory.update` | `{ id: string; content?: string; pinned?: bool }` | `AgentMemoryItem`            | agent memory store |
-| `agentMemory.delete` | `{ id: string }`                                | 无                             | agent memory store |
-| `agentMemory.add`    | `{ scope?; cwd?; content: string }`             | `AgentMemoryItem`              | agent memory store |
+| `agentMemory.list`   | `{ scope?: "project"\|"user"; cwd? }`           | `{ items: AgentMemoryItem[] }` | `agentMemory` |
+| `agentMemory.review` | `{ id: string; decision: "approve"\|"reject" }` | 无                             | `agentMemory` |
+| `agentMemory.update` | `{ id: string; content?: string; pinned?: bool }` | `AgentMemoryItem`            | `agentMemory` |
+| `agentMemory.delete` | `{ id: string }`                                | 无                             | `agentMemory` |
+| `agentMemory.add`    | `{ scope?; cwd?; content: string }`             | `AgentMemoryItem`              | `agentMemory` |
 | `feedback.create` | `{ sessionId?; runId?; itemId?; rating?: "positive"\|"negative"; text? }` | 无                  | runtime feedback ledger |
 
 > **`feedback.create` = 耐久质量记录**：`rating` 存在时只能为 `positive` 或 `negative`；`rating` 与非空白 `text` 至少提供一项。成功响应表示记录已被 runtime 的 append-only feedback ledger 接收（该协议组刻意不提供 readback），无效记录返回 `invalid_params`。
 
 > **`skills.drafts.*` = 自撰 skill 的离线 HITL 审阅队列**：agent 在 turn 边界从会话里蒸馏出 skill 提案，落 `_drafts/`（模型不可见），人经此队列 `promote`（发布进 active 库）/ `reject`（丢弃）。`SkillDraft`（`{ name, revision, description?, createdBy?, sourceSession? }`）的 `name+revision` 是内容寻址 handle；`promote`/`reject` 带 `SkillDraftRef`（`{ name, revision }`），`revision` 把决定绑到审阅时的确切字节（撞名冲突返 `invalid_params`）。仅在 authoring store 装配时可用，否则 `capability_not_negotiated`。
 
-> **`agentMemory.*` = agent 自维护记忆的 HITL 审阅面**（区别于 `memory.*` 的用户手写 LYRA.md 级联）：agent 从会话挖掘出的耐久事实先落 `pending`，经人 `review`（approve→active / reject→隐藏 tombstone）后才 `active`；**只有 active 记忆**会注入后续 prompt 或被 `memory_search` 工具返回。`AgentMemoryItem`（`{ id, scope: "project"|"user", content, origin: "auto"|"user", status: "active"|"pending", pinned, sessionId?, day?, createdAt, updatedAt }`）；`list` 按 pending-first 排（rejected 隐藏）。`update` 的 nil 字段不变（content / pinned 分别改）；`add` 存用户手写的 active 项。scope=project 用 cwd 定位项目，scope=user 忽略 cwd。store 未装配时 `capability_not_negotiated`。
+> **`agentMemory.*` = agent 自维护记忆的 HITL 审阅面**（区别于 `memory.*` 的用户手写 LYRA.md 级联）：agent 从会话挖掘出的耐久事实先落 `pending`，经人 `review`（approve→active / reject→隐藏 tombstone）后才 `active`；**只有 active 记忆**会注入后续 prompt 或被 `memory_search` 工具返回。`AgentMemoryItem`（`{ id, scope: "project"|"user", content, origin: "auto"|"user", status: "active"|"pending", pinned, sessionId?, day?, createdAt, updatedAt }`）；`list` 按 pending-first 排（rejected 隐藏）。`update` 的 nil 字段不变（content / pinned 分别改）；`add` 存用户手写的 active 项。scope=project 用 cwd 定位项目，scope=user 忽略 cwd。`features.agentMemory=false` 时整个组返回 `capability_not_negotiated`。
 
 > **图片输入不走上传域**：图片随 `runs.start.input` 的 image ContentBlock 内联（mime + base64 data）传入——对照八家 agent（opencode / Claude Code / codex …）一致做法，无独立 attachment 上传/引用子系统。`unsupported_mime` 仍用于校验 image block 的 mime（非图片类型或不可解析）。
 
@@ -1473,7 +1473,7 @@ interface HooksListResult {
 
 ### 7.9 schedules.*
 
-定时（cron）触发的 **headless run**：到点时运行时用存好的 prompt 在指定 cwd 起一个新会话跑完、落库,**无需客户端在场**。调度器是 runtime server 进程内的常驻 worker（每分钟扫一次到点的 schedule),server 进程不在时不触发(下次起来对错过的只补跑一次、然后跳到下一个未来时点,不回放每个错过的槽)。一个 schedule 存**最终 prompt 文本**(客户端可"从 recipe 填充",但调度器与 recipes 解耦——删/改名 recipe 不会破坏 schedule)。
+定时（cron）触发的 **headless run**：到点时运行时用存好的 prompt 在指定 cwd 起一个新会话跑完、落库,**无需客户端在场**。调度器是 runtime server 进程内的常驻 worker（每分钟扫一次到点的 schedule),server 进程不在时不触发(下次起来对错过的只补跑一次、然后跳到下一个未来时点,不回放每个错过的槽)。一个 schedule 存**最终 prompt 文本**(客户端可"从 recipe 填充",但调度器与 recipes 解耦——删/改名 recipe 不会破坏 schedule)。`features.schedules=false` 时整个组返回 `capability_not_negotiated`。
 
 每次触发产生一条 `schedules.fired{scheduleId}` 工作区事件(§7.5 流),客户端据此刷新会话列表(新 run 落在一个新会话里)。
 
@@ -1508,7 +1508,7 @@ interface Schedule {
 
 ### 7.10 codebase.*
 
-**@codebase 语义索引** —— 按语义(而非字面文本)检索项目代码。后端把代码分块嵌入成向量,存 sqlite(float32 BLOB),查询时 Go 内暴力 cosine top-k(单仓库几千 chunk,微秒级,零外部依赖)。首次用到时懒构建、按文件 hash 增量刷新。**需先配置 embedding role**(`models.setEmbeddingRole`);未配则功能关闭。agent 走 `codebase_search` 工具,client 走这里(`@codebase` mention / 状态面 / 手动重建)。
+**@codebase 语义索引** —— 按语义(而非字面文本)检索项目代码。后端把代码分块嵌入成向量,存 sqlite(float32 BLOB),查询时 Go 内暴力 cosine top-k(单仓库几千 chunk,微秒级,零外部依赖)。首次用到时懒构建、按文件 hash 增量刷新。`features.codebase=false` 表示索引能力未装配，整个组返回 `capability_not_negotiated`；能力已装配但**未配置 embedding role**(`models.setEmbeddingRole`)是可修复配置错误，search/reindex 返回 `invalid_params`。agent 走 `codebase_search` 工具,client 走这里(`@codebase` mention / 状态面 / 手动重建)。
 
 | method             | params                    | result                    | 备注                                                                                                  |
 | ------------------ | ------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -1532,7 +1532,7 @@ interface CodebaseStatus {
   chunkCount: number;
   indexedAt?: string; // RFC3339
   truncated?: boolean; // 命中索引上限(部分索引)
-  error?: string; // 末次构建失败原因
+  // state="error" 只表达构建失败；底层诊断保留在 runtime observability，绝不写入协议。
 }
 ```
 
@@ -1542,7 +1542,7 @@ embedding-capable provider 由 `providers.list` 的 `Provider.embeddingCapable` 
 
 ### 7.14 goals.*
 
-**Goal mode** —— 一个自主执行环:显式 opt-in 起一个目标后,runtime **自己**背靠背发 run 驱动它前进,直到模型经 `update_goal` 工具 signal 完成/阻塞、opt-in 的跨轮预算耗尽、或用户停止。**一个 session 至多一个 goal**;完成的 goal 会被清除(不再出现)。capability-gated(store 未装配时 `capability_not_negotiated`)。
+**Goal mode** —— 一个自主执行环:显式 opt-in 起一个目标后,runtime **自己**背靠背发 run 驱动它前进,直到模型经 `update_goal` 工具 signal 完成/阻塞、opt-in 的跨轮预算耗尽、或用户停止。**一个 session 至多一个 goal**;完成的 goal 会被清除(不再出现)。`features.goals=false` 时整个组返回 `capability_not_negotiated`。
 
 | method         | params                                                                       | result        | 备注                                                        |
 | -------------- | ---------------------------------------------------------------------------- | ------------- | ----------------------------------------------------------- |
@@ -1701,6 +1701,10 @@ interface ClientCapabilities {
 | `memory`        | `memory.*`                                                                         |
 | `relocate`      | `sessions.update` 改 cwd                                                           |
 | `todos`         | `todo_write` 的 `state.snapshot{todos}` 投影                                       |
+| `goals`         | `goals.*` 自主执行环                                                               |
+| `agentMemory`   | `agentMemory.*` 的 HITL 审阅面                                                     |
+| `schedules`     | `schedules.*` 的 cron 管理与触发                                                   |
+| `codebase`      | `codebase.*` 语义索引（embedding role 另属运行时配置）                            |
 | `compaction`    | 自动上下文压缩及 `compaction` Item                                                 |
 | `clientTools`   | `toolResult` interrupt                                                             |
 

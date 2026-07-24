@@ -582,6 +582,8 @@ export const zh: Record<string, string> = {
   "codebase.error": "搜索失败。",
   "codebase.disabled.title": "未设置嵌入模型",
   "codebase.disabled.sub": "在 设置 → Providers 选一个嵌入模型即可启用语义代码搜索。",
+  "codebase.unavailable.title": "代码库搜索不可用",
+  "codebase.unavailable.sub": "当前运行时没有启用代码库索引能力。",
 
   // ── 工作区视图：记忆 ──
   "memory.title": "记忆",

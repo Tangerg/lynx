@@ -29,16 +29,21 @@ type Firing struct {
 	worker   WorkerStore
 	runner   Runner
 	now      func() time.Time
+	enabled  bool
 }
 
 // NewFiring builds the schedule execution use case. A nil registry behaves as
 // the unavailable scheduling capability.
 func NewFiring(store FiringStore, runner Runner) *Firing {
+	enabled := store != nil
 	if store == nil {
 		store = disabledFiringStore{}
 	}
-	return &Firing{registry: store, worker: store, runner: runner, now: time.Now}
+	return &Firing{registry: store, worker: store, runner: runner, now: time.Now, enabled: enabled}
 }
+
+// Available reports whether schedule-firing use cases are wired.
+func (f *Firing) Available() bool { return f != nil && f.enabled }
 
 // RunNow starts one off-cycle schedule firing and records it without advancing
 // the cron cursor. Once accepted, recording outlives request cancellation so a

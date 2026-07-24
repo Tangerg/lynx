@@ -215,8 +215,8 @@ func TestReindexRecordsResolverFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Status: %v", err)
 	}
-	if status.State != StateError || !strings.Contains(status.Err, wantErr.Error()) {
-		t.Fatalf("Status = %+v, want error containing %q", status, wantErr)
+	if status.State != StateError {
+		t.Fatalf("Status = %+v, want error state", status)
 	}
 }
 

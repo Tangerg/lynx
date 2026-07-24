@@ -3,6 +3,7 @@
 
 import { queryClient } from "@/lib/data/queryClient";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   CODEBASE_STATUS_KEY,
   useCodebaseStatus,
@@ -14,12 +15,14 @@ export type { CodebaseSearchHit } from "./ports/codebaseGateway";
 
 export function useCodebaseSearchConfig() {
   const cwd = useActiveSessionCwd();
+  const available = useRuntimeCapability("codebase");
   const { data: role } = useEmbeddingRole();
-  const { data: status } = useCodebaseStatus({ cwd });
+  const { data: status } = useCodebaseStatus(available ? { cwd } : undefined);
   return {
     cwd,
     status,
-    enabled: Boolean(role?.model),
+    available,
+    enabled: available && Boolean(role?.model),
   };
 }
 

@@ -94,7 +94,10 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
-		g.Pause(goal.ReasonRunStartFailed, err.Error(), d.now())
+		// A start failure is an operational fact already recorded on the span.
+		// Persist only its stable cause so goal status cannot become a transport
+		// for adapter diagnostics.
+		g.Pause(goal.ReasonRunStartFailed, "", d.now())
 		d.save(ctx, *g)
 		return dispPaused
 	}

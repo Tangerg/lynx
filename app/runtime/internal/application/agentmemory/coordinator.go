@@ -58,12 +58,12 @@ func New(cfg Config) *Coordinator {
 	return &Coordinator{store: cfg.Store, roots: cfg.Roots, now: now}
 }
 
-// HasStore reports whether agent-memory review operations are available.
-func (c *Coordinator) HasStore() bool { return c != nil && c.store != nil }
+// Available reports whether agent-memory review operations are wired.
+func (c *Coordinator) Available() bool { return c != nil && c.store != nil }
 
 // List returns active and pending memory items for scope/cwd.
 func (c *Coordinator) List(ctx context.Context, scope domain.Scope, cwd string) ([]domain.Item, error) {
-	if !c.HasStore() {
+	if !c.Available() {
 		return nil, ErrUnavailable
 	}
 	project, err := c.project(scope, cwd)
@@ -75,7 +75,7 @@ func (c *Coordinator) List(ctx context.Context, scope domain.Scope, cwd string) 
 
 // Review accepts or rejects an extracted proposal.
 func (c *Coordinator) Review(ctx context.Context, id string, status domain.Status) error {
-	if !c.HasStore() {
+	if !c.Available() {
 		return ErrUnavailable
 	}
 	return c.store.SetStatus(ctx, id, status, c.now())
@@ -84,7 +84,7 @@ func (c *Coordinator) Review(ctx context.Context, id string, status domain.Statu
 // Update applies the content/pin patch as one use case and returns the saved
 // item. The persistence port commits both requested fields atomically.
 func (c *Coordinator) Update(ctx context.Context, id string, content *string, pinned *bool) (domain.Item, error) {
-	if !c.HasStore() {
+	if !c.Available() {
 		return domain.Item{}, ErrUnavailable
 	}
 	return c.store.Update(ctx, id, content, pinned, c.now())
@@ -92,7 +92,7 @@ func (c *Coordinator) Update(ctx context.Context, id string, content *string, pi
 
 // Delete removes one memory item.
 func (c *Coordinator) Delete(ctx context.Context, id string) error {
-	if !c.HasStore() {
+	if !c.Available() {
 		return ErrUnavailable
 	}
 	return c.store.Delete(ctx, id)
@@ -100,7 +100,7 @@ func (c *Coordinator) Delete(ctx context.Context, id string) error {
 
 // Add creates an immediately-active user-authored memory item.
 func (c *Coordinator) Add(ctx context.Context, scope domain.Scope, cwd, content string) (domain.Item, error) {
-	if !c.HasStore() {
+	if !c.Available() {
 		return domain.Item{}, ErrUnavailable
 	}
 	project, err := c.project(scope, cwd)

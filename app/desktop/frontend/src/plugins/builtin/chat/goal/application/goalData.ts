@@ -28,7 +28,8 @@ export interface GoalInfo {
 
 // The read result folds three states into one shape so the banner can tell
 // "feature off" (render nothing) from "on, no goal" (offer to start one) from
-// "has a goal" (drive it). available=false ⇔ goals.get was capability-gated.
+// "has a goal" (drive it). available=false comes from capability discovery;
+// the data provider never probes goals.get to determine availability.
 export interface GoalState {
   available: boolean;
   goal: GoalInfo | null;

@@ -18,7 +18,7 @@ func (s *memoryDispatcher) emit(st *turnState, ev runs.EngineEvent) bool {
 	}
 	// Prefer delivery: when the buffer has room the event lands regardless of
 	// whether the turn ctx was already canceled. This is what makes a canceled
-	// turn's TERMINAL event (TurnEnd / the ErrorEvent before it) reach a
+	// turn's TERMINAL event (TurnEnd) reaches a
 	// consumer still draining the stream — Cancel cancels st.ctx *before* the
 	// finishTurn / drive path emits the terminal, so a bare select would race
 	// the terminal into the ctx.Done() escape and drop it (a lost TurnEnd

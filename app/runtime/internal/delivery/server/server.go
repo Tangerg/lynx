@@ -125,6 +125,11 @@ type Config struct {
 	// GitAvailable is the Bootstrap-probed Git capability snapshot. Delivery
 	// projects this static environment fact; it never probes the process itself.
 	GitAvailable bool
+
+	// TodosEnabled is the composition-root fact for todo_write. Todo persistence
+	// is consumed by execution, not a delivery handler, so it is supplied here
+	// rather than inferred from an unrelated coordinator.
+	TodosEnabled bool
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -196,12 +201,27 @@ type Server struct {
 	workspaceHooks     workspaceHookUseCases
 	workspaceWatch     workspaceWatchUseCases
 
-	gitAvailable bool
+	features featureAvailability
 
 	// wsHub fans non-run workspace events (files/skills/mcp changes) out to
 	// workspace.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
 	// scoped — distinct from the durable per-run hubs.
 	wsHub *workspaceHub
+}
+
+// featureAvailability is the small closed set of optional runtime facts that
+// shape both capability discovery and delivery gates. It is derived once from
+// actual composition; no handler probes a disabled implementation to discover
+// whether it may be called.
+type featureAvailability struct {
+	memory      bool
+	git         bool
+	fileWatch   bool
+	todos       bool
+	goals       bool
+	agentMemory bool
+	schedules   bool
+	codebase    bool
 }
 
 // FileChangeSource is the delivery-side view of the composition-root file-change
@@ -297,6 +317,16 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Codebase == nil {
 		return nil, errors.New("server: Codebase is required")
 	}
+	features := featureAvailability{
+		memory:      cfg.WorkspaceKnowledge.HasMemory(),
+		git:         cfg.GitAvailable,
+		fileWatch:   cfg.WorkspaceWatch.HasFileWatch(),
+		todos:       cfg.TodosEnabled,
+		goals:       cfg.Goals != nil,
+		agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
+		schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
+		codebase:    cfg.Codebase.Available(),
+	}
 	srv := &Server{
 		sessions:           cfg.Sessions,
 		integrations:       cfg.Integrations,
@@ -312,7 +342,7 @@ func New(cfg Config) (*Server, error) {
 		wsHub:              newWorkspaceHub(),
 		schedules:          cfg.Schedules,
 		scheduleFiring:     cfg.ScheduleFiring,
-		goals:              goalRunnerOrDisabled(cfg.Goals),
+		goals:              cfg.Goals,
 		agentMemory:        cfg.AgentMemory,
 		workspaceFiles:     cfg.WorkspaceFiles,
 		workspaceVCS:       cfg.WorkspaceVCS,
@@ -321,7 +351,7 @@ func New(cfg Config) (*Server, error) {
 		workspaceSkills:    cfg.WorkspaceSkills,
 		workspaceHooks:     cfg.WorkspaceHooks,
 		workspaceWatch:     cfg.WorkspaceWatch,
-		gitAvailable:       cfg.GitAvailable,
+		features:           features,
 	}
 	// The run pump publishes live file-change nudges through the composition-root
 	// bridge; the Server maps each to a wire workspace event on its hub. This is
@@ -345,20 +375,18 @@ func New(cfg Config) (*Server, error) {
 	return srv, nil
 }
 
-// Capabilities returns this Server's capability snapshot (API.md §9),
-// delegating to the package-level [Capabilities] so the /v2/info
-// sidecar can build the same snapshot without a constructed Server.
+// Capabilities returns this Server's capability snapshot (API.md §9). Its
+// optional keys come from the same immutable composition facts that handlers
+// use for their capability gates.
 func (s *Server) Capabilities() protocol.ServerCapabilities {
-	return Capabilities(s.workspaceKnowledge.HasMemory(), s.gitAvailable, s.workspaceWatch.HasFileWatch())
+	return capabilitiesFor(s.features)
 }
 
-// Capabilities builds the capability snapshot a Runtime advertises
-// (API.md §9). It reflects actual wiring — features whose methods would
-// return capability_not_negotiated are advertised false, so the client never calls a
-// method this build silently rejects. hasMemory comes from the workspace
-// coordinator (the long-term knowledge store may be absent).
-func Capabilities(hasMemory, gitAvailable, hasFileWatch bool) protocol.ServerCapabilities {
-	memory := hasMemory
+// capabilitiesFor builds the advertised contract from actual composition. A
+// capability is never inferred from an RPC error; discovery and gating share
+// the same facts so an advertised feature is callable and a disabled feature
+// is absent before the client issues a request.
+func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
 		Events: []protocol.StreamEventType{
 			protocol.StreamSegmentStarted,
@@ -377,20 +405,24 @@ func Capabilities(hasMemory, gitAvailable, hasFileWatch bool) protocol.ServerCap
 		Features: map[string]protocol.FeatureCapability{
 			"reasoning": capability(true),
 			"mcp":       capability(true),
-			"memory":    capability(memory),
+			"memory":    capability(features.memory),
 			"skills":    capability(true),
-			"git":       capability(gitAvailable),
-			"fileWatch": capability(hasFileWatch),
+			"git":       capability(features.git),
+			"fileWatch": capability(features.fileWatch),
 			"lsp":       capability(true),
 
 			"sessionExport": capability(true),
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			"checkpoints": capability(gitAvailable),
+			"checkpoints": capability(features.git),
 			"multimodal":  capability(true),
 			"relocate":    capability(true),
-			"todos":       capability(true),
+			"todos":       capability(features.todos),
 			"compaction":  capability(true),
+			"goals":       capability(features.goals),
+			"agentMemory": capability(features.agentMemory),
+			"schedules":   capability(features.schedules),
+			"codebase":    capability(features.codebase),
 			// Off until the corresponding engine support lands:
 			"subagents":   capability(false),
 			"clientTools": capability(false),

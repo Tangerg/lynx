@@ -107,10 +107,3 @@ export function emptyPageIfUngated(err: unknown): { data: never[] } {
   if (isErrorType(err, "capability_not_negotiated")) return { data: [] };
   throw err;
 }
-
-// Same, for the `{ items }` result shape (e.g. agentMemory.list, which is not a
-// cursor Page).
-export function emptyItemsIfUngated(err: unknown): { items: never[] } {
-  if (isErrorType(err, "capability_not_negotiated")) return { items: [] };
-  throw err;
-}

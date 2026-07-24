@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
@@ -90,15 +89,14 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 
 // resumeAndDrive delivers the decision to the turn's (write-once-stable) parked
 // process and launches the continuation drive. On a resume error it streams the
-// terminal (ErrorEvent + TurnEnd) and returns the error; otherwise it starts
+// terminal TurnEnd and returns the error; otherwise it starts
 // drive and returns nil. Shared by [Resume] (same-process) and [Rehydrate]
 // (cross-restart) so the resume tail — deliver, on-error-finish, else-drive —
 // stays identical.
 func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
-		s.emit(state, runs.ErrorEvent{Message: err.Error(), Code: runs.ErrorCodeEngine, Problem: problemFromError(err)})
-		s.finishTurn(state, execution.OutcomeError)
+		s.finishFailedTurn(state, problemFromError(err), err)
 		return err
 	}
 	go s.drive(state, resumed)

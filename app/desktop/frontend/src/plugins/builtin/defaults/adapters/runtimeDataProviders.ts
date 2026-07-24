@@ -53,10 +53,10 @@ import type { DataProviderSpec, Host } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { asSessionId, isErrorType } from "@/rpc";
+import { asSessionId } from "@/rpc";
+import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyPageIfUngated,
-  emptyItemsIfUngated,
   toMcpConfigInfo,
   toWorkspaceFileChangeSummary,
   toMcpServerStatusSummary,
@@ -208,9 +208,8 @@ export function registerDefaultDataProviders(host: Host): void {
     key: WORKSPACE_AGENT_MEMORY_KEY,
     fetcher: async (params) => {
       const q = requiredParams<AgentMemoryQuery>(WORKSPACE_AGENT_MEMORY_KEY, params);
-      return (
-        await client().agentMemory.list({ scope: q.scope, cwd: q.cwd }).catch(emptyItemsIfUngated)
-      ).items.map((m) => ({
+      if (!runtimeCapability("agentMemory")) return [];
+      return (await client().agentMemory.list({ scope: q.scope, cwd: q.cwd })).items.map((m) => ({
         id: m.id,
         scope: m.scope,
         content: m.content,
@@ -228,35 +227,31 @@ export function registerDefaultDataProviders(host: Host): void {
     key: GOAL_KEY,
     fetcher: async (params) => {
       const { sessionId } = requiredParams<GoalQuery>(GOAL_KEY, params);
-      try {
-        const goal = await client().goals.get(asSessionId(sessionId));
-        return {
-          available: true,
-          goal: goal
-            ? {
-                sessionId: goal.sessionId,
-                objective: goal.objective,
-                status: goal.status,
-                reason: goal.reason ?? "",
-                budget: {
-                  maxTurns: goal.budget.maxTurns ?? 0,
-                  maxCostUsd: goal.budget.maxCostUsd ?? 0,
-                  maxSteps: goal.budget.maxSteps ?? 0,
-                },
-                used: {
-                  turns: goal.used.turns,
-                  costUsd: goal.used.costUsd,
-                  steps: goal.used.steps,
-                },
-              }
-            : null,
-        } satisfies GoalState;
-      } catch (err) {
-        if (isErrorType(err, "capability_not_negotiated")) {
-          return { available: false, goal: null } satisfies GoalState;
-        }
-        throw err;
+      if (!runtimeCapability("goals")) {
+        return { available: false, goal: null } satisfies GoalState;
       }
+      const goal = await client().goals.get(asSessionId(sessionId));
+      return {
+        available: true,
+        goal: goal
+          ? {
+              sessionId: goal.sessionId,
+              objective: goal.objective,
+              status: goal.status,
+              reason: goal.reason ?? "",
+              budget: {
+                maxTurns: goal.budget.maxTurns ?? 0,
+                maxCostUsd: goal.budget.maxCostUsd ?? 0,
+                maxSteps: goal.budget.maxSteps ?? 0,
+              },
+              used: {
+                turns: goal.used.turns,
+                costUsd: goal.used.costUsd,
+                steps: goal.used.steps,
+              },
+            }
+          : null,
+      } satisfies GoalState;
     },
   });
   contribute({
@@ -317,7 +312,12 @@ export function registerDefaultDataProviders(host: Host): void {
   });
   contribute({
     key: CODEBASE_STATUS_KEY,
-    fetcher: (params) => client().codebase.status(optionalParams<CodebaseStatusQuery>(params)?.cwd),
+    fetcher: (params) => {
+      if (!runtimeCapability("codebase")) {
+        return Promise.resolve({ state: "none" as const, fileCount: 0, chunkCount: 0 });
+      }
+      return client().codebase.status(optionalParams<CodebaseStatusQuery>(params)?.cwd);
+    },
   });
   contribute({
     key: APPROVAL_RULES_KEY,
@@ -332,7 +332,10 @@ export function registerDefaultDataProviders(host: Host): void {
   });
   contribute({
     key: SCHEDULES_KEY,
-    fetcher: async () => (await client().schedules.list()).data,
+    fetcher: async () => {
+      if (!runtimeCapability("schedules")) return [];
+      return (await client().schedules.list()).data;
+    },
   });
   contribute({
     key: RECIPES_KEY,

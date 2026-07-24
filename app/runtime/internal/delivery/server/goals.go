@@ -14,8 +14,7 @@ import (
 // an objective until the model signals complete/blocked, a budget is spent, or
 // the user stops it.
 
-// goalRunner is the server's narrow view of the goal driver. A disabled build
-// injects goalsUnavailable so goals.* report capability_not_negotiated.
+// goalRunner is the server's narrow view of the goal driver.
 type goalRunner interface {
 	Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error)
 	Resume(ctx context.Context, sessionID string) (goal.Goal, error)
@@ -23,32 +22,11 @@ type goalRunner interface {
 	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
 }
 
-var errGoalsDisabled = errors.New("goals: disabled")
-
-type goalsUnavailable struct{}
-
-func (goalsUnavailable) Start(context.Context, string, string, string, string, goal.Budget) (goal.Goal, error) {
-	return goal.Goal{}, errGoalsDisabled
-}
-func (goalsUnavailable) Resume(context.Context, string) (goal.Goal, error) {
-	return goal.Goal{}, errGoalsDisabled
-}
-func (goalsUnavailable) Stop(context.Context, string) (goal.Goal, error) {
-	return goal.Goal{}, errGoalsDisabled
-}
-func (goalsUnavailable) Get(context.Context, string) (goal.Goal, bool, error) {
-	return goal.Goal{}, false, errGoalsDisabled
-}
-
-func goalRunnerOrDisabled(d goalRunner) goalRunner {
-	if d == nil {
-		return goalsUnavailable{}
-	}
-	return d
-}
-
 // StartGoal opens and begins driving a goal for the session (goals.start).
 func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*protocol.Goal, error) {
+	if !s.features.goals {
+		return nil, capabilityNotNegotiated("goals.start")
+	}
 	g, err := s.goals.Start(ctx, in.SessionID, in.Objective, in.Provider, in.Model, budgetFromWire(in.Budget))
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
@@ -58,6 +36,9 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 
 // GetGoal returns the session's goal, or a nil result when it has none (goals.get).
 func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	if !s.features.goals {
+		return nil, capabilityNotNegotiated("goals.get")
+	}
 	g, ok, err := s.goals.Get(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.get")
@@ -70,6 +51,9 @@ func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protoco
 
 // StopGoal pauses the session's goal and stops the loop (goals.stop).
 func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	if !s.features.goals {
+		return nil, capabilityNotNegotiated("goals.stop")
+	}
 	g, err := s.goals.Stop(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.stop")
@@ -79,6 +63,9 @@ func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protoc
 
 // ResumeGoal re-activates a paused or blocked goal (goals.resume).
 func (s *Server) ResumeGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	if !s.features.goals {
+		return nil, capabilityNotNegotiated("goals.resume")
+	}
 	g, err := s.goals.Resume(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.resume")
@@ -91,8 +78,6 @@ func mapGoalErr(err error, method string) error {
 		return nil
 	}
 	switch {
-	case errors.Is(err, errGoalsDisabled):
-		return capabilityNotNegotiated(method)
 	case errors.Is(err, goals.ErrGoalActive):
 		return fmt.Errorf("%w: a goal is already active for this session — stop it first", protocol.ErrSessionBusy)
 	case errors.Is(err, goals.ErrNoGoal):
@@ -123,8 +108,8 @@ func goalPtr(g goal.Goal) *protocol.Goal {
 }
 
 // goalReason owns the current wire's human-readable reason. The goal entity
-// persists a typed cause plus raw detail, so model and infrastructure data do
-// not become presentation text in the domain or application layers.
+// persists a typed cause plus an optional safe model/domain detail; infrastructure
+// diagnostics never enter durable state or protocol output.
 func goalReason(reason goal.Reason) string {
 	switch reason.Cause {
 	case goal.ReasonNone:
@@ -134,10 +119,7 @@ func goalReason(reason goal.Reason) string {
 	case goal.ReasonRuntimeRestarted:
 		return "the runtime restarted — resume to continue"
 	case goal.ReasonRunStartFailed:
-		if reason.Detail == "" {
-			return "could not start the next run"
-		}
-		return "could not start the next run: " + reason.Detail
+		return "could not start the next run"
 	case goal.ReasonAwaitingInput:
 		return "the run is waiting for your input"
 	case goal.ReasonTerminalOutcomeMissing:

@@ -7,12 +7,13 @@
 // cross-project user store.
 
 import { useCallback, useRef, useState } from "react";
-import { DataView, FIELD_CLASSES, Icon, PillButton, SectionLabel } from "@/ui";
+import { DataView, EmptyState, FIELD_CLASSES, Icon, PillButton, SectionLabel } from "@/ui";
 import { AgentIconButton } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {
@@ -272,12 +273,25 @@ function AgentMemoryTab() {
   const t = useT();
   const [scope, setScope] = useState<Scope>("project");
   const cwd = useActiveSessionCwd();
+  const available = useRuntimeCapability("agentMemory");
   // The project scope needs a cwd to resolve; the user scope is cwd-independent.
-  const enabled = scope === "user" || Boolean(cwd);
+  const enabled = available && (scope === "user" || Boolean(cwd));
   const { data, isLoading, isError } = useAgentMemory(enabled, scope, cwd);
   const items = data ?? [];
   const pending = items.filter((m) => m.status === "pending");
   const active = items.filter((m) => m.status === "active");
+
+  if (!available) {
+    return (
+      <WorkspaceViewLayout icon="book" titleStrong title="agentMemory.title" scrollClassName="py-1">
+        <EmptyState
+          icon="book"
+          title={t("agentMemory.unavailable.title")}
+          sub={t("agentMemory.unavailable.sub")}
+        />
+      </WorkspaceViewLayout>
+    );
+  }
 
   return (
     <WorkspaceViewLayout

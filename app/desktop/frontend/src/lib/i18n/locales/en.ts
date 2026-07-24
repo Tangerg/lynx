@@ -602,6 +602,8 @@ export const en: Record<string, string> = {
   "agentMemory.empty.title": "No memory yet",
   "agentMemory.empty.sub":
     "Facts the agent mines from your sessions wait here for review; approved ones are recalled in future turns.",
+  "agentMemory.unavailable.title": "Agent memory is unavailable",
+  "agentMemory.unavailable.sub": "This runtime has not enabled the agent-memory review capability.",
   "agentMemory.noProject.title": "No project session",
   "agentMemory.noProject.sub":
     "Open or select a session to review its project memory. Switch to User for cross-project memory.",
@@ -671,6 +673,8 @@ export const en: Record<string, string> = {
   "codebase.disabled.title": "Embedding model not set",
   "codebase.disabled.sub":
     "Pick an embedding model in Settings → Providers to enable semantic code search.",
+  "codebase.unavailable.title": "Codebase search is unavailable",
+  "codebase.unavailable.sub": "This runtime has not enabled the codebase-index capability.",
 
   // ── Workspace view: Memory ──
   "memory.title": "Memory",

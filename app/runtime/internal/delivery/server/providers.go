@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
 	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -41,19 +41,22 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 // The application owns eligibility and probing; Delivery selects the protocol
 // failure envelope.
 func (s *Server) TestProvider(ctx context.Context, providerID string) (*protocol.ProviderTestResult, error) {
-	err := s.models.TestProvider(ctx, providerID)
-	if err == nil {
-		return &protocol.ProviderTestResult{OK: true}, nil
-	}
-	if errors.Is(err, modelapp.ErrProviderUnsupported) {
+	outcome, err := s.models.TestProvider(ctx, providerID)
+	if err != nil {
 		return nil, mapModelError(err)
 	}
-	if errors.Is(err, modelapp.ErrProviderUnconfigured) {
+	switch outcome {
+	case modelapp.ProviderTestSucceeded:
+		return &protocol.ProviderTestResult{OK: true}, nil
+	case modelapp.ProviderTestNotConfigured:
 		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
 			Type: "provider_not_configured", Detail: "set the API key first",
 		}}, nil
+	case modelapp.ProviderTestFailed:
+		return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
+			Type: "provider_test_failed", Detail: "the provider could not be reached or rejected the test request",
+		}}, nil
+	default:
+		return nil, fmt.Errorf("server: unknown provider test outcome %q", outcome)
 	}
-	return &protocol.ProviderTestResult{OK: false, Error: &protocol.ProblemData{
-		Type: "provider_test_failed", Detail: err.Error(),
-	}}, nil
 }

@@ -115,7 +115,7 @@ func (ix *Indexer) markIndexing(cwd, modelID string) {
 func (ix *Indexer) fail(cwd string, err error) error {
 	ix.mu.Lock()
 	prev := ix.status[cwd]
-	ix.status[cwd] = Status{State: StateError, ModelID: prev.ModelID, FileCount: prev.FileCount, ChunkCount: prev.ChunkCount, IndexedAt: prev.IndexedAt, Err: err.Error()}
+	ix.status[cwd] = Status{State: StateError, ModelID: prev.ModelID, FileCount: prev.FileCount, ChunkCount: prev.ChunkCount, IndexedAt: prev.IndexedAt}
 	ix.mu.Unlock()
 	return err
 }

@@ -23,11 +23,6 @@ type engineEventBase struct{}
 
 func (engineEventBase) engineEvent() {}
 
-type TurnStart struct {
-	engineEventBase
-	Model string
-}
-
 type MessageDelta struct {
 	engineEventBase
 	Text string
@@ -91,35 +86,15 @@ func (e TurnInterrupted) validate() error {
 
 type TurnEnd struct {
 	engineEventBase
-	Reason       execution.Outcome
+	Reason execution.Outcome
+	// Problem is present exactly when Reason is OutcomeError. It is already a
+	// stable, client-safe application problem; executor diagnostics never enter
+	// the event stream.
+	Problem      *transcript.Problem
 	TokenUsage   accounting.TokenUsage
 	UsageByModel []accounting.ModelUsage
 	CostUSD      float64
 	Duration     time.Duration
-	MaxBudget    int64
-	MaxCostUSD   float64
-	MaxSteps     int
-}
-
-// ErrorCode identifies the operation that reported an executor error. It is a
-// typed diagnostic tag; user-facing classification is carried by Problem.
-type ErrorCode string
-
-const (
-	ErrorCodeEngine            ErrorCode = "ENGINE_ERROR"
-	ErrorCodeAgentStuck        ErrorCode = "AGENT_STUCK"
-	ErrorCodeModelUnavailable  ErrorCode = "MODEL_UNAVAILABLE"
-	ErrorCodeSteering          ErrorCode = "STEERING_ERROR"
-	ErrorCodeCompaction        ErrorCode = "COMPACTION_ERROR"
-	ErrorCodeMemoryMaintenance ErrorCode = "MEMORY_MAINTENANCE_ERROR"
-	ErrorCodeSkillMaintenance  ErrorCode = "SKILL_MAINTENANCE_ERROR"
-)
-
-type ErrorEvent struct {
-	engineEventBase
-	Message string
-	Code    ErrorCode
-	Problem transcript.Problem
 }
 
 type UsageReported struct {

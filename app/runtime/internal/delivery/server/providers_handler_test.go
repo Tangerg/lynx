@@ -169,7 +169,7 @@ func TestTestProviderUsesConfiguredProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("test provider: %v", err)
 	}
-	if got.OK || got.Error == nil || got.Error.Detail != probeErr.Error() {
+	if got.OK || got.Error == nil || got.Error.Type != "provider_test_failed" || got.Error.Detail != "the provider could not be reached or rejected the test request" {
 		t.Fatalf("test result = %+v, want provider_test_failed", got)
 	}
 	if len(rt.probed) != 1 || rt.probed[0].ID != "anthropic" {

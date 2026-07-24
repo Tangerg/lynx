@@ -308,12 +308,7 @@ func hasActiveSession(c *Coordinator, sessionID string) bool {
 
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
 	executor := &fakeExecutor{events: []EngineEvent{
-		TurnStart{Model: "model"},
-		ErrorEvent{
-			Message: "engine: start chat: duplicate process extension",
-			Code:    ErrorCodeEngine, Problem: transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"},
-		},
-		TurnEnd{Reason: execution.OutcomeError},
+		TurnEnd{Reason: execution.OutcomeError, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)

@@ -69,6 +69,23 @@ func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {
 	})
 }
 
+// finishFailedTurn closes an emergency error path with one self-contained
+// terminal event. The raw error stays local to tracing and stop hooks; the
+// EngineEvent contract carries only the stable application problem.
+func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Problem, err error) {
+	s.completeTurn(st, func() {
+		dur := time.Since(st.startedAt)
+		errMsg := "turn failed"
+		if err != nil {
+			errMsg = err.Error()
+		}
+		finishTurnSpan(st.span, execution.OutcomeError, accounting.TokenUsage{}, false, errMsg)
+		recordTurnDuration(st.ctx, execution.OutcomeError, st.model, dur)
+		s.emit(st, runs.TurnEnd{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
+		s.fireStop(st, errMsg)
+	})
+}
+
 func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) {
 	st.terminalOnce.Do(func() {
 		emitTerminal()
@@ -90,10 +107,7 @@ func (s *memoryDispatcher) emitTurnEnd(st *turnState, process agentexec.TurnProc
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
-	if plan.errMsg != "" {
-		s.emit(st, runs.ErrorEvent{Message: plan.errMsg, Code: plan.errCode, Problem: plan.problem})
-	}
-	end := runs.TurnEnd{Reason: plan.reason, Duration: duration, MaxBudget: st.maxBudget, MaxCostUSD: st.maxCostUSD, MaxSteps: st.maxSteps}
+	end := runs.TurnEnd{Reason: plan.reason, Problem: plan.problem, Duration: duration}
 	if plan.withUsage {
 		end.TokenUsage = out.Usage
 		end.UsageByModel = out.UsageByModel
@@ -119,13 +133,12 @@ func (s *memoryDispatcher) fireStop(st *turnState, detail string) {
 // turnEndPlan is the decision emitTurnEnd derives before emitting: the
 // TurnEnd reason, whether the turn's usage should ride along (only clean
 // / budget-stopped completions carry usage; cancellations and errors
-// don't), and an optional ErrorEvent to emit first.
+// don't), and an optional stable problem for an error terminal.
 type turnEndPlan struct {
 	reason    execution.Outcome
 	withUsage bool
-	errMsg    string // non-empty → emit an ErrorEvent before TurnEnd
-	errCode   runs.ErrorCode
-	problem   transcript.Problem
+	errMsg    string // local tracing and hook diagnostic only
+	problem   *transcript.Problem
 }
 
 // planTurnEnd is the turnEndPlan constructor: it maps the captured
@@ -147,15 +160,11 @@ func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr 
 		if t.Err != nil {
 			msg = t.Err.Error()
 		}
-		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: msg, errCode: runs.ErrorCodeEngine,
-			problem: problemFromError(t.Err),
-		}
+		problem := problemFromError(t.Err)
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: msg, problem: &problem}
 	case event.ProcessStuck:
-		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", errCode: runs.ErrorCodeAgentStuck,
-			problem: problemForFailure(execution.FailureAgentStuck, 0),
-		}
+		problem := problemForFailure(execution.FailureAgentStuck, 0)
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", problem: &problem}
 	default:
 		return fallbackPlan(out, runErr, ctxErr, status)
 	}
@@ -174,12 +183,8 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	case agentexec.StopReasonNone:
 		return turnEndPlan{reason: execution.OutcomeCompleted, withUsage: true}
 	default:
-		return turnEndPlan{
-			reason:  execution.OutcomeError,
-			errMsg:  fmt.Sprintf("invalid turn stop reason %q", out.StopReason),
-			errCode: runs.ErrorCodeEngine,
-			problem: internalRunProblem(),
-		}
+		problem := internalRunProblem()
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: fmt.Sprintf("invalid turn stop reason %q", out.StopReason), problem: &problem}
 	}
 }
 
@@ -192,10 +197,8 @@ func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.Pr
 		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
 			return turnEndPlan{reason: execution.OutcomeCanceled}
 		}
-		return turnEndPlan{
-			reason: execution.OutcomeError, errMsg: runErr.Error(), errCode: runs.ErrorCodeEngine,
-			problem: problemFromError(runErr),
-		}
+		problem := problemFromError(runErr)
+		return turnEndPlan{reason: execution.OutcomeError, errMsg: runErr.Error(), problem: &problem}
 	}
 	return completedPlan(out)
 }

@@ -725,7 +725,6 @@ export interface CodebaseStatus {
   chunkCount: number;
   indexedAt?: string; // RFC3339
   truncated?: boolean;
-  error?: string;
 }
 
 // ---------------------------------------------------------------------------

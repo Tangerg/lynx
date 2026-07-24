@@ -10,7 +10,10 @@ import (
 func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	t.Parallel()
 
-	caps := Capabilities(true, true, true)
+	caps := capabilitiesFor(featureAvailability{
+		memory: true, git: true, fileWatch: true, todos: true,
+		goals: true, agentMemory: true, schedules: true, codebase: true,
+	})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -25,6 +28,11 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	}
 	if caps.Features["subagents"].Enabled || caps.Features["clientTools"].Enabled {
 		t.Fatalf("unsupported features advertised: %+v", caps.Features)
+	}
+	for _, feature := range []string{"todos", "goals", "agentMemory", "schedules", "codebase"} {
+		if !caps.Features[feature].Enabled {
+			t.Fatalf("wired feature %q was not advertised: %+v", feature, caps.Features)
+		}
 	}
 	if caps.Limits.MaxConcurrentRuns != 0 {
 		t.Fatalf("maxConcurrentRuns = %d, want omitted without an enforced process-wide cap", caps.Limits.MaxConcurrentRuns)

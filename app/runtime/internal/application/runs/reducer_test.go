@@ -269,7 +269,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 
 	terminal := mustReduce(t, reducer, TurnEnd{
 		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
-		CostUSD: 4.2, MaxCostUSD: 4,
+		CostUSD: 4.2,
 	})
 	finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 	if finished.Run.Result == nil || finished.Run.Result.Duration != 1500*time.Millisecond || finished.Run.Detail != "" {
@@ -291,11 +291,7 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			reducer := newReducer(testReducerConfig())
-			mustReduce(t, reducer, ErrorEvent{
-				Message: `POST "https://api.example": provider detail`,
-				Code:    ErrorCodeEngine, Problem: test.problem,
-			})
-			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError})
+			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError, Problem: &test.problem})
 			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 			problem := finished.Run.Result.Error
 			if problem == nil || *problem != (transcript.Problem{
@@ -303,6 +299,24 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 				Retryable: test.problem.Retryable, RetryAfterSeconds: test.problem.RetryAfterSeconds,
 			}) || strings.Contains(problem.Detail, "api.example") {
 				t.Errorf("terminal problem = %+v", problem)
+			}
+		})
+	}
+}
+
+func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
+	tests := []struct {
+		name  string
+		event TurnEnd
+	}{
+		{name: "error without problem", event: TurnEnd{Reason: execution.OutcomeError}},
+		{name: "completed with problem", event: TurnEnd{Reason: execution.OutcomeCompleted, Problem: &transcript.Problem{Kind: transcript.InternalProblem}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := newReducer(testReducerConfig()).reduce(test.event)
+			if !errors.Is(err, errExecutorProtocol) {
+				t.Fatalf("reduce error = %v, want executor protocol violation", err)
 			}
 		})
 	}

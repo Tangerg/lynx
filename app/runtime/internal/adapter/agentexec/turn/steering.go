@@ -2,6 +2,7 @@ package turn
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -61,9 +62,8 @@ func (s *memoryDispatcher) steerSource(st *turnState) agentexec.SteerSource {
 // flushSteering writes the turn's queued steering messages to the
 // chat history store so the next turn picks them up as conversation
 // history. No-op when there's no session or no queued steering.
-// Errors surface through an ErrorEvent but don't abort the turn —
-// dropping steering is preferable to wrecking an otherwise
-// successful turn.
+// Failures are recorded on the turn span but never mutate an already-decided
+// execution outcome.
 func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, sessionID string) {
 	queue := st.closeAndDrainSteering()
 	if sessionID == "" || len(queue) == 0 {
@@ -71,19 +71,11 @@ func (s *memoryDispatcher) flushSteering(ctx context.Context, st *turnState, ses
 	}
 	for _, msg := range queue {
 		if s.steering == nil {
-			s.emit(st, runs.ErrorEvent{
-				Message: "steering inject failed: no steering sink configured",
-				Code:    runs.ErrorCodeSteering,
-				Problem: internalRunProblem(),
-			})
+			recordTurnMaintenanceError(st, errors.New("steering inject failed: no steering sink configured"))
 			return
 		}
 		if err := s.steering.InjectUser(ctx, sessionID, msg); err != nil {
-			s.emit(st, runs.ErrorEvent{
-				Message: "steering inject failed: " + err.Error(),
-				Code:    runs.ErrorCodeSteering,
-				Problem: internalRunProblem(),
-			})
+			recordTurnMaintenanceError(st, err)
 			return
 		}
 	}
