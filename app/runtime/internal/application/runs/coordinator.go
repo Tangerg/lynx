@@ -145,8 +145,9 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		Provider:  spec.Provider,
 		Model:     spec.Model,
 	}, live)
-	events, unsubscribe := hub.Subscribe("")
+	seq, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
+	events := seqToEventChan(reqCtx, seq)
 	for _, pe := range opening {
 		hub.Append(c.event(spec, pe))
 	}
@@ -260,9 +261,9 @@ func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor strin
 	if !ok || e.handle == nil || e.handle.hub == nil {
 		return Record{}, nil, false
 	}
-	events, unsubscribe := e.handle.hub.Subscribe(fromCursor)
+	seq, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	context.AfterFunc(ctx, unsubscribe)
-	return e.record, events, true
+	return e.record, seqToEventChan(ctx, seq), true
 }
 
 // List snapshots the records of the currently-live runs.

@@ -1,23 +1,19 @@
 package runs
 
 import (
+	"iter"
 	"sync"
-	"time"
 )
 
-const (
-	// liveHeadroom bounds queued live-only events per subscriber. Durable and
-	// terminal events are never subject to this budget.
-	liveHeadroom = 256
-	// terminalSendTimeout bounds how long a finished Journal lets an abandoned
-	// subscriber drain its final queue before aborting that subscription.
-	terminalSendTimeout = 2 * time.Second
-)
+// liveHeadroom bounds queued live-only events per subscriber. Durable and
+// terminal events are never subject to this budget.
+const liveHeadroom = 256
 
 // Journal is the per-run event fan-out + durable replay buffer. Each subscriber
-// owns a small delivery pump: Append only enqueues, so a slow consumer cannot
-// stall the run; durable events remain ordered and lossless while excess
-// live-only deltas are coalesced by dropping them at the subscriber boundary.
+// drains a cond-guarded queue on the consumer's own goroutine; Append only
+// enqueues, so a slow consumer cannot stall the run. Durable events remain
+// ordered and lossless while excess live-only deltas are coalesced by dropping
+// them at the subscriber boundary.
 type Journal struct {
 	mu        sync.Mutex
 	durable   []Event
@@ -33,8 +29,7 @@ func NewJournal() *Journal {
 
 // Append retains a durable event and enqueues the event for every live
 // subscriber. Durable and terminal events are lossless; only excess live-only
-// events can be dropped. Per-subscriber delivery pumps keep Append non-blocking
-// with respect to consumers.
+// events can be dropped. Enqueue never blocks on consumers.
 func (j *Journal) Append(ev Event) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
@@ -49,10 +44,10 @@ func (j *Journal) Append(ev Event) {
 	}
 }
 
-// Close ends the run's stream. Subscribers drain their already-enqueued events
-// in order and then close; an abandoned consumer is aborted after one bounded
-// shared-duration window. Close itself does not wait, which lets a stream opened
-// by a fast run return to its caller before that caller starts draining.
+// Close ends the run's stream. Each subscriber drains its already-enqueued
+// events in order and then its sequence returns. Close does not wait, which lets
+// a stream opened by a fast run return to its caller before that caller starts
+// draining.
 func (j *Journal) Close() {
 	j.mu.Lock()
 	if j.closed {
@@ -68,14 +63,22 @@ func (j *Journal) Close() {
 	j.mu.Unlock()
 
 	for _, subscriber := range subscribers {
-		subscriber.finish(terminalSendTimeout)
+		subscriber.finish()
 	}
 }
 
-// Subscribe returns the durable backlog after fromCursor followed by live
-// events, plus an idempotent cancel function. Subscribe and Append serialize on
-// the Journal lock, so replay and the first live event form one ordered stream.
-func (j *Journal) Subscribe(fromCursor string) (<-chan Event, func()) {
+// Subscribe returns the durable backlog after fromCursor followed by live events
+// as one ordered sequence, plus an idempotent cancel. Subscribe and Append
+// serialize on the Journal lock, so replay and the first live event form one
+// ordered stream.
+//
+// The sequence blocks in the source between events, so a consumer ranging it
+// cannot break out while waiting: cancel is the only way to end a live
+// subscription early (it also removes the subscriber so Append stops enqueuing).
+// cancel must therefore be wired to the consumer's lifetime (e.g.
+// context.AfterFunc) — a ranged-but-never-canceled live subscription whose run
+// never closes leaks the ranging goroutine.
+func (j *Journal) Subscribe(fromCursor string) (iter.Seq[Event], func()) {
 	j.mu.Lock()
 	replay := make([]Event, 0, len(j.durable))
 	for _, ev := range j.durable {
@@ -85,12 +88,9 @@ func (j *Journal) Subscribe(fromCursor string) (<-chan Event, func()) {
 	}
 	if j.closed {
 		j.mu.Unlock()
-		out := make(chan Event, len(replay))
-		for _, ev := range replay {
-			out <- ev
-		}
-		close(out)
-		return out, func() {}
+		subscriber := newJournalSubscriber(replay)
+		subscriber.finish() // no live tail: drain the backlog, then end
+		return subscriber.events(), func() {}
 	}
 
 	subscriber := newJournalSubscriber(replay)
@@ -106,10 +106,9 @@ func (j *Journal) Subscribe(fromCursor string) (<-chan Event, func()) {
 			delete(j.subs, id)
 			j.mu.Unlock()
 			subscriber.abort()
-			<-subscriber.stopped
 		})
 	}
-	return subscriber.out, cancel
+	return subscriber.events(), cancel
 }
 
 type journalSubscriber struct {
@@ -119,22 +118,11 @@ type journalSubscriber struct {
 	queuedLive int
 	finishing  bool
 	aborted    bool
-	abortOnce  sync.Once
-	abortCh    chan struct{}
-	out        chan Event
-	stopped    chan struct{}
-	timer      *time.Timer
 }
 
 func newJournalSubscriber(replay []Event) *journalSubscriber {
-	subscriber := &journalSubscriber{
-		queue:   replay,
-		abortCh: make(chan struct{}),
-		out:     make(chan Event, liveHeadroom),
-		stopped: make(chan struct{}),
-	}
+	subscriber := &journalSubscriber{queue: replay}
 	subscriber.ready = sync.NewCond(&subscriber.mu)
-	go subscriber.run()
 	return subscriber
 }
 
@@ -154,47 +142,37 @@ func (s *journalSubscriber) enqueue(ev Event) {
 	s.ready.Signal()
 }
 
-func (s *journalSubscriber) finish(budget time.Duration) {
+// finish marks the stream complete: the subscriber drains its remaining queue in
+// order, then its sequence ends.
+func (s *journalSubscriber) finish() {
 	s.mu.Lock()
-	if s.finishing || s.aborted {
-		s.mu.Unlock()
-		return
-	}
 	s.finishing = true
-	s.timer = time.AfterFunc(budget, s.abort)
 	s.ready.Broadcast()
 	s.mu.Unlock()
 }
 
+// abort ends the subscription immediately, abandoning any queued events, and
+// wakes a consumer blocked waiting for the next event.
 func (s *journalSubscriber) abort() {
-	s.abortOnce.Do(func() {
-		s.mu.Lock()
-		s.aborted = true
-		close(s.abortCh)
-		s.ready.Broadcast()
-		s.mu.Unlock()
-	})
+	s.mu.Lock()
+	s.aborted = true
+	s.ready.Broadcast()
+	s.mu.Unlock()
 }
 
-func (s *journalSubscriber) run() {
-	defer func() {
-		s.mu.Lock()
-		if s.timer != nil {
-			s.timer.Stop()
-		}
-		s.mu.Unlock()
-		close(s.out)
-		close(s.stopped)
-	}()
-	for {
-		ev, ok := s.next()
-		if !ok {
-			return
-		}
-		select {
-		case s.out <- ev:
-		case <-s.abortCh:
-			return
+// events yields queued events until the subscription drains to a finish or is
+// aborted. It runs on the consumer's goroutine; next blocks in the cond, so only
+// finish or abort can end a live subscription — the ranging consumer cannot.
+func (s *journalSubscriber) events() iter.Seq[Event] {
+	return func(yield func(Event) bool) {
+		for {
+			ev, ok := s.next()
+			if !ok {
+				return
+			}
+			if !yield(ev) {
+				return
+			}
 		}
 	}
 }
@@ -205,7 +183,7 @@ func (s *journalSubscriber) next() (Event, bool) {
 	for len(s.queue) == 0 && !s.finishing && !s.aborted {
 		s.ready.Wait()
 	}
-	if s.aborted || len(s.queue) == 0 && s.finishing {
+	if s.aborted || (len(s.queue) == 0 && s.finishing) {
 		return Event{}, false
 	}
 	ev := s.queue[0]

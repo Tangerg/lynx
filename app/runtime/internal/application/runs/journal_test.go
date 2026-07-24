@@ -2,9 +2,9 @@ package runs
 
 import (
 	"fmt"
+	"iter"
 	"sync"
 	"testing"
-	"time"
 )
 
 func ev(seq int, durable bool) Event {
@@ -15,13 +15,9 @@ func ev(seq int, durable bool) Event {
 	return Event{Seq: fmt.Sprintf("evt_%011d", seq), Payload: payload}
 }
 
-func terminalEvent(seq int) Event {
-	return Event{Seq: fmt.Sprintf("evt_%011d", seq), Payload: SegmentFinished{}}
-}
-
-func drain(ch <-chan Event) []string {
+func drain(seq iter.Seq[Event]) []string {
 	var ids []string
-	for e := range ch {
+	for e := range seq {
 		ids = append(ids, e.Seq)
 	}
 	return ids
@@ -34,18 +30,20 @@ func TestJournal_ReplayThenLive(t *testing.T) {
 	j.Append(ev(1, true))
 	j.Append(ev(2, true))
 
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	defer cancel()
+	next, stop := iter.Pull(seq)
+	defer stop()
 
-	if got := <-ch; got.Seq != ev(1, true).Seq {
+	if got, _ := next(); got.Seq != ev(1, true).Seq {
 		t.Fatalf("first = %s, want evt 1", got.Seq)
 	}
-	if got := <-ch; got.Seq != ev(2, true).Seq {
+	if got, _ := next(); got.Seq != ev(2, true).Seq {
 		t.Fatalf("second = %s, want evt 2", got.Seq)
 	}
 
 	j.Append(ev(3, true)) // live
-	if got := <-ch; got.Seq != ev(3, true).Seq {
+	if got, _ := next(); got.Seq != ev(3, true).Seq {
 		t.Fatalf("live = %s, want evt 3", got.Seq)
 	}
 }
@@ -57,11 +55,11 @@ func TestJournal_SubscribeFromCursor(t *testing.T) {
 	for i := 1; i <= 3; i++ {
 		j.Append(ev(i, true))
 	}
-	ch, cancel := j.Subscribe(ev(2, true).Seq)
+	seq, cancel := j.Subscribe(ev(2, true).Seq)
 	defer cancel()
 	j.Close() // no live; just drain replay
 
-	got := drain(ch)
+	got := drain(seq)
 	if len(got) != 1 || got[0] != ev(3, true).Seq {
 		t.Fatalf("replay = %v, want [evt 3]", got)
 	}
@@ -72,20 +70,22 @@ func TestJournal_SubscribeFromCursor(t *testing.T) {
 func TestJournal_LiveOnlyNotReplayed(t *testing.T) {
 	j := NewJournal()
 
-	live, cancel := j.Subscribe("")
-	defer cancel()
+	live, cancelLive := j.Subscribe("")
+	defer cancelLive()
+	nextLive, stopLive := iter.Pull(live)
+	defer stopLive()
 	j.Append(ev(1, true))
 	j.Append(ev(2, false)) // live-only
-	if (<-live).Seq != ev(1, true).Seq {
+	if got, _ := nextLive(); got.Seq != ev(1, true).Seq {
 		t.Fatal("live missing durable evt 1")
 	}
-	if (<-live).Seq != ev(2, false).Seq {
+	if got, _ := nextLive(); got.Seq != ev(2, false).Seq {
 		t.Fatal("live missing live-only evt 2")
 	}
 
 	// A fresh subscriber replays durable only.
-	late, cancel2 := j.Subscribe("")
-	defer cancel2()
+	late, cancelLate := j.Subscribe("")
+	defer cancelLate()
 	j.Close()
 	if got := drain(late); len(got) != 1 || got[0] != ev(1, true).Seq {
 		t.Fatalf("late replay = %v, want [evt 1] (no live-only)", got)
@@ -97,51 +97,63 @@ func TestJournal_FanOutN(t *testing.T) {
 	j := NewJournal()
 	a, ca := j.Subscribe("")
 	defer ca()
+	nextA, stopA := iter.Pull(a)
+	defer stopA()
 	b, cb := j.Subscribe("")
 	defer cb()
+	nextB, stopB := iter.Pull(b)
+	defer stopB()
 
 	j.Append(ev(1, true))
-	if (<-a).Seq != ev(1, true).Seq || (<-b).Seq != ev(1, true).Seq {
-		t.Fatal("both subscribers must receive evt 1")
+	if got, _ := nextA(); got.Seq != ev(1, true).Seq {
+		t.Fatal("subscriber a must receive evt 1")
+	}
+	if got, _ := nextB(); got.Seq != ev(1, true).Seq {
+		t.Fatal("subscriber b must receive evt 1")
 	}
 }
 
-// TestJournal_CloseEndsStream: Close closes every subscriber channel, and a
-// post-close Subscribe replays the backlog then closes.
+// TestJournal_CloseEndsStream: Close ends every subscriber stream, and a
+// post-close Subscribe replays the backlog then ends.
 func TestJournal_CloseEndsStream(t *testing.T) {
 	j := NewJournal()
 	j.Append(ev(1, true))
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	defer cancel()
-	<-ch // drain replay
-
-	j.Close()
-	if _, ok := <-ch; ok {
-		t.Fatal("channel must close on Journal Close")
+	next, stop := iter.Pull(seq)
+	defer stop()
+	if got, _ := next(); got.Seq != ev(1, true).Seq { // drain replay
+		t.Fatalf("replay = %s, want evt 1", got.Seq)
 	}
 
-	post, _ := j.Subscribe("")
+	j.Close()
+	if _, ok := next(); ok {
+		t.Fatal("stream must end on Journal Close")
+	}
+
+	post, cancelPost := j.Subscribe("")
+	defer cancelPost()
 	if got := drain(post); len(got) != 1 || got[0] != ev(1, true).Seq {
-		t.Fatalf("post-close replay = %v, want [evt 1] then closed", got)
+		t.Fatalf("post-close replay = %v, want [evt 1] then ended", got)
 	}
 }
 
-// TestJournal_CancelDetaches: after cancel, the subscriber stops receiving and a
-// later Close doesn't double-close its channel.
+// TestJournal_CancelDetaches: after cancel, the subscriber receives nothing and
+// a later Append/Close neither panics nor delivers.
 func TestJournal_CancelDetaches(t *testing.T) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	cancel()
-	if _, ok := <-ch; ok {
-		t.Fatal("cancel must close the channel")
+	if got := drain(seq); len(got) != 0 {
+		t.Fatalf("cancel must end the stream, got %v", got)
 	}
 	j.Append(ev(1, true)) // must not panic (sub gone)
-	j.Close()             // must not double-close
+	j.Close()             // must not double-anything
 }
 
 func TestJournal_DurableOverflowIsLossless(t *testing.T) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	defer cancel()
 	const total = liveHeadroom*3 + 17
 	for i := 1; i <= total; i++ {
@@ -149,7 +161,7 @@ func TestJournal_DurableOverflowIsLossless(t *testing.T) {
 	}
 	j.Close()
 
-	got := drain(ch)
+	got := drain(seq)
 	if len(got) != total {
 		t.Fatalf("durable events = %d, want %d", len(got), total)
 	}
@@ -160,24 +172,9 @@ func TestJournal_DurableOverflowIsLossless(t *testing.T) {
 	}
 }
 
-func TestJournalSubscriberTerminalDrainIsBounded(t *testing.T) {
-	subscriber := newJournalSubscriber(nil)
-	for i := 1; i <= liveHeadroom*2; i++ {
-		subscriber.enqueue(ev(i, true))
-	}
-	subscriber.enqueue(terminalEvent(99999999999))
-
-	started := time.Now()
-	subscriber.finish(20 * time.Millisecond)
-	<-subscriber.stopped
-	if elapsed := time.Since(started); elapsed > 100*time.Millisecond {
-		t.Fatalf("abandoned subscriber exceeded terminal drain budget: %v", elapsed)
-	}
-}
-
 func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	start := make(chan struct{})
 	var wg sync.WaitGroup
 	wg.Go(func() {
@@ -196,6 +193,6 @@ func TestJournalConcurrentAppendCloseAndCancel(t *testing.T) {
 	})
 	close(start)
 	wg.Wait()
-	for range ch {
+	for range seq { // drain whatever survived the race; must terminate
 	}
 }

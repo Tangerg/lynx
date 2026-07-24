@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"iter"
 	"testing"
 	"time"
 )
@@ -97,11 +98,13 @@ func TestJournalCancelUnblocksWaitingSubscriber(t *testing.T) {
 // comparison. Live-only events avoid unbounded durable retention.
 func BenchmarkJournalAppendDrain(b *testing.B) {
 	j := NewJournal()
-	ch, cancel := j.Subscribe("")
+	seq, cancel := j.Subscribe("")
 	defer cancel()
+	next, stop := iter.Pull(seq)
+	defer stop()
 	e := ev(1, false)
 	for b.Loop() {
 		j.Append(e)
-		<-ch
+		next()
 	}
 }
