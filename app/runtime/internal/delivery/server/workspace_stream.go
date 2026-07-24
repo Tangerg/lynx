@@ -72,7 +72,7 @@ func (h *workspaceHub) closeAdmissions() {
 // composition-root bridge) into the hub: each nudge becomes a files.changed
 // workspace event fanned to subscribers. The wire WorkspaceEvent shape stays
 // here in delivery; the bridge itself carries only neutral (cwd, paths).
-func (h *workspaceHub) observe(src FileChangeSource) {
+func (h *workspaceHub) observe(src Source[runs.FileChange]) {
 	src.Observe(func(change runs.FileChange) {
 		h.publish(protocol.WorkspaceEvent{
 			Type:  protocol.WorkspaceEventFilesChanged,
