@@ -12,7 +12,6 @@ export interface CodebaseStatusReadModel {
   chunkCount: number;
   indexedAt?: string;
   truncated?: boolean;
-  error?: string;
 }
 
 export interface SelectableModel {

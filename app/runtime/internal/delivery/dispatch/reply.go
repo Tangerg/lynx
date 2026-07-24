@@ -18,7 +18,10 @@ import (
 func responseResult(id transport.ID, result any) HandleResult {
 	resp, err := transport.NewResponseResult(id, result)
 	if err != nil {
-		return responseError(id, problemError(protocol.CodeInternalError, protocol.ProblemInternalError, err.Error()))
+		// Response encoding is an infrastructure fault. Its serializer detail can
+		// contain arbitrary implementation data, so the protocol exposes only a
+		// stable client-safe problem.
+		return responseError(id, problemError(protocol.CodeInternalError, protocol.ProblemInternalError, "the runtime could not encode the response"))
 	}
 	return HandleResult{Response: resp}
 }

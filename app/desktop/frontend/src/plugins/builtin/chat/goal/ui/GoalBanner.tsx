@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
+import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { resumeGoal, startGoal, stopGoal, useGoal } from "../application/goalConfig";
 import type { GoalInfo } from "../application/goalData";
 
@@ -40,10 +41,11 @@ function useAction(): { busy: boolean; run: (op: () => Promise<void>) => void } 
 
 export function GoalBanner() {
   const sessionId = useActiveSessionId();
-  const { data } = useGoal(Boolean(sessionId), sessionId ?? undefined);
+  const goalsEnabled = useRuntimeCapability("goals");
+  const { data } = useGoal(goalsEnabled && Boolean(sessionId), sessionId ?? undefined);
   const goal = data?.goal ?? null;
 
-  if (!sessionId || !data?.available) return null;
+  if (!sessionId || !goalsEnabled || !data?.available) return null;
   return (
     <AnimatePresence initial={false} mode="wait">
       {goal ? (

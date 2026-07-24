@@ -67,7 +67,7 @@ type modelUseCases interface {
 	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)
 	SetEmbeddingRole(ctx context.Context, providerID, model string) (models.Role, error)
 	SetUtilityRole(ctx context.Context, provider, model string) (models.Role, error)
-	TestProvider(ctx context.Context, id string) error
+	TestProvider(ctx context.Context, id string) (models.ProviderTestOutcome, error)
 	UtilityRole() models.Role
 }
 
@@ -77,7 +77,7 @@ type toolUseCases interface {
 }
 
 type codebaseUseCases interface {
-	HasIndex() bool
+	Available() bool
 	Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error)
 	StartReindex(ctx context.Context, cwd string) (string, error)
 	Status(ctx context.Context, cwd string) (codebase.Status, error)
@@ -107,6 +107,7 @@ type feedbackUseCases interface {
 }
 
 type scheduleManagementUseCases interface {
+	Available() bool
 	Create(ctx context.Context, cmd schedules.CreateCommand) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
 	List(ctx context.Context) ([]schedule.Schedule, error)
@@ -114,6 +115,7 @@ type scheduleManagementUseCases interface {
 }
 
 type scheduleFiringUseCases interface {
+	Available() bool
 	RunNow(ctx context.Context, id string) (schedules.RunHandle, error)
 }
 

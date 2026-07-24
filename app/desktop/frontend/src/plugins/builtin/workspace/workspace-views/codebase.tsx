@@ -36,7 +36,7 @@ function statusLabel(state: CodebaseStatusProjection["state"], t: ReturnType<typ
 
 function CodebaseTab() {
   const t = useT();
-  const { cwd, enabled, status } = useCodebaseSearchConfig();
+  const { cwd, available, enabled, status } = useCodebaseSearchConfig();
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<CodebaseSearchHit[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -65,6 +65,18 @@ function CodebaseTab() {
       setError(rpcErrorText(e) ?? t("codebase.error"));
     }
   };
+
+  if (!available) {
+    return (
+      <WorkspaceViewLayout icon="command" titleStrong title="codebase.title">
+        <EmptyState
+          icon="command"
+          title={t("codebase.unavailable.title")}
+          sub={t("codebase.unavailable.sub")}
+        />
+      </WorkspaceViewLayout>
+    );
+  }
 
   if (!enabled) {
     return (

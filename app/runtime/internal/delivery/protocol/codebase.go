@@ -55,11 +55,12 @@ const (
 	CodebaseStateNone     CodebaseState = "none"     // never indexed
 	CodebaseStateIndexing CodebaseState = "indexing" // a build is in progress
 	CodebaseStateReady    CodebaseState = "ready"    // searchable
-	CodebaseStateError    CodebaseState = "error"    // last build failed (error set)
+	CodebaseStateError    CodebaseState = "error"    // last build failed
 )
 
 // CodebaseStatus — the codebase.status reply. Truncated reports the project hit
-// the index caps (partial index). Error carries the last build failure.
+// the index caps (partial index). Failed rebuilds are represented by StateError;
+// implementation diagnostics stay in runtime observability rather than the API.
 type CodebaseStatus struct {
 	State       CodebaseState `json:"state"`
 	ModelID     string        `json:"modelId,omitempty"`
@@ -67,7 +68,6 @@ type CodebaseStatus struct {
 	ChunkCount  int           `json:"chunkCount"`
 	IndexedAt   string        `json:"indexedAt,omitempty"`
 	Truncated   bool          `json:"truncated,omitempty"`
-	Error       string        `json:"error,omitempty"`
 	OperationID string        `json:"operationId,omitempty"`
 }
 

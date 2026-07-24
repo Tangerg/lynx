@@ -58,8 +58,7 @@ type reducer struct {
 	reasoning  *openText
 	tools      openTools
 	drained    []interrupts.DrainedTool
-	errMsg     string
-	errProblem transcript.Problem
+	errProblem *transcript.Problem
 }
 
 type openText struct {
@@ -127,8 +126,6 @@ func (r *reducer) open() ([]reduction, error) {
 func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 	var out []RunEvent
 	switch e := ev.(type) {
-	case TurnStart:
-		return nil, nil
 	case MessageDelta:
 		out = r.closeReasoning()
 		out = append(out, r.appendText(e.Text)...)
@@ -153,9 +150,6 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 		out = r.steerMessage(e)
 	case TodosUpdated:
 		out = r.todosSnapshot(e)
-	case ErrorEvent:
-		r.errMsg, r.errProblem = e.Message, e.Problem
-		return nil, nil
 	case CompactBoundary:
 		out = r.compaction(e)
 	case TurnInterrupted:
@@ -185,9 +179,9 @@ func (r *reducer) synthesizeTerminal() ([]reduction, error) {
 	out = append(out, drained...)
 	result := &transcript.RunResult{}
 	outcome := execution.OutcomeCanceled
-	if r.errMsg != "" {
+	if r.errProblem != nil {
 		outcome = execution.OutcomeError
-		result.Error = r.runProblem()
+		result.Error = normalizeRunProblem(*r.errProblem)
 	}
 	detail := ""
 	if outcome == execution.OutcomeCanceled && r.cfg.CancelReason != nil {
@@ -205,12 +199,10 @@ func (r *reducer) abort(err error) {
 	if err == nil {
 		return
 	}
-	r.errMsg = err.Error()
-	r.errProblem = transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
+	r.errProblem = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
 }
 
-func (r *reducer) runProblem() *transcript.Problem {
-	problem := r.errProblem
+func normalizeRunProblem(problem transcript.Problem) *transcript.Problem {
 	problem.Scope = transcript.RunProblem
 	if problem.Detail == "" {
 		problem.Kind = transcript.InternalProblem

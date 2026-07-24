@@ -2,6 +2,7 @@ package turn
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Tangerg/lynx/agent"
@@ -21,11 +22,6 @@ import (
 // state. Later segments are driven by [memoryDispatcher.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
-	st.maxBudget = request.MaxBudget
-	st.maxCostUSD = request.MaxCostUSD
-	st.maxSteps = request.MaxSteps
-	s.emit(st, runs.TurnStart{Model: st.model})
-
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the engine's
 	// default client.
@@ -33,11 +29,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	if request.Provider != "" && request.Model != "" && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, request.Provider, request.Model)
 		if err != nil {
-			s.emit(st, runs.ErrorEvent{
-				Message: err.Error(), Code: runs.ErrorCodeModelUnavailable,
-				Problem: problemFromError(err),
-			})
-			s.finishTurn(st, execution.OutcomeError)
+			s.finishFailedTurn(st, problemFromError(err), err)
 			return
 		}
 		client = c
@@ -65,8 +57,7 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		s.emit(st, runs.ErrorEvent{Message: err.Error(), Code: runs.ErrorCodeEngine, Problem: internalRunProblem()})
-		s.finishTurn(st, execution.OutcomeError)
+		s.finishFailedTurn(st, internalRunProblem(), err)
 		return
 	}
 	// Record the root process id so the lifecycle gate keeps subtask
@@ -151,21 +142,13 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 	}
 	if suspension == nil {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.emit(st, runs.ErrorEvent{
-			Message: "agent process is waiting without a suspension",
-			Code:    runs.ErrorCodeEngine, Problem: internalRunProblem(),
-		})
-		s.finishTurn(st, execution.OutcomeError)
+		s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process is waiting without a suspension"))
 		return
 	}
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.emit(st, runs.ErrorEvent{
-			Message: "agent process returned an unsupported interrupt payload",
-			Code:    runs.ErrorCodeEngine, Problem: internalRunProblem(),
-		})
-		s.finishTurn(st, execution.OutcomeError)
+		s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process returned an unsupported interrupt payload"))
 		return
 	}
 	recordInterruptMetric(st.ctx, string(pending.Kind))
@@ -209,8 +192,8 @@ func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
 
 // postTurnMaintenance runs turn-boundary housekeeping after the turn's real LLM
 // round completed cleanly: skill mining, then the compact + (conditional)
-// extract pair. Errors at this stage surface through ErrorEvent but don't abort
-// the turn — the user's reply is already on screen.
+// extract pair. Errors are observability facts, not execution facts: the user
+// reply has already completed and its outcome must not be rewritten.
 //
 // Skill mining runs FIRST and independent of compaction: a complex turn is
 // worth distilling into a reusable skill whether or not history needed folding,
@@ -221,7 +204,7 @@ func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
 // A fired compaction emits [CompactBoundary] with before/after message counts.
 // Memory extraction writes its durable ledger/curated state internally; it has
 // no client event because no application projection consumes one. Maintenance
-// failures remain visible through [ErrorEvent].
+// failures are recorded on the active turn span.
 //
 // Memory maintenance (extraction/curation) is gated on compaction firing: those
 // add model calls, so we amortize them onto the moments where the runtime had
@@ -229,22 +212,14 @@ func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.miner != nil {
 		if err := s.miner.MaybeMine(ctx, sessionID, st.cwd, st.toolCallCount()); err != nil {
-			s.emit(st, runs.ErrorEvent{
-				Message: "skill mining failed: " + err.Error(),
-				Code:    runs.ErrorCodeSkillMaintenance,
-				Problem: internalRunProblem(),
-			})
+			recordTurnMaintenanceError(st, err)
 		}
 	}
 	// Idle-skill curation is global (not tied to this session/cwd) and
 	// rate-limited inside the curator; the turn boundary is just a live tick.
 	if s.curator != nil {
 		if err := s.curator.MaybeSweep(ctx); err != nil {
-			s.emit(st, runs.ErrorEvent{
-				Message: "skill curation failed: " + err.Error(),
-				Code:    runs.ErrorCodeSkillMaintenance,
-				Problem: internalRunProblem(),
-			})
+			recordTurnMaintenanceError(st, err)
 		}
 	}
 
@@ -270,11 +245,7 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 	}
 	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, contextWindow, preCompact)
 	if err != nil {
-		s.emit(st, runs.ErrorEvent{
-			Message: "auto-compaction failed: " + err.Error(),
-			Code:    runs.ErrorCodeCompaction,
-			Problem: internalRunProblem(),
-		})
+		recordTurnMaintenanceError(st, err)
 		return
 	}
 	if !compaction.Compacted {
@@ -289,10 +260,6 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		return
 	}
 	if err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd); err != nil {
-		s.emit(st, runs.ErrorEvent{
-			Message: "memory maintenance failed: " + err.Error(),
-			Code:    runs.ErrorCodeMemoryMaintenance,
-			Problem: internalRunProblem(),
-		})
+		recordTurnMaintenanceError(st, err)
 	}
 }

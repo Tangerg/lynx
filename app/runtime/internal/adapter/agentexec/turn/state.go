@@ -75,13 +75,6 @@ type turnState struct {
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time
 
-	// maxBudget / maxCostUSD echo the turn's configured caps (from the
-	// StartTurnRequest), stashed once in runTurn so emitTurnEnd can describe a
-	// budget-exceeded terminal precisely. Zero when uncapped.
-	maxBudget  int64
-	maxCostUSD float64
-	maxSteps   int
-
 	// lifecycle captures the process's authoritative terminal event;
 	// retained across interrupt→resume so the eventual TurnEnd reads it.
 	// Written once before the turn goroutine reads it; not mu-guarded.

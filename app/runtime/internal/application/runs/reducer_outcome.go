@@ -8,13 +8,19 @@ import (
 )
 
 func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
+	if e.Reason != execution.OutcomeError && e.Problem != nil {
+		return nil, fmt.Errorf("non-error outcome carries a problem")
+	}
 	result := &transcript.RunResult{
 		Usage: r.turnUsage(e), Steps: r.step, Duration: e.Duration,
 	}
 	detail := ""
 	switch e.Reason {
 	case execution.OutcomeError:
-		result.Error = r.runProblem()
+		if e.Problem == nil {
+			return nil, fmt.Errorf("error outcome is missing a problem")
+		}
+		result.Error = normalizeRunProblem(*e.Problem)
 	case execution.OutcomeCanceled:
 		if r.cfg.CancelReason != nil {
 			detail = r.cfg.CancelReason()

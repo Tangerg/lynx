@@ -96,8 +96,6 @@ func eventNames(events []runs.EngineEvent) []string {
 	out := make([]string, len(events))
 	for i, ev := range events {
 		switch ev.(type) {
-		case runs.TurnStart:
-			out[i] = "TurnStart"
 		case runs.MessageDelta:
 			out[i] = "MessageDelta"
 		case runs.ToolCallStart:
@@ -106,8 +104,6 @@ func eventNames(events []runs.EngineEvent) []string {
 			out[i] = "ToolCallEnd"
 		case runs.TurnEnd:
 			out[i] = "TurnEnd"
-		case runs.ErrorEvent:
-			out[i] = "ErrorEvent"
 		default:
 			out[i] = "?"
 		}

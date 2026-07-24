@@ -14,13 +14,10 @@ import (
 // memory: proposals wait as pending until the user approves them, and only
 // approved memory reaches the prompt or the memory_search tool.
 
-// Delivery consumes application use cases. It holds neither a persistence port
-// nor a disabled fake: nil simply means the capability was not negotiated.
-var errAgentMemoryDisabled = errors.New("agentMemory: disabled")
-
 // agentMemoryUseCases is Delivery's consumer-side port. Its methods express
 // complete review use cases, rather than exposing the domain store workflow.
 type agentMemoryUseCases interface {
+	Available() bool
 	List(ctx context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error)
 	Review(ctx context.Context, id string, status agentmemory.Status) error
 	Update(ctx context.Context, id string, content *string, pinned *bool) (agentmemory.Item, error)
@@ -30,8 +27,8 @@ type agentMemoryUseCases interface {
 
 // ListAgentMemory returns a project's active + pending memory (agentMemory.list).
 func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
-	if s.agentMemory == nil {
-		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.list")
+	if !s.features.agentMemory {
+		return nil, capabilityNotNegotiated("agentMemory.list")
 	}
 	items, err := s.agentMemory.List(ctx, agentMemoryScope(in.Scope), in.Cwd)
 	if err != nil {
@@ -55,16 +52,16 @@ func (s *Server) ReviewAgentMemory(ctx context.Context, in protocol.AgentMemoryR
 	default:
 		return fmt.Errorf("%w: decision must be \"approve\" or \"reject\"", protocol.ErrInvalidParams)
 	}
-	if s.agentMemory == nil {
-		return mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.review")
+	if !s.features.agentMemory {
+		return capabilityNotNegotiated("agentMemory.review")
 	}
 	return mapAgentMemoryErr(s.agentMemory.Review(ctx, in.ID, status), "agentMemory.review")
 }
 
 // UpdateAgentMemory edits and/or pins an item (agentMemory.update).
 func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
-	if s.agentMemory == nil {
-		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.update")
+	if !s.features.agentMemory {
+		return nil, capabilityNotNegotiated("agentMemory.update")
 	}
 	item, err := s.agentMemory.Update(ctx, in.ID, in.Content, in.Pinned)
 	if err != nil {
@@ -76,16 +73,16 @@ func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryU
 
 // DeleteAgentMemory removes an item (agentMemory.delete).
 func (s *Server) DeleteAgentMemory(ctx context.Context, in protocol.AgentMemoryItemRequest) error {
-	if s.agentMemory == nil {
-		return mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.delete")
+	if !s.features.agentMemory {
+		return capabilityNotNegotiated("agentMemory.delete")
 	}
 	return mapAgentMemoryErr(s.agentMemory.Delete(ctx, in.ID), "agentMemory.delete")
 }
 
 // AddAgentMemory stores a user-authored active item (agentMemory.add).
 func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
-	if s.agentMemory == nil {
-		return nil, mapAgentMemoryErr(errAgentMemoryDisabled, "agentMemory.add")
+	if !s.features.agentMemory {
+		return nil, capabilityNotNegotiated("agentMemory.add")
 	}
 	item, err := s.agentMemory.Add(ctx, agentMemoryScope(in.Scope), in.Cwd, in.Content)
 	if err != nil {
@@ -108,8 +105,6 @@ func mapAgentMemoryErr(err error, method string) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, errAgentMemoryDisabled):
-		return capabilityNotNegotiated(method)
 	case errors.Is(err, agentmemoryapp.ErrUnavailable):
 		return capabilityNotNegotiated(method)
 	case errors.Is(err, agentmemory.ErrNotFound):

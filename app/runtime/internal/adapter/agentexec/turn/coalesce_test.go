@@ -49,9 +49,9 @@ func TestCoalesceTextDeltas_PassesThroughNonDelta(t *testing.T) {
 	ch := make(chan runs.EngineEvent, 4)
 	ch <- runs.MessageDelta{Text: "x"}
 	var spill runs.EngineEvent
-	got := coalesceTextDeltas(runs.TurnStart{}, ch, &spill)
-	if _, ok := got.(runs.TurnStart); !ok {
-		t.Fatalf("got = %#v, want runs.TurnStart unchanged", got)
+	got := coalesceTextDeltas(runs.UsageReported{}, ch, &spill)
+	if _, ok := got.(runs.UsageReported); !ok {
+		t.Fatalf("got = %#v, want runs.UsageReported unchanged", got)
 	}
 	if spill != nil || len(ch) != 1 {
 		t.Fatalf("a non-delta head must not touch ch/spill: spill=%#v len=%d", spill, len(ch))

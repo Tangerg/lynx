@@ -96,6 +96,7 @@ type Stack struct {
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore *sqlitestore.IdempotencyStore
 	GitAvailable     bool
+	TodosEnabled     bool
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -570,6 +571,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			Goals:              goalDriver,
 			AgentMemory:        agentMemoryCoord,
 			GitAvailable:       checkpointstore.GitAvailable(),
+			TodosEnabled:       cfg.TodoStore != nil,
 		},
 		lifetime: &hostLifetime{
 			integrations: integrationsCoord,

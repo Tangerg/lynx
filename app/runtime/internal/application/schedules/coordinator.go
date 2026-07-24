@@ -78,6 +78,9 @@ func New(deps Dependencies) *Coordinator {
 	}
 }
 
+// Available reports whether schedule-management use cases are wired.
+func (c *Coordinator) Available() bool { return c != nil && c.enabled }
+
 // List returns every saved schedule, newest-created first.
 func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return c.registry.List(ctx)

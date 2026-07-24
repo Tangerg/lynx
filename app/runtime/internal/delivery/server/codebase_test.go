@@ -49,7 +49,7 @@ func (i *fakeCodebaseIndex) Status(_ context.Context, root string) (codebaseinde
 
 func serverWithCodebase(root string, idx codebase.Index) *Server {
 	surfaces := newWorkspaceSurfaces(root, workspaceTestConfig{})
-	s := &Server{codebase: codebase.New(idx, surfaces.roots)}
+	s := &Server{codebase: codebase.New(idx, surfaces.roots), features: featureAvailability{codebase: idx != nil}}
 	applyWorkspaceSurfaces(s, surfaces)
 	return s
 }
@@ -85,8 +85,8 @@ func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 	s := serverWithCodebase(root, nil) // no index
 
 	_, err := s.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session"})
-	if !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("search without index err = %v, want invalid_params", err)
+	if !errors.Is(err, protocol.ErrCapabilityNotNeg) {
+		t.Fatalf("search without index err = %v, want capability_not_negotiated", err)
 	}
 
 	withIndex := serverWithCodebase(root, &fakeCodebaseIndex{available: true})
@@ -137,7 +137,8 @@ func TestCodebaseReindexMapsToWire(t *testing.T) {
 		t.Fatal("reindex did not start")
 	}
 
-	// An unavailable index maps to invalid_params.
+	// An available index without an embedding role is a configuration error, not
+	// a missing capability.
 	unavailable := serverWithCodebase(root, &fakeCodebaseIndex{available: false})
 	if _, err := unavailable.CodebaseReindex(context.Background(), protocol.CodebaseReindexRequest{}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("reindex without embedding err = %v, want invalid_params", err)

@@ -50,6 +50,7 @@ func (s *fakeMemoryStore) Update(_ context.Context, scope knowledge.Scope, cwd s
 func serverWithMemory(store workspaceapp.KnowledgeStore) *Server {
 	s := newTestServer(&stubRuntime{})
 	applyWorkspaceSurfaces(s, newWorkspaceSurfaces("", workspaceTestConfig{Memory: store}))
+	s.features.memory = store != nil
 	return s
 }
 

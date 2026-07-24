@@ -31,6 +31,8 @@ type recordingAgentMemory struct {
 	getItem agentmemory.Item
 }
 
+func (*recordingAgentMemory) Available() bool { return true }
+
 func (r *recordingAgentMemory) List(_ context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error) {
 	r.listScope, r.listCwd = scope, cwd
 	return r.items, nil
@@ -77,6 +79,7 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	}}
 	s := newTestServer(&stubRuntime{})
 	s.agentMemory = rec
+	s.features.agentMemory = true
 
 	out, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{Scope: "project", Cwd: "/repo/"})
 	if err != nil {
@@ -101,6 +104,7 @@ func TestAgentMemoryReviewMapsDecision(t *testing.T) {
 	rec := &recordingAgentMemory{}
 	s := newTestServer(&stubRuntime{})
 	s.agentMemory = rec
+	s.features.agentMemory = true
 
 	if err := s.ReviewAgentMemory(context.Background(), protocol.AgentMemoryReviewRequest{ID: "a", Decision: "approve"}); err != nil {
 		t.Fatal(err)
@@ -123,6 +127,7 @@ func TestAgentMemoryUpdateAndAdd(t *testing.T) {
 	rec := &recordingAgentMemory{getItem: agentmemory.Item{ID: "a", Content: "- edited", Pinned: true, Status: agentmemory.StatusActive}}
 	s := newTestServer(&stubRuntime{})
 	s.agentMemory = rec
+	s.features.agentMemory = true
 
 	content := "- edited"
 	pinned := true

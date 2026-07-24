@@ -183,11 +183,11 @@ func TestTestProviderRequiresAConfiguredSupportedProvider(t *testing.T) {
 		Prober:  prober,
 	})
 
-	if err := c.TestProvider(t.Context(), "missing"); !errors.Is(err, ErrProviderUnsupported) {
+	if _, err := c.TestProvider(t.Context(), "missing"); !errors.Is(err, ErrProviderUnsupported) {
 		t.Fatalf("unsupported error = %v", err)
 	}
-	if err := c.TestProvider(t.Context(), "anthropic"); err != nil {
-		t.Fatalf("test provider: %v", err)
+	if outcome, err := c.TestProvider(t.Context(), "anthropic"); err != nil || outcome != ProviderTestSucceeded {
+		t.Fatalf("test provider = %q, %v", outcome, err)
 	}
 	if prober.got.ID != "anthropic" {
 		t.Fatalf("probed = %+v", prober.got)

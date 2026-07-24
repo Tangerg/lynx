@@ -91,9 +91,7 @@ func (b Budget) Exceeded(u Usage) (limit BudgetLimit, exceeded bool) {
 }
 
 // ReasonCause classifies why a paused or blocked goal stopped. It deliberately
-// carries no display text: delivery maps the stable cause to client wording,
-// while Detail carries only the raw model, run, or infrastructure value when
-// one exists.
+// carries no display text: delivery maps the stable cause to client wording.
 type ReasonCause uint8
 
 const (
@@ -116,7 +114,9 @@ func (c ReasonCause) Valid() bool {
 }
 
 // Reason is the typed stopping context stored with a paused or blocked goal.
-// Detail must stay raw: it is never a domain-authored presentation sentence.
+// Detail is allowed only for model-authored explanations and stable domain
+// values such as an Outcome string. Infrastructure errors belong in logs and
+// traces, never in durable goal state.
 type Reason struct {
 	Cause  ReasonCause
 	Detail string

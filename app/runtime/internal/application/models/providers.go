@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/component/secretmask"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
@@ -27,6 +29,18 @@ type ConfigureProviderCommand struct {
 	APIKey  string
 	BaseURL string
 }
+
+// ProviderTestOutcome is the complete client-relevant result of a live
+// credential probe. Unsupported provider remains a command error; all other
+// operational details stay in observability rather than crossing the
+// Application-to-Delivery boundary as arbitrary error text.
+type ProviderTestOutcome string
+
+const (
+	ProviderTestSucceeded     ProviderTestOutcome = "succeeded"
+	ProviderTestNotConfigured ProviderTestOutcome = "not_configured"
+	ProviderTestFailed        ProviderTestOutcome = "failed"
+)
 
 // ListProviders returns the supported-provider set annotated with its current
 // configuration. Registry-only unknown providers are intentionally omitted.
@@ -77,17 +91,29 @@ func (c *Coordinator) ConfigureProvider(ctx context.Context, cmd ConfigureProvid
 }
 
 // TestProvider checks that a supported, configured provider accepts a minimal
-// request. Probe failures remain operational errors so callers can present the
-// provider's diagnostic without reimplementing configuration policy.
-func (c *Coordinator) TestProvider(ctx context.Context, id string) error {
+// request. Its result is deliberately a stable use-case outcome: delivery does
+// not receive adapter diagnostics and therefore cannot leak them to clients.
+func (c *Coordinator) TestProvider(ctx context.Context, id string) (ProviderTestOutcome, error) {
 	_, entry, err := c.configuredProvider(ctx, id)
 	if err != nil {
-		return err
+		if errors.Is(err, ErrProviderUnsupported) {
+			return "", err
+		}
+		if errors.Is(err, ErrProviderUnconfigured) {
+			return ProviderTestNotConfigured, nil
+		}
+		trace.SpanFromContext(ctx).RecordError(err)
+		return ProviderTestFailed, nil
 	}
 	if c.prober == nil {
-		return errors.New("models: provider probe is unavailable")
+		trace.SpanFromContext(ctx).RecordError(errors.New("models: provider probe is unavailable"))
+		return ProviderTestFailed, nil
 	}
-	return c.prober.Probe(ctx, entry)
+	if err := c.prober.Probe(ctx, entry); err != nil {
+		trace.SpanFromContext(ctx).RecordError(err)
+		return ProviderTestFailed, nil
+	}
+	return ProviderTestSucceeded, nil
 }
 
 // ListModels applies the model-discovery policy. Providers with endpoint-owned

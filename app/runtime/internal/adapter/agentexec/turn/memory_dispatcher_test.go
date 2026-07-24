@@ -22,7 +22,7 @@ import (
 // against a stub LLM that asks for `shell` (echo lyra). The dispatcher
 // must emit the canonical sequence:
 //
-//	TurnStart → ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
+//	ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
 //
 // and the channel must close cleanly. This is the M1+M2 contract:
 // transport adapters built later only need to forward whatever this
@@ -45,7 +45,7 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 
 	got := drainEvents(events)
 
-	wantOrder := []string{"TurnStart", "ToolCallStart", "ToolCallEnd", "MessageDelta", "TurnEnd"}
+	wantOrder := []string{"ToolCallStart", "ToolCallEnd", "MessageDelta", "TurnEnd"}
 	if names := eventNames(got); !sliceEqual(names, wantOrder) {
 		t.Fatalf("event order mismatch:\n  got  %v\n  want %v", names, wantOrder)
 	}

@@ -17,8 +17,8 @@ import (
 // CodebaseSearch returns the chunks most similar to the query in the cwd's
 // project (codebase.search), building/refreshing the index first.
 func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
-	if !s.codebase.HasIndex() {
-		return nil, fmt.Errorf("%w: codebase index is unavailable", protocol.ErrInvalidParams)
+	if !s.features.codebase {
+		return nil, capabilityNotNegotiated("codebase.search")
 	}
 	if in.Query == "" {
 		return nil, fmt.Errorf("%w: query is required", protocol.ErrInvalidParams)
@@ -42,6 +42,9 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 
 // CodebaseStatus reports the cwd's index state (codebase.status).
 func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
+	if !s.features.codebase {
+		return nil, capabilityNotNegotiated("codebase.status")
+	}
 	st, err := s.codebase.Status(ctx, in.Cwd)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
@@ -55,6 +58,9 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 // (codebase.reindex) — a big reindex can take seconds, so the status surface
 // polls codebase.status for progress rather than blocking the call.
 func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
+	if !s.features.codebase {
+		return nil, capabilityNotNegotiated("codebase.reindex")
+	}
 	operationID, err := s.codebase.StartReindex(ctx, in.Cwd)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
@@ -78,7 +84,6 @@ func codebaseStatusToWire(st codebaseindex.Status) *protocol.CodebaseStatus {
 		FileCount:  st.FileCount,
 		ChunkCount: st.ChunkCount,
 		Truncated:  st.Truncated,
-		Error:      st.Err,
 	}
 	if !st.IndexedAt.IsZero() {
 		w.IndexedAt = st.IndexedAt.UTC().Format(time.RFC3339)

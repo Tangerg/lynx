@@ -30,7 +30,7 @@ const (
 	StateNone     State = "none"     // never indexed
 	StateIndexing State = "indexing" // a build is in progress
 	StateReady    State = "ready"    // searchable
-	StateError    State = "error"    // last build failed (Err set)
+	StateError    State = "error"    // last build failed
 )
 
 // Chunk is one indexed code span: a line range of a file plus its embedding.
@@ -61,7 +61,6 @@ type Status struct {
 	ChunkCount int
 	IndexedAt  time.Time
 	Truncated  bool
-	Err        string
 }
 
 // Meta is the persisted per-cwd index header (the model the vectors were built

@@ -59,7 +59,7 @@ func (a RunAdmission) Admit(runID string) bool {
 		}
 		delete(g.pending, a.lease.id)
 		g.releaseTreeRunLocked(pending.cwd)
-		g.runs[runID] = liveRun{sessionID: pending.sessionID, cwd: pending.cwd}
+		g.runs[runID] = liveRun(pending)
 		admitted = true
 	})
 	return admitted

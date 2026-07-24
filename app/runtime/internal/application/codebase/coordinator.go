@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -68,8 +69,8 @@ func New(index Index, roots RootResolver) *Coordinator {
 // Close cancels + joins the background reindex tasks (§10.3).
 func (c *Coordinator) Close() { c.tasks.Close() }
 
-// HasIndex reports whether this runtime has an index store wired.
-func (c *Coordinator) HasIndex() bool { return c.index != nil }
+// Available reports whether semantic-index use cases are wired in this runtime.
+func (c *Coordinator) Available() bool { return c != nil && c.index != nil }
 
 // Search returns semantic search hits for cwd, building the index when needed.
 func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error) {
@@ -134,9 +135,11 @@ func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, err
 	go func() {
 		defer release()
 		defer c.endOperation(root, operationID)
-		// Reindex records every accepted task's terminal failure in Status; the
-		// management surface is the asynchronous operation's result channel.
-		_ = c.index.Reindex(taskCtx, root)
+		if err := c.index.Reindex(taskCtx, root); err != nil {
+			// The asynchronous result channel is the status state; preserve the
+			// detailed operational cause only on the request trace.
+			trace.SpanFromContext(taskCtx).RecordError(err)
+		}
 	}()
 	return operationID, nil
 }

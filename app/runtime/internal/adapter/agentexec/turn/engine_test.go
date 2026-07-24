@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -196,17 +197,15 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 
-	var sawError, sawEnd bool
+	var sawEnd bool
 	for event := range events {
 		switch value := event.(type) {
-		case runs.ErrorEvent:
-			sawError = value.Code == runs.ErrorCodeEngine && strings.Contains(value.Message, "invalid turn stop reason")
 		case runs.TurnEnd:
-			sawEnd = value.Reason == execution.OutcomeError
+			sawEnd = value.Reason == execution.OutcomeError && value.Problem != nil && value.Problem.Kind == transcript.InternalProblem
 		}
 	}
-	if !sawError || !sawEnd {
-		t.Fatalf("invalid stop reason events: error=%v end=%v, want ENGINE_ERROR then error TurnEnd", sawError, sawEnd)
+	if !sawEnd {
+		t.Fatal("invalid stop reason did not produce an error TurnEnd with an internal problem")
 	}
 }
 
@@ -299,7 +298,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 
 // TestRehydrate_ResumeError_ReturnsError proves a synchronous resume failure is
 // still observable: Rehydrate returns the parked handle, Events attaches, then
-// Resume emits ErrorEvent + TurnEnd before returning its error.
+// Resume emits an error TurnEnd before returning its error.
 func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
@@ -319,17 +318,14 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, nil); err == nil {
 		t.Fatal("Resume returned nil error despite the restored process failure")
 	}
-	var sawError, sawEnd bool
+	var sawEnd bool
 	for ev := range events {
-		switch ev.(type) {
-		case runs.ErrorEvent:
-			sawError = true
-		case runs.TurnEnd:
-			sawEnd = true
+		if end, ok := ev.(runs.TurnEnd); ok {
+			sawEnd = end.Reason == execution.OutcomeError && end.Problem != nil
 		}
 	}
-	if !sawError || !sawEnd {
-		t.Fatalf("terminal stream = error:%v end:%v, want both", sawError, sawEnd)
+	if !sawEnd {
+		t.Fatal("terminal stream did not contain an error TurnEnd")
 	}
 	if _, evErr := dispatcher.Events(context.Background(), handle); evErr == nil {
 		t.Error("Events resolved a turn that should have been torn down")
@@ -557,24 +553,20 @@ func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHan
 func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.EngineEvent], startErr error) {
 	t.Helper()
 
-	var starts, failures, terminals int
+	var terminals int
 	for event := range events {
 		switch value := event.(type) {
-		case runs.TurnStart:
-			starts++
-		case runs.ErrorEvent:
-			failures++
-			if value.Code != runs.ErrorCodeEngine || !strings.Contains(value.Message, startErr.Error()) {
-				t.Errorf("ErrorEvent = %+v, want ENGINE_ERROR containing %q", value, startErr)
-			}
 		case runs.TurnEnd:
 			terminals++
-			if value.Reason != execution.OutcomeError {
-				t.Errorf("TurnEnd reason = %s, want error", value.Reason)
+			if value.Reason != execution.OutcomeError || value.Problem == nil || value.Problem.Kind != transcript.InternalProblem {
+				t.Errorf("TurnEnd = %+v, want error with an internal problem", value)
+			}
+			if value.Problem != nil && strings.Contains(value.Problem.Detail, startErr.Error()) {
+				t.Errorf("TurnEnd.Problem leaked startup error %q", startErr)
 			}
 		}
 	}
-	if starts != 1 || failures != 1 || terminals != 1 {
-		t.Fatalf("event counts start/error/end = %d/%d/%d, want 1/1/1", starts, failures, terminals)
+	if terminals != 1 {
+		t.Fatalf("terminal events = %d, want 1", terminals)
 	}
 }
