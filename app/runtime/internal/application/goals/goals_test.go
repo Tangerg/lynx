@@ -33,13 +33,25 @@ func newMemStore() *memStore {
 	}
 }
 
-func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
+// The store methods honor ctx cancellation to model the production sqlite store,
+// whose queries fail at the driver once ctx is done. This is load-bearing for the
+// goal loop: a superseded straggler whose ctx was canceled by Stop bails at its
+// next store op instead of racing the recovery loop (a fake that ignored ctx let
+// the straggler keep writing, flaking TestDriverStopSaveFailureKeepsGoalDriving
+// under load).
+func (s *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
+	if err := ctx.Err(); err != nil {
+		return goal.Goal{}, false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	g, ok := s.goals[id]
 	return g, ok, nil
 }
-func (s *memStore) Save(_ context.Context, g goal.Goal, expected goal.Version) (bool, error) {
+func (s *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failSave != nil {
@@ -65,14 +77,20 @@ func (s *memStore) failNextSave(err error) {
 	s.failSave = err
 	s.mu.Unlock()
 }
-func (s *memStore) Clear(_ context.Context, id string) error {
+func (s *memStore) Clear(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.goals, id)
 	s.notifyLocked()
 	return nil
 }
-func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) (bool, error) {
+func (s *memStore) ClearIf(ctx context.Context, id string, expected goal.Version) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur, ok := s.goals[id]
@@ -83,7 +101,10 @@ func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) 
 	s.notifyLocked()
 	return true, nil
 }
-func (s *memStore) List(context.Context) ([]goal.Goal, error) {
+func (s *memStore) List(ctx context.Context) ([]goal.Goal, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]goal.Goal, 0, len(s.goals))
