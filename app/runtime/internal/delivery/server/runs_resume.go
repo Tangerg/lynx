@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -14,7 +15,7 @@ import (
 // (R model, API.md §6). in.RunID is the stable run to continue; the response
 // decision is delivered to the live agent process, and the continuation streams
 // under the same runId with a fresh segmentId.
-func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	// Validate the decision BEFORE touching the interrupt — a malformed
 	// response shouldn't consume the (still-resumable) record.
 	responses, err := decodeResumeResponses(in.Responses)

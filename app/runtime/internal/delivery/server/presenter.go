@@ -59,16 +59,13 @@ func presentTodoStatus(status todo.Status) protocol.TodoStatus {
 	}
 }
 
-func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) <-chan protocol.RunEvent {
-	out := make(chan protocol.RunEvent)
-	go func() {
-		defer close(out)
-		// This detached goroutine runs presentation logic (presentRunEvent asserts
-		// an exhaustive event switch and dereferences payloads). It is outside the
-		// request-scoped panic recovery, so an unrecovered panic here would abort the
-		// whole process — every other run and connection with it. Contain it to this
-		// one stream: record it and fall through to the deferred close(out), which
-		// ends this stream cleanly while the rest of the runtime keeps serving.
+func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) iter.Seq[protocol.RunEvent] {
+	return func(yield func(protocol.RunEvent) bool) {
+		// presentRunEvent asserts an exhaustive event switch and dereferences
+		// payloads; it runs synchronously on the consumer's goroutine, outside the
+		// request-scoped panic recovery. Contain a panic to this one stream — record
+		// it and end the sequence — so an unrecovered presenter bug terminates this
+		// single stream rather than aborting the whole process.
 		defer func() {
 			if r := recover(); r != nil {
 				trace.SpanFromContext(ctx).RecordError(fmt.Errorf("server: run-event presenter panicked, terminating stream: %v", r))
@@ -80,12 +77,9 @@ func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) <-chan protocol.
 				EventID: protocol.IDPrefixEvent + event.Seq, Timestamp: event.Timestamp,
 				Event: presentRunEvent(event.Payload),
 			}
-			select {
-			case out <- wire:
-			case <-ctx.Done():
+			if !yield(wire) {
 				return
 			}
 		}
-	}()
-	return out
+	}
 }

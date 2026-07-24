@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -29,9 +30,18 @@ func TestSubscribeRun_StreamsLiveRun(t *testing.T) {
 		t.Fatalf("subscribe live: out=%+v events=%v", out, events)
 	}
 	// The live run's opening segment.started is durable, so a fresh subscription
-	// replays it.
+	// replays it. Pull the first event on a goroutine so the assertion stays
+	// timeout-bounded (a blocked source next cannot be interrupted inline).
+	next, stop := iter.Pull(events)
+	first := make(chan protocol.RunEvent, 1)
+	go func() {
+		if ev, ok := next(); ok {
+			first <- ev
+		}
+	}()
 	select {
-	case ev := <-events:
+	case ev := <-first:
+		stop()
 		if ev.RunID != runID {
 			t.Fatalf("first event runId = %q, want %s", ev.RunID, runID)
 		}

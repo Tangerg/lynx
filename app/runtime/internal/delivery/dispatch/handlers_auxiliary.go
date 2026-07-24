@@ -290,5 +290,5 @@ func (d *Dispatcher) handleWorkspaceSubscribe(ctx context.Context, msg *transpor
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, adaptStream(ctx, events, workspaceEventToFrame))
+	return streamingResult(msg.ID, out, adaptStream(ctx, chanSeq(events), workspaceEventToFrame))
 }

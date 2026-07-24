@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"iter"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -61,7 +62,7 @@ func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInt
 // via ctx, TRANSPORT §9.2) then tailing live. A run that isn't actively
 // streaming (finished / parked / unknown) returns run_not_found — its tail
 // is recovered through items.list, not here.
-func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	if runID == "" {
 		return nil, nil, protocol.ErrRunNotFound
 	}

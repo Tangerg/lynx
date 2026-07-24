@@ -3,6 +3,7 @@ package dispatch
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync/atomic"
 	"testing"
 
@@ -53,7 +54,7 @@ func (s *flakyCompletionStore) Complete(ctx context.Context, record idempotency.
 	return s.Store.Complete(ctx, record)
 }
 
-func (r *replayRuntime) SubscribeRun(context.Context, string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (r *replayRuntime) SubscribeRun(context.Context, string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	return nil, nil, r.subscribeErr
 }
 

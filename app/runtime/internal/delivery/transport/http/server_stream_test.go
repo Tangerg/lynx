@@ -3,7 +3,9 @@ package http_test
 import (
 	"bytes"
 	"context"
+	"iter"
 	netHTTP "net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,14 +16,14 @@ import (
 // StartRun lets the fake drive the streamable path: it returns a runId ack plus
 // a pre-baked, pre-closed RunEvent channel so a POST runs.start exercises
 // serveStream end-to-end.
-func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
-	ch := make(chan protocol.RunEvent, 2)
-	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000001",
-		Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}}
-	ch <- protocol.RunEvent{RunID: "run_x", EventID: "evt_00000000002",
-		Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}}
-	close(ch)
-	return &protocol.StartRunResponse{RunID: "run_x"}, ch, nil
+func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+	events := slices.Values([]protocol.RunEvent{
+		{RunID: "run_x", EventID: "evt_00000000001",
+			Event: protocol.StreamEvent{Type: protocol.StreamSegmentStarted, Run: &protocol.RunRef{ID: "run_x", SessionID: in.SessionID}}},
+		{RunID: "run_x", EventID: "evt_00000000002",
+			Event: protocol.StreamEvent{Type: protocol.StreamSegmentFinished, Outcome: &protocol.RunOutcome{Type: protocol.OutcomeCompleted, Result: &protocol.RunResult{}}}},
+	})
+	return &protocol.StartRunResponse{RunID: "run_x"}, events, nil
 }
 
 type sseFrame struct{ id, data string }
@@ -94,11 +96,9 @@ func TestStreamableRunStart(t *testing.T) {
 
 // SubscribeRun records the reconnect cursor so the test below can assert the
 // transport plumbed the Last-Event-Id header onto the dispatch ctx.
-func (f *fakeRuntime) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (f *fakeRuntime) SubscribeRun(ctx context.Context, runID string) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	f.gotLastEventID = lyratransport.LastEventIDFrom(ctx)
-	ch := make(chan protocol.RunEvent)
-	close(ch)
-	return &protocol.StartRunResponse{RunID: runID}, ch, nil
+	return &protocol.StartRunResponse{RunID: runID}, slices.Values([]protocol.RunEvent{}), nil
 }
 
 // TestSubscribeCarriesLastEventID confirms the transport lifts the

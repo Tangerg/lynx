@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"context"
+	"iter"
 	"time"
 )
 
@@ -14,15 +15,15 @@ type Runs interface {
 	// The terminal state is the segment.finished event in the stream (not a
 	// separate channel) — the run tree (root + subagents) shares this
 	// one stream (API.md §5 / §5.4).
-	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, <-chan RunEvent, error)
+	StartRun(ctx context.Context, in StartRunRequest) (*StartRunResponse, iter.Seq[RunEvent], error)
 
 	// ResumeRun answers open interrupts by opening a new segment of the SAME run
 	// (R model, API.md §6.1): same stable runId, a fresh segmentId.
-	ResumeRun(ctx context.Context, in ResumeRunRequest) (*StartRunResponse, <-chan RunEvent, error)
+	ResumeRun(ctx context.Context, in ResumeRunRequest) (*StartRunResponse, iter.Seq[RunEvent], error)
 
 	// SubscribeRun rebinds a run's current live segment to the caller (reconnect /
 	// crash recovery; subscribes the whole run tree).
-	SubscribeRun(ctx context.Context, runID string) (*StartRunResponse, <-chan RunEvent, error)
+	SubscribeRun(ctx context.Context, runID string) (*StartRunResponse, iter.Seq[RunEvent], error)
 
 	// CancelRun hard-stops a running run (outcome:canceled).
 	CancelRun(ctx context.Context, in CancelRunRequest) error

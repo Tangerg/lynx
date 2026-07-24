@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"slices"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -21,7 +22,7 @@ import (
 // channel — including outcome:interrupt when the run parks for HITL
 // approval, after which the run suspends and the client answers via
 // runs.resume.
-func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, <-chan protocol.RunEvent, error) {
+func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	options := generationOptionsFromWire(in.Params)
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
 		SessionID:      in.SessionID,
