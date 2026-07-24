@@ -24,9 +24,7 @@ import (
 //
 //	ToolCallStart → ToolCallEnd → MessageDelta → TurnEnd
 //
-// and the channel must close cleanly. This is the M1+M2 contract:
-// transport adapters built later only need to forward whatever this
-// channel yields.
+// and the sequence must end cleanly.
 func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	dispatcher, _ := buildDispatcher(t)
 
@@ -41,6 +39,9 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	events, err := dispatcher.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
+	}
+	if _, err := dispatcher.Events(context.Background(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
+		t.Fatalf("concurrent Events = %v, want ErrTurnNotFound", err)
 	}
 
 	got := drainEvents(events)
@@ -188,10 +189,9 @@ func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 }
 
 // TestDispatcher_ApprovalGate_AllowOnce verifies the gate parks the turn
-// on a TurnInterrupted{approval} when the configured mode requires
-// consent (R model), and that approving via Resume lets the tool
-// proceed — the continuation streams on the same channel and the turn
-// completes normally.
+// on a TurnInterrupted{approval} when the configured mode requires consent
+// (R model), and that the next run segment can attach before Resume drives the
+// continuation to completion.
 func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	client, _ := chatclient.New(newStubChatModel())
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
@@ -204,28 +204,34 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	})
 	events, _ := dispatcher.Events(context.Background(), handle)
 
-	var (
-		sawInterrupt bool
-		endReason    execution.Outcome
-	)
+	var sawInterrupt bool
 	for ev := range events {
-		switch e := ev.(type) {
-		case runs.TurnInterrupted:
+		if e, ok := ev.(runs.TurnInterrupted); ok {
 			sawInterrupt = true
 			if len(e.Interrupts) != 1 || e.Interrupts[0].Kind != "approval" {
 				t.Errorf("interrupts = %+v, want one approval", e.Interrupts)
 			} else if p := e.Interrupts[0].Approval; p == nil || p.ToolName != "shell" {
 				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", p)
 			}
-			if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
-				t.Errorf("Resume: %v", err)
-			}
-		case runs.TurnEnd:
-			endReason = e.Reason
+			break
 		}
 	}
 	if !sawInterrupt {
-		t.Error("TurnInterrupted never fired in balanced mode")
+		t.Fatal("TurnInterrupted never fired in balanced mode")
+	}
+
+	events, err := dispatcher.Events(context.Background(), handle)
+	if err != nil {
+		t.Fatalf("reattach Events: %v", err)
+	}
+	if err := dispatcher.Resume(context.Background(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	var endReason execution.Outcome
+	for ev := range events {
+		if end, ok := ev.(runs.TurnEnd); ok {
+			endReason = end.Reason
+		}
 	}
 	if endReason != execution.OutcomeCompleted {
 		t.Errorf("turn end = %s, want completed", endReason)

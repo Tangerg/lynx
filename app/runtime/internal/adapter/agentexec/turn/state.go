@@ -35,7 +35,6 @@ type turnState struct {
 	// park/cancel hand-off.
 	eventMu      sync.Mutex
 	eventsClosed bool
-	eventsOpened bool
 	terminalOnce sync.Once
 
 	// cwd is the session working directory the turn ran in — threaded to
@@ -86,6 +85,13 @@ type turnState struct {
 
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
+
+	// Exactly one segment consumes events at a time. A parked turn releases its
+	// active consumer so the continuation segment can take over; a terminal turn
+	// permits only its first (possibly late) drain.
+	eventsActive  bool
+	eventsClaimed bool
+	eventsEnded   bool
 
 	// agentProcess is the process backing this turn, set once setProcess dispatches
 	// it. Cancel, Resume, and ProcessID read it
@@ -195,13 +201,20 @@ func (st *turnState) setInterruptKinds(kinds []runs.InterruptKind) {
 }
 
 func (st *turnState) claimEvents() bool {
-	st.eventMu.Lock()
-	defer st.eventMu.Unlock()
-	if st.eventsOpened {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.eventsActive || (st.eventsClaimed && st.eventsEnded) {
 		return false
 	}
-	st.eventsOpened = true
+	st.eventsActive = true
+	st.eventsClaimed = true
 	return true
+}
+
+func (st *turnState) releaseEvents() {
+	st.mu.Lock()
+	st.eventsActive = false
+	st.mu.Unlock()
 }
 
 func (st *turnState) canSurface(kind runs.InterruptKind) bool {

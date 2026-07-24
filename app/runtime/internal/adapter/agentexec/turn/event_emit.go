@@ -41,6 +41,10 @@ func (s *memoryDispatcher) emit(st *turnState, ev runs.EngineEvent) bool {
 }
 
 func (st *turnState) closeEvents() {
+	st.mu.Lock()
+	st.eventsEnded = true
+	st.mu.Unlock()
+
 	st.eventMu.Lock()
 	defer st.eventMu.Unlock()
 	if st.eventsClosed {

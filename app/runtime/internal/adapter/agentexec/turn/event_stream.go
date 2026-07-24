@@ -17,8 +17,8 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 	}
 	// A fast turn may finish and leave the live registry after StartTurn returns
 	// but before its caller can open Events. The opaque handle retains that
-	// exact state, so the first subscriber can still drain its buffered terminal
-	// stream. A second subscriber is rejected by claimEvents (single-consumer).
+	// exact state, so one late consumer can still drain its buffered terminal
+	// stream.
 	state = handle.state
 	if state == nil ||
 		state.handle.SessionID != handle.SessionID ||
@@ -30,11 +30,12 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 }
 
 func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEvent] {
-	// Single-consumer pull stream. The internal select multiplexes the
+	// Single-active-consumer pull stream. The internal select multiplexes the
 	// turn's event channel against ctx so the iterator stops promptly
 	// when the caller stops listening; even while parked waiting for
 	// the next event. runTurn closes state.events on turn end, which
-	// terminates the range cleanly (ok == false).
+	// terminates the range cleanly (ok == false). Releasing the consumer when
+	// this sequence returns lets a continuation segment attach to a parked turn.
 	//
 	// Consecutive text deltas (MessageDelta / ReasoningDelta) already buffered
 	// on the channel are coalesced into one event before yielding. Under load;
@@ -44,6 +45,7 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEv
 	// carries the full text) or adding latency: the drain is non-blocking, so a
 	// trickling stream still yields each token the moment it arrives.
 	return func(yield func(runs.EngineEvent) bool) {
+		defer state.releaseEvents()
 		var spill runs.EngineEvent // a different-kind event pulled off mid-coalesce, yielded next
 		recv := func() (runs.EngineEvent, bool) {
 			if spill != nil {
