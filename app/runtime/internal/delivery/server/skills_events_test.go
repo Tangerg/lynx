@@ -14,10 +14,13 @@ func TestSkillChangeBridgePublishesWorkspaceRefresh(t *testing.T) {
 	notifier := new(signal.Signal[struct{}])
 	s.observeSkillChanges(notifier)
 
-	_, events, err := s.SubscribeWorkspace(context.Background(), protocol.WorkspaceSubscribeRequest{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	_, seq, err := s.SubscribeWorkspace(ctx, protocol.WorkspaceSubscribeRequest{})
 	if err != nil {
 		t.Fatalf("subscribe: %v", err)
 	}
+	events := drainSeq(seq)
 	notifier.Publish(struct{}{})
 
 	select {

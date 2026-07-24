@@ -39,16 +39,3 @@ func adaptStream[T any](in iter.Seq[T], conv func(T) (StreamFrame, bool)) iter.S
 // method whose stream is already over (distinct from a nil EventStream, which
 // marks a non-streaming method).
 func emptyStream(func(StreamFrame) bool) {}
-
-// chanSeq adapts a channel source to the iter.Seq adaptStream consumes. Used for
-// the lossy workspace fan-out, whose channel SubscribeWorkspace closes on
-// request-context cancellation, so the range terminates.
-func chanSeq[T any](ch <-chan T) iter.Seq[T] {
-	return func(yield func(T) bool) {
-		for v := range ch {
-			if !yield(v) {
-				return
-			}
-		}
-	}
-}

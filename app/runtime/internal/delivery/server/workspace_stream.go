@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"slices"
 	"sync"
 
@@ -142,7 +143,7 @@ func cloneWorkspaceEvent(ev protocol.WorkspaceEvent) protocol.WorkspaceEvent {
 // on any change (commit / stage / checkout / merge) — the client then re-fetches
 // workspace.getDiff. (Working-tree file edits aren't watched directly — see
 // gitWatcher; the agent's own edits arrive as files.changed from its tools.)
-func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
 	cwds, err := watchCwds(in.Watches)
 	if err != nil {
 		return nil, nil, err
@@ -177,7 +178,21 @@ func (s *Server) SubscribeWorkspace(ctx context.Context, in protocol.WorkspaceSu
 		unregister() // hub stops broadcasting to out
 		close(out)
 	})
-	return &protocol.WorkspaceSubscribeResponse{}, out, nil
+	return &protocol.WorkspaceSubscribeResponse{}, eventSeq(out), nil
+}
+
+// eventSeq presents a subscription channel as the iter.Seq the wire streaming
+// contract uses. The lossy fan-out hub keeps its channels internally; only this
+// outer boundary is a sequence. The channel closes on request-context
+// cancellation (see the AfterFunc above), so the range terminates.
+func eventSeq(ch <-chan protocol.WorkspaceEvent) iter.Seq[protocol.WorkspaceEvent] {
+	return func(yield func(protocol.WorkspaceEvent) bool) {
+		for ev := range ch {
+			if !yield(ev) {
+				return
+			}
+		}
+	}
 }
 
 // watchCwds validates the wire-only portion of watch specs. Root resolution,

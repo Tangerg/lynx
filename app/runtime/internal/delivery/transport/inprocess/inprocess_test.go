@@ -2,6 +2,7 @@ package inprocess_test
 
 import (
 	"context"
+	"iter"
 	"strings"
 	"testing"
 	"time"
@@ -149,14 +150,20 @@ type streamingRuntime struct {
 func (r *streamingRuntime) SubscribeWorkspace(
 	ctx context.Context,
 	_ protocol.WorkspaceSubscribeRequest,
-) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
 	events := make(chan protocol.WorkspaceEvent)
 	close(r.started)
 	context.AfterFunc(ctx, func() {
 		close(r.canceled)
 		close(events)
 	})
-	return &protocol.WorkspaceSubscribeResponse{}, events, nil
+	return &protocol.WorkspaceSubscribeResponse{}, func(yield func(protocol.WorkspaceEvent) bool) {
+		for ev := range events {
+			if !yield(ev) {
+				return
+			}
+		}
+	}, nil
 }
 
 func TestInProcessStreamingCallLivesUntilTransportClose(t *testing.T) {

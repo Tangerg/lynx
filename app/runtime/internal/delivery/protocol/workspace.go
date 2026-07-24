@@ -1,6 +1,9 @@
 package protocol
 
-import "context"
+import (
+	"context"
+	"iter"
+)
 
 // Workspace is the workspace.* method group (API.md §7.5). Its methods stay
 // limited to the worktree view: VCS, files, search, projects, and its event
@@ -14,7 +17,7 @@ type Workspace interface {
 	ReadWorkspaceFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
 	ListWorkspaceProjects(ctx context.Context, q PageQuery) (*Page[Project], error)
 	// SubscribeWorkspace opens the non-run workspace event stream (AUX_API §3):
-	// files/skills/mcp changes. Returns an ack + the event channel, closed when
+	// files/skills/mcp changes. Returns an ack + the event sequence, ending when
 	// the request ctx ends. Streaming method (in streamingMethods).
-	SubscribeWorkspace(ctx context.Context, in WorkspaceSubscribeRequest) (*WorkspaceSubscribeResponse, <-chan WorkspaceEvent, error)
+	SubscribeWorkspace(ctx context.Context, in WorkspaceSubscribeRequest) (*WorkspaceSubscribeResponse, iter.Seq[WorkspaceEvent], error)
 }

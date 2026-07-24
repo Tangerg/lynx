@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"iter"
 	stdhttp "net/http"
 	"net/http/httptest"
 	"runtime"
@@ -21,11 +22,13 @@ type streamingLifecycleRuntime struct {
 }
 
 func (r *streamingLifecycleRuntime) SubscribeWorkspace(
-	context.Context,
-	protocol.WorkspaceSubscribeRequest,
-) (*protocol.WorkspaceSubscribeResponse, <-chan protocol.WorkspaceEvent, error) {
+	ctx context.Context,
+	_ protocol.WorkspaceSubscribeRequest,
+) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
 	close(r.subscribed)
-	return &protocol.WorkspaceSubscribeResponse{}, make(chan protocol.WorkspaceEvent), nil
+	return &protocol.WorkspaceSubscribeResponse{}, func(yield func(protocol.WorkspaceEvent) bool) {
+		<-ctx.Done() // an open, event-less stream bounded by the request context
+	}, nil
 }
 
 func newLifecycleServer(t *testing.T, configure func(*Config)) *Server {
