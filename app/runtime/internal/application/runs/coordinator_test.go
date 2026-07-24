@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -147,8 +148,9 @@ func (e *fakeEffects) finishCount() int {
 
 func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
 	return NewCoordinator(Dependencies{
-		Segments: executor,
-		Effects:  effects,
+		Segments:   executor,
+		Effects:    effects,
+		Admissions: new(admission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 		},
@@ -161,6 +163,16 @@ func testSegment() segmentSpec {
 		TurnID: "turn_1", Provider: "openai", Model: "model",
 		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
 	}
+}
+
+func testAdmittedSegment(t *testing.T, c *Coordinator, spec segmentSpec) segmentSpec {
+	t.Helper()
+	admission, ok := c.admission.AcquireRun(spec.SessionID, spec.Cwd)
+	if !ok {
+		t.Fatal("acquire test run admission")
+	}
+	spec.admission = &admission
+	return spec
 }
 
 func collectEvents(events <-chan Event) []Event {
@@ -180,7 +192,7 @@ func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	if !errors.Is(err, execution.ErrSessionBusy) {
 		t.Fatalf("openSegment error = %v, want ErrSessionBusy", err)
 	}
-	if events != nil || coordinator.Contains("run_1") {
+	if _, ok := coordinator.registry.Get("run_1"); events != nil || ok {
 		t.Fatal("an uncommitted opening became visible")
 	}
 	if executor.cancels() != 1 {
@@ -252,7 +264,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	effects := &fakeEffects{finishStarted: started, finishRelease: release}
 	coordinator := testCoordinator(executor, effects)
 
-	stream, err := coordinator.openSegment(t.Context(), testSegment())
+	stream, err := coordinator.openSegment(t.Context(), testAdmittedSegment(t, coordinator, testSegment()))
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
@@ -263,13 +275,13 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("terminal maintenance did not start")
 	}
-	if coordinator.registry.Contains("run_1") {
+	if _, ok := coordinator.registry.Get("run_1"); ok {
 		t.Fatal("terminal run remained in the live registry during maintenance")
 	}
 	if !hasActiveSession(coordinator, "ses_1") {
 		t.Fatal("session admission was released before terminal maintenance completed")
 	}
-	if _, ok := coordinator.AcquireSession("ses_1"); ok {
+	if _, ok := coordinator.admission.AcquireSession("ses_1"); ok {
 		t.Fatal("new run admission crossed the terminal-maintenance fence")
 	}
 	select {
@@ -291,7 +303,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 }
 
 func hasActiveSession(c *Coordinator, sessionID string) bool {
-	return c.ActiveSessions()[sessionID]
+	return c.admission.ActiveSessions()[sessionID]
 }
 
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
@@ -501,7 +513,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 	if err == nil {
 		t.Fatal("openSegment must surface the executor error")
 	}
-	if executor.cancels() != 1 || coordinator.Contains("run_1") {
+	if _, ok := coordinator.registry.Get("run_1"); executor.cancels() != 1 || ok {
 		t.Fatal("failed executor start was not torn down")
 	}
 }

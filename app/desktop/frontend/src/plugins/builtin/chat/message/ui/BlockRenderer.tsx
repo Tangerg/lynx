@@ -114,6 +114,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
           decision={block.decision}
           args={block.args}
           risk={block.risk}
+          rememberable={block.rememberable}
           scope={block.scope}
           target={block.target}
           reversible={block.reversible}

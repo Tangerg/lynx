@@ -41,6 +41,7 @@ export interface BuiltinContentBlockMap {
     decision?: "approved" | "declined";
     args?: Record<string, unknown>;
     risk?: "low" | "medium" | "high";
+    rememberable?: boolean;
     scope?: string[];
     target?: string;
     reversible?: boolean;

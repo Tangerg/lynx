@@ -111,7 +111,7 @@ func approvalTranscriptInterrupt(itemID string, prompt ApprovalPrompt, tool tran
 		ItemID: itemID,
 		Kind:   transcript.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason,
+			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		},
 	}
 }

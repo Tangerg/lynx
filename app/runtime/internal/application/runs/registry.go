@@ -65,14 +65,6 @@ func (r *registry) Get(id string) (liveSegment, bool) {
 	return segment, ok
 }
 
-// Contains reports whether a run segment is active.
-func (r *registry) Contains(id string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	_, ok := r.runs[id]
-	return ok
-}
-
 // MarkCancel records the human-facing cancel reason and returns the live run.
 func (r *registry) MarkCancel(id, reason string) (liveSegment, bool) {
 	r.mu.Lock()

@@ -39,6 +39,8 @@ interface Props {
   /** Risk level — drives the badge colour + dot. Defaults to "medium"
    *  when omitted (older backends): "we don't know, be cautious". */
   risk?: ApprovalRisk;
+  /** Whether this particular approval may create a standing approval rule. */
+  rememberable?: boolean;
   /** Free-form action categories (read / write / network / shell /
    *  delete / …) — rendered as chips so the user can see at a glance
    *  what kinds of side effects an approval would unlock. */
@@ -73,6 +75,7 @@ export function ApprovalCard({
   decision,
   args,
   risk,
+  rememberable = false,
   scope,
   target,
   reversible,
@@ -90,7 +93,7 @@ export function ApprovalCard({
     itemId,
     status,
     argsEditor: hasArgs ? argsEditor : undefined,
-    rememberScope: remember ? rememberScope : undefined,
+    rememberScope: rememberable && remember ? rememberScope : undefined,
   });
 
   const finalised = approvalSettledDecision(status, decision, pending);
@@ -219,18 +222,20 @@ export function ApprovalCard({
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
         </Button>
-        <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
-          <Checkbox
-            checked={remember}
-            onCheckedChange={setRemember}
-            ariaLabel={t("approval.remember")}
-          />
-          {t("approval.remember")}
-        </label>
+        {rememberable && (
+          <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
+            <Checkbox
+              checked={remember}
+              onCheckedChange={setRemember}
+              ariaLabel={t("approval.remember")}
+            />
+            {t("approval.remember")}
+          </label>
+        )}
       </div>
       {/* Scope picker — only meaningful once "don't ask again" is on. Session
           keys the rule to this session, project to this folder, global everywhere. */}
-      {remember && (
+      {rememberable && remember && (
         <div className="mt-2 flex justify-end">
           <Segmented
             value={rememberScope}

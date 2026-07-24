@@ -381,7 +381,10 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "tool_1" as never,
             type: "approval",
-            payload: { tool: { name: "shell", arguments: { command: "rm -rf x" } } },
+            payload: {
+              tool: { name: "shell", arguments: { command: "rm -rf x" } },
+              rememberable: true,
+            },
           },
         ],
       }),
@@ -393,6 +396,7 @@ describe("reducer — HITL interrupt", () => {
       itemId: "tool_1",
       runId: "run_1",
       command: "rm -rf x", // derived from payload.tool (commandExecution)
+      rememberable: true,
     });
     expect(s.pendingInterrupts).toHaveLength(1);
     expect(s.pendingInterrupts[0]!.runId).toBe("run_1");
@@ -422,6 +426,7 @@ describe("reducer — HITL interrupt", () => {
             payload: {
               tool: { name: "fs.write", arguments: { path: "/etc/hosts" } },
               risk: "high",
+              rememberable: false,
             },
           },
         ],
@@ -434,6 +439,7 @@ describe("reducer — HITL interrupt", () => {
       command: "",
       args: { path: "/etc/hosts" },
       risk: "high",
+      rememberable: false,
     });
   });
 
@@ -501,7 +507,10 @@ describe("reducer — HITL interrupt", () => {
           {
             itemId: "tool_1" as never,
             type: "approval",
-            payload: { tool: { name: "shell", arguments: { command: "rm x" } } },
+            payload: {
+              tool: { name: "shell", arguments: { command: "rm x" } },
+              rememberable: true,
+            },
           },
         ],
       }),
@@ -531,7 +540,7 @@ describe("reducer — interrupt idempotency + terminal cleanup", () => {
         {
           itemId: itemId as never,
           type: "approval",
-          payload: { tool: { name: "shell", arguments: { command } } },
+          payload: { tool: { name: "shell", arguments: { command } }, rememberable: true },
         },
       ],
     });

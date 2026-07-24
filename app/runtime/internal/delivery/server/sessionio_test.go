@@ -238,7 +238,7 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(ses.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(ses.ID)
 	if !ok {
 		t.Fatal("claim session")
 	}
@@ -273,7 +273,7 @@ func TestSessionExportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	releaseSession, ok := testRunCoordinator(t, s).AcquireSession(ses.ID)
+	releaseSession, ok := rt.admissions.AcquireSession(ses.ID)
 	if !ok {
 		t.Fatal("claim session")
 	}

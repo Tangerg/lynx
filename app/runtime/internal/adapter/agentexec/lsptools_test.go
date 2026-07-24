@@ -19,7 +19,7 @@ func TestEngine_RegistersLSPTools(t *testing.T) {
 	defer eng.Close()
 
 	have := map[string]bool{}
-	for _, tool := range eng.catalog.Tools() {
+	for _, tool := range codingTools(t, eng.catalog) {
 		have[tool.Definition().Name] = true
 	}
 	for _, want := range []string{"lsp", "lsp_diagnostics"} {

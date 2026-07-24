@@ -580,6 +580,7 @@ export interface ApprovalPayload {
   tool: ToolInvocation; // the tool awaiting approval (result not yet present)
   risk?: "low" | "medium" | "high";
   reason?: string;
+  rememberable?: boolean; // true when this approval may create a standing rule; absent means false
 }
 export interface ToolResultPayload {
   tool: ToolInvocation; // a client-side tool to execute; result returned via runs.resume
@@ -599,7 +600,8 @@ export interface ApprovalResponse {
   // Remember this decision (works for deny too) as a persistent fine-grained
   // rule (AUX_API §6) — the runtime keys it by tool + the call's per-tool
   // subject (shell command / file path), scoped to the session, the project
-  // dir, or globally. Omitted = this once only.
+  // dir, or globally. Legal only when the pending ApprovalPayload says
+  // rememberable=true; omitted = this once only.
   remember?: { scope: ApprovalScope };
   editedArgs?: Record<string, unknown>; // one-shot input rewrite — NOT part of remember
   reason?: string;

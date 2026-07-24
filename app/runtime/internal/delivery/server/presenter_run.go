@@ -8,9 +8,14 @@ import (
 )
 
 func presentRun(run transcript.Run) protocol.RunRef {
-	status := protocol.RunStatusFinished
-	if run.State == execution.Running {
+	var status protocol.RunStatus
+	switch run.State {
+	case execution.Running:
 		status = protocol.RunStatusRunning
+	case execution.Interrupted, execution.Completed, execution.Failed, execution.Canceled:
+		status = protocol.RunStatusFinished
+	default:
+		panic("server: unknown run state")
 	}
 	ref := protocol.RunRef{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
@@ -28,18 +33,23 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 	if run.State == execution.Interrupted {
 		return protocol.RunOutcome{Type: protocol.OutcomeInterrupt, Interrupts: presentInterrupts(run.Interrupts)}
 	}
-	kind := protocol.OutcomeCompleted
-	if run.Outcome != nil {
-		switch *run.Outcome {
-		case execution.OutcomeCanceled:
-			kind = protocol.OutcomeCanceled
-		case execution.OutcomeError:
-			kind = protocol.OutcomeError
-		case execution.OutcomeMaxBudget:
-			kind = protocol.OutcomeMaxBudget
-		case execution.OutcomeMaxSteps:
-			kind = protocol.OutcomeMaxSteps
-		}
+	if run.Outcome == nil {
+		panic("server: terminal run has no outcome")
+	}
+	var kind protocol.RunOutcomeType
+	switch *run.Outcome {
+	case execution.OutcomeCompleted:
+		kind = protocol.OutcomeCompleted
+	case execution.OutcomeCanceled:
+		kind = protocol.OutcomeCanceled
+	case execution.OutcomeError:
+		kind = protocol.OutcomeError
+	case execution.OutcomeMaxBudget:
+		kind = protocol.OutcomeMaxBudget
+	case execution.OutcomeMaxSteps:
+		kind = protocol.OutcomeMaxSteps
+	default:
+		panic("server: unknown run outcome")
 	}
 	return protocol.RunOutcome{Type: kind, Result: presentRunResult(run.Result), Detail: presentOutcomeDetail(kind, run.Detail)}
 }
@@ -103,8 +113,10 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 	if problem == nil {
 		return nil
 	}
-	kind := protocol.ProblemInternalError
+	var kind string
 	switch problem.Kind {
+	case transcript.InternalProblem:
+		kind = protocol.ProblemInternalError
 	case transcript.RunLostProblem:
 		kind = protocol.ProblemRunLost
 	case transcript.AgentStuckProblem:
@@ -123,10 +135,17 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 		kind = protocol.ProblemDeniedByUser
 	case transcript.ToolFailedProblem:
 		kind = protocol.ProblemToolFailed
+	default:
+		panic("server: unknown transcript problem kind")
 	}
-	scope := protocol.ErrorChannelRun
-	if problem.Scope == transcript.ToolProblem {
+	var scope protocol.ErrorChannel
+	switch problem.Scope {
+	case transcript.RunProblem:
+		scope = protocol.ErrorChannelRun
+	case transcript.ToolProblem:
 		scope = protocol.ErrorChannelTool
+	default:
+		panic("server: unknown transcript problem scope")
 	}
 	return &protocol.ProblemData{
 		Type: kind, Channel: scope, Detail: presentProblemDetail(problem), DocURL: problem.DocURL,
@@ -147,8 +166,11 @@ func presentProblemDetail(problem *transcript.Problem) string {
 		return "tool execution did not complete"
 	case transcript.InternalProblem:
 		return "the run failed due to an internal error"
-	default:
+	case transcript.AgentStuckProblem, transcript.RateLimitedProblem, transcript.InvalidAPIKeyProblem,
+		transcript.TimeoutProblem, transcript.ProviderUnavailableProblem, transcript.ProviderRejectedProblem:
 		return ""
+	default:
+		panic("server: unknown transcript problem kind")
 	}
 }
 
@@ -159,22 +181,23 @@ func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 		switch interrupt.Kind {
 		case transcript.ApprovalInterrupt:
 			if interrupt.Approval == nil {
-				continue
+				panic("server: approval interrupt has no approval payload")
 			}
 			entry.Type = protocol.InterruptApproval
 			entry.Payload = &protocol.InterruptPayload{
-				Tool:   new(presentTool(interrupt.Approval.Tool)),
-				Risk:   presentApprovalRisk(interrupt.Approval.Risk),
-				Reason: interrupt.Approval.Reason,
+				Tool:         new(presentTool(interrupt.Approval.Tool)),
+				Risk:         presentApprovalRisk(interrupt.Approval.Risk),
+				Reason:       interrupt.Approval.Reason,
+				Rememberable: interrupt.Approval.Rememberable,
 			}
 		case transcript.QuestionInterrupt:
 			if interrupt.Question == nil {
-				continue
+				panic("server: question interrupt has no question payload")
 			}
 			entry.Type = protocol.InterruptQuestion
 			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*interrupt.Question))}
 		default:
-			continue
+			panic("server: unknown transcript interrupt kind")
 		}
 		out = append(out, entry)
 	}

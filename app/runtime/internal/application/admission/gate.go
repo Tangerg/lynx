@@ -10,15 +10,77 @@ import "sync"
 type Gate struct {
 	mu            sync.Mutex
 	runs          map[string]liveRun
+	pending       map[uint64]pendingRun
 	claims        map[string]map[uint64]struct{}
 	treeRuns      map[string]int
 	treeMutations map[string]struct{}
-	nextClaimID   uint64
+	nextID        uint64
 }
 
 type liveRun struct {
 	sessionID string
 	cwd       string
+}
+
+type pendingRun struct {
+	sessionID string
+	cwd       string
+}
+
+// RunAdmission owns a fresh run's session and working-tree reservation until
+// it either becomes a live run or is released. Its methods are safe to call
+// more than once and across value copies; only the first terminal transition
+// takes effect.
+type RunAdmission struct {
+	lease *runAdmissionLease
+}
+
+type runAdmissionLease struct {
+	gate *Gate
+	id   uint64
+	once sync.Once
+}
+
+// Admit converts the pending reservation into the live run identified by
+// runID. It returns false when the reservation had already been released or
+// admitted, or when runID is empty.
+func (a RunAdmission) Admit(runID string) bool {
+	if a.lease == nil || runID == "" {
+		return false
+	}
+	admitted := false
+	a.lease.once.Do(func() {
+		g := a.lease.gate
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		pending, ok := g.pending[a.lease.id]
+		if !ok {
+			return
+		}
+		delete(g.pending, a.lease.id)
+		g.releaseTreeRunLocked(pending.cwd)
+		g.runs[runID] = liveRun{sessionID: pending.sessionID, cwd: pending.cwd}
+		admitted = true
+	})
+	return admitted
+}
+
+// Release abandons a pending run reservation. It does nothing after Admit.
+func (a RunAdmission) Release() {
+	if a.lease == nil {
+		return
+	}
+	a.lease.once.Do(func() {
+		g := a.lease.gate
+		g.mu.Lock()
+		defer g.mu.Unlock()
+		pending, ok := g.pending[a.lease.id]
+		if !ok {
+			return
+		}
+		delete(g.pending, a.lease.id)
+		g.releaseTreeRunLocked(pending.cwd)
+	})
 }
 
 // AcquireSession reserves one session's single-writer slot. Release is safe to
@@ -32,17 +94,31 @@ func (g *Gate) AcquireSession(sessionID string) (release func(), ok bool) {
 	return g.addClaimLocked(sessionID), true
 }
 
-// OpenRun records the session and working tree held by a live Run segment.
-func (g *Gate) OpenRun(runID, sessionID, cwd string) {
+// AcquireRun atomically reserves a fresh run's session and working tree. The
+// returned admission must be either admitted after the durable opening commit
+// or released when admission fails.
+func (g *Gate) AcquireRun(sessionID, cwd string) (RunAdmission, bool) {
 	g.mu.Lock()
+	defer g.mu.Unlock()
 	g.initLocked()
-	g.runs[runID] = liveRun{sessionID: sessionID, cwd: cwd}
-	g.mu.Unlock()
+	if g.activeSessionLocked(sessionID) {
+		return RunAdmission{}, false
+	}
+	if cwd != "" {
+		if _, busy := g.treeMutations[cwd]; busy {
+			return RunAdmission{}, false
+		}
+		g.addTreeRunLocked(cwd)
+	}
+	g.nextID++
+	id := g.nextID
+	g.pending[id] = pendingRun{sessionID: sessionID, cwd: cwd}
+	return RunAdmission{lease: &runAdmissionLease{gate: g, id: id}}, true
 }
 
-// BeginMaintenance removes a completed segment and retains its session slot
-// through the synchronous boundary maintenance that follows. Release drops that
-// maintenance claim.
+// BeginMaintenance converts a live run into a maintenance reservation. Both
+// its session and working tree remain unavailable until Release returns, so a
+// checkpoint snapshot cannot race a destructive mutation of the same tree.
 func (g *Gate) BeginMaintenance(runID string) (release func(), ok bool) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -51,29 +127,20 @@ func (g *Gate) BeginMaintenance(runID string) (release func(), ok bool) {
 		return nil, false
 	}
 	delete(g.runs, runID)
-	return g.addClaimLocked(run.sessionID), true
-}
-
-// AcquireWorkingTreeRun reserves cwd while a run segment is being admitted.
-// A live run keeps the tree unavailable to destructive mutations after this
-// short admission claim is released.
-func (g *Gate) AcquireWorkingTreeRun(cwd string) (release func(), ok bool) {
-	if cwd == "" {
-		return func() {}, true
-	}
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	g.initLocked()
-	if _, busy := g.treeMutations[cwd]; busy {
-		return nil, false
-	}
-	g.treeRuns[cwd]++
-	return g.releaseTreeRun(cwd), true
+	releaseSession := g.addClaimLocked(run.sessionID)
+	releaseTree := g.addTreeRunLocked(run.cwd)
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			releaseTree()
+			releaseSession()
+		})
+	}, true
 }
 
 // AcquireWorkingTreeMutation reserves exclusive access for a destructive
-// operation such as a checkpoint restore. It rejects both a segment still being
-// admitted and every live run sharing the same working tree.
+// operation such as a checkpoint restore. It rejects a run while it is pending,
+// live, or executing synchronous terminal maintenance on that working tree.
 func (g *Gate) AcquireWorkingTreeMutation(cwd string) (release func(), ok bool) {
 	if cwd == "" {
 		return func() {}, true
@@ -88,13 +155,17 @@ func (g *Gate) AcquireWorkingTreeMutation(cwd string) (release func(), ok bool) 
 	return g.releaseTreeMutation(cwd), true
 }
 
-// ActiveSessions snapshots every session with a live Run or held admission.
+// ActiveSessions snapshots every session with a pending or live Run, or a held
+// session-only admission.
 func (g *Gate) ActiveSessions() map[string]bool {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	set := make(map[string]bool, len(g.runs)+len(g.claims))
+	set := make(map[string]bool, len(g.runs)+len(g.pending)+len(g.claims))
 	for id := range g.claims {
 		set[id] = true
+	}
+	for _, pending := range g.pending {
+		set[pending.sessionID] = true
 	}
 	for _, run := range g.runs {
 		set[run.sessionID] = true
@@ -105,6 +176,11 @@ func (g *Gate) ActiveSessions() map[string]bool {
 func (g *Gate) activeSessionLocked(sessionID string) bool {
 	if len(g.claims[sessionID]) > 0 {
 		return true
+	}
+	for _, pending := range g.pending {
+		if pending.sessionID == sessionID {
+			return true
+		}
 	}
 	for _, run := range g.runs {
 		if run.sessionID == sessionID {
@@ -117,6 +193,9 @@ func (g *Gate) activeSessionLocked(sessionID string) bool {
 func (g *Gate) initLocked() {
 	if g.runs == nil {
 		g.runs = map[string]liveRun{}
+	}
+	if g.pending == nil {
+		g.pending = map[uint64]pendingRun{}
 	}
 	if g.claims == nil {
 		g.claims = map[string]map[uint64]struct{}{}
@@ -140,8 +219,8 @@ func (g *Gate) hasLiveRunOnTreeLocked(cwd string) bool {
 
 func (g *Gate) addClaimLocked(sessionID string) func() {
 	g.initLocked()
-	g.nextClaimID++
-	id := g.nextClaimID
+	g.nextID++
+	id := g.nextID
 	owners := g.claims[sessionID]
 	if owners == nil {
 		owners = map[uint64]struct{}{}
@@ -163,17 +242,33 @@ func (g *Gate) addClaimLocked(sessionID string) func() {
 	}
 }
 
+func (g *Gate) addTreeRunLocked(cwd string) func() {
+	if cwd == "" {
+		return func() {}
+	}
+	g.initLocked()
+	g.treeRuns[cwd]++
+	return g.releaseTreeRun(cwd)
+}
+
+func (g *Gate) releaseTreeRunLocked(cwd string) {
+	if cwd == "" {
+		return
+	}
+	if g.treeRuns[cwd] <= 1 {
+		delete(g.treeRuns, cwd)
+		return
+	}
+	g.treeRuns[cwd]--
+}
+
 func (g *Gate) releaseTreeRun(cwd string) func() {
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			g.mu.Lock()
 			defer g.mu.Unlock()
-			if g.treeRuns[cwd] <= 1 {
-				delete(g.treeRuns, cwd)
-				return
-			}
-			g.treeRuns[cwd]--
+			g.releaseTreeRunLocked(cwd)
 		})
 	}
 }

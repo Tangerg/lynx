@@ -12,9 +12,11 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Tangerg/lynx/agent/core"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -25,6 +27,19 @@ import (
 // real subprocess to talk to over stdin/stdout without depending on
 // `npx` / Python / etc. in CI.
 const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
+
+func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
+	t.Helper()
+	group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	if err != nil || !ok {
+		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+	}
+	values, err := group.Tools(t.Context())
+	if err != nil {
+		t.Fatalf("coding tools: %v", err)
+	}
+	return values
+}
 
 // TestMain is the standard fork-and-exec trick documented in the
 // SDK's cmd_test.go: when LYRA_TEST_RUN_AS_MCP_SERVER is set, run as
@@ -106,14 +121,14 @@ func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 	// model-facing MCP port name.
 	want := "test_ping"
 	found := false
-	for _, tool := range built.Resolver.Tools() {
+	for _, tool := range resolvedCodingTools(t, built.Resolver) {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		catalog := built.Resolver.Tools()
+		catalog := resolvedCodingTools(t, built.Resolver)
 		names := make([]string, 0, len(catalog))
 		for _, t := range catalog {
 			names = append(names, t.Definition().Name)
@@ -181,14 +196,14 @@ func TestToolEnvironmentDialsStdioMCP(t *testing.T) {
 	})
 	want := "stdio_ping"
 	found := false
-	for _, tool := range built.Resolver.Tools() {
+	for _, tool := range resolvedCodingTools(t, built.Resolver) {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		catalog := built.Resolver.Tools()
+		catalog := resolvedCodingTools(t, built.Resolver)
 		names := make([]string, 0, len(catalog))
 		for _, t := range catalog {
 			names = append(names, t.Definition().Name)

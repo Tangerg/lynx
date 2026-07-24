@@ -18,7 +18,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -224,10 +223,6 @@ var ErrSessionBusy = errors.New("sessions: session busy")
 
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
-	admissions := deps.Admissions
-	if admissions == nil {
-		admissions = &admission.Gate{}
-	}
 	return &Coordinator{
 		sessions:     deps.Sessions,
 		interrupts:   deps.Interrupts,
@@ -242,34 +237,16 @@ func New(deps Dependencies) *Coordinator {
 		sandbox:      deps.Sandbox,
 		goals:        deps.Goals,
 		mutations:    deps.Mutations,
-		admissions:   admissions,
+		admissions:   deps.Admissions,
 	}
-}
-
-// ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
-// serializing it against any in-flight destructive mutation of the same tree.
-func (c *Coordinator) ClaimWorkingTreeRun(cwd string) (WorkingTreeAdmission, bool) {
-	release, ok := c.admissions.AcquireWorkingTreeRun(cwd)
-	if !ok {
-		return WorkingTreeAdmission{}, false
-	}
-	return heldWorkingTreeAdmission(release), true
-}
-
-// AcquireWorkingTreeRun is the closure-based consumer seam used by
-// application/runs. Returning only a release function keeps the concrete
-// admission token inside this package while preserving idempotent release.
-func (c *Coordinator) AcquireWorkingTreeRun(cwd string) (func(), bool) {
-	admission, ok := c.ClaimWorkingTreeRun(cwd)
-	if !ok {
-		return nil, false
-	}
-	return admission.Release, true
 }
 
 // ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a
 // destructive mutation such as file rollback.
 func (c *Coordinator) ClaimWorkingTreeMutation(cwd string) (WorkingTreeAdmission, bool) {
+	if c.admissions == nil {
+		return WorkingTreeAdmission{}, false
+	}
 	release, ok := c.admissions.AcquireWorkingTreeMutation(cwd)
 	if !ok {
 		return WorkingTreeAdmission{}, false

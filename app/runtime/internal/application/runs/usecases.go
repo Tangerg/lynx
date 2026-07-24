@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -44,22 +45,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	releaseSession, err := c.claimFreshRun(ctx, sess.ID)
+	runAdmission, err := c.claimFreshRun(ctx, sess)
 	if err != nil {
 		return StartResult{}, err
 	}
-	defer releaseSession()
-
-	releaseTree, ok := c.admission.AcquireWorkingTreeRun(sess.Cwd)
-	if !ok {
-		return StartResult{}, fmt.Errorf("%w: working tree %q has a mutation in flight", ErrSessionBusy, sess.Cwd)
-	}
-	releaseTreeOnReturn := true
-	defer func() {
-		if releaseTreeOnReturn {
-			releaseTree()
-		}
-	}()
+	defer runAdmission.Release()
 
 	if cmd.Model != "" {
 		if err := c.sessions.SetModel(ctx, sess.ID, cmd.Model); err != nil {
@@ -94,6 +84,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		CreatedAt:       createdAt,
 		OpeningUserText: openingUserText,
 		Input:           cmd.Input,
+		admission:       &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)
 		},
@@ -104,8 +95,6 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		}
 		return StartResult{}, err
 	}
-	releaseTree()
-	releaseTreeOnReturn = false
 	return StartResult{
 		RunID: runID, SegmentID: segmentID, SessionID: sess.ID,
 		UserItemID: userMessageItemID(segmentID), Events: events,
@@ -130,26 +119,15 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	releaseSession, ok := c.AcquireSession(pending.SessionID)
-	if !ok {
-		return StartResult{}, fmt.Errorf("%w: session %q has a run in flight", ErrSessionBusy, pending.SessionID)
-	}
-	defer releaseSession()
-
 	sess, err := c.sessions.Get(ctx, pending.SessionID)
 	if err != nil {
 		return StartResult{}, err
 	}
-	releaseTree, ok := c.admission.AcquireWorkingTreeRun(sess.Cwd)
+	runAdmission, ok := c.admission.AcquireRun(pending.SessionID, sess.Cwd)
 	if !ok {
-		return StartResult{}, fmt.Errorf("%w: working tree %q has a mutation in flight", ErrSessionBusy, sess.Cwd)
+		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.Cwd)
 	}
-	releaseTreeOnReturn := true
-	defer func() {
-		if releaseTreeOnReturn {
-			releaseTree()
-		}
-	}()
+	defer runAdmission.Release()
 
 	// Resume inherits isolation from the parked turn: a live turn still carries
 	// the copy cwd + isolation on its blackboard, so no execution-cwd resolution
@@ -181,6 +159,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Model:     pending.Model,
 		CreatedAt: createdAt,
 		Pending:   &pendingCopy,
+		admission: &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Resume(activateCtx, turn, resolution, cmd.InterruptKinds)
 		},
@@ -188,8 +167,6 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	releaseTree()
-	releaseTreeOnReturn = false
 	return StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}, nil
 }
 
@@ -234,7 +211,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, re
 		}
 		return nil
 	}
-	releaseSession, ok := c.AcquireSession(pending.SessionID)
+	releaseSession, ok := c.admission.AcquireSession(pending.SessionID)
 	if !ok {
 		return ErrSessionBusy
 	}
@@ -287,21 +264,21 @@ func (c *Coordinator) resolveSession(ctx context.Context, id, defaultCwd, title 
 	return c.sessions.Get(ctx, id)
 }
 
-func (c *Coordinator) claimFreshRun(ctx context.Context, sessionID string) (func(), error) {
-	release, ok := c.AcquireSession(sessionID)
+func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
+	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.Cwd)
 	if !ok {
-		return nil, ErrSessionBusy
+		return admission.RunAdmission{}, ErrSessionBusy
 	}
-	open, err := c.sessions.ListOpenInterrupts(ctx, sessionID)
+	open, err := c.sessions.ListOpenInterrupts(ctx, sess.ID)
 	if err != nil {
-		release()
-		return nil, err
+		runAdmission.Release()
+		return admission.RunAdmission{}, err
 	}
 	if len(open) > 0 {
-		release()
-		return nil, ErrSessionBusy
+		runAdmission.Release()
+		return admission.RunAdmission{}, ErrSessionBusy
 	}
-	return release, nil
+	return runAdmission, nil
 }
 
 // executionCwd resolves where a session's turn tools operate: the sandbox copy
@@ -389,6 +366,8 @@ func (c *Coordinator) requireUseCaseDependencies() error {
 		return errors.New("runs: session lifecycle is required")
 	case c.effects == nil:
 		return errors.New("runs: effects are required")
+	case c.admission == nil:
+		return errors.New("runs: admission gate is required")
 	case c.now == nil:
 		return errors.New("runs: clock is required")
 	case c.newRunID == nil:
@@ -406,6 +385,9 @@ func (c *Coordinator) requireControlDependencies() error {
 	}
 	if c.sessions == nil {
 		return errors.New("runs: session lifecycle is required")
+	}
+	if c.admission == nil {
+		return errors.New("runs: admission gate is required")
 	}
 	return nil
 }

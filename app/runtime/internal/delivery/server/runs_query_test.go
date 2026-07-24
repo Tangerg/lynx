@@ -40,7 +40,7 @@ func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.P
 func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}
-	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader})
+	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: new(admission.Gate)})
 	if _, err := coordinator.SessionStates(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
 		t.Fatalf("SessionStates error = %v, want interrupt read failure", err)
 	}
@@ -73,7 +73,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 				ItemID: "item_1", Kind: transcript.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
-					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.",
+					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.", Rememberable: true,
 				},
 			}},
 			CreatedAt: created,
@@ -96,7 +96,7 @@ func TestListOpenInterruptsProjectsToWire(t *testing.T) {
 		t.Fatalf("wire open interrupt = %+v", open)
 	}
 	interrupt := open.Interrupts[0]
-	if interrupt.Type != protocol.InterruptApproval || interrupt.ItemID != "item_1" || interrupt.Payload == nil || interrupt.Payload.Tool == nil {
+	if interrupt.Type != protocol.InterruptApproval || interrupt.ItemID != "item_1" || interrupt.Payload == nil || interrupt.Payload.Tool == nil || !interrupt.Payload.Rememberable {
 		t.Fatalf("wire interrupt = %+v, want typed approval payload", interrupt)
 	}
 	if interrupt.Payload.Tool.Name != "shell" || interrupt.Payload.Tool.Arguments["command"] != "go test ./..." {

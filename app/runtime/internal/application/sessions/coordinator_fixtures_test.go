@@ -133,7 +133,6 @@ func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
 	}, true
 }
 
-func (*testClaimer) AcquireWorkingTreeRun(string) (func(), bool)      { return func() {}, true }
 func (*testClaimer) AcquireWorkingTreeMutation(string) (func(), bool) { return func() {}, true }
 
 func (*testClaimer) ActiveSessions() map[string]bool { return nil }
@@ -150,6 +149,9 @@ func newCoordinatorWithAdmissions(stores testStores, turns Turns, admissions Ses
 }
 
 func testDependencies(stores testStores, deps Dependencies) Dependencies {
+	if deps.Admissions == nil {
+		deps.Admissions = new(testClaimer)
+	}
 	deps.Sessions = stores.Session()
 	deps.Interrupts = stores.Interrupts()
 	deps.Transcript = stores.Transcript()

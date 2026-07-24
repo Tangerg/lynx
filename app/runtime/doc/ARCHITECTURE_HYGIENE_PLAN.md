@@ -478,6 +478,35 @@ Acceptance:
 - Application unit tests use consumer-side fakes, and architecture tests fail
   if a removed Domain presentation helper returns.
 
+### Batch 17 — Admission and protocol fail-closed closure
+
+Status: **Completed**
+
+Scope:
+
+- Make pending Run admission, live Run ownership, and terminal maintenance one
+  atomic Gate lifecycle, so a working-tree mutation cannot enter between a
+  Run's live execution and its synchronous terminal checkpoint work.
+- Carry approval rememberability as an explicit capability through the domain
+  interrupt, application response validation, Delivery protocol, and desktop
+  materialization; do not let a client request unsupported durable policy.
+- Remove test-only production seams and implicit application defaults that
+  disguise missing composition: synthetic Run-coordinator probes, a resolver
+  query used only by tests, and silent admission-Gate construction.
+- Treat unsupported enum values at the artifact and presenter boundaries as
+  failed projections instead of coercing them to ordinary product states.
+
+Acceptance:
+
+- A session/working-tree admission cannot be claimed by a sibling mutation
+  while terminal maintenance owns the Run's tree fence.
+- A remembered approval is accepted only when the pending approval explicitly
+  permits it; unsupported requests remain resumable and return a typed error.
+- Production APIs contain no test-observation/query method whose only caller
+  is a test; composition errors fail explicitly at the owning use case.
+- Delivery persistence and presentation never serialize an unrecognized
+  domain enum as a valid ordinary wire value.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -498,10 +527,33 @@ Acceptance:
 | 14. Residual consumer-port closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused `-race`; `staticcheck`; `golangci-lint`; architecture tests; exact-symbol scans; and classified `deadcode` output. |
 | 15. Protocol, static-config, and content-codec closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test; focused race suite; architecture test; `staticcheck`; `golangci-lint`; exact-symbol scans; and `deadcode -test ./...` all passed. |
 | 16. Prompt and content-convention boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused race suite; `staticcheck`; `golangci-lint`; `deadcode -test`; architecture tests; and exact-source scans passed. |
+| 17. Admission and protocol fail-closed closure | Completed | 2026-07-24 | 2026-07-24 | `go build ./...`; `go vet ./...`; `go test ./...`; focused `go test -race` for admission/runs/sessions/delivery; frontend typecheck, lint, and 811 tests passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-07-24 — Batch 17 completed
+
+- Replaced split live-Run and working-tree admission with one Gate-owned
+  pending-to-live lease. Terminal maintenance now retains the same tree fence
+  until its synchronous work releases, closing the restore/rollback race rather
+  than relying on ordering at callers.
+- Added the `rememberable` approval capability to the canonical transcript and
+  protocol projection. Runs rejects a remembered response for a one-off
+  approval before consuming its interrupt; the desktop hides the remember
+  controls whenever that capability is absent.
+- Removed production-only-for-tests observer and resolver methods, and removed
+  silent Gate defaults. Tests now observe real application behavior or inject
+  the actual Gate through test fixtures.
+- Made artifact encoding and stream presentation reject unsupported enum
+  values. Known optional values remain representable; unknown values can no
+  longer degrade into `completed`, `running`, `text`, or another valid-looking
+  protocol state.
+- Goal and Plan were retained: absent frontend use alone is not evidence that a
+  supported product capability is dead code.
+- Verified `go build ./...`, `go vet ./...`, `go test ./...`, focused admission/
+  runs/sessions/Delivery race tests, and frontend typecheck, lint, and tests.
 
 ### 2026-07-22 — Plan created
 

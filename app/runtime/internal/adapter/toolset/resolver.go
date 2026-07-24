@@ -244,13 +244,6 @@ func (r *Resolver) UseTaskTool(tool tools.Tool) {
 	r.task = tool
 }
 
-// Tools returns the current diagnostic catalog rooted at the configured default
-// working directory. Dynamic MCP tools are read on every call, so tools.list and
-// tools.invoke never retain wrappers from a disconnected server.
-func (r *Resolver) Tools() []tools.Tool {
-	return r.toolsFor(context.Background())
-}
-
 // toolsFor projects the direct catalog for ctx's working directory. The direct
 // registry uses it so skill metadata follows a caller that carries a turn cwd.
 func (r *Resolver) toolsFor(ctx context.Context) []tools.Tool {

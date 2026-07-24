@@ -11,6 +11,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -214,6 +215,9 @@ type segmentSpec struct {
 	OpeningUserText string
 	Input           []transcript.ContentBlock
 	Pending         *interrupts.Pending
+	// admission is the pre-commit reservation Start or Resume transfers to the
+	// live run immediately after its durable opening commit succeeds.
+	admission *admission.RunAdmission
 	// Activate crosses the executor's side-effect boundary after this segment's
 	// opening write-set commits. For a fresh run it starts model/tool execution;
 	// for a continuation it delivers the already-accepted user decision. Tests
