@@ -109,8 +109,8 @@ func TestReplayPreservesCompletedRunResponse(t *testing.T) {
 	if got.EventStream == nil {
 		t.Fatal("completed replay must return a finite stream")
 	}
-	if _, open := <-got.EventStream; open {
-		t.Fatal("completed replay stream is not closed")
+	for range got.EventStream { // a finished replay yields no frames
+		t.Fatal("completed replay stream is not empty")
 	}
 }
 

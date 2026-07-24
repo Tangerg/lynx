@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"iter"
 	"net/http"
 	"time"
 
@@ -34,7 +35,7 @@ const streamWriteTimeout = 30 * time.Second
 // run stream closes (terminal segment.finished → the hub closed the channel)
 // or the client disconnects — a disconnect only detaches; the run keeps
 // running server-side and the client resumes via runs.subscribe (§9.2).
-func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *transport.Response, events <-chan dispatch.StreamFrame, methodLabel string) {
+func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *transport.Response, events iter.Seq[dispatch.StreamFrame], methodLabel string) {
 	// Proxy hints + observability headers before NewHTTPWriter — the
 	// library adds Content-Type: text/event-stream itself and leaves our
 	// stricter Cache-Control intact (it only fills no-cache when unset).
@@ -63,12 +64,30 @@ func (s *Server) serveStream(w http.ResponseWriter, r *http.Request, resp *trans
 		return
 	}
 
+	// Bridge the synchronous frame sequence onto a channel this loop can wait on
+	// alongside the heartbeat ticker and client cancellation — the one goroutine
+	// the run-event chain needs, since the source blocks between frames and cannot
+	// be selected on directly. Request-context cancellation unwinds the source (the
+	// run subscription aborts / the workspace channel closes) so the range ends;
+	// the send is ctx-guarded so a stalled write cannot strand this goroutine.
+	frames := make(chan dispatch.StreamFrame)
+	go func() {
+		defer close(frames)
+		for frame := range events {
+			select {
+			case frames <- frame:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
-		case frame, ok := <-events:
+		case frame, ok := <-frames:
 			if !ok {
 				return // stream done — the source closed the channel
 			}

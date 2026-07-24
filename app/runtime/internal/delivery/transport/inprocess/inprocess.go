@@ -18,6 +18,7 @@ package inprocess
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 	"sync/atomic"
 
@@ -140,7 +141,7 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 	return nil
 }
 
-func (t *Transport) startPump(ctx context.Context, events <-chan dispatch.StreamFrame, release func()) bool {
+func (t *Transport) startPump(ctx context.Context, events iter.Seq[dispatch.StreamFrame], release func()) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	if t.gone.Load() {
@@ -155,23 +156,16 @@ func (t *Transport) startPump(ctx context.Context, events <-chan dispatch.Stream
 	return true
 }
 
-// pumpStream drains a streaming method's frame channel and emits each frame's
-// pre-encoded notification onto Recv. The dispatch already encoded + tagged
-// each frame (run / workspace), so channel close just means "stream done".
-// Exits when the channel closes or the transport closes.
-func (t *Transport) pumpStream(ctx context.Context, events <-chan dispatch.StreamFrame) {
-	for {
-		select {
-		case frame, ok := <-events:
-			if !ok {
-				return
-			}
-			if !t.tryEmit(ctx, frame.Notif) {
-				return
-			}
-		case <-ctx.Done():
-			return
-		case <-t.close:
+// pumpStream ranges a streaming method's frame sequence and emits each frame's
+// pre-encoded notification onto Recv. The dispatch already encoded + tagged each
+// frame (run / workspace), so the sequence ending just means "stream done". The
+// source unwinds when the call context is canceled — including on transport
+// Close, since the call context is task-group-linked (AttachLinked) — so a range
+// blocked between frames is released; tryEmit guards the send against ctx and
+// transport close.
+func (t *Transport) pumpStream(ctx context.Context, events iter.Seq[dispatch.StreamFrame]) {
+	for frame := range events {
+		if !t.tryEmit(ctx, frame.Notif) {
 			return
 		}
 	}

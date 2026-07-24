@@ -25,7 +25,14 @@ func TestPumpStreamStopsWhenCallCanceledUnderBackpressure(t *testing.T) {
 	tp.in <- blocker
 
 	ctx, cancel := context.WithCancel(t.Context())
-	events := make(chan dispatch.StreamFrame)
+	inCh := make(chan dispatch.StreamFrame)
+	events := func(yield func(dispatch.StreamFrame) bool) {
+		for f := range inCh {
+			if !yield(f) {
+				return
+			}
+		}
+	}
 	done := make(chan struct{})
 	go func() {
 		tp.pumpStream(ctx, events)
@@ -33,7 +40,7 @@ func TestPumpStreamStopsWhenCallCanceledUnderBackpressure(t *testing.T) {
 	}()
 	frameReceived := make(chan struct{})
 	go func() {
-		events <- dispatch.StreamFrame{Notif: notif}
+		inCh <- dispatch.StreamFrame{Notif: notif}
 		close(frameReceived)
 	}()
 	<-frameReceived

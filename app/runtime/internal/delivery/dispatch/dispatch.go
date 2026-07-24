@@ -3,6 +3,7 @@ package dispatch
 import (
 	"context"
 	"fmt"
+	"iter"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
@@ -51,13 +52,15 @@ type HandleResult struct {
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
 
-	// EventStream is the channel of stream frames for a streaming method,
-	// closed when the stream ends. Frames are domain-agnostic (run events,
+	// EventStream is the sequence of stream frames for a streaming method, ending
+	// when the source is drained. Frames are domain-agnostic (run events,
 	// workspace events): the dispatch encodes each domain event into a
 	// StreamFrame (method + params + optional SSE id) so the transport stays
-	// dumb — it just writes frames. Under streamable HTTP the transport drains
-	// it straight into the call's own text/event-stream response.
-	EventStream <-chan StreamFrame
+	// dumb — it just writes frames. The sequence is synchronous end to end
+	// (Journal → presenter → adaptStream); the transport supplies the single
+	// goroutine that ranges it (streamable HTTP selects it against a heartbeat;
+	// in-process ranges it straight onto Recv).
+	EventStream iter.Seq[StreamFrame]
 }
 
 // Handle is the entry point — every inbound transport.Message goes through here.

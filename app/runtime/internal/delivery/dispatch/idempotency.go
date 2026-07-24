@@ -203,9 +203,7 @@ func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload
 		// retry. Preserve the cached success and open an already-finished stream;
 		// the client then performs its normal stream-ended recovery instead of
 		// receiving a different synchronous result for the same idempotency key.
-		closed := make(chan StreamFrame)
-		close(closed)
-		return HandleResult{Response: response, EventStream: closed}
+		return HandleResult{Response: response, EventStream: emptyStream}
 	}
 	return replyStream(ctx, req, out, events, err)
 }

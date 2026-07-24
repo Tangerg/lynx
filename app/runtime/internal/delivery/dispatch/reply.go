@@ -33,7 +33,7 @@ func responseError(id transport.ID, rpcErr *transport.Error) HandleResult {
 
 // streamingResult attaches the frame channel onto the synchronous reply;
 // the transport streams it as the call's own response (streamable HTTP).
-func streamingResult(id transport.ID, result any, events <-chan StreamFrame) HandleResult {
+func streamingResult(id transport.ID, result any, events iter.Seq[StreamFrame]) HandleResult {
 	res := responseResult(id, result)
 	res.EventStream = events
 	return res
@@ -82,5 +82,5 @@ func replyStream[Out any](ctx context.Context, msg *transport.Request, out Out, 
 	if err != nil {
 		return responseError(msg.ID, errorToRPC(err))
 	}
-	return streamingResult(msg.ID, out, adaptStream(ctx, events, runEventToFrameFor(ctx)))
+	return streamingResult(msg.ID, out, adaptStream(events, runEventToFrameFor(ctx)))
 }
