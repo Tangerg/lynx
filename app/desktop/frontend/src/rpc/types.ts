@@ -88,7 +88,9 @@ export const RPC_CHECKPOINT_UNAVAILABLE = -32009;
 // -32010 (attachment_too_large) retired with the attachment upload domain
 // (MULTIMODAL_IMAGE_INPUT, 2026-06-14) — left as a hole, never reused.
 export const RPC_UNSUPPORTED_MIME = -32011; // image block mime: not an image type / unparseable
-export const RPC_TOOL_DENIED = -32012;
+// -32012 (tool_denied) retired with the runtime's tool-denied error code (the
+// backend no longer emits it; denial surfaces through the approval flow) — left
+// as a hole, never reused.
 export const RPC_PATH_OUTSIDE_ROOT = -32013;
 export const RPC_INTERRUPT_NOT_OPEN = -32014;
 export const RPC_IDEMPOTENCY_CONFLICT = -32015;
