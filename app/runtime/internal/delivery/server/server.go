@@ -66,18 +66,18 @@ type Config struct {
 	// file-change nudges through; the Server installs a consumer that maps them to
 	// wire workspace events on the hub. Required in production; nil in tests that
 	// don't exercise the workspace stream.
-	FileChanges FileChangeSource
+	FileChanges Source[runs.FileChange]
 
 	// MCPStatus is the composition-root bridge the integrations coordinator
 	// publishes MCP connection transitions through; the Server installs a consumer
 	// that maps them to mcp.serverChanged workspace events. Required in production;
 	// nil in tests that don't exercise the MCP status stream.
-	MCPStatus MCPStatusSource
+	MCPStatus Source[integrations.MCPServerStatus]
 
 	// SkillChanges is the composition-root bridge the workspace skills use case
 	// publishes after a committed library change; the Server maps the nudge to a
 	// skills.changed workspace event. Nil in tests that do not exercise it.
-	SkillChanges SkillChangeSource
+	SkillChanges Source[struct{}]
 
 	// ServerInfo identifies this process on the wire. Defaults to
 	// {Name: "runtime", Version: "0.0.0-dev"} when zero — a vendor-neutral
@@ -96,7 +96,7 @@ type Config struct {
 	// ScheduleFires carries accepted scheduled-run notifications from the
 	// composition root. Delivery projects them to workspace events; it does not
 	// construct or run the scheduler.
-	ScheduleFires ScheduleFireSource
+	ScheduleFires Source[string]
 
 	// Goals is the autonomous-execution loop driver (goals.* — Goal mode). nil
 	// makes goals.* report capability_not_negotiated.
@@ -224,34 +224,15 @@ type featureAvailability struct {
 	codebase    bool
 }
 
-// FileChangeSource is the delivery-side view of the composition-root file-change
-// bridge: the Server installs a consumer (Observe) that maps the run pump's live
-// file-change nudges to wire workspace events on the hub. The concrete notifier
-// is owned by the Host, which also passes its publish side to the run effects.
-type FileChangeSource interface {
-	Observe(sink func(runs.FileChange))
-}
-
-// MCPStatusSource is the delivery-side view of the composition-root MCP-status
-// bridge: the Server installs a consumer (Observe) that maps the integrations
-// coordinator's connection transitions to mcp.serverChanged workspace events. The
-// concrete notifier is owned by the Host, which passes its publish side to the
-// integrations coordinator.
-type MCPStatusSource interface {
-	Observe(sink func(integrations.MCPServerStatus))
-}
-
-// SkillChangeSource is the delivery-side view of committed skill-library
-// changes. Its one observer refreshes clients through the workspace event hub.
-type SkillChangeSource interface {
-	Observe(sink func(struct{}))
-}
-
-// ScheduleFireSource is the delivery-side view of accepted scheduled-run
-// notifications. Its one observer receives a schedule id after the application
-// runner admitted the corresponding Run.
-type ScheduleFireSource interface {
-	Observe(sink func(scheduleID string))
+// Source is the delivery-side, observe-only view of a composition-root signal
+// bridge (component/signal.Signal[T]). The Server installs exactly one observer
+// that maps each published payload to a wire workspace event on the hub; the
+// concrete notifier — and its Publish side — is owned by the Host, which hands
+// the publish end to the producer (run effects / integrations coordinator /
+// skills use case / scheduler). Narrowing to Observe keeps Publish off the
+// delivery surface. The per-bridge semantics live on the Config fields.
+type Source[T any] interface {
+	Observe(sink func(T))
 }
 
 // Close marks the Server shut down so new workspace subscriptions are rejected;

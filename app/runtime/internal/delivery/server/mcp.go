@@ -73,7 +73,7 @@ func wireMCPError(err error) error {
 // publishes a connection transition, and the Server maps it to a workspace event
 // on the hub. connecting=true is the transient pre-frame; connecting=false reads
 // back the settled live status (connected + tool count, or failed + reason).
-func (s *Server) observeMCPStatus(src MCPStatusSource) {
+func (s *Server) observeMCPStatus(src Source[integrations.MCPServerStatus]) {
 	src.Observe(func(status integrations.MCPServerStatus) {
 		event := protocol.WorkspaceEvent{Type: protocol.WorkspaceEventMCPServerChanged, Server: status.Name}
 		if status.Known {
