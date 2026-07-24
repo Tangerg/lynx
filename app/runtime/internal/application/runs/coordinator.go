@@ -45,9 +45,9 @@ type Coordinator struct {
 // admission invariant. Sessions consume their own narrow view of the same gate.
 type AdmissionGate interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
+	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
 	OpenRun(runID, sessionID, cwd string)
 	BeginMaintenance(runID string) (release func(), ok bool)
-	ActiveSessionWithCwd(cwd string) string
 	ActiveSessions() map[string]bool
 }
 
@@ -282,12 +282,6 @@ func (c *Coordinator) Contains(runID string) bool { return c.registry.Contains(r
 // List snapshots the records of the currently-live runs.
 func (c *Coordinator) List() []Record {
 	return c.registry.List()
-}
-
-// ActiveSessionWithCwd returns the session id of a live run whose canonical
-// working tree is cwd, or "" — the cwd-sharing busy guard a file restore needs.
-func (c *Coordinator) ActiveSessionWithCwd(cwd string) string {
-	return c.admission.ActiveSessionWithCwd(cwd)
 }
 
 // ActiveSessions snapshots the session ids with a live run or admission claim.

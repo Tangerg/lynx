@@ -81,6 +81,9 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	if pending.Kind != runs.ApprovalInterruptKind || pending.Approval == nil {
 		t.Fatalf("doom-loop interrupt = %+v, want an approval prompt", pending)
 	}
+	if pending.Approval.Rememberable {
+		t.Fatal("doom-loop approval must not create a standing rule")
+	}
 	if !strings.Contains(strings.ToLower(pending.Approval.Reason), "loop") {
 		t.Fatalf("approval reason should name the loop: %q", pending.Approval.Reason)
 	}

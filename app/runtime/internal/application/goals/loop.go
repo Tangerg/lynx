@@ -59,17 +59,17 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) {
 		if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 			return
 		}
-		if _, keepGoing := d.runTurn(ctx, &g); !keepGoing {
+		if d.runTurn(ctx, &g) != dispContinue {
 			return
 		}
 	}
 }
 
 // runTurn launches one autonomous run, waits for it to finish, folds its usage
-// in, and decides what to do next — all under a goal.turn span. It returns the
-// turn's disposition (empty when a cancellation or a vanished goal means no turn
-// completed, so nothing is metered) and whether the loop should keep going.
-func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string, keepGoing bool) {
+// in, and decides what to do next — all under a goal.turn span. The returned
+// disposition is empty when a cancellation or vanished goal means no turn
+// completed, so nothing is metered.
+func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDisposition) {
 	ctx, span := driverTracer.Start(ctx, "goal.turn", trace.WithAttributes(
 		attribute.String("goal.session", g.SessionID),
 		attribute.Int("goal.turn", g.Used.Turns+1),
@@ -85,18 +85,18 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	}()
 
 	if err := ctx.Err(); err != nil {
-		return "", false
+		return ""
 	}
 	result, err := d.runs.Start(ctx, d.command(*g))
 	if err != nil {
 		if ctx.Err() != nil {
-			return "", false // Stop/shutdown — the state is handled by Stop / reconcile
+			return "" // Stop/shutdown — the state is handled by Stop / reconcile
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
 		g.Pause(goal.ReasonRunStartFailed, err.Error(), d.now())
 		d.save(ctx, *g)
-		return dispPaused, false
+		return dispPaused
 	}
 
 	finished := drainTerminal(result.Events)
@@ -105,10 +105,10 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	reread, ok, err := d.goals.Get(ctx, g.SessionID)
 	if err != nil {
 		span.RecordError(err)
-		return "", false
+		return ""
 	}
 	if !ok {
-		return "", false
+		return ""
 	}
 	// If the lease changed, a Stop/Start/Resume superseded this loop's goal
 	// while the run was in flight. Adopting the re-read (a different incarnation,
@@ -116,17 +116,17 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	// loop no longer owns; stop instead. This keeps g at the launch lease, so the
 	// terminal saves below CAS on the incarnation the loop actually drove.
 	if reread.LeaseID != g.LeaseID {
-		return "", false
+		return ""
 	}
 	*g = reread
 	switch g.Status {
 	case goal.StatusComplete:
 		d.clear(ctx, *g) // transient — announce (the model's reply) then clear
-		return dispComplete, false
+		return dispComplete
 	case goal.StatusBlocked:
-		return dispBlocked, false // the model declared blocked
+		return dispBlocked // the model declared blocked
 	case goal.StatusPaused:
-		return "", false // a concurrent Stop already recorded its intent
+		return "" // a concurrent Stop already recorded its intent
 	}
 
 	if finished == nil {
@@ -135,7 +135,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		// parking). Wait for the user, who resolves it and can resume the goal.
 		g.Pause(goal.ReasonAwaitingInput, "", d.now())
 		d.save(ctx, *g)
-		return dispPaused, false
+		return dispPaused
 	}
 
 	cost, steps := turnUsage(finished)
@@ -145,7 +145,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 		span.SetStatus(codes.Error, "malformed terminal run")
 		g.Pause(goal.ReasonTerminalOutcomeMissing, "", d.now())
 		d.save(ctx, *g)
-		return dispPaused, false
+		return dispPaused
 	}
 	span.SetAttributes(
 		attribute.String("run.outcome", outcome.String()),
@@ -157,20 +157,20 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition string,
 	if outcome != execution.OutcomeCompleted {
 		g.Pause(goal.ReasonRunNotCompleted, outcome.String(), d.now())
 		d.save(ctx, *g)
-		return dispPaused, false
+		return dispPaused
 	}
 	if limit, over := g.Budget.Exceeded(g.Used); over {
 		g.Block(reasonForBudgetLimit(limit), "", d.now())
 		d.save(ctx, *g)
-		return dispBlocked, false
+		return dispBlocked
 	}
 	if !d.checkpoint(ctx, *g) {
 		// The goal was superseded or cleared out from under this loop (a
 		// Stop/Start or a session delete/rollback revoked the lease); stop
 		// rather than drive a goal we no longer own.
-		return "", false
+		return ""
 	}
-	return dispContinue, true
+	return dispContinue
 }
 
 // command builds the next autonomous run. It is headless: no InterruptKinds, so a

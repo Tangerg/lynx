@@ -46,7 +46,7 @@ type RollbackResult struct {
 	Dropped []DroppedRun
 }
 
-// RollbackFiles executes a session rollback as one guarded operation: it claims
+// Rollback executes a session rollback as one guarded operation: it claims
 // the single-writer mutation slot (rejecting a rollback under an in-flight run
 // as [ErrSessionBusy]) and, for a file restore, the working-tree mutation slot
 // too, then resolves the boundary under those guards, restores the working tree
@@ -57,8 +57,8 @@ type RollbackResult struct {
 // The guards live here, not at the wire: a file restore's `git reset --hard`
 // writes a working tree a sibling session sharing the cwd would race, and that
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
-// any in-flight run on the tree (ActiveSessionWithCwd), not just this session's.
-func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (RollbackResult, error) {
+// any in-flight run on the tree, not just this session's.
+func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (RollbackResult, error) {
 	if c.sessions == nil {
 		return RollbackResult{}, errors.New("sessions: session store is unavailable")
 	}
@@ -85,9 +85,6 @@ func (c *Coordinator) RollbackFiles(ctx context.Context, spec RollbackSpec) (Rol
 			return result, fmt.Errorf("%w: working tree %q has a run admission in flight", ErrSessionBusy, cwd)
 		}
 		defer treeAdmission.Release()
-		if busy := c.admissions.ActiveSessionWithCwd(cwd); busy != "" {
-			return result, fmt.Errorf("%w: session %q shares this working tree and has a run in flight", ErrSessionBusy, busy)
-		}
 	}
 
 	if c.transcript == nil {

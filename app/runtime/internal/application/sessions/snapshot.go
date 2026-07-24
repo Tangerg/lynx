@@ -98,10 +98,10 @@ func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 		if run.Result.Steps < 0 || run.Result.Duration < 0 {
 			return nil, fmt.Errorf("sessions: snapshot run %q has negative result accounting", run.ID)
 		}
-		if err := validateSnapshotUsage(run.Result.Usage); err != nil {
+		if err := run.Result.Usage.Validate(); err != nil {
 			return nil, fmt.Errorf("sessions: snapshot run %q usage: %w", run.ID, err)
 		}
-		if err := validateSnapshotProblem(run.Result.Error, transcript.RunProblem); err != nil {
+		if err := run.Result.Error.ValidateFor(transcript.RunProblem); err != nil {
 			return nil, fmt.Errorf("sessions: snapshot run %q problem: %w", run.ID, err)
 		}
 		if run.MessageMark < 0 || run.MessageMark > len(snapshot.Messages) {
@@ -135,7 +135,7 @@ func (snapshot Snapshot) validateItems(runs map[string]struct{}) (map[string]tra
 		if item.Error != nil && (item.Kind != transcript.ToolCall || item.Status != transcript.ItemIncomplete) {
 			return nil, fmt.Errorf("sessions: snapshot item %q has an invalid tool error", item.ID)
 		}
-		if err := validateSnapshotItem(item); err != nil {
+		if err := item.Validate(); err != nil {
 			return nil, fmt.Errorf("sessions: snapshot item %q: %w", item.ID, err)
 		}
 	}

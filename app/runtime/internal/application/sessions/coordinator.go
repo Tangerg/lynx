@@ -194,11 +194,9 @@ type Coordinator struct {
 	// mutations is the §8.5 recoverable operation log guarding a file+history
 	// rollback across the working tree and the durable history; nil disables it.
 	mutations WorkspaceMutations
-	// admissions is shared with Runs and owns the process-local session facts.
+	// admissions is shared with Runs and owns the process-local session and
+	// working-tree facts.
 	admissions SessionAdmissions
-	// trees serializes short run admissions against destructive working-tree
-	// mutations (file rollback) for every transport using this coordinator.
-	trees WorkingTreeGate
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator. Durable
@@ -251,7 +249,11 @@ func New(deps Dependencies) *Coordinator {
 // ClaimWorkingTreeRun reserves cwd's working tree for a run segment admission,
 // serializing it against any in-flight destructive mutation of the same tree.
 func (c *Coordinator) ClaimWorkingTreeRun(cwd string) (WorkingTreeAdmission, bool) {
-	return c.trees.ClaimRun(cwd)
+	release, ok := c.admissions.AcquireWorkingTreeRun(cwd)
+	if !ok {
+		return WorkingTreeAdmission{}, false
+	}
+	return heldWorkingTreeAdmission(release), true
 }
 
 // AcquireWorkingTreeRun is the closure-based consumer seam used by
@@ -268,5 +270,9 @@ func (c *Coordinator) AcquireWorkingTreeRun(cwd string) (func(), bool) {
 // ClaimWorkingTreeMutation reserves exclusive access to cwd's working tree for a
 // destructive mutation such as file rollback.
 func (c *Coordinator) ClaimWorkingTreeMutation(cwd string) (WorkingTreeAdmission, bool) {
-	return c.trees.ClaimMutation(cwd)
+	release, ok := c.admissions.AcquireWorkingTreeMutation(cwd)
+	if !ok {
+		return WorkingTreeAdmission{}, false
+	}
+	return heldWorkingTreeAdmission(release), true
 }

@@ -50,7 +50,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	defer releaseSession()
 
-	releaseTree, ok := c.sessions.AcquireWorkingTreeRun(sess.Cwd)
+	releaseTree, ok := c.admission.AcquireWorkingTreeRun(sess.Cwd)
 	if !ok {
 		return StartResult{}, fmt.Errorf("%w: working tree %q has a mutation in flight", ErrSessionBusy, sess.Cwd)
 	}
@@ -140,7 +140,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	releaseTree, ok := c.sessions.AcquireWorkingTreeRun(sess.Cwd)
+	releaseTree, ok := c.admission.AcquireWorkingTreeRun(sess.Cwd)
 	if !ok {
 		return StartResult{}, fmt.Errorf("%w: working tree %q has a mutation in flight", ErrSessionBusy, sess.Cwd)
 	}

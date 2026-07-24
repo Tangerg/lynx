@@ -19,14 +19,17 @@ const observeScope = "lynx/lyra/goal"
 
 var driverTracer = otel.Tracer(observeScope)
 
-// disposition labels how one autonomous turn ended — the span attribute and the
+// turnDisposition labels how one autonomous turn ended — the span attribute and
 // metric dimension. dispContinue means the loop launches another turn; the other
-// three are terminal.
+// three are terminal. The zero value means the turn never completed and is not
+// metered.
+type turnDisposition string
+
 const (
-	dispContinue = "continue"
-	dispComplete = "complete"
-	dispBlocked  = "blocked"
-	dispPaused   = "paused"
+	dispContinue turnDisposition = "continue"
+	dispComplete turnDisposition = "complete"
+	dispBlocked  turnDisposition = "blocked"
+	dispPaused   turnDisposition = "paused"
 )
 
 var loadGoalTurns = sync.OnceValue(func() metric.Int64Counter {
@@ -36,8 +39,8 @@ var loadGoalTurns = sync.OnceValue(func() metric.Int64Counter {
 	return counter
 })
 
-func recordGoalTurn(ctx context.Context, disposition string) {
-	loadGoalTurns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", disposition)))
+func recordGoalTurn(ctx context.Context, disposition turnDisposition) {
+	loadGoalTurns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", string(disposition))))
 }
 
 // recordSaveError attaches a goal-state persistence failure to the current turn

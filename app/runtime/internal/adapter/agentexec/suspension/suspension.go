@@ -102,12 +102,13 @@ type interruptWire struct {
 }
 
 type approvalPromptWire struct {
-	CallID      string           `json:"callId,omitempty"`
-	ToolName    string           `json:"toolName"`
-	Arguments   string           `json:"arguments"`
-	SafetyClass tool.SafetyClass `json:"safetyClass"`
-	Risk        tool.RiskLevel   `json:"risk,omitempty"`
-	Reason      string           `json:"reason,omitempty"`
+	CallID       string           `json:"callId,omitempty"`
+	ToolName     string           `json:"toolName"`
+	Arguments    string           `json:"arguments"`
+	SafetyClass  tool.SafetyClass `json:"safetyClass"`
+	Risk         tool.RiskLevel   `json:"risk,omitempty"`
+	Reason       string           `json:"reason,omitempty"`
+	Rememberable bool             `json:"rememberable,omitempty"`
 }
 
 type questionPromptWire struct {
@@ -133,7 +134,7 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 	if prompt := interrupt.Approval; prompt != nil {
 		result.Approval = &approvalPromptWire{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason,
+			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := interrupt.Question; prompt != nil {
@@ -150,7 +151,7 @@ func (wire interruptWire) interrupt() runs.Interrupt {
 	if prompt := wire.Approval; prompt != nil {
 		result.Approval = &runs.ApprovalPrompt{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason,
+			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := wire.Question; prompt != nil {

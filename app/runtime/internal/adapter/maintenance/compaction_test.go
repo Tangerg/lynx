@@ -322,6 +322,26 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 	}
 }
 
+func TestCompactor_PreCompactSkipsUnexecutablePlan(t *testing.T) {
+	store := history.NewInMemoryStore()
+	const sessID = "sess-no-boundary"
+	for range 6 {
+		_ = store.Write(t.Context(), sessID, chat.NewAssistantMessage(chat.NewTextPart("continuation")))
+	}
+	c := NewCompactor(store, nil, nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
+
+	called := false
+	if _, err := c.MaybeCompact(t.Context(), sessID, 0, func(context.Context) bool {
+		called = true
+		return true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("preCompact must not run when no user-message boundary permits a safe rewrite")
+	}
+}
+
 // TestCompactor_LadderTrimsUnderBudgetSkippingLLM drives the deterministic rung:
 // a conversation over the token budget purely because of one large OLD tool
 // result. Trimming that result to a preview brings it under budget, so the

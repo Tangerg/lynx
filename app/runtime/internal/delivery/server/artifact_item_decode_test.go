@@ -34,6 +34,11 @@ func TestPortableArtifactDecoderRejectsUnknownDiscriminators(t *testing.T) {
 		{"item status", func(a *protocol.SessionArtifact) { a.Items[0].Status = "done" }},
 		{"item type", func(a *protocol.SessionArtifact) { a.Items[0].Type = "legacyMessage" }},
 		{"content type", func(a *protocol.SessionArtifact) { a.Items[0].Content[0].Type = "video" }},
+		{"plan step status", func(a *protocol.SessionArtifact) {
+			a.Items[0].Type = "plan"
+			a.Items[0].Content = nil
+			a.Items[0].Steps = []protocol.ArtifactPlanStep{{Status: "legacy"}}
+		}},
 		{"question field", func(a *protocol.SessionArtifact) {
 			a.Items[0].Type = "question"
 			a.Items[0].Content = nil

@@ -152,25 +152,13 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: approvalDenialMessage(plan.Denial, toolName)}
 	}
 
-	// interrupt for human approval (R model). First pass bubbles the
-	// Suspension error up to park; resume delivers the resolution here. The
-	// prompt carries the gated tool's risk so the approval card shows it.
-	pending := runs.Interrupt{
-		Kind: runs.ApprovalInterruptKind,
-		Approval: &runs.ApprovalPrompt{
-			CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
-			SafetyClass: plan.SafetyClass, Risk: plan.Risk, Reason: approvalPromptReason(plan.PromptCause),
-		},
-	}
-	if err := pending.Validate(); err != nil {
-		return agentexec.ToolApprovalVerdict{
-			Interrupt: fmt.Errorf("turn: build approval interrupt: %w", err),
-		}
-	}
-	res, err := suspension.Interrupt(ctx,
-		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, plan.Arguments),
-		pending,
-	)
+	// First pass bubbles the suspension up to park; resume delivers the
+	// resolution here. Ordinary policy prompts may create standing rules.
+	res, err := t.awaitApproval(ctx, toolName, plan.Arguments, runs.ApprovalPrompt{
+		CallID: callID, ToolName: toolName, Arguments: plan.Arguments,
+		SafetyClass: plan.SafetyClass, Risk: plan.Risk, Reason: approvalPromptReason(plan.PromptCause),
+		Rememberable: true,
+	})
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{Interrupt: err, Arguments: plan.Arguments}
 	}
@@ -178,26 +166,12 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 	// calls auto-resolve the same way — recorded for approve AND deny. Keyed on
 	// the ORIGINAL arguments (the model regenerates calls like this one); any
 	// editedArgs override stays one-shot, never folded into the rule.
-	if res.RememberScope != "" && t.dispatcher.approval != nil {
-		if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
-			Scope:      res.RememberScope,
-			SessionID:  sessionID,
-			ProjectDir: t.st.cwd,
-			Tool:       toolName,
-			Arguments:  rememberedArguments,
-			Decision:   approval.DecisionOf(res.Approved),
-		}); err != nil {
-			return agentexec.ToolApprovalVerdict{
-				Interrupt: fmt.Errorf("turn: remember approval decision for tool %q: %w", toolName, err),
-			}
-		}
-	}
-	if !res.Approved {
-		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(res.Reason)}
+	if err := t.rememberApproval(ctx, toolName, rememberedArguments, res); err != nil {
+		return agentexec.ToolApprovalVerdict{Interrupt: err}
 	}
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
-	return agentexec.ToolApprovalVerdict{Arguments: plan.ApprovedArguments(res.Arguments)}
+	return approvalResolutionVerdict(res, plan.ArgumentOverride)
 }
 
 func shellCommandFromArguments(toolName, raw string) string {
@@ -223,32 +197,51 @@ func shellCommandFromArguments(toolName, raw string) string {
 // persistent permission.
 func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName, arguments string, safetyClass tool.SafetyClass) agentexec.ToolApprovalVerdict {
 	t.st.resetDoomLoop()
-	pending := runs.Interrupt{
-		Kind: runs.ApprovalInterruptKind,
-		Approval: &runs.ApprovalPrompt{
-			CallID:      callID,
-			ToolName:    toolName,
-			Arguments:   arguments,
-			SafetyClass: safetyClass,
-			Risk:        tool.RiskHigh,
-			Reason: fmt.Sprintf("%q has been called with the same arguments and no new result %d times in a row — it may be stuck in a loop. Approve to let it continue, or deny to make the agent try a different approach.",
-				toolName, doomLoopThreshold),
-		},
-	}
-	if err := pending.Validate(); err != nil {
-		return agentexec.ToolApprovalVerdict{Interrupt: fmt.Errorf("turn: build doom-loop interrupt: %w", err)}
-	}
-	res, err := suspension.Interrupt(ctx,
-		interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments),
-		pending,
-	)
+	res, err := t.awaitApproval(ctx, toolName, arguments, runs.ApprovalPrompt{
+		CallID:      callID,
+		ToolName:    toolName,
+		Arguments:   arguments,
+		SafetyClass: safetyClass,
+		Risk:        tool.RiskHigh,
+		Reason: fmt.Sprintf("%q has been called with the same arguments and no new result %d times in a row — it may be stuck in a loop. Approve to let it continue, or deny to make the agent try a different approach.",
+			toolName, doomLoopThreshold),
+	})
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{Interrupt: err, Arguments: arguments}
 	}
-	if !res.Approved {
-		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(res.Reason)}
+	return approvalResolutionVerdict(res, arguments)
+}
+
+func (t *turnObserver) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupts.Resolution, error) {
+	pending := runs.Interrupt{Kind: runs.ApprovalInterruptKind, Approval: &prompt}
+	if err := pending.Validate(); err != nil {
+		return interrupts.Resolution{}, fmt.Errorf("turn: build approval interrupt: %w", err)
 	}
-	return agentexec.ToolApprovalVerdict{Arguments: cmp.Or(res.Arguments, arguments)}
+	return suspension.Interrupt(ctx, interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments), pending)
+}
+
+func (t *turnObserver) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
+	if resolution.RememberScope == "" || t.dispatcher.approval == nil {
+		return nil
+	}
+	if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
+		Scope:      resolution.RememberScope,
+		SessionID:  t.st.handle.SessionID,
+		ProjectDir: t.st.cwd,
+		Tool:       toolName,
+		Arguments:  arguments,
+		Decision:   approval.DecisionOf(resolution.Approved),
+	}); err != nil {
+		return fmt.Errorf("turn: remember approval decision for tool %q: %w", toolName, err)
+	}
+	return nil
+}
+
+func approvalResolutionVerdict(resolution interrupts.Resolution, fallbackArguments string) agentexec.ToolApprovalVerdict {
+	if !resolution.Approved {
+		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(resolution.Reason)}
+	}
+	return agentexec.ToolApprovalVerdict{Arguments: cmp.Or(resolution.Arguments, fallbackArguments)}
 }
 
 func fileMutationScope(reporter tools.FileMutationReporter, arguments, cwd string) tool.FileMutationScope {
@@ -323,29 +316,12 @@ func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) 
 				Interrupt: fmt.Errorf("turn: decode approval resolution: %w", err),
 			}, true
 		}
-		if resolution.RememberScope != "" && t.dispatcher.approval != nil {
-			if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
-				Scope:      resolution.RememberScope,
-				SessionID:  t.st.handle.SessionID,
-				ProjectDir: t.st.cwd,
-				Tool:       toolName,
-				Arguments:  rememberedArguments,
-				Decision:   approval.DecisionOf(resolution.Approved),
-			}); err != nil {
-				return agentexec.ToolApprovalVerdict{
-					Interrupt: fmt.Errorf("turn: remember restored approval decision for tool %q: %w", toolName, err),
-				}, true
+		if pending.Approval.Rememberable {
+			if err := t.rememberApproval(ctx, toolName, rememberedArguments, resolution); err != nil {
+				return agentexec.ToolApprovalVerdict{Interrupt: err}, true
 			}
 		}
-		if !resolution.Approved {
-			return agentexec.ToolApprovalVerdict{
-				Denied: true, DenyReason: denialReason(resolution.Reason),
-			}, true
-		}
-		if resolution.Arguments != "" {
-			effectiveArguments = resolution.Arguments
-		}
-		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
+		return approvalResolutionVerdict(resolution, effectiveArguments), true
 	default:
 		return agentexec.ToolApprovalVerdict{
 			Interrupt: fmt.Errorf("turn: unsupported responded interrupt kind %q", pending.Kind),

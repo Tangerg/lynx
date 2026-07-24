@@ -36,7 +36,7 @@ type sessionUseCases interface {
 	ListViews(ctx context.Context) ([]sessions.SessionView, error)
 	ExportSession(ctx context.Context, sessionID string) (sessions.ExportResult, error)
 	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.SessionView, error)
-	RollbackFiles(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
+	Rollback(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
 	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.SessionView, error)
 	View(ctx context.Context, id string) (sessions.SessionView, error)
 }

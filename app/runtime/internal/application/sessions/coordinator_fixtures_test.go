@@ -133,9 +133,8 @@ func (c *testClaimer) AcquireSession(sessionID string) (func(), bool) {
 	}, true
 }
 
-// ActiveSessionWithCwd reports no cross-session working-tree contention by
-// default; the file-rollback tests that need it drive a dedicated claimer.
-func (*testClaimer) ActiveSessionWithCwd(string) string { return "" }
+func (*testClaimer) AcquireWorkingTreeRun(string) (func(), bool)      { return func() {}, true }
+func (*testClaimer) AcquireWorkingTreeMutation(string) (func(), bool) { return func() {}, true }
 
 func (*testClaimer) ActiveSessions() map[string]bool { return nil }
 

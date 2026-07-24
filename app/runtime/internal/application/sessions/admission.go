@@ -6,15 +6,27 @@ import (
 	"sync"
 )
 
-// SessionAdmissions is the run-admission slot used to enforce one writer per
-// session across active runs and start/resume races. ActiveSessionWithCwd
-// widens the guard to a shared working tree: a file rollback's `git reset
-// --hard` writes the tree a sibling session sharing the cwd would race, so the
-// mutation must see any in-flight run on that tree, not just this session.
+// SessionAdmissions is the session lifecycle's view of the shared run and
+// working-tree admission state. A file rollback's `git reset --hard` must see
+// both a sibling's segment admission and its already-live run on the same cwd.
 type SessionAdmissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
-	ActiveSessionWithCwd(cwd string) string
+	AcquireWorkingTreeRun(cwd string) (release func(), ok bool)
+	AcquireWorkingTreeMutation(cwd string) (release func(), ok bool)
 	ActiveSessions() map[string]bool
+}
+
+// WorkingTreeAdmission is a held working-tree slot. Release is idempotent
+// across value copies.
+type WorkingTreeAdmission struct {
+	release *releaseOnce
+}
+
+// Release drops the held working-tree slot.
+func (a WorkingTreeAdmission) Release() {
+	if a.release != nil {
+		a.release.run()
+	}
 }
 
 // RunAdmission is a held single-writer slot. Release is idempotent across value
@@ -50,6 +62,10 @@ func heldAdmission(sessionID string, release func()) RunAdmission {
 		SessionID: sessionID,
 		release:   newReleaseOnce(release),
 	}
+}
+
+func heldWorkingTreeAdmission(release func()) WorkingTreeAdmission {
+	return WorkingTreeAdmission{release: newReleaseOnce(release)}
 }
 
 // ClaimRunSlot reserves a session's single-writer slot for a fresh run and
