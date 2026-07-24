@@ -14,7 +14,7 @@ import (
 // probe a connection, but no application read model returns the raw secret.
 type MCPServerInput struct {
 	Name             string
-	Transport        string
+	Transport        mcpserver.Transport
 	Enabled          bool
 	Description      string
 	URL              string
@@ -33,7 +33,7 @@ type MCPServerInput struct {
 // configuration. Secrets are represented only by their redacted form.
 type MCPServerConfig struct {
 	Name                string
-	Transport           string
+	Transport           mcpserver.Transport
 	Enabled             bool
 	Description         string
 	URL                 string
@@ -68,7 +68,7 @@ type MCPTestResult struct {
 func (in MCPServerInput) server() mcpserver.Server {
 	return mcpserver.Server{
 		Name:             in.Name,
-		Transport:        mcpserver.Transport(in.Transport),
+		Transport:        in.Transport,
 		Enabled:          in.Enabled,
 		Description:      in.Description,
 		URL:              in.URL,
@@ -87,7 +87,7 @@ func (in MCPServerInput) server() mcpserver.Server {
 func mcpConfigView(server mcpserver.Server) MCPServerConfig {
 	return MCPServerConfig{
 		Name:                server.Name,
-		Transport:           string(server.Transport),
+		Transport:           server.Transport,
 		Enabled:             server.Enabled,
 		Description:         server.Description,
 		URL:                 server.URL,

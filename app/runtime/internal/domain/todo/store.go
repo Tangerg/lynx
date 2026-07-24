@@ -59,8 +59,22 @@ var ErrInvalid = errors.New("todo: invalid update")
 // positional item-by-item diff would mishandle. Returns an [ErrInvalid]-
 // wrapped error naming the broken rule, or nil when next is acceptable.
 func Validate(prev, next []Item) error {
+	if err := ValidateSnapshot(next); err != nil {
+		return err
+	}
+	completedNext := completedCount(next)
+	if completedNext-completedCount(prev) > 1 {
+		return fmt.Errorf("%w: %d items newly marked completed in one update — finish and mark them one at a time", ErrInvalid, completedNext-completedCount(prev))
+	}
+	return nil
+}
+
+// ValidateSnapshot verifies the invariant shape of a persisted todo list. It
+// intentionally excludes transition rules such as the one-new-completion
+// limit: a previously valid snapshot can contain many completed items.
+func ValidateSnapshot(items []Item) error {
 	inProgress, completedNext := 0, 0
-	for _, it := range next {
+	for _, it := range items {
 		if strings.TrimSpace(it.Content) == "" {
 			return fmt.Errorf("%w: content is required", ErrInvalid)
 		}
@@ -79,9 +93,6 @@ func Validate(prev, next []Item) error {
 	}
 	if inProgress > 1 {
 		return fmt.Errorf("%w: %d items marked in_progress — keep exactly one in_progress at a time", ErrInvalid, inProgress)
-	}
-	if completedNext-completedCount(prev) > 1 {
-		return fmt.Errorf("%w: %d items newly marked completed in one update — finish and mark them one at a time", ErrInvalid, completedNext-completedCount(prev))
 	}
 	return nil
 }

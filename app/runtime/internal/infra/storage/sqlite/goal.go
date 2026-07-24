@@ -55,6 +55,9 @@ func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool,
 // (not INSERT OR REPLACE) is deliberate — a stale writer whose row was cleared
 // must not resurrect it.
 func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
+	if err := g.ValidateSnapshot(); err != nil {
+		return false, fmt.Errorf("sqlite: validate goal: %w", err)
+	}
 	budget, err := json.Marshal(goalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
 	if err != nil {
 		return false, fmt.Errorf("sqlite: encode goal budget: %w", err)
@@ -164,12 +167,12 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 	}
 	g.Status = goal.Status(status)
 	g.Reason.Cause = goal.ReasonCause(reasonCause)
-	if !g.Reason.Cause.Valid() {
-		return goal.Goal{}, fmt.Errorf("sqlite: decode goal reason cause: %d", reasonCause)
-	}
 	g.Budget = goal.Budget{MaxTurns: budget.MaxTurns, MaxCostUSD: budget.MaxCostUSD, MaxSteps: budget.MaxSteps}
 	g.Used = goal.Usage{Turns: used.Turns, CostUSD: used.CostUSD, Steps: used.Steps}
 	g.CreatedAt = time.Unix(0, createdAt).UTC()
 	g.UpdatedAt = time.Unix(0, updatedAt).UTC()
+	if err := g.ValidateSnapshot(); err != nil {
+		return goal.Goal{}, fmt.Errorf("sqlite: validate goal: %w", err)
+	}
 	return g, nil
 }

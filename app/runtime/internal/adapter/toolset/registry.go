@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"go.opentelemetry.io/otel"
@@ -18,22 +17,16 @@ var toolTracer = otel.Tracer("lynx/lyra/tool")
 
 const attrGenAIToolName = "gen_ai.tool.name"
 
-// NewRegistry returns a diagnostic registry over the assembled tool catalog.
-// List snapshots metadata; Invoke calls a registered tool directly without an
-// agent turn.
-func NewRegistry(src *Resolver) (toolapp.Registry, error) {
-	if src == nil {
-		return nil, errors.New("toolset: tool source is required")
-	}
-	return &registry{src: src}, nil
-}
+// NewDiagnosticRegistry returns the explicitly direct-invocable diagnostic
+// catalog. It deliberately does not reuse the agent resolver: agent tools may
+// require a process, session, approval flow, or model loop that does not exist
+// for a client-driven call.
+func NewDiagnosticRegistry() toolapp.Registry { return registry{} }
 
-type registry struct {
-	src *Resolver
-}
+type registry struct{}
 
-func (r *registry) List(ctx context.Context) ([]tool.Tool, error) {
-	chatTools := r.src.toolsFor(ctx)
+func (registry) List(context.Context) ([]tool.Tool, error) {
+	chatTools := directTools("")
 	out := make([]tool.Tool, 0, len(chatTools))
 	for _, candidate := range chatTools {
 		definition := candidate.Definition()
@@ -51,16 +44,22 @@ func (r *registry) List(ctx context.Context) ([]tool.Tool, error) {
 	return out, nil
 }
 
-func (r *registry) Invoke(ctx context.Context, name, arguments string) (string, error) {
+func (registry) Invoke(ctx context.Context, root, name, arguments string) (tool.Result, error) {
 	if name == "" {
-		return "", errors.New("toolset: tool name must not be empty")
+		return tool.Result{}, fmt.Errorf("toolset: direct tool name must not be empty")
 	}
-	ctx, span := toolTracer.Start(ctx, "execute_tool "+name,
+	ctx, span := toolTracer.Start(ctx, "execute_direct_tool "+name,
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(attribute.String(attrGenAIToolName, name)))
 	defer span.End()
 
-	for _, candidate := range r.src.toolsFor(ctx) {
+	arguments, err := normalizeDirectArguments(root, name, arguments)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return tool.Result{}, err
+	}
+	for _, candidate := range directTools(root) {
 		if candidate.Definition().Name != name {
 			continue
 		}
@@ -68,11 +67,12 @@ func (r *registry) Invoke(ctx context.Context, name, arguments string) (string, 
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
+			return tool.Result{}, err
 		}
-		return output, err
+		return directResult(output), nil
 	}
-	err := fmt.Errorf("toolset: tool %q not registered", name)
+	err = fmt.Errorf("toolset: direct tool %q is not registered", name)
 	span.RecordError(err)
 	span.SetStatus(codes.Error, err.Error())
-	return "", err
+	return tool.Result{}, err
 }

@@ -46,9 +46,9 @@ func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
 	return nil
 }
 
-func (*fakeMCPPorts) Probe(context.Context, mcpserver.LiveConfig) error     { return nil }
-func (*fakeMCPPorts) Configure(context.Context, mcpserver.LiveConfig) error { return nil }
-func (*fakeMCPPorts) Remove(context.Context, string)                        {}
+func (*fakeMCPPorts) Probe(context.Context, mcpserver.Server) error     { return nil }
+func (*fakeMCPPorts) Configure(context.Context, mcpserver.Server) error { return nil }
+func (*fakeMCPPorts) Remove(context.Context, string)                    {}
 
 func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 	servers := make(map[string]mcpserver.Server, len(ports.statuses))

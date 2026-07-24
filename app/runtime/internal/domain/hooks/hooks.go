@@ -44,7 +44,7 @@ const (
 	// SubagentStart fires when a delegated sub-agent process starts.
 	SubagentStart Event = "SubagentStart"
 	// SubagentStop fires when a delegated sub-agent process reaches a terminal
-	// state. Reason carries the agent runtime terminal event name.
+	// state.
 	SubagentStop Event = "SubagentStop"
 	// PreCompact fires before turn-boundary compaction — a hook may inject
 	// guidance or veto the compaction.
@@ -120,7 +120,7 @@ func (h Hook) Validate() error {
 	return nil
 }
 
-// Input is the event payload handed to a hook on stdin (JSON).
+// Input is the semantic lifecycle payload passed to a hook runner.
 type Input struct {
 	Event     Event
 	SessionID string
@@ -140,13 +140,34 @@ type ToolInput struct {
 	Result    string // tool output (PostToolUse)
 }
 
+// SubagentStatus is the stable terminal vocabulary exposed to lifecycle hooks.
+type SubagentStatus string
+
+const (
+	SubagentCompleted  SubagentStatus = "completed"
+	SubagentFailed     SubagentStatus = "failed"
+	SubagentKilled     SubagentStatus = "killed"
+	SubagentTerminated SubagentStatus = "terminated"
+	SubagentStuck      SubagentStatus = "stuck"
+)
+
+// Valid reports whether s is a known sub-agent terminal status.
+func (s SubagentStatus) Valid() bool {
+	switch s {
+	case SubagentCompleted, SubagentFailed, SubagentKilled, SubagentTerminated, SubagentStuck:
+		return true
+	default:
+		return false
+	}
+}
+
 // SubagentInput is the sub-agent slice of an Input for SubagentStart/Stop.
 type SubagentInput struct {
 	ProcessID       string
 	ParentProcessID string
 	Description     string
 	Prompt          string
-	Status          string
+	Status          SubagentStatus
 	Result          string
 	Error           string
 }

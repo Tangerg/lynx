@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -45,7 +44,7 @@ type turnRuntime interface {
 	InjectSteering(context.Context, turn.TurnHandle, string) error
 	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
-	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []string) error
+	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
@@ -116,14 +115,9 @@ func newTestServer(rt testRuntime) *Server {
 	if p, ok := rt.(queriesCoordinatorProvider); ok {
 		s.queries = p.queriesCoordinator()
 	}
-	// Seed a default models coordinator so the session→wire projection (which
-	// reads DefaultModel) works; capability handler tests build their own via
-	// serverWithModels / serverWithTools / serverWithMCP.
-	defaultModel := ""
-	if src, ok := rt.(interface{ DefaultModel() string }); ok {
-		defaultModel = src.DefaultModel()
-	}
-	s.models = models.New(models.Config{DefaultModel: defaultModel})
+	// Capability handler tests replace this coordinator through serverWithModels;
+	// session projection reads its complete model choice from the session use case.
+	s.models = models.New(models.Config{})
 	// Default to a disabled schedules coordinator (schedules.* report
 	// capability_not_negotiated); schedule tests replace it with a fake registry.
 	s.schedules = schedules.New(schedules.Dependencies{})
@@ -138,8 +132,8 @@ func serverWithModels(cfg models.Config) *Server {
 
 // serverWithTools builds a Server whose only wired coordinator is the tools one —
 // enough for the tools.* handler tests.
-func serverWithTools(registry tools.Registry) *Server {
-	return &Server{tools: tools.New(registry)}
+func serverWithTools(useCases toolUseCases) *Server {
+	return &Server{tools: useCases}
 }
 
 func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
@@ -212,7 +206,7 @@ func (s stubRuntime) Prepare(ctx context.Context, ref runs.TurnRef) (runs.TurnRe
 	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared runs.TurnRef, resolution interrupts.Resolution, interruptKinds []string) error {
+func (s stubRuntime) Resume(ctx context.Context, prepared runs.TurnRef, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
 	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, resolution, interruptKinds)
 }
 
@@ -499,7 +493,6 @@ func (stubRunState) Terminalize(context.Context, string, string, execution.Outco
 // gate; these tests have no live turn state to forget.
 func (stubRuntime) ForgetSession(string) {}
 
-func (s stubRuntime) DefaultModel() string { return s.model }
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {
 	return s.history[id], nil
 }

@@ -4,31 +4,20 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	"github.com/Tangerg/lynx/tools"
 )
 
-type liveToolConnections struct {
-	mcp      *mcp.Connections
-	mcpTools []tools.Tool
+type a2aConnections struct {
 	a2a      *a2a.Connections
 	a2aTools []tools.Tool
 }
 
-// dialToolConnections establishes the two remote tool families as one build
-// step. On a partial failure Build's deferred cleanup receives the successful
-// connection and closes it along with the local capability adapters.
-func dialToolConnections(ctx context.Context, config BuildConfig) (liveToolConnections, error) {
-	mcpConns, mcpTools, err := mcp.Dial(ctx, infraMCPServerConfigs(config.MCPServers))
-	if err != nil {
-		return liveToolConnections{}, err
-	}
+// dialA2AConnections establishes the remote delegation family owned by the
+// toolset. MCP uses a different lifecycle and is owned by mcpconnection.
+func dialA2AConnections(ctx context.Context, config BuildConfig) (a2aConnections, error) {
 	a2aConns, a2aTools, err := a2a.Dial(ctx, infraA2AClientConfigs(config.A2AAgents))
 	if err != nil {
-		return liveToolConnections{mcp: mcpConns}, err
+		return a2aConnections{}, err
 	}
-	return liveToolConnections{
-		mcp: mcpConns, mcpTools: mcpTools,
-		a2a: a2aConns, a2aTools: a2aTools,
-	}, nil
+	return a2aConnections{a2a: a2aConns, a2aTools: a2aTools}, nil
 }

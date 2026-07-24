@@ -32,8 +32,8 @@ func TestBuildMCPEnvironmentUsesOneRegistrySnapshot(t *testing.T) {
 	if registry.calls != 1 {
 		t.Fatalf("registry List calls = %d, want 1", registry.calls)
 	}
-	if len(env.configs) != 1 || env.configs[0].Name != "files" {
-		t.Fatalf("configs = %+v, want enabled files server", env.configs)
+	if len(env.servers) != 1 || env.servers[0].Name != "files" {
+		t.Fatalf("servers = %+v, want enabled files server", env.servers)
 	}
 	if !env.policy.ToolDisabled(mcpserver.ToolRef{Server: "files", Tool: "write"}) ||
 		env.policy.ToolDisabled(mcpserver.ToolRef{Server: "off", Tool: "hidden"}) {

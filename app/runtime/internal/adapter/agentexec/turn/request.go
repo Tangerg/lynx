@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
@@ -83,7 +84,7 @@ type StartTurnRequest struct {
 	// InterruptKinds are the HITL kinds the client starting this turn can
 	// answer. Nil or empty means the turn must not surface any HITL interrupt;
 	// it auto-denies instead of parking on an unanswerable prompt.
-	InterruptKinds []string
+	InterruptKinds []runs.InterruptKind
 }
 
 // snapshot returns the immutable protocol values the asynchronous turn owns.

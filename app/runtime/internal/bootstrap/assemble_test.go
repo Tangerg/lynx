@@ -156,12 +156,12 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
-	) (toolset.Built, error) {
+	) (toolEnvironment, error) {
 		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
-			return toolset.Built{}, err
+			return toolEnvironment{}, err
 		}
-		built.Closers = append(built.Closers, func() error {
+		built.closers = append(built.closers, func() error {
 			toolClosed.Add(1)
 			return nil
 		})
@@ -178,11 +178,11 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 	}
 }
 
-func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
+func TestAssembleDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	var toolClosed atomic.Int32
 
-	_, err := assemble(t.Context(), cfg, func(
+	host, err := assemble(t.Context(), cfg, func(
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
@@ -193,22 +193,26 @@ func TestAssembleFailureAfterDispatcherReclaimsTools(t *testing.T) {
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
-	) (toolset.Built, error) {
+	) (toolEnvironment, error) {
 		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
 		if err != nil {
-			return toolset.Built{}, err
+			return toolEnvironment{}, err
 		}
-		built.Closers = append(built.Closers, func() error {
+		built.closers = append(built.closers, func() error {
 			toolClosed.Add(1)
 			return nil
 		})
-		// A nil catalog source fails after Agent deployment and Dispatcher
-		// construction, exercising both staged cleanup guards.
-		built.Resolver = nil
+		// The agent resolver is intentionally absent. Direct client-invoked
+		// diagnostics have a separate fixed catalog and must not inherit the
+		// agent's process-bound capability catalog.
+		built.tools.Resolver = nil
 		return built, nil
 	})
-	if err == nil || !strings.Contains(err.Error(), "tool source is required") {
-		t.Fatalf("assemble error = %v, want tool registry construction failure", err)
+	if err != nil {
+		t.Fatalf("assemble: %v", err)
+	}
+	if err := host.Close(); err != nil {
+		t.Fatalf("close host: %v", err)
 	}
 	if got := toolClosed.Load(); got != 1 {
 		t.Fatalf("tool closer calls = %d, want 1", got)

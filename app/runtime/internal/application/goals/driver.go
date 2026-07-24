@@ -271,13 +271,6 @@ func (d *Driver) Close() error {
 	return nil
 }
 
-// WithSessionMutation serializes a session write-set with Start, Resume, and
-// Stop. It remains on Driver for callers that own only the Driver; runtime
-// assembly shares the same coordinator directly with sessions.
-func (d *Driver) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
-	return d.mutations.WithSessionMutation(ctx, sessionIDs, apply)
-}
-
 func (d *Driver) recoverDrive(ctx context.Context, sessionID, leaseID string) {
 	d.launch(ctx, sessionID, leaseID)
 }

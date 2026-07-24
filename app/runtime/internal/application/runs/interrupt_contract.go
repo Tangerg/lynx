@@ -25,6 +25,17 @@ const (
 	QuestionInterruptKind InterruptKind = "question"
 )
 
+// Valid reports whether kind is an interrupt the runtime can persist and
+// surface. Delivery maps client protocol values into this closed vocabulary.
+func (k InterruptKind) Valid() bool {
+	switch k {
+	case ApprovalInterruptKind, QuestionInterruptKind:
+		return true
+	default:
+		return false
+	}
+}
+
 // ApprovalPrompt is the complete durable plan for one gated tool call.
 // Arguments are the effective arguments after PreToolUse rewriting, so a
 // continuation (including one restored after restart) can resume without

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -24,16 +25,33 @@ func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRe
 	}
 	data := make([]protocol.FileEntry, 0, len(page.Entries))
 	for _, entry := range page.Entries {
+		kind, ok := fileEntryTypeWire(entry.Kind)
+		if !ok {
+			return nil, fmt.Errorf("workspace.listFiles: unsupported entry kind %q", entry.Kind)
+		}
 		var sizeBytes *int64
 		if entry.Kind == workspaceapp.FileEntryFile {
 			sizeBytes = &entry.SizeBytes
 		}
 		data = append(data, protocol.FileEntry{
-			Path: entry.Path, Name: entry.Name, Type: protocol.FileEntryType(entry.Kind), SizeBytes: sizeBytes,
+			Path: entry.Path, Name: entry.Name, Type: kind, SizeBytes: sizeBytes,
 			ModifiedAt: entry.ModifiedAt.Format(time.RFC3339Nano),
 		})
 	}
 	return &protocol.Page[protocol.FileEntry]{Data: data, NextCursor: page.NextCursor}, nil
+}
+
+func fileEntryTypeWire(kind workspaceapp.FileEntryKind) (protocol.FileEntryType, bool) {
+	switch kind {
+	case workspaceapp.FileEntryFile:
+		return protocol.FileEntryFile, true
+	case workspaceapp.FileEntryDir:
+		return protocol.FileEntryDir, true
+	case workspaceapp.FileEntrySymlink:
+		return protocol.FileEntrySymlink, true
+	default:
+		return "", false
+	}
 }
 
 // GetWorkspaceFileHead projects the application file preview onto wire lines.

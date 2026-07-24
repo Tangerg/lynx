@@ -34,7 +34,6 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	ms.session = nil
 	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
-	ms.lastErr = nil
 	cfg := ms.config
 	cfg.OAuthHandler = ms.oauth // reuse this session's sign-in (nil for non-OAuth)
 	attempt := c.beginAttempt(ctx, ms)
@@ -82,7 +81,6 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 	ms.session = nil
 	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
-	ms.lastErr = nil
 	cfg.OAuthHandler = oauth // only reusable while the configured origin is unchanged
 	attempt := c.beginAttempt(ctx, ms)
 	c.mu.Unlock()
@@ -134,7 +132,6 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	ms.session = nil
 	ms.tools = nil
 	ms.state = mcpserver.ConnectionConnecting
-	ms.lastErr = nil
 	cfg := ms.config
 	attempt := c.beginAttempt(ctx, ms)
 	c.mu.Unlock()
@@ -213,9 +210,9 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 		err = validateToolCatalog(c.servers, attempt.target, cfg.Name, verifiedTools)
 	}
 	if err != nil {
-		attempt.target.session, attempt.target.tools, attempt.target.state, attempt.target.lastErr = nil, nil, dialStatus(err), err
+		attempt.target.session, attempt.target.tools, attempt.target.state = nil, nil, dialStatus(err)
 	} else {
-		attempt.target.session, attempt.target.tools, attempt.target.state, attempt.target.lastErr = session, verifiedTools, mcpserver.ConnectionConnected, nil
+		attempt.target.session, attempt.target.tools, attempt.target.state = session, verifiedTools, mcpserver.ConnectionConnected
 		if keepHandler {
 			attempt.target.oauth = cfg.OAuthHandler // keep the authorized handler for this session's reconnects
 		}
@@ -280,7 +277,6 @@ func (c *Connections) failAttempt(attempt connectionAttempt, err error) {
 		attempt.target.session = nil
 		attempt.target.tools = nil
 		attempt.target.state = mcpserver.ConnectionFailed
-		attempt.target.lastErr = err
 		attempt.target.cancel = nil
 	}
 	c.mu.Unlock()

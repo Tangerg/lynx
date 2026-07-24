@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
@@ -72,10 +73,14 @@ func mcpToolWire(t mcpserver.ToolInfo) protocol.McpTool {
 	}
 }
 
-func mcpConfigWire(srv integrations.MCPServerConfig) protocol.McpServerConfig {
+func mcpConfigWire(srv integrations.MCPServerConfig) (protocol.McpServerConfig, error) {
+	transport, ok := mcpTransportWire(srv.Transport)
+	if !ok {
+		return protocol.McpServerConfig{}, fmt.Errorf("mcp: unsupported transport %q", srv.Transport)
+	}
 	return protocol.McpServerConfig{
 		Name:                srv.Name,
-		Transport:           string(srv.Transport),
+		Transport:           transport,
 		Enabled:             srv.Enabled,
 		Description:         srv.Description,
 		URL:                 srv.URL,
@@ -88,5 +93,16 @@ func mcpConfigWire(srv integrations.MCPServerConfig) protocol.McpServerConfig {
 		TimeoutSeconds:      int(srv.Timeout / time.Second),
 		DisabledTools:       srv.DisabledTools,
 		AutoApproveTools:    srv.AutoApproveTools,
+	}, nil
+}
+
+func mcpTransportWire(transport mcpserver.Transport) (protocol.McpTransport, bool) {
+	switch transport {
+	case mcpserver.TransportStdio:
+		return protocol.McpTransportStdio, true
+	case mcpserver.TransportStreamableHTTP:
+		return protocol.McpTransportStreamableHTTP, true
+	default:
+		return "", false
 	}
 }

@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 
+	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-// ListTools surfaces every tool the engine registered — built-in coding
-// tools plus any MCP-server tools dialed at boot (API.md §7.6).
+// ListTools surfaces every read-only diagnostic tool valid outside an agent
+// turn (API.md §7.6).
 func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ToolSpec], error) {
 	internal, err := s.tools.List(ctx)
 	if err != nil {
@@ -26,13 +27,17 @@ func (s *Server) ListTools(ctx context.Context, _ protocol.PageQuery) (*protocol
 	return protocol.NewPage(out), nil
 }
 
-// InvokeTool runs one tool directly, outside a run (diagnostics /
-// client-driven workflows, API.md §7.6). Backed by tool.Invoker.Invoke,
-// whose result is the tool's raw string output.
+// InvokeTool runs one diagnostic tool directly outside a run. The application
+// admits cwd before the adapter confines tool paths beneath it; the result is
+// a canonical JSON value projected only at this Delivery boundary.
 func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) (any, error) {
 	args, err := json.Marshal(in.Arguments)
 	if err != nil {
 		return nil, err
 	}
-	return s.tools.Invoke(ctx, in.Name, string(args))
+	result, err := s.tools.Invoke(ctx, toolapp.Invocation{Name: in.Name, Arguments: string(args), Cwd: in.Cwd})
+	if err != nil {
+		return nil, wireWorkspaceError(err)
+	}
+	return result.Any(), nil
 }

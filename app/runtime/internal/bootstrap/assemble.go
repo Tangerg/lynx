@@ -202,7 +202,7 @@ type toolEnvironmentBuilder func(
 	*schedules.Coordinator,
 	*goals.State,
 	*skillauthoring.Store,
-) (toolset.Built, error)
+) (toolEnvironment, error)
 
 func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (_ Host, err error) {
 	if err := validateAssemblyConfig(cfg); err != nil {
@@ -292,10 +292,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	transferred := false
 	defer func() {
 		if !transferred {
-			err = errors.Join(err, runClosers(built.Closers))
+			err = errors.Join(err, runClosers(built.closers))
 		}
 	}()
-	attachToolEnvironment(&ecfg, built)
+	attachToolEnvironment(&ecfg, built.tools)
 	// Per-turn memory recall reuses the same searcher the memory_search tool does.
 	if memorySearcher != nil {
 		ecfg.MemorySearch = memorySearcher
@@ -304,7 +304,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
 	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.Shells, skillStore, utilityClient, liveEmbedder.ResolveMemory)
+	turnServices := buildTurnServices(cfg, messages, built.tools.Shells, skillStore, utilityClient, liveEmbedder.ResolveMemory)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -336,10 +336,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			err = errors.Join(err, turnDispatcher.Close())
 		}
 	}()
-	toolRegistry, err := toolset.NewRegistry(built.Resolver)
-	if err != nil {
-		return Host{}, fmt.Errorf("runtime: tool registry: %w", err)
-	}
+	home, _ := os.UserHomeDir()
+	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
+	toolRegistry := toolset.NewDiagnosticRegistry()
 
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
 	// rollback only when git is present + a dir is configured; the same adapter
@@ -412,10 +411,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		UtilityValidator:   resolver,
 		UtilityStore:       cfg.UtilityRoleStore,
 		EmbeddingRoleState: embeddingRoleState,
-		EmbeddingResolver:  embeddingResolver,
+		EmbeddingValidator: embeddingResolver,
 		EmbeddingStore:     cfg.EmbeddingRoleStore,
-		DefaultProvider:    cfg.Provider,
-		DefaultModel:       cfg.Model,
 	})
 	sessionDeps := sessions.Dependencies{
 		Sessions:     cfg.SessionStore,
@@ -473,14 +470,14 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
-	toolsCoord := tools.New(toolRegistry)
+	toolsCoord := tools.New(toolRegistry, workspaceContext)
 
 	integrationsCoord := integrations.New(integrations.Config{
 		MCPRegistry:           cfg.MCPRegistry,
-		MCPStatusReader:       built.MCPStatusReader,
-		MCPToolCatalog:        built.MCPToolCatalog,
-		MCPConnectionCommands: built.MCPConnectionCommands,
-		MCPRegistryCommands:   built.MCPRegistryCommands,
+		MCPStatusReader:       built.mcp,
+		MCPToolCatalog:        built.mcp,
+		MCPConnectionCommands: built.mcp,
+		MCPRegistryCommands:   built.mcp,
 		MCPPolicy:             mcpEnv.policy,
 		MCPStatus:             mcpStatus.Publish,
 	})
@@ -496,7 +493,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
 	}
-	toolClosers := slices.Clone(built.Closers)
+	toolClosers := slices.Clone(built.closers)
 	if goalDriver != nil {
 		toolClosers = append(toolClosers, goalDriver.Close)
 	}
@@ -514,8 +511,6 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		skillCurator = skillStore
 		skillDrafts = skillStore
 	}
-	home, _ := os.UserHomeDir()
-	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
 	workspaceFiles := workspace.NewFiles(workspaceContext, checkpointstore.Reads{})
 	workspaceVCS := workspace.NewVCS(workspaceContext, checkpointstore.VCS{})
 	workspaceDiscovery := workspace.NewDiscovery(

@@ -315,11 +315,3 @@ type OpenInterrupt struct {
 	Interrupts []Interrupt `json:"interrupts"`
 	CreatedAt  time.Time   `json:"createdAt"`
 }
-
-// ToolSpec is the runtime's tool-catalog descriptor (API.md §4.7).
-type ToolSpec struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Parameters  map[string]any `json:"parameters,omitempty"`  // JSON Schema
-	SafetyClass SafetyClass    `json:"safetyClass,omitempty"` // see SafetyClass
-}

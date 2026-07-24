@@ -119,7 +119,7 @@ func (f *fakeTurnControl) Prepare(context.Context, TurnRef) (TurnRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, TurnRef, interrupts.Resolution, []string) error {
+func (f *fakeTurnControl) Resume(context.Context, TurnRef, interrupts.Resolution, []InterruptKind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}

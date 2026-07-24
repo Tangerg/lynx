@@ -83,7 +83,7 @@ type McpTool struct {
 // the editable and observed shapes don't cross-contaminate.
 type McpServerConfig struct {
 	Name                string            `json:"name"`
-	Transport           string            `json:"type"` // "stdio" | "streamableHttp" (standard mcpServers vocab)
+	Transport           McpTransport      `json:"type"`
 	Enabled             bool              `json:"enabled"`
 	Description         string            `json:"description,omitempty"`
 	URL                 string            `json:"url,omitempty"`                 // http transport
@@ -98,6 +98,14 @@ type McpServerConfig struct {
 	AutoApproveTools    []string          `json:"autoApproveTools,omitempty"` // skip the approval gate
 }
 
+// McpTransport is the protocol's closed MCP transport vocabulary.
+type McpTransport string
+
+const (
+	McpTransportStdio          McpTransport = "stdio"
+	McpTransportStreamableHTTP McpTransport = "streamableHttp"
+)
+
 // ConfigureMCPServerRequest — mcp.configs.configure / test body (the editable
 // fields of McpServerConfig). Authorization is the RAW bearer token (http only);
 // an empty Authorization when (re)configuring or testing an EXISTING server
@@ -106,7 +114,7 @@ type McpServerConfig struct {
 // change to transfer credentials to another origin.
 type ConfigureMCPServerRequest struct {
 	Name             string            `json:"name"`
-	Transport        string            `json:"type"`
+	Transport        McpTransport      `json:"type"`
 	Enabled          bool              `json:"enabled"`
 	Description      string            `json:"description,omitempty"`
 	URL              string            `json:"url,omitempty"`

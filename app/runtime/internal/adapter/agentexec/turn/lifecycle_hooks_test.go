@@ -49,7 +49,7 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 		t.Fatalf("start subagent = %+v", start)
 	}
 	stop := rec.inputs[1].Subagent
-	if rec.inputs[1].Event != hooks.SubagentStop || rec.inputs[1].Reason != "process_completed" {
+	if rec.inputs[1].Event != hooks.SubagentStop || rec.inputs[1].Reason != "subagent completed" {
 		t.Fatalf("stop input = %+v", rec.inputs[1])
 	}
 	if stop.Status != "completed" || stop.Result != "auth failures are handled in middleware" || stop.Description != "inspect auth" {

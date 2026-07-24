@@ -254,7 +254,7 @@ func (r *reducer) todosSnapshot(e TodosUpdated) []RunEvent {
 	todos := make([]TodoSnapshot, len(e.Todos))
 	for i, item := range e.Todos {
 		todos[i] = TodoSnapshot{
-			ID: strconv.Itoa(i), Text: item.Content, Status: string(item.Status),
+			ID: strconv.Itoa(i), Text: item.Content, Status: item.Status,
 			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
 		}
 	}

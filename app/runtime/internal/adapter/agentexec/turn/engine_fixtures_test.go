@@ -160,7 +160,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	}
 	s.mu.Unlock()
 	if request.Observer != nil {
-		request.Observer.OnMessageDelta(s.runReply)
+		request.Observer.OnMessageDelta(agentexec.ProcessRef{}, s.runReply)
 	}
 	process := newStubTurnProcess("stub-processess-"+request.SessionID, agentexec.TurnOutput{
 		Reply:      s.runReply,
@@ -190,7 +190,7 @@ func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request ag
 		s.mu.Unlock()
 	}
 	if request.Observer != nil {
-		request.Observer.OnMessageDelta(s.runReply)
+		request.Observer.OnMessageDelta(agentexec.ProcessRef{}, s.runReply)
 	}
 	cp := newStubTurnProcess(processID, agentexec.TurnOutput{Reply: s.runReply})
 	cp.resumeErr = s.restoreResumeErr

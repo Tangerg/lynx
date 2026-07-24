@@ -1,10 +1,6 @@
 package approval
 
-import (
-	"cmp"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-)
+import "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 
 // HookDecision is the approval-relevant part of a PreToolUse hook decision.
 type HookDecision struct {
@@ -150,12 +146,6 @@ func (p ToolCallPlan) ResolvePromptShortcuts(standing StandingDecision, autoAppr
 		p.Action = GatePass
 	}
 	return p
-}
-
-// ApprovedArguments returns the tool-argument override after a human approval:
-// edited arguments win, otherwise a hook rewrite is preserved.
-func (p ToolCallPlan) ApprovedArguments(edited string) string {
-	return cmp.Or(edited, p.ArgumentOverride)
 }
 
 // DecisionOf maps an approve/deny boolean to the approval domain's verdict.

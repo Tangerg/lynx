@@ -387,32 +387,6 @@ func TestDriverStopSaveFailureKeepsGoalDriving(t *testing.T) {
 	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 }
 
-func TestSessionMutationFailureLeavesGoalLoopRunning(t *testing.T) {
-	store := newMemStore()
-	hold := make(chan struct{})
-	started := make(chan struct{}, 1)
-	fake := &fakeRuns{t: t, store: store, script: []turn{{setStatus: goal.StatusComplete}}, hold: hold, started: started}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
-	t.Cleanup(func() { _ = d.Close() })
-
-	if _, err := d.Start(t.Context(), "s1", "do it", "p", "m", goal.Budget{}); err != nil {
-		t.Fatalf("Start: %v", err)
-	}
-	select {
-	case <-started:
-	case <-time.After(2 * time.Second):
-		t.Fatal("goal driver did not launch its first run")
-	}
-
-	mutationErr := errors.New("write-set failed")
-	err := d.WithSessionMutation(t.Context(), []string{"s1"}, func(context.Context) error { return mutationErr })
-	if !errors.Is(err, mutationErr) {
-		t.Fatalf("WithSessionMutation error = %v, want %v", err, mutationErr)
-	}
-	close(hold)
-	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
-}
-
 // TestDriverEmitsTurnSpan proves the observability is real (not just no-op): a
 // goal.turn span carries the session, turn ordinal, and the run's outcome/usage.
 func TestDriverEmitsTurnSpan(t *testing.T) {

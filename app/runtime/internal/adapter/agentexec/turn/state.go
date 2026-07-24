@@ -82,7 +82,7 @@ type turnState struct {
 
 	// interruptKinds is the set of HITL kinds the current client can answer
 	// for this turn. Nil / empty means no HITL kind may surface.
-	interruptKinds map[string]bool
+	interruptKinds map[runs.InterruptKind]struct{}
 
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
@@ -129,19 +129,10 @@ type turnState struct {
 	doomResult uint64
 	doomRepeat int
 
-	// toolCalls counts the completed tool calls this turn — the skill miner's
-	// complexity signal (a turn that drove many tools is a candidate to distill
-	// into a reusable skill). Incremented once per completed call in
-	// recordToolOutcome; read at the turn boundary via toolCallCount.
-	//
-	// KNOWN LIMITATION: a subagent's child tool calls fire on this same shared
-	// observer (child_execution reuses the parent target), so a turn that
-	// delegates to subagents over-counts — the count includes child tools the
-	// miner's root transcript never sees. This only makes mining slightly
-	// over-eager on subagent-heavy turns (a cadence-bounded utility call that
-	// usually returns NO_SKILL); excluding child tools would need process
-	// identity threaded through the observer contract, deferred as not worth that
-	// change for a bounded-efficiency effect.
+	// toolCalls counts completed root-process tool calls — the skill miner's
+	// complexity signal. Child observations carry process ownership and are not
+	// projected while the protocol has no child-run model, so they cannot skew a
+	// root transcript's complexity score.
 	toolCalls int
 }
 
@@ -194,10 +185,12 @@ func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
 	}
 }
 
-func (st *turnState) setInterruptKinds(kinds []string) {
-	st.interruptKinds = make(map[string]bool, len(kinds))
+func (st *turnState) setInterruptKinds(kinds []runs.InterruptKind) {
+	st.interruptKinds = make(map[runs.InterruptKind]struct{}, len(kinds))
 	for _, kind := range kinds {
-		st.interruptKinds[kind] = true
+		if kind.Valid() {
+			st.interruptKinds[kind] = struct{}{}
+		}
 	}
 }
 
@@ -211,8 +204,9 @@ func (st *turnState) claimEvents() bool {
 	return true
 }
 
-func (st *turnState) canSurface(kind string) bool {
-	return st.interruptKinds[kind]
+func (st *turnState) canSurface(kind runs.InterruptKind) bool {
+	_, ok := st.interruptKinds[kind]
+	return ok
 }
 
 // recordToolOutcome folds one completed tool call into the doom-loop counter.

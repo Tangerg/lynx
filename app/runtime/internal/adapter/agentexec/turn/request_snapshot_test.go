@@ -3,6 +3,7 @@ package turn
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
@@ -20,7 +21,7 @@ func TestStartTurnRequestSnapshotOwnsProtocolValues(t *testing.T) {
 		Message:        "hello",
 		Media:          []*media.Media{image},
 		Options:        &corechat.Options{Temperature: &temperature, Stop: []string{"done"}},
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	}
 
 	snapshot := request.snapshot()
@@ -28,7 +29,7 @@ func TestStartTurnRequestSnapshotOwnsProtocolValues(t *testing.T) {
 	request.Options.Stop[0] = "changed"
 	request.Media[0].Source.Bytes[0] = 9
 	request.Media[0] = nil
-	request.InterruptKinds[0] = "question"
+	request.InterruptKinds[0] = runs.QuestionInterruptKind
 
 	if snapshot.Options == nil || snapshot.Options.Temperature == nil || *snapshot.Options.Temperature != 0.7 {
 		t.Fatalf("snapshot temperature = %+v, want 0.7", snapshot.Options)
