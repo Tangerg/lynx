@@ -14,8 +14,8 @@ import (
 )
 
 // StartRun lets the fake drive the streamable path: it returns a runId ack plus
-// a pre-baked, pre-closed RunEvent channel so a POST runs.start exercises
-// serveStream end-to-end.
+// a finite RunEvent sequence so a POST runs.start exercises serveStream
+// end-to-end.
 func (f *fakeRuntime) StartRun(_ context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	events := slices.Values([]protocol.RunEvent{
 		{RunID: "run_x", EventID: "evt_00000000001",

@@ -146,8 +146,12 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		Provider:  spec.Provider,
 		Model:     spec.Model,
 	}, live)
-	seq, unsubscribe := hub.Subscribe("")
-	context.AfterFunc(reqCtx, unsubscribe)
+	subscription, unsubscribe := hub.Subscribe("")
+	stopUnsubscribe := context.AfterFunc(reqCtx, unsubscribe)
+	seq := func(yield func(Event) bool) {
+		defer stopUnsubscribe()
+		subscription(yield)
+	}
 	for _, pe := range opening {
 		hub.Append(c.event(spec, pe))
 	}
@@ -261,11 +265,11 @@ func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor strin
 	if !ok || e.handle == nil || e.handle.hub == nil {
 		return Record{}, nil, false
 	}
-	seq, unsubscribe := e.handle.hub.Subscribe(fromCursor)
+	subscription, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	stopUnsubscribe := context.AfterFunc(ctx, unsubscribe)
 	return e.record, func(yield func(Event) bool) {
 		defer stopUnsubscribe()
-		seq(yield)
+		subscription(yield)
 	}, true
 }
 

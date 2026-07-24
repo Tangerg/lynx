@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
@@ -32,18 +33,17 @@ func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.
 func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEvent] {
 	// Single-active-consumer pull stream. The internal select multiplexes the
 	// turn's event channel against ctx so the iterator stops promptly
-	// when the caller stops listening; even while parked waiting for
+	// when the caller stops listening, even while parked waiting for
 	// the next event. runTurn closes state.events on turn end, which
 	// terminates the range cleanly (ok == false). Releasing the consumer when
 	// this sequence returns lets a continuation segment attach to a parked turn.
 	//
 	// Consecutive text deltas (MessageDelta / ReasoningDelta) already buffered
-	// on the channel are coalesced into one event before yielding. Under load;
-	// the per-token LLM stream running ahead of the SSE consumer; this collapses
-	// the 1-token-1-frame volume, cutting the hub's live-event drop rate
-	// (hub.go), without touching the durable transcript (item.completed still
-	// carries the full text) or adding latency: the drain is non-blocking, so a
-	// trickling stream still yields each token the moment it arrives.
+	// on the channel are coalesced into one event before yielding. When the
+	// per-token LLM stream runs ahead of the SSE consumer, this collapses the
+	// one-token-per-frame volume and cuts the downstream live-event drop rate.
+	// It does not touch the durable transcript or add latency: the drain is
+	// non-blocking, so a trickling stream still yields each token immediately.
 	return func(yield func(runs.EngineEvent) bool) {
 		defer state.releaseEvents()
 		var spill runs.EngineEvent // a different-kind event pulled off mid-coalesce, yielded next
@@ -78,37 +78,57 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.EngineEv
 func coalesceTextDeltas(head runs.EngineEvent, ch <-chan runs.EngineEvent, spill *runs.EngineEvent) runs.EngineEvent {
 	switch h := head.(type) {
 	case runs.MessageDelta:
+		var merged strings.Builder
+	messageDeltas:
 		for {
 			select {
 			case ev, ok := <-ch:
 				if !ok {
-					return h // channel closed; recv() sees the close next and stops
+					break messageDeltas
 				}
 				if d, same := ev.(runs.MessageDelta); same {
-					h.Text += d.Text
+					if merged.Len() == 0 {
+						merged.Grow(len(h.Text) + len(d.Text))
+						merged.WriteString(h.Text)
+					}
+					merged.WriteString(d.Text)
 					continue
 				}
 				*spill = ev
 			default:
 			}
-			return h
+			break
 		}
+		if merged.Len() > 0 {
+			h.Text = merged.String()
+		}
+		return h
 	case runs.ReasoningDelta:
+		var merged strings.Builder
+	reasoningDeltas:
 		for {
 			select {
 			case ev, ok := <-ch:
 				if !ok {
-					return h
+					break reasoningDeltas
 				}
 				if d, same := ev.(runs.ReasoningDelta); same {
-					h.Text += d.Text
+					if merged.Len() == 0 {
+						merged.Grow(len(h.Text) + len(d.Text))
+						merged.WriteString(h.Text)
+					}
+					merged.WriteString(d.Text)
 					continue
 				}
 				*spill = ev
 			default:
 			}
-			return h
+			break
 		}
+		if merged.Len() > 0 {
+			h.Text = merged.String()
+		}
+		return h
 	default:
 		return head
 	}

@@ -70,9 +70,9 @@ func (s *Server) SubscribeRun(ctx context.Context, runID string) (*protocol.Star
 	// the evt_ wire framing off the client's Last-Event-Id (§11.2). TrimPrefix
 	// leaves an empty / unframed id untouched, so replay-from-start still works.
 	fromCursor := strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent)
-	record, evCh, ok := s.coordinator.SubscribeLive(ctx, runID, fromCursor)
+	record, events, ok := s.coordinator.SubscribeLive(ctx, runID, fromCursor)
 	if !ok {
 		return nil, nil, protocol.ErrRunNotFound
 	}
-	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, evCh), nil
+	return &protocol.StartRunResponse{RunID: runID, SegmentID: record.SegmentID}, mapRunEvents(ctx, events), nil
 }

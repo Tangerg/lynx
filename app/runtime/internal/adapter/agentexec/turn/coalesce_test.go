@@ -7,9 +7,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-// coalesceTextDeltas merges same-kind text deltas already queued on the channel
-// so the per-token live stream collapses into fewer frames under load (T3.8).
-
 func TestCoalesceTextDeltas_MergesConsecutive(t *testing.T) {
 	ch := make(chan runs.EngineEvent, 8)
 	ch <- runs.MessageDelta{Text: "b"}
@@ -69,5 +66,38 @@ func TestCoalesceTextDeltas_ReasoningMergesByKind(t *testing.T) {
 	}
 	if _, ok := spill.(runs.MessageDelta); !ok {
 		t.Fatalf("spill = %#v, want runs.MessageDelta", spill)
+	}
+}
+
+func TestCoalesceTextDeltas_DrainsBufferedClosedChannel(t *testing.T) {
+	ch := make(chan runs.EngineEvent, 2)
+	ch <- runs.MessageDelta{Text: "b"}
+	ch <- runs.MessageDelta{Text: "c"}
+	close(ch)
+
+	var spill runs.EngineEvent
+	got := coalesceTextDeltas(runs.MessageDelta{Text: "a"}, ch, &spill)
+	if delta, ok := got.(runs.MessageDelta); !ok || delta.Text != "abc" {
+		t.Fatalf("merged = %#v, want runs.MessageDelta{abc}", got)
+	}
+	if spill != nil {
+		t.Fatalf("spill = %#v, want nil", spill)
+	}
+}
+
+func BenchmarkCoalesceTextDeltas(b *testing.B) {
+	const buffered = 32
+	ch := make(chan runs.EngineEvent, buffered)
+	delta := runs.EngineEvent(runs.MessageDelta{Text: "x"})
+	for b.Loop() {
+		for range buffered {
+			ch <- delta
+		}
+		head := <-ch
+		var spill runs.EngineEvent
+		got := coalesceTextDeltas(head, ch, &spill)
+		if len(got.(runs.MessageDelta).Text) != buffered {
+			b.Fatal("coalesced text has the wrong length")
+		}
 	}
 }
