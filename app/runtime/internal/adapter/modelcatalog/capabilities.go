@@ -20,19 +20,19 @@ import (
 // infrastructure boundary and have one composition-root construction point.
 type Capabilities struct{}
 
-func (Capabilities) Supported() []provider.Metadata {
+func (Capabilities) Supported() []modelsapp.ProviderMetadata {
 	supported := llm.SupportedProviders()
-	out := make([]provider.Metadata, 0, len(supported))
+	out := make([]modelsapp.ProviderMetadata, 0, len(supported))
 	for _, value := range supported {
 		out = append(out, providerMetadata(value))
 	}
 	return out
 }
 
-func (Capabilities) Metadata(id string) (provider.Metadata, bool) {
+func (Capabilities) Metadata(id string) (modelsapp.ProviderMetadata, bool) {
 	value := llm.Provider(id)
 	if !value.IsSupported() {
-		return provider.Metadata{}, false
+		return modelsapp.ProviderMetadata{}, false
 	}
 	return providerMetadata(value), true
 }
@@ -80,8 +80,8 @@ func (Capabilities) ListModels(ctx context.Context, entry provider.Provider) ([]
 	return llm.ListRemoteModels(ctx, baseURL, entry.APIKey)
 }
 
-func providerMetadata(value llm.Provider) provider.Metadata {
-	return provider.Metadata{
+func providerMetadata(value llm.Provider) modelsapp.ProviderMetadata {
+	return modelsapp.ProviderMetadata{
 		ID: string(value), RequiresBaseURL: value.RequiresBaseURL(), EmbeddingCapable: value.EmbeddingCapable(),
 		DefaultEmbeddingModel: value.DefaultEmbeddingModel(), ProbeModels: value.ProbeModels(),
 	}

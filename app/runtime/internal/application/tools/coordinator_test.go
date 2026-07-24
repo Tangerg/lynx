@@ -12,25 +12,36 @@ type toolRegistryFixture struct {
 }
 
 func (c toolRegistryFixture) List(context.Context) ([]tool.Tool, error) { return c.tools, nil }
-func (toolRegistryFixture) Invoke(context.Context, string, string) (string, error) {
-	return "", nil
+func (toolRegistryFixture) Invoke(context.Context, string, string, string) (tool.Result, error) {
+	return tool.Result{}, nil
 }
 
 type toolRegistryRecorder struct {
+	root      string
 	name      string
 	arguments string
 }
 
-func (i *toolRegistryRecorder) Invoke(_ context.Context, name string, arguments string) (string, error) {
+func (i *toolRegistryRecorder) Invoke(_ context.Context, root, name string, arguments string) (tool.Result, error) {
+	i.root = root
 	i.name = name
 	i.arguments = arguments
-	return "ok", nil
+	return tool.StringResult("ok"), nil
 }
 
 func (*toolRegistryRecorder) List(context.Context) ([]tool.Tool, error) { return nil, nil }
 
+type rootRecorder struct {
+	root string
+}
+
+func (r *rootRecorder) ResolveRoot(cwd string) (string, error) {
+	r.root = cwd
+	return "/workspace", nil
+}
+
 func TestListUsesRegistry(t *testing.T) {
-	c := New(toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}})
+	c := New(toolRegistryFixture{tools: []tool.Tool{{Name: "read"}}}, &rootRecorder{})
 
 	got, err := c.List(context.Background())
 	if err != nil {
@@ -43,13 +54,14 @@ func TestListUsesRegistry(t *testing.T) {
 
 func TestInvokeUsesRegistry(t *testing.T) {
 	invoker := &toolRegistryRecorder{}
-	c := New(invoker)
+	roots := &rootRecorder{}
+	c := New(invoker, roots)
 
-	got, err := c.Invoke(context.Background(), "shell", `{"command":"true"}`)
+	got, err := c.Invoke(context.Background(), Invocation{Name: "read", Arguments: `{"file_path":"main.go"}`, Cwd: "/requested"})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}
-	if got != "ok" || invoker.name != "shell" || invoker.arguments != `{"command":"true"}` {
-		t.Fatalf("result=%q name=%q arguments=%q", got, invoker.name, invoker.arguments)
+	if text, ok := got.String(); !ok || text != "ok" || roots.root != "/requested" || invoker.root != "/workspace" || invoker.name != "read" || invoker.arguments != `{"file_path":"main.go"}` {
+		t.Fatalf("result=%#v cwd=%q root=%q name=%q arguments=%q", got, roots.root, invoker.root, invoker.name, invoker.arguments)
 	}
 }

@@ -21,7 +21,6 @@ type server struct {
 	session *sdkmcp.ClientSession // nil when not connected
 	tools   []tools.Tool          // last tool set proved on this session
 	state   mcpserver.ConnectionState
-	lastErr error
 
 	// oauth is the live OAuth handler obtained by a successful [Connections.
 	// Authorize] this session. nil until the user signs in (an OAuth server with

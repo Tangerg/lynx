@@ -47,7 +47,10 @@ func DecodePrompt(raw []byte) (runs.Interrupt, error) {
 	if err := decode(raw, &wire); err != nil {
 		return runs.Interrupt{}, fmt.Errorf("agent suspension: decode interrupt: %w", err)
 	}
-	interrupt := wire.interrupt()
+	interrupt, err := wire.interrupt()
+	if err != nil {
+		return runs.Interrupt{}, err
+	}
 	if err := interrupt.Validate(); err != nil {
 		return runs.Interrupt{}, err
 	}
@@ -72,7 +75,7 @@ func EncodeResolution(resolution interrupts.Resolution) (json.RawMessage, error)
 	}
 	encoded, err := json.Marshal(resolutionWire{
 		Approved: resolution.Approved, Arguments: resolution.Arguments, Answer: resolution.Answer,
-		Reason: resolution.Reason, RememberScope: resolution.RememberScope,
+		Reason: resolution.Reason, RememberScope: rememberScopeWireFrom(resolution.RememberScope),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agent suspension: encode resolution: %w", err)
@@ -96,19 +99,19 @@ func decode(raw []byte, target any) error {
 }
 
 type interruptWire struct {
-	Kind     runs.InterruptKind  `json:"kind"`
+	Kind     interruptKindWire   `json:"kind"`
 	Approval *approvalPromptWire `json:"approval,omitempty"`
 	Question *questionPromptWire `json:"question,omitempty"`
 }
 
 type approvalPromptWire struct {
-	CallID       string           `json:"callId,omitempty"`
-	ToolName     string           `json:"toolName"`
-	Arguments    string           `json:"arguments"`
-	SafetyClass  tool.SafetyClass `json:"safetyClass"`
-	Risk         tool.RiskLevel   `json:"risk,omitempty"`
-	Reason       string           `json:"reason,omitempty"`
-	Rememberable bool             `json:"rememberable,omitempty"`
+	CallID       string          `json:"callId,omitempty"`
+	ToolName     string          `json:"toolName"`
+	Arguments    string          `json:"arguments"`
+	SafetyClass  safetyClassWire `json:"safetyClass"`
+	Risk         riskLevelWire   `json:"risk,omitempty"`
+	Reason       string          `json:"reason,omitempty"`
+	Rememberable bool            `json:"rememberable,omitempty"`
 }
 
 type questionPromptWire struct {
@@ -130,11 +133,11 @@ type questionOptionWire struct {
 }
 
 func promptWireFrom(interrupt runs.Interrupt) interruptWire {
-	result := interruptWire{Kind: interrupt.Kind}
+	result := interruptWire{Kind: interruptKindWireFrom(interrupt.Kind)}
 	if prompt := interrupt.Approval; prompt != nil {
 		result.Approval = &approvalPromptWire{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
+			SafetyClass: safetyClassWireFrom(prompt.SafetyClass), Risk: riskLevelWireFrom(prompt.Risk), Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := interrupt.Question; prompt != nil {
@@ -146,12 +149,24 @@ func promptWireFrom(interrupt runs.Interrupt) interruptWire {
 	return result
 }
 
-func (wire interruptWire) interrupt() runs.Interrupt {
-	result := runs.Interrupt{Kind: wire.Kind}
+func (wire interruptWire) interrupt() (runs.Interrupt, error) {
+	kind, err := wire.Kind.interruptKind()
+	if err != nil {
+		return runs.Interrupt{}, err
+	}
+	result := runs.Interrupt{Kind: kind}
 	if prompt := wire.Approval; prompt != nil {
+		safety, err := prompt.SafetyClass.safetyClass()
+		if err != nil {
+			return runs.Interrupt{}, err
+		}
+		risk, err := prompt.Risk.riskLevel()
+		if err != nil {
+			return runs.Interrupt{}, err
+		}
 		result.Approval = &runs.ApprovalPrompt{
 			CallID: prompt.CallID, ToolName: prompt.ToolName, Arguments: prompt.Arguments,
-			SafetyClass: prompt.SafetyClass, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
+			SafetyClass: safety, Risk: risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		}
 	}
 	if prompt := wire.Question; prompt != nil {
@@ -160,7 +175,7 @@ func (wire interruptWire) interrupt() runs.Interrupt {
 			Questions: questionSpecsFrom(wire.Question.Questions),
 		}
 	}
-	return result
+	return result, nil
 }
 
 func questionWiresFrom(specs []runs.QuestionSpec) []questionSpecWire {
@@ -218,15 +233,136 @@ type resolutionWire struct {
 	Arguments     string              `json:"arguments,omitempty"`
 	Answer        map[string][]string `json:"answer,omitempty"`
 	Reason        string              `json:"reason,omitempty"`
-	RememberScope approval.Scope      `json:"remember_scope,omitempty"`
+	RememberScope rememberScopeWire   `json:"remember_scope,omitempty"`
 }
 
 func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
-	if wire.RememberScope != "" && !wire.RememberScope.Valid() {
-		return interrupts.Resolution{}, fmt.Errorf("agent suspension: unknown remember scope %q", wire.RememberScope)
+	rememberScope, err := wire.RememberScope.scope()
+	if err != nil {
+		return interrupts.Resolution{}, err
 	}
 	return interrupts.Resolution{
 		Approved: wire.Approved, Arguments: wire.Arguments, Answer: wire.Answer,
-		Reason: wire.Reason, RememberScope: wire.RememberScope,
+		Reason: wire.Reason, RememberScope: rememberScope,
 	}, nil
+}
+
+type interruptKindWire string
+
+func interruptKindWireFrom(kind runs.InterruptKind) interruptKindWire {
+	switch kind {
+	case runs.ApprovalInterruptKind:
+		return "approval"
+	case runs.QuestionInterruptKind:
+		return "question"
+	default:
+		return interruptKindWire(kind)
+	}
+}
+
+func (wire interruptKindWire) interruptKind() (runs.InterruptKind, error) {
+	switch wire {
+	case "approval":
+		return runs.ApprovalInterruptKind, nil
+	case "question":
+		return runs.QuestionInterruptKind, nil
+	default:
+		return "", fmt.Errorf("agent suspension: unknown interrupt kind %q", wire)
+	}
+}
+
+type safetyClassWire string
+
+func safetyClassWireFrom(class tool.SafetyClass) safetyClassWire {
+	switch class {
+	case tool.SafetyClassSafe:
+		return "safe"
+	case tool.SafetyClassWrite:
+		return "write"
+	case tool.SafetyClassExec:
+		return "exec"
+	case tool.SafetyClassNetwork:
+		return "network"
+	default:
+		return safetyClassWire(class)
+	}
+}
+
+func (wire safetyClassWire) safetyClass() (tool.SafetyClass, error) {
+	switch wire {
+	case "safe":
+		return tool.SafetyClassSafe, nil
+	case "write":
+		return tool.SafetyClassWrite, nil
+	case "exec":
+		return tool.SafetyClassExec, nil
+	case "network":
+		return tool.SafetyClassNetwork, nil
+	default:
+		return "", fmt.Errorf("agent suspension: unknown safety class %q", wire)
+	}
+}
+
+type riskLevelWire string
+
+func riskLevelWireFrom(risk tool.RiskLevel) riskLevelWire {
+	switch risk {
+	case "":
+		return ""
+	case tool.RiskLow:
+		return "low"
+	case tool.RiskMedium:
+		return "medium"
+	case tool.RiskHigh:
+		return "high"
+	default:
+		return riskLevelWire(risk)
+	}
+}
+
+func (wire riskLevelWire) riskLevel() (tool.RiskLevel, error) {
+	switch wire {
+	case "":
+		return "", nil
+	case "low":
+		return tool.RiskLow, nil
+	case "medium":
+		return tool.RiskMedium, nil
+	case "high":
+		return tool.RiskHigh, nil
+	default:
+		return "", fmt.Errorf("agent suspension: unknown risk level %q", wire)
+	}
+}
+
+type rememberScopeWire string
+
+func rememberScopeWireFrom(scope approval.Scope) rememberScopeWire {
+	switch scope {
+	case "":
+		return ""
+	case approval.ScopeSession:
+		return "session"
+	case approval.ScopeProject:
+		return "project"
+	case approval.ScopeGlobal:
+		return "global"
+	default:
+		return rememberScopeWire(scope)
+	}
+}
+
+func (wire rememberScopeWire) scope() (approval.Scope, error) {
+	switch wire {
+	case "":
+		return "", nil
+	case "session":
+		return approval.ScopeSession, nil
+	case "project":
+		return approval.ScopeProject, nil
+	case "global":
+		return approval.ScopeGlobal, nil
+	default:
+		return "", fmt.Errorf("agent suspension: unknown remember scope %q", wire)
+	}
 }

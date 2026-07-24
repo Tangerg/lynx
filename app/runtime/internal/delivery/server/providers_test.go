@@ -99,13 +99,21 @@ func TestModelToWire_TextOnly(t *testing.T) {
 // base-URL field off: set for the no-built-in-endpoint providers, clear for
 // the named vendors.
 func TestProviderToWire_RequiresBaseURL(t *testing.T) {
-	if !providerToWire(models.ProviderInfo{ID: "openai-compatible", RequiresBaseURL: true}).RequiresBaseURL {
-		t.Error("openai-compatible must require a base URL")
+	tests := []struct {
+		id   string
+		want bool
+	}{
+		{id: "openai-compatible", want: true},
+		{id: "azureopenai", want: true},
+		{id: "anthropic", want: false},
 	}
-	if !providerToWire(models.ProviderInfo{ID: "azureopenai", RequiresBaseURL: true}).RequiresBaseURL {
-		t.Error("azureopenai must require a base URL")
-	}
-	if providerToWire(models.ProviderInfo{ID: "anthropic"}).RequiresBaseURL {
-		t.Error("anthropic must not require a base URL")
+	for _, test := range tests {
+		wire, err := providerToWire(models.ProviderInfo{ID: test.id, RequiresBaseURL: test.want})
+		if err != nil {
+			t.Fatalf("providerToWire(%q): %v", test.id, err)
+		}
+		if wire.RequiresBaseURL != test.want {
+			t.Errorf("providerToWire(%q).RequiresBaseURL = %v, want %v", test.id, wire.RequiresBaseURL, test.want)
+		}
 	}
 }

@@ -13,15 +13,15 @@ import (
 // stubCatalog reports a single provider's metadata (only ProbeModels matters to
 // ListModels' merge branch).
 type stubCatalog struct {
-	meta provider.Metadata
+	meta models.ProviderMetadata
 }
 
-func (s stubCatalog) Supported() []provider.Metadata { return []provider.Metadata{s.meta} }
-func (s stubCatalog) Metadata(id string) (provider.Metadata, bool) {
+func (s stubCatalog) Supported() []models.ProviderMetadata { return []models.ProviderMetadata{s.meta} }
+func (s stubCatalog) Metadata(id string) (models.ProviderMetadata, bool) {
 	if s.meta.ID == id {
 		return s.meta, true
 	}
-	return provider.Metadata{}, false
+	return models.ProviderMetadata{}, false
 }
 func (stubCatalog) Models(string) []models.Model { return nil }
 func (stubCatalog) LookupModel(string, string) (models.Model, bool) {
@@ -48,7 +48,7 @@ func (stubRegistry) Get(context.Context, string) (provider.Provider, bool, error
 }
 func (stubRegistry) Configure(context.Context, provider.Provider) error { return nil }
 
-func probeServer(meta provider.Metadata, lister models.ProviderModelLister) *Server {
+func probeServer(meta models.ProviderMetadata, lister models.ProviderModelLister) *Server {
 	return serverWithModels(models.Config{Providers: stubRegistry{}, Catalog: stubCatalog{meta: meta}, Lister: lister})
 }
 
@@ -67,7 +67,7 @@ func listModels(t *testing.T, s *Server, providerID string) []protocol.Model {
 
 func TestListModelsProbesEndpointAuthoritativeProvider(t *testing.T) {
 	lister := &stubLister{ids: []string{"m-alpha", "m-beta"}}
-	got := listModels(t, probeServer(provider.Metadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
+	got := listModels(t, probeServer(models.ProviderMetadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
 	if lister.calls != 1 {
 		t.Fatalf("lister calls = %d, want 1", lister.calls)
 	}
@@ -81,7 +81,7 @@ func TestListModelsProbesEndpointAuthoritativeProvider(t *testing.T) {
 
 func TestListModelsFallsBackWhenProbeEmpty(t *testing.T) {
 	lister := &stubLister{ids: nil}
-	got := listModels(t, probeServer(provider.Metadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
+	got := listModels(t, probeServer(models.ProviderMetadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
 	if lister.calls != 1 {
 		t.Fatalf("lister calls = %d, want 1 (probe attempted)", lister.calls)
 	}
@@ -92,7 +92,7 @@ func TestListModelsFallsBackWhenProbeEmpty(t *testing.T) {
 
 func TestListModelsFallsBackWhenProbeErrors(t *testing.T) {
 	lister := &stubLister{err: errors.New("unreachable")}
-	got := listModels(t, probeServer(provider.Metadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
+	got := listModels(t, probeServer(models.ProviderMetadata{ID: "testprov", ProbeModels: true}, lister), "testprov")
 	if lister.calls != 1 {
 		t.Fatalf("lister calls = %d, want 1", lister.calls)
 	}
@@ -103,7 +103,7 @@ func TestListModelsFallsBackWhenProbeErrors(t *testing.T) {
 
 func TestListModelsSkipsProbeForCatalogProvider(t *testing.T) {
 	lister := &stubLister{ids: []string{"should-not-appear"}}
-	got := listModels(t, probeServer(provider.Metadata{ID: "testprov", ProbeModels: false}, lister), "testprov")
+	got := listModels(t, probeServer(models.ProviderMetadata{ID: "testprov", ProbeModels: false}, lister), "testprov")
 	if lister.calls != 0 {
 		t.Fatalf("lister calls = %d, want 0 (catalog provider must not be probed)", lister.calls)
 	}

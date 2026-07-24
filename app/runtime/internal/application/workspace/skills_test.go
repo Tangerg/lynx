@@ -10,7 +10,7 @@ import (
 
 func TestListSkillsUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
-		skills: []SkillInfo{{Name: "lint", Description: "check code", Scope: "project"}},
+		skills: []SkillInfo{{Name: "lint", Description: "check code", Scope: SkillScopeProject}},
 	}
 	c := NewSkills(NewContext("", "", testPaths{}), catalog, nil, nil, nil)
 

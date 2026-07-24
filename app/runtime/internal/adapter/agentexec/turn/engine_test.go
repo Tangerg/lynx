@@ -441,7 +441,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 		Stop:             []string{"done"},
 	}
 	images := []*media.Media{image}
-	interruptKinds := []string{"approval"}
+	interruptKinds := []runs.InterruptKind{runs.ApprovalInterruptKind}
 
 	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
 		SessionID:      "session",
@@ -461,7 +461,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	options.Stop[0] = "changed"
 	image.Source.Bytes[0] = 9
 	images[0] = nil
-	interruptKinds[0] = "question"
+	interruptKinds[0] = runs.QuestionInterruptKind
 	close(engine.release)
 
 	events, err := dispatcher.Events(context.Background(), handle)

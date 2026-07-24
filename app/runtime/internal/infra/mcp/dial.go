@@ -71,7 +71,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 		ms := &server{config: srv}
 		session, derr := dial(ctx, client, srv)
 		if derr != nil {
-			ms.state, ms.lastErr = dialStatus(derr), derr
+			ms.state = dialStatus(derr)
 			failures++
 			c.servers = append(c.servers, ms)
 			continue
@@ -81,8 +81,13 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 			terr = validateToolCatalog(c.servers, nil, srv.Name, srcTools)
 		}
 		if terr != nil {
-			terr = errors.Join(terr, session.Close()) // half-open: drop an unusable session
-			ms.state, ms.lastErr = mcpserver.ConnectionFailed, terr
+			// A session that cannot produce a valid tool catalog is unusable.
+			// Preserve a close failure in the trace as well as the primary cause;
+			// boot deliberately degrades this one server to failed rather than
+			// aborting every independent MCP connection.
+			failure := errors.Join(terr, session.Close())
+			span.RecordError(failure)
+			ms.state = mcpserver.ConnectionFailed
 			failures++
 			c.servers = append(c.servers, ms)
 			continue

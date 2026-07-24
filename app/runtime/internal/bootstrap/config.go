@@ -61,33 +61,44 @@ func ProviderRegistry(reg providersvc.Registry) providersvc.Registry {
 }
 
 // MCPServers projects config-file MCP entries into the runtime registry model.
-func MCPServers(in []config.MCPServerConfig) []mcpserversvc.Server {
+// It rejects an unknown transport instead of preserving an invalid string for a
+// later dial attempt; configuration is an input boundary, not a best-effort
+// transport pass-through.
+func MCPServers(in []config.MCPServerConfig) ([]mcpserversvc.Server, error) {
 	if len(in) == 0 {
-		return nil
+		return nil, nil
 	}
 	out := make([]mcpserversvc.Server, len(in))
 	for i, server := range in {
-		out[i] = mcpserversvc.Server{
+		transport, err := runtimeMCPTransport(server.Transport)
+		if err != nil {
+			return nil, fmt.Errorf("config: MCP server %q: %w", server.Name, err)
+		}
+		candidate := mcpserversvc.Server{
 			Name:          server.Name,
-			Transport:     runtimeMCPTransport(server.Transport),
+			Transport:     transport,
 			Enabled:       true,
 			URL:           server.Endpoint,
 			Authorization: server.Authorization,
 			Command:       server.Command,
 			Args:          append([]string(nil), server.Args...),
 		}
+		if err := candidate.Validate(); err != nil {
+			return nil, fmt.Errorf("config: MCP server %q: %w", server.Name, err)
+		}
+		out[i] = candidate
 	}
-	return out
+	return out, nil
 }
 
-func runtimeMCPTransport(transport string) mcpserversvc.Transport {
+func runtimeMCPTransport(transport string) (mcpserversvc.Transport, error) {
 	switch transport {
 	case config.MCPTransportStreamableHTTP:
-		return mcpserversvc.TransportStreamableHTTP
+		return mcpserversvc.TransportStreamableHTTP, nil
 	case config.MCPTransportStdio:
-		return mcpserversvc.TransportStdio
+		return mcpserversvc.TransportStdio, nil
 	default:
-		return mcpserversvc.Transport(transport)
+		return "", fmt.Errorf("unknown transport %q", transport)
 	}
 }
 

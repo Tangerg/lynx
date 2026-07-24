@@ -30,22 +30,19 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:             "approval with human edited arguments",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original"}`,
-			interruptKinds:   []string{"approval"},
+			interruptKinds:   []runs.InterruptKind{runs.ApprovalInterruptKind},
 			wantInterrupt:    runs.ApprovalInterruptKind,
 			resolution:       interrupts.Resolution{Approved: true, Arguments: `{"command":"echo human"}`},
 			rewriteArguments: `{"command":"echo hook"}`,
-			wantArguments:    `{"command":"echo human"}`,
 		},
 		{
 			name:             "approval denial",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original"}`,
-			interruptKinds:   []string{"approval"},
+			interruptKinds:   []runs.InterruptKind{runs.ApprovalInterruptKind},
 			wantInterrupt:    runs.ApprovalInterruptKind,
 			resolution:       interrupts.Resolution{Approved: false, Reason: "not this time"},
 			rewriteArguments: `{"command":"echo hook"}`,
-			wantDenied:       true,
-			wantDenyReason:   "not this time",
 		},
 		{
 			name:           "safe child tool",
@@ -56,7 +53,7 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:           "child question",
 			childTool:      "ask_user",
 			childArguments: `{"questions":[{"question":"Continue?","options":[{"label":"Yes"},{"label":"No"}]}]}`,
-			interruptKinds: []string{"question"},
+			interruptKinds: []runs.InterruptKind{runs.QuestionInterruptKind},
 			wantInterrupt:  runs.QuestionInterruptKind,
 			resolution: interrupts.Resolution{
 				Approved: true,
@@ -77,19 +74,15 @@ type childHITLScenario struct {
 	name             string
 	childTool        string
 	childArguments   string
-	interruptKinds   []string
+	interruptKinds   []runs.InterruptKind
 	wantInterrupt    runs.InterruptKind
 	resolution       interrupts.Resolution
 	rewriteArguments string
-	wantArguments    string
-	wantDenied       bool
-	wantDenyReason   string
 }
 
 type childHITLOutcome struct {
 	interruptCount int
-	childStart     *runs.ToolCallStart
-	childEnd       *runs.ToolCallEnd
+	childEvents    int
 	endReason      execution.Outcome
 }
 
@@ -142,13 +135,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 			}
 		case runs.ToolCallStart:
 			if event.ToolName == scenario.childTool {
-				copy := event
-				outcome.childStart = &copy
-			}
-		case runs.ToolCallEnd:
-			if outcome.childStart != nil && event.CallID == outcome.childStart.CallID {
-				copy := event
-				outcome.childEnd = &copy
+				outcome.childEvents++
 			}
 		case runs.TurnEnd:
 			outcome.endReason = event.Reason
@@ -168,20 +155,8 @@ func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome ch
 	if outcome.endReason != execution.OutcomeCompleted {
 		t.Fatalf("turn end = %q, want completed", outcome.endReason)
 	}
-	if outcome.childStart == nil || outcome.childEnd == nil {
-		t.Fatalf("child lifecycle start/end = %#v / %#v", outcome.childStart, outcome.childEnd)
-	}
-	if scenario.wantArguments != "" && outcome.childStart.Arguments != scenario.wantArguments {
-		t.Fatalf("child arguments = %s, want %s", outcome.childStart.Arguments, scenario.wantArguments)
-	}
-	if outcome.childEnd.Denied != scenario.wantDenied {
-		t.Fatalf("child denied = %v, want %v", outcome.childEnd.Denied, scenario.wantDenied)
-	}
-	if scenario.wantDenyReason != "" {
-		result, ok := outcome.childEnd.Result.String()
-		if !ok || result != scenario.wantDenyReason {
-			t.Fatalf("child deny result = %#v, want %q", outcome.childEnd.Result, scenario.wantDenyReason)
-		}
+	if outcome.childEvents != 0 {
+		t.Fatalf("child tool events leaked into root turn: %d", outcome.childEvents)
 	}
 	if got := recorder.count(hooks.PreToolUse, scenario.childTool); got != 1 {
 		t.Fatalf("PreToolUse(%s) count = %d, want 1", scenario.childTool, got)
@@ -212,7 +187,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []string{"question"},
+		InterruptKinds: []runs.InterruptKind{runs.QuestionInterruptKind},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -236,7 +211,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 				Answer: map[string][]string{
 					runs.QuestionFieldID(0): {"answer"},
 				},
-			}, []string{"question"}); err != nil {
+			}, []runs.InterruptKind{runs.QuestionInterruptKind}); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
 		case runs.TurnEnd:
@@ -283,7 +258,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		Cwd:            cwd,
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -338,19 +313,17 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const humanArguments = `{"command":"echo human-after-restart"}`
 	if err := restored.Resume(t.Context(), restoredHandle, interrupts.Resolution{
 		Approved: true, Arguments: humanArguments,
-	}, []string{"approval"}); err != nil {
+	}, []runs.InterruptKind{runs.ApprovalInterruptKind}); err != nil {
 		t.Fatalf("restored Resume: %v", err)
 	}
 
-	var (
-		childArguments string
-		endReason      execution.Outcome
-	)
+	endReason := execution.OutcomeError
+	leakedChildEvents := 0
 	for event := range restoredEvents {
 		switch event := event.(type) {
 		case runs.ToolCallStart:
 			if event.ToolName == "shell" {
-				childArguments = event.Arguments
+				leakedChildEvents++
 			}
 		case runs.TurnEnd:
 			endReason = event.Reason
@@ -359,8 +332,8 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if endReason != execution.OutcomeCompleted {
 		t.Fatalf("restored turn end = %q, want completed", endReason)
 	}
-	if childArguments != humanArguments {
-		t.Fatalf("restored child arguments = %q, want %q", childArguments, humanArguments)
+	if leakedChildEvents != 0 {
+		t.Fatalf("restored child tool events leaked into root turn: %d", leakedChildEvents)
 	}
 	if got := restoredHooks.count(hooks.PreToolUse, "shell"); got != 0 {
 		t.Fatalf("restored PreToolUse(shell) = %d, want 0 (durable gate plan must be reused)", got)
@@ -393,7 +366,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -447,7 +420,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
-		InterruptKinds: []string{"approval"},
+		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -511,7 +484,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
-			InterruptKinds: []string{"approval"},
+			InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 		})
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
@@ -522,7 +495,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		}
 
 		terminalCount := 0
-		successfulChildEnds := 0
+		leakedChildEvents := 0
 		raced := false
 		for event := range events {
 			switch event := event.(type) {
@@ -538,7 +511,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					<-start
-					resumeErr = dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, []string{"approval"})
+					resumeErr = dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, []runs.InterruptKind{runs.ApprovalInterruptKind})
 				}()
 				go func() {
 					defer wg.Done()
@@ -556,9 +529,9 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				if resumeErr != nil && cancelErr != nil {
 					t.Fatalf("iteration %d both racers lost: resume=%v cancel=%v", index, resumeErr, cancelErr)
 				}
-			case runs.ToolCallEnd:
-				if !event.Denied && event.Err == "" {
-					successfulChildEnds++
+			case runs.ToolCallStart:
+				if event.ToolName == "shell" {
+					leakedChildEvents++
 				}
 			case runs.TurnEnd:
 				terminalCount++
@@ -567,10 +540,8 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		if !raced || terminalCount != 1 {
 			t.Fatalf("iteration %d raced/terminals = %v/%d", index, raced, terminalCount)
 		}
-		if successfulChildEnds > 2 {
-			// At most task + one child tool can complete; a larger number means
-			// the pending child call was replayed.
-			t.Fatalf("iteration %d successful tool ends = %d, want <= 2", index, successfulChildEnds)
+		if leakedChildEvents != 0 {
+			t.Fatalf("iteration %d leaked child tool events = %d, want 0", index, leakedChildEvents)
 		}
 	}
 }

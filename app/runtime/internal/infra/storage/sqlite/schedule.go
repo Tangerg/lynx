@@ -25,6 +25,9 @@ func NewScheduleStore(db *sql.DB) *ScheduleStore {
 }
 
 func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error) {
+	if err := sc.Validate(); err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: validate schedule: %w", err)
+	}
 	sc.ID = schedule.IDPrefix + uuid.NewString()
 	sc.CreatedAt = time.Now().UTC()
 	_, err := conn(ctx, s.db).ExecContext(ctx,
@@ -40,6 +43,9 @@ func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (sched
 }
 
 func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error) {
+	if err := sc.Validate(); err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: validate schedule: %w", err)
+	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE schedules
 		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?, revision = revision + 1
@@ -72,6 +78,9 @@ func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, 
 	}
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("sqlite: get schedule: %w", err)
+	}
+	if err := sc.Validate(); err != nil {
+		return schedule.Schedule{}, fmt.Errorf("sqlite: validate schedule: %w", err)
 	}
 	return sc, nil
 }

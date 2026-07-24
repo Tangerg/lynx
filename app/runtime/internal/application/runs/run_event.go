@@ -1,6 +1,9 @@
 package runs
 
-import "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+import (
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+)
 
 type RunEvent interface {
 	runEvent()
@@ -75,7 +78,7 @@ type ItemDelta struct {
 type TodoSnapshot struct {
 	ID            string
 	Text          string
-	Status        string
+	Status        todo.Status
 	BlockedReason string
 	NextAction    string
 }

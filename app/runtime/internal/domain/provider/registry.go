@@ -43,20 +43,6 @@ type Provider struct {
 	KeySource KeySource
 }
 
-// Metadata is static provider reference data: whether this runtime build knows
-// how to talk to the provider, which UI affordances it needs, and whether it can
-// serve embeddings. Credentials and enablement remain in [Provider].
-type Metadata struct {
-	ID                    string
-	RequiresBaseURL       bool
-	EmbeddingCapable      bool
-	DefaultEmbeddingModel string
-	// ProbeModels marks a provider whose available models are defined by its live
-	// endpoint, not the static catalog — models.list probes /v1/models for these
-	// (local / bring-your-own-endpoint providers whose model id is user-supplied).
-	ProbeModels bool
-}
-
 // KeySource is where a provider's effective API key came from. It rides on the
 // wire (Provider.keySource) so the UI can tell a stored key (set via
 // providers.configure, editable + persisted) from one picked up from the

@@ -131,7 +131,8 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 		t.Fatal("mismatched revision must not apply")
 	}
 	// A lifecycle transition renews the lease and advances the revision.
-	paused := mk("lease-two", 2, goal.StatusPaused)
+	paused := mk("lease-two", 2, goal.StatusActive)
+	paused.Pause(goal.ReasonStoppedByUser, "", now)
 	if applied, err := store.Save(ctx, paused, initial.Version()); err != nil || !applied {
 		t.Fatalf("cas update: applied=%v err=%v", applied, err)
 	}

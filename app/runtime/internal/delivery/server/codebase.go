@@ -49,7 +49,10 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
-	out := codebaseStatusToWire(st.Index)
+	out, err := codebaseStatusToWire(st.Index)
+	if err != nil {
+		return nil, err
+	}
 	out.OperationID = st.OperationID
 	return out, nil
 }
@@ -77,9 +80,13 @@ func mapCodebaseErr(err error) error {
 	return wireWorkspaceError(err)
 }
 
-func codebaseStatusToWire(st codebaseindex.Status) *protocol.CodebaseStatus {
+func codebaseStatusToWire(st codebaseindex.Status) (*protocol.CodebaseStatus, error) {
+	state, ok := codebaseStateWire(st.State)
+	if !ok {
+		return nil, fmt.Errorf("codebase.status: unsupported state %q", st.State)
+	}
 	w := &protocol.CodebaseStatus{
-		State:      protocol.CodebaseState(st.State),
+		State:      state,
 		ModelID:    st.ModelID,
 		FileCount:  st.FileCount,
 		ChunkCount: st.ChunkCount,
@@ -88,5 +95,20 @@ func codebaseStatusToWire(st codebaseindex.Status) *protocol.CodebaseStatus {
 	if !st.IndexedAt.IsZero() {
 		w.IndexedAt = st.IndexedAt.UTC().Format(time.RFC3339)
 	}
-	return w
+	return w, nil
+}
+
+func codebaseStateWire(state codebaseindex.State) (protocol.CodebaseState, bool) {
+	switch state {
+	case codebaseindex.StateNone:
+		return protocol.CodebaseStateNone, true
+	case codebaseindex.StateIndexing:
+		return protocol.CodebaseStateIndexing, true
+	case codebaseindex.StateReady:
+		return protocol.CodebaseStateReady, true
+	case codebaseindex.StateError:
+		return protocol.CodebaseStateError, true
+	default:
+		return "", false
+	}
 }

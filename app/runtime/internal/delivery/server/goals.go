@@ -31,7 +31,7 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
-	return goalPtr(g), nil
+	return goalPtr(g)
 }
 
 // GetGoal returns the session's goal, or a nil result when it has none (goals.get).
@@ -46,7 +46,7 @@ func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protoco
 	if !ok {
 		return nil, nil
 	}
-	return goalPtr(g), nil
+	return goalPtr(g)
 }
 
 // StopGoal pauses the session's goal and stops the loop (goals.stop).
@@ -58,7 +58,7 @@ func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protoc
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.stop")
 	}
-	return goalPtr(g), nil
+	return goalPtr(g)
 }
 
 // ResumeGoal re-activates a paused or blocked goal (goals.resume).
@@ -70,7 +70,7 @@ func (s *Server) ResumeGoal(ctx context.Context, in protocol.GoalRequest) (*prot
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.resume")
 	}
-	return goalPtr(g), nil
+	return goalPtr(g)
 }
 
 func mapGoalErr(err error, method string) error {
@@ -91,11 +91,15 @@ func budgetFromWire(b protocol.GoalBudget) goal.Budget {
 	return goal.Budget{MaxTurns: b.MaxTurns, MaxCostUSD: b.MaxCostUsd, MaxSteps: b.MaxSteps}
 }
 
-func goalPtr(g goal.Goal) *protocol.Goal {
+func goalPtr(g goal.Goal) (*protocol.Goal, error) {
+	status, ok := goalStatusWire(g.Status)
+	if !ok {
+		return nil, fmt.Errorf("goals: unsupported status %q", g.Status)
+	}
 	w := protocol.Goal{
 		SessionID: g.SessionID,
 		Objective: g.Objective,
-		Status:    string(g.Status),
+		Status:    status,
 		Reason:    goalReason(g.Reason),
 		Provider:  g.Provider,
 		Model:     g.Model,
@@ -104,7 +108,20 @@ func goalPtr(g goal.Goal) *protocol.Goal {
 		CreatedAt: g.CreatedAt,
 		UpdatedAt: g.UpdatedAt,
 	}
-	return &w
+	return &w, nil
+}
+
+func goalStatusWire(status goal.Status) (protocol.GoalStatus, bool) {
+	switch status {
+	case goal.StatusActive:
+		return protocol.GoalActive, true
+	case goal.StatusPaused:
+		return protocol.GoalPaused, true
+	case goal.StatusBlocked:
+		return protocol.GoalBlocked, true
+	default:
+		return "", false
+	}
 }
 
 // goalReason owns the current wire's human-readable reason. The goal entity

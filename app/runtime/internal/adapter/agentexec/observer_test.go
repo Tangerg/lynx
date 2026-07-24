@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolpolicy"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -22,15 +23,30 @@ import (
 // it, so every method is a no-op.
 type noopObserver struct{}
 
+// observedProcess supplies the only ProcessView facts the observation boundary
+// is allowed to inspect. Embedding the read-only interface keeps this test
+// double deliberately narrow: any accidental access to another process fact
+// would panic rather than silently coupling the observer to engine state.
+type observedProcess struct {
+	core.ProcessView
+	id       string
+	parentID string
+}
+
+func (p observedProcess) ID() string       { return p.id }
+func (p observedProcess) ParentID() string { return p.parentID }
+
+func testProcess(id string) core.ProcessView { return observedProcess{id: id} }
+
 func (noopObserver) ApproveToolCall(context.Context, string, string, string, ToolApprovalTarget) ToolApprovalVerdict {
 	return ToolApprovalVerdict{}
 }
-func (noopObserver) OnToolCallStart(string, string, string) {}
-func (noopObserver) OnToolCallEnd(string, string, string, string, *offload.Ref, []string, error) {
+func (noopObserver) OnToolCallStart(ProcessRef, string, string, string) {}
+func (noopObserver) OnToolCallEnd(ProcessRef, string, string, string, string, *offload.Ref, []string, error) {
 }
-func (noopObserver) OnMessageDelta(string)                         {}
-func (noopObserver) OnReasoningDelta(string)                       {}
-func (noopObserver) OnUsage(accounting.TokenUsage, float64, int64) {}
+func (noopObserver) OnMessageDelta(ProcessRef, string)                         {}
+func (noopObserver) OnReasoningDelta(ProcessRef, string)                       {}
+func (noopObserver) OnUsage(ProcessRef, accounting.TokenUsage, float64, int64) {}
 
 type blockingStartObserver struct {
 	recordingObserver
@@ -38,12 +54,12 @@ type blockingStartObserver struct {
 	releaseFirst chan struct{}
 }
 
-func (o *blockingStartObserver) OnToolCallStart(callID, toolName, arguments string) {
+func (o *blockingStartObserver) OnToolCallStart(process ProcessRef, callID, toolName, arguments string) {
 	if toolName == "first" {
 		close(o.firstEntered)
 		<-o.releaseFirst
 	}
-	o.recordingObserver.OnToolCallStart(callID, toolName, arguments)
+	o.recordingObserver.OnToolCallStart(process, callID, toolName, arguments)
 }
 
 // keyedTool implements the loop's optional ConcurrencyKey contract as a keyed,
@@ -191,8 +207,8 @@ func TestObservedToolPreservesMutationPathsThroughPolicyWrappers(t *testing.T) {
 func TestToolObservationPublishesPreparedStartsInModelOrder(t *testing.T) {
 	observer := new(recordingObserver)
 	observation := newToolObservation(observer, nil, 0)
-	observation.begin("process-1", 2, chat.ToolCall{ID: "call-1", Name: "first", Arguments: `{}`})
-	observation.begin("process-1", 2, chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`})
+	observation.begin(testProcess("process-1"), 2, chat.ToolCall{ID: "call-1", Name: "first", Arguments: `{}`})
+	observation.begin(testProcess("process-1"), 2, chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`})
 
 	observation.mu.Lock()
 	first := observation.model[processToolCallKey{processID: "process-1", callID: "call-1"}]
@@ -234,7 +250,7 @@ func TestToolObservationSerializesClaimedStartBatches(t *testing.T) {
 	}
 	observation := newToolObservation(observer, nil, 0)
 	for index, name := range []string{"first", "second", "third"} {
-		observation.begin("process-1", 1, chat.ToolCall{
+		observation.begin(testProcess("process-1"), 1, chat.ToolCall{
 			ID: fmt.Sprintf("call-%d", index+1), Name: name, Arguments: `{}`,
 		})
 	}
@@ -307,12 +323,12 @@ func TestToolObservationSeparatesConcurrentProcessesReusingCallID(t *testing.T) 
 	observation := newToolObservation(observer, nil, 0)
 	const sharedCallID = "call-1"
 
-	observation.begin("root", 1, chat.ToolCall{ID: sharedCallID, Name: "root-tool", Arguments: `{}`})
-	observation.begin("child", 1, chat.ToolCall{ID: sharedCallID, Name: "child-tool", Arguments: `{}`})
+	observation.begin(testProcess("root"), 1, chat.ToolCall{ID: sharedCallID, Name: "root-tool", Arguments: `{}`})
+	observation.begin(testProcess("child"), 1, chat.ToolCall{ID: sharedCallID, Name: "child-tool", Arguments: `{}`})
 
 	rootDone := make(chan struct{})
 	go func() {
-		observation.result("root", 1, chat.ToolResult{ID: sharedCallID, Name: "root-tool", Result: "root-result"})
+		observation.result(testProcess("root"), 1, chat.ToolResult{ID: sharedCallID, Name: "root-tool", Result: "root-result"})
 		close(rootDone)
 	}()
 	select {
@@ -323,7 +339,7 @@ func TestToolObservationSeparatesConcurrentProcessesReusingCallID(t *testing.T) 
 
 	childDone := make(chan struct{})
 	go func() {
-		observation.result("child", 1, chat.ToolResult{ID: sharedCallID, Name: "child-tool", Result: "child-result"})
+		observation.result(testProcess("child"), 1, chat.ToolResult{ID: sharedCallID, Name: "child-tool", Result: "child-result"})
 		close(childDone)
 	}()
 	select {
@@ -351,13 +367,13 @@ func TestToolObservationClosesUnknownCallsButIgnoresRestoredSettledResults(t *te
 	observation := newToolObservation(observer, nil, 0)
 	result := chat.ToolResult{ID: "missing-1", Name: "missing", Result: "not available", IsError: true}
 
-	observation.result("process-1", 1, result)
+	observation.result(testProcess("process-1"), 1, result)
 	if len(observer.starts()) != 0 || len(observer.ends()) != 0 {
 		t.Fatal("result without a boundary was emitted; restored settled results must not duplicate lifecycle")
 	}
 
-	observation.begin("process-1", 1, chat.ToolCall{ID: "missing-1", Name: "missing", Arguments: `{}`})
-	observation.result("process-1", 1, result)
+	observation.begin(testProcess("process-1"), 1, chat.ToolCall{ID: "missing-1", Name: "missing", Arguments: `{}`})
+	observation.result(testProcess("process-1"), 1, result)
 	starts, ends := observer.starts(), observer.ends()
 	if len(starts) != 1 || len(ends) != 1 || starts[0].callID != ends[0].callID {
 		t.Fatalf("unknown tool lifecycle = %+v / %+v, want one paired start/end", starts, ends)

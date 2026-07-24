@@ -83,10 +83,10 @@ func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model st
 		if !meta.EmbeddingCapable {
 			return Role{}, fmt.Errorf("%w: provider %q", ErrEmbeddingUnsupported, role.ProviderID())
 		}
-		if c.embeddingResolver == nil {
+		if c.embeddingValidator == nil {
 			return Role{}, errors.New("models: embedding model validation is unavailable")
 		}
-		if _, err := c.embeddingResolver.Resolve(ctx, role.ProviderID(), role.Model()); err != nil {
+		if err := c.embeddingValidator.ValidateEmbeddingModel(ctx, role.ProviderID(), role.Model()); err != nil {
 			return Role{}, fmt.Errorf("models: build embedding model %q on %q: %w", role.Model(), role.ProviderID(), err)
 		}
 	}

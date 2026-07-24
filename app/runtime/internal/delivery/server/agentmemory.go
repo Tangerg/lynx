@@ -30,13 +30,21 @@ func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryLis
 	if !s.features.agentMemory {
 		return nil, capabilityNotNegotiated("agentMemory.list")
 	}
-	items, err := s.agentMemory.List(ctx, agentMemoryScope(in.Scope), in.Cwd)
+	scope, err := agentMemoryScopeFromWire(in.Scope)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.agentMemory.List(ctx, scope, in.Cwd)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.list")
 	}
 	out := protocol.AgentMemoryList{Items: make([]protocol.AgentMemoryItem, 0, len(items))}
 	for _, item := range items {
-		out.Items = append(out.Items, agentMemoryItemToWire(item))
+		wire, err := agentMemoryItemToWire(item)
+		if err != nil {
+			return nil, err
+		}
+		out.Items = append(out.Items, wire)
 	}
 	return &out, nil
 }
@@ -45,9 +53,9 @@ func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryLis
 func (s *Server) ReviewAgentMemory(ctx context.Context, in protocol.AgentMemoryReviewRequest) error {
 	var status agentmemory.Status
 	switch in.Decision {
-	case "approve":
+	case protocol.AgentMemoryReviewApprove:
 		status = agentmemory.StatusActive
-	case "reject":
+	case protocol.AgentMemoryReviewReject:
 		status = agentmemory.StatusRejected
 	default:
 		return fmt.Errorf("%w: decision must be \"approve\" or \"reject\"", protocol.ErrInvalidParams)
@@ -67,7 +75,10 @@ func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryU
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.update")
 	}
-	w := agentMemoryItemToWire(item)
+	w, err := agentMemoryItemToWire(item)
+	if err != nil {
+		return nil, err
+	}
 	return &w, nil
 }
 
@@ -84,21 +95,32 @@ func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddR
 	if !s.features.agentMemory {
 		return nil, capabilityNotNegotiated("agentMemory.add")
 	}
-	item, err := s.agentMemory.Add(ctx, agentMemoryScope(in.Scope), in.Cwd, in.Content)
+	scope, err := agentMemoryScopeFromWire(in.Scope)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.agentMemory.Add(ctx, scope, in.Cwd, in.Content)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.add")
 	}
-	w := agentMemoryItemToWire(item)
+	w, err := agentMemoryItemToWire(item)
+	if err != nil {
+		return nil, err
+	}
 	return &w, nil
 }
 
 // agentMemoryScope maps the wire vocabulary to the domain's bounded scope.
 // Project-root resolution happens inside the Application use case.
-func agentMemoryScope(scope string) agentmemory.Scope {
-	if scope == "user" {
-		return agentmemory.ScopeUser
+func agentMemoryScopeFromWire(scope protocol.AgentMemoryScope) (agentmemory.Scope, error) {
+	switch scope {
+	case "", protocol.AgentMemoryScopeProject:
+		return agentmemory.ScopeProject, nil
+	case protocol.AgentMemoryScopeUser:
+		return agentmemory.ScopeUser, nil
+	default:
+		return 0, fmt.Errorf("%w: unknown agent memory scope %q", protocol.ErrInvalidParams, scope)
 	}
-	return agentmemory.ScopeProject
 }
 
 func mapAgentMemoryErr(err error, method string) error {
@@ -114,17 +136,64 @@ func mapAgentMemoryErr(err error, method string) error {
 	}
 }
 
-func agentMemoryItemToWire(item agentmemory.Item) protocol.AgentMemoryItem {
+func agentMemoryItemToWire(item agentmemory.Item) (protocol.AgentMemoryItem, error) {
+	scope, err := agentMemoryScopeWire(item.Scope)
+	if err != nil {
+		return protocol.AgentMemoryItem{}, err
+	}
+	origin, err := agentMemoryOriginWire(item.Origin)
+	if err != nil {
+		return protocol.AgentMemoryItem{}, err
+	}
+	status, err := agentMemoryStatusWire(item.Status)
+	if err != nil {
+		return protocol.AgentMemoryItem{}, err
+	}
 	return protocol.AgentMemoryItem{
 		ID:        item.ID,
-		Scope:     item.Scope.String(),
+		Scope:     scope,
 		Content:   item.Content,
-		Origin:    item.Origin.String(),
-		Status:    item.Status.String(),
+		Origin:    origin,
+		Status:    status,
 		Pinned:    item.Pinned,
 		SessionID: item.SessionID,
 		Day:       item.Day,
 		CreatedAt: item.CreatedAt,
 		UpdatedAt: item.UpdatedAt,
+	}, nil
+}
+
+func agentMemoryScopeWire(scope agentmemory.Scope) (protocol.AgentMemoryScope, error) {
+	switch scope {
+	case agentmemory.ScopeProject:
+		return protocol.AgentMemoryScopeProject, nil
+	case agentmemory.ScopeUser:
+		return protocol.AgentMemoryScopeUser, nil
+	default:
+		return "", fmt.Errorf("agentMemory: unsupported scope %d", scope)
+	}
+}
+
+func agentMemoryOriginWire(origin agentmemory.Origin) (protocol.AgentMemoryOrigin, error) {
+	switch origin {
+	case agentmemory.OriginAuto:
+		return protocol.AgentMemoryOriginAuto, nil
+	case agentmemory.OriginUser:
+		return protocol.AgentMemoryOriginUser, nil
+	default:
+		return "", fmt.Errorf("agentMemory: unsupported origin %d", origin)
+	}
+}
+
+func agentMemoryStatusWire(status agentmemory.Status) (protocol.AgentMemoryStatus, error) {
+	switch status {
+	case agentmemory.StatusActive:
+		return protocol.AgentMemoryStatusActive, nil
+	case agentmemory.StatusPending:
+		return protocol.AgentMemoryStatusPending, nil
+	case agentmemory.StatusRejected:
+		return "", fmt.Errorf("agentMemory: rejected items must not be projected")
+	default:
+		return "", fmt.Errorf("agentMemory: unsupported status %d", status)
 	}
 }

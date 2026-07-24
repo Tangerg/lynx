@@ -59,6 +59,13 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, providerID, model strin
 	return e, nil
 }
 
+// ValidateEmbeddingModel implements the application role-validation port while
+// keeping the usable embedder inside the adapter that owns it.
+func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, providerID, model string) error {
+	_, err := r.Resolve(ctx, providerID, model)
+	return err
+}
+
 // embedder adapts an embeddingclient.Client to [codebaseindex.Embedder], converting
 // the float64 vectors to the float32 the index stores.
 type embedder struct {

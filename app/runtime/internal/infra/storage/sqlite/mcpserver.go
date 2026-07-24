@@ -66,6 +66,9 @@ func (s *MCPServerStore) Get(ctx context.Context, name string) (mcpserver.Server
 }
 
 func (s *MCPServerStore) Configure(ctx context.Context, srv mcpserver.Server) error {
+	if err := srv.Validate(); err != nil {
+		return fmt.Errorf("sqlite: validate mcp server: %w", err)
+	}
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT INTO mcp_servers
 		   (name, transport, enabled, description, url, authorization, headers,
@@ -139,6 +142,9 @@ func scanMCPServer(scan func(...any) error) (mcpserver.Server, error) {
 	}
 	if srv.AutoApproveTools, err = decodeStrings(autoA); err != nil {
 		return mcpserver.Server{}, mcpJSONFieldError(srv.Name, "auto_approve_tools", err)
+	}
+	if err := srv.Validate(); err != nil {
+		return mcpserver.Server{}, fmt.Errorf("sqlite: validate mcp server %q: %w", srv.Name, err)
 	}
 	return srv, nil
 }

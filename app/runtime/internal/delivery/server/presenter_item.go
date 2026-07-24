@@ -84,12 +84,24 @@ func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
 func presentPlanSteps(steps []transcript.PlanStep) []protocol.PlanStep {
 	out := make([]protocol.PlanStep, len(steps))
 	for i, step := range steps {
-		if !step.Status.Valid() {
-			panic("server: unknown transcript plan-step status")
-		}
-		out[i] = protocol.PlanStep{ID: step.ID, Title: step.Title, Status: protocol.PlanStepStatus(step.Status)}
+		out[i] = protocol.PlanStep{ID: step.ID, Title: step.Title, Status: presentPlanStepStatus(step.Status)}
 	}
 	return out
+}
+
+func presentPlanStepStatus(status transcript.PlanStepStatus) protocol.PlanStepStatus {
+	switch status {
+	case transcript.PlanStepPending:
+		return protocol.PlanStepPending
+	case transcript.PlanStepRunning:
+		return protocol.PlanStepRunning
+	case transcript.PlanStepCompleted:
+		return protocol.PlanStepCompleted
+	case transcript.PlanStepFailed:
+		return protocol.PlanStepFailed
+	default:
+		panic("server: unknown transcript plan-step status")
+	}
 }
 
 func presentQuestion(question transcript.Question) protocol.Question {

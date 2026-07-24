@@ -138,42 +138,42 @@ func (c *Coordinator) ListModels(ctx context.Context, providerID string) []Model
 	return c.catalogModels(providerID)
 }
 
-func (c *Coordinator) supportedProviders() []provider.Metadata {
+func (c *Coordinator) supportedProviders() []ProviderMetadata {
 	if c.catalog == nil {
 		return nil
 	}
 	return c.catalog.Supported()
 }
 
-func (c *Coordinator) providerMetadata(id string) (provider.Metadata, bool) {
+func (c *Coordinator) providerMetadata(id string) (ProviderMetadata, bool) {
 	if c.catalog == nil {
-		return provider.Metadata{}, false
+		return ProviderMetadata{}, false
 	}
 	return c.catalog.Metadata(id)
 }
 
-func (c *Coordinator) supportedProvider(id string) (provider.Metadata, error) {
+func (c *Coordinator) supportedProvider(id string) (ProviderMetadata, error) {
 	meta, ok := c.providerMetadata(id)
 	if !ok {
-		return provider.Metadata{}, fmt.Errorf("%w: provider %q", ErrProviderUnsupported, id)
+		return ProviderMetadata{}, fmt.Errorf("%w: provider %q", ErrProviderUnsupported, id)
 	}
 	return meta, nil
 }
 
-func (c *Coordinator) configuredProvider(ctx context.Context, id string) (provider.Metadata, provider.Provider, error) {
+func (c *Coordinator) configuredProvider(ctx context.Context, id string) (ProviderMetadata, provider.Provider, error) {
 	meta, err := c.supportedProvider(id)
 	if err != nil {
-		return provider.Metadata{}, provider.Provider{}, err
+		return ProviderMetadata{}, provider.Provider{}, err
 	}
 	if c.providers == nil {
-		return provider.Metadata{}, provider.Provider{}, errors.New("models: provider registry is unavailable")
+		return ProviderMetadata{}, provider.Provider{}, errors.New("models: provider registry is unavailable")
 	}
 	entry, ok, err := c.providers.Get(ctx, id)
 	if err != nil {
-		return provider.Metadata{}, provider.Provider{}, err
+		return ProviderMetadata{}, provider.Provider{}, err
 	}
 	if !ok || !entry.Enabled() {
-		return provider.Metadata{}, provider.Provider{}, fmt.Errorf("%w: provider %q", ErrProviderUnconfigured, id)
+		return ProviderMetadata{}, provider.Provider{}, fmt.Errorf("%w: provider %q", ErrProviderUnconfigured, id)
 	}
 	return meta, entry, nil
 }
@@ -209,7 +209,7 @@ func (c *Coordinator) lookupModel(providerID, modelID string) (Model, bool) {
 	return c.catalog.LookupModel(providerID, modelID)
 }
 
-func providerInfo(meta provider.Metadata, entry provider.Provider) ProviderInfo {
+func providerInfo(meta ProviderMetadata, entry provider.Provider) ProviderInfo {
 	return ProviderInfo{
 		ID:                    meta.ID,
 		BaseURL:               entry.BaseURL,

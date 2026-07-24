@@ -613,8 +613,8 @@ interface GenerationParams {
 }
 ```
 
-`ToolSpec` 是 `tools.list` 返回的运行时工具目录描述，不是 `runs.start` 的客户端覆盖入口。一个 Run 的工具集由
-runtime 按 Session、审批策略、Skills 与 MCP 配置统一装配，避免客户端绕过安全门禁或制造与持久化历史不一致的临时工具域。
+`ToolSpec` 是 `tools.list` 返回的**直接诊断**工具目录描述，不是 `runs.start` 的客户端覆盖入口，也不是 Agent 的完整工具集。
+一个 Run 的工具集仍由 runtime 按 Session、审批策略、Skills 与 MCP 配置统一装配；直接调用只开放无需 process、session、审批或模型循环的只读诊断能力。
 
 ### 4.8 HITL 类型
 
@@ -1397,13 +1397,14 @@ interface HooksListResult {
 #### `tools.list`
 
 - 入参 `{ cursor?; limit? }`；返回 `Page<ToolSpec>`。
+- 当前目录固定为只读诊断工具 `read`、`glob`、`grep`。它不是 agent 工具目录的投影；shell、写入、MCP、HITL 或依赖 Run 状态的工具一律不在此面上出现。
 
 #### `tools.invoke`
 
-不经 LLM 直接调一个工具（诊断 / client 驱动）。
+不经 LLM 直接调一个只读诊断工具（client 驱动）。
 
 - 入参 `{ name: string; arguments: Record<string, unknown>; cwd?: string }`；返回 `unknown`（工具原始输出，best-effort JSON）。
-- 错误：`tool_denied` / `path_outside_root`。
+- `cwd` 先被 runtime 解析为存在的工作区根；`read.file_path`、`glob.path`、`grep.path`（提供时）必须留在该根内，包含符号链接逃逸检查。错误：`cwd_unavailable` / `path_outside_root`。
 
 #### `usage.session` / `usage.summary`
 
@@ -1611,7 +1612,6 @@ interface Goal {
 | `-32008` | `run_already_finished`      | 操作不能作用于已结束 run（run 二态 running\|finished；故无单独 "not running" 码）                                                              |
 | `-32009` | `checkpoint_unavailable`    | 编辑 / checkpoint 不可用                                                                                                                       |
 | `-32011` | `unsupported_mime`          | image block 的 mime 非图片类型或不可解析（`-32010` 已废，原 `attachment_too_large`）                                                           |
-| `-32012` | `tool_denied`               | `tools.invoke` 被策略拒绝                                                                                                                      |
 | `-32013` | `path_outside_root`         | 路径逃出 cwd 根                                                                                                                                |
 | `-32014` | `interrupt_not_open`        | interrupt 缺失或已 resolve                                                                                                                     |
 | `-32016` | `invalid_protocol_version`  | request metadata 的协议版本不受支持                                                                                                            |
@@ -1655,8 +1655,7 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
   - `provider_unavailable` —— provider 临时不可用（5xx），`retryable:true`。
   - `provider_rejected` —— provider 判定请求非法（400），**不可重试**；与 §8.2 RPC 级 `invalid_request`（-32600，坏 envelope）**同名不同物**，靠 `channel` 区分。
   - `provider_error` —— 兜底的未归类 provider 失败（也是 §8.2 RPC 级 `-32001` 的符号）。
-    客户端**只按 `type`（+ `retryable`）分支**，绝不 substring-match `detail`。**与 §8.2 的 `tool_denied` 区分**——后者是**策略**拒绝 `tools.invoke`
-    （RPC 级，带码 `-32012`），`denied_by_user` 是**用户**在 HITL 里拒绝（item 级，无码）。
+    客户端**只按 `type`（+ `retryable`）分支**，绝不 substring-match `detail`。`denied_by_user` 是**用户**在 HITL 里拒绝工具（item 级，无码）；直接诊断工具不进入审批策略。
 
 ---
 

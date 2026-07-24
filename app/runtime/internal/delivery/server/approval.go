@@ -46,7 +46,11 @@ func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApproval
 	}
 	out := make([]protocol.ApprovalRule, 0, len(rules))
 	for _, r := range rules {
-		out = append(out, approvalRuleToWire(r))
+		wire, err := approvalRuleToWire(r)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, wire)
 	}
 	return &protocol.ListApprovalRulesResult{Rules: out}, nil
 }
@@ -60,18 +64,50 @@ func (s *Server) ForgetApprovalRule(ctx context.Context, in protocol.ForgetAppro
 // approvalRuleToWire maps a domain rule to its wire shape. The project
 // directory is surfaced only for project-scoped rules (the UI shows where they
 // apply); session/global rules carry no dir.
-func approvalRuleToWire(r approval.Rule) protocol.ApprovalRule {
+func approvalRuleToWire(r approval.Rule) (protocol.ApprovalRule, error) {
+	scope, ok := approvalScopeWire(r.Scope)
+	if !ok {
+		return protocol.ApprovalRule{}, fmt.Errorf("approval.listRules: unsupported scope %q", r.Scope)
+	}
+	decision, ok := approvalDecisionWire(r.Decision)
+	if !ok {
+		return protocol.ApprovalRule{}, fmt.Errorf("approval.listRules: unsupported decision %q", r.Decision)
+	}
 	wire := protocol.ApprovalRule{
 		ID:       r.ID,
-		Scope:    string(r.Scope),
+		Scope:    scope,
 		Tool:     r.Tool,
 		Subject:  r.Subject,
-		Decision: string(r.Decision),
+		Decision: decision,
 	}
 	if r.Scope == approval.ScopeProject {
 		wire.Dir = r.ScopeKey
 	}
-	return wire
+	return wire, nil
+}
+
+func approvalScopeWire(scope approval.Scope) (protocol.ApprovalRuleScope, bool) {
+	switch scope {
+	case approval.ScopeSession:
+		return protocol.ApprovalRuleScopeSession, true
+	case approval.ScopeProject:
+		return protocol.ApprovalRuleScopeProject, true
+	case approval.ScopeGlobal:
+		return protocol.ApprovalRuleScopeGlobal, true
+	default:
+		return "", false
+	}
+}
+
+func approvalDecisionWire(decision approval.Decision) (protocol.ApprovalRuleDecision, bool) {
+	switch decision {
+	case approval.Allow:
+		return protocol.ApprovalRuleDecisionAllow, true
+	case approval.Deny:
+		return protocol.ApprovalRuleDecisionDeny, true
+	default:
+		return "", false
+	}
 }
 
 // approvalModeToWire maps the complete domain vocabulary to wire names. An

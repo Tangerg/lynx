@@ -58,6 +58,9 @@ func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, er
 	for index, row := range rows {
 		items[index] = todo.Item{Content: row.Content, Status: row.Status, BlockedReason: row.BlockedReason, NextAction: row.NextAction}
 	}
+	if err := todo.ValidateSnapshot(items); err != nil {
+		return nil, fmt.Errorf("sqlite: validate todos: %w", err)
+	}
 	return items, nil
 }
 
@@ -67,6 +70,9 @@ func (s *TodoStore) List(ctx context.Context, sessionID string) ([]todo.Item, er
 func (s *TodoStore) Replace(ctx context.Context, sessionID string, items []todo.Item) error {
 	if items == nil {
 		items = []todo.Item{}
+	}
+	if err := todo.ValidateSnapshot(items); err != nil {
+		return fmt.Errorf("sqlite: validate todos: %w", err)
 	}
 	rows := make([]todoItemRow, len(items))
 	for index, item := range items {

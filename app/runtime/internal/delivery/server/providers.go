@@ -17,7 +17,11 @@ func (s *Server) ListProviders(ctx context.Context, _ protocol.PageQuery) (*prot
 	}
 	out := make([]protocol.Provider, 0, len(providers))
 	for _, provider := range providers {
-		out = append(out, providerToWire(provider))
+		wire, err := providerToWire(provider)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, wire)
 	}
 	return protocol.NewPage(out), nil
 }
@@ -33,7 +37,10 @@ func (s *Server) ConfigureProvider(ctx context.Context, in protocol.ConfigurePro
 	if err != nil {
 		return nil, mapModelError(err)
 	}
-	out := providerToWire(configured)
+	out, err := providerToWire(configured)
+	if err != nil {
+		return nil, err
+	}
 	return &out, nil
 }
 

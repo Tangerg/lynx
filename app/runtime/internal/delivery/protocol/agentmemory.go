@@ -30,17 +30,42 @@ type AgentMemory interface {
 // AgentMemoryItem is one addressable memory item (API.md §7.x). status is
 // active | pending; origin is auto (mined) | user (authored).
 type AgentMemoryItem struct {
-	ID        string    `json:"id"`
-	Scope     string    `json:"scope"`
-	Content   string    `json:"content"`
-	Origin    string    `json:"origin"`
-	Status    string    `json:"status"`
-	Pinned    bool      `json:"pinned"`
-	SessionID string    `json:"sessionId,omitempty"`
-	Day       string    `json:"day,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID        string            `json:"id"`
+	Scope     AgentMemoryScope  `json:"scope"`
+	Content   string            `json:"content"`
+	Origin    AgentMemoryOrigin `json:"origin"`
+	Status    AgentMemoryStatus `json:"status"`
+	Pinned    bool              `json:"pinned"`
+	SessionID string            `json:"sessionId,omitempty"`
+	Day       string            `json:"day,omitempty"`
+	CreatedAt time.Time         `json:"createdAt"`
+	UpdatedAt time.Time         `json:"updatedAt"`
 }
+
+// AgentMemoryScope determines which memory set a request or item belongs to.
+type AgentMemoryScope string
+
+const (
+	AgentMemoryScopeProject AgentMemoryScope = "project"
+	AgentMemoryScopeUser    AgentMemoryScope = "user"
+)
+
+// AgentMemoryOrigin records whether an item was mined or user-authored.
+type AgentMemoryOrigin string
+
+const (
+	AgentMemoryOriginAuto AgentMemoryOrigin = "auto"
+	AgentMemoryOriginUser AgentMemoryOrigin = "user"
+)
+
+// AgentMemoryStatus is the review state visible to a client. Rejected items
+// are intentional hidden tombstones and are never projected onto this API.
+type AgentMemoryStatus string
+
+const (
+	AgentMemoryStatusActive  AgentMemoryStatus = "active"
+	AgentMemoryStatusPending AgentMemoryStatus = "pending"
+)
 
 // AgentMemoryList is the agentMemory.list result.
 type AgentMemoryList struct {
@@ -50,16 +75,24 @@ type AgentMemoryList struct {
 // AgentMemoryListRequest — agentMemory.list body. scope is "project" (default)
 // or "user"; cwd resolves the project for the project scope.
 type AgentMemoryListRequest struct {
-	Scope string `json:"scope,omitempty"`
-	Cwd   string `json:"cwd,omitempty"`
+	Scope AgentMemoryScope `json:"scope,omitempty"`
+	Cwd   string           `json:"cwd,omitempty"`
 }
 
 // AgentMemoryReviewRequest — agentMemory.review body. decision is
 // "approve" | "reject".
 type AgentMemoryReviewRequest struct {
-	ID       string `json:"id"`
-	Decision string `json:"decision"`
+	ID       string                    `json:"id"`
+	Decision AgentMemoryReviewDecision `json:"decision"`
 }
+
+// AgentMemoryReviewDecision is the explicit user verdict for a pending fact.
+type AgentMemoryReviewDecision string
+
+const (
+	AgentMemoryReviewApprove AgentMemoryReviewDecision = "approve"
+	AgentMemoryReviewReject  AgentMemoryReviewDecision = "reject"
+)
 
 // AgentMemoryUpdateRequest — agentMemory.update body. A nil field is unchanged.
 type AgentMemoryUpdateRequest struct {
@@ -75,7 +108,7 @@ type AgentMemoryItemRequest struct {
 
 // AgentMemoryAddRequest — agentMemory.add body.
 type AgentMemoryAddRequest struct {
-	Scope   string `json:"scope,omitempty"`
-	Cwd     string `json:"cwd,omitempty"`
-	Content string `json:"content"`
+	Scope   AgentMemoryScope `json:"scope,omitempty"`
+	Cwd     string           `json:"cwd,omitempty"`
+	Content string           `json:"content"`
 }
