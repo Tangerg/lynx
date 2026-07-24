@@ -1120,6 +1120,7 @@ var frameworkImports = []string{
 	"github.com/mark3labs",
 	"github.com/sourcegraph",
 	"github.com/Tangerg/lynx/chathistory",
+	"github.com/Tangerg/lynx/models/catalog",
 	"gopkg.in/yaml.v3",
 }
 
