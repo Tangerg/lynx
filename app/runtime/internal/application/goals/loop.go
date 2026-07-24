@@ -3,6 +3,7 @@ package goals
 import (
 	"context"
 	"errors"
+	"iter"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -215,7 +216,7 @@ func reasonForBudgetLimit(limit goal.BudgetLimit) goal.ReasonCause {
 
 // drainTerminal consumes a run's event stream to its close and returns the run's
 // terminal record, or nil when the stream closed without one (the run parked).
-func drainTerminal(events <-chan runs.Event) *transcript.Run {
+func drainTerminal(events iter.Seq[runs.Event]) *transcript.Run {
 	var finished *transcript.Run
 	for ev := range events {
 		if seg, ok := ev.Payload.(runs.SegmentFinished); ok {

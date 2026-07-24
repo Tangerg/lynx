@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"iter"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -58,7 +59,7 @@ func presentTodoStatus(status todo.Status) protocol.TodoStatus {
 	}
 }
 
-func mapRunEvents(ctx context.Context, in <-chan runs.Event) <-chan protocol.RunEvent {
+func mapRunEvents(ctx context.Context, in iter.Seq[runs.Event]) <-chan protocol.RunEvent {
 	out := make(chan protocol.RunEvent)
 	go func() {
 		defer close(out)

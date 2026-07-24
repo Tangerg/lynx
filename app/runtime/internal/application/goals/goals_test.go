@@ -3,6 +3,7 @@ package goals_test
 import (
 	"context"
 	"errors"
+	"iter"
 	"sync"
 	"testing"
 	"time"
@@ -20,10 +21,11 @@ import (
 
 // memStore is an in-memory goals.Store.
 type memStore struct {
-	mu       sync.Mutex
-	goals    map[string]goal.Goal
-	changed  chan struct{}
-	failSave error
+	mu                sync.Mutex
+	goals             map[string]goal.Goal
+	changed           chan struct{}
+	failSave          error
+	afterContextCheck func() // test hook: called before the context-aware lock
 }
 
 func newMemStore() *memStore {
@@ -33,26 +35,39 @@ func newMemStore() *memStore {
 	}
 }
 
-// The store methods honor ctx cancellation to model the production sqlite store,
-// whose queries fail at the driver once ctx is done. This is load-bearing for the
-// goal loop: a superseded straggler whose ctx was canceled by Stop bails at its
-// next store op instead of racing the recovery loop (a fake that ignored ctx let
-// the straggler keep writing, flaking TestDriverStopSaveFailureKeepsGoalDriving
-// under load).
-func (s *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
+// lock observes cancellation before and after waiting for the fake's mutex. The
+// second check matters: a loop can be canceled while blocked on a concurrent
+// store operation, and must not mutate state after it finally acquires the lock.
+func (s *memStore) lock(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
-		return goal.Goal{}, false, err
+		return err
+	}
+	if s.afterContextCheck != nil {
+		s.afterContextCheck()
 	}
 	s.mu.Lock()
+	if err := ctx.Err(); err != nil {
+		s.mu.Unlock()
+		return err
+	}
+	return nil
+}
+
+// The store methods honor ctx cancellation to model the production sqlite store.
+// This is load-bearing for the goal loop: a superseded straggler whose ctx was
+// canceled by Stop bails at its next store operation instead of racing recovery.
+func (s *memStore) Get(ctx context.Context, id string) (goal.Goal, bool, error) {
+	if err := s.lock(ctx); err != nil {
+		return goal.Goal{}, false, err
+	}
 	defer s.mu.Unlock()
 	g, ok := s.goals[id]
 	return g, ok, nil
 }
 func (s *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := s.lock(ctx); err != nil {
 		return false, err
 	}
-	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.failSave != nil {
 		err := s.failSave
@@ -78,20 +93,18 @@ func (s *memStore) failNextSave(err error) {
 	s.mu.Unlock()
 }
 func (s *memStore) Clear(ctx context.Context, id string) error {
-	if err := ctx.Err(); err != nil {
+	if err := s.lock(ctx); err != nil {
 		return err
 	}
-	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.goals, id)
 	s.notifyLocked()
 	return nil
 }
 func (s *memStore) ClearIf(ctx context.Context, id string, expected goal.Version) (bool, error) {
-	if err := ctx.Err(); err != nil {
+	if err := s.lock(ctx); err != nil {
 		return false, err
 	}
-	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur, ok := s.goals[id]
 	if !ok || cur.Version() != expected {
@@ -102,10 +115,9 @@ func (s *memStore) ClearIf(ctx context.Context, id string, expected goal.Version
 	return true, nil
 }
 func (s *memStore) List(ctx context.Context) ([]goal.Goal, error) {
-	if err := ctx.Err(); err != nil {
+	if err := s.lock(ctx); err != nil {
 		return nil, err
 	}
-	s.mu.Lock()
 	defer s.mu.Unlock()
 	out := make([]goal.Goal, 0, len(s.goals))
 	for _, g := range s.goals {
@@ -149,6 +161,18 @@ type fakeRuns struct {
 	calls    int
 }
 
+// chanSeq adapts the fake's async event channel to the iter.Seq[runs.Event] the
+// run stream now delivers, preserving the hold-then-yield-terminal timing.
+func chanSeq(ch <-chan runs.Event) iter.Seq[runs.Event] {
+	return func(yield func(runs.Event) bool) {
+		for ev := range ch {
+			if !yield(ev) {
+				return
+			}
+		}
+	}
+}
+
 func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error) {
 	f.mu.Lock()
 	i := f.calls
@@ -168,7 +192,7 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 	if i >= len(f.script) {
 		f.t.Errorf("unexpected extra run (call %d, script has %d)", i, len(f.script))
 		close(events)
-		return runs.StartResult{SessionID: cmd.SessionID, Events: events}, nil
+		return runs.StartResult{SessionID: cmd.SessionID, Events: chanSeq(events)}, nil
 	}
 	tn := f.script[i]
 	if tn.setStatus != "" {
@@ -203,7 +227,7 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 		}
 		close(events)
 	}()
-	return runs.StartResult{RunID: "run", SessionID: cmd.SessionID, Events: events}, nil
+	return runs.StartResult{RunID: "run", SessionID: cmd.SessionID, Events: chanSeq(events)}, nil
 }
 
 // fakeSessions is the driver's session-existence check; sessions exist unless
@@ -406,6 +430,32 @@ func TestDriverStopSaveFailureKeepsGoalDriving(t *testing.T) {
 	// Stop's durable pause did not commit, so the active goal must be driven by
 	// the replacement loop rather than remaining active with no loop.
 	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
+}
+
+func TestMemStoreRejectsCancellationWhileWaitingForLock(t *testing.T) {
+	store := newMemStore()
+	checked := make(chan struct{})
+	continueLock := make(chan struct{})
+	store.afterContextCheck = func() {
+		close(checked)
+		<-continueLock
+	}
+
+	store.mu.Lock()
+	ctx, cancel := context.WithCancel(t.Context())
+	result := make(chan error, 1)
+	go func() {
+		_, err := store.Save(ctx, goal.Goal{SessionID: "s"}, goal.Version{})
+		result <- err
+	}()
+	<-checked // the first cancellation check has passed; Save is about to wait
+	cancel()
+	close(continueLock)
+	store.mu.Unlock()
+
+	if err := <-result; !errors.Is(err, context.Canceled) {
+		t.Fatalf("Save error = %v, want context.Canceled", err)
+	}
 }
 
 // TestDriverEmitsTurnSpan proves the observability is real (not just no-op): a

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -15,11 +16,11 @@ import (
 // evt_<cursor> on the wire. The fixed width makes lexical comparison agree with
 // numeric, which the SSE replay path relies on.
 func TestMapRunEvents_FramesWireEventID(t *testing.T) {
-	in := make(chan runs.Event, 3)
-	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
-	in <- runs.Event{RunID: "run_1", Seq: "00000000002", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
-	in <- runs.Event{RunID: "run_1", Seq: "00000000010", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
-	close(in)
+	in := slices.Values([]runs.Event{
+		{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Seq: "00000000002", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+		{RunID: "run_1", Seq: "00000000010", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}},
+	})
 
 	var ids []string
 	for e := range mapRunEvents(context.Background(), in) {
@@ -50,13 +51,21 @@ func TestMapRunEvents_FramesWireEventID(t *testing.T) {
 // output channel must close after cancellation; it may deliver the already-read
 // event first if that send wins the select.
 func TestMapRunEvents_ExitsOnClientDisconnect(t *testing.T) {
-	in := make(chan runs.Event) // unbuffered: the send below rendezvous with the mapper
+	inCh := make(chan runs.Event) // unbuffered: the send below rendezvous with the mapper
+	in := func(yield func(runs.Event) bool) {
+		for ev := range inCh {
+			if !yield(ev) {
+				return
+			}
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	out := mapRunEvents(ctx, in)
 
 	// Hand the mapper one event; it reads it, then blocks on the wire send because
-	// no one drains the returned channel — the leak condition.
-	in <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
+	// no one drains the returned channel — the leak condition. Only ctx can free a
+	// mapper stuck on that send; the source sequence ending cannot.
+	inCh <- runs.Event{RunID: "run_1", Seq: "00000000001", Timestamp: time.Unix(0, 0), Payload: runs.SegmentProgressed{}}
 	cancel() // client disconnect must free the blocked mapper
 
 	timer := time.NewTimer(2 * time.Second)

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -153,7 +154,7 @@ type StartResult struct {
 	SegmentID  string
 	SessionID  string
 	UserItemID string
-	Events     <-chan Event
+	Events     iter.Seq[Event]
 }
 
 // Validate checks the transport-neutral turn invariants before any session is

@@ -3,6 +3,7 @@ package runs
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
@@ -467,13 +468,16 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
-	<-stream
+	next, stop := iter.Pull(stream)
+	defer stop()
+	next() // consume the opening event so the pump is live
 
 	err = c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
 	if !errors.Is(err, cleanupErr) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
-	collectEvents(stream)
+	for _, ok := next(); ok; _, ok = next() { // drain the terminal events
+	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("turn cleanup failure prevented live run terminalization")
 	}

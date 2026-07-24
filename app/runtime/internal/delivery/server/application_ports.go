@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"io"
+	"iter"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
@@ -90,7 +91,7 @@ type runUseCases interface {
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error
-	SubscribeLive(ctx context.Context, runID, fromCursor string) (runs.Record, <-chan runs.Event, bool)
+	SubscribeLive(ctx context.Context, runID, fromCursor string) (runs.Record, iter.Seq[runs.Event], bool)
 }
 
 type queryUseCases interface {

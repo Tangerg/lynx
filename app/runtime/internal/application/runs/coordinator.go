@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"sync/atomic"
 	"time"
 
@@ -90,7 +91,7 @@ func (c *Coordinator) mintCursor() string {
 // activates a continuation and spawns the pump. The run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
 // that subscriber.
-func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-chan Event, error) {
+func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (iter.Seq[Event], error) {
 	if c.executor == nil {
 		return nil, errors.New("runs: executor is required")
 	}
@@ -147,7 +148,6 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 	}, live)
 	seq, unsubscribe := hub.Subscribe("")
 	context.AfterFunc(reqCtx, unsubscribe)
-	events := seqToEventChan(reqCtx, seq)
 	for _, pe := range opening {
 		hub.Append(c.event(spec, pe))
 	}
@@ -161,7 +161,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (<-c
 		defer release()
 		c.pump(runCtx, taskCtx, spec, inner, live, reducer)
 	}()
-	return events, nil
+	return seq, nil
 }
 
 func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) ([]reduction, error) {
@@ -256,14 +256,14 @@ func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (Ca
 // a segment id from one entry and subscribe to a replacement or removed entry.
 // The subscription is dropped when ctx ends. ok=false when the run is not
 // actively streaming.
-func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string) (Record, <-chan Event, bool) {
+func (c *Coordinator) SubscribeLive(ctx context.Context, runID, fromCursor string) (Record, iter.Seq[Event], bool) {
 	e, ok := c.registry.Get(runID)
 	if !ok || e.handle == nil || e.handle.hub == nil {
 		return Record{}, nil, false
 	}
 	seq, unsubscribe := e.handle.hub.Subscribe(fromCursor)
 	context.AfterFunc(ctx, unsubscribe)
-	return e.record, seqToEventChan(ctx, seq), true
+	return e.record, seq, true
 }
 
 // List snapshots the records of the currently-live runs.

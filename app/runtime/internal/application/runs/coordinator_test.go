@@ -175,7 +175,7 @@ func testAdmittedSegment(t *testing.T, c *Coordinator, spec segmentSpec) segment
 	return spec
 }
 
-func collectEvents(events <-chan Event) []Event {
+func collectEvents(events iter.Seq[Event]) []Event {
 	var out []Event
 	for event := range events {
 		out = append(out, event)
@@ -533,7 +533,9 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
-	<-stream
+	next, stop := iter.Pull(stream)
+	defer stop()
+	next() // consume the opening event so the pump is live
 
 	done := make(chan struct{})
 	go func() {
@@ -545,7 +547,8 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("Close did not cancel and join the segment pump")
 	}
-	collectEvents(stream)
+	for _, ok := next(); ok; _, ok = next() { // drain the remaining terminal events
+	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("Close left the run non-terminal after canceling its owner context")
 	}
@@ -585,7 +588,9 @@ func TestCoordinatorBeginCancelSurvivesRequestContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("openSegment: %v", err)
 	}
-	<-stream
+	next, stop := iter.Pull(stream)
+	defer stop()
+	next() // consume the opening event so the pump is live
 	cancelRequest()
 
 	binding, cleanupContext, cancelCleanup, ok := coordinator.BeginCancel(context.Background(), "run_1", "stop")
@@ -597,5 +602,6 @@ func TestCoordinatorBeginCancelSurvivesRequestContext(t *testing.T) {
 		t.Fatalf("binding=%+v cleanup error=%v", binding, cleanupContext.Err())
 	}
 	coordinator.Close()
-	collectEvents(stream)
+	for _, ok := next(); ok; _, ok = next() { // drain whatever remains
+	}
 }
