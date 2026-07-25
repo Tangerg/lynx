@@ -14,16 +14,17 @@ export function ShortcutsPane() {
   const shortcuts = useExtensionPoint(SHORTCUT);
   const [query, setQuery] = useState("");
 
+  // A shortcut's description is a catalog key; resolve it once here so sorting,
+  // filtering and rendering all work on the words the user actually sees.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const rows = shortcuts
       .filter((s) => s.description) // anonymous shortcuts are dev-only noise
-      .sort((a, b) => (a.description ?? "").localeCompare(b.description ?? ""));
+      .map((s) => ({ ...s, label: t(s.description ?? "") }))
+      .sort((a, b) => a.label.localeCompare(b.label));
     if (!q) return rows;
-    return rows.filter(
-      (s) => (s.description ?? "").toLowerCase().includes(q) || s.key.toLowerCase().includes(q),
-    );
-  }, [shortcuts, query]);
+    return rows.filter((s) => s.label.toLowerCase().includes(q) || s.key.toLowerCase().includes(q));
+  }, [shortcuts, query, t]);
 
   return (
     <div className="flex h-full flex-col gap-3 p-4">
@@ -56,7 +57,7 @@ export function ShortcutsPane() {
             <tbody>
               {filtered.map((s) => (
                 <tr key={s.key} className="transition-colors hover:bg-hover">
-                  <td className="px-3 py-1.5 text-fg">{s.description}</td>
+                  <td className="px-3 py-1.5 text-fg">{s.label}</td>
                   <td className="px-3 py-1.5 text-right">
                     <span className="inline-flex items-center gap-1">
                       {splitCombo(s.key).map((part, i) => (

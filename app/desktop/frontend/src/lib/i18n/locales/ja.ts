@@ -563,8 +563,7 @@ export const ja: Record<string, string> = {
   "command.newChat": "新しいチャット",
   "command.closeSession": "現在のチャットを閉じる",
   "command.focusComposer": "コンポーザーにフォーカス",
-  "command.viewPrefix": "ビュー: {{title}}",
-  "command.accentPrefix": "アクセント: {{name}}",
+
   "diagnostics.title": "診断",
   "diagnostics.sub":
     "ライブ OpenTelemetry — トレース / メトリクス / ログ。メモリ内のみ（制限あり）；永続的な記録は OTLP 経由で送信されます。「クリア」でバッファをリセットします。",
@@ -955,4 +954,10 @@ export const ja: Record<string, string> = {
   "runDigest.plaintext.commands": "コマンド:",
   "runDigest.plaintext.approvals": "承認:",
   "runDigest.plaintext.errors": "エラー:",
+
+  "command.group.chat": "チャット",
+  "command.group.view": "ビュー",
+  "command.group.theme": "テーマ",
+  "command.group.composer": "入力欄",
+  "command.group.general": "一般",
 };

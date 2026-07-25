@@ -571,8 +571,7 @@ export const es: Record<string, string> = {
   "command.newChat": "Nuevo chat",
   "command.closeSession": "Cerrar chat actual",
   "command.focusComposer": "Enfocar compositor",
-  "command.viewPrefix": "Vista: {{title}}",
-  "command.accentPrefix": "Acento: {{name}}",
+
   "diagnostics.title": "Diagnóstico",
   "diagnostics.sub":
     'OpenTelemetry en vivo — trazas / métricas / logs. Solo en memoria (limitado); el registro duradero sale por OTLP. "Limpiar" restablece los búferes.',
@@ -962,4 +961,10 @@ export const es: Record<string, string> = {
   "runDigest.plaintext.commands": "Comandos:",
   "runDigest.plaintext.approvals": "Aprobaciones:",
   "runDigest.plaintext.errors": "Errores:",
+
+  "command.group.chat": "Chat",
+  "command.group.view": "Vista",
+  "command.group.theme": "Tema",
+  "command.group.composer": "Entrada",
+  "command.group.general": "General",
 };

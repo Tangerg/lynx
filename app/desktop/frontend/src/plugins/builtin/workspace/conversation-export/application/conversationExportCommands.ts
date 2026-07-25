@@ -1,5 +1,4 @@
 import type { CommandSpec } from "@/plugins/sdk";
-import type { Translate } from "@/lib/i18n";
 
 export type CommandRun = CommandSpec["run"];
 
@@ -10,31 +9,30 @@ export interface ConversationExportCommandHandlers {
 }
 
 export function conversationExportCommands(
-  t: Translate,
   handlers: ConversationExportCommandHandlers,
 ): CommandSpec[] {
   return [
     {
       id: "chat.export.markdown",
-      label: t("convExport.markdown"),
+      label: "convExport.markdown",
       icon: "filetext",
-      group: "Chat",
+      group: "command.group.chat",
       keywords: ["save", "download", "export"],
       run: handlers.exportMarkdown,
     },
     {
       id: "chat.export.json",
-      label: t("convExport.json"),
+      label: "convExport.json",
       icon: "code",
-      group: "Chat",
+      group: "command.group.chat",
       keywords: ["save", "download", "export", "archive"],
       run: handlers.exportJson,
     },
     {
       id: "chat.import.json",
-      label: t("convExport.import"),
+      label: "convExport.import",
       icon: "history",
-      group: "Chat",
+      group: "command.group.chat",
       keywords: ["restore", "load", "import"],
       run: handlers.importJson,
     },

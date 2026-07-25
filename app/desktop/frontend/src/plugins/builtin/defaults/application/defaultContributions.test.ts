@@ -21,25 +21,25 @@ describe("DEFAULT_ACCENTS", () => {
 });
 
 describe("defaultMessageRoles", () => {
-  it("projects translated display names into the three built-in message roles", () => {
-    const roles = defaultMessageRoles((key) => `t:${key}`);
+  it("projects catalog keys into the three built-in message roles", () => {
+    const roles = defaultMessageRoles();
 
     expect(roles).toEqual([
       {
         id: "user",
-        displayName: "t:role.user",
+        displayName: "role.user",
         icon: "user",
         avatarVariant: "msg-user",
       },
       {
         id: "assistant",
-        displayName: "t:role.assistant",
+        displayName: "role.assistant",
         icon: "spark",
         avatarVariant: "msg-agent",
       },
       {
         id: "system",
-        displayName: "t:role.system",
+        displayName: "role.system",
         icon: "shield",
         avatarVariant: "msg-agent",
       },
@@ -50,7 +50,7 @@ describe("defaultMessageRoles", () => {
 describe("defaultStaticCommands", () => {
   it("projects default command metadata in stable palette order", () => {
     const run = () => {};
-    const commands = defaultStaticCommands((key) => `t:${key}`, {
+    const commands = defaultStaticCommands({
       toggleSidebar: run,
       toggleTheme: run,
       newChat: run,
@@ -73,11 +73,11 @@ describe("defaultStaticCommands", () => {
       "Mod+L",
     ]);
     expect(commands.map((command) => command.label)).toEqual([
-      "t:command.toggleSidebar",
-      "t:command.toggleTheme",
-      "t:command.newChat",
-      "t:command.closeSession",
-      "t:command.focusComposer",
+      "command.toggleSidebar",
+      "command.toggleTheme",
+      "command.newChat",
+      "command.closeSession",
+      "command.focusComposer",
     ]);
   });
 });
@@ -90,19 +90,32 @@ describe("defaultWorkspaceViewCommands", () => {
 
     const opened: unknown[] = [];
     const commands = defaultWorkspaceViewCommands(
-      (key, values) => `${key}:${values?.title ?? ""}`,
       [
-        { id: "late", title: "Late", icon: "clock", order: 20, component: View },
-        { id: "early", title: "Early", icon: "spark", order: 0, component: View },
+        {
+          id: "late",
+          title: "workspace.view.title.late",
+          icon: "clock",
+          order: 20,
+          component: View,
+        },
+        {
+          id: "early",
+          title: "workspace.view.title.early",
+          icon: "spark",
+          order: 0,
+          component: View,
+        },
       ],
-      (view) => opened.push(view),
+      (view: string) => opened.push(view),
     );
 
     expect(commands.map((command) => command.id)).toEqual(["view.open.early", "view.open.late"]);
+    // The view's own title key, carried through — the palette resolves it, and the
+    // group column says "View" so the label doesn't repeat it.
     expect(commands[0]).toMatchObject({
-      label: "command.viewPrefix:Early:",
+      label: "workspace.view.title.early",
       icon: "spark",
-      group: "View",
+      group: "command.group.view",
       order: 10,
       keywords: ["open", "show", "early"],
       when: 'mainView != "early"',
@@ -118,19 +131,18 @@ describe("defaultAccentCommands", () => {
   it("mirrors theme accents into ordered palette commands", () => {
     const applied: string[] = [];
     const commands = defaultAccentCommands(
-      (key, values) => `${key}:${values?.name ?? ""}`,
       [
         { id: "z", label: "Zed", dark: "#000", order: 9 },
         { id: "a", label: "Amber", dark: "#fff", order: 1 },
       ],
-      (accent) => applied.push(accent),
+      (accent: string) => applied.push(accent),
     );
 
     expect(commands.map((command) => command.id)).toEqual(["theme.accent.a", "theme.accent.z"]);
     expect(commands[0]).toMatchObject({
-      label: "command.accentPrefix:Amber",
+      label: "Amber",
       icon: "spark",
-      group: "Theme",
+      group: "command.group.theme",
       order: 10,
     });
 

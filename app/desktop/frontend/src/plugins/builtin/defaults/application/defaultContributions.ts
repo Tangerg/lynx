@@ -1,4 +1,3 @@
-import type { Translate } from "@/lib/i18n";
 import type {
   CommandSpec,
   MessageRoleSpec,
@@ -51,36 +50,36 @@ export const DEFAULT_ACCENTS: ThemeAccentSpec[] = [
   },
 ];
 
-export function defaultMessageRoles(t: Translate): MessageRoleSpec[] {
+export function defaultMessageRoles(): MessageRoleSpec[] {
   return [
     {
       id: "user",
-      displayName: t("role.user"),
+      displayName: "role.user",
       icon: "user",
       avatarVariant: "msg-user",
     },
     {
       id: "assistant",
-      displayName: t("role.assistant"),
+      displayName: "role.assistant",
       icon: "spark",
       avatarVariant: "msg-agent",
     },
     {
       id: "system",
-      displayName: t("role.system"),
+      displayName: "role.system",
       icon: "shield",
       avatarVariant: "msg-agent",
     },
   ];
 }
 
-export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): CommandSpec[] {
+export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
   return [
     {
       id: "view.toggle-sidebar",
-      label: t("command.toggleSidebar"),
+      label: "command.toggleSidebar",
       icon: "panel-l",
-      group: "View",
+      group: "command.group.view",
       keywords: ["collapse", "expand"],
       order: 0,
       combo: "Mod+B",
@@ -88,18 +87,18 @@ export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): C
     },
     {
       id: "settings.toggle-theme",
-      label: t("command.toggleTheme"),
+      label: "command.toggleTheme",
       icon: "moon",
-      group: "Theme",
+      group: "command.group.theme",
       order: 0,
       combo: "Mod+Shift+L",
       run: runs.toggleTheme,
     },
     {
       id: "chat.new",
-      label: t("command.newChat"),
+      label: "command.newChat",
       icon: "plus",
-      group: "Chat",
+      group: "command.group.chat",
       keywords: ["session", "open"],
       order: 0,
       combo: "Mod+N",
@@ -107,9 +106,9 @@ export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): C
     },
     {
       id: "chat.close-session",
-      label: t("command.closeSession"),
+      label: "command.closeSession",
       icon: "x",
-      group: "Chat",
+      group: "command.group.chat",
       keywords: ["dismiss"],
       order: 1,
       combo: "Mod+W",
@@ -117,9 +116,9 @@ export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): C
     },
     {
       id: "composer.focus",
-      label: t("command.focusComposer"),
+      label: "command.focusComposer",
       icon: "edit",
-      group: "Composer",
+      group: "command.group.composer",
       keywords: ["input", "write"],
       order: 0,
       combo: "Mod+L",
@@ -129,7 +128,6 @@ export function defaultStaticCommands(t: Translate, runs: DefaultCommandRuns): C
 }
 
 export function defaultWorkspaceViewCommands(
-  t: Translate,
   views: WorkspaceViewSpec[],
   openView: WorkspaceViewOpener,
 ): CommandSpec[] {
@@ -137,9 +135,11 @@ export function defaultWorkspaceViewCommands(
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     .map((view) => ({
       id: `view.open.${view.id}`,
-      label: t("command.viewPrefix", { title: t(view.title) }),
+      // The view's own title key; the group column beside it already says "View",
+      // which is what the old "View: {title}" label was repeating.
+      label: view.title,
       icon: view.icon,
-      group: "View",
+      group: "command.group.view",
       order: 10,
       keywords: ["open", "show", view.id],
       when: `mainView != "${view.id}"`,
@@ -148,7 +148,6 @@ export function defaultWorkspaceViewCommands(
 }
 
 export function defaultAccentCommands(
-  t: Translate,
   accents: ThemeAccentSpec[],
   setAccent: AccentSetter,
 ): CommandSpec[] {
@@ -156,9 +155,12 @@ export function defaultAccentCommands(
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
     .map((accent) => ({
       id: `theme.accent.${accent.id}`,
-      label: t("command.accentPrefix", { name: accent.label }),
+      // A colour's own name — a proper noun, not copy, so it passes through the
+      // catalog unchanged. "accent" stays findable through the keywords.
+      label: accent.label,
       icon: "spark",
-      group: "Theme",
+      group: "command.group.theme",
+      keywords: ["accent", "color", "colour"],
       order: 10,
       run: () => setAccent(accent.dark),
     }));

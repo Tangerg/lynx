@@ -570,8 +570,7 @@ export const fr: Record<string, string> = {
   "command.newChat": "Nouveau chat",
   "command.closeSession": "Fermer le chat actuel",
   "command.focusComposer": "Focus sur le compositeur",
-  "command.viewPrefix": "Vue : {{title}}",
-  "command.accentPrefix": "Accent : {{name}}",
+
   "diagnostics.title": "Diagnostics",
   "diagnostics.sub":
     "OpenTelemetry en direct — traces / métriques / logs. En mémoire uniquement (limité) ; l'enregistrement durable passe par OTLP. « Effacer » réinitialise les tampons.",
@@ -964,4 +963,10 @@ export const fr: Record<string, string> = {
   "runDigest.plaintext.commands": "Commandes :",
   "runDigest.plaintext.approvals": "Approbations :",
   "runDigest.plaintext.errors": "Erreurs :",
+
+  "command.group.chat": "Discussion",
+  "command.group.view": "Vue",
+  "command.group.theme": "Thème",
+  "command.group.composer": "Saisie",
+  "command.group.general": "Général",
 };

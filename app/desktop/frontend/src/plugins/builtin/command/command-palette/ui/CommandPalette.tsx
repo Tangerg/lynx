@@ -63,10 +63,12 @@ export function CommandPalette() {
           {visible.map((command) => (
             <Command.Item
               key={command.id}
+              // Search matches the words the user can see, so the keys resolve
+              // before they reach the matcher.
               value={[
-                command.label,
-                command.description ?? "",
-                command.group ?? "",
+                t(command.label),
+                command.description ? t(command.description) : "",
+                command.group ? t(command.group) : "",
                 ...(command.keywords ?? []),
               ].join(" ")}
               onSelect={() => runPaletteCommand(command, close)}
@@ -76,12 +78,14 @@ export function CommandPalette() {
                 <Icon name={command.icon as IconName} size={14} className="shrink-0 text-fg" />
               )}
               <div className="flex min-w-0 flex-1 flex-col">
-                <div className="truncate font-medium">{command.label}</div>
+                <div className="truncate font-medium">{t(command.label)}</div>
                 {command.description && (
-                  <div className="truncate text-ui-sm text-fg-faint">{command.description}</div>
+                  <div className="truncate text-ui-sm text-fg-faint">{t(command.description)}</div>
                 )}
               </div>
-              {command.group && <span className="text-ui-sm text-fg-faint">{command.group}</span>}
+              {command.group && (
+                <span className="text-ui-sm text-fg-faint">{t(command.group)}</span>
+              )}
               {command.combo && <Kbd>{comboGlyph(command.combo)}</Kbd>}
             </Command.Item>
           ))}

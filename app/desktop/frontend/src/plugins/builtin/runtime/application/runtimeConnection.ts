@@ -1,16 +1,16 @@
 import { z } from "zod";
 import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
 import { t } from "@/lib/i18n";
-import { getConfig, setConfig, type Host } from "@/plugins/sdk";
+import { getConfig, setConfig } from "@/plugins/sdk";
 
 export const DEFAULT_RUNTIME_ENDPOINT = RUNTIME_BASE;
-const RUNTIME_ENDPOINT_STORAGE_KEY = "endpoint";
 
-const UrlSchema = z
-  .url()
-  .refine((value) => value.startsWith("http://") || value.startsWith("https://"), {
-    message: t("connection.error.urlScheme"),
-  });
+// A validator, not a message: `t()` here would run at module load and bake in
+// whatever locale was active then, so switching language left this one string
+// behind. The words are chosen where the user submits.
+const UrlSchema = z.url();
+const isHttpUrl = (value: string): boolean =>
+  value.startsWith("http://") || value.startsWith("https://");
 
 export interface RuntimeEndpointResult {
   endpoint: string;
@@ -23,19 +23,6 @@ export function currentRuntimeEndpoint(): string {
     (getConfig<string>(RUNTIME_ENDPOINT_CONFIG_KEY) ?? DEFAULT_RUNTIME_ENDPOINT) ||
     DEFAULT_RUNTIME_ENDPOINT
   );
-}
-
-// Host config is in-memory; mirror the runtime URL through plugin storage so
-// the first RPC client built after launch sees the persisted endpoint.
-export function installRuntimeConnection(host: Pick<Host, "config" | "storage">): void {
-  const stored = host.storage.get<string>(RUNTIME_ENDPOINT_STORAGE_KEY);
-  if (typeof stored === "string" && stored) {
-    host.config.set(RUNTIME_ENDPOINT_CONFIG_KEY, stored);
-  }
-
-  host.config.onChange(RUNTIME_ENDPOINT_CONFIG_KEY, (value) => {
-    if (typeof value === "string") host.storage.set(RUNTIME_ENDPOINT_STORAGE_KEY, value);
-  });
 }
 
 export function applyRuntimeEndpoint(input: string): RuntimeEndpointResult {
@@ -51,11 +38,10 @@ export function applyRuntimeEndpoint(input: string): RuntimeEndpointResult {
   }
   const result = UrlSchema.safeParse(trimmed);
   if (!result.success) {
-    return {
-      endpoint: input,
-      error: result.error.issues[0]?.message ?? t("connection.error.invalidUrl"),
-      changed: false,
-    };
+    return { endpoint: input, error: t("connection.error.invalidUrl"), changed: false };
+  }
+  if (!isHttpUrl(result.data)) {
+    return { endpoint: input, error: t("connection.error.urlScheme"), changed: false };
   }
   setConfig(RUNTIME_ENDPOINT_CONFIG_KEY, result.data);
   return { endpoint: result.data, error: null, changed: current !== result.data };

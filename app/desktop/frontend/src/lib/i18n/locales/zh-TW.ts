@@ -569,8 +569,7 @@ export const zhTW: Record<string, string> = {
   "command.newChat": "新增聊天",
   "command.closeSession": "關閉目前聊天",
   "command.focusComposer": "聚焦輸入框",
-  "command.viewPrefix": "檢視: {{title}}",
-  "command.accentPrefix": "強調色: {{name}}",
+
   "diagnostics.title": "診斷",
   "diagnostics.sub":
     "即時 OpenTelemetry —— 追蹤 / 指標 / 日誌。僅保存在記憶體中（有界）；持久記錄透過 OTLP 發出。「清除」會重設緩衝區。",
@@ -925,4 +924,10 @@ export const zhTW: Record<string, string> = {
   "runDigest.plaintext.commands": "命令：",
   "runDigest.plaintext.approvals": "審批：",
   "runDigest.plaintext.errors": "錯誤：",
+
+  "command.group.chat": "對話",
+  "command.group.view": "檢視",
+  "command.group.theme": "主題",
+  "command.group.composer": "輸入區",
+  "command.group.general": "一般",
 };

@@ -1,4 +1,3 @@
-import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import {
@@ -15,8 +14,8 @@ export default definePlugin({
   setup({ host }) {
     host.layout.register("app.overlay", commandPaletteOverlaySlot(CommandPalette));
 
-    host.extensions.contribute(SHORTCUT, commandPaletteShortcut(t, toggleCommandPalette));
+    host.extensions.contribute(SHORTCUT, commandPaletteShortcut(toggleCommandPalette));
 
-    host.commands.register(commandPaletteCommand(t, openCommandPalette));
+    host.commands.register(commandPaletteCommand(openCommandPalette));
   },
 });

@@ -1,5 +1,4 @@
 import { definePlugin } from "@/plugins/sdk";
-import { t } from "@/lib/i18n";
 import { ACCENT, MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 import { DEFAULT_ACCENTS, defaultMessageRoles } from "./application/defaultContributions";
 
@@ -28,7 +27,7 @@ export const defaultRoles = definePlugin({
   name: "lyra.builtin.default-roles",
   version: "1.0.0",
   setup({ host }) {
-    for (const role of defaultMessageRoles(t)) {
+    for (const role of defaultMessageRoles()) {
       host.extensions.contribute(MESSAGE_ROLE, role);
     }
   },

@@ -7,7 +7,7 @@ import {
 
 describe("commandPaletteShortcut", () => {
   it("binds Mod+K as an input-safe palette toggle", () => {
-    const shortcut = commandPaletteShortcut((k: string) => k, vi.fn());
+    const shortcut = commandPaletteShortcut(vi.fn());
 
     expect(shortcut).toMatchObject({
       key: "Mod+K",
@@ -18,7 +18,7 @@ describe("commandPaletteShortcut", () => {
 
   it("prevents the browser default before toggling the palette", () => {
     const togglePalette = vi.fn();
-    const shortcut = commandPaletteShortcut((k: string) => k, togglePalette);
+    const shortcut = commandPaletteShortcut(togglePalette);
     const event = { preventDefault: vi.fn() } as unknown as KeyboardEvent;
 
     shortcut.handler(event);
@@ -46,11 +46,11 @@ describe("commandPaletteCommand", () => {
   it("projects the open action into a stable command spec", () => {
     const openPalette = vi.fn();
 
-    expect(commandPaletteCommand((key) => `t:${key}`, openPalette)).toEqual({
+    expect(commandPaletteCommand(openPalette)).toEqual({
       id: "command.open",
-      label: "t:command.openPalette",
+      label: "command.openPalette",
       icon: "command",
-      group: "General",
+      group: "command.group.general",
       keywords: ["palette", "search", "command"],
       combo: "Mod+K",
       run: openPalette,

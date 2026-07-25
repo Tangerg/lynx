@@ -867,8 +867,6 @@ export const en: Record<string, string> = {
   "command.newChat": "New chat",
   "command.closeSession": "Close current chat",
   "command.focusComposer": "Focus composer",
-  "command.viewPrefix": "View: {{title}}",
-  "command.accentPrefix": "Accent: {{name}}",
 
   // ── Diagnostics view ──
   "diagnostics.title": "Diagnostics",
@@ -993,4 +991,10 @@ export const en: Record<string, string> = {
   "runDigest.plaintext.commands": "Commands:",
   "runDigest.plaintext.approvals": "Approvals:",
   "runDigest.plaintext.errors": "Errors:",
+
+  "command.group.chat": "Chat",
+  "command.group.view": "View",
+  "command.group.theme": "Theme",
+  "command.group.composer": "Composer",
+  "command.group.general": "General",
 };

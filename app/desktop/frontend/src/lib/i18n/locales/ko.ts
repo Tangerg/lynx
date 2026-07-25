@@ -555,8 +555,7 @@ export const ko: Record<string, string> = {
   "command.newChat": "새 채팅",
   "command.closeSession": "현재 채팅 닫기",
   "command.focusComposer": "컴포저에 포커스",
-  "command.viewPrefix": "뷰: {{title}}",
-  "command.accentPrefix": "강조색: {{name}}",
+
   "diagnostics.title": "진단",
   "diagnostics.sub":
     "실시간 OpenTelemetry — 트레이스 / 메트릭 / 로그. 메모리 내 전용 (제한됨); 지속적 기록은 OTLP를 통해 전송됩니다. '지우기'는 버퍼를 재설정합니다.",
@@ -934,4 +933,10 @@ export const ko: Record<string, string> = {
   "runDigest.plaintext.commands": "명령:",
   "runDigest.plaintext.approvals": "승인:",
   "runDigest.plaintext.errors": "오류:",
+
+  "command.group.chat": "대화",
+  "command.group.view": "보기",
+  "command.group.theme": "테마",
+  "command.group.composer": "입력창",
+  "command.group.general": "일반",
 };

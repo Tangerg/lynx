@@ -20,7 +20,6 @@ import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sd
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { useUiStore } from "@/state/uiStore";
-import { t } from "@/lib/i18n";
 import {
   defaultAccentCommands,
   defaultStaticCommands,
@@ -43,7 +42,7 @@ export const defaultCommands = definePlugin({
   name: "lyra.builtin.default-commands",
   version: "1.0.0",
   setup({ host }) {
-    for (const command of defaultStaticCommands(t, {
+    for (const command of defaultStaticCommands({
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
       toggleTheme: toggleThemeScheme,
       newChat: openNewChatSession,
@@ -61,10 +60,10 @@ export const defaultCommands = definePlugin({
     const rebuild = (views: WorkspaceViewSpec[], accents: ThemeAccentSpec[]) => {
       for (const d of dynamic) d.dispose();
       dynamic = [];
-      for (const command of defaultWorkspaceViewCommands(t, views, openWorkspaceView)) {
+      for (const command of defaultWorkspaceViewCommands(views, openWorkspaceView)) {
         dynamic.push(host.commands.register(command));
       }
-      for (const command of defaultAccentCommands(t, accents, (accent) =>
+      for (const command of defaultAccentCommands(accents, (accent) =>
         useUiStore.getState().setAccent(accent),
       )) {
         dynamic.push(host.commands.register(command));

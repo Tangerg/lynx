@@ -11,13 +11,21 @@
 export interface CommandSpec {
   /** Stable id. */
   id: string;
-  /** Display label. */
+  /**
+   * Display label — a catalog key, resolved where the command renders.
+   *
+   * NOT resolved text: a command is registered once, and nothing re-registers on
+   * a language switch, so a `t(...)` here froze the label in whatever locale the
+   * app booted in while the view titles beside it (which are keys) updated. A key
+   * the catalog doesn't have renders as itself, which is what lets a sideloaded
+   * plugin pass its own literal text.
+   */
   label: string;
-  /** Short explanation shown below the label. */
+  /** Short explanation shown below the label — a catalog key, as `label` is. */
   description?: string;
   /** Icon name. */
   icon?: string;
-  /** Group header in the palette (e.g. "View", "Theme"). */
+  /** Group header in the palette — a catalog key, as `label` is. */
   group?: string;
   /** Extra search aliases — appears in the label match but isn't displayed. */
   keywords?: string[];

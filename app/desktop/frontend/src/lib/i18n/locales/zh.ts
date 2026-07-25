@@ -743,8 +743,7 @@ export const zh: Record<string, string> = {
   "command.newChat": "新建聊天",
   "command.closeSession": "关闭当前聊天",
   "command.focusComposer": "聚焦输入框",
-  "command.viewPrefix": "视图: {{title}}",
-  "command.accentPrefix": "强调色: {{name}}",
+
   "diagnostics.title": "诊断",
   "diagnostics.sub":
     "实时 OpenTelemetry —— 跟踪 / 指标 / 日志。仅保存在内存中（有界）；持久记录通过 OTLP 发出。「清除」会重置缓冲区。",
@@ -926,4 +925,10 @@ export const zh: Record<string, string> = {
   "runDigest.plaintext.commands": "命令：",
   "runDigest.plaintext.approvals": "审批：",
   "runDigest.plaintext.errors": "错误：",
+
+  "command.group.chat": "对话",
+  "command.group.view": "视图",
+  "command.group.theme": "主题",
+  "command.group.composer": "输入区",
+  "command.group.general": "通用",
 };

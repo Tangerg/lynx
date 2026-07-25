@@ -2,7 +2,7 @@ import { getContainer } from "@/main/container";
 import { definePlugin } from "@/plugins/sdk";
 import { runtimeCapabilities } from "./application/ports/capabilities";
 import { discoverRuntime } from "./application/discoverRuntime";
-import { installRuntimeConnection } from "./application/runtimeConnection";
+import { installEndpointMirror } from "./adapters/endpointMirror";
 import { installRuntimeCapabilityPort } from "./adapters/runtimeCapabilityStore";
 
 export default definePlugin({
@@ -10,7 +10,7 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     const disposeCapabilities = installRuntimeCapabilityPort();
-    installRuntimeConnection(host);
+    installEndpointMirror(host);
     const capabilities = runtimeCapabilities();
     capabilities.clear();
 

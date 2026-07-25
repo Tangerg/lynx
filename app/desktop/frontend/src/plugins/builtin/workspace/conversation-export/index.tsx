@@ -1,4 +1,3 @@
-import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import {
   exportConversationJson,
@@ -12,7 +11,7 @@ export default definePlugin({
   version: "1.0.0",
   requires: ["lyra.builtin.workspace-bootstrap"],
   setup({ host }) {
-    for (const command of conversationExportCommands(t, {
+    for (const command of conversationExportCommands({
       exportMarkdown: exportConversationMarkdown,
       exportJson: exportConversationJson,
       importJson: importConversationJson,

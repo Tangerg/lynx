@@ -571,8 +571,7 @@ export const de: Record<string, string> = {
   "command.newChat": "Neuer Chat",
   "command.closeSession": "Aktuellen Chat schließen",
   "command.focusComposer": "Editor fokussieren",
-  "command.viewPrefix": "Ansicht: {{title}}",
-  "command.accentPrefix": "Akzent: {{name}}",
+
   "diagnostics.title": "Diagnose",
   "diagnostics.sub":
     'Live OpenTelemetry — Traces / Metriken / Logs. Nur im Speicher (begrenzt); die dauerhafte Aufzeichnung erfolgt über OTLP. "Clear" setzt die Puffer zurück.',
@@ -966,4 +965,10 @@ export const de: Record<string, string> = {
   "runDigest.plaintext.commands": "Befehle:",
   "runDigest.plaintext.approvals": "Freigaben:",
   "runDigest.plaintext.errors": "Fehler:",
+
+  "command.group.chat": "Chat",
+  "command.group.view": "Ansicht",
+  "command.group.theme": "Thema",
+  "command.group.composer": "Eingabe",
+  "command.group.general": "Allgemein",
 };

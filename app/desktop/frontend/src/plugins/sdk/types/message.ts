@@ -51,7 +51,8 @@ export type ContentBlockRenderer<K extends ContentBlockKind> = ComponentType<
 export interface MessageRoleSpec {
   /** Stable id — matches `Message.role`. */
   id: string;
-  /** Header label shown next to the timestamp. */
+  /** Header label shown next to the timestamp — a catalog key, resolved where it
+   *  renders (see `CommandSpec.label` for why it isn't resolved text). */
   displayName: string;
   /** Icon name rendered inside the avatar bubble. */
   icon?: string;
