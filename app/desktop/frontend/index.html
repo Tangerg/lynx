@@ -13,8 +13,13 @@
          the JS-side `applyTheme()` corrects the class. -->
     <script>
       (function () {
+        // No matchMedia reads as light — the same answer the theme context's
+        // system-appearance adapter gives, and the same one a display with no
+        // dark mode gives. The two used to disagree (this said dark), a divergence
+        // nothing would have caught until a WebView without the API opened the app
+        // into the wrong scheme.
         var systemDark =
-          !window.matchMedia || window.matchMedia("(prefers-color-scheme: dark)").matches;
+          !!window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
         var scheme = systemDark ? "dark" : "light";
         try {
           var raw = localStorage.getItem("lyra.ui");
@@ -28,10 +33,13 @@
         var root = document.documentElement;
         root.classList.add("theme-" + scheme);
         // Paint the canvas colour on <html> BEFORE the CSS bundle parses, so a
-        // cold boot opens straight into the app surface instead of flashing
-        // white. Matches the native window BackgroundColour (main.go) for dark,
-        // and the light canvas for light. (NATIVE_FEEL.md §B — launch flicker.)
-        root.style.backgroundColor = scheme === "light" ? "#ffffff" : "#121212";
+        // cold boot opens straight into the app surface instead of flashing white.
+        // These two literals ARE `--color-bg` per scheme (globals.css); they can't
+        // be read from the token, because the whole point is to paint before the
+        // stylesheet exists. The dark one had drifted to #121212 against a #101010
+        // token, so a dark cold boot painted one grey and repainted another a
+        // moment later. `check-bootstrap` fails on any such drift now.
+        root.style.backgroundColor = scheme === "light" ? "#ffffff" : "#101010";
       })();
     </script>
     <!-- Focus-ring modality.
