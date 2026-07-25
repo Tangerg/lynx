@@ -149,11 +149,16 @@ export function ChatStream({ onSend }: Props) {
       <>
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
-        <div className="panel-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto px-4">
-          <h1 className="text-balance text-center text-display-lg font-medium tracking-display text-fg">
-            {t("welcome.title")}
-          </h1>
-          <div className="mt-8 w-full max-w-[var(--content-max)]">{composer}</div>
+        {/* Hero and composer are ONE vertically-centred group, so the composer
+            sits at the optical centre rather than the heading floating above a
+            bottom-anchored input. */}
+        <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-3 sm:px-5">
+          <div className="flex w-full max-w-[var(--content-max)] flex-col items-center gap-4 pb-5">
+            <h1 className="text-balance text-center text-display-lg font-normal text-fg/95 sm:text-display-xl">
+              {t("welcome.title")}
+            </h1>
+          </div>
+          <div className="w-full max-w-[var(--content-max)]">{composer}</div>
           <div className="mt-8 w-full max-w-[var(--content-max)]">
             <Slot name="chat.empty" />
           </div>
@@ -174,33 +179,30 @@ export function ChatStream({ onSend }: Props) {
           container, not this one). Plan-progress is the only built-in
           contributor today; the slot is open so plugins can stack
           their own "above the stream" banners here. */}
-      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-5">
+      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-3 sm:px-5">
         <Slot name="chat.banner.top" />
       </div>
-      <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
-        <MessageStream
-          messages={messages}
-          ctx={ctx}
-          resetKey={resetKey}
-          onControlsChange={handleControls}
-        />
-      </ChatErrorBoundary>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-6 pb-4">
-        <div
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-[140px]"
-          style={{
-            background: "linear-gradient(180deg, transparent 0%, var(--color-bg) 52%)",
-          }}
-        />
+      {/* The transcript scrolls; the composer is a sibling in normal flow that
+          pulls UP over it. That overlap is what makes the composer read as
+          floating on the conversation, and it means the scroller needs no
+          reserved bottom padding sized to the composer — which was a magic
+          number that silently went stale every time the composer grew a row. */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
+          <MessageStream
+            messages={messages}
+            ctx={ctx}
+            resetKey={resetKey}
+            onControlsChange={handleControls}
+          />
+        </ChatErrorBoundary>
         <JumpToBottomButton
           visible={streamControls ? !streamControls.isAtBottom : false}
           onClick={() => streamControls?.scrollToBottom()}
         />
-        {/* px-5 mirrors msg-stream's content padding so the composer's
-            outer edge lines up with the message text column above it. */}
-        <div className="pointer-events-auto relative z-[2] mx-auto w-full max-w-[var(--content-max)] px-5">
-          {composer}
-        </div>
+      </div>
+      <div className="relative z-10 -mt-5 w-full shrink-0 overflow-visible px-3 pb-3 sm:px-5 sm:pb-4">
+        <div className="mx-auto w-full max-w-[var(--content-max)]">{composer}</div>
       </div>
     </>
   );

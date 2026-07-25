@@ -6,11 +6,9 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
 import { bcp47 } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
-import { basename } from "@/lib/path";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
-import { useActiveSession } from "@/plugins/builtin/agent/public/session";
 import { MessageBlock } from "@/plugins/builtin/chat/message/public/rendering";
 
 // Chat scroll surface, backed by use-stick-to-bottom. `resetKey`
@@ -89,27 +87,6 @@ function TurnSeparator({ createdAt }: { createdAt?: string }) {
   );
 }
 
-function SessionMetaLine() {
-  const session = useActiveSession();
-  const project = session?.cwd ? basename(session.cwd) : "lynx";
-  return (
-    <div className="mb-2 flex items-center gap-3 text-fg-faint">
-      <span className="h-px flex-1 bg-field/70" />
-      <span className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-ui-sm leading-none">
-        <span className="h-1.5 w-1.5 rounded-full bg-success" />
-        会话已连接
-        <span className="text-fg-faint/45">·</span>
-        {project}
-        <span className="text-fg-faint/45">·</span>
-        main
-        <span className="text-fg-faint/45">·</span>
-        完全访问
-      </span>
-      <span className="h-px flex-1 bg-field/70" />
-    </div>
-  );
-}
-
 export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
   // While a run streams, content grows continuously; the default `resize`
   // spring (stiffness 0.05 / mass 1.25) is too sluggish to track it and the
@@ -125,7 +102,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
-          className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-5 pt-8 pb-[220px]"
+          className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-3 pt-8 pb-8 sm:px-5"
         >
           <Slot name="chat.empty" />
         </StickToBottom.Content>
@@ -143,9 +120,8 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
-        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-10 px-5 pt-14 pb-[220px]"
+        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-10 px-3 pt-8 pb-8 sm:px-5"
       >
-        <SessionMetaLine />
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (
             <Fragment key={m.id}>

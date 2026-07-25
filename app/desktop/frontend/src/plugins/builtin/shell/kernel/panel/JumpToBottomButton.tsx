@@ -7,13 +7,13 @@ interface Props {
   onClick: () => void;
 }
 
-// Floating "scroll to bottom" affordance. Renders inside the composer
-// area (positioned above the composer card) so it never overlaps the
-// last message, and stays out of the layout flow.
+// Floating "scroll to bottom" affordance, anchored to the bottom of the
+// transcript column and out of the layout flow. It sits just above where the
+// composer overlaps, so it never covers the last message.
 //
-// Animates in/out via opacity + translateY rather than mount/unmount,
-// so the user gets a soft reveal instead of a pop-in. When `visible`
-// is false it's still in the DOM but pointer-events: none + opacity: 0.
+// Animates in/out via opacity + translateY rather than mount/unmount, so the
+// user gets a soft reveal instead of a pop-in. When `visible` is false it's still
+// in the DOM but pointer-events: none + opacity: 0.
 export function JumpToBottomButton({ visible, onClick }: Props) {
   const t = useT();
   const label = t("chat.jumpToBottom");
@@ -24,7 +24,7 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
       onClick={onClick}
       tabIndex={visible ? 0 : -1}
       className={cn(
-        "absolute bottom-20 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
+        "absolute bottom-6 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
         "bg-canvas text-fg-soft border-0",
         "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[--dur-fast]",
         "hover:bg-surface-2 hover:text-fg",

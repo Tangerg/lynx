@@ -463,7 +463,7 @@
   --app-surface-divider: color-mix(in srgb, var(--color-border) 60%, transparent);
 
   /* Content max-width — the centered reading island. */
-  --content-max: 768px;
+  --content-max: 736px;
 
   /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
      surface tints, hover states, and depth layering. */
