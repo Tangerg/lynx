@@ -1186,9 +1186,9 @@ html.theme-dark {
    window and control corners this way, so a plain `border-radius` beside native
    chrome reads slightly mechanical. Feature-gated rather than assumed: this is a
    WKWebView and `corner-shape` support is version-dependent — where it is missing
-   the surfaces keep their plain radius and nothing else changes. Scoped to the two
-   surfaces whose radius is large enough for the difference to register; on a 10px
-   control it is imperceptible. */
+   the surfaces keep their plain radius and nothing else changes. Scoped to the
+   composer, the one surface whose radius is large enough for the difference to
+   register; on a 10px control it is imperceptible. */
 @supports (corner-shape: round) {
   [data-slot="composer-root"] {
     corner-shape: squircle;

@@ -45,6 +45,15 @@
 //      rule that needs an exemption list per callsite is a rule that stops
 //      being read.
 //
+// And one on the values, not the keys:
+//
+//   7. A translated value carries exactly the `{{placeholders}}` its English
+//      counterpart does. This is the one translation defect a reviewer who
+//      doesn't read the language can still catch, and it's the most damaging:
+//      a dropped `{{count}}` renders a sentence with the number silently gone.
+//      (The 1265 non-English strings are unreviewed by native speakers — that
+//      part no build can check. This checks what it can.)
+//
 // `en` is the reference: add a key there and the build names the seven files
 // that still owe a translation.
 
@@ -54,6 +63,10 @@ import { join } from "node:path";
 const LOCALES_DIR = new URL("../src/lib/i18n/locales/", import.meta.url).pathname;
 const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const KEY_PATTERN = /^\s*"([^"]+)":/gm;
+// key → value, both quote styles (a value holding a double quote is single-quoted)
+// and prettier's wrapped form, where the value sits on the next line.
+const PAIR_PATTERN = /"([^"]+)":\s*(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g;
+const PLACEHOLDER_PATTERN = /\{\{(\w+)\}\}/g;
 // A notify/toast call whose first argument opens a string literal.
 const LITERAL_COPY_PATTERN =
   /\b(?:notifyError|notifyInfo|toast\.(?:success|error|info|warning|message))\(\s*[`"']/g;
@@ -79,6 +92,19 @@ function keysOf(file) {
     seen.add(match[1]);
   }
   return seen;
+}
+
+function valuesOf(file) {
+  const source = readFileSync(join(LOCALES_DIR, file), "utf8");
+  const out = new Map();
+  for (const match of source.matchAll(PAIR_PATTERN)) {
+    out.set(match[1], match[2] ?? match[3] ?? "");
+  }
+  return out;
+}
+
+function placeholders(value) {
+  return [...value.matchAll(PLACEHOLDER_PATTERN)].map((match) => match[1]).sort();
 }
 
 const files = readdirSync(LOCALES_DIR).filter((name) => name.endsWith(".ts"));
@@ -111,6 +137,23 @@ for (const [locale, keys] of catalogs) {
     [...en].filter((key) => !keys.has(key)),
     "key(s) missing",
   );
+}
+
+const enValues = valuesOf("en.ts");
+for (const [locale] of catalogs) {
+  if (locale === "en") continue;
+  const values = valuesOf(`${locale}.ts`);
+  for (const [key, english] of enValues) {
+    const translated = values.get(key);
+    if (translated === undefined) continue; // rule 3 already reports the gap
+    const want = placeholders(english).join(",");
+    const got = placeholders(translated).join(",");
+    if (want !== got) {
+      failures.push(
+        `${locale}: "${key}" carries {{${got || "none"}}} where en carries {{${want || "none"}}}`,
+      );
+    }
+  }
 }
 
 function* sourceFiles(dir) {
