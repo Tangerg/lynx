@@ -1,13 +1,21 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import { StepRow, type StepState } from "@/ui";
 import { memo } from "react";
 import { useT } from "@/lib/i18n";
-import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
 
 // Plan block — shown when an assistant message describes a multi-step plan.
 // Inline variant; the promoted workspace view uses PlanList. Both share the
 // per-item check + row styling from the agent presentation contract. Rendered
 // flush on the canvas (no card): a quiet title row + status-icon step list, so
 // progress reads as part of the prose rather than a boxed widget.
+// The agent's plan vocabulary → the row's. The row is shared with the plan view
+// and the working checklist, so it speaks in step states, not plan statuses.
+const STEP_STATE: Record<PlanItem["status"], StepState> = {
+  done: "done",
+  doing: "active",
+  todo: "pending",
+};
+
 export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] }) {
   const t = useT();
   const done = plan.filter((p) => p.status === "done").length;
@@ -21,10 +29,9 @@ export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] })
       </div>
       <div className="flex flex-col gap-0.5">
         {plan.map((p) => (
-          <div key={p.id} className={planItemRow(p.status)}>
-            <PlanCheck status={p.status} />
-            <span className="min-w-0 flex-1">{p.text}</span>
-          </div>
+          <StepRow key={p.id} state={STEP_STATE[p.status]}>
+            {p.text}
+          </StepRow>
         ))}
       </div>
     </div>

@@ -1,9 +1,17 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
-import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
+import { StepRow, type StepState } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock
 // — both share the agent plan presentation contract.
+// The agent's plan vocabulary → the row's. The row is shared with the plan view
+// and the working checklist, so it speaks in step states, not plan statuses.
+const STEP_STATE: Record<PlanItem["status"], StepState> = {
+  done: "done",
+  doing: "active",
+  todo: "pending",
+};
+
 export function PlanList({ plan }: { plan: readonly PlanItem[] }) {
   const t = useT();
   return (
@@ -12,10 +20,9 @@ export function PlanList({ plan }: { plan: readonly PlanItem[] }) {
         {t("plan.list.heading")}
       </div>
       {plan.map((p) => (
-        <div key={p.id} className={planItemRow(p.status)}>
-          <PlanCheck status={p.status} />
-          <div>{p.text}</div>
-        </div>
+        <StepRow key={p.id} state={STEP_STATE[p.status]}>
+          {p.text}
+        </StepRow>
       ))}
     </div>
   );

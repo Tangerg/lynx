@@ -2,8 +2,7 @@ import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { PlanCheck } from "@/plugins/builtin/agent/public/planPresentation";
-import { Icon, IconButton } from "@/ui";
+import { Icon, IconButton, StepMark, type StepState } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -57,7 +56,7 @@ export function PlanProgressBanner() {
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
               )}
             >
-              <PlanCheck status={progress.current.status} />
+              <StepMark state={STEP_STATE[progress.current.status]} />
               <AnimatePresence mode="wait" initial={false}>
                 <motion.span
                   key={expanded ? "summary" : "current"}
@@ -103,7 +102,7 @@ export function PlanProgressBanner() {
               <ul className="flex flex-col gap-1 px-3 py-2">
                 {plan.map((item) => (
                   <li key={item.id} className="flex items-center gap-2.5 py-0.5">
-                    <PlanCheck status={item.status} />
+                    <StepMark state={STEP_STATE[item.status]} />
                     <span className={itemTextClass(item.status)}>{item.text}</span>
                   </li>
                 ))}
@@ -115,6 +114,12 @@ export function PlanProgressBanner() {
     </AnimatePresence>
   );
 }
+
+const STEP_STATE: Record<PlanItem["status"], StepState> = {
+  done: "done",
+  doing: "active",
+  todo: "pending",
+};
 
 function itemTextClass(status: PlanItem["status"]) {
   return cn(

@@ -153,14 +153,20 @@ for (const file of files(SRC)) {
     });
   }
 
+  // `presentation/` maps a model into a view model. It does not render one, and it
+  // does not decide what anything looks like — a component or a class string there
+  // is a component or a class string that four callers cannot share without
+  // importing this context. `agent/presentation/planPresentation.tsx` was exactly
+  // that: a React component plus a class-string builder, reached by three other
+  // contexts through the agent's facade.
   if (
     !isTest &&
-    /plugins\/builtin\/.+\/application\/.+\.(ts|tsx)$/.test(rel) &&
+    /plugins\/builtin\/.+\/(?:application|presentation)\/.+\.(ts|tsx)$/.test(rel) &&
     /from\s+["']@\/(?:ui|components|pages)(?:\/[^"']*)?["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "builtin context application must not import UI components or pages",
+      reason: "builtin context application / presentation must not import UI components or pages",
     });
   }
 

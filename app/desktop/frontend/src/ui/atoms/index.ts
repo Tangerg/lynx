@@ -34,6 +34,8 @@ export type { TextButtonProps } from "./text-button";
 export type { TextAreaProps, TextFieldProps } from "./text-field";
 export { Slider } from "./slider";
 export { StatusDot } from "./status-dot";
+export { StepMark, StepRow } from "./step-row";
+export type { StepState } from "./step-row";
 export { Surface } from "./surface";
 export { Switch } from "./switch";
 export { RichTooltip, Tooltip, TooltipProvider } from "./tooltip";

@@ -1,15 +1,14 @@
-import { PlanCheck, planItemRow } from "@/plugins/builtin/agent/public/planPresentation";
 import { useT } from "@/lib/i18n";
+import { StepRow, type StepState } from "@/ui";
 import type { WorkspaceTodo } from "@/plugins/builtin/workspace/application/todoViewModel";
 
-// TodoItem.status → the plan-row visual vocabulary. PlanCheck / planItemRow are
-// shared with the Plan view + inline PlanBlock, so the agent's working checklist
-// (B11) renders identically to a plan — same check glyph, same row styling.
-const TODO_STATUS = {
+// TodoItem.status → the shared step vocabulary, so the agent's working checklist
+// (B11) renders identically to a plan — same mark, same row.
+const STEP_STATE: Record<WorkspaceTodo["status"], StepState> = {
   completed: "done",
-  in_progress: "doing",
-  pending: "todo",
-} as const;
+  in_progress: "active",
+  pending: "pending",
+};
 
 export function TodoList({ todos }: { todos: readonly WorkspaceTodo[] }) {
   const t = useT();
@@ -19,12 +18,10 @@ export function TodoList({ todos }: { todos: readonly WorkspaceTodo[] }) {
         {t("todos.list.heading")}
       </div>
       {todos.map((t) => {
-        const status = TODO_STATUS[t.status];
         return (
-          <div key={t.id} className={planItemRow(status)}>
-            <PlanCheck status={status} />
-            <div>{t.text}</div>
-          </div>
+          <StepRow key={t.id} state={STEP_STATE[t.status]}>
+            {t.text}
+          </StepRow>
         );
       })}
     </div>
