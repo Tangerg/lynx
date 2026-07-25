@@ -30,8 +30,7 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 | 计划任务 | `application/schedules.ManagementStore`、`RunNowStore`、`WorkerStore` | SQLite schedule store |
 | 待办 | `todotool.Store`、`agentexec.TodoReader`、session cleanup port | SQLite todo store |
 | turn steering | `adapter/agentexec/turn.SteeringSink` | conversation/message adapter |
-| 上下文压缩 | `adapter/agentexec/turn.Compactor` | `adapter/maintenance.Compactor` |
-| 事实提取 | `adapter/agentexec/turn.Extractor` | `adapter/maintenance.Extractor` |
+| turn-boundary maintenance | `adapter/agentexec/turn.BoundaryMaintenance` | `adapter/maintenance.Suite`（组合 compaction / extraction / skill lifecycle workers） |
 | utility chat model validation | `application/models.ChatModelValidator` | `adapter/modelclient` + `infra/llm` |
 | Chat provider | `core/chat.Model` / optional `Streamer` | provider adapters |
 | Chat history | `chathistory.Store` | SQLite message store |
@@ -74,7 +73,7 @@ Agent SDK、toolset、SQLite、MCP SDK 或 protocol DTO。
 
 ## 5. 注入与生命周期规则
 
-- 可选策略采用 nil-default：显式注入 steering/compactor/extractor 时 Bootstrap 不覆盖；
+- 可选策略采用 nil-default：显式注入 steering/maintenance suite 时 Bootstrap 不覆盖；
 - 必需依赖在构造时验证，禁止拖到第一条请求才 panic；
 - 注入接口前消除 typed-nil，避免“接口非 nil、动态值为 nil”；
 - provider/model 必须显式配对，不从 model 字符串猜 provider；

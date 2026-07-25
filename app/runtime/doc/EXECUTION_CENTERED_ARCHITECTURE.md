@@ -107,8 +107,8 @@ application Run command
 turn handle、subscribe、cancel/resume/rehydrate、approval/hooks 和 terminal first-wins。
 `turn.Executor` 作为应用层的直接消费者，在自己的包内定义只含所需方法的窄控制端口；
 Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup 切片。turn 自身只通过
-两方法 consumer interface 使用 Agent execution；steering、compaction、extraction 是三片独立
-依赖，不再经 Engine 中转。Delivery 不直接驱动 turn control。
+两方法 consumer interface 使用 Agent execution；steering 与完整的 turn-boundary maintenance
+是两片独立依赖，不再经 Engine 中转。Delivery 不直接驱动 turn control。
 
 每一轮 action 调用 `ProcessContext.Interact`。Agent framework 拥有：
 
@@ -165,9 +165,10 @@ Resolver；catalog 仍归 toolset。
 MCP status/catalog/connection/registry 四片接口定义在真实消费者
 `application/integrations`，由 toolset adapter 实现并由 Bootstrap 直接注入。
 
-turn-boundary steering/compaction/extraction 接口定义在 `adapter/agentexec/turn`；
-Bootstrap 默认绑定 conversation 与 `adapter/maintenance`，调用方可显式替换。它们的
-生命周期和失败语义由 Dispatcher 管理，不扩大 Engine。
+turn-boundary steering 与 `BoundaryMaintenance` 接口定义在 `adapter/agentexec/turn`；
+Bootstrap 默认绑定 conversation 与 `adapter/maintenance.Suite`。Suite 持有 mining、
+curation、compaction、extraction 的顺序与条件，Dispatcher 只提供回合事实、记录失败并
+发布摘要压缩边界；调用方仍可显式替换整个 maintenance 语义，不扩大 Engine。
 
 ## 4. Domain 与 Application 边界
 

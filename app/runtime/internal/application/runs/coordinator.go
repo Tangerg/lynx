@@ -219,7 +219,7 @@ func (c *Coordinator) event(spec segmentSpec, reduced reduction) Event {
 // write-set committed. The rejection cause and teardown failure are both
 // preserved: hiding the latter would report a clean rejection while leaking an
 // executor turn the application never admitted.
-func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref TurnRef, cause error) error {
+func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.TurnRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
 	if err := c.executor.CancelTurn(cleanupCtx, ref); err != nil {

@@ -186,7 +186,7 @@ func (s stubRuntime) turnDispatcher() turnRuntime {
 	return turnStub{}
 }
 
-func (s stubRuntime) TurnEvents(ctx context.Context, ref runs.TurnRef) (iter.Seq[runs.EngineEvent], error) {
+func (s stubRuntime) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.EngineEvent], error) {
 	return turn.NewExecutor(s.turnDispatcher()).TurnEvents(ctx, ref)
 }
 
@@ -194,35 +194,35 @@ func (s stubRuntime) ValidateStart(req runs.StartTurn) error {
 	return turn.NewExecutor(s.turnDispatcher()).ValidateStart(req)
 }
 
-func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartTurn) (runs.TurnRef, error) {
+func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartTurn) (execution.TurnRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).PrepareStart(ctx, req)
 }
 
-func (s stubRuntime) Activate(ctx context.Context, ref runs.TurnRef) error {
+func (s stubRuntime) Activate(ctx context.Context, ref execution.TurnRef) error {
 	return turn.NewExecutor(s.turnDispatcher()).Activate(ctx, ref)
 }
 
-func (s stubRuntime) Prepare(ctx context.Context, ref runs.TurnRef) (runs.TurnRef, error) {
+func (s stubRuntime) Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared runs.TurnRef, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
+func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
 	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, resolution, interruptKinds)
 }
 
-func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (runs.TurnRef, error) {
+func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (execution.TurnRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).Rehydrate(ctx, req)
 }
 
-func (s stubRuntime) Cancel(ctx context.Context, ref runs.TurnRef) error {
+func (s stubRuntime) Cancel(ctx context.Context, ref execution.TurnRef) error {
 	return turn.NewExecutor(s.turnDispatcher()).CancelTurn(ctx, ref)
 }
 
-func (s stubRuntime) Steer(ctx context.Context, ref runs.TurnRef, message string) error {
+func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, message string) error {
 	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, message)
 }
 
-func (s stubRuntime) CancelTurn(ctx context.Context, ref runs.TurnRef) error {
+func (s stubRuntime) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
 	return s.turnDispatcher().Cancel(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
@@ -234,8 +234,8 @@ type stubLifecycleTurns struct {
 	rt *stubRuntime
 }
 
-func (t stubLifecycleTurns) Cancel(ctx context.Context, ref sessions.RunRef) error {
-	return t.rt.CancelTurn(ctx, runs.TurnRef{SessionID: ref.SessionID, TurnID: ref.TurnID})
+func (t stubLifecycleTurns) Cancel(ctx context.Context, ref execution.TurnRef) error {
+	return t.rt.CancelTurn(ctx, execution.TurnRef{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
 type stubRunSegmentProcesses struct {

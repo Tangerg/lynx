@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -395,7 +396,7 @@ type mutationTurns struct {
 	err        error
 }
 
-func (t mutationTurns) Cancel(context.Context, RunRef) error {
+func (t mutationTurns) Cancel(context.Context, execution.TurnRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
 	return t.err
 }
@@ -406,7 +407,7 @@ type observingTurns struct {
 	bounded  bool
 }
 
-func (t *observingTurns) Cancel(ctx context.Context, _ RunRef) error {
+func (t *observingTurns) Cancel(ctx context.Context, _ execution.TurnRef) error {
 	t.calls++
 	t.canceled = ctx.Err() != nil
 	_, t.bounded = ctx.Deadline()

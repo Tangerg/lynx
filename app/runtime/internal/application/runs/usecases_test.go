@@ -81,18 +81,18 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 type fakeTurnControl struct {
 	validated     StartTurn
 	started       StartTurn
-	startTurn     TurnRef
-	prepared      TurnRef
+	startTurn     execution.TurnRef
+	prepared      execution.TurnRef
 	prepareErr    error
-	rehydrated    TurnRef
+	rehydrated    execution.TurnRef
 	rehydrateReq  RehydrateTurn
 	rehydrateErr  error
 	resumeCheck   func()
 	activateCheck func()
 	activated     bool
 	resumed       bool
-	canceled      []TurnRef
-	steered       []TurnRef
+	canceled      []execution.TurnRef
+	steered       []execution.TurnRef
 	steerMessage  string
 	operations    *[]string
 	cancelErr     error
@@ -103,12 +103,12 @@ func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
 	return nil
 }
 
-func (f *fakeTurnControl) PrepareStart(_ context.Context, req StartTurn) (TurnRef, error) {
+func (f *fakeTurnControl) PrepareStart(_ context.Context, req StartTurn) (execution.TurnRef, error) {
 	f.started = req
 	return f.startTurn, nil
 }
 
-func (f *fakeTurnControl) Activate(context.Context, TurnRef) error {
+func (f *fakeTurnControl) Activate(context.Context, execution.TurnRef) error {
 	if f.activateCheck != nil {
 		f.activateCheck()
 	}
@@ -116,11 +116,11 @@ func (f *fakeTurnControl) Activate(context.Context, TurnRef) error {
 	return nil
 }
 
-func (f *fakeTurnControl) Prepare(context.Context, TurnRef) (TurnRef, error) {
+func (f *fakeTurnControl) Prepare(context.Context, execution.TurnRef) (execution.TurnRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, TurnRef, interrupts.Resolution, []InterruptKind) error {
+func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, interrupts.Resolution, []InterruptKind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -128,12 +128,12 @@ func (f *fakeTurnControl) Resume(context.Context, TurnRef, interrupts.Resolution
 	return nil
 }
 
-func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (TurnRef, error) {
+func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (execution.TurnRef, error) {
 	f.rehydrateReq = request
 	return f.rehydrated, f.rehydrateErr
 }
 
-func (f *fakeTurnControl) CancelTurn(_ context.Context, ref TurnRef) error {
+func (f *fakeTurnControl) CancelTurn(_ context.Context, ref execution.TurnRef) error {
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "turn.cancel")
 	}
@@ -141,7 +141,7 @@ func (f *fakeTurnControl) CancelTurn(_ context.Context, ref TurnRef) error {
 	return f.cancelErr
 }
 
-func (f *fakeTurnControl) Steer(_ context.Context, ref TurnRef, message string) error {
+func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, message string) error {
 	f.steered = append(f.steered, ref)
 	f.steerMessage = message
 	return nil
@@ -165,7 +165,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	activatedAfterOpening := false
 	turns.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
@@ -203,7 +203,7 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	openingErr := errors.New("opening commit failed")
 	effects := &fakeEffects{openingErr: openingErr}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	_, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
@@ -227,7 +227,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
 		&fakeExecutor{events: []EngineEvent{TurnEnd{Reason: execution.OutcomeCompleted}}},
-		&fakeTurnControl{startTurn: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
+		&fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
 		sessions,
 		effects,
 	)
@@ -272,11 +272,11 @@ func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
+	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
-	if !errors.Is(err, ErrInvalidTurnRef) {
+	if !errors.Is(err, execution.ErrInvalidTurnRef) {
 		t.Fatalf("Start error = %v, want ErrInvalidTurnRef", err)
 	}
 	if len(turns.canceled) != 1 || turns.canceled[0] != turns.startTurn {
@@ -297,7 +297,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 			Interrupts: approvalInterrupt("item_1"),
 		}},
 	}
-	turns := &fakeTurnControl{prepared: TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
 	activatedAfterOpening := false
 	turns.resumeCheck = func() { activatedAfterOpening = effects.opening().Resume != nil }
 	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
@@ -503,7 +503,7 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 	if err := c.Steer(context.Background(), SteerCommand{RunID: "run_1", Message: "wait"}); err != nil {
 		t.Fatalf("Steer: %v", err)
 	}
-	if len(turns.steered) != 1 || turns.steered[0] != (TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
+	if len(turns.steered) != 1 || turns.steered[0] != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
 		t.Fatalf("steered refs = %+v", turns.steered)
 	}
 	if turns.steerMessage != "wait" {

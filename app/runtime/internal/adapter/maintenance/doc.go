@@ -7,10 +7,9 @@
 // conversation history. They share the transcript-rendering and
 // direct-call helpers in llm.go; each is otherwise an independent,
 // single-responsibility worker (Compactor / Extractor / Titler) in its
-// own file, constructible and testable without the agentexec.
+// own file, constructible and testable without the agentexec. Suite is the
+// one explicit composition point for the workers that run after a clean turn.
 //
-// The kernel owns construction (any worker may be nil when its feature is
-// disabled by config) and orchestration — it decides when to call which; this
-// adapter decides only how each operation is performed against chat and memory
-// dependencies.
+// Bootstrap owns construction. Suite owns the maintenance lifecycle policy;
+// the turn dispatcher supplies finished-turn facts and observes its result.
 package maintenance

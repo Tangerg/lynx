@@ -99,12 +99,11 @@ type turnState struct {
 	agentProcess agentexec.TurnProcess
 
 	// startRequest is the immutable request owned by a prepared fresh turn.
-	// activated linearizes ActivateTurn against Cancel: exactly one side claims
-	// the pre-execution state, so a rejected application admission can tear the
-	// turn down without ever entering the model/tool engine.
+	// startPending linearizes ActivateTurn against Cancel: exactly one side
+	// claims the pre-execution state, so a rejected application admission can
+	// tear the turn down without ever entering the model/tool engine.
 	startRequest StartTurnRequest
-	prepared     bool
-	activated    bool
+	startPending bool
 
 	// parked is true while the turn is suspended on a HITL interrupt
 	// (StatusWaiting) awaiting Resume. A parked turn stays
@@ -146,16 +145,16 @@ func (st *turnState) prepareStart(request StartTurnRequest) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.startRequest = request
-	st.prepared = true
+	st.startPending = true
 }
 
 func (st *turnState) claimStart() (StartTurnRequest, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if !st.prepared || st.activated {
+	if !st.startPending {
 		return StartTurnRequest{}, false
 	}
-	st.activated = true
+	st.startPending = false
 	request := st.startRequest
 	st.startRequest = StartTurnRequest{}
 	return request, true
@@ -164,10 +163,10 @@ func (st *turnState) claimStart() (StartTurnRequest, bool) {
 func (st *turnState) cancelPrepared() bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if !st.prepared || st.activated {
+	if !st.startPending {
 		return false
 	}
-	st.activated = true
+	st.startPending = false
 	st.startRequest = StartTurnRequest{}
 	return true
 }

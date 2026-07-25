@@ -26,10 +26,9 @@ type testEngine interface {
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
 	services := noopTurnServices{}
 	deps := turn.Dependencies{
-		Engine:    engine,
-		Steering:  services,
-		Compactor: services,
-		Extractor: services,
+		Engine:      engine,
+		Steering:    services,
+		Maintenance: services,
 	}
 	for _, opt := range opts {
 		opt(&deps)
@@ -201,11 +200,9 @@ type noopTurnServices struct{}
 
 func (noopTurnServices) InjectUser(context.Context, string, string) error { return nil }
 
-func (noopTurnServices) MaybeCompact(context.Context, string, int, func(context.Context) bool) (turn.CompactionResult, error) {
-	return turn.CompactionResult{}, nil
+func (noopTurnServices) Maintain(context.Context, turn.BoundaryMaintenanceInput) turn.BoundaryMaintenanceResult {
+	return turn.BoundaryMaintenanceResult{}
 }
-
-func (noopTurnServices) MaybeExtract(context.Context, string, string) error { return nil }
 
 // slowStubEngine simulates an engine that respects ctx cancellation without
 // ever returning normally.

@@ -2,10 +2,7 @@ package runs
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"iter"
-	"strings"
 	"time"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -24,7 +21,7 @@ import (
 //
 // The application drives execution through engine-neutral [SegmentExecutor]
 // and [TurnControl] ports: it observes the application-owned [EngineEvent] sum
-// type and addresses turns through durable [TurnRef] values, so neither
+// type and addresses turns through durable [execution.TurnRef] values, so neither
 // lifecycle nor Delivery depends on agent-SDK handle types.
 
 // TurnCanceler tears down a live or parked turn by its durable identity. It is a
@@ -32,13 +29,13 @@ import (
 // ([TurnControl]) need; naming it once keeps the adapter from implementing the
 // same teardown under two method names.
 type TurnCanceler interface {
-	CancelTurn(ctx context.Context, ref TurnRef) error
+	CancelTurn(ctx context.Context, ref execution.TurnRef) error
 }
 
 // SegmentExecutor is what the run pump needs to observe and cancel the agent
 // turn backing a run segment. The concrete agent-execution adapter implements it.
 type SegmentExecutor interface {
-	TurnEvents(ctx context.Context, ref TurnRef) (iter.Seq[EngineEvent], error)
+	TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[EngineEvent], error)
 	TurnCanceler
 }
 
@@ -54,31 +51,6 @@ type SessionLifecycle interface {
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
-}
-
-// TurnRef is the engine-neutral durable address of a turn. Delivery never
-// rebuilds an adapter handle from it; the driven turn adapter does.
-type TurnRef struct {
-	SessionID string
-	TurnID    string
-}
-
-// ErrInvalidTurnRef reports an incomplete or cross-session executor identity.
-var ErrInvalidTurnRef = errors.New("runs: invalid turn reference")
-
-// ValidateFor checks that the executor returned a complete identity bound to
-// the session whose admission the application owns.
-func (r TurnRef) ValidateFor(sessionID string) error {
-	if strings.TrimSpace(r.SessionID) == "" || strings.TrimSpace(r.SessionID) != r.SessionID {
-		return fmt.Errorf("%w: session ID must be non-empty without surrounding whitespace", ErrInvalidTurnRef)
-	}
-	if strings.TrimSpace(r.TurnID) == "" || strings.TrimSpace(r.TurnID) != r.TurnID {
-		return fmt.Errorf("%w: turn ID must be non-empty without surrounding whitespace", ErrInvalidTurnRef)
-	}
-	if r.SessionID != sessionID {
-		return fmt.Errorf("%w: turn session %q does not match admitted session %q", ErrInvalidTurnRef, r.SessionID, sessionID)
-	}
-	return nil
 }
 
 // StartTurn is the protocol-neutral command the run use case sends to the
@@ -128,13 +100,13 @@ type IsolationProvider interface {
 // into its concrete turn identity.
 type TurnControl interface {
 	ValidateStart(StartTurn) error
-	PrepareStart(ctx context.Context, req StartTurn) (TurnRef, error)
-	Activate(ctx context.Context, ref TurnRef) error
-	Prepare(ctx context.Context, ref TurnRef) (TurnRef, error)
-	Resume(ctx context.Context, ref TurnRef, resolution interrupts.Resolution, interruptKinds []InterruptKind) error
-	Rehydrate(ctx context.Context, req RehydrateTurn) (TurnRef, error)
+	PrepareStart(ctx context.Context, req StartTurn) (execution.TurnRef, error)
+	Activate(ctx context.Context, ref execution.TurnRef) error
+	Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error)
+	Resume(ctx context.Context, ref execution.TurnRef, resolution interrupts.Resolution, interruptKinds []InterruptKind) error
+	Rehydrate(ctx context.Context, req RehydrateTurn) (execution.TurnRef, error)
 	TurnCanceler
-	Steer(ctx context.Context, ref TurnRef, message string) error
+	Steer(ctx context.Context, ref execution.TurnRef, message string) error
 }
 
 // Nudge is a non-durable live workspace change notification the pump forwards to
@@ -225,6 +197,6 @@ type segmentSpec struct {
 	Activate func(context.Context) error
 }
 
-func (s segmentSpec) turnRef() TurnRef {
-	return TurnRef{SessionID: s.SessionID, TurnID: s.TurnID}
+func (s segmentSpec) turnRef() execution.TurnRef {
+	return execution.TurnRef{SessionID: s.SessionID, TurnID: s.TurnID}
 }

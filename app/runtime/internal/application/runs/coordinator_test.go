@@ -28,7 +28,7 @@ type fakeExecutor struct {
 	releaseCancel chan struct{}
 }
 
-func (f *fakeExecutor) TurnEvents(ctx context.Context, _ TurnRef) (iter.Seq[EngineEvent], error) {
+func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[EngineEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
@@ -45,7 +45,7 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ TurnRef) (iter.Seq[Engi
 	}, nil
 }
 
-func (f *fakeExecutor) CancelTurn(context.Context, TurnRef) error {
+func (f *fakeExecutor) CancelTurn(context.Context, execution.TurnRef) error {
 	if f.cancelStarted != nil {
 		close(f.cancelStarted)
 	}

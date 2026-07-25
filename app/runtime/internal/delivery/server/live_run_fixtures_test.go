@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -43,18 +44,18 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
 
-func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ runs.TurnRef) (iter.Seq[runs.EngineEvent], error) {
+func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[runs.EngineEvent], error) {
 	return func(func(runs.EngineEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelTurn(context.Context, runs.TurnRef) error { return nil }
+func (*blockingRunRuntime) CancelTurn(context.Context, execution.TurnRef) error { return nil }
 
-func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (runs.TurnRef, error) {
+func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (execution.TurnRef, error) {
 	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}
-	return runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
+	return execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
 }
 
-func (*blockingRunRuntime) Activate(context.Context, runs.TurnRef) error { return nil }
+func (*blockingRunRuntime) Activate(context.Context, execution.TurnRef) error { return nil }
 
 func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.FileChangePublisher) *runsegment.Effects {
 	return runsegment.New(runsegment.Config{

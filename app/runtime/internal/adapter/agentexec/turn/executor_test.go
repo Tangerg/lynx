@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -46,7 +47,7 @@ func (*executorFakeDispatcher) Rehydrate(context.Context, RehydrateRequest) (Tur
 func TestExecutorTranslatesTurnReference(t *testing.T) {
 	ctx := context.Background()
 	handle := TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
-	ref := runs.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
+	ref := execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
 	disp := &executorFakeDispatcher{events: func(func(runs.EngineEvent) bool) {}}
 	exec := NewExecutor(disp)
 
@@ -76,7 +77,7 @@ func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
 func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 	dispatcher := &executorFakeDispatcher{cancelErr: ErrTurnNotFound}
 	executor := NewExecutor(dispatcher)
-	ref := runs.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}
+	ref := execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}
 
 	tests := []struct {
 		name   string

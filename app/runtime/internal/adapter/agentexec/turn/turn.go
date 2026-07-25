@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/chatclient"
-	"github.com/Tangerg/lynx/models/catalog"
 )
 
 // runTurn starts the turn's agent process and drives its first run
@@ -191,39 +190,15 @@ func typedInterrupt(parked *agent.Suspension) (runs.Interrupt, bool) {
 }
 
 // postTurnMaintenance runs turn-boundary housekeeping after the turn's real LLM
-// round completed cleanly: skill mining, then the compact + (conditional)
-// extract pair. Errors are observability facts, not execution facts: the user
-// reply has already completed and its outcome must not be rewritten.
+// round completed cleanly. Errors are observability facts, not execution facts:
+// the user reply has already completed and its outcome must not be rewritten.
 //
-// Skill mining runs FIRST and independent of compaction: a complex turn is
-// worth distilling into a reusable skill whether or not history needed folding,
-// and mining before compaction reads the turn's full (un-summarized)
-// trajectory. The miner owns its own complexity threshold + cadence, so this
-// reports the turn's tool-call count and lets it decide whether to mine.
-//
-// A fired compaction emits [CompactBoundary] with before/after message counts.
-// Memory extraction writes its durable ledger/curated state internally; it has
-// no client event because no application projection consumes one. Maintenance
-// failures are recorded on the active turn span.
-//
-// Memory maintenance (extraction/curation) is gated on compaction firing: those
-// add model calls, so we amortize them onto the moments where the runtime had
-// to summarize anyway. Mining is NOT so gated — its own cadence bounds its cost.
+// The concrete maintenance suite owns worker ordering and conditional work. A
+// fired compaction emits [CompactBoundary] with before/after message counts;
+// other maintenance output stays internal. Failures are recorded on the active
+// turn span and never alter the completed reply.
 func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
-	if s.miner != nil {
-		if err := s.miner.MaybeMine(ctx, sessionID, st.cwd, st.toolCallCount()); err != nil {
-			recordTurnMaintenanceError(st, err)
-		}
-	}
-	// Idle-skill curation is global (not tied to this session/cwd) and
-	// rate-limited inside the curator; the turn boundary is just a live tick.
-	if s.curator != nil {
-		if err := s.curator.MaybeSweep(ctx); err != nil {
-			recordTurnMaintenanceError(st, err)
-		}
-	}
-
-	if s.compactor == nil {
+	if s.maintenance == nil {
 		return
 	}
 	// PreCompact hooks fire from inside MaybeCompact — exactly when a compaction
@@ -236,30 +211,22 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
 		return !dec.Block
 	}
-	// Resolve the run's model context window so the token trigger is relative to the
-	// model this run actually pinned, not a process-wide default. An unknown model
-	// (default selection / catalog miss) passes 0 and the compactor falls back.
-	contextWindow := 0
-	if info, ok := catalog.Lookup(st.provider, st.model); ok {
-		contextWindow = int(info.Limits.ContextWindow)
-	}
-	compaction, err := s.compactor.MaybeCompact(ctx, sessionID, contextWindow, preCompact)
-	if err != nil {
+	result := s.maintenance.Maintain(ctx, BoundaryMaintenanceInput{
+		SessionID:  sessionID,
+		Cwd:        st.cwd,
+		Provider:   st.provider,
+		Model:      st.model,
+		ToolCalls:  st.toolCallCount(),
+		PreCompact: preCompact,
+	})
+	for _, err := range result.Errors {
 		recordTurnMaintenanceError(st, err)
-		return
 	}
-	if !compaction.Compacted {
+	if !result.Compaction.Compacted {
 		return
 	}
 	s.emit(st, runs.CompactBoundary{
-		MessagesBefore: compaction.MessagesBefore,
-		MessagesAfter:  compaction.MessagesAfter,
+		MessagesBefore: result.Compaction.MessagesBefore,
+		MessagesAfter:  result.Compaction.MessagesAfter,
 	})
-
-	if s.extractor == nil {
-		return
-	}
-	if err := s.extractor.MaybeExtract(ctx, sessionID, st.cwd); err != nil {
-		recordTurnMaintenanceError(st, err)
-	}
 }

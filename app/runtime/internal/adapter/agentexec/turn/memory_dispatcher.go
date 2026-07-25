@@ -63,18 +63,9 @@ type Dependencies struct {
 	// round. nil reports a steering error only when such a message exists.
 	Steering SteeringSink
 
-	// Compactor and Extractor run visible turn-boundary maintenance. nil
-	// disables the corresponding operation.
-	Compactor Compactor
-	Extractor Extractor
-
-	// Miner distills complex turns into proposed skill drafts at the turn
-	// boundary, independent of compaction. nil disables skill mining.
-	Miner SkillMiner
-
-	// SkillCurator sweeps idle agent-authored skills into the archive at the turn
-	// boundary (rate-limited internally). nil disables idle curation.
-	SkillCurator SkillCurator
+	// Maintenance performs best-effort post-turn housekeeping. nil disables the
+	// complete maintenance sweep.
+	Maintenance BoundaryMaintenance
 
 	// Approval gates tool calls. nil auto-approves every tool, useful for tests
 	// and smoke runs.
@@ -127,10 +118,7 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 	return &memoryDispatcher{
 		engine:              deps.Engine,
 		steering:            deps.Steering,
-		compactor:           deps.Compactor,
-		extractor:           deps.Extractor,
-		miner:               deps.Miner,
-		curator:             deps.SkillCurator,
+		maintenance:         deps.Maintenance,
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
 		todos:               deps.Todos,
@@ -145,15 +133,12 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type memoryDispatcher struct {
-	engine    engineDep
-	steering  SteeringSink
-	compactor Compactor
-	extractor Extractor
-	miner     SkillMiner     // optional — nil = no skill mining
-	curator   SkillCurator   // optional — nil = no idle-skill curation
-	approval  ApprovalGate   // optional — nil = auto-approve every tool
-	resolver  clientResolver // optional — nil = always use the default model
-	todos     todoLister     // optional — nil = no state.snapshot{todos} projection
+	engine      engineDep
+	steering    SteeringSink
+	maintenance BoundaryMaintenance // optional — nil = no turn-boundary maintenance
+	approval    ApprovalGate        // optional — nil = auto-approve every tool
+	resolver    clientResolver      // optional — nil = always use the default model
+	todos       todoLister          // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

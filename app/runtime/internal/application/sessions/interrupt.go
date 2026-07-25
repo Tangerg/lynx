@@ -23,8 +23,8 @@ type RunTurnBinding struct {
 	ProcessID string
 }
 
-func (r RunTurnBinding) ref() RunRef {
-	return RunRef{SessionID: r.SessionID, TurnID: r.TurnID}
+func (r RunTurnBinding) ref() execution.TurnRef {
+	return execution.TurnRef{SessionID: r.SessionID, TurnID: r.TurnID}
 }
 
 // ListOpenInterrupts exposes the run-admission read needed by application/runs.

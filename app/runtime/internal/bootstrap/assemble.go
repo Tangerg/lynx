@@ -317,10 +317,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	turnDispatcher, err := turn.New(turn.Dependencies{
 		Engine:              eng,
 		Steering:            turnServices.steering,
-		Compactor:           turnServices.compactor,
-		Extractor:           turnServices.extractor,
-		Miner:               turnServices.miner,
-		SkillCurator:        turnServices.curator,
+		Maintenance:         turnServices.maintenance,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Todos:               ecfg.Todos,

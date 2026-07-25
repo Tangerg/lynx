@@ -181,7 +181,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	binding, cleanupCtx, cancel, live := c.BeginCancel(ctx, cmd.RunID, cmd.Reason)
 	if live {
 		defer cancel()
-		if err := c.turns.CancelTurn(cleanupCtx, TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
+		if err := c.turns.CancelTurn(cleanupCtx, execution.TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
 			return fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
 		}
 		// A park can commit durably in the window between BeginCancel observing the
@@ -224,7 +224,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, re
 	cancel()
 	turnCtx, cancelTurn := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancelTurn()
-	if err := c.turns.CancelTurn(turnCtx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
+	if err := c.turns.CancelTurn(turnCtx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
 		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}
 	return nil
@@ -240,7 +240,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 	if !ok {
 		return ErrRunNotFound
 	}
-	if err := c.turns.Steer(ctx, TurnRef{SessionID: rec.SessionID, TurnID: rec.TurnID}, cmd.Message); err != nil {
+	if err := c.turns.Steer(ctx, execution.TurnRef{SessionID: rec.SessionID, TurnID: rec.TurnID}, cmd.Message); err != nil {
 		if errors.Is(err, ErrTurnNotLive) {
 			return fmt.Errorf("%w: %w", ErrRunNotFound, err)
 		}
@@ -299,19 +299,19 @@ func (c *Coordinator) executionCwd(ctx context.Context, sess session.Session) (c
 	return copyDir, true, nil
 }
 
-func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (TurnRef, error) {
-	turn, err := c.turns.Prepare(ctx, TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
+func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (execution.TurnRef, error) {
+	turn, err := c.turns.Prepare(ctx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
 	if err == nil {
 		if err := turn.ValidateFor(pending.SessionID); err != nil {
-			return TurnRef{}, err
+			return execution.TurnRef{}, err
 		}
 		return turn, nil
 	}
 	if errors.Is(err, ErrParkClaimed) {
-		return TurnRef{}, ErrInterruptNotOpen
+		return execution.TurnRef{}, ErrInterruptNotOpen
 	}
 	if !errors.Is(err, ErrTurnNotLive) {
-		return TurnRef{}, err
+		return execution.TurnRef{}, err
 	}
 	// The parked turn is not live in this process, so its executor died — for an
 	// isolated run that means its sandbox copy, which lives only in this process's
@@ -322,10 +322,10 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 	// resumable. Reusing ErrTurnStateLost routes it through the same durable
 	// lost-run cleanup as a missing process snapshot.
 	if isolated {
-		return TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
+		return execution.TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
 	}
 	if pending.ProcessID == "" {
-		return TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
+		return execution.TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
 	}
 	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
 		SessionID: pending.SessionID,
@@ -336,15 +336,15 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		Cwd:       cwd,
 	})
 	if err != nil {
-		return TurnRef{}, errors.Join(ErrRunNotFound, err)
+		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)
 	}
 	if err := turn.ValidateFor(pending.SessionID); err != nil {
-		return TurnRef{}, err
+		return execution.TurnRef{}, err
 	}
 	return turn, nil
 }
 
-func (c *Coordinator) validateStartedTurn(ctx context.Context, ref TurnRef, sessionID string) error {
+func (c *Coordinator) validateStartedTurn(ctx context.Context, ref execution.TurnRef, sessionID string) error {
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()

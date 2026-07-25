@@ -27,32 +27,31 @@ type CompactionResult struct {
 	MessagesAfter  int
 }
 
-// Compactor folds over-long conversation history at a turn boundary.
-// contextWindow is the running model's context window in tokens (0 = unknown),
-// so the token-footprint trigger tracks the model this run actually pinned rather
-// than a process-wide default.
-type Compactor interface {
-	MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (CompactionResult, error)
+// BoundaryMaintenance owns the best-effort housekeeping that follows a clean
+// turn. The dispatcher supplies immutable turn facts, records the returned
+// failures on the turn span, and publishes a compaction boundary; the
+// implementation owns the workers' ordering and conditional work.
+type BoundaryMaintenance interface {
+	Maintain(context.Context, BoundaryMaintenanceInput) BoundaryMaintenanceResult
 }
 
-// Extractor mines recent conversation facts after a successful compaction.
-type Extractor interface {
-	MaybeExtract(ctx context.Context, sessionID, cwd string) error
+// BoundaryMaintenanceInput is the finished turn's maintenance context.
+// Provider and Model identify the model pinned by this turn; an empty pair
+// leaves compaction to its configured fallback window. PreCompact is invoked
+// only when a compaction is about to commit and may veto it.
+type BoundaryMaintenanceInput struct {
+	SessionID  string
+	Cwd        string
+	Provider   string
+	Model      string
+	ToolCalls  int
+	PreCompact func(context.Context) bool
 }
 
-// SkillMiner distills a complex turn's trajectory into a proposed skill draft.
-// It runs at the turn boundary independent of compaction — a complex turn is
-// worth capturing whether or not history needed folding — and owns its own
-// complexity threshold and cadence, so it decides whether to mine from the
-// reported signal. toolCalls is the just-finished turn's completed tool-call
-// count, the complexity signal.
-type SkillMiner interface {
-	MaybeMine(ctx context.Context, sessionID, cwd string, toolCalls int) error
-}
-
-// SkillCurator runs the idle-skill lifecycle sweep at the turn boundary,
-// rate-limited internally. The skill library is global, so the sweep is global
-// (not per session); the turn boundary is just a convenient, always-live tick.
-type SkillCurator interface {
-	MaybeSweep(ctx context.Context) error
+// BoundaryMaintenanceResult reports the observable outcome of one maintenance
+// sweep. Errors are independent best-effort failures: they never rewrite an
+// already-completed user reply.
+type BoundaryMaintenanceResult struct {
+	Compaction CompactionResult
+	Errors     []error
 }

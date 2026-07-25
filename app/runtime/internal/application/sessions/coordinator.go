@@ -101,14 +101,6 @@ type Snapshot struct {
 	ToolResults []offload.ToolResultBlob
 }
 
-// RunRef identifies the durable turn a lifecycle write-set acts on, without
-// naming the executor's handle representation — the engine-neutral coordinates
-// the [Turns] adapter rebuilds a concrete handle from.
-type RunRef struct {
-	SessionID string
-	TurnID    string
-}
-
 // WorkspaceCheckpoints is the coordinator's view of a session's working-tree
 // checkpoint store (shadow git): Restore resets the tree to a run-boundary
 // snapshot — the filesystem half of a file rollback (§8.5) — and DropSession
@@ -162,7 +154,7 @@ type WorkspaceMutations interface {
 // coordinator uses when delete/rollback abandons parked turns. User-visible
 // resume/cancel/steer orchestration belongs to application/runs.
 type Turns interface {
-	Cancel(ctx context.Context, ref RunRef) error
+	Cancel(ctx context.Context, ref execution.TurnRef) error
 }
 
 // Coordinator executes session/run lifecycle write-sets across the domain

@@ -34,13 +34,10 @@ type Config struct {
 	SkillsGlobalDir string
 
 	// Turn-boundary collaborators. nil selects the in-house/default binding:
-	// conversation steering, LLM compaction, knowledge extraction, and skill
-	// mining.
-	Steering     turn.SteeringSink
-	Compactor    turn.Compactor
-	Extractor    turn.Extractor
-	Miner        turn.SkillMiner
-	SkillCurator turn.SkillCurator
+	// conversation steering and the complete maintenance suite (skill mining,
+	// idle curation, compaction, then post-compaction knowledge extraction).
+	Steering    turn.SteeringSink
+	Maintenance turn.BoundaryMaintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
 	// used by the default Extractor and injected into the system prompt. nil

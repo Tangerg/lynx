@@ -15,50 +15,47 @@ import (
 )
 
 type turnServices struct {
-	steering  turn.SteeringSink
-	compactor turn.Compactor
-	extractor turn.Extractor
-	miner     turn.SkillMiner
-	curator   turn.SkillCurator
+	steering    turn.SteeringSink
+	maintenance turn.BoundaryMaintenance
 }
 
 func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
 	services := turnServices{
-		steering:  cfg.Steering,
-		compactor: cfg.Compactor,
-		extractor: cfg.Extractor,
-		miner:     cfg.Miner,
-		curator:   cfg.SkillCurator,
+		steering:    cfg.Steering,
+		maintenance: cfg.Maintenance,
 	}
 	if services.steering == nil {
 		services.steering = messages.conversation
 	}
-	if services.compactor == nil {
-		window := 0
-		if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
-			window = int(info.Limits.ContextWindow)
-		}
-		services.compactor = maintenance.NewCompactor(
-			messages.store,
-			resolveUtility,
-			maintenance.NewLiveState(shells, cfg.TodoStore),
-			maintenance.CompactionConfig{ContextWindow: window},
-		)
+	if services.maintenance != nil {
+		return services
 	}
-	if services.extractor == nil && cfg.AgentMemoryStore != nil {
-		services.extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
+	window := 0
+	if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
+		window = int(info.Limits.ContextWindow)
 	}
-	if services.miner == nil && skillStore.Enabled() {
-		services.miner = maintenance.NewSkillMiner(
+	compactor := maintenance.NewCompactor(
+		messages.store,
+		resolveUtility,
+		maintenance.NewLiveState(shells, cfg.TodoStore),
+		maintenance.CompactionConfig{ContextWindow: window},
+	)
+	var extractor *maintenance.Extractor
+	if cfg.AgentMemoryStore != nil {
+		extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
+	}
+	var miner *maintenance.SkillMiner
+	var curator *maintenance.SkillCurator
+	if skillStore.Enabled() {
+		miner = maintenance.NewSkillMiner(
 			messages.store,
 			skillStore,
 			skillspec.Dir(cfg.SkillsGlobalDir),
 			resolveUtility,
 			maintenance.MinerConfig{},
 		)
+		curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
-	if services.curator == nil && skillStore.Enabled() {
-		services.curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
-	}
+	services.maintenance = maintenance.NewSuite(compactor, extractor, miner, curator)
 	return services
 }
