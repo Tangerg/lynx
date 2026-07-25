@@ -6,7 +6,6 @@
 import { IconGallery } from "./ui/IconGallery";
 import { IconShowcase } from "./ui/IconShowcase";
 import { definePlugin } from "@/plugins/sdk";
-import { t } from "@/lib/i18n";
 import { WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { registerSettingsPane } from "../public";
 import {
@@ -20,6 +19,6 @@ export default definePlugin({
   setup({ host }) {
     host.extensions.contribute(WORKSPACE_VIEW, iconGalleryWorkspaceView(IconGallery));
 
-    registerSettingsPane(host, brandIconsSettingsPane(t, IconShowcase));
+    registerSettingsPane(host, brandIconsSettingsPane(IconShowcase));
   },
 });

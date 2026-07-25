@@ -1,4 +1,3 @@
-import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { chatSearchOverlaySlot, chatSearchShortcut } from "./application/chatSearchContributions";
@@ -10,6 +9,6 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     host.layout.register("app.overlay", chatSearchOverlaySlot(ChatSearchOverlay));
-    host.extensions.contribute(SHORTCUT, chatSearchShortcut(t, openChatSearch));
+    host.extensions.contribute(SHORTCUT, chatSearchShortcut(openChatSearch));
   },
 });

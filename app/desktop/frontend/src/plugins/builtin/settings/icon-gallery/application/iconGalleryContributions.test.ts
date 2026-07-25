@@ -19,9 +19,9 @@ describe("iconGalleryWorkspaceView", () => {
 
 describe("brandIconsSettingsPane", () => {
   it("projects the showcase component into the settings pane spec", () => {
-    expect(brandIconsSettingsPane((key) => `t:${key}`, Component)).toEqual({
+    expect(brandIconsSettingsPane(Component)).toEqual({
       id: "brand-icons",
-      label: "t:settings.pane.brandIcons",
+      label: "settings.pane.brandIcons",
       group: "advanced",
       icon: "spark",
       order: 110,

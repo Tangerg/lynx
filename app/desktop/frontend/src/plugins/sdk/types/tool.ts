@@ -25,7 +25,9 @@ export interface ToolActionSpec {
   id: string;
   /** Icon name. */
   icon: string;
-  /** Tooltip / aria label. */
+  /** Tooltip / aria label — a catalog key, resolved where the action renders
+   *  (see `CommandSpec.label`: a contribution is registered once, and nothing
+   *  re-registers on a language switch). */
   title: string;
   /** Sort hint — lower comes first. Built-ins use 0..99. */
   order?: number;

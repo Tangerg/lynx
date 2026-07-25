@@ -127,7 +127,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
             <button
               key={a.id}
               type="button"
-              title={a.title}
+              title={t(a.title)}
               onClick={(e) => {
                 e.stopPropagation();
                 void Promise.resolve(a.run(tool)).catch((err) => {

@@ -1,4 +1,3 @@
-import type { Translate } from "@/lib/i18n";
 import type {
   AgentRunOptionsProviderSpec,
   ComposerKeyBindingSpec,
@@ -50,39 +49,36 @@ export function composerSendSlot(component: LayoutSlotSpec["component"]): Layout
   };
 }
 
-export function composerKeyBindings(
-  t: Translate,
-  handlers: ComposerKeyHandlers,
-): ComposerKeyBindingSpec[] {
+export function composerKeyBindings(handlers: ComposerKeyHandlers): ComposerKeyBindingSpec[] {
   return [
     {
       key: "Enter",
-      description: t("composer.key.sendDesc"),
+      description: "composer.key.sendDesc",
       handler: handlers.send,
     },
     {
       key: "Mod+Enter",
-      description: t("composer.key.approveDesc"),
+      description: "composer.key.approveDesc",
       handler: handlers.approveOrSend,
     },
     {
       key: "Mod+Shift+Backspace",
-      description: t("composer.key.declineDesc"),
+      description: "composer.key.declineDesc",
       handler: handlers.declineApproval,
     },
     {
       key: "Escape",
-      description: t("composer.key.stopDesc"),
+      description: "composer.key.stopDesc",
       handler: handlers.stopRun,
     },
     {
       key: "ArrowUp",
-      description: t("composer.key.historyPrevDesc"),
+      description: "composer.key.historyPrevDesc",
       handler: handlers.historyPrevious,
     },
     {
       key: "ArrowDown",
-      description: t("composer.key.historyNextDesc"),
+      description: "composer.key.historyNextDesc",
       handler: handlers.historyNext,
     },
   ];

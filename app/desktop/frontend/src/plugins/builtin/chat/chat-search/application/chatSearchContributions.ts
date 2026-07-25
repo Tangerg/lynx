@@ -1,5 +1,4 @@
 import type { LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
-import type { Translate } from "@/lib/i18n";
 
 export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
   return {
@@ -9,10 +8,10 @@ export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): L
   };
 }
 
-export function chatSearchShortcut(t: Translate, openSearch: () => void): ShortcutSpec {
+export function chatSearchShortcut(openSearch: () => void): ShortcutSpec {
   return {
     key: "Mod+F",
-    description: t("chatSearch.shortcutDesc"),
+    description: "chatSearch.shortcutDesc",
     // Users usually trigger chat search while focus is still in the composer.
     allowInInputs: true,
     handler: (event) => {

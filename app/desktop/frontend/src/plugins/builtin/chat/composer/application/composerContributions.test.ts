@@ -39,7 +39,7 @@ describe("composer contributions", () => {
 
   it("projects key binding handlers into stable composer key binding specs", () => {
     const handler = () => true;
-    const bindings = composerKeyBindings((key) => `t:${key}`, {
+    const bindings = composerKeyBindings({
       send: handler,
       approveOrSend: handler,
       declineApproval: handler,
@@ -57,12 +57,12 @@ describe("composer contributions", () => {
       "ArrowDown",
     ]);
     expect(bindings.map((binding) => binding.description)).toEqual([
-      "t:composer.key.sendDesc",
-      "t:composer.key.approveDesc",
-      "t:composer.key.declineDesc",
-      "t:composer.key.stopDesc",
-      "t:composer.key.historyPrevDesc",
-      "t:composer.key.historyNextDesc",
+      "composer.key.sendDesc",
+      "composer.key.approveDesc",
+      "composer.key.declineDesc",
+      "composer.key.stopDesc",
+      "composer.key.historyPrevDesc",
+      "composer.key.historyNextDesc",
     ]);
   });
 

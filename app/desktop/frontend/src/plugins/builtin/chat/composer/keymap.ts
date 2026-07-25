@@ -1,4 +1,3 @@
-import { t } from "@/lib/i18n";
 import { submitPendingApproval } from "@/plugins/builtin/agent/public/hitl";
 import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { definePlugin } from "@/plugins/sdk";
@@ -14,7 +13,7 @@ export const composerKeymap = definePlugin({
   name: "lyra.builtin.composer-keymap",
   version: "1.0.0",
   setup({ host }) {
-    for (const binding of composerKeyBindings(t, {
+    for (const binding of composerKeyBindings({
       send: ({ submit, event }) => {
         if (event.shiftKey) return false;
         submit();

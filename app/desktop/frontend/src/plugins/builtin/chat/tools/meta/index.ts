@@ -1,6 +1,5 @@
 import { defaultToolIconContributions } from "@/plugins/builtin/chat/tools/public/toolIcon";
 import { copyText } from "@/lib/clipboard";
-import { t } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_ACTION, TOOL_ICON } from "@/plugins/sdk/kernelPoints";
 import { copyToolArgsAction } from "./application/toolActions";
@@ -11,7 +10,7 @@ export const toolActions = definePlugin({
   setup({ host }) {
     host.extensions.contribute(
       TOOL_ACTION,
-      copyToolArgsAction({ title: t("toolAction.copyCommand"), copyText }),
+      copyToolArgsAction({ title: "toolAction.copyCommand", copyText }),
     );
   },
 });

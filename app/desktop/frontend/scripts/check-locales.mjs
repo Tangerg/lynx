@@ -45,6 +45,17 @@
 //      rule that needs an exemption list per callsite is a rule that stops
 //      being read.
 //
+// And one on WHEN copy is resolved:
+//
+//   8. A contributed spec carries catalog keys, not resolved text. `setLocale`
+//      changes the language and nothing re-registers contributions, so a
+//      `t(...)` evaluated while building a spec freezes that label in the locale
+//      the app booted in — while the specs beside it that carry keys update
+//      immediately. Twenty-six labels had been frozen this way (commands,
+//      shortcut descriptions, message roles, a tool action, one settings pane out
+//      of twelve). Two shapes are checked: a `t(` inside a contribution call, and
+//      a `t(` anywhere in a `*Contributions.ts` spec factory.
+//
 // And one on the values, not the keys:
 //
 //   7. A translated value carries exactly the `{{placeholders}}` its English
@@ -77,6 +88,11 @@ const PROSE_PATTERN = /(?:"([^"\n]*)"|`([^`\n]*)`)/g;
 const TWO_WORDS = /[A-Za-z]{2,}[ ,]+[A-Za-z]{2,}/;
 // Rings whose job is a model, a rule or a view model — never one locale's words.
 const COPY_FREE_RING = /plugins\/builtin\/.+\/(?:presentation|domain)\/.+\.tsx?$/;
+
+// A registration call — its argument is a spec that outlives this moment.
+const CONTRIBUTION_CALL =
+  /\b(?:extensions\.contribute|commands\.register|shortcuts\.register|registerSettingsPane)\s*\(/g;
+const RESOLVED_COPY = /(?<![\w.])t\(\s*["'`]/;
 
 function withoutComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -184,6 +200,32 @@ for (const path of sourceFiles(SRC_DIR)) {
     if (!en.has(match[1])) {
       failures.push(`${relative}: t("${match[1]}") names a key no catalog has`);
     }
+  }
+
+  // Rule 8a — a spec built inline at its registration call.
+  for (const match of code.matchAll(CONTRIBUTION_CALL)) {
+    let depth = 0;
+    let index = match.index + match[0].length - 1;
+    for (; index < code.length; index += 1) {
+      if (code[index] === "(") depth += 1;
+      else if (code[index] === ")") {
+        depth -= 1;
+        if (depth === 0) break;
+      }
+    }
+    if (RESOLVED_COPY.test(code.slice(match.index, index))) {
+      failures.push(
+        `${relative}:${lineOf(match.index)}: a contribution resolves copy at registration — ` +
+          `carry the key, resolve it where it renders`,
+      );
+    }
+  }
+
+  // Rule 8b — the spec factories, by convention.
+  if (/Contributions\.ts$/.test(relative) && RESOLVED_COPY.test(code)) {
+    failures.push(
+      `${relative}: a spec factory resolves copy — carry the key, resolve it where it renders`,
+    );
   }
 
   if (COPY_FREE_RING.test(relative)) {
