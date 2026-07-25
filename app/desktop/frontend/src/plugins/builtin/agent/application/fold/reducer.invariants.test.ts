@@ -31,6 +31,7 @@ import type { Item, StreamEvent } from "@/rpc";
 import type { AgentViewState, Message } from "@/plugins/sdk/types/agentView";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { reduce } from "./reducer";
+import { appendToTurn } from "./fold";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
 beforeEach(async () => {
@@ -148,5 +149,31 @@ describe("reducer — render convergence across delivery modes", () => {
       "tool",
       "text",
     ]);
+  });
+});
+
+describe("fold — one message per id", () => {
+  it("re-adopts an item's turn instead of minting its id twice", () => {
+    // A user message (a send, or a mid-run steer) closes the open turn. If a
+    // later block for the SAME item comes back, the fold must land in the turn it
+    // already minted for that item — two messages under one React key is the
+    // duplicate-key loop CLAUDE.md §5 names.
+    const first = appendToTurn(INITIAL_VIEW_STATE, "m9", {
+      kind: "text",
+      text: "a",
+      status: "running",
+    });
+    const closed: AgentViewState = { ...first, turnMessageId: null };
+    const second = appendToTurn(closed, "m9", {
+      kind: "reasoning",
+      reasoningId: "m9",
+      text: "b",
+      status: "running",
+    });
+
+    const ids = second.messages.map((m) => m.id);
+    expect(ids).toEqual(["turn:m9"]);
+    expect(second.turnMessageId).toBe("turn:m9");
+    expect(second.messages[0]!.blocks.map((b) => b.kind)).toEqual(["text", "reasoning"]);
   });
 });

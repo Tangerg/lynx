@@ -37,6 +37,16 @@ function ensureTurn(state: AgentViewState, itemId: string): { state: AgentViewSt
       : null;
   if (open) return { state, id: open };
   const id = `turn:${itemId}`;
+  // The turn for THIS item may exist while not being the open one — a user
+  // message (a send, or a mid-run steer) closes the turn, and a later block for
+  // the same item comes back here. Re-adopt it: minting the id a second time
+  // would put two messages under one React key, the loop CLAUDE.md §5 names.
+  // Every other append in this fold already checks by id before pushing; this
+  // was the one that only checked which turn was open.
+  if (state.messages.some((m) => m.id === id)) {
+    return { state: { ...state, turnMessageId: id }, id };
+  }
+
   const msg: Message = {
     id,
     role: "assistant",
