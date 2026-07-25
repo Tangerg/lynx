@@ -29,15 +29,57 @@ export function bcp47(): string {
   return lng;
 }
 
+// Intl formatters are expensive to construct and are asked for once per message
+// row, so they are cached per (locale, shape). Keyed on the locale so switching
+// language rebuilds them instead of serving a stale one.
+const dateTimeCache = new Map<string, Intl.DateTimeFormat>();
+
+function dateTimeFormat(shape: string, opts: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+  const locale = bcp47();
+  const key = `${locale}|${shape}`;
+  const cached = dateTimeCache.get(key);
+  if (cached) return cached;
+  const created = new Intl.DateTimeFormat(locale, opts);
+  dateTimeCache.set(key, created);
+  return created;
+}
+
 function relative(value: number, unit: Intl.RelativeTimeFormatUnit): string {
   return new Intl.RelativeTimeFormat(bcp47(), { numeric: "auto" }).format(value, unit);
 }
 
 function absolute(d: Date, sameYear: boolean): string {
-  const opts: Intl.DateTimeFormatOptions = sameYear
-    ? { month: "short", day: "numeric" }
-    : { year: "numeric", month: "short", day: "numeric" };
-  return new Intl.DateTimeFormat(bcp47(), opts).format(d);
+  return sameYear
+    ? dateTimeFormat("md", { month: "short", day: "numeric" }).format(d)
+    : dateTimeFormat("ymd", { year: "numeric", month: "short", day: "numeric" }).format(d);
+}
+
+function parse(input: string | number | Date | undefined | null): Date | null {
+  if (input === undefined || input === null || input === "") return null;
+  const d = input instanceof Date ? input : new Date(input);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Absolute date + time — for turn separators, schedule rows and exported
+ * transcripts. The year appears only when it isn't this one, and the 12- vs
+ * 24-hour choice comes from the locale rather than from the callsite: three
+ * places used to decide it themselves, one of them hardcoding English AM/PM and
+ * another falling back to the OS locale instead of the app's.
+ *
+ * Returns "" on unparseable input so the caller can render a fallback.
+ */
+export function formatDateTime(input: string | number | Date | undefined | null): string {
+  const d = parse(input);
+  if (!d) return "";
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return dateTimeFormat(sameYear ? "md-hm" : "ymd-hm", {
+    ...(sameYear ? {} : { year: "numeric" }),
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
 }
 
 /**
@@ -45,9 +87,8 @@ function absolute(d: Date, sameYear: boolean): string {
  * Returns "" on unparseable input so the caller can render a fallback.
  */
 export function formatRelative(input: string | number | Date | undefined | null): string {
-  if (input === undefined || input === null || input === "") return "";
-  const d = input instanceof Date ? input : new Date(input);
-  if (Number.isNaN(d.getTime())) return "";
+  const d = parse(input);
+  if (!d) return "";
 
   const now = Date.now();
   const diffMs = now - d.getTime();

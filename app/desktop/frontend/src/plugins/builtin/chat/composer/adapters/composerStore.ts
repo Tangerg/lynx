@@ -10,14 +10,13 @@ import {
   loadComposerDraft,
   mirrorComposerDraft,
   nextComposerHistory,
-  parsePersistedComposerDrafts,
-  persistedComposerDrafts,
   previousComposerHistory,
   pruneComposerArchives,
   pushComposerHistory,
   type ComposerDraftArchive,
   type ComposerHistoryArchive,
 } from "../domain/draftArchive";
+import { parsePersistedComposerDrafts, persistedComposerDrafts } from "./persistedDrafts";
 
 // Store adapter for the composer draft read model.
 

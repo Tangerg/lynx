@@ -7,6 +7,8 @@ export const zhTW: Record<string, string> = {
   "common.retry": "重試",
   "common.search": "搜尋",
 
+  "shell.region.workIndex": "工作索引",
+  "shell.region.workspace": "Agent 工作區",
   "workIndex.section.projects": "專案",
   "sidebar.newSessionInFolder.placeholder": "絕對路徑",
   "sidebar.action.collapse": "收合至側欄",

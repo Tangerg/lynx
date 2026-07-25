@@ -7,6 +7,8 @@ export const ko: Record<string, string> = {
   "common.retry": "재시도",
   "common.search": "검색",
 
+  "shell.region.workIndex": "작업 색인",
+  "shell.region.workspace": "에이전트 작업 공간",
   "workIndex.section.projects": "프로젝트",
   "sidebar.newSessionInFolder.placeholder": "절대 경로",
   "sidebar.action.collapse": "레일로 접기",

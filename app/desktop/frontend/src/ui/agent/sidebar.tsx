@@ -7,12 +7,16 @@ import { clampSidebarWidth } from "@/lib/shellGeometry";
  * fixed-position panel that slides. Both read `--sidebar-width` from the shell,
  * so a resize is one custom-property write and a collapse is one attribute flip
  * — see the `.agent-drawer*` rules in globals.css for why this isn't a grid.
+ *
+ * `label` names the region for assistive tech and comes from the caller: what
+ * this drawer holds is the application's business, and a design-system ring that
+ * knows the phrase "work index" is a ring that knows the product.
  */
-export function AgentSidebar({ children }: { children: ReactNode }) {
+export function AgentSidebar({ label, children }: { label: string; children: ReactNode }) {
   return (
     <>
       <div className="agent-drawer-gap" aria-hidden />
-      <aside aria-label="Work index" className="agent-drawer">
+      <aside aria-label={label} className="agent-drawer">
         <div className="agent-drawer-surface">{children}</div>
       </aside>
     </>

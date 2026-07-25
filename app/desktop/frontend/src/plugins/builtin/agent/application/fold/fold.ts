@@ -9,9 +9,7 @@ import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/sdk/types/age
 import {
   argsText,
   contentText,
-  formatTime,
   mapQuestion,
-  nameForRole,
   toolFields,
   toolLabel,
   toolStatus,
@@ -39,8 +37,7 @@ function ensureTurn(state: AgentViewState, itemId: string): { state: AgentViewSt
   const msg: Message = {
     id,
     role: "assistant",
-    who: nameForRole("assistant"),
-    time: formatTime(),
+    createdAt: new Date().toISOString(),
     blocks: [],
   };
   return { state: { ...state, messages: [...state.messages, msg], turnMessageId: id }, id };
@@ -193,8 +190,6 @@ export function appendUserMessage(
   const msg: Message = {
     id: item.id,
     role: "user",
-    who: nameForRole("user"),
-    time: formatTime(item.createdAt),
     createdAt: item.createdAt,
     runId: item.runId,
     blocks: userContentBlocks(item.content),
@@ -276,8 +271,6 @@ export function foldCompaction(state: AgentViewState, item: ItemOf<"compaction">
   const msg: Message = {
     id: item.id,
     role: "system",
-    who: nameForRole("system"),
-    time: formatTime(item.createdAt),
     createdAt: item.createdAt,
     runId: item.runId,
     blocks: [block],

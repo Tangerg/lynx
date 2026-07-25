@@ -9,14 +9,18 @@ import { cn } from "@/lib/utils";
  * card reaches the window edge and there is no drawer left to divide from. The seam
  * side is deliberately square: a corner arc there resolves over so few pixels of
  * height that it reads as a kink in the divider rather than a curve.
+ *
+ * `label` names the region for assistive tech and comes from the caller — see
+ * AgentSidebar for why the design system does not get to name it.
  */
 export function AgentContentCard({
+  label,
   className,
   children,
   ...props
-}: ComponentPropsWithoutRef<"main">) {
+}: ComponentPropsWithoutRef<"main"> & { label: string }) {
   return (
-    <main aria-label="Agent workspace" {...props} className={cn("agent-content-card", className)}>
+    <main aria-label={label} {...props} className={cn("agent-content-card", className)}>
       {children}
     </main>
   );

@@ -6,6 +6,9 @@ import { AgentSeamRail, AgentSidebar } from "./sidebar";
 interface AgentAppShellProps {
   /** Work-index content. Omit to run without a drawer (settings takes over the window). */
   sidebar?: ReactNode;
+  /** Assistive-tech name for the drawer region. The shell renders the region; the
+   *  application says what it is. */
+  sidebarLabel: string;
   /** Drawer open state. Collapsing slides it under the content card. */
   sidebarOpen: boolean;
   /** Persisted drawer width in px; the rail commits new values through `onResize`. */
@@ -25,6 +28,7 @@ interface AgentAppShellProps {
  */
 export function AgentAppShell({
   sidebar,
+  sidebarLabel,
   sidebarOpen,
   sidebarWidth,
   onResize,
@@ -51,7 +55,7 @@ export function AgentAppShell({
       className="agent-shell"
       data-sidebar={hasSidebar && sidebarOpen ? "expanded" : "collapsed"}
     >
-      {hasSidebar && <AgentSidebar>{sidebar}</AgentSidebar>}
+      {hasSidebar && <AgentSidebar label={sidebarLabel}>{sidebar}</AgentSidebar>}
       <div className="agent-card-backing">
         {hasSidebar && sidebarOpen && <AgentSeamRail onCommit={onResize} />}
         {main}

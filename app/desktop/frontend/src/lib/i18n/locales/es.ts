@@ -7,6 +7,8 @@ export const es: Record<string, string> = {
   "common.retry": "Reintentar",
   "common.search": "Buscar",
 
+  "shell.region.workIndex": "Índice de trabajo",
+  "shell.region.workspace": "Espacio de trabajo del agente",
   "workIndex.section.projects": "Proyectos",
   "sidebar.newSessionInFolder.placeholder": "Ruta absoluta",
   "sidebar.action.collapse": "Contraer a barra",

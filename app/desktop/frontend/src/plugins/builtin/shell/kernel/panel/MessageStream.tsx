@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useCallback, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
-import { bcp47 } from "@/lib/i18n/relativeTime";
+import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
 import { Slot } from "@/plugins/host/Slot";
@@ -54,31 +54,11 @@ function ControlsRelay({ onChange }: { onChange?: (c: StreamControls) => void })
   return null;
 }
 
-function formatTurnTime(iso: string | undefined): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-
-  const now = new Date();
-  const isThisYear = d.getFullYear() === now.getFullYear();
-
-  const opts: Intl.DateTimeFormatOptions = {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  };
-  if (!isThisYear) opts.year = "numeric";
-
-  return new Intl.DateTimeFormat(bcp47(), opts).format(d);
-}
-
 function TurnSeparator({ createdAt }: { createdAt?: string }) {
   // useT() keeps this reactive on locale toggle even though the
   // translation function itself isn't used for the timestamp label.
   useT();
-  const label = formatTurnTime(createdAt);
+  const label = formatDateTime(createdAt);
   if (!label) return null;
   return (
     <div className="my-4 text-center text-ui-md text-fg-faint" data-slot="turn-separator">

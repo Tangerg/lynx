@@ -9,14 +9,9 @@ import {
 } from "../application/scheduleCommands";
 import { notifyError } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
+import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
 import { ScheduleForm } from "./ScheduleForm";
-
-function formatScheduleTime(iso?: string): string {
-  if (!iso) return "";
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
-}
 
 function ScheduleActionButton({
   icon,
@@ -89,10 +84,10 @@ export function ScheduleRow({
           </div>
           <div className="mt-1 flex flex-wrap gap-x-3 text-ui-sm text-fg-faint">
             {schedule.enabled && schedule.nextRunAt && (
-              <span>{t("schedules.next", { time: formatScheduleTime(schedule.nextRunAt) })}</span>
+              <span>{t("schedules.next", { time: formatDateTime(schedule.nextRunAt) })}</span>
             )}
             {schedule.lastRunAt && (
-              <span>{t("schedules.last", { time: formatScheduleTime(schedule.lastRunAt) })}</span>
+              <span>{t("schedules.last", { time: formatDateTime(schedule.lastRunAt) })}</span>
             )}
           </div>
         </div>

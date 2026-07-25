@@ -29,7 +29,7 @@ function view(partial: Partial<AgentViewState> = {}): AgentViewState {
 }
 
 function message(id: string, blocks: ContentBlock[] = []): Message {
-  return { id, role: "assistant", who: "Codex", time, blocks };
+  return { id, role: "assistant", createdAt: time, blocks };
 }
 
 function approvalBlock(itemId: string): ContentBlock {

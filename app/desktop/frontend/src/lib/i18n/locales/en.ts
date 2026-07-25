@@ -9,6 +9,8 @@ export const en: Record<string, string> = {
   "common.retry": "Retry",
   "common.search": "Search",
 
+  "shell.region.workIndex": "Work index",
+  "shell.region.workspace": "Agent workspace",
   "workIndex.section.projects": "Projects",
   "sidebar.newSessionInFolder.placeholder": "Absolute path",
   "sidebar.action.collapse": "Collapse to rail",

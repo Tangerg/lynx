@@ -7,6 +7,8 @@ export const ja: Record<string, string> = {
   "common.retry": "再試行",
   "common.search": "検索",
 
+  "shell.region.workIndex": "作業インデックス",
+  "shell.region.workspace": "エージェントワークスペース",
   "workIndex.section.projects": "プロジェクト",
   "sidebar.newSessionInFolder.placeholder": "絶対パス",
   "sidebar.action.collapse": "レールに折りたたむ",

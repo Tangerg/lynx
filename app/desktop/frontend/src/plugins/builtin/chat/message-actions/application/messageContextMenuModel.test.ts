@@ -9,8 +9,7 @@ const message = (overrides: Partial<Message>): Message => ({
   blocks: [],
   id: "m",
   role: "user",
-  time: "",
-  who: "",
+  createdAt: "2026-01-01T00:00:00.000Z",
   ...overrides,
 });
 

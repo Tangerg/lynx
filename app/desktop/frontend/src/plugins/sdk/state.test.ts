@@ -13,8 +13,7 @@ import {
 const msg = (id: string, role: Message["role"] = "assistant"): Message => ({
   id,
   role,
-  who: role,
-  time: "0:00",
+  createdAt: "2026-01-01T00:00:00.000Z",
   blocks: [],
 });
 

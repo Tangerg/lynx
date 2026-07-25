@@ -57,10 +57,9 @@ const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
 const foldAll = (events: StreamEvent[]): AgentViewState =>
   events.reduce((state, ev) => reduce(state, ev), INITIAL_VIEW_STATE);
 
-// The assistant turn's `time` is wall-clock-stamped when the turn opens (not
+// An assistant turn's `createdAt` is wall-clock-stamped when the turn opens (not
 // event data), so compare renders without it.
-const strip = (msgs: Message[]) =>
-  msgs.map(({ id, role, who, blocks }) => ({ id, role, who, blocks }));
+const strip = (msgs: Message[]) => msgs.map(({ id, role, blocks }) => ({ id, role, blocks }));
 
 // id of the Item an item.* event concerns (for the "snapshot this item" filter).
 function itemIdOf(e: StreamEvent): string | null {

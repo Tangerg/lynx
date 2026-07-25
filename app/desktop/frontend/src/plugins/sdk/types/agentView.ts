@@ -105,12 +105,12 @@ export interface PlanItem {
 export interface Message {
   id: string;
   role: MessageRole;
-  who: string; // display name
-  time: string; // formatted timestamp
-  /** Raw ISO-8601 created-at for turn-separator formatting. Populated for
-   *  user messages and compaction boundaries; absent on assistant turns
-   *  which have no single Item timestamp. */
-  createdAt?: string;
+  /** Raw ISO-8601. The fold used to carry a second, pre-formatted copy of this
+   *  — which froze the wording at fold time, so a language switch never reached
+   *  messages already on screen, and did it in hardcoded English. Formatting is
+   *  the caller's, at render. For an assistant turn this is when the turn's shell
+   *  opened; it has no single Item timestamp of its own. */
+  createdAt: string;
   /** Owning root Run (Item.runId) — anchors run-boundary actions
    *  (edit-and-rerun via sessions.rollback, fork-from-run). Absent on
    *  optimistic local bubbles until the real Item reconciles, and on

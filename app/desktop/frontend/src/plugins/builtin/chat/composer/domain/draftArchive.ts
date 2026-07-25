@@ -1,4 +1,3 @@
-import { z } from "zod";
 import type { ComposerImage, PastedText } from "./draft";
 
 export interface ComposerDraft {
@@ -23,10 +22,6 @@ export interface ComposerHistoryState extends ComposerDraftMirror {
   histIndex: number;
   histDraft: string;
 }
-
-const persistedDraftSchema = z.object({
-  drafts: z.record(z.string(), z.object({ value: z.string() })),
-});
 
 export function emptyComposerDraft(): ComposerDraft {
   return { value: "", images: [], pastes: [] };
@@ -113,22 +108,4 @@ export function nextComposerHistory(
     value: histIndex < 0 ? state.histDraft : list[list.length - 1 - histIndex]!,
     histIndex: histIndex < 0 ? -1 : histIndex,
   };
-}
-
-export function persistedComposerDrafts(
-  drafts: ComposerDraftArchive,
-): Record<string, { value: string }> {
-  return Object.fromEntries(
-    Object.entries(drafts).map(([id, draft]) => [id, { value: draft.value }]),
-  );
-}
-
-export function parsePersistedComposerDrafts(persisted: unknown): ComposerDraftArchive | null {
-  const parsed = persistedDraftSchema.safeParse(persisted);
-  if (!parsed.success) return null;
-  const drafts: ComposerDraftArchive = {};
-  for (const [id, draft] of Object.entries(parsed.data.drafts)) {
-    drafts[id] = { value: draft.value, images: [], pastes: [] };
-  }
-  return drafts;
 }

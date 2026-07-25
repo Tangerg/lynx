@@ -26,8 +26,7 @@ function buildMessage(overrides: Partial<Message> = {}): Message {
   return {
     id: "m1",
     role: "user",
-    who: "you",
-    time: "12:00",
+    createdAt: "2026-01-01T00:00:00.000Z",
     blocks: [{ kind: "text", text: "hello world", status: "complete" }],
     ...overrides,
   };

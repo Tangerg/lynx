@@ -1,8 +1,11 @@
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
+import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { toast } from "sonner";
 import { z } from "zod";
 import { notifyError } from "@/lib/notify";
 import { t } from "@/lib/i18n";
+import { lookupExtensionByKey } from "@/plugins/sdk";
+import { MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
 import { flattenMarkdown } from "@/plugins/builtin/agent/public/messageContent";
@@ -33,11 +36,19 @@ function downloadBlob(filename: string, content: string, mime: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// The role's display name belongs to whoever contributed the role — MESSAGE_ROLE
+// carries it, already localized. The fold used to bake a hardcoded English copy
+// onto every message, duplicating both this registry and the locale catalog it
+// reads from.
+function roleDisplayName(role: Message["role"]): string {
+  return lookupExtensionByKey(MESSAGE_ROLE, role)?.displayName ?? role;
+}
+
 function renderMessageMarkdown(msg: Message): string {
   const body = flattenMarkdown(msg.blocks).trim();
   if (!body) return "";
-  const headerName = msg.who || msg.role;
-  return `## ${headerName} · ${msg.time}\n\n${body}\n`;
+  const headerName = roleDisplayName(msg.role);
+  return `## ${headerName} · ${formatDateTime(msg.createdAt)}\n\n${body}\n`;
 }
 
 async function exportServer(format: ConversationExportFormat): Promise<boolean> {

@@ -6,32 +6,12 @@ import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc
 import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
 import type {
-  MessageRole,
   PlanItem,
   ToolCall,
   ToolCallStatus,
   ToolDiffRow,
 } from "@/plugins/sdk/types/agentView";
 import { toolCategory } from "@/plugins/sdk/types/agentView";
-
-// Formatting / naming
-
-export function formatTime(iso?: string): string {
-  const d = iso ? new Date(iso) : new Date();
-  const safe = Number.isNaN(d.getTime()) ? new Date() : d;
-  const h = safe.getHours() % 12 || 12;
-  const m = String(safe.getMinutes()).padStart(2, "0");
-  return `${h}:${m} ${safe.getHours() >= 12 ? "PM" : "AM"}`;
-}
-
-const ROLE_DISPLAY_NAME: Record<MessageRole, string> = {
-  user: "You",
-  assistant: "Assistant",
-  system: "System",
-};
-export function nameForRole(role: MessageRole): string {
-  return ROLE_DISPLAY_NAME[role];
-}
 
 export function blockStatus(status: ItemStatus): BlockStatus {
   if (status === "running") return "running";

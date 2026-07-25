@@ -120,7 +120,7 @@ export function ChatPanel({ onSend }: Props) {
   const showDock = Boolean(splitViewId) || !dockCollapsed;
 
   return (
-    <AgentContentCard>
+    <AgentContentCard label={t("shell.region.workspace")}>
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
