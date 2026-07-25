@@ -131,7 +131,7 @@ export function DiffView({
   }
 
   return (
-    <div className="py-2 font-mono text-ui-md leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-relaxed">
       {rows.map((row, i) => {
         const k = keyFor(row, i);
         if (row.type === "hunk") return <HunkRow key={k} text={row.text} />;
@@ -211,7 +211,7 @@ function SplitDiff({
 }) {
   const split = useMemo(() => toSplitRows(rows), [rows]);
   return (
-    <div className="py-2 font-mono text-ui-md leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-relaxed">
       {split.map((row, i) => {
         if ("hunk" in row) return <HunkRow key={`h:${i}`} text={row.hunk} />;
         return (

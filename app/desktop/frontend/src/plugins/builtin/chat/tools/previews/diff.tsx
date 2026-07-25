@@ -43,7 +43,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-ui-sm leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-body">
         {rows.slice(0, MAX_DIFF_ROWS).map((row, i) => {
           if (row.type === "hunk") {
             return (

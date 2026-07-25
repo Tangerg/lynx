@@ -7,8 +7,12 @@ import { ContextMenuPrimitive, MenuPrimitive } from "@/ui/primitives";
 // through reads as glass sitting above the surface, where a solid fill reads as a
 // second page pasted over it. The blur goes on a `before` layer rather than the
 // popup itself so it composites under the content instead of blurring it.
+//
+// No border — the edge is the first layer of `--shadow-popover`, the same
+// `--seam-line` hairline the drawer seam and the composer use. A border on top of
+// that shadow traced the same edge twice, and traced the corner more coarsely.
 const MENU_CONTENT_CLASSES = [
-  "relative z-50 overflow-hidden rounded-xl border border-field p-1",
+  "relative z-50 overflow-hidden rounded-xl p-1",
   "bg-canvas/70 text-fg shadow-[var(--shadow-popover)] animate-rise-in",
   "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
   "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",

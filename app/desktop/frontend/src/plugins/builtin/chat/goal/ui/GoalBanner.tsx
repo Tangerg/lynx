@@ -97,7 +97,7 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalInfo; sessionId: string }) 
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <Icon name="spark" size={15} className={cn("mt-px shrink-0", statusTone(goal.status))} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-ui-lg leading-[1.4] text-fg">{goal.objective}</div>
+          <div className="truncate text-ui-lg leading-body text-fg">{goal.objective}</div>
           <div className="mt-0.5 flex items-center gap-2 text-ui-sm text-fg-muted">
             <span className={cn("font-medium", statusTone(goal.status))}>
               {t(`goal.status.${goal.status}`)}
@@ -105,7 +105,7 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalInfo; sessionId: string }) 
             <span className="tabular-nums">{budgetSummary(t, goal)}</span>
           </div>
           {goal.status === "blocked" && goal.reason && (
-            <div className="mt-1 text-ui-sm leading-[1.45] text-fg-soft">{goal.reason}</div>
+            <div className="mt-1 text-ui-sm leading-body text-fg-soft">{goal.reason}</div>
           )}
         </div>
         {driving ? (
@@ -212,7 +212,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
         placeholder={t("goal.objective.placeholder")}
         spellCheck={false}
         rows={2}
-        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-[1.5] text-fg-soft")}
+        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
       />
       <div className="grid grid-cols-3 gap-2">
         <BudgetField label={t("goal.maxTurns")} value={maxTurns} onChange={setMaxTurns} step="1" />

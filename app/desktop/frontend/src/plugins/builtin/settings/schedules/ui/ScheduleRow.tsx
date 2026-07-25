@@ -83,7 +83,7 @@ export function ScheduleRow({
             </span>
           </div>
           <div
-            className="mt-0.5 truncate font-mono text-ui-md leading-[1.45] text-fg-muted"
+            className="mt-0.5 truncate font-mono text-ui-md leading-body text-fg-muted"
             title={schedule.prompt}
           >
             {schedule.prompt}

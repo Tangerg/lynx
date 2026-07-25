@@ -5,7 +5,7 @@ export const FIELD = cn(FIELD_CLASSES, "h-8 w-full px-2.5 text-fg placeholder:te
 
 export const TEXT_AREA = cn(
   FIELD_CLASSES,
-  "w-full resize-y px-2.5 py-1.5 leading-[1.5] text-fg placeholder:text-fg-faint",
+  "w-full resize-y px-2.5 py-1.5 leading-body text-fg placeholder:text-fg-faint",
 );
 
 interface LinesFieldProps {

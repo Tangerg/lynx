@@ -15,7 +15,7 @@
   background: color-mix(in srgb, var(--color-negative) 6%, transparent);
   color: var(--color-negative);
   font-size: var(--fs-ui-md);
-  line-height: 1.4;
+  line-height: var(--leading-body);
 }
 .plugin-boundary-error code {
   font-family: var(--font-mono);

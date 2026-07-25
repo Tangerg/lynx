@@ -16,7 +16,8 @@ import type { ThemeCta, ThemePluginSpec, ThemeShadows } from "./types";
 // hairlines; these shadows are reserved for composer and transient surfaces.
 export const DARK_SHADOWS: ThemeShadows = {
   composer: "0 0 0 1px var(--seam-line), 0 8px 40px -12px rgb(0 0 0 / 0.4)",
-  popover: "0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4)",
+  popover:
+    "0 0 0 1px var(--seam-line), 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
@@ -24,7 +25,8 @@ export const DARK_SHADOWS: ThemeShadows = {
 export const LIGHT_SHADOWS: ThemeShadows = {
   composer:
     "0 0 0 1px var(--seam-line), 0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent)",
-  popover: "0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
+  popover:
+    "0 0 0 1px var(--seam-line), 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 

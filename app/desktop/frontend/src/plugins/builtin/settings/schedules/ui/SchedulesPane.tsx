@@ -30,7 +30,7 @@ function EnabledSchedulesPane() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-ui-lg leading-[1.5] text-fg-muted">{t("schedules.intro")}</p>
+      <p className="text-ui-lg leading-body text-fg-muted">{t("schedules.intro")}</p>
 
       {adding ? (
         <ScheduleForm

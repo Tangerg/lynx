@@ -110,7 +110,7 @@ export function IconShowcase() {
 
   return (
     <div className="flex flex-col gap-4.5">
-      <p className="m-0 mb-1 text-ui-lg leading-[1.55] text-fg-muted">
+      <p className="m-0 mb-1 text-ui-lg leading-body text-fg-muted">
         A curated set of {total} brand glyphs from{" "}
         <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-ui-md text-fg">
           @lobehub/icons

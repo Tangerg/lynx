@@ -91,7 +91,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
             <span
               title={model.intent.label}
               className={cn(
-                "truncate text-ui-lg font-medium leading-[1.3]",
+                "truncate text-ui-lg font-medium leading-snug",
                 model.isError
                   ? "text-negative"
                   : model.needsAction
@@ -107,7 +107,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
               <span
                 title={model.detail}
                 className={cn(
-                  "font-mono text-ui-md leading-[1.4]",
+                  "font-mono text-ui-md leading-body",
                   model.isError ? "break-words text-negative/80" : "truncate text-fg-muted",
                 )}
               >

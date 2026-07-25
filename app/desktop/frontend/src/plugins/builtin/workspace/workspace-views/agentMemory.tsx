@@ -71,7 +71,7 @@ function PendingRow({ item }: { item: AgentMemoryItemInfo }) {
   return (
     <div className="flex items-start gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="text-ui-md leading-[1.5] text-fg">{item.content}</div>
+        <div className="text-ui-md leading-body text-fg">{item.content}</div>
         <div className="mt-1 flex items-center gap-2">
           <OriginBadge origin={item.origin} />
           {item.sessionId && (
@@ -129,10 +129,10 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
               onChange={(e) => setDraft(e.target.value)}
               spellCheck={false}
               rows={3}
-              className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-[1.5] text-fg-soft")}
+              className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
             />
           ) : (
-            <div className="text-ui-md leading-[1.5] text-fg">{item.content}</div>
+            <div className="text-ui-md leading-body text-fg">{item.content}</div>
           )}
           <div className="mt-1 flex items-center gap-2">
             {item.pinned && (
@@ -229,7 +229,7 @@ function AddMemory({ scope, cwd }: { scope: Scope; cwd?: string }) {
         placeholder={t("agentMemory.add.placeholder")}
         spellCheck={false}
         rows={2}
-        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-[1.5] text-fg-soft")}
+        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
       />
       <div className="flex items-center gap-2">
         <PillButton size="sm" variant="accent" disabled={!canSave || busy} onClick={submit}>

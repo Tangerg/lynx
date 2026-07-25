@@ -72,7 +72,7 @@ function SetupCard() {
           <div className="text-balance text-ui-lg font-semibold text-fg">
             {t("welcome.setup.title")}
           </div>
-          <p className="m-0 text-pretty text-ui-lg leading-[1.6] text-fg-soft">
+          <p className="m-0 text-pretty text-ui-lg leading-relaxed text-fg-soft">
             {t("welcome.setup.sub")}
           </p>
           <button

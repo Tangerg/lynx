@@ -134,7 +134,7 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1.5 text-display-sm font-semibold leading-[1.4] text-fg">{what}</div>
+      <div className="mb-1.5 text-display-sm font-semibold leading-body text-fg">{what}</div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". Dark code chip on the light card. */}
@@ -144,7 +144,7 @@ export function ApprovalCard({
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative/10 px-3 py-2 text-ui-md leading-[1.5] text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative/10 px-3 py-2 text-ui-md leading-body text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -200,7 +200,7 @@ export function ApprovalCard({
           )}
         </div>
       )}
-      <div className="mb-2 text-ui-lg leading-[1.55] text-fg-muted">{reason}</div>
+      <div className="mb-2 text-ui-lg leading-body text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
         <Button
           variant="primary"

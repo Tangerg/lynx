@@ -15,7 +15,7 @@
 .md p {
   margin: 12px 0;
   font-size: var(--fs-ui-md);
-  line-height: 1.7;
+  line-height: var(--leading-relaxed);
   color: var(--color-text-soft);
   letter-spacing: 0;
 }
@@ -34,14 +34,14 @@
 .md h5,
 .md h6 {
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--leading-snug);
   letter-spacing: -0.015em;
   color: var(--color-text);
 }
 .md h1 {
   font-size: calc(var(--fs-ui-lg) * 1.3);
   margin: 24px 0 12px;
-  line-height: 1.25;
+  line-height: var(--leading-tight);
 }
 .md h2 {
   font-size: calc(var(--fs-ui-lg) * 1.16);
@@ -86,7 +86,7 @@
   margin: 8px 0;
   padding-left: 20px;
   font-size: var(--fs-ui-md);
-  line-height: 1.7;
+  line-height: var(--leading-relaxed);
   color: var(--color-text-soft);
 }
 .md ul {
@@ -258,7 +258,7 @@
 .shiki-block .shiki-fallback {
   margin: 0;
   padding: 16px;
-  line-height: 1.625;
+  line-height: var(--leading-relaxed);
   overflow-x: auto;
   max-height: 360px;
   font-family: var(--font-mono);

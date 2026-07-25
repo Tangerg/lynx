@@ -117,7 +117,7 @@ export function SessionRow({
               }
               setRenaming(false);
             }}
-            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-md leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-md leading-body text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
           />
         ) : (
           session.title

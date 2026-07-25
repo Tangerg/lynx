@@ -138,7 +138,7 @@ export function MermaidBlock({ code }: Props) {
   // the visual transition reads as progressive disclosure rather than a
   // flicker between error / success states.
   return (
-    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border-[0.5px] border-dashed border-[color-mix(in_srgb,var(--color-text)_14%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_2%,transparent)] px-3.5 py-3 font-mono text-ui-md leading-[1.55] text-fg-faint">
+    <pre className="my-3.5 overflow-x-auto whitespace-pre rounded-lg border-[0.5px] border-dashed border-[color-mix(in_srgb,var(--color-text)_14%,transparent)] bg-[color-mix(in_srgb,var(--color-text)_2%,transparent)] px-3.5 py-3 font-mono text-ui-md leading-body text-fg-faint">
       <code>{code}</code>
     </pre>
   );

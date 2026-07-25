@@ -1,12 +1,15 @@
 #!/usr/bin/env node
-// Design-token guard — keeps type size and corner radius on their ladders.
+// Design-token guard — keeps type size, line height and corner radius on their
+// ladders.
 //
 // Why this exists: before the ladders landed, the tree carried 16 distinct
-// hardcoded `text-[Npx]` values across ~390 callsites and 12 distinct
-// `rounded-[Npx]` values, which is how a UI ends up with 11px next to 11.5px
-// and 12px next to 14px corners. Both are now derived (globals.css `--fs-*` /
-// `--shape-*`), so an arbitrary pixel value at a callsite is a regression: it
-// silently opts that one element out of the user's size and shape preferences.
+// hardcoded `text-[Npx]` values across ~390 callsites, 12 distinct
+// `rounded-[Npx]` values, and five line heights within 0.2 of each other
+// (1.4 / 1.45 / 1.5 / 1.55 / 1.6) across 53 callsites. That is how a UI ends up
+// with 11px next to 11.5px. All three are now derived in globals.css (`--fs-*` /
+// `--leading-*` / `--shape-*`), so an arbitrary value at a callsite is a
+// regression: it silently opts that one element out of the ladder, and out of the
+// user's size and shape preferences.
 //
 // Escape hatch: none by design. A size or radius the ladder cannot express is a
 // signal the ladder needs a step, not that this callsite needs an exception —
@@ -26,6 +29,10 @@ const MARKUP_RULES = [
     pattern: /(?<![\w-])(?:[a-z-]+:)*rounded(?:-[trbl]{1,2})?-\[[\d.]+(?:px|rem)\]/g,
     message: "arbitrary corner radius — use a `rounded-*` step",
   },
+  {
+    pattern: /(?<![\w-])(?:[a-z-]+:)*leading-\[[\d.]+\]/g,
+    message: "arbitrary line height — use a `leading-*` step",
+  },
 ];
 
 const STYLESHEET_RULES = [
@@ -36,6 +43,10 @@ const STYLESHEET_RULES = [
   {
     pattern: /border-radius:\s*[\d.]+(?:px|rem)/g,
     message: "arbitrary corner radius — use `var(--shape-*)`",
+  },
+  {
+    pattern: /line-height:\s*[\d.]+\s*;/g,
+    message: "arbitrary line height — use `var(--leading-*)`",
   },
 ];
 
@@ -77,4 +88,4 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-design-tokens: type + radius ladders clean");
+console.log("check-design-tokens: type + leading + radius ladders clean");

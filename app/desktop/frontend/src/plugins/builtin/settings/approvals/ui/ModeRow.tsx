@@ -17,7 +17,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   return (
     <div>
       <div className="text-ui-lg font-medium text-fg">{t("approvals.mode")}</div>
-      <div className="mt-0.5 text-ui-lg leading-[1.5] text-fg-muted">{t("approvals.mode.sub")}</div>
+      <div className="mt-0.5 text-ui-lg leading-body text-fg-muted">{t("approvals.mode.sub")}</div>
       {mode === undefined ? (
         // Until the saved stance loads, show a quiet placeholder rather than
         // selecting a default row — a fake selection could contradict the real
@@ -45,9 +45,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                   >
                     {t(o.labelKey)}
                   </div>
-                  <div className="mt-0.5 text-ui-md leading-[1.45] text-fg-muted">
-                    {t(o.descKey)}
-                  </div>
+                  <div className="mt-0.5 text-ui-md leading-body text-fg-muted">{t(o.descKey)}</div>
                 </div>
                 {selected && <Icon name="check" size={15} className="shrink-0 text-accent" />}
               </button>

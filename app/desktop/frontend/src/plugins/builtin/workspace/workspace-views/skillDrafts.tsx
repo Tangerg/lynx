@@ -91,7 +91,7 @@ function SkillDraftRow({ draft }: { draft: SkillDraftInfo }) {
           </span>
         </div>
         {draft.description && (
-          <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">{draft.description}</div>
+          <div className="mt-0.5 text-ui-sm leading-body text-fg-muted">{draft.description}</div>
         )}
         <div
           className="mt-1 truncate text-ui-sm text-fg-faint"

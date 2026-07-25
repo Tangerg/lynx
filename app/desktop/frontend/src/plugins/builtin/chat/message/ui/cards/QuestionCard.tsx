@@ -98,9 +98,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   </span>
                 )}
               </div>
-              <div className="text-display-sm font-semibold leading-[1.4] text-fg">
-                {q.question}
-              </div>
+              <div className="text-display-sm font-semibold leading-body text-fg">{q.question}</div>
 
               <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
                 {q.options.map((opt) => {
@@ -120,7 +118,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                     >
                       <span className="text-ui-lg font-medium text-fg">{opt.label}</span>
                       {opt.description && (
-                        <span className="text-ui-md leading-[1.45] text-fg-muted">
+                        <span className="text-ui-md leading-body text-fg-muted">
                           {opt.description}
                         </span>
                       )}

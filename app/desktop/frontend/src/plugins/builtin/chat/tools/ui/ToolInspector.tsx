@@ -30,7 +30,7 @@ function InspectorSection({ title, body }: { title: string; body: ToolInspectorB
       </div>
       <pre
         className={cn(
-          "max-h-60 overflow-y-auto rounded-sm bg-surface-2 px-3 py-2.5 font-mono text-ui-sm leading-[1.55] text-fg-soft",
+          "max-h-60 overflow-y-auto rounded-sm bg-surface-2 px-3 py-2.5 font-mono text-ui-sm leading-body text-fg-soft",
           // JSON shows whitespace-pre to preserve indentation; raw text
           // wraps so long stdout / stderr lines stay readable.
           body.isJson ? "whitespace-pre" : "whitespace-pre-wrap break-all",

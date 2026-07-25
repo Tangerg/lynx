@@ -102,7 +102,7 @@ function SkillRow({ skill }: { skill: ManagedSkillInfo }) {
       <div className="min-w-0 flex-1">
         <div className="truncate text-ui-lg font-semibold text-fg">{skill.name}</div>
         {skill.description && (
-          <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">{skill.description}</div>
+          <div className="mt-0.5 text-ui-sm leading-body text-fg-muted">{skill.description}</div>
         )}
       </div>
       <PillButton

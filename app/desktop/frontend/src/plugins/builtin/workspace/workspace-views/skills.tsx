@@ -56,7 +56,7 @@ function SkillsTab() {
                   )}
                 </div>
                 {s.description && (
-                  <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">
+                  <div className="mt-0.5 text-ui-sm leading-body text-fg-muted">
                     {s.description}
                   </div>
                 )}

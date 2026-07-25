@@ -19,7 +19,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   // §7.5 no-silent-caps: surface both our preview cap and server truncation.
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-ui-sm leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-body">
         {shown.map((r, i) => (
           <div
             key={i}

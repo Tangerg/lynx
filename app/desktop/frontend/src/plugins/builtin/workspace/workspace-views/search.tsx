@@ -77,7 +77,7 @@ function SearchTab() {
                     {group.matches.map((m) => (
                       <div
                         key={m.lineNumber}
-                        className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-ui-md leading-[1.5]"
+                        className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-ui-md leading-body"
                       >
                         <span className="text-right text-ui-sm text-fg-faint select-none">
                           {m.lineNumber}

@@ -78,7 +78,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
             rows={12}
-            className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2.5 leading-[1.55] text-fg-soft")}
+            className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2.5 leading-body text-fg-soft")}
           />
           <div className="flex items-center gap-2">
             <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>

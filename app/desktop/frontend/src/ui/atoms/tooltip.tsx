@@ -61,7 +61,7 @@ export function RichTooltip({
         <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset}>
           <TooltipPrimitive.Popup
             className={cn(
-              "relative z-50 overflow-hidden rounded-md border border-field",
+              "relative z-50 overflow-hidden rounded-md",
               "bg-canvas/70 text-fg shadow-[var(--shadow-popover)] animate-rise-in",
               "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
               "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",

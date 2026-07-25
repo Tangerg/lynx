@@ -34,7 +34,7 @@ export function FileView({ content, targetLine }: { content: string; targetLine:
   }, [targetLine, highlighted]);
 
   return (
-    <div className="py-2 font-mono text-ui-md leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-relaxed">
       {plain.map((line, i) => {
         const n = i + 1;
         const isTarget = n === targetLine;

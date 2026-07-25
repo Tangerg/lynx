@@ -50,7 +50,7 @@ function RecipesTab() {
                   </span>
                 </div>
                 {r.description && (
-                  <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">
+                  <div className="mt-0.5 text-ui-sm leading-body text-fg-muted">
                     {r.description}
                   </div>
                 )}

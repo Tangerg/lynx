@@ -56,7 +56,7 @@ export function EmptyState({ icon, title, sub, action, size, style }: Props) {
       >
         {title}
       </div>
-      {sub && <div className="max-w-[280px] text-ui-sm leading-[1.5] text-fg-muted">{sub}</div>}
+      {sub && <div className="max-w-[280px] text-ui-sm leading-body text-fg-muted">{sub}</div>}
       {action && <div className="mt-1.5">{action}</div>}
     </div>
   );

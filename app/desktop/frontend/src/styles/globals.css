@@ -394,12 +394,19 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  --leading-tight: 1.1;
+  /* Leading ladder. Four steps, and they are the ONLY leadings in the app —
+     line-height is where text breathes, and it had drifted into five arbitrary
+     values within 0.2 of each other (1.4 / 1.45 / 1.5 / 1.55 / 1.6) that no reader
+     could tell apart while every one of them was a number someone had to pick.
+       none   single-line chrome that must not add box height (Tailwind's own)
+       tight  display / headings, where size carries the rhythm
+       snug   dense chrome: two-line labels, meta rows
+       body   default UI text
+       relaxed reading text — composer, message copy, prose */
+  --leading-tight: 1.15;
   --leading-snug: 1.35;
-  --leading-body: 1.5;
-  /* Composer editor + message copy share this leading so a typed line and the
-     transcript line it becomes sit on the same rhythm. */
-  --leading-relaxed: 1.625;
+  --leading-body: 1.55;
+  --leading-relaxed: 1.65;
 
   /* Shape source — one continuous ladder off a 10px base. Everything multiplies
      through `--radius-scale` (Settings → Shape: Sharp / Default / Soft), and
@@ -473,7 +480,9 @@
   --shadow-composer-focus:
     0 0 0 1px color-mix(in srgb, var(--color-text) 18%, transparent),
     0 6px 30px -8px color-mix(in srgb, var(--color-text) 11%, transparent);
-  --shadow-popover: 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
+  --shadow-popover:
+    0 0 0 1px var(--seam-line),
+    0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
   /* Recessed track (segmented control): a hairline plus a faint inner shadow read
      the base as a sunken well, so the selected chip appears to protrude from it. */
   --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
@@ -740,7 +749,8 @@ html.theme-dark {
   --shadow-composer-focus:
     0 0 0 1px color-mix(in srgb, var(--color-text) 22%, transparent),
     0 8px 40px -12px rgb(0 0 0 / 0.45);
-  --shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  --shadow-popover:
+    0 0 0 1px var(--seam-line), 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
   /* Dark needs a deeper well and a far quieter highlight: on a near-black track a
      35% white rim reads as a drawn outline, so the lift comes from fill contrast. */
   --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.25);

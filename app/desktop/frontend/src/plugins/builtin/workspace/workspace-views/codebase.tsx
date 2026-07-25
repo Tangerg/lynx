@@ -148,7 +148,7 @@ function CodebaseTab() {
                   {row.score}
                 </span>
               </div>
-              <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-[1.45] text-fg-muted">
+              <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-body text-fg-muted">
                 {row.snippet}
               </pre>
             </div>

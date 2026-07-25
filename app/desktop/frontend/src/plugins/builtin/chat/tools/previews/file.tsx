@@ -18,7 +18,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   const { data: lines } = useFileToolPreview(tool, MAX_FILE_LINES);
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-ui-sm leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-body">
         {(lines ?? []).map((l) => (
           <div
             key={l.lineNumber}

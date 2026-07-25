@@ -197,7 +197,7 @@ export function ReasoningBlock({ text, status }: Props) {
           />
           <div
             ref={contentRef}
-            className="whitespace-pre-wrap pl-[26px] text-ui-lg leading-[1.6] text-fg-muted"
+            className="whitespace-pre-wrap pl-[26px] text-ui-lg leading-relaxed text-fg-muted"
           >
             <MarkdownMessage text={text} streaming={streaming} />
             {status === "incomplete" && (

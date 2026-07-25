@@ -74,7 +74,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
         rows={4}
         placeholder={t("schedules.form.prompt")}
         aria-label={t("schedules.form.prompt")}
-        className={cn(FIELD, "resize-y font-sans leading-[1.5]")}
+        className={cn(FIELD, "resize-y font-sans leading-body")}
       />
       <div className="flex flex-wrap items-center gap-1.5">
         {CRON_PRESETS.map((preset) => (

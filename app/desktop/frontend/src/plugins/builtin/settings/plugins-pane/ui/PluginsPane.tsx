@@ -125,7 +125,7 @@ export function PluginsPane() {
         })}
       </div>
 
-      <div className="mt-4 text-ui-lg leading-[1.55] text-fg-muted">
+      <div className="mt-4 text-ui-lg leading-body text-fg-muted">
         Sideload by dropping a plugin folder containing{" "}
         <code className={INLINE_CODE}>index.js</code> into{" "}
         <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app. See{" "}
@@ -170,7 +170,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
         </div>
       </div>
       {err.detail && (
-        <pre className="mt-1.5 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-[1.5] text-fg-muted">
+        <pre className="mt-1.5 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-body text-fg-muted">
           {err.detail}
         </pre>
       )}
