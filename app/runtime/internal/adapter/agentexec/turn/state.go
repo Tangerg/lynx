@@ -151,7 +151,7 @@ type turnState struct {
 type turnPhase uint8
 
 const (
-	turnNew turnPhase = iota
+	turnPreparing turnPhase = iota
 	turnPrepared
 	turnStarting
 	turnRunning
@@ -177,17 +177,14 @@ const (
 	cancelComplete
 )
 
-func (st *turnState) prepareStart(request runs.StartTurn) {
+func (st *turnState) completePreparation(request runs.StartTurn) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
+	if st.phase != turnPreparing {
+		panic("turn: complete preparation outside preparing phase")
+	}
 	st.startRequest = request
 	st.setPhaseLocked(turnPrepared)
-}
-
-func (st *turnState) prepareRestore() {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	st.setPhaseLocked(turnRestoring)
 }
 
 func (st *turnState) claimStart() (runs.StartTurn, bool) {
@@ -224,25 +221,37 @@ func (st *turnState) requestCancellation() cancellationAction {
 			return cancelProcess
 		}
 		return cancelObserve
-	case turnCancelDriven, turnNew:
+	case turnCancelDriven:
 		return cancelObserve
 	case turnTerminal:
 		return cancelCleanup
 	case turnReleased:
 		return cancelComplete
 	default:
-		return cancelObserve
+		panic("turn: cancellation requested in a non-addressable lifecycle phase")
 	}
 }
 
-// newTurnState builds a fresh per-turn state. Its lifetime ctx derives from the
+// newPreparingTurnState builds a fresh start state before prompt hooks finish.
+func newPreparingTurnState(ctx context.Context, handle TurnHandle) *turnState {
+	return newTurnState(ctx, handle, turnPreparing)
+}
+
+// newRestoringTurnState builds a state whose process publication is owned by
+// Rehydrate.
+func newRestoringTurnState(ctx context.Context, handle TurnHandle) *turnState {
+	return newTurnState(ctx, handle, turnRestoring)
+}
+
+// newTurnState initializes common per-turn ownership at one explicit entry
+// phase. Its lifetime ctx derives from the
 // entry ctx via context.WithoutCancel: the caller's ctx ending (e.g. the
 // StartTurn RPC returning) doesn't kill the in-flight turn; only
 // Cancel (st.cancel) does; yet the entry trace span is preserved,
 // so the engine's spans chain onto the same trace. The turn span is layered on
 // in StartTurn / Rehydrate. Shared by both entry points so they produce an
 // identically-initialized turn.
-func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
+func newTurnState(ctx context.Context, handle TurnHandle, phase turnPhase) *turnState {
 	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
 		handle:           handle,
@@ -251,6 +260,7 @@ func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
 		cancel:           cancel,
 		ctx:              lifeCtx,
 		startedAt:        time.Now(),
+		phase:            phase,
 		lifecycleChanged: make(chan struct{}),
 	}
 }
@@ -357,8 +367,12 @@ func (st *turnState) setProcess(process agentexec.TurnProcess) {
 	defer st.mu.Unlock()
 	st.agentProcess = process
 	switch st.phase {
-	case turnStarting, turnNew:
+	case turnStarting:
 		st.setPhaseLocked(turnRunning)
+	case turnCancelDriven:
+		st.signalLifecycleLocked()
+	default:
+		panic("turn: fresh process published outside starting phase")
 	}
 }
 
@@ -371,7 +385,7 @@ func (st *turnState) setRestoredProcess(process agentexec.TurnProcess) (live boo
 	defer st.mu.Unlock()
 	st.agentProcess = process
 	switch st.phase {
-	case turnRestoring, turnNew:
+	case turnRestoring:
 		st.setPhaseLocked(turnParked)
 		return st.ctx.Err() == nil
 	case turnCancelIdle:

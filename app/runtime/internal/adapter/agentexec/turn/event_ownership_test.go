@@ -8,10 +8,13 @@ import (
 )
 
 func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
 	release := make(chan struct{})
 	close(release)
-	st.setProcess(&blockingCancelProcess{release: release})
+	st := newRunningTestState(
+		t.Context(),
+		TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
+		&blockingCancelProcess{release: release},
+	)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}

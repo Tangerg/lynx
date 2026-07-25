@@ -27,8 +27,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		turnID = newTurnID()
 	}
 	handle := TurnHandle{SessionID: request.SessionID, TurnID: turnID}
-	state := newTurnState(ctx, handle)
-	state.prepareRestore()
+	state := newRestoringTurnState(ctx, handle)
 	state.cwd = request.Cwd
 	if s.hooks != nil {
 		var err error

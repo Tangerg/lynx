@@ -13,7 +13,7 @@ import (
 )
 
 func TestShutdownIsBoundedAndCanFinishJoiningLater(t *testing.T) {
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
+	st := newRestoringTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
 	dispatcher := &memoryDispatcher{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
@@ -37,8 +37,11 @@ func TestShutdownIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 
 func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 	release := make(chan struct{})
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
-	st.setProcess(&blockingCancelProcess{release: release})
+	st := newRunningTestState(
+		t.Context(),
+		TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
+		&blockingCancelProcess{release: release},
+	)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
@@ -96,9 +99,8 @@ func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
 	cancelErr := errors.New("kill failed")
 	release := make(chan struct{})
 	close(release)
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
 	process := &blockingCancelProcess{release: release, err: cancelErr}
-	st.setProcess(process)
+	st := newRunningTestState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}, process)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
@@ -131,9 +133,8 @@ func TestCancelRetainsTerminalTurnUntilDiscardSucceeds(t *testing.T) {
 	discardErr := errors.New("discard failed")
 	release := make(chan struct{})
 	close(release)
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
 	process := &blockingCancelProcess{release: release, discardErr: discardErr}
-	st.setProcess(process)
+	st := newRunningTestState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}, process)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
@@ -162,17 +163,23 @@ func TestCancelRetainsTerminalTurnUntilDiscardSucceeds(t *testing.T) {
 }
 
 func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
-	stalled := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_a"})
 	stalledRelease := make(chan struct{})
-	stalled.setProcess(&blockingCancelProcess{release: stalledRelease})
+	stalled := newRunningTestState(
+		t.Context(),
+		TurnHandle{SessionID: "ses_1", TurnID: "turn_a"},
+		&blockingCancelProcess{release: stalledRelease},
+	)
 	if !stalled.parkIfLive() {
 		t.Fatal("failed to park stalled turn")
 	}
 	cancelErr := errors.New("later cancellation failed")
 	release := make(chan struct{})
 	close(release)
-	failed := newTurnState(t.Context(), TurnHandle{SessionID: "ses_2", TurnID: "turn_b"})
-	failed.setProcess(&blockingCancelProcess{release: release, err: cancelErr})
+	failed := newRunningTestState(
+		t.Context(),
+		TurnHandle{SessionID: "ses_2", TurnID: "turn_b"},
+		&blockingCancelProcess{release: release, err: cancelErr},
+	)
 	if !failed.parkIfLive() {
 		t.Fatal("failed to park cancellation-error turn")
 	}

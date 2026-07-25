@@ -44,7 +44,7 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 		SessionID: request.SessionID,
 		TurnID:    newTurnID(),
 	}
-	state := newTurnState(ctx, handle)
+	state := newPreparingTurnState(ctx, handle)
 	handle.state = state
 	state.model = modelOr(request.ModelSelection.Model())
 	state.modelSelection = request.ModelSelection
@@ -53,7 +53,7 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
 	// reader — runTurn, drive, resume, Cancel. The entry trace rode in via
-	// newTurnState's WithoutCancel, so this span is its child.
+	// the state constructor's WithoutCancel, so this span is its child.
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 
 	// Resolve this turn's lifecycle hooks (trust-filtered for the cwd). The
@@ -81,10 +81,10 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 		request.Message = msg
 	}
 	// Capture the request AFTER the prompt hooks so the (possibly context-injected)
-	// message is what Activate replays into the turn; prepareStart before the hooks
+	// message is what Activate replays into the turn; completing preparation before the hooks
 	// would snapshot the pre-injection prompt and silently drop UserPromptSubmit /
 	// SessionStart InjectContext.
-	state.prepareStart(request)
+	state.completePreparation(request)
 
 	if !s.register(state) {
 		state.cancel()

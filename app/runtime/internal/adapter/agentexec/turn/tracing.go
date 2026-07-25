@@ -15,7 +15,7 @@ import (
 // turnTracer emits the business-level span for one turn — the
 // boundary every lower-layer span (agent runtime tick / action, core
 // gen_ai LLM call, MCP tool) nests under once the turn's lifetime ctx
-// carries the entry trace (see newTurnState's WithoutCancel derivation).
+// carries the entry trace (see the turn-state constructors' WithoutCancel derivation).
 // Name follows the `lynx/lyra/...` instrumentation-scope convention;
 // no-op until a TracerProvider is installed.
 const turnTracerName = "lynx/lyra/turn"
