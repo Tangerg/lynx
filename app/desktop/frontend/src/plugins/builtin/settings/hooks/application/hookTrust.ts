@@ -2,7 +2,7 @@
 // the user trusts the project here; the toggle takes effect on the next turn.
 
 import { HOOKS_KEY } from "./hookQueries";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { hookTrustGateway } from "./ports/hookTrustGateway";
 
 export async function setHookTrust(projectRoot: string, trusted: boolean): Promise<void> {

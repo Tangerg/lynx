@@ -56,6 +56,14 @@
 //      of twelve). Two shapes are checked: a `t(` inside a contribution call, and
 //      a `t(` anywhere in a `*Contributions.ts` spec factory.
 //
+//   9. No key the tree never names. Rules 2 and 3 keep the catalogs equal to each
+//      other and rule 5 keeps the code inside them, but nothing looked the other
+//      way: 57 keys outlived the callsites that used them (a rewritten welcome
+//      screen, a replaced tab menu, a diagnostics table that now prints OTel's own
+//      field names) and sat there translated eight times over. A key is "named" by
+//      any string literal in the tree — `t("x")`, or a spec field carrying it —
+//      or by a template prefix for the tables built as `` t(`x.${y}`) ``.
+//
 // And one on the values, not the keys:
 //
 //   7. A translated value carries exactly the `{{placeholders}}` its English
@@ -93,6 +101,9 @@ const COPY_FREE_RING = /plugins\/builtin\/.+\/(?:presentation|domain)\/.+\.tsx?$
 const CONTRIBUTION_CALL =
   /\b(?:extensions\.contribute|commands\.register|shortcuts\.register|registerSettingsPane)\s*\(/g;
 const RESOLVED_COPY = /(?<![\w.])t\(\s*["'`]/;
+
+// `` t(`rpcError.${type}`) `` — the static half covers every key beneath it.
+const DYNAMIC_KEY_PREFIX = /`([a-zA-Z][\w.]*\.)\$\{/g;
 
 function withoutComments(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
@@ -238,6 +249,31 @@ for (const path of sourceFiles(SRC_DIR)) {
         }
       }
     }
+  }
+}
+
+// Rule 9 — every key is named somewhere in the tree.
+{
+  const named = [];
+  const prefixes = new Set();
+  for (const path of sourceFiles(SRC_DIR)) {
+    const relative = path.slice(SRC_DIR.length);
+    if (relative.startsWith("lib/i18n/locales/")) continue;
+    const source = readFileSync(path, "utf8");
+    named.push(source);
+    for (const match of source.matchAll(DYNAMIC_KEY_PREFIX)) prefixes.add(match[1]);
+  }
+  const blob = named.join("\n");
+  const unnamed = [...en].filter(
+    (key) =>
+      !blob.includes(`"${key}"`) &&
+      !blob.includes(`'${key}'`) &&
+      ![...prefixes].some((prefix) => key.startsWith(prefix)),
+  );
+  if (unnamed.length > 0) {
+    const sample = unnamed.slice(0, 8).join(", ");
+    const rest = unnamed.length > 8 ? `, … (+${unnamed.length - 8} more)` : "";
+    failures.push(`${unnamed.length} key(s) nothing names — delete them: ${sample}${rest}`);
   }
 }
 

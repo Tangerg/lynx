@@ -6,7 +6,7 @@ import {
   APPROVAL_RULES_KEY,
   type ApprovalModeValue,
 } from "./approvalPolicyQueries";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { agentRuntime } from "./ports/runtimeGateway";
 
 export async function setApprovalMode(mode: ApprovalModeValue): Promise<void> {

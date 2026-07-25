@@ -1,5 +1,5 @@
 import { createDataQuery } from "@/plugins/sdk";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 
 export interface AgentSessionSummary {
   id: string;

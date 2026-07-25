@@ -4,9 +4,7 @@
 
 export const en: Record<string, string> = {
   "common.cancel": "Cancel",
-  "common.confirm": "Confirm",
   "common.close": "Close",
-  "common.retry": "Retry",
   "common.search": "Search",
 
   "approval.what.command": "Run command",
@@ -30,7 +28,6 @@ export const en: Record<string, string> = {
   "shell.region.workIndex": "Work index",
   "shell.region.workspace": "Agent workspace",
   "workIndex.section.projects": "Projects",
-  "sidebar.newSessionInFolder.placeholder": "Absolute path",
   "sidebar.action.collapse": "Collapse to rail",
   "sidebar.action.expand": "Expand sidebar",
   "sidebar.action.newSession": "New session",
@@ -39,8 +36,6 @@ export const en: Record<string, string> = {
   "composer.input.label": "Message composer",
   "composer.placeholder.fallback": "Type freely",
   "composer.placeholder.steer": "Send a message to steer the running turn…",
-  "composer.send": "Send",
-  "composer.attachFile": "Attach file",
   "composer.switchModel": "Switch model",
   "composer.attachImage": "Attach image",
   "composer.attachImage.unsupported": "This model doesn't accept images",
@@ -52,9 +47,6 @@ export const en: Record<string, string> = {
   "composer.paste.remove": "Remove pasted text",
   "composer.mention.heading": "Files",
   "composer.drop.images": "Drop images to attach",
-  "composer.gitBranch": "Git branch",
-  "composer.usage.hint": "Token usage — input ↑ / output ↓ (this run)",
-  "composer.usage.context": "Context window used",
   "composer.slash.heading": "Commands",
   "composer.placeholder.debug": "Paste a failing test output and I'll walk you through it.",
   "composer.placeholder.implement": "Implement what? Describe the change and I'll plan + execute.",
@@ -64,11 +56,6 @@ export const en: Record<string, string> = {
   "chat.error.retry": "Retry",
   "chat.jumpToBottom": "Jump to bottom",
 
-  "panel.tab.close": "Close tab",
-  "panel.tab.closeOthers": "Close Others",
-  "panel.tab.closeLeft": "Close Tabs to the Left",
-  "panel.tab.closeRight": "Close Tabs to the Right",
-  "panel.tab.closeAll": "Close All",
   "panel.split.resize": "Resize chat / view split",
   "workspace.view.promote": "Open as full tab",
   "workspace.view.openBeside": "Open beside chat",
@@ -81,11 +68,8 @@ export const en: Record<string, string> = {
   "message.mermaid.enlargeHint": "Click to enlarge",
   "message.code.expand": "Expand code block",
   "message.code.collapse": "Collapse code block",
-  "message.outline.label": "Message outline",
-  "message.outline.heading": "On this message",
   "message.code.copy": "Copy code",
   "message.code.copied": "Copied",
-  "message.code.copyLabel": "Copy",
   "message.code.collapseLabel": "Collapse",
   "message.code.showLines": "Show {{count}} lines",
   "message.html.tab.preview": "Preview",
@@ -146,9 +130,7 @@ export const en: Record<string, string> = {
   "dataView.error.title": "Couldn’t load",
   "dataView.error.sub": "The runtime didn’t answer this request. Check the connection and retry.",
 
-  "welcome.eyebrow": "agent ready",
   "welcome.title": "What should we build in lynx?",
-  "welcome.sub": "Start a conversation, paste a stack trace, or pick a suggestion below.",
   "welcome.setup.title": "Connect a model provider",
   "welcome.setup.sub":
     "Add an API key to start chatting — the agent needs a model provider to talk to.",
@@ -172,7 +154,6 @@ export const en: Record<string, string> = {
   "settings.group.advanced": "Advanced",
   "settings.pane.appearance": "Appearance",
   "settings.pane.plugins": "Plugins",
-  "settings.pane.language": "Language",
   "settings.pane.personalization": "Personalization",
   "settings.pane.providers": "Providers",
   "settings.pane.usage": "Usage",
@@ -349,12 +330,10 @@ export const en: Record<string, string> = {
   "shape.opt.fast": "Fast",
   "shape.opt.slow": "Slow",
   "font.useCustom": "Use custom",
-  "font.useCustomAria": "Use custom {{kind}} font",
 
   "workspace.view.title.files": "Files",
   "workspace.view.title.diff": "Diff",
   "workspace.view.title.file": "File",
-  "workspace.view.title.changes": "Changes",
   "workspace.view.title.context": "Context",
   "contextDock.group.workspace": "Workspace",
   "contextDock.group.run": "Run",
@@ -376,7 +355,6 @@ export const en: Record<string, string> = {
   "workspace.view.title.diagnostics": "Diagnostics",
   "settings.theme": "Theme",
   "settings.theme.system": "System",
-  "settings.theme.systemSub": "follows your OS",
   "settings.theme.sub":
     "Pick a color theme. Plugins can register more — they show up here automatically.",
   "settings.accent": "Accent",
@@ -391,7 +369,6 @@ export const en: Record<string, string> = {
   "settings.font.smoothing": "Font smoothing (macOS antialiasing)",
   "settings.customColors": "Custom colors",
   "settings.customColors.sub": "Background + foreground; the rest is derived.",
-  "settings.color.accent": "Accent",
   "settings.color.bg": "Background",
   "settings.color.fg": "Foreground",
   "settings.radius": "Corners",
@@ -735,7 +712,6 @@ export const en: Record<string, string> = {
   "commandPalette.label": "Command palette",
   "commandPalette.placeholder": "Type a command or search sessions…",
   "commandPalette.empty": "No commands match",
-  "commandPalette.open": "Open command palette",
   "commandPalette.sessions": "Sessions",
 
   // ── Keyboard shortcuts ──
@@ -811,8 +787,6 @@ export const en: Record<string, string> = {
   "compaction.compactedN": "Compacted {{count}} earlier messages",
 
   // ── Tool card ──
-  "toolCard.expand": "Expand preview",
-  "toolCard.collapse": "Collapse",
 
   // ── Projects sidebar ──
   "projects.showMore": "Show {{count}} more",
@@ -869,43 +843,11 @@ export const en: Record<string, string> = {
   "command.focusComposer": "Focus composer",
 
   // ── Diagnostics view ──
-  "diagnostics.title": "Diagnostics",
-  "diagnostics.sub":
-    'Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable record leaves via OTLP. "Clear" resets the buffers.',
-  "diagnostics.signal.traces": "Traces",
-  "diagnostics.signal.metrics": "Metrics",
-  "diagnostics.signal.logs": "Logs",
-  "diagnostics.signal.aria": "Telemetry signal",
   "diagnostics.clear": "Clear",
-  "diagnostics.traces.empty": "Send a message — run + RPC spans appear here.",
-  "diagnostics.logs.empty": "host.log.* output streams here, span-correlated.",
-  "diagnostics.metrics.empty": "Interact with the chat — reducer / render timings appear here.",
-  "diagnostics.col.span": "span",
-  "diagnostics.col.dur": "dur",
-  "diagnostics.col.status": "status",
-  "diagnostics.col.trace": "trace",
-  "diagnostics.col.lvl": "lvl",
-  "diagnostics.col.message": "message",
-  "diagnostics.col.attrs": "attrs",
-  "diagnostics.col.count": "count",
-  "diagnostics.col.p50": "p50",
-  "diagnostics.col.p95": "p95",
-  "diagnostics.col.avg": "avg",
-  "diagnostics.col.sum": "sum",
-  "diagnostics.col.value": "value",
-  "diagnostics.noData": "No data yet — {{hint}}",
 
   // ── Icon showcase section titles ──
-  "iconShowcase.frontier": "Frontier labs",
-  "iconShowcase.cloud": "Cloud & enterprise",
-  "iconShowcase.chinese": "Chinese ecosystem",
-  "iconShowcase.local": "Local runtimes & gateways",
-  "iconShowcase.media": "Media generation",
-  "iconShowcase.dev": "Dev tools",
 
   // ── Tasks sidebar ──
-  "tasks.recentTasks": "Recent tasks",
-  "tasks.runningTasks": "{{count}} running task(s)",
 
   // ── Reasoning block ──
   "reasoning.thinking": "Thinking…",

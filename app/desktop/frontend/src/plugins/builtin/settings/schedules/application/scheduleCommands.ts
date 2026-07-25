@@ -3,7 +3,7 @@
 // nextRunAt.
 
 import { SCHEDULES_KEY, useSchedules } from "./scheduleQueries";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";
 import { scheduleGateway } from "./ports/scheduleGateway";
 export type { ScheduleConfig, ScheduleConfigInput } from "./scheduleConfig";

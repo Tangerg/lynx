@@ -1,4 +1,4 @@
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { RunEvent, RunId, StreamingResult } from "@/rpc";
 import { AGENT_SESSION_USAGE_KEY } from "../application/session/sessionUsage";
 import type { FoldEvent } from "./agentStore";

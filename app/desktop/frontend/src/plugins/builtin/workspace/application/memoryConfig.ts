@@ -1,4 +1,4 @@
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { workspaceMemoryGateway, type WorkspaceMemoryUpdateInput } from "./ports/memoryGateway";
 import {
   WORKSPACE_MEMORY_KEY,

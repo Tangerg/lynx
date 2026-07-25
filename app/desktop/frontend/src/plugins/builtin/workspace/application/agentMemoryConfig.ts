@@ -1,4 +1,4 @@
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import {
   agentMemoryGateway,
   type AgentMemoryAddInput,

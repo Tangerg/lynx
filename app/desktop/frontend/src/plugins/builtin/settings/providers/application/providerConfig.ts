@@ -12,7 +12,7 @@ import {
   useProviders,
   useUtilityRole,
 } from "./providerQueries";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import {
   providerGateway,
   type ProviderCredentials,

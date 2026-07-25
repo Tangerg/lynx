@@ -1,4 +1,4 @@
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { goalGateway, type GoalStartInput } from "./ports/goalGateway";
 import { GOAL_KEY, useGoalStateQuery } from "./goalData";
 

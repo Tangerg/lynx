@@ -1,4 +1,4 @@
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { skillDraftsGateway, type SkillDraftHandle } from "./ports/skillDraftsGateway";
 import {
   WORKSPACE_MANAGED_SKILLS_KEY,

@@ -1,5 +1,5 @@
 import { getContainer } from "@/main/container";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import {
   AGENT_SESSIONS_KEY,
   getActiveSessionId,

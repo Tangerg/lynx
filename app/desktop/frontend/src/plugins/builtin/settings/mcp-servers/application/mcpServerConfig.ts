@@ -6,7 +6,7 @@ import {
   type MCPServerConfigInfo,
   useMCPConfigs,
 } from "./mcpServerQueries";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import type { MCPServerConfigInput } from "./mcpServerInput";
 import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";
 export type { MCPServerConfigInput, MCPServerTransport } from "./mcpServerInput";

@@ -8,7 +8,7 @@ import {
   useApprovalMode,
   useApprovalRules,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 
 export type ApprovalMode = ApprovalModeValue;
 export type ApprovalRuleConfig = ApprovalRuleInfo;

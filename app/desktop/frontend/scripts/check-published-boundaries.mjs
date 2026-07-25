@@ -23,13 +23,6 @@ for (const file of files(SRC)) {
   const text = readFileSync(file, "utf8");
   const isTest = /\.(test|spec)\.[tj]sx?$/.test(rel);
 
-  if (rel.startsWith("lib/data/") && rel !== "lib/data/queryClient.ts") {
-    violations.push({
-      file: rel,
-      reason: "lib/data is query infrastructure only; business read models belong to contexts",
-    });
-  }
-
   if (/@\/lib\/data\/(?:queries|useUsage)/.test(text)) {
     violations.push({
       file: rel,

@@ -1,7 +1,7 @@
 // @codebase actions (codebase.search / reindex). Both refresh the codebase
 // status query so the view's status header reflects the new index state.
 
-import { queryClient } from "@/lib/data/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {

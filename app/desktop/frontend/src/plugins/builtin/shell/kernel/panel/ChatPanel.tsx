@@ -110,7 +110,7 @@ export function ChatPanel({ onSend }: Props) {
       : pinnedDockViews;
   const dockTabs = dockViews.map((view) => ({
     id: view.id,
-    title: typeof view.title === "string" ? t(view.title) : view.title,
+    title: t(view.title),
     icon: viewIcon(view.icon),
     active: view.id === dockViewId,
     onSelect: () => openWorkspaceViewBeside(view.id),
