@@ -3,8 +3,9 @@
 // live with their only consumer, the Personalization pane.
 
 import { DropdownMenu, Icon } from "@/ui";
-import { setLocale, useLocale, useT } from "@/lib/i18n";
+import { useLocale, useT } from "@/lib/i18n";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
+import { selectLocale } from "../application/localeSelection";
 import { SettingRow } from "../../public";
 
 export function LanguageSection() {
@@ -33,7 +34,7 @@ export function LanguageSection() {
           {locales.map((l) => (
             <DropdownMenu.Item
               key={l.id}
-              onClick={() => setLocale(l.id)}
+              onClick={() => void selectLocale(l)}
               className="grid-cols-[minmax(0,1fr)_12px]"
             >
               <span className="truncate">{l.label}</span>

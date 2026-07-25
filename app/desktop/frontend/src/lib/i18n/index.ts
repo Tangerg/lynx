@@ -72,6 +72,11 @@ function getLocale(): Locale {
   return i18next.resolvedLanguage ?? "en";
 }
 
+/** The active language tag, read outside React (plugin setup, bootstrap). */
+export function activeLocale(): Locale {
+  return getLocale();
+}
+
 export function setLocale(loc: Locale): void {
   if (loc === getLocale()) return;
   void i18next.changeLanguage(loc);

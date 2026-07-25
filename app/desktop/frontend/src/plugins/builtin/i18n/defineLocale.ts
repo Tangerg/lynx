@@ -8,21 +8,31 @@ import type { LocaleSpec } from "@/plugins/sdk/types";
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePlugin } from "@/plugins/sdk";
 import { LOCALE } from "@/plugins/sdk/kernelPoints";
+import { activeLocale, addLocaleBundle } from "@/lib/i18n";
 
 /**
- * A built-in locale = the picker entry (`LocaleSpec`) plus, for every language
- * except the bootstrapped fallback (English), its translation `dict` registered
- * via `host.i18n.addBundle`. Pass `dict` to ship a bundle; omit it when the
- * dictionary is already loaded elsewhere (English, bootstrapped by lib/i18n).
+ * A built-in locale = the picker entry (`LocaleSpec`), whose `load` fetches the
+ * dictionary the first time that language is selected. English omits `load`:
+ * lib/i18n bootstraps it so first paint always has strings.
+ *
+ * Registration is the entry only — no dictionary is read at setup. Eight
+ * languages statically imported at setup meant eight dictionaries in the entry
+ * payload, seven of which the reader will never see.
  */
-export function defineLocale(spec: LocaleSpec & { dict?: Record<string, string> }): PluginSpec {
-  const { dict, ...locale } = spec;
+export function defineLocale(spec: LocaleSpec): PluginSpec {
   return definePlugin({
-    name: `lyra.builtin.locale-${locale.id}`,
+    name: `lyra.builtin.locale-${spec.id}`,
     version: "1.0.0",
     setup({ host }) {
-      if (dict) host.i18n.addBundle(locale.id, dict);
-      host.extensions.contribute(LOCALE, locale);
+      host.extensions.contribute(LOCALE, spec);
+      // Cold start with a persisted non-English locale: this plugin is the only
+      // thing that knows how to fetch its own dictionary, so it does — during
+      // setup, which runs before first paint.
+      if (spec.load && spec.id === activeLocale()) {
+        void spec.load().then((dict) => {
+          addLocaleBundle(spec.id, dict);
+        });
+      }
     },
   });
 }
