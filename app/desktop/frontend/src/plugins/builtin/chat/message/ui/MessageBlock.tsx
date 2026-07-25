@@ -15,6 +15,7 @@ import {
   messageCitations,
 } from "../application/messageBlockModel";
 import { cn } from "@/lib/utils";
+import { MESSAGE_CONTENT_CLASS } from "./messageContent";
 import { CitationContext } from "./CitationContext";
 import { MessageContextMenu } from "./MessageContextMenu";
 import { renderBlock } from "./BlockRenderer";
@@ -45,7 +46,7 @@ function MessageBlockInner({
   if (msg.role === "system") {
     return (
       <MessageContext.Provider value={msg}>
-        <div className="msg-content" data-slot="message-system">
+        <div className={MESSAGE_CONTENT_CLASS} data-slot="message-system">
           {msg.blocks.map((block, index) => renderBlock(block, index, ctx))}
         </div>
       </MessageContext.Provider>
@@ -86,7 +87,12 @@ function MessageBlockInner({
           {isUser ? (
             <div className="group flex flex-col items-end" data-slot="message-user">
               <MessageContextMenu msg={msg}>
-                <div className="msg-content min-w-0 max-w-[80%] rounded-bubble bg-control px-4 py-2.5 text-left text-ui-lg leading-relaxed text-fg">
+                <div
+                  className={cn(
+                    MESSAGE_CONTENT_CLASS,
+                    "min-w-0 max-w-[80%] rounded-bubble bg-control px-4 py-2.5 text-left text-ui-lg leading-relaxed text-fg",
+                  )}
+                >
                   {content}
                 </div>
               </MessageContextMenu>
@@ -100,7 +106,12 @@ function MessageBlockInner({
             <div className="group flex" data-slot="message-assistant">
               <div className="min-w-0 flex-1">
                 <MessageContextMenu msg={msg}>
-                  <div className="msg-content max-w-[var(--content-max)] text-pretty text-ui-md leading-relaxed text-fg-soft">
+                  <div
+                    className={cn(
+                      MESSAGE_CONTENT_CLASS,
+                      "max-w-[var(--content-max)] text-pretty text-ui-md leading-relaxed text-fg-soft",
+                    )}
+                  >
                     {content}
                   </div>
                 </MessageContextMenu>

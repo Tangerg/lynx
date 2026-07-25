@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
-import { Icon, noDragClasses, SearchField, VerticalTabs } from "@/ui";
+import { Icon, SearchField, VerticalTabs } from "@/ui";
+import { noDragClasses } from "@/lib/windowDrag";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {

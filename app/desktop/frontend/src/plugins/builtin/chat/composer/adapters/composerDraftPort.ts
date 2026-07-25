@@ -1,4 +1,5 @@
 import type { ComposerDraftPort } from "../application/draft";
+import { focusComposer } from "../application/focus";
 import { useComposerStore } from "./composerStore";
 
 export const composerDraftPort: ComposerDraftPort = {
@@ -9,8 +10,6 @@ export const composerDraftPort: ComposerDraftPort = {
     if (input.images?.length) store.addImages(input.images);
   },
   focusDraftEnd(textLength) {
-    const textarea = document.querySelector<HTMLTextAreaElement>(".composer-input");
-    textarea?.focus();
-    textarea?.setSelectionRange(textLength, textLength);
+    focusComposer(textLength);
   },
 };

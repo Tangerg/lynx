@@ -97,11 +97,8 @@ export function Composer({
           rows={1}
           /* `min-h-[2lh]` is two lines at THIS element's own line-height, so the
              resting height tracks the type ladder instead of a pixel guess that
-             goes wrong the moment the base size changes.
-             The `composer-input` class is a DOM-target hook (no styles) so the
-             `composer.focus` command in defaults/commands.ts can find this
-             textarea without threading a ref through the tree. */
-          className="composer-input max-h-40 min-h-[2lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
+             goes wrong the moment the base size changes. */
+          className="max-h-40 min-h-[2lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
           data-slot="composer-input"
         />
       </div>

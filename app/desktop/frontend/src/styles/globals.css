@@ -42,6 +42,13 @@
 @custom-variant dark (&:where(.theme-dark, .theme-dark *));
 @custom-variant light (&:where(.theme-light, .theme-light *));
 
+/* Media surfaces name the edge, never re-spell it. Callsites still own their own
+   size, radius and object-fit — those genuinely differ per thumbnail. */
+@utility media-edge {
+  outline: 1px solid var(--color-media-edge);
+  outline-offset: -1px;
+}
+
 @theme inline {
   /* Surface ladder */
   --color-canvas: var(--color-bg);
@@ -80,6 +87,12 @@
   --color-line: transparent;
   --color-line-soft: transparent;
   --color-divider: transparent;
+
+  /* Media edge — the hairline that keeps a thumbnail, a colour swatch or an
+     inlined image from bleeding into the surface behind it. An ink alpha, so it
+     inverts with the scheme; drawn as an inset `outline` rather than a border so
+     it adds no layout size and follows whatever radius the media wears. */
+  --color-media-edge: color-mix(in srgb, var(--color-text) 10%, transparent);
 
   /* Control edge — form-field / select affordances. Maps to each theme's
      border tokens so text inputs, selects, and search fields read as editable

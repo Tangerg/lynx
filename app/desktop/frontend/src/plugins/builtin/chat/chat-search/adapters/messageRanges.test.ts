@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { findMessageRanges } from "./ranges";
+import { findMessageRanges } from "./messageRanges";
 
 afterEach(() => {
   document.body.replaceChildren();

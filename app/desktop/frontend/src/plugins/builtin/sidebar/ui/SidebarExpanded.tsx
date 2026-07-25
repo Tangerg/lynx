@@ -1,4 +1,5 @@
-import { dragClasses, noDragClasses, ScrollArea } from "@/ui";
+import { ScrollArea } from "@/ui";
+import { dragClasses, noDragClasses } from "@/lib/windowDrag";
 import { AgentSurfaceHeader } from "@/ui/agent";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";

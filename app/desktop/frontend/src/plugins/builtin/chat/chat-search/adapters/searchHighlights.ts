@@ -1,3 +1,6 @@
+// A CSS Custom Highlight API adapter: painting a match is done by handing Ranges
+// to the browser, so this is document-facing plumbing rather than application
+// logic — it lives with the DOM walk that produces those Ranges.
 const HIGHLIGHTS_AVAILABLE = typeof CSS !== "undefined" && "highlights" in CSS;
 
 export function paintChatSearchHighlights(ranges: Range[], activeIndex: number): void {

@@ -2,27 +2,21 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button, type ButtonProps, Icon, type IconName } from "@/ui";
 
-/**
- * Marker a row wrapper must carry for the reveal classes below to fire. Named
- * rather than a bare `group` because rows nest — a project header wraps its own
- * button, which is itself a group — and an unnamed group would be ambiguous.
- */
-export const AGENT_ROW_GROUP = "group/row";
+// The hover swap is the row's own choreography, so the row performs it. Named
+// group rather than a bare one because rows nest — a project header wraps a
+// button which is itself a group, and an unnamed group would be ambiguous.
+// Tailwind only emits utilities it can read as complete literals, so the group
+// variants are spelled out rather than interpolated.
+const ROW_GROUP = "group/row";
 
-/**
- * Fade a resting glyph out — and stop it intercepting clicks — the moment its row
- * reveals hover actions, so the actions REPLACE it instead of stacking on top.
- * Apply to a static element: if the element animates its own opacity (a pulsing
- * dot, say) the running animation wins, so put this on a wrapper instead.
- *
- * Tailwind only emits utilities it can read as complete literals, so the group
- * variants are spelled out rather than interpolated.
- */
-export const AGENT_ROW_RESTING_GLYPH =
+// The resting glyph steps aside — and stops intercepting clicks — so the action
+// REPLACES it instead of stacking on top. The row supplies the element this sits
+// on: a caller's own glyph may run its own opacity animation (a pulsing dot),
+// and a running animation wins over a variant.
+const RESTING_GLYPH =
   "transition-opacity group-hover/row:pointer-events-none group-hover/row:opacity-0 group-focus-within/row:pointer-events-none group-focus-within/row:opacity-0";
 
-/** The hover toolbar that takes the resting glyph's slot. */
-export const AGENT_ROW_HOVER_ACTION =
+const HOVER_ACTION =
   "opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100";
 
 interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size" | "press"> {
@@ -30,6 +24,14 @@ interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size
   icon?: IconName;
   iconClassName?: string;
   trailing?: ReactNode;
+  /**
+   * Revealed on hover or focus, taking the resting `trailing` glyph's place. A
+   * sibling of the row rather than a child, because a button cannot nest inside
+   * one — which is the whole reason this is a prop: positioning it, reserving its
+   * space, and cross-fading it are the row's business, and a caller doing that
+   * for itself is a caller reimplementing the row.
+   */
+  action?: ReactNode;
   indent?: "none" | "nested";
   children?: ReactNode;
 }
@@ -44,13 +46,14 @@ export function AgentRow({
   icon,
   iconClassName,
   trailing,
+  action,
   indent = "none",
   className,
   children,
   type = "button",
   ...props
 }: AgentRowProps) {
-  return (
+  const row = (
     <Button
       {...props}
       type={type}
@@ -65,6 +68,7 @@ export function AgentRow({
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
         "data-[active]:bg-selected data-[active]:text-fg",
         indent === "nested" ? "px-2 pl-8" : "px-2",
+        action && "pr-8",
         className,
       )}
     >
@@ -77,7 +81,17 @@ export function AgentRow({
         />
       )}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {trailing}
+      {trailing && <span className={cn(action && RESTING_GLYPH)}>{trailing}</span>}
     </Button>
+  );
+
+  if (!action) return row;
+  return (
+    <div className={cn("relative select-none", ROW_GROUP)}>
+      {row}
+      <span className={cn("absolute inset-y-0 right-1 grid place-items-center", HOVER_ACTION)}>
+        {action}
+      </span>
+    </div>
   );
 }

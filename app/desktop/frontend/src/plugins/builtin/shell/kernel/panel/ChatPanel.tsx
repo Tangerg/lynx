@@ -9,7 +9,8 @@ import {
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
-import { dragClasses, IconButton, noDragClasses } from "@/ui";
+import { IconButton } from "@/ui";
+import { dragClasses, noDragClasses } from "@/lib/windowDrag";
 import { cn } from "@/lib/utils";
 import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { basename } from "@/lib/path";

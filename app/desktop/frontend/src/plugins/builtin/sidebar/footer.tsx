@@ -2,7 +2,8 @@
 // status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
 import { AgentRow } from "@/ui/agent";
-import { Button, Icon, noDragClasses } from "@/ui";
+import { Button, Icon } from "@/ui";
+import { noDragClasses } from "@/lib/windowDrag";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";

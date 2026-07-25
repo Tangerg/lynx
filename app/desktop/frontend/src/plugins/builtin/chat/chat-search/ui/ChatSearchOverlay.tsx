@@ -3,9 +3,9 @@ import { IconButton, TextField } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
-import { clearChatSearchHighlights, paintChatSearchHighlights } from "../application/highlights";
+import { clearChatSearchHighlights, paintChatSearchHighlights } from "../adapters/searchHighlights";
 import { CHAT_SEARCH_OPEN_EVENT } from "../application/openChatSearch";
-import { findMessageRanges } from "../application/ranges";
+import { findMessageRanges } from "../adapters/messageRanges";
 
 export function ChatSearchOverlay() {
   const [open, setOpen] = useState(false);

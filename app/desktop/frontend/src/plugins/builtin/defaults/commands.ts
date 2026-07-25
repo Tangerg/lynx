@@ -17,6 +17,7 @@ import {
 } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
+import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { useUiStore } from "@/state/uiStore";
 import { t } from "@/lib/i18n";
 import {
@@ -37,13 +38,6 @@ function openNewChatSession(): void {
   void createSession();
 }
 
-// "Focus the composer" — the composer textarea has a stable class name
-// (set by Composer.tsx); we DOM-query rather than threading a ref through
-// half the tree just for one shortcut.
-function focusComposer(): void {
-  document.querySelector<HTMLTextAreaElement>(".composer-input")?.focus();
-}
-
 export const defaultCommands = definePlugin({
   name: "lyra.builtin.default-commands",
   version: "1.0.0",
@@ -53,7 +47,7 @@ export const defaultCommands = definePlugin({
       toggleTheme: () => useUiStore.getState().toggleTheme(),
       newChat: openNewChatSession,
       closeSessionOrView: closeFocusedSessionOrView,
-      focusComposer,
+      focusComposer: () => focusComposer(),
     })) {
       host.commands.register(command);
     }

@@ -6,8 +6,7 @@
 
 import type { ReactNode } from "react";
 import type { ThemeSpec } from "@/plugins/sdk";
-import { DropdownMenu, Icon, MEDIA_OUTLINE } from "@/ui";
-import { cn } from "@/lib/utils";
+import { DropdownMenu, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { THEME, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../../public";
@@ -36,7 +35,7 @@ function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: 
 function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; accent: string }) {
   return (
     <span
-      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs", MEDIA_OUTLINE)}
+      className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs media-edge"
       style={{ background: bg }}
     >
       {/* Nested rounded rect: the inner radius has to be the outer one minus the
@@ -56,9 +55,7 @@ function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; acc
 // "System" follows the OS appearance (the default) — a split dark/light chip.
 function SystemSwatch() {
   return (
-    <span
-      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs", MEDIA_OUTLINE)}
-    >
+    <span className="relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs media-edge">
       <span
         className="absolute inset-y-0 left-0 w-1/2"
         style={{ background: FALLBACK_TOKENS.dark.bg }}

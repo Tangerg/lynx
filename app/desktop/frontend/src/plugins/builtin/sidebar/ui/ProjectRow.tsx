@@ -1,11 +1,5 @@
-import {
-  AGENT_ROW_GROUP,
-  AGENT_ROW_HOVER_ACTION,
-  AGENT_ROW_RESTING_GLYPH,
-  AgentRow,
-} from "@/ui/agent";
+import { AgentRow } from "@/ui/agent";
 import { Icon, IconButton } from "@/ui";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import type { WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 
@@ -30,46 +24,39 @@ export function ProjectRow({
 }) {
   const t = useT();
   return (
-    <div className={cn("relative select-none", AGENT_ROW_GROUP)}>
-      <AgentRow
-        icon="folder"
-        active={active}
-        onClick={() => onToggle()}
-        title={project.id}
-        aria-expanded={open}
-        className="pr-8"
-        trailing={
-          <span
-            className={cn(
-              "font-mono text-ui-sm leading-none text-fg-faint tabular-nums",
-              AGENT_ROW_RESTING_GLYPH,
-            )}
-          >
-            {count}
-          </span>
-        }
-      >
-        <span className="inline-flex min-w-0 items-center gap-1.5">
-          <span className="truncate">{project.name}</span>
-          {project.cwdMissing && (
-            <Icon
-              name="alert"
-              size={11}
-              className="shrink-0 text-warning"
-              aria-label={t("project.row.missing")}
-            />
-          )}
+    <AgentRow
+      icon="folder"
+      active={active}
+      onClick={() => onToggle()}
+      title={project.id}
+      aria-expanded={open}
+      trailing={
+        <span className="font-mono text-ui-sm leading-none text-fg-faint tabular-nums">
+          {count}
         </span>
-      </AgentRow>
-      <IconButton
-        icon="plus"
-        size="sm"
-        iconSize={12}
-        data-chrome-focus=""
-        aria-label={t("project.row.newSession", { name: project.name })}
-        onClick={() => onNewSession(project)}
-        className={cn("absolute top-0 right-1", AGENT_ROW_HOVER_ACTION)}
-      />
-    </div>
+      }
+      action={
+        <IconButton
+          icon="plus"
+          size="sm"
+          iconSize={12}
+          data-chrome-focus=""
+          aria-label={t("project.row.newSession", { name: project.name })}
+          onClick={() => onNewSession(project)}
+        />
+      }
+    >
+      <span className="inline-flex min-w-0 items-center gap-1.5">
+        <span className="truncate">{project.name}</span>
+        {project.cwdMissing && (
+          <Icon
+            name="alert"
+            size={11}
+            className="shrink-0 text-warning"
+            aria-label={t("project.row.missing")}
+          />
+        )}
+      </span>
+    </AgentRow>
   );
 }

@@ -14,6 +14,7 @@ import { useFileMentions } from "@/plugins/builtin/chat/composer/public/fileMent
 import { useIsAgentRunning } from "@/plugins/builtin/agent/public/run";
 import { COMPOSER_KEY_BINDING, lookupExtensionByKey, pickComposerPlaceholder } from "@/plugins/sdk";
 import { submitComposer } from "@/plugins/builtin/chat/composer/public/submit";
+import { setComposerFocusTarget } from "../application/focus";
 import { useT } from "@/lib/i18n";
 import { composerKeyBindingKey, composerPasteIntent } from "../application/composerInputEvents";
 
@@ -44,6 +45,13 @@ export function useComposerInputController({
 }: Args) {
   const t = useT();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // The controller owns this element, so it is the one that publishes it as the
+  // context's focus target — see application/focus.ts for why that is a
+  // capability and not a DOM query.
+  useEffect(() => {
+    setComposerFocusTarget(inputRef.current);
+    return () => setComposerFocusTarget(null);
+  }, []);
   const cwd = useActiveSessionCwd();
   const [caret, setCaret] = useState(0);
   // IME composition guard (CJK-first). While a syllable is still being composed

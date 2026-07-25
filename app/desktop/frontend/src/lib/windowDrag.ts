@@ -1,4 +1,9 @@
-// Window-drag affordances for Wails / WKWebView. The dual
+// Window-drag affordances for Wails / WKWebView. Platform plumbing, not a design
+// decision: these say "this strip drags the OS window", which is why they live in
+// lib and not in the design system — nothing about them is themeable, and an atom
+// ring that holds them is an atom ring that knows what a window manager is.
+//
+// The dual
 // `[-webkit-app-region] [--wails-draggable]` utility pair is exported
 // as ready-made Tailwind classes so it doesn't get repeated all over
 // the tree:

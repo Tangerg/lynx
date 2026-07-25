@@ -1,8 +1,7 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { IconName } from "@/ui";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
-import { Chip, Icon, MEDIA_OUTLINE, Tooltip } from "@/ui";
-import { cn } from "@/lib/utils";
+import { Chip, Icon, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 type AttachmentSource = ComposerAttachmentSourceSpec;
@@ -76,7 +75,7 @@ function SourceChips({ source }: { source: AttachmentSource }) {
 function ImageThumb({ image, onRemove }: { image: ComposerImage; onRemove: () => void }) {
   const t = useT();
   return (
-    <div className={cn("group relative h-14 w-14 overflow-hidden rounded-md", MEDIA_OUTLINE)}>
+    <div className="group relative h-14 w-14 overflow-hidden rounded-md media-edge">
       <img
         src={`data:${image.mime};base64,${image.data}`}
         alt={image.name ?? ""}
