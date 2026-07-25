@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/sdk/types/agentView";
 import {
   isReadOnlyTool,
@@ -19,21 +20,21 @@ const tool = (overrides: Partial<ToolCall>): ToolCall => ({
 
 describe("toolPresentation", () => {
   it("projects tool args into a compact intent", () => {
-    expect(toolIntent(tool({ fn: "read", args: JSON.stringify({ path: "src/App.tsx" }) }))).toEqual(
-      {
-        label: "Read",
-        detail: "src/App.tsx",
-      },
-    );
+    expect(
+      toolIntent(t, tool({ fn: "read", args: JSON.stringify({ path: "src/App.tsx" }) })),
+    ).toEqual({
+      label: "Read",
+      detail: "src/App.tsx",
+    });
   });
 
   it("ignores malformed args while keeping the tool label", () => {
-    expect(toolIntent(tool({ fn: "my_tool", args: "{" }))).toEqual({ label: "my_tool" });
+    expect(toolIntent(t, tool({ fn: "my_tool", args: "{" }))).toEqual({ label: "my_tool" });
   });
 
   it("derives ordered meta badges", () => {
     expect(
-      toolMetaItems(tool({ added: 3, removed: 2, hits: 7, exitCode: 1, status: "running" })),
+      toolMetaItems(t, tool({ added: 3, removed: 2, hits: 7, exitCode: 1, status: "running" })),
     ).toEqual([
       { id: "added", label: "+3", tone: "success" },
       { id: "removed", label: "-2", tone: "negative" },
@@ -56,7 +57,7 @@ describe("toolPresentation", () => {
       tool({ id: "glob", name: "glob" }),
       tool({ id: "lsp", name: "lsp_diagnostics" }),
     ];
-    expect(summarizeToolGroup(tools)).toBe("1 read · 2 search · 1 lookup");
+    expect(summarizeToolGroup(t, tools)).toBe("1 read · 2 search · 1 lookup");
   });
 
   it("marks groups needing attention only while running or failed", () => {

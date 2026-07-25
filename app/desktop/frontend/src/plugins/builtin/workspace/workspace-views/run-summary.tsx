@@ -75,7 +75,7 @@ function RunSummaryTab() {
     );
   }
 
-  const view = runSummaryViewModel(digest, { elapsedSuffix: t("runSummary.elapsed") });
+  const view = runSummaryViewModel(t, digest);
 
   const onCopy = async () => {
     if (await copyText(buildPlaintext(digest))) {

@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import {
   toolIntent,
@@ -16,16 +17,16 @@ export interface ToolCardModel {
   metaItems: ToolMetaItem[];
 }
 
-export function toolCardModel(tool: ToolCall): ToolCardModel {
+export function toolCardModel(t: Translate, tool: ToolCall): ToolCardModel {
   const isError = tool.status === "err";
-  const intent = toolIntent(tool);
+  const intent = toolIntent(t, tool);
   return {
     running: tool.status === "running",
     isError,
     needsAction: tool.status === "requires-action",
     intent,
     detail: isError && tool.error ? tool.error : intent.detail,
-    metaItems: toolMetaItems(tool),
+    metaItems: toolMetaItems(t, tool),
   };
 }
 

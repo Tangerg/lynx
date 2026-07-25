@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { Tone } from "@/lib/tone";
 import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import { durationText } from "@/plugins/builtin/agent/public/runDigest";
@@ -31,7 +32,6 @@ export interface RunSummaryViewModel {
 
 export interface RunSummaryViewModelOptions {
   now?: number;
-  elapsedSuffix?: string;
 }
 
 const STATUS_BADGE_BY_STATUS: Record<RunDigest["status"], RunSummaryBadge> = {
@@ -72,11 +72,12 @@ const APPROVAL_BADGE_BY_DECISION: Record<
 };
 
 export function runSummaryViewModel(
+  t: Translate,
   digest: RunDigest,
   options: RunSummaryViewModelOptions = {},
 ): RunSummaryViewModel {
   return {
-    subtext: runSummarySubtext(digest, options),
+    subtext: runSummarySubtext(t, digest, options),
     statusBadge: STATUS_BADGE_BY_STATUS[digest.status],
     changedFiles: section(digest.changedFiles),
     readFiles: section(digest.readFiles),
@@ -87,17 +88,23 @@ export function runSummaryViewModel(
 }
 
 export function runSummarySubtext(
+  t: Translate,
   digest: Pick<RunDigest, "runId" | "startedAt" | "endedAt">,
-  { now = Date.now(), elapsedSuffix = "" }: RunSummaryViewModelOptions = {},
+  { now = Date.now() }: RunSummaryViewModelOptions = {},
 ): string {
-  const runLabel = `run ${digest.runId ?? "—"}`;
+  // The one worded fragment this view model still assembles. Every other label
+  // here is a `labelKey` the view resolves; a run id needs the word woven in, so
+  // the translator comes in instead — and the caller no longer has to hand the
+  // "still running" suffix through options to keep it out of English.
+  const runLabel = t("runSummary.subtext.run", { id: digest.runId ?? "—" });
   if (digest.startedAt == null) {
     return runLabel;
   }
 
   const ended = digest.endedAt != null;
   const end = digest.endedAt ?? now;
-  return `${runLabel} · ${durationText(digest.startedAt, end)}${ended ? "" : elapsedSuffix}`;
+  const elapsed = ended ? "" : t("runSummary.elapsed");
+  return `${runLabel} · ${durationText(digest.startedAt, end)}${elapsed}`;
 }
 
 export function runSummaryCommandTone(status: CommandDigest["status"]): Tone {

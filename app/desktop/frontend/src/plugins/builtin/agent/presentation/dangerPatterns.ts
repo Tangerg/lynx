@@ -4,28 +4,35 @@
 
 interface DangerRule {
   re: RegExp;
-  /** Short human reason, shown in the banner (joined by " · "). */
-  label: string;
+  /** Catalog key for the short reason the banner shows (joined by " · ").
+   *  A key, not the words: this ring maps a model into a view model and has no
+   *  business holding one locale's copy — nine English reasons here meant seven
+   *  languages read the approval banner in English. */
+  labelKey: string;
 }
 
 const RULES: readonly DangerRule[] = [
-  { re: /\brm\s+-[a-z]*[rf]/i, label: "recursive/forced delete" },
-  { re: /\bsudo\b|\bdoas\b/i, label: "runs as root" },
+  { re: /\brm\s+-[a-z]*[rf]/i, labelKey: "danger.recursiveDelete" },
+  { re: /\bsudo\b|\bdoas\b/i, labelKey: "danger.runsAsRoot" },
   {
     re: /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sudo\s+)?(?:ba|z|fi)?sh\b/i,
-    label: "pipes a download into a shell",
+    labelKey: "danger.pipeToShell",
   },
-  { re: /\bdd\b[^\n]*\bof=/i, label: "overwrites a device (dd)" },
-  { re: /\bmkfs\b/i, label: "formats a filesystem" },
-  { re: /\bchmod\s+(?:-R\s+)?0?777\b/i, label: "world-writable (chmod 777)" },
-  { re: /\{\s*:\s*\|\s*:\s*&\s*\}/, label: "fork bomb" },
-  { re: />\s*\/dev\/(?:sd|nvme|disk|hd)/i, label: "writes to a raw disk" },
-  { re: /\bgit\b[^\n]*\bpush\b[^\n]*(?:-f\b|--force(?!-with-lease))/i, label: "force-push" },
+  { re: /\bdd\b[^\n]*\bof=/i, labelKey: "danger.overwritesDevice" },
+  { re: /\bmkfs\b/i, labelKey: "danger.formatsFilesystem" },
+  { re: /\bchmod\s+(?:-R\s+)?0?777\b/i, labelKey: "danger.worldWritable" },
+  { re: /\{\s*:\s*\|\s*:\s*&\s*\}/, labelKey: "danger.forkBomb" },
+  { re: />\s*\/dev\/(?:sd|nvme|disk|hd)/i, labelKey: "danger.rawDiskWrite" },
+  {
+    re: /\bgit\b[^\n]*\bpush\b[^\n]*(?:-f\b|--force(?!-with-lease))/i,
+    labelKey: "danger.forcePush",
+  },
 ];
 
-/** Human reasons the command looks destructive, or [] when it looks routine. */
+/** Catalog keys for why the command looks destructive, or [] when it looks
+ *  routine. The caller translates. */
 export function dangerHints(command: string): string[] {
   const hits: string[] = [];
-  for (const { re, label } of RULES) if (re.test(command)) hits.push(label);
+  for (const { re, labelKey } of RULES) if (re.test(command)) hits.push(labelKey);
   return hits;
 }

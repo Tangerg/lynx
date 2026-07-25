@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import type { ToolActionSpec, ToolViewOpenerSpec } from "@/plugins/sdk";
 import {
@@ -21,6 +22,7 @@ describe("toolCardModel", () => {
   it("lets an error message own the collapsed detail line", () => {
     expect(
       toolCardModel(
+        t,
         tool({
           status: "err",
           error: "permission denied",
@@ -34,7 +36,7 @@ describe("toolCardModel", () => {
   });
 
   it("projects lifecycle flags and presentation data", () => {
-    const model = toolCardModel(tool({ status: "requires-action" }));
+    const model = toolCardModel(t, tool({ status: "requires-action" }));
 
     expect(model).toMatchObject({
       running: false,

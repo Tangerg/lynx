@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon } from "@/ui";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { toolGroupModel, type ToolGroupPinnedState } from "../application/toolGroupModel";
 import { ToolCard } from "./ToolCard";
 
@@ -21,7 +22,8 @@ interface Props {
  */
 export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: Props) {
   const [pinned, setPinned] = useState<ToolGroupPinnedState>(null);
-  const model = toolGroupModel(tools, pinned);
+  const t = useT();
+  const model = toolGroupModel(t, tools, pinned);
 
   return (
     <div className="my-1">

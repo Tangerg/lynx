@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import {
   runSummaryApprovalBadge,
@@ -22,7 +23,7 @@ const digest = (over: Partial<RunDigest> = {}): RunDigest => ({
 
 describe("runSummaryViewModel", () => {
   it("projects header status and section counts from a run digest", () => {
-    expect(runSummaryViewModel(digest())).toEqual({
+    expect(runSummaryViewModel(t, digest())).toEqual({
       subtext: "run run-1 · 5s",
       statusBadge: {
         labelKey: "runSummary.status.done",
@@ -53,10 +54,7 @@ describe("runSummaryViewModel", () => {
 
   it("projects running and unknown status badges", () => {
     expect(
-      runSummaryViewModel(digest({ status: "running", endedAt: null }), {
-        now: 3_400,
-        elapsedSuffix: " elapsed",
-      }),
+      runSummaryViewModel(t, digest({ status: "running", endedAt: null }), { now: 3_400 }),
     ).toMatchObject({
       subtext: "run run-1 · 2s elapsed",
       statusBadge: {
@@ -65,7 +63,7 @@ describe("runSummaryViewModel", () => {
       },
     });
 
-    expect(runSummaryViewModel(digest({ status: "unknown" })).statusBadge).toEqual({
+    expect(runSummaryViewModel(t, digest({ status: "unknown" })).statusBadge).toEqual({
       labelKey: "runSummary.status.unknown",
       tone: "neutral",
     });
@@ -74,15 +72,12 @@ describe("runSummaryViewModel", () => {
 
 describe("runSummarySubtext", () => {
   it("omits the duration separator when the digest has no start time", () => {
-    expect(runSummarySubtext({ runId: null, startedAt: null, endedAt: null })).toBe("run —");
+    expect(runSummarySubtext(t, { runId: null, startedAt: null, endedAt: null })).toBe("run —");
   });
 
   it("uses the current time for an in-flight run", () => {
     expect(
-      runSummarySubtext(
-        { runId: "run-2", startedAt: 10_000, endedAt: null },
-        { now: 73_000, elapsedSuffix: " elapsed" },
-      ),
+      runSummarySubtext(t, { runId: "run-2", startedAt: 10_000, endedAt: null }, { now: 73_000 }),
     ).toBe("run run-2 · 1m 3s elapsed");
   });
 });

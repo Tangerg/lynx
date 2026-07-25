@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { toolGroupModel } from "./toolGroupModel";
 
@@ -13,13 +14,13 @@ const tool = (overrides: Partial<ToolCall> = {}): ToolCall => ({
 
 describe("toolGroupModel", () => {
   it("follows attention when the group is not pinned", () => {
-    expect(toolGroupModel([tool({ status: "running" })], null)).toMatchObject({
+    expect(toolGroupModel(t, [tool({ status: "running" })], null)).toMatchObject({
       needsAttention: true,
       expanded: true,
       nextPinned: false,
     });
 
-    expect(toolGroupModel([tool({ status: "ok" })], null)).toMatchObject({
+    expect(toolGroupModel(t, [tool({ status: "ok" })], null)).toMatchObject({
       needsAttention: false,
       expanded: false,
       nextPinned: true,
@@ -27,13 +28,13 @@ describe("toolGroupModel", () => {
   });
 
   it("lets a user pin override attention", () => {
-    expect(toolGroupModel([tool({ status: "running" })], false)).toMatchObject({
+    expect(toolGroupModel(t, [tool({ status: "running" })], false)).toMatchObject({
       needsAttention: true,
       expanded: false,
       nextPinned: true,
     });
 
-    expect(toolGroupModel([tool({ status: "ok" })], true)).toMatchObject({
+    expect(toolGroupModel(t, [tool({ status: "ok" })], true)).toMatchObject({
       needsAttention: false,
       expanded: true,
       nextPinned: false,
@@ -43,6 +44,7 @@ describe("toolGroupModel", () => {
   it("projects stable summary and count for the group header", () => {
     expect(
       toolGroupModel(
+        t,
         [tool({ id: "read", name: "read" }), tool({ id: "grep", name: "grep" })],
         null,
       ),

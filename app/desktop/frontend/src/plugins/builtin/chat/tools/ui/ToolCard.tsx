@@ -13,6 +13,7 @@ import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { Collapsible, Icon, StatusDot } from "@/ui";
 import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import {
   lookupToolActionOwner,
   lookupToolViewOpenerOwner,
@@ -37,7 +38,8 @@ interface Props {
 }
 
 export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
-  const model = toolCardModel(tool);
+  const t = useT();
+  const model = toolCardModel(t, tool);
   const allActions = useExtensionPoint(TOOL_ACTION);
   const allViewOpeners = useExtensionPoint(TOOL_VIEW_OPENER);
   const actions = toolCardActions(tool, allActions);

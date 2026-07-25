@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/sdk/types/agentView";
 
 export interface ToolIntent {
@@ -13,46 +14,61 @@ export interface ToolMetaItem {
   tone: ToolMetaTone;
 }
 
-const TOOL_LABELS: Record<string, string> = {
-  _: "Shell",
-  shell: "Shell",
-  bash: "Shell",
-  read: "Read",
-  edit: "Edit",
-  write: "Write",
-  grep: "Grep",
-  glob: "Glob",
-  lsp: "LSP",
+// Catalog keys, not words. A tool row's title is either one of these (a verb the
+// UI chose) or the runtime's own tool name, which is data and stays verbatim —
+// that mix is why the translator arrives as an argument here instead of the ring
+// returning `labelKey` the way the run-summary view model can.
+const TOOL_LABEL_KEYS: Record<string, string> = {
+  shell: "tool.label.shell",
+  read: "tool.label.read",
+  edit: "tool.label.edit",
+  write: "tool.label.write",
+  grep: "tool.label.grep",
+  glob: "tool.label.glob",
+  lsp: "tool.label.lsp",
 };
 
 const TOOL_DETAIL_KEYS = ["command", "file_path", "path", "query", "pattern"] as const;
 
 const READ_ONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
 
-export function toolIntent(tool: ToolCall): ToolIntent {
+export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   const parsed = parseToolArgs(tool.args);
+  const labelKey = TOOL_LABEL_KEYS[tool.fn];
   return {
-    label: TOOL_LABELS[tool.fn] ?? tool.fn,
+    label: labelKey ? t(labelKey) : tool.fn,
     detail: parsed ? toolDetail(parsed) : undefined,
   };
 }
 
-export function toolMetaItems(tool: ToolCall): ToolMetaItem[] {
+export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   const items: ToolMetaItem[] = [];
   if (tool.added != null) {
-    items.push({ id: "added", label: `+${tool.added}`, tone: "success" });
+    items.push({
+      id: "added",
+      label: t("tool.meta.added", { count: tool.added }),
+      tone: "success",
+    });
   }
   if (tool.removed != null) {
-    items.push({ id: "removed", label: `-${tool.removed}`, tone: "negative" });
+    items.push({
+      id: "removed",
+      label: t("tool.meta.removed", { count: tool.removed }),
+      tone: "negative",
+    });
   }
   if (tool.hits != null) {
-    items.push({ id: "hits", label: `${tool.hits} matches`, tone: "muted" });
+    items.push({ id: "hits", label: t("tool.meta.matches", { count: tool.hits }), tone: "muted" });
   }
   if (tool.exitCode != null && tool.exitCode !== 0) {
-    items.push({ id: "exit", label: `exit ${tool.exitCode}`, tone: "negative" });
+    items.push({
+      id: "exit",
+      label: t("tool.meta.exit", { code: tool.exitCode }),
+      tone: "negative",
+    });
   }
   if (tool.status === "running") {
-    items.push({ id: "live", label: "live", tone: "muted" });
+    items.push({ id: "live", label: t("tool.meta.live"), tone: "muted" });
   }
   return items;
 }
@@ -65,7 +81,7 @@ export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {
   return tools.some((tool) => tool.status === "running" || tool.status === "err");
 }
 
-export function summarizeToolGroup(tools: readonly ToolCall[]): string {
+export function summarizeToolGroup(t: Translate, tools: readonly ToolCall[]): string {
   let read = 0;
   let search = 0;
   let lookup = 0;
@@ -76,9 +92,9 @@ export function summarizeToolGroup(tools: readonly ToolCall[]): string {
   }
 
   const parts: string[] = [];
-  if (read) parts.push(`${read} read`);
-  if (search) parts.push(`${search} search`);
-  if (lookup) parts.push(`${lookup} lookup`);
+  if (read) parts.push(t("tool.group.read", { count: read }));
+  if (search) parts.push(t("tool.group.search", { count: search }));
+  if (lookup) parts.push(t("tool.group.lookup", { count: lookup }));
   return parts.join(" · ");
 }
 

@@ -151,7 +151,8 @@ export function ApprovalCard({
         <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative-wash px-3 py-2 text-ui-md leading-body text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
-            <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
+            <span className="font-semibold">{t("approval.danger")}</span>{" "}
+            {dangers.map((key) => t(key)).join(" · ")}
           </span>
         </div>
       )}

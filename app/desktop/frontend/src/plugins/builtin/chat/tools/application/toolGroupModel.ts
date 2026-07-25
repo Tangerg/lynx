@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import {
   summarizeToolGroup,
@@ -15,13 +16,14 @@ export interface ToolGroupModel {
 }
 
 export function toolGroupModel(
+  t: Translate,
   tools: readonly ToolCall[],
   pinned: ToolGroupPinnedState,
 ): ToolGroupModel {
   const needsAttention = toolGroupNeedsAttention(tools);
   const expanded = pinned ?? needsAttention;
   return {
-    summary: summarizeToolGroup(tools),
+    summary: summarizeToolGroup(t, tools),
     count: tools.length,
     needsAttention,
     expanded,
