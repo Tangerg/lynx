@@ -68,7 +68,6 @@ function pendingInterrupt(
   return {
     runId: "run_1",
     sessionId: "ses_1",
-    createdAt: time,
     interrupts: items,
   };
 }

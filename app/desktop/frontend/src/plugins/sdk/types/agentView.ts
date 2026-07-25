@@ -64,12 +64,19 @@ export interface PlanItem {
 export interface Message {
   id: string;
   role: MessageRole;
-  /** Raw ISO-8601. The fold used to carry a second, pre-formatted copy of this
-   *  — which froze the wording at fold time, so a language switch never reached
-   *  messages already on screen, and did it in hardcoded English. Formatting is
-   *  the caller's, at render. For an assistant turn this is when the turn's shell
-   *  opened; it has no single Item timestamp of its own. */
-  createdAt: string;
+  /** Raw ISO-8601, from the wire. The fold used to carry a second, pre-formatted
+   *  copy of this — which froze the wording at fold time, so a language switch
+   *  never reached messages already on screen, and did it in hardcoded English.
+   *  Formatting is the caller's, at render.
+   *
+   *  Optional because a synthesized assistant turn has no Item of its own: it
+   *  takes the timestamp of the Item whose first block opened it, and where even
+   *  that is unavailable it carries none. The fold does NOT reach for the clock
+   *  to fill the gap — the wall clock is an effect, and a turn stamped by the
+   *  client sits in a stream stamped by the runtime (the date separator above it
+   *  would disagree with the messages beside it on a skewed machine). Renderers
+   *  already treat it as optional. */
+  createdAt?: string;
   /** Owning root Run (Item.runId) — anchors run-boundary actions
    *  (edit-and-rerun via sessions.rollback, fork-from-run). Absent on
    *  optimistic local bubbles until the real Item reconciles, and on
@@ -170,7 +177,6 @@ export interface PendingInterruptGroup {
   runId: string; // the Run to resume (its current segment ended in an interrupt)
   sessionId: string;
   interrupts: PendingInterrupt[];
-  createdAt: string;
 }
 
 export interface AgentViewState {

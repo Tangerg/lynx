@@ -30,7 +30,11 @@ function mutateMessage(
 }
 
 /** Ensure an open assistant-turn message exists; return its id + next state. */
-function ensureTurn(state: AgentViewState, itemId: string): { state: AgentViewState; id: string } {
+function ensureTurn(
+  state: AgentViewState,
+  itemId: string,
+  createdAt?: string,
+): { state: AgentViewState; id: string } {
   const open =
     state.turnMessageId && state.messages.some((m) => m.id === state.turnMessageId)
       ? state.turnMessageId
@@ -47,12 +51,10 @@ function ensureTurn(state: AgentViewState, itemId: string): { state: AgentViewSt
     return { state: { ...state, turnMessageId: id }, id };
   }
 
-  const msg: Message = {
-    id,
-    role: "assistant",
-    createdAt: new Date().toISOString(),
-    blocks: [],
-  };
+  // The Item that opened this turn dates it. No clock here: a turn stamped by the
+  // client clock sits in a stream stamped by the runtime, and the date separator
+  // above it would disagree with the messages beside it. Absent is honest.
+  const msg: Message = { id, role: "assistant", createdAt, blocks: [] };
   return { state: { ...state, messages: [...state.messages, msg], turnMessageId: id }, id };
 }
 
@@ -61,8 +63,10 @@ export function appendToTurn(
   state: AgentViewState,
   itemId: string,
   block: ContentBlock,
+  /** The Item's wire timestamp — dates the turn if this block has to open one. */
+  createdAt?: string,
 ): AgentViewState {
-  const { state: s, id } = ensureTurn(state, itemId);
+  const { state: s, id } = ensureTurn(state, itemId, createdAt);
   return mutateMessage(s, id, (m) => ({ ...m, blocks: [...m.blocks, block] }));
 }
 
@@ -88,13 +92,13 @@ export function patchBlock(
  *  missed on durable replay / history hydration). */
 function upsertBlock(
   state: AgentViewState,
-  itemId: string,
+  item: { id: string; createdAt: string },
   match: (b: ContentBlock) => boolean,
   make: () => ContentBlock,
   patch: (b: ContentBlock) => ContentBlock,
 ): AgentViewState {
   if (state.messages.some((m) => m.blocks.some(match))) return patchBlock(state, match, patch);
-  return appendToTurn(state, itemId, make());
+  return appendToTurn(state, item.id, make(), item.createdAt);
 }
 
 export function updateTool(
@@ -219,7 +223,7 @@ export function foldText(
   const text = contentText(item.content);
   return upsertBlock(
     state,
-    item.id,
+    item,
     (b) => b.kind === "text" && b.itemId === item.id,
     () => ({ kind: "text", itemId: item.id, text, status }),
     // Never let an empty completed snapshot wipe already-streamed text: the
@@ -242,7 +246,7 @@ export function foldReasoning(
   const text = item.text ?? "";
   return upsertBlock(
     state,
-    item.id,
+    item,
     (b) => b.kind === "reasoning" && b.reasoningId === item.id,
     () => ({ kind: "reasoning", reasoningId: item.id, text, status }),
     // Preserve already-streamed reasoning when a completed snapshot is empty
@@ -259,7 +263,7 @@ export function foldQuestion(
 ): AgentViewState {
   return upsertBlock(
     state,
-    item.id,
+    item,
     (b) => b.kind === "question" && b.itemId === item.id,
     () => ({ kind: "question", status, itemId: item.id, questions: mapQuestion(item.question) }),
     (b) => (b.kind === "question" ? { ...b, status } : b),
@@ -300,7 +304,7 @@ export function writeToolCall(
 ): { state: AgentViewState; tool: ToolCall } {
   const withBlock =
     state.toolCalls[item.id] === undefined
-      ? appendToTurn(state, item.id, { kind: "tool", toolCallId: item.id })
+      ? appendToTurn(state, item.id, { kind: "tool", toolCallId: item.id }, item.createdAt)
       : state;
   const prev = withBlock.toolCalls[item.id];
   const tool: ToolCall = {

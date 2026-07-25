@@ -139,6 +139,11 @@ describe("reducer — render convergence across delivery modes", () => {
     expect(replay.toolCalls).toEqual(streaming.toolCalls);
     expect(mixed.toolCalls).toEqual(streaming.toolCalls);
 
+    // The synthesized turn is dated by the Item that opened it — the runtime's
+    // clock, the same one every message beside it carries. The fold reads no
+    // clock of its own.
+    expect(streaming.messages[1]!.createdAt).toBe(r1.createdAt);
+
     // Sanity: the fold actually built the turn we described — one user bubble +
     // one assistant turn holding reasoning / text / tool / text, in order.
     expect(streaming.messages).toHaveLength(2);

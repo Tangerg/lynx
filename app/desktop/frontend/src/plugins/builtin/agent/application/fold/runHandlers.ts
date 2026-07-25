@@ -105,7 +105,6 @@ export function onRunFinished(
                   itemId: interrupt.itemId,
                   kind: interrupt.type,
                 })),
-                createdAt: new Date().toISOString(),
               },
             ],
           };

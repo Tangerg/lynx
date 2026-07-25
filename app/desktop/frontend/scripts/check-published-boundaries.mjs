@@ -166,6 +166,30 @@ for (const file of files(SRC)) {
     });
   }
 
+  // A pure projection is a function of its inputs. The wall clock is neither an
+  // input nor deterministic: a fold that stamps `new Date()` cannot be replayed,
+  // its tests have to strip the field, and — the reason this got noticed — a
+  // synthesized assistant turn ended up dated by the CLIENT clock while every
+  // message beside it carried the runtime's, so the date separator above it could
+  // disagree with the messages under it on a skewed machine. A synthesized entity
+  // takes the timestamp of the wire event that caused it, or carries none.
+  //
+  // Actions are exempt by not being here: "when did this export happen" is the
+  // event's own timestamp, and `runSummaryViewModel` shows the other way out —
+  // take `now` as a parameter.
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/(?:domain|presentation|application\/fold)\/.+\.(ts|tsx)$/.test(rel) &&
+    /new Date\(\)|Date\.now\(\)|Math\.random\(\)/.test(
+      text.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, ""),
+    )
+  ) {
+    violations.push({
+      file: rel,
+      reason: "a pure projection must not read the clock or randomness",
+    });
+  }
+
   // A use case is answerable without a browser. `document`, `window`, `Blob` and
   // friends are the browser's mechanisms, and a layer that reaches for them cannot
   // be exercised — or reasoned about — without one. Two modules had drifted here:
