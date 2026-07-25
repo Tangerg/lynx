@@ -24,7 +24,7 @@ interface Props {
 function ChatErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
   const t = useT();
   return (
-    <div role="alert" className="m-8 max-w-[720px] rounded-lg bg-negative/10 px-5 py-4 text-fg">
+    <div role="alert" className="m-8 max-w-[720px] rounded-lg bg-negative-wash px-5 py-4 text-fg">
       <div className="mb-2 font-semibold text-display-sm tracking-tight text-negative">
         {t("chat.error.title")}
       </div>

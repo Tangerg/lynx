@@ -13,10 +13,10 @@ import { Button, type ButtonProps } from "./button";
 const banner = cva("flex flex-row items-center gap-3 rounded-lg px-3 py-2", {
   variants: {
     variant: {
-      info: "bg-info/10 text-info",
-      warning: "bg-warning/10 text-warning",
-      error: "bg-negative/10 text-negative",
-      success: "bg-success/10 text-success",
+      info: "bg-info-wash text-info",
+      warning: "bg-warning-wash text-warning",
+      error: "bg-negative-wash text-negative",
+      success: "bg-success-wash text-success",
     },
   },
   defaultVariants: { variant: "info" },

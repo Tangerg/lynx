@@ -149,7 +149,7 @@ function ApprovalModePill() {
             className={cn(
               "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-selected",
               full
-                ? "text-warning hover:bg-warning/10"
+                ? "text-warning hover:bg-warning-wash"
                 : "text-fg-soft hover:bg-hover hover:text-fg",
             )}
             data-slot="composer-approval"

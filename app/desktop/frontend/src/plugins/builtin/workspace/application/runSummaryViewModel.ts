@@ -1,3 +1,4 @@
+import type { Tone } from "@/lib/tone";
 import type { RunDigest } from "@/plugins/builtin/agent/public/runDigest";
 import { durationText } from "@/plugins/builtin/agent/public/runDigest";
 
@@ -5,9 +6,12 @@ type ApprovalDigest = RunDigest["approvals"][number];
 type ChangedFile = RunDigest["changedFiles"][number];
 type CommandDigest = RunDigest["commands"][number];
 
+// A label plus the tone it reads in. Not a className: which fill or ink a tone
+// wears is the view's business, and these strings used to be Tailwind — pinned
+// as Tailwind in the tests — decided one floor below the layer that renders them.
 export interface RunSummaryBadge {
   labelKey: string;
-  className: string;
+  tone: Tone;
 }
 
 export interface RunSummarySection<T> {
@@ -33,19 +37,19 @@ export interface RunSummaryViewModelOptions {
 const STATUS_BADGE_BY_STATUS: Record<RunDigest["status"], RunSummaryBadge> = {
   ok: {
     labelKey: "runSummary.status.done",
-    className: "bg-success/12 text-success",
+    tone: "success",
   },
   err: {
     labelKey: "runSummary.status.errored",
-    className: "bg-negative/12 text-negative",
+    tone: "negative",
   },
   running: {
     labelKey: "runSummary.status.running",
-    className: "bg-accent/12 text-accent",
+    tone: "accent",
   },
   unknown: {
     labelKey: "runSummary.status.unknown",
-    className: "bg-surface-2 text-fg-muted",
+    tone: "neutral",
   },
 };
 
@@ -55,15 +59,15 @@ const APPROVAL_BADGE_BY_DECISION: Record<
 > = {
   approved: {
     labelKey: "runSummary.approval.approved",
-    className: "text-success",
+    tone: "success",
   },
   declined: {
     labelKey: "runSummary.approval.declined",
-    className: "text-warning",
+    tone: "warning",
   },
   pending: {
     labelKey: "runSummary.approval.pending",
-    className: "text-fg-faint",
+    tone: "neutral",
   },
 };
 
@@ -96,8 +100,8 @@ export function runSummarySubtext(
   return `${runLabel} · ${durationText(digest.startedAt, end)}${ended ? "" : elapsedSuffix}`;
 }
 
-export function runSummaryCommandClassName(status: CommandDigest["status"]): string {
-  return status === "err" ? "text-negative" : "text-fg-muted";
+export function runSummaryCommandTone(status: CommandDigest["status"]): Tone {
+  return status === "err" ? "negative" : "neutral";
 }
 
 export function runSummaryApprovalBadge(decision: ApprovalDigest["decision"]): RunSummaryBadge {

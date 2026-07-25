@@ -20,10 +20,10 @@ const STATUS_CLASSES: Record<MCPServerConfig["status"], { key: string; classes: 
     key: "tools.status.connecting",
     classes: "bg-surface-2 text-fg-muted animate-pulse",
   },
-  connected: { key: "tools.status.on", classes: "bg-accent/12 text-accent" },
+  connected: { key: "tools.status.on", classes: "bg-accent-wash text-accent" },
   disconnected: { key: "tools.status.off", classes: "bg-surface-2 text-fg-faint" },
-  failed: { key: "tools.status.error", classes: "bg-negative/12 text-negative" },
-  needsAuth: { key: "tools.status.login", classes: "bg-warning/12 text-warning" },
+  failed: { key: "tools.status.error", classes: "bg-negative-wash text-negative" },
+  needsAuth: { key: "tools.status.login", classes: "bg-warning-wash text-warning" },
 };
 
 // Expanded detail: the server's tool list (mcp.tools.list), fetched
@@ -85,8 +85,8 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
         <div
           className={cn(
             "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg transition-colors",
-            server.status === "connected" && "bg-accent/10 text-accent",
-            server.status === "failed" && "bg-negative/10 text-negative",
+            server.status === "connected" && "bg-accent-wash text-accent",
+            server.status === "failed" && "bg-negative-wash text-negative",
           )}
         >
           <Icon name={server.icon as IconName} size={15} />

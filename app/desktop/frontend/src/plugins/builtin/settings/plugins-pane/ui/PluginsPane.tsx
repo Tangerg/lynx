@@ -75,7 +75,7 @@ export function PluginsPane() {
               key={spec.name}
               className={cn(
                 "rounded-md transition-colors hover:bg-hover",
-                errCount > 0 && "bg-negative/5",
+                errCount > 0 && "bg-negative-wash",
               )}
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
@@ -156,7 +156,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
   return (
     <div className="rounded-md bg-surface-2 px-2.5 py-2">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-        <span className="rounded-full bg-negative/15 px-1.5 py-px font-mono text-ui-xs font-semibold text-negative">
+        <span className="rounded-full bg-negative-badge px-1.5 py-px font-mono text-ui-xs font-semibold text-negative">
           {SOURCE_LABEL[err.source]}
         </span>
         <span className="truncate font-medium text-ui-md text-fg" title={err.message}>
@@ -187,7 +187,7 @@ function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
       }
       className={cn(
         "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-ui-xs font-semibold align-middle tracking-normal",
-        origin === "builtin" ? "bg-surface-2 text-fg-muted" : "bg-info/10 text-info",
+        origin === "builtin" ? "bg-surface-2 text-fg-muted" : "bg-info-wash text-info",
       )}
     >
       {origin === "builtin" ? t("plugins.origin.builtin") : t("plugins.origin.sideload")}

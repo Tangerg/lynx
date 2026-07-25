@@ -64,7 +64,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       <div
         className={cn(
           "overflow-hidden rounded-lg transition-colors duration-150",
-          model.isError ? "bg-negative/10" : model.needsAction ? "bg-warning/10" : "bg-surface",
+          model.isError ? "bg-negative-wash" : model.needsAction ? "bg-warning-wash" : "bg-surface",
         )}
       >
         <button
@@ -76,9 +76,9 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
             "flex w-full items-center gap-3 px-3 py-2.5 text-left",
             "transition-colors duration-100",
             model.isError
-              ? "hover:bg-negative/[0.06]"
+              ? "hover:bg-negative-wash"
               : model.needsAction
-                ? "hover:bg-warning/[0.06]"
+                ? "hover:bg-warning-wash"
                 : "hover:bg-hover",
             "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
           )}
@@ -169,11 +169,11 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
 function IconChip({ status, tool }: { status: ToolCall["status"]; tool: ToolCall }) {
   const tone =
     status === "err"
-      ? "bg-negative/15 text-negative"
+      ? "bg-negative-badge text-negative"
       : status === "requires-action"
-        ? "bg-warning/15 text-warning"
+        ? "bg-warning-badge text-warning"
         : status === "ok"
-          ? "bg-success/15 text-success"
+          ? "bg-success-badge text-success"
           : status === "denied"
             ? "bg-fg/[0.06] text-fg-faint"
             : "bg-surface-2 text-fg-muted"; // running / pending
@@ -217,7 +217,7 @@ function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean 
 }
 
 function toolMetaToneClass(tone: ToolMetaItem["tone"]): string {
-  if (tone === "success") return "bg-success/15 text-success";
-  if (tone === "negative") return "bg-negative/15 text-negative";
+  if (tone === "success") return "bg-success-badge text-success";
+  if (tone === "negative") return "bg-negative-badge text-negative";
   return "bg-fg/[0.06] text-fg-muted";
 }

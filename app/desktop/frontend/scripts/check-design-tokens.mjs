@@ -11,7 +11,7 @@
 // regression: it silently opts that one element out of the ladder, and out of the
 // user's size and shape preferences.
 //
-// Escape hatch: none by design. A size or radius the ladder cannot express is a
+// Escape hatch: none by design. A size, radius or tint the ladder cannot express is a
 // signal the ladder needs a step, not that this callsite needs an exception —
 // add the step in globals.css so every other callsite can reach it too.
 
@@ -21,6 +21,14 @@ import { extname, join, relative } from "node:path";
 const SRC = new URL("../src/", import.meta.url).pathname;
 
 const MARKUP_RULES = [
+  {
+    // `bg-negative/12`, `bg-warning/[0.06]` — a semantic tint with a hand-picked
+    // alpha. Negative alone had reached five of them across the tree, so the same
+    // "this is an error" answered at five strengths depending on the card.
+    pattern: /(?<![\w-])(?:[a-z-]+:)*bg-(?:negative|warning|success|info|accent)\/\[?[\d.]+\]?/g,
+    message:
+      "hand-picked tone alpha — use `bg-<tone>-wash` (a tinted surface) or `bg-<tone>-badge` (a chip on one)",
+  },
   {
     pattern: /(?<![\w-])(?:[a-z-]+:)*text-\[[\d.]+px\]/g,
     message: "arbitrary font size — use a `text-ui-*` / `text-display-*` step",
@@ -88,4 +96,4 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-design-tokens: type + leading + radius ladders clean");
+console.log("check-design-tokens: type + leading + radius + tone ladders clean");

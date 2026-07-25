@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "./toolCatalog";
 import {
   builtinToolCatalogViewModel,
-  builtinToolSafetyPillClassName,
+  builtinToolSafetyTone,
   toolCatalogSubtext,
   toolCatalogViewModel,
 } from "./toolCatalog";
@@ -52,7 +52,7 @@ describe("builtinToolCatalogViewModel", () => {
           id: "read",
           name: "read",
           description: "Read files",
-          safety: { label: "safe", className: "bg-accent/12 text-accent" },
+          safety: { label: "safe", tone: "accent" },
         },
         { id: "think", name: "think", description: "Think", safety: undefined },
       ],
@@ -73,16 +73,16 @@ describe("toolCatalogSubtext", () => {
   });
 });
 
-describe("builtinToolSafetyPillClassName", () => {
-  it("maps known safety classes to semantic pill classes", () => {
-    expect(builtinToolSafetyPillClassName("safe")).toBe("bg-accent/12 text-accent");
-    expect(builtinToolSafetyPillClassName("write")).toBe("bg-warning/12 text-warning");
-    expect(builtinToolSafetyPillClassName("exec")).toBe("bg-negative/12 text-negative");
-    expect(builtinToolSafetyPillClassName("network")).toBe("bg-surface-2 text-fg-muted");
+describe("builtinToolSafetyTone", () => {
+  it("maps known safety classes to badge tones", () => {
+    expect(builtinToolSafetyTone("safe")).toBe("accent");
+    expect(builtinToolSafetyTone("write")).toBe("warning");
+    expect(builtinToolSafetyTone("exec")).toBe("negative");
+    expect(builtinToolSafetyTone("network")).toBe("neutral");
   });
 
-  it("uses the neutral pill for missing or unknown safety classes", () => {
-    expect(builtinToolSafetyPillClassName(undefined)).toBe("bg-surface-2 text-fg-muted");
-    expect(builtinToolSafetyPillClassName("custom")).toBe("bg-surface-2 text-fg-muted");
+  it("uses the neutral tone for missing or unknown safety classes", () => {
+    expect(builtinToolSafetyTone(undefined)).toBe("neutral");
+    expect(builtinToolSafetyTone("custom")).toBe("neutral");
   });
 });

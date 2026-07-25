@@ -29,7 +29,7 @@ const buttonStyles = cva(
         soft: "bg-surface-2 text-fg-soft hover:bg-surface-3 hover:text-fg",
         outline: "border-field bg-transparent text-fg-soft hover:bg-hover hover:text-fg",
         primary: "bg-cta text-cta-text hover:bg-cta-hover",
-        danger: "bg-transparent text-negative hover:bg-negative/10",
+        danger: "bg-transparent text-negative hover:bg-negative-wash",
       },
       size: {
         xs: "h-6 rounded-sm px-[7px] text-ui-sm",

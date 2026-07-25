@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
+import type { Tone } from "@/lib/tone";
 import { useEffect, useRef, useState } from "react";
-import { EmptyState, Icon, IconButton } from "@/ui";
+import { Badge, EmptyState, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
@@ -10,9 +11,21 @@ import { useT } from "@/lib/i18n";
 import { useLatestRunDigest } from "@/plugins/builtin/workspace/presentation/runSummaryView";
 import {
   runSummaryApprovalBadge,
-  runSummaryCommandClassName,
+  runSummaryCommandTone,
   runSummaryViewModel,
 } from "@/plugins/builtin/workspace/application/runSummaryViewModel";
+
+// Two rows here want a tone's ink without its fill — a word tinted in place, not
+// a chip. The Badge owns fill+ink pairs, so the ink-only reading stays local to
+// this view rather than becoming a second class-string export from the library.
+const TONE_INK: Record<Tone, string> = {
+  neutral: "text-fg-muted",
+  accent: "text-accent",
+  success: "text-success",
+  warning: "text-warning",
+  negative: "text-negative",
+  info: "text-info",
+};
 
 function Section({
   title,
@@ -88,14 +101,9 @@ function RunSummaryTab() {
       }
     >
       <div className="px-4 pb-2 pt-1">
-        <span
-          className={cn(
-            "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
-            view.statusBadge.className,
-          )}
-        >
+        <Badge tone={view.statusBadge.tone} className="font-mono font-semibold">
           {t(view.statusBadge.labelKey)}
-        </span>
+        </Badge>
       </div>
 
       <Section title="runSummary.section.changedFiles" count={view.changedFiles.count}>
@@ -130,7 +138,7 @@ function RunSummaryTab() {
         {view.commands.items.map((c, i) => (
           <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-ui-md">
             <Icon name="terminal" size={11} className="text-fg-faint" />
-            <span className={cn("truncate", runSummaryCommandClassName(c.status))}>{c.cmd}</span>
+            <span className={cn("truncate", runSummaryCommandTone(c.status))}>{c.cmd}</span>
           </div>
         ))}
       </Section>
@@ -145,12 +153,7 @@ function RunSummaryTab() {
             >
               <Icon name="shield" size={11} className="text-fg-faint" />
               <span className="truncate">{a.command || t("runSummary.approval.noCommand")}</span>
-              <span
-                className={cn(
-                  "ml-auto rounded-sm px-1 text-ui-xs font-semibold",
-                  approval.className,
-                )}
-              >
+              <span className={cn("ml-auto text-ui-xs font-semibold", TONE_INK[approval.tone])}>
                 {t(approval.labelKey)}
               </span>
             </div>

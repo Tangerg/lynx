@@ -91,7 +91,7 @@ export function RunErrorBanner() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -6 }}
           transition={swift}
-          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-4 py-3 bg-negative/10 text-fg font-sans"
+          className="grid grid-cols-[auto_1fr_auto] items-start gap-2.5 mx-4 mt-2.5 mb-1 rounded-lg px-4 py-3 bg-negative-wash text-fg font-sans"
         >
           <Icon name="bug" size={14} className="text-negative mt-0.5" />
           <div className="min-w-0">

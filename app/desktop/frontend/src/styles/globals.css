@@ -117,6 +117,24 @@
   --color-hover: color-mix(in srgb, var(--color-text) 4%, transparent);
   --color-selected: color-mix(in srgb, var(--color-text) 6%, transparent);
 
+  /* Semantic tone fills — two intensities, named because the app already had
+     both and had lost count of them. A `wash` tints a surface (an error banner,
+     a warning row, the selected mode); a `badge` is the chip that sits ON such a
+     surface, which is why one value cannot serve: a 10% pill on a 10% card is
+     invisible. Callsites were choosing per-place and had drifted to six alphas
+     for negative alone (5 / 6 / 10 / 12 / 15 / 25). Reach for these, never for a
+     bare `bg-negative/12`. */
+  --color-negative-wash: color-mix(in srgb, var(--color-negative) 10%, transparent);
+  --color-warning-wash: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  --color-success-wash: color-mix(in srgb, var(--color-success) 10%, transparent);
+  --color-info-wash: color-mix(in srgb, var(--color-info) 10%, transparent);
+  --color-accent-wash: color-mix(in srgb, var(--color-accent) 10%, transparent);
+  --color-negative-badge: color-mix(in srgb, var(--color-negative) 15%, transparent);
+  --color-warning-badge: color-mix(in srgb, var(--color-warning) 15%, transparent);
+  --color-success-badge: color-mix(in srgb, var(--color-success) 15%, transparent);
+  --color-info-badge: color-mix(in srgb, var(--color-info) 15%, transparent);
+  --color-accent-badge: color-mix(in srgb, var(--color-accent) 15%, transparent);
+
   /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
      single base size at runtime (lib/typography.ts writes the --fs-* vars), so
      the ladder cannot drift the way per-call-site pixel values did.

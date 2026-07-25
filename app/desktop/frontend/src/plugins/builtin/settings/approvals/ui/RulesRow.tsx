@@ -13,8 +13,8 @@ import { cn } from "@/lib/utils";
 
 const SCOPE_CHIP: Record<ApprovalRuleConfig["scope"], string> = {
   session: "bg-surface-2 text-fg-muted",
-  project: "bg-accent/10 text-accent",
-  global: "bg-warning/12 text-warning",
+  project: "bg-accent-wash text-accent",
+  global: "bg-warning-wash text-warning",
 };
 
 export function RulesRow() {

@@ -149,7 +149,7 @@ export function ApprovalCard({
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative/10 px-3 py-2 text-ui-md leading-body text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative-wash px-3 py-2 text-ui-md leading-body text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -259,18 +259,18 @@ export function ApprovalCard({
 // Tinted pill fills — no inset ring borders (§ light Geist recipe). Tone rides
 // the semantic bg/text token alone.
 function approvalRiskToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative/10 text-negative";
-  if (tone === "warning") return "bg-warning/10 text-warning";
+  if (tone === "danger") return "bg-negative-wash text-negative";
+  if (tone === "warning") return "bg-warning-wash text-warning";
   return "bg-fg/[0.06] text-fg-muted";
 }
 
 function approvalScopeToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative/10 text-negative";
-  if (tone === "warning") return "bg-warning/10 text-warning";
+  if (tone === "danger") return "bg-negative-wash text-negative";
+  if (tone === "warning") return "bg-warning-wash text-warning";
   return "bg-surface-2 text-fg-muted";
 }
 
 function approvalReversibilityToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative/10 text-negative";
+  if (tone === "danger") return "bg-negative-wash text-negative";
   return "bg-fg/[0.06] text-fg-muted";
 }

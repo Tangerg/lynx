@@ -54,9 +54,9 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
           className={cn(
             "rounded-pill px-2 py-0.5 font-mono text-ui-sm font-medium",
             fromEnv
-              ? "bg-info/10 text-info"
+              ? "bg-info-wash text-info"
               : enabled
-                ? "bg-success/10 text-success"
+                ? "bg-success-wash text-success"
                 : "bg-surface-2 text-fg-faint",
           )}
         >

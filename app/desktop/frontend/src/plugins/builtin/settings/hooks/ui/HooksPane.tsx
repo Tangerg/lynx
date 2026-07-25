@@ -48,7 +48,7 @@ function HookRow({ h }: { h: HookConfig }) {
       {!h.active ? (
         <span
           title={t("hooks.inactive.hint")}
-          className="shrink-0 rounded-sm bg-warning/12 px-1.5 py-px text-ui-xs font-medium text-warning"
+          className="shrink-0 rounded-sm bg-warning-wash px-1.5 py-px text-ui-xs font-medium text-warning"
         >
           {t("hooks.inactive")}
         </span>

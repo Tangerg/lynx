@@ -112,7 +112,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                       className={cn(
                         "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-3 py-2 text-left transition-colors duration-150",
                         active
-                          ? "border-accent/60 bg-accent/10"
+                          ? "border-accent/60 bg-accent-wash"
                           : "bg-surface-2 hover:bg-surface-3",
                       )}
                     >

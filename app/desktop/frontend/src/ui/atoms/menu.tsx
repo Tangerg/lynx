@@ -153,7 +153,7 @@ function ContextIconItem({
       className={cn(
         "grid-cols-[14px_minmax(0,1fr)]",
         destructive &&
-          "text-negative data-[highlighted]:bg-negative/10 data-[highlighted]:text-negative",
+          "text-negative data-[highlighted]:bg-negative-wash data-[highlighted]:text-negative",
         className,
       )}
     >

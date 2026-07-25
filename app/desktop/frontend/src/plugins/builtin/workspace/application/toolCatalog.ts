@@ -1,3 +1,4 @@
+import type { Tone } from "@/lib/tone";
 import {
   useMCPServers,
   useMCPTools,
@@ -10,7 +11,7 @@ export type MCPServerConfig = MCPServer;
 
 export interface BuiltinToolSafetyPill {
   label: string;
-  className: string;
+  tone: Tone;
 }
 
 export interface BuiltinToolRowViewModel {
@@ -31,14 +32,15 @@ export interface ToolCatalogViewModel {
   configuredMcpServerCount: number;
 }
 
-const SAFETY_PILL_CLASS_BY_SAFETY: Record<string, string> = {
-  safe: "bg-accent/12 text-accent",
-  write: "bg-warning/12 text-warning",
-  exec: "bg-negative/12 text-negative",
-  network: "bg-surface-2 text-fg-muted",
+// A safety class reads as a tone; which fill and ink that tone wears is the
+// Badge's business, not this layer's. These used to be Tailwind strings, tested
+// as Tailwind strings — presentation decided one floor too low.
+const TONE_BY_SAFETY: Record<string, Tone> = {
+  safe: "accent",
+  write: "warning",
+  exec: "negative",
+  network: "neutral",
 };
-
-const DEFAULT_SAFETY_PILL_CLASS = "bg-surface-2 text-fg-muted";
 
 export function useBuiltinToolConfigs() {
   return useWorkspaceBuiltinTools();
@@ -84,7 +86,7 @@ export function builtinToolCatalogViewModel(
       safety: tool.safetyClass
         ? {
             label: tool.safetyClass,
-            className: builtinToolSafetyPillClassName(tool.safetyClass),
+            tone: builtinToolSafetyTone(tool.safetyClass),
           }
         : undefined,
     })),
@@ -99,11 +101,9 @@ export function toolCatalogSubtext({
   return `${activeMcpServerCount} MCP active · ${configuredMcpServerCount} configured`;
 }
 
-export function builtinToolSafetyPillClassName(
-  safetyClass: BuiltinToolInfo["safetyClass"],
-): string {
+export function builtinToolSafetyTone(safetyClass: BuiltinToolInfo["safetyClass"]): Tone {
   if (!safetyClass) {
-    return DEFAULT_SAFETY_PILL_CLASS;
+    return "neutral";
   }
-  return SAFETY_PILL_CLASS_BY_SAFETY[safetyClass] ?? DEFAULT_SAFETY_PILL_CLASS;
+  return TONE_BY_SAFETY[safetyClass] ?? "neutral";
 }

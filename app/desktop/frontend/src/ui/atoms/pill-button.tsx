@@ -17,7 +17,8 @@ const styles = cva(
         outlined: "border-[0.5px] border-field text-fg-soft hover:bg-hover hover:text-fg",
         solid: "bg-cta text-cta-text hover:bg-cta-hover",
         accent: "bg-accent text-on-accent",
-        danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/10",
+        danger:
+          "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative-wash",
       },
       size: {
         sm: "h-6.5 px-3 text-ui-sm",

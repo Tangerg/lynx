@@ -3,7 +3,7 @@
 // tools (tools.list — static per runtime build) and the connected MCP
 // servers (mcp.* — live 5-state lifecycle, expandable rows).
 
-import { DataView, Icon, TextButton } from "@/ui";
+import { Badge, DataView, Icon, TextButton } from "@/ui";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -44,11 +44,9 @@ function BuiltinToolsSection() {
               {tool.description}
             </span>
             {tool.safety && (
-              <span
-                className={`shrink-0 rounded-sm px-1.5 py-0.5 font-mono text-ui-xs ${tool.safety.className}`}
-              >
+              <Badge tone={tool.safety.tone} className="font-mono">
                 {tool.safety.label}
-              </span>
+              </Badge>
             )}
           </div>
         </div>

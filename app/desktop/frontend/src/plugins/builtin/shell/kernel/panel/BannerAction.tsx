@@ -10,9 +10,11 @@ import { cn } from "@/lib/utils";
 const FOCUS_RING =
   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
 
+// Rests at the tint, lifts to the chip weight on hover — the same two steps
+// every other tonal surface uses, rather than this button's own third alpha.
 const PRIMARY_TONE: Record<"negative" | "warning", string> = {
-  negative: "bg-negative/15 text-negative hover:bg-negative/25",
-  warning: "bg-warning/15 text-warning hover:bg-warning/25",
+  negative: "bg-negative-wash text-negative hover:bg-negative-badge",
+  warning: "bg-warning-wash text-warning hover:bg-warning-badge",
 };
 
 export function BannerAction({
