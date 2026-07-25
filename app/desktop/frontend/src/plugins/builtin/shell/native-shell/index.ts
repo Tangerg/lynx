@@ -1,8 +1,7 @@
 // Built-in plugin: native-shell — suppress the WebView's default right-click
 // menu. A browser context menu popping up over app chrome (tabs, sidebar,
-// messages) is one of the loudest "there's a webview under this window" tells
-// (NATIVE_FEEL.md §A). A desktop surface either shows an app-defined menu or
-// nothing.
+// messages) is one of the loudest "there's a webview under this window" tells.
+// A desktop surface either shows an app-defined menu or nothing.
 //
 // Exception: real text fields keep the system edit menu (cut / copy / paste /
 // look-up) — on WKWebView that IS the native macOS edit menu, the affordance

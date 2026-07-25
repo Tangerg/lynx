@@ -128,6 +128,6 @@ perf 排查沉淀的硬规则 —— 几个"看似没事其实在累积"的坑�
 ## 7 · 工作流
 
 - **开发**：`wails dev`（自动起 vite + Go backend）。
-- **质量门禁**（在 `frontend/` 跑）：`npm run check` —— typecheck + lint + format + test + knip + circular + layers + bundle，全绿才往下走（单项也可单跑 `typecheck` / `lint` / `test` / `knip`）。
+- **质量门禁**（在 `frontend/` 跑）：`npm run check` —— 类型 / lint / 格式 / 测试 / 死码 / 架构守卫 / 视觉与文案守卫 / 产物体积，全绿才往下走（单项可单跑，名字见 `package.json` 的 `check:*`）。**不在这里列举守卫清单** —— 它只会漂：曾列 8 项时实际已有 14 项。
 - **会漂的量（测试数 / 插件数 / 文件数）直接跑命令查，不在本文件维护硬编码数字。**
 - **沟通约定**：中文回复（用户偏好），代码 / 注释保持英文；破坏性或结构性改动前先算爆炸半径（grep 所有消费方）+ 给方案 + 权衡，等用户确认再动；改动后跑 `npm run check`，commit message 写清 _why_，commit 后默认推送；commit trailer 用 `Co-Authored-By: Claude <当前实际模型名> <noreply@anthropic.com>`（署名以实际生成该 commit 的模型为准，不硬编码型号）。

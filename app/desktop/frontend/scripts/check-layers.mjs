@@ -286,12 +286,16 @@ try {
 const violations = [];
 const contextRoots = contextRootsOf(graph);
 for (const [file, deps] of Object.entries(graph)) {
-  // Tests may import across layers to wire fixtures (e.g. loading a plugin to
-  // exercise the reducer). The layering invariant is about production
-  // dependency direction, so skip test files as importers.
-  if (/\.(test|spec)\.[tj]sx?$/.test(file)) continue;
+  // Tests may cross LAYERS to wire fixtures (e.g. loading a plugin to exercise
+  // the reducer), and a test naturally reaches its own module's internals — the
+  // layering invariant is about production dependency direction. The CONTEXT
+  // boundary still holds for them: a test that reaches past a foreign context's
+  // facade couples this context's suite to another's internals, so that context
+  // can't refactor without breaking tests it doesn't own. Every test in the tree
+  // already goes through `public/`; this keeps it that way.
+  const isTest = /\.(test|spec)\.[tj]sx?$/.test(file);
   const from = layerOf(file);
-  const forbidden = FORBIDDEN[from] ?? [];
+  const forbidden = isTest ? [] : (FORBIDDEN[from] ?? []);
   for (const dep of deps) {
     const to = layerOf(dep);
     if (forbidden.includes(to) && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
