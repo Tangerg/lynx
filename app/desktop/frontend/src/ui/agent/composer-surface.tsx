@@ -6,9 +6,12 @@ import { cn } from "@/lib/utils";
  *
  * A real 1px border, not a shadow ring: the composer overlaps the scrolling
  * transcript, and an optical ring plus a border would read as a double edge at
- * exactly the spot the eye is drawn to. The fill is a control surface rather than
- * the card color, so the composer reads as something you type INTO instead of a
- * floating panel that happens to contain a textarea.
+ * exactly the spot the eye is drawn to.
+ *
+ * The fill is the CARD colour, not a recessed grey. A grey slab sitting on a white
+ * reading column reads heavy and dirty no matter how the grey is tuned — what
+ * makes the composer read as a control is the defined edge plus the depth shadow,
+ * so the interior stays as clean as the page.
  *
  * Carries no padding: the editor and the footer own their own insets, because the
  * footer sits flush to the card's edges and shared padding here would push it
@@ -23,7 +26,7 @@ export function AgentComposerSurface({
     <div
       {...props}
       className={cn(
-        "rounded-composer border border-field-strong bg-surface-2",
+        "rounded-composer border border-field-strong bg-canvas",
         "shadow-[var(--shadow-composer)]",
         "transition-[border-color,box-shadow] duration-200 ease-out",
         "focus-within:shadow-[var(--shadow-popover)]",

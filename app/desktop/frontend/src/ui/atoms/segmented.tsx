@@ -37,7 +37,7 @@ export function Segmented<T extends string | number>({
          the lift; the well's inner shadow is what it lifts out of. */
       className={cn(
         "inline-flex w-fit items-center gap-0.5 rounded-md p-0.5",
-        "border border-fg/[0.07] bg-surface-2 shadow-[var(--shadow-well)]",
+        "border border-fg/[0.07] bg-control shadow-[var(--shadow-well)]",
         className,
       )}
     >

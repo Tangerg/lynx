@@ -37,7 +37,7 @@ const c = {
   // ring and the chrome divider both derive from `border`, and anything heavier
   // turns the UI into a wireframe.
   hairline: "rgb(0 0 0 / 0.05)",
-  hairStrong: "rgb(0 0 0 / 0.1)",
+  hairStrong: "rgb(0 0 0 / 0.14)",
   hairTertiary: "rgb(0 0 0 / 0.04)",
 };
 

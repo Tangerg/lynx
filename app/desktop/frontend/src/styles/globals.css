@@ -87,6 +87,13 @@
   --color-field: var(--color-border);
   --color-field-strong: var(--color-border-soft);
 
+  /* Control FILL — what you type into or read out of: composer, user bubble,
+     segmented well. A light ink wash over the card rather than a step on the
+     surface ladder: the ladder is driven by the contrast preference and lands far
+     too heavy for this (19 levels below white, where it reads as a grey slab
+     pasted on), while a fixed wash stays a whisper and inherits the ink's hue. */
+  --color-control: var(--color-control);
+
   /* Fine foreground ramp — mapped into Tailwind utilities */
   --color-text-2: var(--color-text-2);
   --color-text-3: var(--color-text-3);
@@ -142,9 +149,9 @@
   --weight-semibold: 600;
 
   /* Radius ladder — one continuous scale off a 10px base (×0.4/0.6/0.8/1/1.4/
-     1.8/2.2); `md` (10px) is the default control radius. `--seam` and
-     `--composer` are structural one-offs that still ride the same user scale so
-     the app has ONE shape system.
+     1.8/2.2); `md` (10px) is the default control radius. `--composer` and
+     `--bubble` are structural one-offs that still ride the same user scale so the
+     app has ONE shape system.
      These MUST be `var()` references into the --shape-* source: `@theme inline`
      inlines whatever is written here, so a literal px value here would bake the
      number into every `rounded-*` utility and silently kill --radius-scale. */
@@ -155,7 +162,6 @@
   --radius-lg: var(--shape-lg);
   --radius-xl: var(--shape-xl);
   --radius-2xl: var(--shape-2xl);
-  --radius-seam: var(--shape-seam);
   --radius-composer: var(--shape-composer);
   --radius-bubble: var(--shape-bubble);
   --radius-pill: var(--shape-pill);
@@ -306,6 +312,14 @@
     var(--color-text) calc(var(--depth-step) * 3),
     var(--color-surface)
   );
+  /* An explicitly chosen cool grey, NOT a wash of the ink — that was the bug that
+     made these surfaces read dirty. A 5% wash of a neutral ink can only ever
+     produce a neutral grey (the channel separation scales with the alpha, so at 5%
+     it rounds away), and a dead-neutral grey against white reads muddy. The faint
+     blue lift is what makes it read clean. Fixed per scheme rather than derived
+     from --depth-step: this is a control's own fill, not a rung on the region
+     ladder, so it must not drift when the contrast slider moves. */
+  --color-control: #f1f1f4;
 
   /* Ink — a neutral-800 anchor, not near-black: against an almost-white shell
      #171717 body copy reads harsh and leaves no room above it. */
@@ -323,7 +337,7 @@
      both derive from --color-border, so anything heavier turns the UI into a
      wireframe. Keep in step with `themes/lyra-light.ts`. */
   --color-border: rgb(0 0 0 / 0.05);
-  --color-border-soft: rgb(0 0 0 / 0.1);
+  --color-border-soft: rgb(0 0 0 / 0.14);
   --color-divider: rgb(0 0 0 / 0.04);
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
@@ -400,7 +414,6 @@
   --shape-lg: calc(14px * var(--radius-scale)); /* cards */
   --shape-xl: calc(18px * var(--radius-scale)); /* menus, popovers, dock card */
   --shape-2xl: calc(22px * var(--radius-scale));
-  --shape-seam: calc(14.4px * var(--radius-scale)); /* content-card seam corner */
   --shape-composer: calc(19.2px * var(--radius-scale));
   --shape-bubble: calc(12.8px * var(--radius-scale)); /* user message bubble */
   /* Pill / circle are conceptual ("fully round") — not scaled. */
@@ -419,8 +432,8 @@
   --density-composer-editor-bottom: 8px;
   --density-composer-editor-start: 12px;
   --density-composer-editor-end: 14px;
-  --density-composer-footer: 6px;
-  --density-composer-footer-end: 8px;
+  --density-composer-footer: 8px;
+  --density-composer-footer-end: 10px;
 
   /* Motion — same curves as motion/react via lib/motion.ts. Duration
      tokens multiply through `--motion-scale` so a user preference
@@ -709,6 +722,8 @@ html.theme-dark {
   --color-cta: #f5f5f5;
   --color-cta-hover: #ffffff;
   --color-cta-text: #171717;
+  /* Same faint cool lift as light, one step above the card. */
+  --color-control: #1c1c21;
 
   --shadow-border: 0 0 0 0.5px rgb(255 255 255 / 0.12);
   --shadow-control:
@@ -914,10 +929,7 @@ html.theme-dark {
 
 /* ---------- Content card ---------- */
 
-/* Parent of the card. Its ::after backs the card's rounded-corner wedge with
-   the exact drawer material, so the area outside the radius reads as the drawer
-   continuing underneath instead of a transparent notch. The card is
-   `overflow: hidden`, so that wedge can never be filled from inside it. */
+/* Parent of the card. */
 .agent-card-backing {
   position: relative;
   display: flex;
@@ -925,26 +937,6 @@ html.theme-dark {
   min-height: 0;
   flex: 1;
   height: 100vh;
-}
-
-.agent-card-backing::after {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 0;
-  z-index: 0;
-  width: var(--shape-seam);
-  pointer-events: none;
-  background: var(--app-drawer-surface);
-  backdrop-filter: var(--app-drawer-backdrop);
-  -webkit-backdrop-filter: var(--app-drawer-backdrop);
-  opacity: 1;
-  transition: opacity var(--dur-drawer) var(--ease-drawer);
-}
-/* Collapsed, the wedge strip would sit at the window edge and a blurred strip
-   there paints over the OS window's own rounded corner. */
-.agent-shell[data-sidebar="collapsed"] .agent-card-backing::after {
-  opacity: 0;
 }
 
 /* The card reads as a raised surface floating over the drawer: rounded on the
@@ -959,29 +951,26 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-bg);
-  border-start-start-radius: var(--shape-seam);
-  border-end-start-radius: var(--shape-seam);
   /* Low spread + negative offset keeps the shadow hugging the seam instead of
      fanning across the drawer. */
   box-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
-  transition:
-    box-shadow var(--dur-drawer) var(--ease-drawer),
-    border-radius var(--dur-drawer) var(--ease-drawer);
+  transition: box-shadow var(--dur-drawer) var(--ease-drawer);
 }
 
-/* The divider is an inset RING, not a border: a ring follows the inherited
-   rounded corner. It is then clipped to the seam-side radius strip so only the
-   vertical edge and its two curves show — the straight top/bottom strokes would
-   read as an L bracketing the card. */
+/* The divider is a straight full-height 1px line on the card's seam edge.
+   NOT a rounded card: rounding the seam side puts a corner arc at the top and
+   bottom of the divider, and because that arc resolves over only a few pixels of
+   height it reads as a kink in an otherwise straight line rather than as a curve.
+   A square edge is what makes the seam read as one clean vertical rule.
+   Painted as an inset shadow on ::before rather than a border so it costs no
+   layout and cannot shift the header's box. */
 .agent-content-card::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 1px var(--seam-line);
-  clip-path: inset(0 calc(100% - var(--shape-seam)) 0 0);
+  box-shadow: inset 1px 0 0 0 var(--seam-line);
   transition: opacity var(--dur-drawer) var(--ease-drawer);
 }
 
@@ -991,13 +980,10 @@ html.theme-dark {
   --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
-/* Collapsed the card spans edge to edge, so its rounded seam corner would
-   overlap the OS window's own corner — two mismatched curves. Square it and
-   drop the seam. The shadow fades via its color token rather than
-   `box-shadow: none`, which Chromium snaps instead of interpolating. */
+/* Collapsed the card spans edge to edge, so there is no drawer left to divide
+   from. The shadow fades via its color token rather than `box-shadow: none`,
+   which Chromium snaps instead of interpolating. */
 .agent-shell[data-sidebar="collapsed"] .agent-content-card {
-  border-start-start-radius: 0;
-  border-end-start-radius: 0;
   --seam-shadow-color: transparent;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-content-card::before {
@@ -1130,7 +1116,6 @@ html.theme-dark {
    surfaces whose radius is large enough for the difference to register; on a 10px
    control it is imperceptible. */
 @supports (corner-shape: round) {
-  .agent-content-card,
   [data-slot="composer-root"] {
     corner-shape: squircle;
   }

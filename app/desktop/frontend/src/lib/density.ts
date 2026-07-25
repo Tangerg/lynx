@@ -31,8 +31,10 @@ const BASE_PX = {
   composerEditorBottom: 8,
   composerEditorStart: 12,
   composerEditorEnd: 14,
-  composerFooter: 6,
-  composerFooterEnd: 8,
+  // A 6px inset on a 32px control row had the buttons hugging the card edge; the
+  // reference gives its footer real room, and the row reads as chrome either way.
+  composerFooter: 8,
+  composerFooterEnd: 10,
 } as const;
 
 export function isUiDensity(value: unknown): value is UiDensity {
