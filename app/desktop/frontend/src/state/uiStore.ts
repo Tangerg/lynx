@@ -8,17 +8,13 @@
 import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { disposeOnHmr } from "@/lib/hmr";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 // Same reason the extension-point reads below import from the deep
 // `selectors/extensions` + `kernelPoints` paths (neither pulls host).
-import { THEME } from "@/plugins/sdk/kernelPoints";
-import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import type { CustomTheme, Theme, UiState } from "./uiPreferences";
-import { installUiStoreEffects, resolveThemeId } from "./uiStoreEffects";
 
 export type { CustomTheme, Theme, UiState } from "./uiPreferences";
 
@@ -55,7 +51,6 @@ interface UiActions {
    * theme whose scheme is the opposite of the current one; no-op if
    * none exists (e.g. only dark themes registered).
    */
-  toggleTheme: () => void;
   setAccent: (accent: string) => void;
   /** Patch one or more of the custom theme's base colors. */
   setCustomTheme: (patch: Partial<CustomTheme>) => void;
@@ -78,7 +73,7 @@ interface UiActions {
 
 export const useUiStore = create<UiState & UiActions>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       theme: "light",
       accent: "#006bff",
       customTheme: { bg: "#0f1117", fg: "#e6e8ee" },
@@ -99,17 +94,6 @@ export const useUiStore = create<UiState & UiActions>()(
       completionSound: false,
 
       setTheme: (theme) => set({ theme }),
-      toggleTheme: () => {
-        const cur = resolveThemeId(get().theme);
-        const curSpec = lookupExtensionByKey(THEME, cur);
-        const curScheme = curSpec?.scheme ?? (cur === "light" ? "light" : "dark");
-        const target = curScheme === "dark" ? "light" : "dark";
-        // `lookupExtensionPoint` returns themes already sorted by `order`, so
-        // the first match is the "primary" theme of the opposite scheme —
-        // matches the sort the appearance pane uses.
-        const candidates = lookupExtensionPoint(THEME).filter((t) => t.scheme === target);
-        if (candidates[0]) set({ theme: candidates[0].id });
-      },
       setAccent: (accent) => set({ accent }),
       setCustomTheme: (patch) => set((s) => ({ customTheme: { ...s.customTheme, ...patch } })),
       setContrast: (contrast) => set({ contrast }),
@@ -145,5 +129,3 @@ export const useUiStore = create<UiState & UiActions>()(
     },
   ),
 );
-
-disposeOnHmr(installUiStoreEffects(useUiStore));

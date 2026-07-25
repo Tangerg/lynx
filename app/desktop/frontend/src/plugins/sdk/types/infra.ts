@@ -142,24 +142,8 @@ export interface PluginErrorFallbackSpec {
   component: ComponentType<PluginErrorFallbackProps>;
 }
 
-/** Handle returned by `host.tasks.start`. All methods are idempotent after a
- *  terminal transition (succeed / fail) — extra calls are no-ops. */
-export interface TaskHandle {
-  /** Update mid-flight state. `progress` is 0..1 (or null for indeterminate). */
-  update: (patch: { progress?: number | null; message?: string | null }) => void;
-  /** Mark the task done. The status-bar entry briefly flashes "done" then disappears. */
-  succeed: (message?: string) => void;
-  /** Mark the task failed. The error surfaces in the status bar; entry disappears after a beat. */
-  fail: (error: unknown) => void;
-}
-
-export interface TaskStartOptions {
-  /** Stable id — defaults to a generated one. Pass an id to allow cross-call updates. */
-  id?: string;
-  /** One-line label shown in the status bar. */
-  label: string;
-  /** Optional sub-line shown under the label. */
-  message?: string;
-  /** 0..1 to start with a determinate bar; omit / null for an indeterminate spinner. */
-  progress?: number | null;
-}
+// Task types are declared by the store that implements them (`state/tasksStore`)
+// and re-exported here as the plugin-facing contract. Declaring them on this side
+// made the edge two-way — the host imports `startTask` from that store — and a
+// type is not exempt from direction.
+export type { TaskHandle, TaskStartOptions } from "@/state/tasksStore";

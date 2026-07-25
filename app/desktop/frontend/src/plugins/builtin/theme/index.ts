@@ -8,6 +8,7 @@
 
 import type { PluginSpec } from "@/plugins/sdk";
 import { definePluginPack } from "@/plugins/sdk";
+import { appearancePainter } from "./appearancePainter";
 import customTheme from "./themes/custom-theme";
 import atomOneDark from "./themes/atom-one-dark";
 import atomOneLight from "./themes/atom-one-light";
@@ -39,5 +40,5 @@ const builtinThemes: PluginSpec[] = [
 export const themesPack = definePluginPack({
   name: "lyra.builtin.themes",
   version: "1.0.0",
-  children: [...builtinThemes, customTheme],
+  children: [...builtinThemes, customTheme, appearancePainter],
 });

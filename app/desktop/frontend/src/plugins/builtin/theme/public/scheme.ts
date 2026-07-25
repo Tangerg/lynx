@@ -1,1 +1,6 @@
-export { isLightTheme, resolveThemeScheme, type ThemeScheme } from "../application/themeScheme";
+export {
+  isLightTheme,
+  resolveThemeScheme,
+  toggleThemeScheme,
+  type ThemeScheme,
+} from "../application/themeScheme";

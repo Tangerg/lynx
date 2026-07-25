@@ -10,6 +10,7 @@
 // subscription catches up either way.
 
 import type { Disposable, ThemeAccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
+import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
 import {
   closeActiveWorkspaceView,
@@ -44,7 +45,7 @@ export const defaultCommands = definePlugin({
   setup({ host }) {
     for (const command of defaultStaticCommands(t, {
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
-      toggleTheme: () => useUiStore.getState().toggleTheme(),
+      toggleTheme: toggleThemeScheme,
       newChat: openNewChatSession,
       closeSessionOrView: closeFocusedSessionOrView,
       focusComposer: () => focusComposer(),

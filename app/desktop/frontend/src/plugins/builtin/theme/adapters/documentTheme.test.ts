@@ -1,19 +1,25 @@
-// Theme-application contract. Verifies the side effect that lives at the
-// bottom of uiStore.ts — when the active theme id changes, the kernel:
-//   1. swaps `theme-{scheme}` on <html> based on the theme spec's scheme,
-//   2. writes every token from spec.tokens to :root.style as inline vars,
-//   3. updates --color-accent based on the resolved accent + scheme.
+// The appearance-painter contract: when a preference changes, the document
+// reflects it —
+//   1. `theme-{scheme}` swaps on <html> from the theme spec's scheme,
+//   2. every token in spec.tokens is written to :root.style as an inline var,
+//   3. --color-accent resolves from the accent preset + scheme,
+//   4. fonts, contrast, radius and motion land as their own custom properties.
 //
-// These tests act as the contract for theme plugins: register a theme
-// spec with tokens, switch to it, and the DOM reflects the palette.
+// This doubles as the contract for theme plugins: register a spec with tokens,
+// switch to it, and the DOM reflects the palette. It moved here with the painter
+// — the tests belong with the code they pin, and this is no longer a store test.
 
 import type { Disposable } from "@/plugins/sdk/types";
 import { beforeEach, describe, expect, it } from "vitest";
 import { createHost } from "@/plugins/sdk/host";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
+import { installDocumentTheme } from "./documentTheme";
+import { toggleThemeScheme } from "../application/themeScheme";
+import { installThemePreferencePort } from "./uiThemePreference";
 
 const sink: Disposable[] = [];
+let uninstall: () => void = () => {};
 
 beforeEach(() => {
   // Wipe inline styles + class so each spec starts from a known root.
@@ -32,6 +38,11 @@ beforeEach(() => {
     motionScale: 1,
   });
   sink.length = 0;
+  // The painter installs from the theme pack's setup in the app; a test drives
+  // it directly so each spec starts from a freshly attached subscription.
+  uninstall();
+  installThemePreferencePort();
+  uninstall = installDocumentTheme(useUiStore);
 });
 
 describe("applyTheme — theme-as-plugin contract", () => {
@@ -157,10 +168,10 @@ describe("applyTheme — theme-as-plugin contract", () => {
     });
 
     useUiStore.setState({ theme: "dark" });
-    useUiStore.getState().toggleTheme();
+    toggleThemeScheme();
     expect(useUiStore.getState().theme).toBe("solarized-light");
 
-    useUiStore.getState().toggleTheme();
+    toggleThemeScheme();
     expect(useUiStore.getState().theme).toBe("dark");
   });
 });

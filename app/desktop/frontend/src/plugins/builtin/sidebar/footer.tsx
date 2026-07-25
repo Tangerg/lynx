@@ -7,7 +7,7 @@ import { noDragClasses } from "@/lib/windowDrag";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
-import { isLightTheme } from "@/plugins/builtin/theme/public/scheme";
+import { isLightTheme, toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { Slot } from "@/plugins/host/Slot";
 import { definePlugin } from "@/plugins/sdk";
 import { useUiStore } from "@/state/uiStore";
@@ -21,7 +21,7 @@ function ThemeToggle() {
     <Button
       variant="ghost"
       size="icon-sm"
-      onClick={() => useUiStore.getState().toggleTheme()}
+      onClick={() => toggleThemeScheme()}
       data-chrome-focus=""
       title={t(isLight ? "theme.switchToDark" : "theme.switchToLight")}
     >

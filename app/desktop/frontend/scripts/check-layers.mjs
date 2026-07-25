@@ -111,8 +111,14 @@ const FORBIDDEN = {
   // The plugin SDK is a platform layer — it must not depend on the UI it
   // is consumed by (locks the MessageContext inversion fix).
   sdk: [...UI],
-  // Stores are below the UI.
-  state: [...UI],
+  // Stores are below the UI — and below the plugin system. A store holds the
+  // preference; deciding what it should become from the extension registry is a
+  // context's job. `theme` used to reach the THEME registry from here (to pick
+  // the next theme on toggle, and to paint tokens onto the document), which put
+  // presentation and plugin knowledge in the layer that is meant to hold values.
+  // Type-only imports of the SDK's contract types stay allowed — madge's graph
+  // is value-level, so those don't appear here anyway.
+  state: [...UI, "sdk", "plugins-glue"],
   // Utility layer — no UI, no concrete plugins.
   lib: [...UI],
   // Local design-system layer — presentation only, never backend wiring.

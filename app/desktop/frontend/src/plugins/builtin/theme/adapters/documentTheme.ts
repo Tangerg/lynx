@@ -1,11 +1,22 @@
+// Paints the user's appearance preferences onto the document: theme tokens and
+// scheme class, accent, contrast depth, fonts, density, radius and motion.
+//
+// This lives in the theme context, not beside the store it reads. The store's job
+// is to hold the preference; turning "contrast: 40" into `--depth-step: 5.2%` is
+// presentation, and *which themes exist* is this context's business — it owns the
+// THEME and ACCENT extension points and the token vocabulary in globals.css. It
+// sat in `state/` for a while, which meant the store layer reached up into the
+// plugin registry and knew the names of custom properties.
+
 import { colord } from "colord";
 import type { StoreApi } from "zustand";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
+import { resolveScheme } from "@/plugins/sdk/selectors/theme";
 import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
-import type { Theme, UiState } from "./uiPreferences";
+import type { Theme, UiState } from "@/state/uiPreferences";
 
 type UiEffectStore<T extends UiState> = Pick<StoreApi<T>, "getState" | "subscribe">;
 
@@ -14,25 +25,12 @@ function lightAccent(darkHex: string): string {
   return preset?.light ?? preset?.dark ?? colord(darkHex).darken(0.2).toHex();
 }
 
-function prefersDark(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
-}
-
-export function resolveThemeId(theme: Theme): Theme {
-  return theme === "system" ? (prefersDark() ? "dark" : "light") : theme;
-}
-
 let appliedTokenNames: string[] = [];
 
 function applyTheme(theme: Theme, accent: string, contrast: number): void {
   const root = document.documentElement;
-  const resolved = resolveThemeId(theme);
-  const spec = lookupExtensionByKey(THEME, resolved);
-  const scheme = spec?.scheme ?? (resolved === "light" ? "light" : "dark");
+  const scheme = resolveScheme(theme);
+  const spec = lookupExtensionByKey(THEME, theme === "system" ? scheme : theme);
 
   root.classList.remove("theme-light", "theme-dark");
   root.classList.add(`theme-${scheme}`);
@@ -100,7 +98,7 @@ function applyShape(density: string, radiusScale: number, motionScale: number): 
   else root.removeAttribute("data-motion");
 }
 
-export function installUiStoreEffects<T extends UiState>(store: UiEffectStore<T>): () => void {
+export function installDocumentTheme<T extends UiState>(store: UiEffectStore<T>): () => void {
   const initial = store.getState();
   applyTheme(initial.theme, initial.accent, initial.contrast);
   applyFonts(initial.uiFont, initial.codeFont, initial.fontSize, initial.fontSmoothing);

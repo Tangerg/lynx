@@ -3,9 +3,30 @@
 // label. Settled tasks linger briefly so the user sees the final state
 // before they vanish.
 
-import type { TaskHandle, TaskStartOptions } from "@/plugins/sdk/types/infra";
 import { nanoid } from "nanoid";
 import { create } from "zustand";
+
+/** Handle returned by `host.tasks.start`. All methods are idempotent after a
+ *  terminal transition (succeed / fail) — extra calls are no-ops. */
+export interface TaskHandle {
+  /** Update mid-flight state. `progress` is 0..1 (or null for indeterminate). */
+  update: (patch: { progress?: number | null; message?: string | null }) => void;
+  /** Mark the task done. The status-bar entry briefly flashes "done" then disappears. */
+  succeed: (message?: string) => void;
+  /** Mark the task failed. The error surfaces in the status bar; entry disappears after a beat. */
+  fail: (error: unknown) => void;
+}
+
+export interface TaskStartOptions {
+  /** Stable id — defaults to a generated one. Pass an id to allow cross-call updates. */
+  id?: string;
+  /** One-line label shown in the status bar. */
+  label: string;
+  /** Optional sub-line shown under the label. */
+  message?: string;
+  /** 0..1 to start with a determinate bar; omit / null for an indeterminate spinner. */
+  progress?: number | null;
+}
 
 export type TaskStatus = "running" | "succeeded" | "failed";
 
