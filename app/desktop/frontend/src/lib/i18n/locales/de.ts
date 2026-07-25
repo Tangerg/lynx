@@ -890,4 +890,38 @@ export const de: Record<string, string> = {
   "composer.key.historyNextDesc": "Nächste Nachricht abrufen",
   "mcp.import.hint":
     'Füge einen Claude-Desktop-Konfigurationsblock ein — einen oder mehrere Server unter "mcpServers".',
+
+  "rpcError.session_busy": "Sitzung ist beschäftigt — warte, bis der laufende Durchlauf endet.",
+  "rpcError.checkpoint_unavailable":
+    "Kein Datei-Checkpoint für diesen Zug — es wurde nichts geändert.",
+  "rpcError.cwd_unavailable": "Dieser Pfad existiert auf der Festplatte der Runtime nicht.",
+  "rpcError.vcs_unavailable": "Dieser Ordner ist kein Git-Repository.",
+  "rpcError.rate_limited":
+    "Der Modellanbieter begrenzt die Anfragerate — kurz warten, dann erneut versuchen.",
+  "rpcError.invalid_api_key":
+    "Der Anbieter hat den API-Key abgelehnt — prüfe ihn in den Anbieter-Einstellungen.",
+  "rpcError.timeout":
+    "Die Anfrage an den Modellanbieter hat das Zeitlimit überschritten — Verbindung prüfen und erneut versuchen.",
+  "rpcError.provider_unavailable":
+    "Der Modellanbieter ist vorübergehend nicht erreichbar — versuche es in Kürze erneut.",
+  "rpcError.provider_rejected": "Der Modellanbieter hat die Anfrage als ungültig abgelehnt.",
+  "rpcError.provider_error": "Der Modellanbieter hat nicht geantwortet — versuche es erneut.",
+  "rpcError.agent_stuck":
+    "Der Agent kommt nicht weiter — formuliere um oder grenze die Aufgabe ein.",
+  "rpcError.no_language_server":
+    "Kein Language-Server für diesen Dateityp — Code-Intelligenz ist hier nicht verfügbar.",
+  "rpcError.is_a_directory": "Dieser Pfad ist ein Verzeichnis — wähle eine Datei zum Lesen.",
+  "rpcError.file_too_large":
+    "Die Datei ist zu groß, um sie ganz zu lesen — fordere einen Zeilenbereich an.",
+  "rpcError.mcp_auth_failed":
+    "Die Authentifizierung wurde abgelehnt — prüfe das Token und versuche es erneut.",
+  "session.error.create": "Sitzung konnte nicht erstellt werden.",
+  "session.error.delete": "Sitzung konnte nicht gelöscht werden.",
+  "session.error.rename": "Sitzung konnte nicht umbenannt werden.",
+  "session.error.fork": "Sitzung konnte nicht geforkt werden.",
+  "session.error.favorite": "Favoritenstatus der Sitzung konnte nicht geändert werden.",
+  "session.error.relocate": "Sitzung konnte nicht verschoben werden.",
+  "session.error.rollback": "Unterhaltung konnte nicht zurückgespult werden.",
+  "composer.error.readImage": "Bild konnte nicht gelesen werden",
+  "composer.error.readImages": "{{count}} Bilder konnten nicht gelesen werden",
 };

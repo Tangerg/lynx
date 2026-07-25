@@ -19,14 +19,28 @@
 //      into seven languages fails the build at the commit that did it, instead
 //      of being found by whoever switches language months later.
 //
+// A fourth rule guards the other end — copy that never reached a catalog at all:
+//
+//   4. No notification or toast is handed a literal string. Those calls are the
+//      app talking to the user, and a sentence written at the callsite is a
+//      sentence the three rules above cannot see: it ships English to all eight
+//      locales and no `check-locales` run will ever mention it. It had happened
+//      four times, twice with English grammar built in code (a pluralizing `s`,
+//      an interpolated verb) — shapes that stay wrong in every other language
+//      even once someone notices.
+//
 // `en` is the reference: add a key there and the build names the seven files
 // that still owe a translation.
 
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const LOCALES_DIR = new URL("../src/lib/i18n/locales/", import.meta.url).pathname;
+const SRC_DIR = new URL("../src/", import.meta.url).pathname;
 const KEY_PATTERN = /^\s*"([^"]+)":/gm;
+// A notify/toast call whose first argument opens a string literal.
+const LITERAL_COPY_PATTERN =
+  /\b(?:notifyError|notifyInfo|toast\.(?:success|error|info|warning|message))\(\s*[`"']/g;
 
 const duplicates = [];
 
@@ -70,6 +84,26 @@ for (const [locale, keys] of catalogs) {
     [...en].filter((key) => !keys.has(key)),
     "key(s) missing",
   );
+}
+
+function* sourceFiles(dir) {
+  for (const entry of readdirSync(dir)) {
+    const path = join(dir, entry);
+    if (statSync(path).isDirectory()) {
+      yield* sourceFiles(path);
+    } else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) {
+      yield path;
+    }
+  }
+}
+
+for (const path of sourceFiles(SRC_DIR)) {
+  const source = readFileSync(path, "utf8");
+  for (const match of source.matchAll(LITERAL_COPY_PATTERN)) {
+    const line = source.slice(0, match.index).split("\n").length;
+    const relative = path.slice(SRC_DIR.length);
+    failures.push(`${relative}:${line}: literal copy in ${match[0].trim()} — use t("key")`);
+  }
 }
 
 if (failures.length > 0) {

@@ -864,4 +864,32 @@ export const ko: Record<string, string> = {
   "composer.key.historyNextDesc": "다음 메시지 불러오기",
   "mcp.import.hint":
     'Claude Desktop 설정 블록을 붙여넣으세요 — "mcpServers" 아래의 서버 하나 이상.',
+
+  "rpcError.session_busy": "세션이 실행 중입니다 — 현재 실행이 끝날 때까지 기다리세요.",
+  "rpcError.checkpoint_unavailable":
+    "해당 턴에는 파일 체크포인트가 없습니다 — 변경된 파일이 없습니다.",
+  "rpcError.cwd_unavailable": "런타임 디스크에 해당 경로가 없습니다.",
+  "rpcError.vcs_unavailable": "이 폴더는 git 저장소가 아닙니다.",
+  "rpcError.rate_limited": "모델 제공자가 요청 속도를 제한하고 있습니다 — 잠시 후 다시 시도하세요.",
+  "rpcError.invalid_api_key": "제공자가 API 키를 거부했습니다 — 제공자 설정에서 확인하세요.",
+  "rpcError.timeout": "모델 제공자 요청이 시간 초과되었습니다 — 연결을 확인하고 다시 시도하세요.",
+  "rpcError.provider_unavailable":
+    "모델 제공자를 일시적으로 사용할 수 없습니다 — 잠시 후 다시 시도하세요.",
+  "rpcError.provider_rejected": "모델 제공자가 요청을 잘못된 것으로 거부했습니다.",
+  "rpcError.provider_error": "모델 제공자가 응답하지 않았습니다 — 다시 시도하세요.",
+  "rpcError.agent_stuck": "에이전트가 진전을 멈췄습니다 — 표현을 바꾸거나 작업 범위를 좁혀 보세요.",
+  "rpcError.no_language_server":
+    "이 파일 형식에는 언어 서버가 없습니다 — 여기서는 코드 인텔리전스를 쓸 수 없습니다.",
+  "rpcError.is_a_directory": "해당 경로는 디렉터리입니다 — 읽을 파일을 선택하세요.",
+  "rpcError.file_too_large": "파일이 너무 커서 전체를 읽을 수 없습니다 — 줄 범위를 지정하세요.",
+  "rpcError.mcp_auth_failed": "인증이 거부되었습니다 — 토큰을 확인하고 다시 시도하세요.",
+  "session.error.create": "세션을 만들 수 없습니다.",
+  "session.error.delete": "세션을 삭제할 수 없습니다.",
+  "session.error.rename": "세션 이름을 바꿀 수 없습니다.",
+  "session.error.fork": "세션을 포크할 수 없습니다.",
+  "session.error.favorite": "세션 즐겨찾기 상태를 바꿀 수 없습니다.",
+  "session.error.relocate": "세션 작업 디렉터리를 옮길 수 없습니다.",
+  "session.error.rollback": "대화를 되돌릴 수 없습니다.",
+  "composer.error.readImage": "이미지를 읽을 수 없습니다",
+  "composer.error.readImages": "이미지 {{count}}장을 읽을 수 없습니다",
 };

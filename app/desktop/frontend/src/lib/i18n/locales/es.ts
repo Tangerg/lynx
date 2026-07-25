@@ -888,4 +888,36 @@ export const es: Record<string, string> = {
   "composer.key.historyNextDesc": "Recuperar el mensaje siguiente",
   "mcp.import.hint":
     'Pega un bloque de configuración de Claude Desktop: uno o varios servidores bajo "mcpServers".',
+
+  "rpcError.session_busy": "La sesión está ocupada — espera a que termine la ejecución actual.",
+  "rpcError.checkpoint_unavailable":
+    "No hay punto de restauración de archivos para ese turno — no se cambió nada.",
+  "rpcError.cwd_unavailable": "Esa ruta no existe en el disco del runtime.",
+  "rpcError.vcs_unavailable": "Esta carpeta no es un repositorio git.",
+  "rpcError.rate_limited":
+    "El proveedor del modelo está limitando la tasa de peticiones — espera un momento y reintenta.",
+  "rpcError.invalid_api_key":
+    "El proveedor rechazó la API key — revísala en los ajustes del proveedor.",
+  "rpcError.timeout":
+    "La petición al proveedor del modelo agotó el tiempo — comprueba la conexión y reintenta.",
+  "rpcError.provider_unavailable":
+    "El proveedor del modelo no está disponible temporalmente — reintenta en breve.",
+  "rpcError.provider_rejected": "El proveedor del modelo rechazó la petición por inválida.",
+  "rpcError.provider_error": "El proveedor del modelo no respondió — inténtalo de nuevo.",
+  "rpcError.agent_stuck": "El agente dejó de avanzar — reformula o acota la tarea.",
+  "rpcError.no_language_server":
+    "No hay servidor de lenguaje para este tipo de archivo — aquí no hay inteligencia de código.",
+  "rpcError.is_a_directory": "Esa ruta es un directorio — elige un archivo para leer.",
+  "rpcError.file_too_large":
+    "El archivo es demasiado grande para leerlo entero — pide un rango de líneas.",
+  "rpcError.mcp_auth_failed": "Se rechazó la autenticación — revisa el token e inténtalo de nuevo.",
+  "session.error.create": "No se pudo crear la sesión.",
+  "session.error.delete": "No se pudo borrar la sesión.",
+  "session.error.rename": "No se pudo renombrar la sesión.",
+  "session.error.fork": "No se pudo bifurcar la sesión.",
+  "session.error.favorite": "No se pudo cambiar el estado de favorito de la sesión.",
+  "session.error.relocate": "No se pudo mover la sesión.",
+  "session.error.rollback": "No se pudo rebobinar la conversación.",
+  "composer.error.readImage": "No se pudo leer la imagen",
+  "composer.error.readImages": "No se pudieron leer {{count}} imágenes",
 };

@@ -33,7 +33,7 @@ function prefillComposer(msg: Message): void {
 function reportRollbackError(err: unknown): void {
   const copy = describeRpcError(err);
   if (!copy) console.error("[message] rollback failed:", err);
-  notifyError(copy ?? "Couldn't rewind the conversation.", { source: "session" });
+  notifyError(copy ?? t("session.error.rollback"), { source: "session" });
 }
 
 export interface RollbackActionOptions {

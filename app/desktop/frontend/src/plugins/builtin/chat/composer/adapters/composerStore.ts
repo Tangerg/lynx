@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
 import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
+import { t } from "@/lib/i18n";
 import { notifyError } from "@/plugins/sdk";
 import type { ComposerImage, PastedText } from "../domain/draft";
 import {
@@ -143,9 +144,14 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
             if (ok.length > 0) get().addImages(ok);
             const failed = results.length - ok.length;
             if (failed > 0)
-              notifyError(`Couldn't read ${failed} image${failed > 1 ? "s" : ""}`, {
-                source: "composer",
-              });
+              notifyError(
+                failed > 1
+                  ? t("composer.error.readImages", { count: failed })
+                  : t("composer.error.readImage"),
+                {
+                  source: "composer",
+                },
+              );
           });
         },
         removeImage: (id) =>

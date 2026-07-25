@@ -920,4 +920,34 @@ export const en: Record<string, string> = {
   "vcs.gitNotAvailableSub": "This runtime has no git binary on its PATH.",
   "vcs.notARepo": "Not a git repository",
   "vcs.notARepoSub": "The session's working directory is not under version control.",
+
+  // ── Protocol error copy (API.md §8.2 error types) + session mutations ──
+  "rpcError.session_busy": "Session is busy — wait for the current run to finish.",
+  "rpcError.checkpoint_unavailable": "No file checkpoint for that turn — nothing was changed.",
+  "rpcError.cwd_unavailable": "That path does not exist on the runtime's disk.",
+  "rpcError.vcs_unavailable": "This folder isn't a git repository.",
+  "rpcError.rate_limited":
+    "The model provider is rate-limiting requests — wait a moment, then retry.",
+  "rpcError.invalid_api_key": "The provider rejected the API key — check it in provider settings.",
+  "rpcError.timeout":
+    "The request to the model provider timed out — check your connection and retry.",
+  "rpcError.provider_unavailable": "The model provider is temporarily unavailable — retry shortly.",
+  "rpcError.provider_rejected": "The model provider rejected the request as invalid.",
+  "rpcError.provider_error": "The model provider didn't respond — try again.",
+  "rpcError.agent_stuck":
+    "The agent stopped making progress — try rephrasing or narrowing the task.",
+  "rpcError.no_language_server":
+    "No language server for this file type — code intelligence isn't available here.",
+  "rpcError.is_a_directory": "That path is a directory — pick a file to read.",
+  "rpcError.file_too_large": "File is too large to read whole — request a line range instead.",
+  "rpcError.mcp_auth_failed": "Authentication was rejected — check the token and try again.",
+  "session.error.create": "Couldn't create the session.",
+  "session.error.delete": "Couldn't delete the session.",
+  "session.error.rename": "Couldn't rename the session.",
+  "session.error.fork": "Couldn't fork the session.",
+  "session.error.favorite": "Couldn't change the session's favorite state.",
+  "session.error.relocate": "Couldn't relocate the session.",
+  "session.error.rollback": "Couldn't rewind the conversation.",
+  "composer.error.readImage": "Couldn't read the image",
+  "composer.error.readImages": "Couldn't read {{count}} images",
 };

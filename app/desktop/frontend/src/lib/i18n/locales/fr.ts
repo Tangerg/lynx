@@ -890,4 +890,36 @@ export const fr: Record<string, string> = {
   "composer.key.historyNextDesc": "Rappeler le message suivant",
   "mcp.import.hint":
     'Collez un bloc de configuration Claude Desktop — un ou plusieurs serveurs sous "mcpServers".',
+
+  "rpcError.session_busy": "La session est occupée — attends la fin de l'exécution en cours.",
+  "rpcError.checkpoint_unavailable":
+    "Aucun point de restauration de fichiers pour ce tour — rien n'a été modifié.",
+  "rpcError.cwd_unavailable": "Ce chemin n'existe pas sur le disque du runtime.",
+  "rpcError.vcs_unavailable": "Ce dossier n'est pas un dépôt git.",
+  "rpcError.rate_limited":
+    "Le fournisseur de modèle limite le débit des requêtes — attends un instant, puis réessaie.",
+  "rpcError.invalid_api_key":
+    "Le fournisseur a rejeté la clé API — vérifie-la dans les réglages du fournisseur.",
+  "rpcError.timeout":
+    "La requête au fournisseur de modèle a expiré — vérifie ta connexion et réessaie.",
+  "rpcError.provider_unavailable":
+    "Le fournisseur de modèle est momentanément indisponible — réessaie sous peu.",
+  "rpcError.provider_rejected": "Le fournisseur de modèle a rejeté la requête comme invalide.",
+  "rpcError.provider_error": "Le fournisseur de modèle n'a pas répondu — réessaie.",
+  "rpcError.agent_stuck": "L'agent n'avance plus — reformule ou restreins la tâche.",
+  "rpcError.no_language_server":
+    "Aucun serveur de langage pour ce type de fichier — l'intelligence de code n'est pas disponible ici.",
+  "rpcError.is_a_directory": "Ce chemin est un répertoire — choisis un fichier à lire.",
+  "rpcError.file_too_large":
+    "Le fichier est trop gros pour être lu en entier — demande une plage de lignes.",
+  "rpcError.mcp_auth_failed": "L'authentification a été refusée — vérifie le jeton et réessaie.",
+  "session.error.create": "Impossible de créer la session.",
+  "session.error.delete": "Impossible de supprimer la session.",
+  "session.error.rename": "Impossible de renommer la session.",
+  "session.error.fork": "Impossible de forker la session.",
+  "session.error.favorite": "Impossible de changer l'état favori de la session.",
+  "session.error.relocate": "Impossible de déplacer la session.",
+  "session.error.rollback": "Impossible de revenir en arrière dans la conversation.",
+  "composer.error.readImage": "Impossible de lire l'image",
+  "composer.error.readImages": "Impossible de lire {{count}} images",
 };

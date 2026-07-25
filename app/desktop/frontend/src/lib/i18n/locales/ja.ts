@@ -879,4 +879,37 @@ export const ja: Record<string, string> = {
   "composer.key.historyNextDesc": "次のメッセージを呼び出す",
   "mcp.import.hint":
     'Claude Desktop の設定ブロックを貼り付けてください — "mcpServers" 配下の1つ以上のサーバー。',
+
+  "rpcError.session_busy": "セッションは実行中です — 現在の実行が終わるまで待ってください。",
+  "rpcError.checkpoint_unavailable":
+    "そのターンにはファイルのチェックポイントがありません — 何も変更されていません。",
+  "rpcError.cwd_unavailable": "そのパスはランタイムのディスク上に存在しません。",
+  "rpcError.vcs_unavailable": "このフォルダは git リポジトリではありません。",
+  "rpcError.rate_limited":
+    "モデルプロバイダがレート制限中です — 少し待ってから再試行してください。",
+  "rpcError.invalid_api_key":
+    "プロバイダが API キーを拒否しました — プロバイダ設定で確認してください。",
+  "rpcError.timeout":
+    "モデルプロバイダへのリクエストがタイムアウトしました — 接続を確認して再試行してください。",
+  "rpcError.provider_unavailable":
+    "モデルプロバイダは一時的に利用できません — しばらくしてから再試行してください。",
+  "rpcError.provider_rejected": "モデルプロバイダがリクエストを不正として拒否しました。",
+  "rpcError.provider_error":
+    "モデルプロバイダから応答がありませんでした — もう一度お試しください。",
+  "rpcError.agent_stuck":
+    "エージェントの進行が止まりました — 表現を変えるか、タスクを絞ってください。",
+  "rpcError.no_language_server":
+    "このファイル形式に対応する言語サーバーがありません — ここではコードインテリジェンスを使えません。",
+  "rpcError.is_a_directory": "そのパスはディレクトリです — 読み込むファイルを選んでください。",
+  "rpcError.file_too_large": "ファイルが大きすぎて全体を読めません — 行範囲を指定してください。",
+  "rpcError.mcp_auth_failed": "認証が拒否されました — トークンを確認して再試行してください。",
+  "session.error.create": "セッションを作成できませんでした。",
+  "session.error.delete": "セッションを削除できませんでした。",
+  "session.error.rename": "セッション名を変更できませんでした。",
+  "session.error.fork": "セッションをフォークできませんでした。",
+  "session.error.favorite": "セッションのお気に入り状態を変更できませんでした。",
+  "session.error.relocate": "セッションの作業ディレクトリを変更できませんでした。",
+  "session.error.rollback": "会話を巻き戻せませんでした。",
+  "composer.error.readImage": "画像を読み込めませんでした",
+  "composer.error.readImages": "{{count}} 枚の画像を読み込めませんでした",
 };
