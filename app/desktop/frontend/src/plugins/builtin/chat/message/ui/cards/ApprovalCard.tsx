@@ -223,14 +223,12 @@ export function ApprovalCard({
           {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⇧⌘⌫</kbd>}
         </Button>
         {rememberable && (
-          <label className="ml-auto flex items-center gap-1.5 text-ui-sm text-fg-muted select-none">
-            <Checkbox
-              checked={remember}
-              onCheckedChange={setRemember}
-              ariaLabel={t("approval.remember")}
-            />
-            {t("approval.remember")}
-          </label>
+          <Checkbox
+            checked={remember}
+            onCheckedChange={setRemember}
+            label={t("approval.remember")}
+            className="ml-auto gap-1.5 text-ui-sm"
+          />
         )}
       </div>
       {/* Scope picker — only meaningful once "don't ask again" is on. Session

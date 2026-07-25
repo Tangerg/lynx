@@ -2,7 +2,6 @@
 // Empty string reverts a typeface to the native system stack; numeric `null`
 // reverts the size to the ladder's default base.
 import type { SegmentedOption } from "@/ui";
-import { useId } from "react";
 import { Checkbox, DropdownMenu, Icon, Segmented } from "@/ui";
 import { UI_FONT_SIZE_MAX_PX, UI_FONT_SIZE_MIN_PX } from "@/lib/typography";
 import { useT } from "@/lib/i18n";
@@ -23,7 +22,6 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
   const t = useT();
   const fonts = useSystemFonts(mono);
   const customEnabled = value !== "";
-  const checkboxId = useId();
   // Display name on the trigger: the chosen family, or the localized
   // "Default (Geist…)" placeholder when the checkbox is off.
   const triggerLabel = customEnabled ? value : defaultLabel;
@@ -31,18 +29,11 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
   return (
     <div className="grid grid-cols-[60px_auto_1fr] items-center gap-2">
       <span className="text-ui-md font-semibold text-fg-faint">{label}</span>
-      <label
-        htmlFor={checkboxId}
-        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted"
-      >
-        <Checkbox
-          id={checkboxId}
-          ariaLabel={t("font.useCustomAria", { kind: label.toLowerCase() })}
-          checked={customEnabled}
-          onCheckedChange={(c) => onChange(c ? (fonts[0] ?? "") : "")}
-        />
-        <span>{t("font.useCustom")}</span>
-      </label>
+      <Checkbox
+        checked={customEnabled}
+        onCheckedChange={(c) => onChange(c ? (fonts[0] ?? "") : "")}
+        label={t("font.useCustom")}
+      />
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
           disabled={!customEnabled}
@@ -137,7 +128,6 @@ export function FontSection() {
     setFontSize,
     setFontSmoothing,
   } = useFontPreferences();
-  const smoothingId = useId();
 
   return (
     <SettingRow label={t("settings.font")} sub={t("settings.font.sub")} align="start">
@@ -162,18 +152,12 @@ export function FontSection() {
           onChange={setFontSize}
           resetLabel={t("settings.font.default")}
         />
-        <label
-          htmlFor={smoothingId}
-          className="mt-1 inline-flex items-center gap-2 text-ui-md text-fg-muted"
-        >
-          <Checkbox
-            id={smoothingId}
-            ariaLabel={t("settings.font.smoothing")}
-            checked={fontSmoothing}
-            onCheckedChange={setFontSmoothing}
-          />
-          <span>{t("settings.font.smoothing")}</span>
-        </label>
+        <Checkbox
+          checked={fontSmoothing}
+          onCheckedChange={setFontSmoothing}
+          label={t("settings.font.smoothing")}
+          className="mt-1"
+        />
       </div>
     </SettingRow>
   );

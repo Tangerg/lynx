@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
-import { Icon, noDragClasses, VerticalTabs } from "@/ui";
+import { Icon, noDragClasses, SearchField, VerticalTabs } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {
@@ -102,21 +102,14 @@ function SettingsSidebarHeader({
         <Icon name="arrow-left" size={15} strokeWidth={1.8} />
         <span>{t("settings.backToApp")}</span>
       </button>
-      <label
-        className={[
-          "flex h-9 items-center gap-2 rounded-sm bg-canvas px-2.5 text-fg-muted",
-          "shadow-[var(--shadow-border)] focus-within:text-fg focus-within:shadow-[var(--shadow-focus)]",
-          noDragClasses,
-        ].join(" ")}
-      >
-        <Icon name="search" size={15} strokeWidth={1.8} />
-        <input
-          value={query}
-          onChange={(event) => onQueryChange(event.currentTarget.value)}
-          placeholder={searchPlaceholder}
-          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-ui-lg text-fg outline-none placeholder:text-fg-faint"
-        />
-      </label>
+      <SearchField
+        size="lg"
+        value={query}
+        onValueChange={onQueryChange}
+        placeholder={searchPlaceholder}
+        aria-label={searchPlaceholder}
+        className={noDragClasses}
+      />
     </div>
   );
 }

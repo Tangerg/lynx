@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, FIELD_CLASSES, Icon, ProviderIcon } from "@/ui";
+import { Button, Icon, ProviderIcon, TextField } from "@/ui";
 import {
   type ProviderConfig,
   useConfigureProvider,
@@ -69,7 +69,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
       </div>
 
       <div className="mt-2.5 grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2">
-        <input
+        <TextField
           type="password"
           aria-label={t("providers.apiKey.aria", { provider: p.id })}
           value={draft.apiKey}
@@ -81,15 +81,13 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
                 ? t("providers.apiKey.replace")
                 : t("providers.apiKey.placeholder")
           }
-          className={cn(FIELD_CLASSES, "h-8 px-2.5 text-fg placeholder:text-fg-faint")}
         />
-        <input
+        <TextField
           type="text"
           aria-label={t("providers.baseUrl.aria", { provider: p.id })}
           value={draft.baseUrl}
           onChange={(e) => setDraft((value) => ({ ...value, baseUrl: e.target.value }))}
           placeholder={t("providers.baseUrl.placeholder")}
-          className={cn(FIELD_CLASSES, "h-8 px-2.5 text-fg placeholder:text-fg-faint")}
         />
       </div>
 

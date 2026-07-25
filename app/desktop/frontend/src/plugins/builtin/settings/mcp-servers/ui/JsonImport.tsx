@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { Icon, PillButton } from "@/ui";
+import { Icon, PillButton, TextArea } from "@/ui";
 import { useConfigureMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
-import { TEXT_AREA } from "./ServerFormFields";
 import { parseMcpImport } from "../application/mcpImport";
 
 export function JsonImport() {
@@ -45,7 +44,9 @@ export function JsonImport() {
   return (
     <div className="flex flex-col gap-2.5 rounded-lg bg-surface p-4">
       <span className="text-ui-md text-fg-muted">{t("mcp.import.hint")}</span>
-      <textarea
+      <TextArea
+        size="sm"
+        invalid={error !== undefined}
         value={text}
         onChange={(event) => setText(event.target.value)}
         rows={6}
@@ -54,7 +55,6 @@ export function JsonImport() {
         placeholder={
           '{"mcpServers": {"my-server": {"type": "streamableHttp", "url": "https://example.com/mcp"}}}'
         }
-        className={TEXT_AREA}
       />
       {error && (
         <span className="inline-flex items-center gap-1 text-ui-md text-negative">

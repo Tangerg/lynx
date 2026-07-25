@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FIELD_CLASSES, PillButton } from "@/ui";
+import { PillButton, TextArea, TextField } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,
@@ -16,8 +16,6 @@ import {
   initialScheduleDraft,
   scheduleInputFromDraft,
 } from "../application/scheduleDraft";
-
-const FIELD = cn(FIELD_CLASSES, "w-full px-2.5 py-1.5 text-fg placeholder:text-fg-faint");
 
 interface ScheduleFormProps {
   schedule?: ScheduleConfig;
@@ -61,20 +59,21 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
 
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
-      <input
+      <TextField
+        font="sans"
         value={draft.title}
         onChange={(event) => updateDraft("title", event.target.value)}
         placeholder={t("schedules.form.title")}
         aria-label={t("schedules.form.title")}
-        className={cn(FIELD, "font-sans")}
       />
-      <textarea
+      <TextArea
+        font="sans"
+        size="sm"
         value={draft.prompt}
         onChange={(event) => updateDraft("prompt", event.target.value)}
         rows={4}
         placeholder={t("schedules.form.prompt")}
         aria-label={t("schedules.form.prompt")}
-        className={cn(FIELD, "resize-y font-sans leading-body")}
       />
       <div className="flex flex-wrap items-center gap-1.5">
         {CRON_PRESETS.map((preset) => (
@@ -91,21 +90,19 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
           </button>
         ))}
       </div>
-      <input
+      <TextField
         value={draft.cron}
         onChange={(event) => updateDraft("cron", event.target.value)}
         spellCheck={false}
         placeholder="0 9 * * 1-5"
         aria-label={t("schedules.form.cron")}
-        className={FIELD}
       />
-      <input
+      <TextField
         value={draft.cwd}
         onChange={(event) => updateDraft("cwd", event.target.value)}
         spellCheck={false}
         placeholder={t("schedules.form.cwd")}
         aria-label={t("schedules.form.cwd")}
-        className={FIELD}
       />
       <div className="flex items-center gap-2">
         <PillButton

@@ -1,5 +1,5 @@
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
+import { TextArea } from "@/ui";
 
 export function ApprovalArgsEditor({
   editing,
@@ -33,7 +33,9 @@ export function ApprovalArgsEditor({
       </div>
       {editing ? (
         <>
-          <textarea
+          <TextArea
+            variant="bare"
+            invalid={invalid}
             value={argsText}
             aria-label={t("approval.args.label")}
             spellCheck={false}
@@ -41,10 +43,7 @@ export function ApprovalArgsEditor({
             onChange={(e) => {
               onTextChange(e.target.value);
             }}
-            className={cn(
-              "w-full resize-y rounded-sm bg-fg p-3 font-mono text-ui-md text-on-fg focus:outline-none",
-              invalid && "outline outline-1 outline-negative",
-            )}
+            className="rounded-sm bg-fg p-3 text-on-fg"
           />
           {invalid && (
             <div className="mt-1 font-mono text-ui-xs text-negative">

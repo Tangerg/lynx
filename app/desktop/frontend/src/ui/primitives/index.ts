@@ -3,6 +3,8 @@ export type { ButtonPrimitiveProps } from "./button";
 export { CheckboxPrimitive } from "./checkbox";
 export { ContextMenuPrimitive } from "./context-menu";
 export { DialogPrimitive } from "./dialog";
+export { InputPrimitive } from "./input";
+export type { InputPrimitiveProps } from "./input";
 export { MenuPrimitive } from "./menu";
 export { PopoverPrimitive } from "./popover";
 export { ProgressPrimitive } from "./progress";

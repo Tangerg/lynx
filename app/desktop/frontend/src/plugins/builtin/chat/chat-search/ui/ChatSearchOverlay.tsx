@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon, Tooltip } from "@/ui";
+import { Icon, TextField, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
@@ -69,14 +69,16 @@ export function ChatSearchOverlay() {
         "[-webkit-app-region:no-drag] [--wails-draggable:no-drag]",
       )}
     >
-      <input
+      <TextField
         ref={inputRef}
-        type="text"
+        variant="bare"
+        font="sans"
+        size="lg"
         aria-label={t("chatSearch.label")}
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t("chatSearch.placeholder")}
-        className="h-7 w-56 rounded-md border-0 bg-transparent px-2 font-sans text-ui-lg text-fg outline-none placeholder:text-fg-faint"
+        className="h-7 w-56 px-2"
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === "Escape") {

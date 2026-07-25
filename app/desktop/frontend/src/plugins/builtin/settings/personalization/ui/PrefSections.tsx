@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { Checkbox, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import {
@@ -30,19 +29,14 @@ export function MessageStyleSection() {
 export function CompletionSoundSection() {
   const t = useT();
   const { completionSound, setCompletionSound } = useCompletionSoundPreference();
-  const id = useId();
 
   return (
     <SettingRow label={t("settings.completionSound")} sub={t("settings.completionSound.sub")}>
-      <label htmlFor={id} className="inline-flex items-center gap-2 text-ui-lg text-fg-muted">
-        <Checkbox
-          id={id}
-          checked={completionSound}
-          onCheckedChange={setCompletionSound}
-          ariaLabel={t("settings.completionSound")}
-        />
-        <span>{t("settings.completionSound.toggle")}</span>
-      </label>
+      <Checkbox
+        checked={completionSound}
+        onCheckedChange={setCompletionSound}
+        label={t("settings.completionSound.toggle")}
+      />
     </SettingRow>
   );
 }

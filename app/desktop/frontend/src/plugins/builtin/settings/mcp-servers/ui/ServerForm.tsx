@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, Segmented } from "@/ui";
+import { Icon, PillButton, Segmented, TextField } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,
@@ -7,9 +7,8 @@ import {
   useRemoveMCPServer,
   useTestMCPServer,
 } from "../application/mcpServerConfig";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { FIELD, LinesField } from "./ServerFormFields";
+import { LinesField } from "./ServerFormFields";
 import {
   type MCPServerDraft,
   initialMCPServerDraft,
@@ -77,14 +76,13 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   return (
     <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-        <input
+        <TextField
           type="text"
           aria-label={t("mcp.form.name.aria")}
           value={draft.name}
           disabled={isEdit}
           onChange={(e) => updateDraft("name", e.target.value)}
           placeholder={t("mcp.form.name.placeholder")}
-          className={cn(FIELD, isEdit && "cursor-not-allowed opacity-60")}
         />
         <Segmented<MCPServerTransport>
           value={draft.transport}
@@ -99,13 +97,12 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
       {draft.transport === "stdio" ? (
         <>
-          <input
+          <TextField
             type="text"
             aria-label={t("mcp.form.command.aria")}
             value={draft.command}
             onChange={(e) => updateDraft("command", e.target.value)}
             placeholder={t("mcp.form.command.placeholder")}
-            className={FIELD}
           />
           <LinesField
             label={t("mcp.form.args")}
@@ -119,32 +116,29 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
             onChange={(value) => updateDraft("env", value)}
             placeholder={t("mcp.form.env.placeholder")}
           />
-          <input
+          <TextField
             type="text"
             aria-label={t("mcp.form.dir.aria")}
             value={draft.dir}
             onChange={(e) => updateDraft("dir", e.target.value)}
             placeholder={t("mcp.form.dir.placeholder")}
-            className={FIELD}
           />
         </>
       ) : (
         <>
-          <input
+          <TextField
             type="text"
             aria-label={t("mcp.form.url.aria")}
             value={draft.url}
             onChange={(e) => updateDraft("url", e.target.value)}
             placeholder={t("mcp.form.url.placeholder")}
-            className={FIELD}
           />
-          <input
+          <TextField
             type="password"
             aria-label={t("mcp.form.auth.aria")}
             value={draft.authorization}
             onChange={(e) => updateDraft("authorization", e.target.value)}
             placeholder={hasAuthStored ? t("mcp.form.auth.keep") : t("mcp.form.auth.placeholder")}
-            className={FIELD}
           />
           <LinesField
             label={t("mcp.form.headers")}
@@ -157,7 +151,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
       <label className="flex flex-col gap-1.5">
         <span className="text-ui-lg font-medium text-fg">{t("mcp.form.timeout")}</span>
-        <input
+        <TextField
           type="number"
           min={0}
           inputMode="numeric"
@@ -165,17 +159,16 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           value={draft.timeoutSec}
           onChange={(e) => updateDraft("timeoutSec", e.target.value)}
           placeholder={t("mcp.form.timeout.placeholder")}
-          className={cn(FIELD, "tabular-nums")}
+          className="tabular-nums"
         />
       </label>
 
-      <input
+      <TextField
         type="text"
         aria-label={t("mcp.form.description.aria")}
         value={draft.description}
         onChange={(e) => updateDraft("description", e.target.value)}
         placeholder={t("mcp.form.description.placeholder")}
-        className={FIELD}
       />
 
       {server && (

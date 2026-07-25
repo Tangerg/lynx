@@ -6,7 +6,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FIELD_CLASSES, Icon, PillButton } from "@/ui";
+import { Icon, PillButton, TextArea, TextField } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -205,14 +205,15 @@ function StartGoal({ sessionId }: { sessionId: string }) {
         <Icon name="spark" size={13} className="text-accent" />
         {t("goal.startTitle")}
       </div>
-      <textarea
+      <TextArea
+        font="sans"
         aria-label={t("goal.objective")}
         value={objective}
         onChange={(e) => setObjective(e.target.value)}
         placeholder={t("goal.objective.placeholder")}
         spellCheck={false}
         rows={2}
-        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
+        className="text-fg-soft"
       />
       <div className="grid grid-cols-3 gap-2">
         <BudgetField label={t("goal.maxTurns")} value={maxTurns} onChange={setMaxTurns} step="1" />
@@ -246,15 +247,16 @@ function BudgetField({
   return (
     <label className="flex flex-col gap-1">
       <span className="text-ui-xs text-fg-faint">{label}</span>
-      <input
+      <TextField
         type="number"
+        size="sm"
         min={0}
         step={step}
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="∞"
-        className={cn(FIELD_CLASSES, "w-full px-2 py-1 text-ui-md tabular-nums")}
+        className="tabular-nums"
       />
     </label>
   );

@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { Button, FIELD_CLASSES, StatusDot } from "@/ui";
+import { Button, StatusDot, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { cn } from "@/lib/utils";
 import {
   applyRuntimeEndpoint,
   currentRuntimeEndpoint,
@@ -46,9 +45,11 @@ export function ConnectionPane() {
             {t("settings.connection.url")}
           </label>
           <div className="flex items-center gap-2">
-            <input
+            <TextField
               id="runtime-base-url"
               type="text"
+              size="lg"
+              invalid={error !== null}
               aria-label={t("settings.connection.url")}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
@@ -60,11 +61,7 @@ export function ConnectionPane() {
                 }
               }}
               placeholder={DEFAULT_RUNTIME_ENDPOINT}
-              className={cn(
-                FIELD_CLASSES,
-                "h-9 flex-1 px-3 text-ui-lg text-fg",
-                error && "border-negative focus:border-negative",
-              )}
+              className="flex-1"
               spellCheck={false}
             />
             {!isDefault && (

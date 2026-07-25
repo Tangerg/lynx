@@ -5,8 +5,7 @@
 // and `antd` — neither of which we ship.
 
 import { useMemo, useState } from "react";
-import { FIELD_CLASSES, Icon, ScrollArea } from "@/ui";
-import { cn } from "@/lib/utils";
+import { ScrollArea, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { IconMap, rawToc } from "./iconMap";
 
@@ -56,32 +55,15 @@ export function IconGallery() {
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>
-        <div
-          className={cn(
-            FIELD_CLASSES,
-            "flex w-60 items-center gap-1.5 px-2.5 py-1.5 focus-within:border-field-strong",
-          )}
-        >
-          <Icon name="search" size={13} className="shrink-0 text-fg-faint" />
-          <input
-            type="search"
-            aria-label={t("iconGallery.filterLabel")}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("iconGallery.filterPlaceholder")}
-            className="flex-1 border-0 bg-transparent font-inherit text-fg outline-none placeholder:text-fg-faint"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              title={t("iconGallery.clear")}
-              className="grid h-5.5 w-5.5 place-items-center rounded-sm border-0 bg-transparent p-0 text-fg-faint transition-[background,color,transform] duration-150 hover:bg-fg/[0.04] hover:text-fg active:scale-90"
-            >
-              <Icon name="x" size={11} />
-            </button>
-          )}
-        </div>
+        <SearchField
+          value={query}
+          onValueChange={setQuery}
+          aria-label={t("iconGallery.filterLabel")}
+          placeholder={t("iconGallery.filterPlaceholder")}
+          onClear={() => setQuery("")}
+          clearLabel={t("iconGallery.clear")}
+          className="w-60"
+        />
       </div>
 
       <ScrollArea>

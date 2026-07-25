@@ -4,7 +4,7 @@
 // whole-file editor — memory.update writes the full content back.
 
 import { useRef, useState } from "react";
-import { DataView, FIELD_CLASSES, Icon, PillButton } from "@/ui";
+import { DataView, Icon, PillButton, TextArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -72,13 +72,13 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
       </button>
       {open && (
         <div className="flex flex-col gap-2 px-4 pb-3 pl-10">
-          <textarea
+          <TextArea
             aria-label={t("memory.aria", { path: row.path })}
             value={draft ?? row.content}
             onChange={(e) => setDraft(e.target.value)}
             spellCheck={false}
             rows={12}
-            className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2.5 leading-body text-fg-soft")}
+            className="text-fg-soft"
           />
           <div className="flex items-center gap-2">
             <PillButton size="sm" variant="accent" disabled={!dirty || saving} onClick={save}>

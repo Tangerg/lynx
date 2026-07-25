@@ -1,0 +1,156 @@
+import type { ComponentProps } from "react";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
+import { cn } from "@/lib/utils";
+import { Icon } from "@/ui/icons";
+import { Button } from "./button";
+import { InputPrimitive, type InputPrimitiveProps } from "@/ui/primitives";
+
+// `variant` answers one question: who draws the edge?
+//   boxed — this control does. A real border, because a text field is a fixed
+//           control and the edge rule gives those a border rather than a shadow
+//           ring (an input has to read as editable while at rest).
+//   bare  — its container already did (a search bar, the composer surface, a
+//           chip row). Metrics stay off in that case: the container set the
+//           height, and a second one here would fight it.
+const EDGE = {
+  boxed: "rounded-md border-[0.5px] border-field bg-canvas focus:border-field-strong",
+  bare: "border-0 bg-transparent",
+} as const;
+
+// Invalid has to reach the eye through whichever edge the variant owns:
+// recolour the border where there is one, add a ring where there isn't.
+const INVALID = {
+  boxed: "border-negative focus:border-negative",
+  bare: "outline outline-1 outline-negative",
+} as const;
+
+const BASE =
+  "w-full min-w-0 text-fg outline-none transition-colors placeholder:text-fg-faint " +
+  "disabled:cursor-not-allowed disabled:opacity-60";
+
+const SHARED_VARIANTS = {
+  variant: EDGE,
+  font: { mono: "font-mono", sans: "font-sans" },
+  invalid: { true: "", false: "" },
+} as const;
+
+const INVALID_COMPOUNDS = [
+  { variant: "boxed", invalid: true, class: INVALID.boxed },
+  { variant: "bare", invalid: true, class: INVALID.bare },
+] as const;
+
+const inputStyles = cva(BASE, {
+  variants: {
+    ...SHARED_VARIANTS,
+    size: { sm: "text-ui-md", md: "text-ui-md", lg: "text-ui-lg" },
+  },
+  compoundVariants: [
+    { variant: "boxed", size: "sm", class: "h-6.5 px-2" },
+    { variant: "boxed", size: "md", class: "h-8 px-2.5" },
+    { variant: "boxed", size: "lg", class: "h-9 px-3" },
+    ...INVALID_COMPOUNDS,
+  ],
+  defaultVariants: { variant: "boxed", size: "md", font: "mono", invalid: false },
+});
+
+// A textarea has no height to set — `rows` and the resize handle own that — so
+// its size step is the inset alone: `sm` for form rows, `md` for the prose and
+// memory editors, which are read as much as typed into.
+const textAreaStyles = cva(`${BASE} resize-y leading-body`, {
+  variants: {
+    ...SHARED_VARIANTS,
+    size: { sm: "px-2.5 py-1.5 text-ui-md", md: "px-3 py-2 text-ui-md" },
+  },
+  compoundVariants: [...INVALID_COMPOUNDS],
+  defaultVariants: { variant: "boxed", size: "md", font: "mono", invalid: false },
+});
+
+type FieldVariants = VariantProps<typeof inputStyles>;
+
+export type TextFieldProps = Omit<InputPrimitiveProps, "size" | "className"> &
+  FieldVariants & { className?: string };
+
+export function TextField({ variant, size, font, invalid, className, ...props }: TextFieldProps) {
+  return (
+    <InputPrimitive
+      {...props}
+      className={cn(inputStyles({ variant, size, font, invalid }), className)}
+    />
+  );
+}
+
+// `TextField` goes through Base UI's Input (a Field control, so it carries the
+// field state contract and wires itself up if a caller ever puts it inside a
+// `Field.Root`). Base UI ships no textarea part, and its control types every
+// handler against `HTMLInputElement`, so routing one through it would cost a
+// cast and buy nothing: a textarea's focus, keyboard and aria behaviour are
+// entirely native. This is the documented Base-UI-first exemption, not an
+// oversight.
+export type TextAreaProps = Omit<ComponentProps<"textarea">, "className"> &
+  VariantProps<typeof textAreaStyles> & { className?: string };
+
+export function TextArea({ variant, size, font, invalid, className, ...props }: TextAreaProps) {
+  return (
+    <textarea
+      {...props}
+      className={cn(textAreaStyles({ variant, size, font, invalid }), className)}
+    />
+  );
+}
+
+// A search is a box with a magnifier in it, and the box has to grow the focus
+// edge for the whole composite rather than for the input alone — which is why
+// this is one component and not an instruction to wrap TextField in a div. It
+// had been rediscovered three times, each reaching for a different edge (the
+// field classes, a shadow ring, a literal border), so the affordance read
+// slightly differently in each corner of the app.
+const SEARCH_BOX = {
+  sm: "h-6.5 gap-1.5 px-2",
+  md: "h-8 gap-1.5 px-2.5",
+  lg: "h-9 gap-2 px-3",
+} as const;
+
+const SEARCH_GLYPH = { sm: 12, md: 13, lg: 15 } as const;
+
+export type SearchFieldProps = Omit<TextFieldProps, "variant" | "invalid" | "size"> & {
+  size?: keyof typeof SEARCH_BOX;
+  /** Renders the clear affordance. Its label is the accessible name. */
+  onClear?: () => void;
+  clearLabel?: string;
+};
+
+export function SearchField({
+  size = "md",
+  font = "sans",
+  onClear,
+  clearLabel,
+  className,
+  ...props
+}: SearchFieldProps) {
+  return (
+    <label
+      className={cn(
+        "flex items-center text-fg-muted focus-within:text-fg",
+        EDGE.boxed,
+        "focus-within:border-field-strong",
+        SEARCH_BOX[size],
+        className,
+      )}
+    >
+      <Icon name="search" size={SEARCH_GLYPH[size]} className="shrink-0" />
+      <TextField {...props} type="search" variant="bare" font={font} size={size} />
+      {onClear && props.value !== "" && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={onClear}
+          aria-label={clearLabel}
+          className="-mr-1 shrink-0"
+        >
+          <Icon name="x" size={11} />
+        </Button>
+      )}
+    </label>
+  );
+}

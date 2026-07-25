@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AgentRow } from "@/ui/agent";
-import { ContextMenu } from "@/ui";
+import { ContextMenu, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -88,8 +88,9 @@ export function SessionRow({
         }
       >
         {renaming ? (
-          <input
-            type="text"
+          <TextField
+            variant="bare"
+            font="sans"
             defaultValue={session.title}
             aria-label={t("session.row.titleLabel")}
             // Rename only ever starts from an explicit user action (the
@@ -117,7 +118,7 @@ export function SessionRow({
               }
               setRenaming(false);
             }}
-            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-md leading-body text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            className="flex-1 rounded-xs bg-surface-3 px-1 leading-body focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
           />
         ) : (
           session.title

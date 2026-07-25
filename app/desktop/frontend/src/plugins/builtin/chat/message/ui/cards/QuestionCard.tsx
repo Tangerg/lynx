@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useState } from "react";
-import { Button, Icon } from "@/ui";
+import { Button, Icon, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -133,8 +133,9 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
               </div>
 
               {q.allowFreeText && (
-                <input
-                  type="text"
+                <TextField
+                  variant="bare"
+                  font="sans"
                   data-slot="question-input"
                   value={cur.text}
                   aria-label={q.question}
@@ -142,7 +143,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   onChange={(e) => {
                     setDraft((prev) => setQuestionText(prev, q, e.target.value));
                   }}
-                  className="w-full bg-transparent border-b-[0.5px] border-field py-1 text-display-sm text-fg placeholder:text-fg-faint outline-none focus:border-fg"
+                  className="border-b-[0.5px] border-field py-1 text-display-sm focus:border-fg"
                 />
               )}
             </div>

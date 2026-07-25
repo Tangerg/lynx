@@ -4,7 +4,7 @@
 // model configured in Settings → Providers (else it points the user there).
 
 import { useState } from "react";
-import { EmptyState, Icon, PillButton } from "@/ui";
+import { EmptyState, Icon, PillButton, SearchField } from "@/ui";
 import {
   type CodebaseSearchHit,
   reindexCodebase,
@@ -104,15 +104,14 @@ function CodebaseTab() {
     >
       <div className="flex flex-col gap-3 px-4">
         <div className="flex items-center gap-2">
-          <input
+          <SearchField
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onValueChange={setQuery}
             onKeyDown={(e) => {
               if (e.key === "Enter") void run();
             }}
             placeholder={t("codebase.search.placeholder")}
             aria-label={t("codebase.search.placeholder")}
-            className="w-full rounded-md border-[0.5px] border-field bg-canvas px-2.5 py-1.5 text-ui-md text-fg outline-none transition-colors placeholder:text-fg-faint focus:border-field-strong"
           />
           <PillButton
             variant="accent"

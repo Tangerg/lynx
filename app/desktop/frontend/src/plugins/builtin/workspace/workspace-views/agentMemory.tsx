@@ -7,11 +7,10 @@
 // cross-project user store.
 
 import { useCallback, useRef, useState } from "react";
-import { DataView, EmptyState, FIELD_CLASSES, Icon, PillButton, SectionLabel } from "@/ui";
+import { DataView, EmptyState, Icon, PillButton, SectionLabel, TextArea } from "@/ui";
 import { AgentIconButton } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
-import { cn } from "@/lib/utils";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -123,13 +122,13 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           {editing ? (
-            <textarea
+            <TextArea
               aria-label={t("agentMemory.editAria")}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               spellCheck={false}
               rows={3}
-              className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
+              className="text-fg-soft"
             />
           ) : (
             <div className="text-ui-md leading-body text-fg">{item.content}</div>
@@ -222,14 +221,14 @@ function AddMemory({ scope, cwd }: { scope: Scope; cwd?: string }) {
 
   return (
     <div className="flex flex-col gap-2 px-4 pb-2">
-      <textarea
+      <TextArea
         aria-label={t("agentMemory.add")}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={t("agentMemory.add.placeholder")}
         spellCheck={false}
         rows={2}
-        className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-body text-fg-soft")}
+        className="text-fg-soft"
       />
       <div className="flex items-center gap-2">
         <PillButton size="sm" variant="accent" disabled={!canSave || busy} onClick={submit}>

@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useDebounce } from "use-debounce";
-import { DataView, Icon } from "@/ui";
+import { DataView, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -39,18 +39,14 @@ function SearchTab() {
       scrollClassName="py-1"
     >
       <div className="px-4 pt-1 pb-2">
-        <div className="grid grid-cols-[16px_minmax(0,1fr)] items-center gap-2 rounded-md border-[0.5px] border-field bg-canvas px-3 py-2 transition-colors focus-within:border-field-strong">
-          <Icon name="search" size={13} className="text-fg-faint" />
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={t("search.placeholder")}
-            aria-label={t("search.aria")}
-            spellCheck={false}
-            className="w-full border-0 bg-transparent font-mono text-ui-md text-fg outline-none placeholder:text-fg-faint"
-          />
-        </div>
+        <SearchField
+          font="mono"
+          value={input}
+          onValueChange={setInput}
+          placeholder={t("search.placeholder")}
+          aria-label={t("search.aria")}
+          spellCheck={false}
+        />
       </div>
       {query === "" ? null : (
         <DataView

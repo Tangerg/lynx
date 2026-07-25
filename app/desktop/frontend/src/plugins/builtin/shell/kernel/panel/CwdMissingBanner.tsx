@@ -8,8 +8,7 @@
 // negative: the session still works, just degraded.
 
 import { useRef, useState } from "react";
-import { FIELD_CLASSES, SystemMessage } from "@/ui";
-import { cn } from "@/lib/utils";
+import { SystemMessage, TextField } from "@/ui";
 import { useActiveSession, useRelocateSession } from "@/plugins/builtin/agent/public/session";
 import { BannerAction } from "./BannerAction";
 import { useT } from "@/lib/i18n";
@@ -54,8 +53,9 @@ export function CwdMissingBanner() {
           <div className="mt-2">
             {editing ? (
               <div className="flex items-center gap-1.5">
-                <input
+                <TextField
                   type="text"
+                  size="sm"
                   value={path}
                   onChange={(e) => setPath(e.target.value)}
                   onKeyDown={(e) => {
@@ -71,7 +71,7 @@ export function CwdMissingBanner() {
                   // focusing it is the expected continuation, not a steal.
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
-                  className={cn(FIELD_CLASSES, "h-6.5 w-72 max-w-full px-2 text-fg")}
+                  className="w-72 max-w-full"
                 />
                 <BannerAction
                   label={busy ? "…" : t("cwdMissing.action.apply")}

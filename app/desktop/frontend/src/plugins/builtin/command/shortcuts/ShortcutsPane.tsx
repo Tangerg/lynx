@@ -4,7 +4,7 @@
 // show up; nothing here knows about specific commands.
 
 import { useMemo, useState } from "react";
-import { Kbd } from "@/ui";
+import { Kbd, SearchField } from "@/ui";
 import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { splitCombo } from "@/lib/combo";
@@ -32,13 +32,12 @@ export function ShortcutsPane() {
         <div className="mt-1 text-ui-md text-fg-muted">{t("shortcuts.sub")}</div>
       </div>
 
-      <input
-        type="search"
+      <SearchField
+        size="lg"
         value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        onValueChange={setQuery}
         placeholder={t("shortcuts.filter")}
         aria-label={t("shortcuts.filterAria")}
-        className="w-full rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-2 text-ui-lg text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong"
       />
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface">

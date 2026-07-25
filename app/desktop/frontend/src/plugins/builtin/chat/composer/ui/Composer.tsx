@@ -4,6 +4,7 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useRecordComposerHistory } from "@/plugins/builtin/chat/composer/public/history";
+import { TextArea } from "@/ui";
 import { AgentComposerSurface } from "@/ui/agent";
 import { FileMentionPopup } from "./FileMentionPopup";
 import { useT } from "@/lib/i18n";
@@ -80,7 +81,9 @@ export function Composer({
           onRemoveImage={onRemoveImage}
           onRemovePaste={onRemovePaste}
         />
-        <textarea
+        <TextArea
+          variant="bare"
+          font="sans"
           ref={input.inputRef}
           aria-label={t("composer.input.label")}
           placeholder={input.placeholder}
@@ -98,7 +101,7 @@ export function Composer({
              The `composer-input` class is a DOM-target hook (no styles) so the
              `composer.focus` command in defaults/commands.ts can find this
              textarea without threading a ref through the tree. */
-          className="composer-input max-h-40 min-h-[2lh] w-full resize-none border-0 bg-transparent p-0 font-sans text-ui-md leading-relaxed text-fg outline-none placeholder:text-fg-faint placeholder:tracking-normal"
+          className="composer-input max-h-40 min-h-[2lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
           data-slot="composer-input"
         />
       </div>
