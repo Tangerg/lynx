@@ -28,6 +28,7 @@ import { useWorkspaceViews } from "@/plugins/sdk";
 import { useSidebarRail } from "@/plugins/builtin/workspace/public/sidebarRail";
 import { useUiStore } from "@/state/uiStore";
 import { ChatStream } from "./ChatStream";
+import { HeaderDiffStat } from "./HeaderDiffStat";
 import { SplitResizer } from "./SplitResizer";
 import { ViewPlacementProvider } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { WorkspaceViewBody } from "./WorkspaceViewBody";
@@ -156,6 +157,7 @@ export function ChatPanel({ onSend }: Props) {
                 <AgentStatusPill tone="running">{t("session.status.running")}</AgentStatusPill>
               )}
               <span className="min-w-4 flex-1" />
+              <HeaderDiffStat className={noDragClasses} />
               {!showDock && (
                 <AgentIconButton
                   icon="panel-r"

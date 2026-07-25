@@ -28,6 +28,8 @@ export {
   useManagedSkills,
   useSkillDrafts,
   useAgentMemory,
+} from "../application/workspaceData";
+export {
   type BuiltinToolInfo,
   type WorkspaceAgentDoc,
   type WorkspaceDiff,
@@ -55,3 +57,12 @@ export {
   type AgentMemoryItemInfo,
   type AgentMemoryQuery,
 } from "../application/workspaceData";
+
+// Capability gating is part of the published surface: a cross-context consumer
+// (the chat header's diff readout) has to know whether git is negotiated before
+// it renders a git-backed number, and the facade is the only surface importable
+// across contexts.
+export {
+  useWorkspaceCapability,
+  type WorkspaceCapability,
+} from "../application/workspaceCapabilities";
