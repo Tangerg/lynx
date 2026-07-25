@@ -9,11 +9,16 @@
 //
 // Two rules:
 //
-//   1. HARD — a locale may not carry a key `en` does not have. Those are dead
+//   1. HARD — no catalog may declare a key twice. A duplicate is legal JS and
+//      silently keeps the last one, so the earlier entry looks translated while
+//      doing nothing. That is how `diagnostics.clear` came to exist in all eight
+//      catalogs while the button beside it rendered a hardcoded English literal.
+//
+//   2. HARD — a locale may not carry a key `en` does not have. Those are dead
 //      translations: the callsite is gone, or the key was renamed on one side.
 //      Enforced at zero, because it is at zero.
 //
-//   2. RATCHET — the count of keys a locale is MISSING may not exceed the
+//   3. RATCHET — the count of keys a locale is MISSING may not exceed the
 //      baseline below. It cannot be zero today without ~1800 authored
 //      translations, and inventing those unreviewed would be worse than the gap.
 //      The baseline is debt, recorded rather than hidden: lower a number when you
@@ -38,9 +43,16 @@ const MISSING_BASELINE = {
 
 const KEY_PATTERN = /^\s*"([^"]+)":/gm;
 
+const duplicates = [];
+
 function keysOf(file) {
   const source = readFileSync(join(LOCALES_DIR, file), "utf8");
-  return new Set(Array.from(source.matchAll(KEY_PATTERN), (match) => match[1]));
+  const seen = new Set();
+  for (const match of source.matchAll(KEY_PATTERN)) {
+    if (seen.has(match[1])) duplicates.push(`${file}: "${match[1]}" declared twice`);
+    seen.add(match[1]);
+  }
+  return seen;
 }
 
 const files = readdirSync(LOCALES_DIR).filter((name) => name.endsWith(".ts"));
@@ -52,7 +64,7 @@ if (!en) {
   process.exit(1);
 }
 
-const failures = [];
+const failures = [...duplicates];
 const report = [];
 
 for (const [locale, keys] of catalogs) {

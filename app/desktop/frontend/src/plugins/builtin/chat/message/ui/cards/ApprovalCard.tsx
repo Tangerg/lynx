@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
+import { approvalHeadline } from "./approvalHeadline";
 import { type ApprovalDecision, type RememberScope } from "@/plugins/builtin/agent/public/hitl";
 import {
   approvalReversibilityView,
@@ -23,7 +24,9 @@ interface Props {
    *  Approve / Decline buttons; `"complete"` collapses to a settled
    *  checkpoint row driven by `decision`. */
   status: BlockStatus;
-  what: string;
+  /** The tool awaiting a decision. The headline is derived here, at render, so it
+   *  follows the language the user is reading in. */
+  toolName?: string;
   cmd: string;
   reason: string;
   /** The Run to resume + the toolCall Item awaiting approval — the HITL
@@ -67,7 +70,7 @@ interface Props {
 //      runs.resume + optimistically settles the card (resolveInterrupt)
 export function ApprovalCard({
   status,
-  what,
+  toolName,
   cmd,
   reason,
   runId,
@@ -134,7 +137,9 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1.5 text-display-sm font-semibold leading-body text-fg">{what}</div>
+      <div className="mb-1.5 text-display-sm font-semibold leading-body text-fg">
+        {approvalHeadline(t, toolName)}
+      </div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". Dark code chip on the light card. */}

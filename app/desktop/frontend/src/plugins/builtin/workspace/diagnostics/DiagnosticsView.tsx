@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { Button, Segmented } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 import { TracesPanel } from "./TracesPanel";
+import { useT } from "@/lib/i18n";
 
 type Signal = "traces" | "metrics" | "logs";
 
@@ -25,6 +26,7 @@ const SIGNALS = [
 
 export function DiagnosticsView() {
   const [signal, setSignal] = useState<Signal>("traces");
+  const t = useT();
   const clear = useTelemetryStore((s) => s.clear);
 
   return (
@@ -45,7 +47,7 @@ export function DiagnosticsView() {
             ariaLabel="Telemetry signal"
           />
           <Button variant="outline" size="sm" onClick={clear}>
-            Clear
+            {t("diagnostics.clear")}
           </Button>
         </div>
       </div>

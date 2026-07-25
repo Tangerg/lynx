@@ -15,7 +15,7 @@ export default definePlugin({
   setup({ host }) {
     host.layout.register("app.overlay", commandPaletteOverlaySlot(CommandPalette));
 
-    host.extensions.contribute(SHORTCUT, commandPaletteShortcut(toggleCommandPalette));
+    host.extensions.contribute(SHORTCUT, commandPaletteShortcut(t, toggleCommandPalette));
 
     host.commands.register(commandPaletteCommand(t, openCommandPalette));
   },

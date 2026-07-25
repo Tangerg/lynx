@@ -46,14 +46,14 @@ describe("globalCommandShortcuts", () => {
 
 describe("workspaceEscapeShortcut", () => {
   it("exposes the workspace close binding", () => {
-    const shortcut = workspaceEscapeShortcut({
+    const shortcut = workspaceEscapeShortcut((k: string) => k, {
       isPaletteOpen: () => false,
       closeActiveWorkspaceView: () => false,
     });
 
     expect(shortcut).toMatchObject({
       key: "Escape",
-      description: "Close workspace view",
+      description: "shortcut.closeWorkspaceView",
       allowInInputs: false,
     });
   });

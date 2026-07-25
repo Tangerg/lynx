@@ -41,7 +41,9 @@ export function HtmlArtifact({ code }: Props) {
       <div className="flex items-center justify-between px-3 py-1.5">
         <div className="inline-flex items-center gap-2">
           <Icon name="globe" size={12} className="text-fg-faint" />
-          <span className="font-mono text-ui-sm font-semibold text-fg-faint">HTML artifact</span>
+          <span className="font-mono text-ui-sm font-semibold text-fg-faint">
+            {t("markdown.htmlArtifact")}
+          </span>
         </div>
         <div className="inline-flex items-center gap-1 rounded-md bg-surface-2 p-0.5">
           {(["preview", "source"] as const).map((id) => (

@@ -3,6 +3,7 @@
 // stay inside handlers via getState() so per-message UI does not subscribe.
 
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
+import { t } from "@/lib/i18n";
 import { notifyError, notifyInfo } from "@/lib/notify";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { composerInputToAgentInput } from "./inputBridge";
@@ -68,7 +69,7 @@ export function regenerateMessage(msg: Message, opts?: RollbackActionOptions): v
           composerInputToAgentInput(buildInput(prompt.text, prompt.images)),
         )
       ) {
-        notifyInfo("Switched away before regenerate finished — nothing was resent.", {
+        notifyInfo(t("session.regenerate.switchedAway"), {
           source: "session",
         });
       }
@@ -117,11 +118,11 @@ export function restoreCheckpoint(msg: Message, restoreType: RestoreType): void 
 function restoreCopy(restoreType: RestoreType): string {
   switch (restoreType) {
     case "files":
-      return "Working tree restored to this checkpoint.";
+      return t("session.restore.files");
     case "both":
-      return "Conversation and files restored to this checkpoint.";
+      return t("session.restore.both");
     default:
-      return "Conversation rewound to this checkpoint.";
+      return t("session.restore.history");
   }
 }
 

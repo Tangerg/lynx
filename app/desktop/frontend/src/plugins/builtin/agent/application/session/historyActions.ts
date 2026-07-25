@@ -1,4 +1,5 @@
 import type { Message } from "@/plugins/sdk/types/agentView";
+import { t } from "@/lib/i18n";
 import type { AgentInput } from "../../domain/input";
 import { notifyInfo } from "@/lib/notify";
 import { agentRuntime, type AgentRestoreType } from "../ports/runtimeGateway";
@@ -38,7 +39,7 @@ export async function rollbackSessionToBeforeRun(
   const keep = index > 0 ? roots[index - 1]!.id : undefined;
   const wantsFiles = restoreType !== "history";
   if (wantsFiles && !keep) {
-    notifyInfo("No checkpoint before the first turn — files left as they are.", {
+    notifyInfo(t("session.restore.noCheckpoint"), {
       source: "session",
     });
   }

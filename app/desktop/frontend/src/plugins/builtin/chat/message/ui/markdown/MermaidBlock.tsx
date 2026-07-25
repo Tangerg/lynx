@@ -108,7 +108,7 @@ export function MermaidBlock({ code }: Props) {
       <LightboxDialog
         open={zoomed}
         onOpenChange={setZoomed}
-        title="Diagram"
+        title={t("markdown.diagram")}
         className="p-6"
         trigger={
           <button

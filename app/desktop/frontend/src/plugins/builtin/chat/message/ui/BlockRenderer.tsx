@@ -106,7 +106,7 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
         <ApprovalCard
           key={block.itemId ?? key}
           status={block.status}
-          what={block.text}
+          toolName={block.toolName}
           cmd={block.command}
           reason={block.reason}
           runId={block.runId}

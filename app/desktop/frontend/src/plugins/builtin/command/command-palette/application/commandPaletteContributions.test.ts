@@ -7,18 +7,18 @@ import {
 
 describe("commandPaletteShortcut", () => {
   it("binds Mod+K as an input-safe palette toggle", () => {
-    const shortcut = commandPaletteShortcut(vi.fn());
+    const shortcut = commandPaletteShortcut((k: string) => k, vi.fn());
 
     expect(shortcut).toMatchObject({
       key: "Mod+K",
-      description: "Open the command palette",
+      description: "shortcut.commandPalette",
       allowInInputs: true,
     });
   });
 
   it("prevents the browser default before toggling the palette", () => {
     const togglePalette = vi.fn();
-    const shortcut = commandPaletteShortcut(togglePalette);
+    const shortcut = commandPaletteShortcut((k: string) => k, togglePalette);
     const event = { preventDefault: vi.fn() } as unknown as KeyboardEvent;
 
     shortcut.handler(event);

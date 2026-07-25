@@ -14,6 +14,7 @@ import { useUiStore } from "@/state/uiStore";
 import { sidebarFooterSlot } from "./application/sidebarContributions";
 
 function ThemeToggle() {
+  const t = useT();
   const theme = useUiStore((s) => s.theme);
   const isLight = isLightTheme(theme);
   return (
@@ -22,8 +23,7 @@ function ThemeToggle() {
       size="icon-sm"
       onClick={() => useUiStore.getState().toggleTheme()}
       data-chrome-focus=""
-      title={isLight ? "Switch to dark" : "Switch to light"}
-      aria-label={isLight ? "Switch to dark" : "Switch to light"}
+      title={t(isLight ? "theme.switchToDark" : "theme.switchToLight")}
     >
       {/* §7 contextual icon swap — cross-fade the sun/moon instead of a hard
           cut (scale/opacity/blur, spring bounce:0); initial={false} so it

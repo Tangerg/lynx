@@ -355,26 +355,6 @@ export function toolStatus(item: Extract<Item, { type: "toolCall" }>): ToolCallS
 // (toolLabel / toolFields) so every `toolCategory` switch lives here, not in
 // the StreamEvent dispatcher (handlers.ts).
 
-/** Short verb phrase for an approval card title, derived from the tool category
- *  (§4.4.2 display convention). The approval payload's tool has no `result`
- *  yet, so the label keys on `name` only. */
-export function approvalText(tool: ToolInvocation): string {
-  switch (toolCategory(tool.name)) {
-    case "command":
-      return "Run command";
-    case "fileEdit":
-      return "Apply file change";
-    case "search":
-      return "Run search";
-    case "webSearch":
-      return "Run web search";
-    case "subagent":
-      return "Delegate to sub-agent";
-    default:
-      return `Run ${tool.name}`;
-  }
-}
-
 /** The bare command string for a command-category approval (the `$ cmd` line). */
 export function commandString(tool: ToolInvocation): string {
   const c = tool.arguments?.command;

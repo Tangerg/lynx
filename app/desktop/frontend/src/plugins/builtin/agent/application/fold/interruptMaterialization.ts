@@ -1,9 +1,8 @@
-import { t } from "@/lib/i18n";
 import type { Interrupt } from "@/rpc";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { AgentViewState } from "@/plugins/sdk/types/agentView";
 import { appendTimelineEntry } from "@/plugins/sdk";
-import { approvalText, commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
+import { commandString, editableArgs, mapQuestion, toolLabel } from "./projections";
 import { appendToTurn, markToolRequiresAction, patchBlock } from "./fold";
 
 export function materializeInterrupt(
@@ -37,7 +36,7 @@ export function materializeInterrupt(
       status: "requires-action",
       itemId: it.itemId,
       runId,
-      text: tool ? approvalText(tool) : t("approval.fallbackText"),
+      toolName: tool?.name,
       command: tool ? commandString(tool) : "",
       reason: it.payload?.reason ?? "",
       args: tool ? editableArgs(tool) : undefined,

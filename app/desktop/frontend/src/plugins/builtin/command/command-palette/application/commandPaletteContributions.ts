@@ -11,10 +11,10 @@ export function commandPaletteOverlaySlot(component: LayoutSlotSpec["component"]
   };
 }
 
-export function commandPaletteShortcut(togglePalette: () => void): ShortcutSpec {
+export function commandPaletteShortcut(t: Translate, togglePalette: () => void): ShortcutSpec {
   return {
     key: "Mod+K",
-    description: "Open the command palette",
+    description: t("shortcut.commandPalette"),
     // Cmd+K is the escape hatch users expect while typing in the composer.
     allowInInputs: true,
     handler: (event) => {

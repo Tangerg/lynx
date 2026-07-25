@@ -1,5 +1,7 @@
 import type { CommandSpec, ShortcutSpec } from "@/plugins/sdk";
 
+export type Translate = (key: string) => string;
+
 export const GLOBAL_COMMAND_IDS = [
   "chat.new",
   "chat.close-session",
@@ -39,10 +41,10 @@ export function handleWorkspaceEscape(ports: WorkspaceEscapePorts): boolean {
   return ports.closeActiveWorkspaceView();
 }
 
-export function workspaceEscapeShortcut(ports: WorkspaceEscapePorts): ShortcutSpec {
+export function workspaceEscapeShortcut(t: Translate, ports: WorkspaceEscapePorts): ShortcutSpec {
   return {
     key: "Escape",
-    description: "Close workspace view",
+    description: t("shortcut.closeWorkspaceView"),
     allowInInputs: false,
     handler: () => {
       handleWorkspaceEscape(ports);

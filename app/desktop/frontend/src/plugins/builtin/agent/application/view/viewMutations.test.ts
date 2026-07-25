@@ -36,7 +36,7 @@ function approvalBlock(itemId: string): ContentBlock {
   return {
     kind: "approval",
     status: "requires-action",
-    text: "Approve command?",
+    toolName: "shell",
     command: "rm x",
     reason: "Needs confirmation",
     itemId,
