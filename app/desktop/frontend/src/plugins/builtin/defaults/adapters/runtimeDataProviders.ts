@@ -49,7 +49,7 @@ import {
   WORKSPACE_SKILL_DRAFTS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
 } from "@/plugins/builtin/workspace/public/data";
-import type { DataProviderSpec, Host } from "@/plugins/sdk";
+import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
@@ -77,7 +77,7 @@ function requiredParams<P>(key: string, params: unknown): P {
   return value;
 }
 
-export function registerDefaultDataProviders(host: Host): void {
+export function registerDefaultDataProviders(host: ContributingHost): void {
   const client = () => getContainer().client();
   const contribute = (provider: DataProviderSpec): void => {
     host.extensions.contribute(DATA_PROVIDER, provider);

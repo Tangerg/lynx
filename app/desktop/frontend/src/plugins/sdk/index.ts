@@ -124,6 +124,7 @@ export type {
   ExtensionKeying,
   ExtensionPoint,
   Host,
+  ContributingHost,
   LayoutSlotSpec,
   LoadedPlugin,
   LogEvent,

@@ -19,6 +19,16 @@ import type { LoadedPlugin, PluginSpec } from "./plugin";
 import type { LayoutSlotSpec } from "./workspace";
 import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 
+/**
+ * A host, as far as contributing is concerned.
+ *
+ * `Host` spans fourteen namespaces; a helper that only registers a spec needs
+ * one. Handing it the whole platform hides what it touches and leaves the door
+ * open for it to quietly start touching more — so the four registration helpers
+ * that used to take `Host` take this.
+ */
+export type ContributingHost = Pick<Host, "extensions">;
+
 export interface Host {
   message: {
     /** Register a renderer for a content-block kind. */
