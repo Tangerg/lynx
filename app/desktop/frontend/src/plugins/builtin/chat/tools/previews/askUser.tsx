@@ -4,6 +4,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { askUserPreviewAnswer } from "@/plugins/builtin/chat/tools/application/specialisedPreviewData";
@@ -11,16 +12,17 @@ import { askUserToolPreview } from "@/plugins/builtin/chat/tools/application/too
 import { PREVIEW_WRAP } from "./shared";
 
 function AskUserPreview({ tool }: ToolPreviewProps) {
+  const t = useT();
   const answer = askUserPreviewAnswer(tool.result);
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words")}>
       {answer ? (
         <>
-          <span className="text-fg-faint">answer · </span>
+          <span className="text-fg-faint">{t("tool.askUser.answerPrefix")}</span>
           <span className="text-fg-soft">{answer}</span>
         </>
       ) : (
-        <span className="text-fg-faint">Waiting for your answer…</span>
+        <span className="text-fg-faint">{t("tool.askUser.waiting")}</span>
       )}
     </div>
   );

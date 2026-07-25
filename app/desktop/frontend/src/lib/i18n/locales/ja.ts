@@ -938,4 +938,12 @@ export const ja: Record<string, string> = {
   "danger.forkBomb": "fork爆弾",
   "danger.rawDiskWrite": "生ディスクへの書き込み",
   "danger.forcePush": "強制プッシュ",
+
+  "diagnostics.empty": "まだデータがありません — {{hint}}",
+  "diagnostics.empty.logs": "host.log.* の出力がここに流れ、span と対応づけられます。",
+  "diagnostics.empty.metrics":
+    "チャットを操作すると — reducer / レンダリングの計測がここに出ます。",
+  "diagnostics.empty.traces": "メッセージを送ると — run と RPC の span がここに出ます。",
+  "tool.askUser.answerPrefix": "回答 · ",
+  "tool.askUser.waiting": "回答を待っています…",
 };

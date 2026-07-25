@@ -910,4 +910,11 @@ export const zh: Record<string, string> = {
   "danger.forkBomb": "fork 炸弹",
   "danger.rawDiskWrite": "写入裸磁盘",
   "danger.forcePush": "强制推送",
+
+  "diagnostics.empty": "还没有数据 —— {{hint}}",
+  "diagnostics.empty.logs": "host.log.* 的输出会流到这里，并与 span 关联。",
+  "diagnostics.empty.metrics": "在对话里操作一下 —— reducer / 渲染耗时会出现在这里。",
+  "diagnostics.empty.traces": "发一条消息 —— run 与 RPC 的 span 会出现在这里。",
+  "tool.askUser.answerPrefix": "回答 · ",
+  "tool.askUser.waiting": "等待你的回答…",
 };

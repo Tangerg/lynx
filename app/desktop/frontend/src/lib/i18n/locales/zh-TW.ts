@@ -909,4 +909,11 @@ export const zhTW: Record<string, string> = {
   "danger.forkBomb": "fork 炸彈",
   "danger.rawDiskWrite": "寫入裸磁碟",
   "danger.forcePush": "強制推送",
+
+  "diagnostics.empty": "還沒有資料 —— {{hint}}",
+  "diagnostics.empty.logs": "host.log.* 的輸出會流到這裡，並與 span 關聯。",
+  "diagnostics.empty.metrics": "在對話裡操作一下 —— reducer / 渲染耗時會出現在這裡。",
+  "diagnostics.empty.traces": "發一條訊息 —— run 與 RPC 的 span 會出現在這裡。",
+  "tool.askUser.answerPrefix": "回答 · ",
+  "tool.askUser.waiting": "等待你的回答…",
 };

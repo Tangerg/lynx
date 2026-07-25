@@ -61,11 +61,11 @@ export function DiagnosticsView() {
 
 // ── Logs ────────────────────────────────────────────────────────────────
 function LogsPanel() {
+  const t = useT();
   const logs = useTelemetryStore((s) => s.logs);
   const ordered = useMemo(() => logs.slice().reverse(), [logs]);
 
-  if (ordered.length === 0)
-    return <Empty hint="host.log.* output streams here, span-correlated." />;
+  if (ordered.length === 0) return <Empty hint={t("diagnostics.empty.logs")} />;
 
   return (
     <VirtualList
@@ -110,11 +110,11 @@ function severityTone(sev: string): string {
 
 // ── Metrics ─────────────────────────────────────────────────────────────
 function MetricsPanel() {
+  const t = useT();
   const metrics = useTelemetryStore((s) => s.metrics);
   const grouped = useMemo(() => groupByName(Object.values(metrics)), [metrics]);
 
-  if (grouped.length === 0)
-    return <Empty hint="Interact with the chat — reducer / render timings appear here." />;
+  if (grouped.length === 0) return <Empty hint={t("diagnostics.empty.metrics")} />;
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto grid gap-4 content-start">

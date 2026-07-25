@@ -946,4 +946,11 @@ export const es: Record<string, string> = {
   "danger.forkBomb": "fork bomb",
   "danger.rawDiskWrite": "escribe en un disco en bruto",
   "danger.forcePush": "push forzado",
+
+  "diagnostics.empty": "Aún no hay datos — {{hint}}",
+  "diagnostics.empty.logs": "La salida de host.log.* llega aquí, correlacionada por span.",
+  "diagnostics.empty.metrics": "Usa el chat — los tiempos de reducer / render aparecen aquí.",
+  "diagnostics.empty.traces": "Envía un mensaje — los spans de run y RPC aparecen aquí.",
+  "tool.askUser.answerPrefix": "respuesta · ",
+  "tool.askUser.waiting": "Esperando tu respuesta…",
 };

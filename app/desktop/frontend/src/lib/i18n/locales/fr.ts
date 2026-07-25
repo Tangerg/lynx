@@ -948,4 +948,11 @@ export const fr: Record<string, string> = {
   "danger.forkBomb": "fork bomb",
   "danger.rawDiskWrite": "écrit sur un disque brut",
   "danger.forcePush": "push forcé",
+
+  "diagnostics.empty": "Pas encore de données — {{hint}}",
+  "diagnostics.empty.logs": "La sortie de host.log.* arrive ici, corrélée aux spans.",
+  "diagnostics.empty.metrics": "Utilise le chat — les temps de reducer / rendu apparaissent ici.",
+  "diagnostics.empty.traces": "Envoie un message — les spans run et RPC apparaissent ici.",
+  "tool.askUser.answerPrefix": "réponse · ",
+  "tool.askUser.waiting": "En attente de ta réponse…",
 };

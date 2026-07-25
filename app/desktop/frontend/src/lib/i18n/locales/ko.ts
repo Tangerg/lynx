@@ -918,4 +918,11 @@ export const ko: Record<string, string> = {
   "danger.forkBomb": "포크 폭탄",
   "danger.rawDiskWrite": "원시 디스크에 쓰기",
   "danger.forcePush": "강제 푸시",
+
+  "diagnostics.empty": "아직 데이터가 없습니다 — {{hint}}",
+  "diagnostics.empty.logs": "host.log.* 출력이 여기로 흐르며 span과 연결됩니다.",
+  "diagnostics.empty.metrics": "채팅을 사용하면 — reducer / 렌더링 시간이 여기에 표시됩니다.",
+  "diagnostics.empty.traces": "메시지를 보내면 — run과 RPC span이 여기에 표시됩니다.",
+  "tool.askUser.answerPrefix": "답변 · ",
+  "tool.askUser.waiting": "답변을 기다리고 있습니다…",
 };

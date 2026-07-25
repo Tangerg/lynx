@@ -6,9 +6,11 @@
 import type { ReactNode } from "react";
 import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useT } from "@/lib/i18n";
 
 export function Empty({ hint }: { hint: string }) {
-  return <div className="text-ui-lg text-fg-faint">No data yet — {hint}</div>;
+  const t = useT();
+  return <div className="text-ui-lg text-fg-faint">{t("diagnostics.empty", { hint })}</div>;
 }
 
 export function Row({

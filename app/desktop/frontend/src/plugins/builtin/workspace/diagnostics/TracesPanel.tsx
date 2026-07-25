@@ -6,10 +6,12 @@ import type { ReactNode } from "react";
 import type { SpanRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
 import { Fragment, useCallback, useMemo, useState } from "react";
+import { useT } from "@/lib/i18n";
 import { Icon } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 
 export function TracesPanel() {
+  const t = useT();
   const spans = useTelemetryStore((s) => s.spans);
   // Newest first. spans changes only once per flush (~500ms) so the reverse
   // copy is cheap and memoized on the (stable-between-flushes) array ref.
@@ -26,7 +28,7 @@ export function TracesPanel() {
     });
   }, []);
 
-  if (ordered.length === 0) return <Empty hint="Send a message — run + RPC spans appear here." />;
+  if (ordered.length === 0) return <Empty hint={t("diagnostics.empty.traces")} />;
 
   return (
     <VirtualList

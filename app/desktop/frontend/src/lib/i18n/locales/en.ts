@@ -977,4 +977,11 @@ export const en: Record<string, string> = {
   "danger.forkBomb": "fork bomb",
   "danger.rawDiskWrite": "writes to a raw disk",
   "danger.forcePush": "force-push",
+
+  "diagnostics.empty": "No data yet — {{hint}}",
+  "diagnostics.empty.logs": "host.log.* output streams here, span-correlated.",
+  "diagnostics.empty.metrics": "Interact with the chat — reducer / render timings appear here.",
+  "diagnostics.empty.traces": "Send a message — run + RPC spans appear here.",
+  "tool.askUser.answerPrefix": "answer · ",
+  "tool.askUser.waiting": "Waiting for your answer…",
 };
