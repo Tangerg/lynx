@@ -56,6 +56,13 @@ const STYLESHEET_RULES = [
     pattern: /line-height:\s*[\d.]+\s*;/g,
     message: "arbitrary line height — use `var(--leading-*)`",
   },
+  {
+    // A literal colour in a consuming stylesheet answers "which colour" where the
+    // theme should: it can't follow a scheme, a contributed theme, or contrast.
+    // The active search hit had painted `color: #000` this way.
+    pattern: /#(?:[\da-fA-F]{3,4}|[\da-fA-F]{6}|[\da-fA-F]{8})\b/g,
+    message: "literal colour — define a token in globals.css and use `var(--color-*)`",
+  },
 ];
 
 // globals.css owns the ladders, so it is the one file allowed to spell the
@@ -96,4 +103,4 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-design-tokens: type + leading + radius + tone ladders clean");
+console.log("check-design-tokens: type + leading + radius + tone + colour ladders clean");

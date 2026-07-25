@@ -354,6 +354,9 @@
   --color-text-muted: #686868;
   --color-text-faint: #8f8f8f;
   --color-text-on-accent: #ffffff;
+  /* Ink on a solid `--color-warning` fill (the active search hit). Amber is
+     light in both schemes, so this stays dark where on-accent flips. */
+  --color-text-on-warning: #000000;
   /* Ink on a `bg-fg` fill — the canvas color (inverse of fg). Tracks
      --color-bg so a theme that overrides bg gets the right on-fg for free. */
   --color-text-on-fg: var(--color-bg);
@@ -737,6 +740,7 @@ html.theme-dark {
   --color-text-muted: #818181;
   --color-text-faint: #636363;
   --color-text-on-accent: #ffffff;
+  --color-text-on-warning: #000000;
 
   --color-border: rgb(255 255 255 / 0.04);
   --color-border-soft: rgb(255 255 255 / 0.1);

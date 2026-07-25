@@ -67,12 +67,19 @@
 
 /* Chat search hit painting (chat-search plugin). Uses CSS Custom
    Highlight API — Range objects painted by `CSS.highlights.set(name, ...)`
-   pick up these pseudo-class rules. */
+   pick up these pseudo-class rules.
+   Longhands only: ::highlight() honours a fixed property set (color /
+   background-color / text-decoration / text-shadow / -webkit-text-stroke), so
+   the `background` shorthand's other parts would be dropped.
+   lightningcss warns "'highlight' is not recognized as a valid pseudo-element"
+   on both rules — its selector database predates the Custom Highlight API. The
+   rules pass through to the bundle intact; the warning is expected, not a lead
+   to chase. */
 ::highlight(chat-search) {
-  background: color-mix(in oklab, var(--color-warning) 32%, transparent);
+  background-color: color-mix(in oklab, var(--color-warning) 32%, transparent);
   color: var(--color-text);
 }
 ::highlight(chat-search-active) {
-  background: var(--color-warning);
-  color: #000;
+  background-color: var(--color-warning);
+  color: var(--color-text-on-warning);
 }
