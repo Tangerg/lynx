@@ -44,7 +44,7 @@ Current shapes (authoritative values live in `globals.css` / the theme kit):
 /* Floating surface: edge ring + ambient in ONE token, no border. */
 --shadow-composer:
   0 0 0 1px var(--seam-line),
-  0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
+  0 6px 30px -8px color-mix(in srgb, var(--color-text) 9%, transparent);
 
 /* A recessed well plus the chip that protrudes from it. */
 --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
