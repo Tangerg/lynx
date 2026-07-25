@@ -2,10 +2,9 @@ import {
   AGENT_ROW_GROUP,
   AGENT_ROW_HOVER_ACTION,
   AGENT_ROW_RESTING_GLYPH,
-  AgentIconButton,
   AgentRow,
 } from "@/ui/agent";
-import { Icon } from "@/ui";
+import { Icon, IconButton } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import type { WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
@@ -62,14 +61,14 @@ export function ProjectRow({
           )}
         </span>
       </AgentRow>
-      <AgentIconButton
+      <IconButton
         icon="plus"
         size="sm"
         iconSize={12}
         data-chrome-focus=""
         aria-label={t("project.row.newSession", { name: project.name })}
         onClick={() => onNewSession(project)}
-        className={cn("absolute top-0 right-1 h-7 w-7", AGENT_ROW_HOVER_ACTION)}
+        className={cn("absolute top-0 right-1", AGENT_ROW_HOVER_ACTION)}
       />
     </div>
   );

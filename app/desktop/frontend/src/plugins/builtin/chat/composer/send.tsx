@@ -1,5 +1,4 @@
-import { AgentIconButton } from "@/ui/agent";
-import { Tooltip } from "@/ui";
+import { IconButton, Tooltip } from "@/ui";
 import { useSendComposerInput } from "./public/sendToAgent";
 import { useIsAgentRunning, useStopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
@@ -32,7 +31,7 @@ function SendButton() {
     if (value.trim()) {
       return (
         <Tooltip label={t("composer.action.steer")}>
-          <AgentIconButton
+          <IconButton
             icon="arrow-up"
             iconSize={18}
             press={false}
@@ -47,7 +46,7 @@ function SendButton() {
     }
     return (
       <Tooltip label={t("composer.action.stop")}>
-        <AgentIconButton
+        <IconButton
           icon="stop"
           iconSize={12}
           press={false}
@@ -66,7 +65,7 @@ function SendButton() {
 
   return (
     <Tooltip label={t("composer.action.send")}>
-      <AgentIconButton
+      <IconButton
         icon="arrow-up"
         iconSize={18}
         press={false}

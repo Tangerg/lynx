@@ -6,11 +6,10 @@ import {
   AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
-  AgentIconButton,
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
-import { dragClasses, noDragClasses } from "@/ui";
+import { dragClasses, IconButton, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { basename } from "@/lib/path";
@@ -53,7 +52,7 @@ function DockHeader({ tabs, onToggle }: { tabs: AgentDockTab[]; onToggle: () => 
   return (
     <AgentSurfaceHeader>
       <AgentDockTabs tabs={tabs} />
-      <AgentIconButton
+      <IconButton
         icon="panel-r"
         size="sm"
         aria-label={t("workspace.view.title.context")}
@@ -137,7 +136,7 @@ export function ChatPanel({ onSend }: Props) {
                 collapsed) are owned by `.agent-surface-header` in globals.css —
                 a `pl-*` utility here can't win against that unlayered rule. */}
             <AgentSurfaceHeader className={dragClasses}>
-              <AgentIconButton
+              <IconButton
                 icon="panel-l"
                 size="sm"
                 aria-label={
@@ -159,7 +158,7 @@ export function ChatPanel({ onSend }: Props) {
               <span className="min-w-4 flex-1" />
               <HeaderDiffStat className={noDragClasses} />
               {!showDock && (
-                <AgentIconButton
+                <IconButton
                   icon="panel-r"
                   size="sm"
                   aria-label={t("workspace.view.title.context")}

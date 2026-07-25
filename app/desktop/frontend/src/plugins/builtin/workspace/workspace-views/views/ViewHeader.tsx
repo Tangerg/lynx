@@ -2,8 +2,8 @@
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
-import { AgentIconButton, AgentSurfaceHeader } from "@/ui/agent";
-import { Icon } from "@/ui";
+import { AgentSurfaceHeader } from "@/ui/agent";
+import { Icon, IconButton } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
@@ -33,29 +33,21 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
     // full width). Promote sits before close to mirror the tab strip's order.
     placementControls = (
       <div className="flex items-center gap-1">
-        <AgentIconButton
+        <IconButton
           icon="maximize"
           size="sm"
           title={t("workspace.view.promote")}
-          aria-label={t("workspace.view.promote")}
           onClick={placement.onPromote}
         />
-        <AgentIconButton
-          icon="x"
-          size="sm"
-          title={t("common.close")}
-          aria-label={t("common.close")}
-          onClick={placement.onClose}
-        />
+        <IconButton icon="x" size="sm" title={t("common.close")} onClick={placement.onClose} />
       </div>
     );
   } else if (placement?.placement === "full" && placement.splittable) {
     placementControls = (
-      <AgentIconButton
+      <IconButton
         icon="panel-r"
         size="sm"
         title={t("workspace.view.openBeside")}
-        aria-label={t("workspace.view.openBeside")}
         onClick={placement.onSplit}
       />
     );

@@ -2,7 +2,6 @@ export { AgentAppShell } from "./app-shell";
 export { AgentComposerSurface } from "./composer-surface";
 export { AgentContentCard } from "./content-card";
 export { AgentContextDock, AgentDockTabs, type AgentDockTab } from "./context-dock";
-export { AgentIconButton } from "./icon-button";
 export {
   AGENT_ROW_GROUP,
   AGENT_ROW_HOVER_ACTION,

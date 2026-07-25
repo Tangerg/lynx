@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { AgentIconButton } from "@/ui/agent";
-import { DropdownMenu, Icon, ProviderIcon, StatusDot, Tooltip } from "@/ui";
+
+import { DropdownMenu, Icon, IconButton, ProviderIcon, StatusDot, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import {
@@ -110,12 +110,12 @@ function AttachButton() {
       <Tooltip
         label={canAttach ? t("composer.attachImage") : t("composer.attachImage.unsupported")}
       >
-        <AgentIconButton
+        <IconButton
           icon="plus"
           aria-label={t("composer.attachImage")}
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
-          className="h-8 w-8 disabled:opacity-25"
+          className="disabled:opacity-25"
           data-slot="composer-attach"
         />
       </Tooltip>

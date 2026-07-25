@@ -98,9 +98,12 @@ function TimelineTab() {
       sub={timelineSubtext(view)}
       scrollClassName="py-1"
       actions={
-        <IconButton title={t("timeline.jumpToChat")} onClick={selectWorkspaceChat}>
-          <Icon name="chat" size={14} />
-        </IconButton>
+        <IconButton
+          icon="chat"
+          iconSize={14}
+          title={t("timeline.jumpToChat")}
+          onClick={selectWorkspaceChat}
+        />
       }
     >
       {view.eventCount === 0 ? (

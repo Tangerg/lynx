@@ -79,9 +79,12 @@ function RunSummaryTab() {
       title="runSummary.title"
       sub={view.subtext}
       actions={
-        <IconButton title={t(copied ? "runSummary.copied" : "runSummary.copy")} onClick={onCopy}>
-          <Icon name={copied ? "check" : "copy"} size={14} />
-        </IconButton>
+        <IconButton
+          icon={copied ? "check" : "copy"}
+          iconSize={14}
+          title={t(copied ? "runSummary.copied" : "runSummary.copy")}
+          onClick={onCopy}
+        />
       }
     >
       <div className="px-4 pb-2 pt-1">

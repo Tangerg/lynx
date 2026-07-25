@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, IconButton, PillButton, StatusDot, Switch } from "@/ui";
+import { IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,
@@ -86,15 +86,14 @@ export function ServerRow({ server }: { server: MCPServerConfig }) {
             ariaLabel={t("mcp.enable.aria", { server: server.name })}
           />
           <IconButton
-            variant="ghost"
+            icon="edit"
+            size="sm"
+            iconSize={13}
             active={editing}
             title={t("mcp.edit", { server: server.name })}
             aria-expanded={editing}
             onClick={() => setEditing((value) => !value)}
-            className="h-7 w-7"
-          >
-            <Icon name="edit" size={13} />
-          </IconButton>
+          />
         </div>
       </div>
 

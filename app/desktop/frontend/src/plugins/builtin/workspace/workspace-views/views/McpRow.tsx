@@ -119,13 +119,13 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
           {t(pill.key)}
         </div>
         <IconButton
+          icon="loop"
+          iconSize={13}
           title={t("tools.reconnect")}
           disabled={connecting}
           onClick={() => reconnectMCPServer(server.id)}
           className={cn(connecting && "animate-spin")}
-        >
-          <Icon name="loop" size={13} />
-        </IconButton>
+        />
       </div>
       {open &&
         (server.status === "needsAuth" ? (

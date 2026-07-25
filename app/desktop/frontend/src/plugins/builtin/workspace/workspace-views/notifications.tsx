@@ -1,4 +1,4 @@
-import { EmptyState, Icon, IconButton, StatusDot } from "@/ui";
+import { EmptyState, IconButton, StatusDot } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -26,9 +26,7 @@ function NotificationsTab() {
       sub={notificationsSubtext(view)}
       scrollClassName="py-1"
       actions={
-        <IconButton title={t("notifications.clearAll")} onClick={clearAll}>
-          <Icon name="x" size={14} />
-        </IconButton>
+        <IconButton icon="x" iconSize={14} title={t("notifications.clearAll")} onClick={clearAll} />
       }
     >
       {view.isEmpty && (
@@ -74,9 +72,7 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
         </div>
       </div>
       {!dismissed && (
-        <IconButton title={t("notifications.dismiss")} onClick={onDismiss}>
-          <Icon name="x" size={12} />
-        </IconButton>
+        <IconButton icon="x" iconSize={12} title={t("notifications.dismiss")} onClick={onDismiss} />
       )}
     </div>
   );

@@ -7,8 +7,8 @@
 // cross-project user store.
 
 import { useCallback, useRef, useState } from "react";
-import { DataView, EmptyState, Icon, PillButton, SectionLabel, TextArea } from "@/ui";
-import { AgentIconButton } from "@/ui/agent";
+import { DataView, EmptyState, Icon, IconButton, PillButton, SectionLabel, TextArea } from "@/ui";
+
 import { useT } from "@/lib/i18n";
 import { notifyError } from "@/lib/notify";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -150,7 +150,7 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
         </div>
         {!editing && (
           <div className="flex shrink-0 items-center gap-0.5">
-            <AgentIconButton
+            <IconButton
               icon="star"
               size="sm"
               active={item.pinned}
@@ -158,7 +158,7 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
               aria-label={item.pinned ? t("agentMemory.unpin") : t("agentMemory.pin")}
               onClick={() => run(() => setAgentMemoryPinned(item.id, !item.pinned))}
             />
-            <AgentIconButton
+            <IconButton
               icon="edit"
               size="sm"
               disabled={busy}
@@ -168,7 +168,7 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
                 setEditing(true);
               }}
             />
-            <AgentIconButton
+            <IconButton
               icon="trash"
               size="sm"
               disabled={busy}

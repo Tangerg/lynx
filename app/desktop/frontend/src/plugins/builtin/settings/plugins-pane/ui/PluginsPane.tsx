@@ -105,12 +105,12 @@ export function PluginsPane() {
                     </PillButton>
                   )}
                   <IconButton
+                    icon="loop"
+                    iconSize={13}
                     title={busy ? t("plugins.reloading") : t("plugins.reload")}
                     onClick={() => handleReload(spec.name)}
                     disabled={busy}
-                  >
-                    <Icon name="loop" size={13} />
-                  </IconButton>
+                  />
                 </div>
               </div>
               {open && errCount > 0 && (
@@ -164,9 +164,7 @@ function ErrorEntry({ err }: { err: PluginError }) {
         </span>
         <div className="flex items-center gap-1.5">
           <span className="font-mono text-ui-xs text-fg-faint">{time}</span>
-          <IconButton title={t("plugins.copyError")} onClick={copy}>
-            <Icon name="copy" size={12} />
-          </IconButton>
+          <IconButton icon="copy" iconSize={12} title={t("plugins.copyError")} onClick={copy} />
         </div>
       </div>
       {err.detail && (
