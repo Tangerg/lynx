@@ -21,7 +21,7 @@ func TestCloseIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
-	err := dispatcher.close(ctx)
+	err := shutdownDispatcher(ctx, dispatcher)
 	if !errors.Is(err, ErrCloseTimeout) {
 		t.Fatalf("close error = %v, want ErrCloseTimeout", err)
 	}
@@ -30,7 +30,7 @@ func TestCloseIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 	}
 
 	close(st.done)
-	if err := dispatcher.close(t.Context()); err != nil {
+	if err := shutdownDispatcher(t.Context(), dispatcher); err != nil {
 		t.Fatalf("second close after teardown = %v, want nil", err)
 	}
 }
@@ -50,7 +50,7 @@ func TestCloseDeadlineCoversCancellationWork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 	result := make(chan error, 1)
-	go func() { result <- dispatcher.close(ctx) }()
+	go func() { result <- shutdownDispatcher(ctx, dispatcher) }()
 
 	select {
 	case err := <-result:
@@ -106,7 +106,7 @@ func TestCloseReportsProcessCancellationFailure(t *testing.T) {
 		seenSessions: map[string]struct{}{},
 	}
 
-	err := dispatcher.close(t.Context())
+	err := shutdownDispatcher(t.Context(), dispatcher)
 	if !errors.Is(err, cancelErr) {
 		t.Fatalf("close error = %v, want process cancellation failure", err)
 	}
@@ -132,7 +132,7 @@ func TestCloseTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	result := make(chan error, 1)
-	go func() { result <- dispatcher.close(ctx) }()
+	go func() { result <- shutdownDispatcher(ctx, dispatcher) }()
 	select {
 	case <-failed.done:
 	case <-time.After(time.Second):
@@ -148,4 +148,9 @@ func TestCloseTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 	}
 
 	close(stalled.done)
+}
+
+func shutdownDispatcher(ctx context.Context, dispatcher *memoryDispatcher) error {
+	dispatcher.BeginShutdown()
+	return dispatcher.AwaitShutdown(ctx)
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -26,7 +27,7 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	})))
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
-	handle, err := dispatcher.Rehydrate(t.Context(), turn.RehydrateRequest{
+	handle, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess", TurnID: "turn", ProcessID: "process", Cwd: cwd,
 	})
 	if err != nil {
@@ -56,7 +57,7 @@ func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
 	})))
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
-	if _, err := dispatcher.Rehydrate(t.Context(), turn.RehydrateRequest{
+	if _, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess",
 		TurnID:    "turn",
 		ProcessID: "process",

@@ -18,9 +18,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+func mustEffectSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
+}
 
 // TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit persists
 // the item + run projection (resolving the terminal message watermark) AND
@@ -210,13 +220,12 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 		SessionID: "ses_1",
 		State:     runs.StateSuspend,
 		Interrupt: &interrupts.Pending{
-			RunID:        "run_1",
-			SessionID:    "ses_1",
-			TurnID:       "turn_1",
-			Provider:     "anthropic",
-			Model:        "claude",
-			Interrupts:   []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
-			DrainedTools: []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
+			RunID:          "run_1",
+			SessionID:      "ses_1",
+			TurnID:         "turn_1",
+			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
+			Interrupts:     []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
+			DrainedTools:   []interrupts.DrainedTool{{ItemID: "tool_1", Name: "ask_user"}},
 		},
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "int_1",
@@ -232,7 +241,7 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	}
 
 	got := stores.interrupts.pending
-	if got.RunID != "run_1" || got.ProcessID != "proc_1" || got.Provider != "anthropic" || got.Model != "claude" {
+	if got.RunID != "run_1" || got.ProcessID != "proc_1" || got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
 	if len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "int_1" || len(got.DrainedTools) != 1 {
@@ -577,6 +586,7 @@ type fakeSession struct {
 	renamed    chan string
 	operations *[]string
 	getErr     error
+	modelErr   error
 	renameErr  error
 }
 
@@ -593,6 +603,27 @@ func (s *fakeSession) Get(_ context.Context, id string) (session.Session, error)
 		return session.Session{}, session.ErrNotFound
 	}
 	return s.sess, nil
+}
+
+func (s *fakeSession) Ensure(_ context.Context, sess session.Session) (session.Session, error) {
+	if s.sess.ID == "" {
+		s.sess = sess
+	}
+	if s.sess.ID != sess.ID {
+		return session.Session{}, session.ErrNotFound
+	}
+	return s.sess, nil
+}
+
+func (s *fakeSession) SetModel(_ context.Context, id, model string) error {
+	if id != s.sess.ID {
+		return session.ErrNotFound
+	}
+	if s.modelErr != nil {
+		return s.modelErr
+	}
+	s.sess.Model = model
+	return nil
 }
 
 func (s *fakeSession) RenameIfUntitled(_ context.Context, id, title string) error {

@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // goals.* (API.md §7.14) — Goal mode: an autonomous loop that drives runs toward
@@ -16,7 +17,7 @@ import (
 
 // goalRunner is the server's narrow view of the goal driver.
 type goalRunner interface {
-	Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error)
+	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error)
 	Resume(ctx context.Context, sessionID string) (goal.Goal, error)
 	Stop(ctx context.Context, sessionID string) (goal.Goal, error)
 	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
@@ -27,7 +28,11 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 	if !s.features.goals {
 		return nil, capabilityNotNegotiated("goals.start")
 	}
-	g, err := s.goals.Start(ctx, in.SessionID, in.Objective, in.Provider, in.Model, budgetFromWire(in.Budget))
+	selection, err := modelref.New(in.Provider, in.Model)
+	if err != nil {
+		return nil, mapGoalErr(err, "goals.start")
+	}
+	g, err := s.goals.Start(ctx, in.SessionID, in.Objective, selection, budgetFromWire(in.Budget))
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
@@ -82,6 +87,12 @@ func mapGoalErr(err error, method string) error {
 		return fmt.Errorf("%w: a goal is already active for this session — stop it first", protocol.ErrSessionBusy)
 	case errors.Is(err, goals.ErrNoGoal):
 		return fmt.Errorf("%w: no goal for this session", protocol.ErrInvalidParams)
+	case errors.Is(err, goal.ErrBudgetExhausted):
+		return fmt.Errorf("%w: goal budget is exhausted; start a new goal to change it", protocol.ErrInvalidParams)
+	case errors.Is(err, goal.ErrNotResumable):
+		return fmt.Errorf("%w: this goal is not resumable", protocol.ErrInvalidParams)
+	case errors.Is(err, modelref.ErrIncomplete):
+		return protocol.ErrInvalidParams
 	default:
 		return err
 	}
@@ -101,8 +112,8 @@ func goalPtr(g goal.Goal) (*protocol.Goal, error) {
 		Objective: g.Objective,
 		Status:    status,
 		Reason:    goalReason(g.Reason),
-		Provider:  g.Provider,
-		Model:     g.Model,
+		Provider:  g.ModelSelection.Provider(),
+		Model:     g.ModelSelection.Model(),
 		Budget:    protocol.GoalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
 		Used:      protocol.GoalUsage{Turns: g.Used.Turns, CostUsd: g.Used.CostUSD, Steps: g.Used.Steps},
 		CreatedAt: g.CreatedAt,

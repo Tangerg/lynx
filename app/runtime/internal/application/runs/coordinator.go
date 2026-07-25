@@ -120,8 +120,9 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
 	reducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
-		Cwd: spec.Cwd, TurnID: spec.TurnID, Provider: spec.Provider, Model: spec.Model,
-		CreatedAt: spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
+		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
+		GoalLeaseID: spec.GoalLeaseID,
+		CreatedAt:   spec.CreatedAt, UserInput: spec.Input, Pending: spec.Pending,
 		Now: c.now, CancelReason: live.CancelReason,
 	})
 	opening, err := c.commitOpening(reqCtx, spec, reducer)
@@ -137,14 +138,13 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		panic("runs: committed opening without a pending admission")
 	}
 	c.registry.Open(Record{
-		ID:        spec.RunID,
-		SegmentID: spec.SegmentID,
-		SessionID: spec.SessionID,
-		Cwd:       spec.Cwd,
-		CreatedAt: spec.CreatedAt,
-		TurnID:    spec.TurnID,
-		Provider:  spec.Provider,
-		Model:     spec.Model,
+		ID:             spec.RunID,
+		SegmentID:      spec.SegmentID,
+		SessionID:      spec.SessionID,
+		Cwd:            spec.Cwd,
+		CreatedAt:      spec.CreatedAt,
+		TurnID:         spec.TurnID,
+		ModelSelection: spec.ModelSelection,
 	}, live)
 	subscription, unsubscribe := hub.Subscribe("")
 	stopUnsubscribe := context.AfterFunc(reqCtx, unsubscribe)
@@ -152,7 +152,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		defer stopUnsubscribe()
 		subscription(yield)
 	}
-	for _, pe := range opening {
+	for _, pe := range opening.events {
 		hub.Append(c.event(spec, pe))
 	}
 	if spec.Activate != nil {
@@ -168,39 +168,44 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	return seq, nil
 }
 
-func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) ([]reduction, error) {
+func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reducer *reducer) (reductionBatch, error) {
 	projected, err := reducer.open()
 	if err != nil {
-		return nil, fmt.Errorf("runs: reduce opening: %w", err)
+		return reductionBatch{}, fmt.Errorf("runs: reduce opening: %w", err)
 	}
-	if len(projected) == 0 {
-		return nil, errors.New("runs: reducer produced no opening events")
+	if len(projected.events) == 0 {
+		return reductionBatch{}, errors.New("runs: reducer produced no opening events")
 	}
-	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected))}
+	if projected.parkCommit != nil {
+		return reductionBatch{}, errors.New("runs: opening cannot park")
+	}
+	opening := OpeningCommit{Events: make([]EventCommit, 0, len(projected.events))}
 	if spec.Pending != nil {
 		opening.Resume = &execution.ResumeDraft{RunID: spec.RunID, SessionID: spec.SessionID}
 	} else {
 		opening.Admit = &execution.RunDraft{
-			RunID:     spec.RunID,
-			SessionID: spec.SessionID,
-			Provider:  spec.Provider,
-			Model:     spec.Model,
-			CreatedAt: spec.CreatedAt,
+			RunID:          spec.RunID,
+			SessionID:      spec.SessionID,
+			ModelSelection: spec.ModelSelection,
+			CreatedAt:      spec.CreatedAt,
 		}
+		opening.ScheduledSession = spec.ScheduledSession
+		opening.SessionModel = spec.SessionModel
+		opening.ScheduleFiring = spec.ScheduleFiring
 	}
-	for _, reduced := range projected {
-		if reduced.Event.Terminal() || reduced.Interrupt || reduced.Nudge != nil {
-			return nil, errors.New("runs: invalid opening event")
+	for _, reduced := range projected.events {
+		if reduced.Event.Terminal() || reduced.Nudge != nil {
+			return reductionBatch{}, errors.New("runs: invalid opening event")
 		}
 		if reduced.Commit != nil {
 			opening.Events = append(opening.Events, *reduced.Commit)
 		}
 	}
 	if len(opening.Events) == 0 {
-		return nil, errors.New("runs: opening has no durable projection")
+		return reductionBatch{}, errors.New("runs: opening has no durable projection")
 	}
 	if err := c.effects.CommitOpening(ctx, opening); err != nil {
-		return nil, err
+		return reductionBatch{}, err
 	}
 	return projected, nil
 }
@@ -278,5 +283,15 @@ func (c *Coordinator) List() []Record {
 	return c.registry.List()
 }
 
-// Close stops accepting new runs and cancels + joins the in-flight pumps.
-func (c *Coordinator) Close() { c.tasks.Close() }
+// BeginShutdown prevents new runs and cancels every in-flight pump.
+func (c *Coordinator) BeginShutdown() { c.tasks.Cancel() }
+
+// AwaitShutdown joins every in-flight pump after [BeginShutdown].
+func (c *Coordinator) AwaitShutdown(ctx context.Context) error { return c.tasks.Wait(ctx) }
+
+// Close cancels and joins the in-flight pumps. Host shutdown uses the
+// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
+func (c *Coordinator) Close() {
+	c.BeginShutdown()
+	_ = c.AwaitShutdown(context.Background())
+}

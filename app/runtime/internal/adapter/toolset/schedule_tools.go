@@ -7,6 +7,7 @@ import (
 	"time"
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -117,14 +118,17 @@ func scheduleCreate(ctx context.Context, coordinator ScheduleManagement, in sche
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
+	selection, err := modelref.New(derefString(in.Provider), derefString(in.Model))
+	if err != nil {
+		return "", fmt.Errorf("schedule create: %w", err)
+	}
 	created, err := coordinator.Create(ctx, scheduleapp.CreateCommand{
-		Title:    derefString(in.Title),
-		Prompt:   derefString(in.Prompt),
-		Cwd:      derefString(in.Cwd),
-		Provider: derefString(in.Provider),
-		Model:    derefString(in.Model),
-		Cron:     derefString(in.Cron),
-		Enabled:  enabled,
+		Title:          derefString(in.Title),
+		Prompt:         derefString(in.Prompt),
+		Cwd:            derefString(in.Cwd),
+		ModelSelection: selection,
+		Cron:           derefString(in.Cron),
+		Enabled:        enabled,
 	})
 	if err != nil {
 		return "", fmt.Errorf("schedule create: %w", err)
@@ -168,8 +172,8 @@ func viewSchedule(sc schedule.Schedule) scheduleView {
 		Title:     sc.Title,
 		Prompt:    sc.Prompt,
 		Cwd:       sc.Cwd,
-		Provider:  sc.Provider,
-		Model:     sc.Model,
+		Provider:  sc.ModelSelection.Provider(),
+		Model:     sc.ModelSelection.Model(),
 		Cron:      sc.Cron,
 		Enabled:   sc.Enabled,
 		LastRunAt: formatToolTime(sc.LastRunAt),

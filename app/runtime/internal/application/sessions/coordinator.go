@@ -34,6 +34,7 @@ type SessionStore interface {
 	List(ctx context.Context) ([]session.Session, error)
 	Get(ctx context.Context, id string) (session.Session, error)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
+	Ensure(ctx context.Context, sess session.Session) (session.Session, error)
 	Patch(ctx context.Context, id string, patch session.Patch) (session.Session, error)
 	Children(ctx context.Context, parentID string) ([]session.Session, error)
 }

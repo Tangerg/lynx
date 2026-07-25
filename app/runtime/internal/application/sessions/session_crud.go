@@ -3,6 +3,7 @@ package sessions
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
@@ -52,6 +53,29 @@ func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Se
 		return session.Session{}, errors.New("sessions: session store is unavailable")
 	}
 	return c.sessions.Create(ctx, title, cwd)
+}
+
+// PrepareScheduled validates and materializes the session snapshot owned by a
+// durable schedule occurrence without writing it. Run opening persists this
+// snapshot in its own transaction, so a rejected occurrence cannot leave an
+// empty scheduled Session behind.
+func (c *Coordinator) PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error) {
+	if id == "" {
+		return session.Session{}, errors.New("sessions: scheduled session ID is required")
+	}
+	cwd, err := c.resolveSessionCwd(cwd)
+	if err != nil {
+		return session.Session{}, err
+	}
+	now := time.Now().UTC()
+	return session.Session{
+		ID:        id,
+		Title:     title,
+		Cwd:       cwd,
+		StartedAt: now,
+		UpdatedAt: now,
+		Revision:  1,
+	}, nil
 }
 
 // SetModel records the model explicitly selected for a run. It is the narrow

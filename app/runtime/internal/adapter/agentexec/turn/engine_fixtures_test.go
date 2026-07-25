@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
@@ -52,7 +53,7 @@ func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleSto
 }
 
 func withClientResolver(resolver interface {
-	ResolveClient(ctx context.Context, provider, model string) (*chatclient.Client, error)
+	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }) func(*turn.Dependencies) {
 	return func(deps *turn.Dependencies) {
 		deps.ClientResolver = resolver
@@ -318,8 +319,8 @@ type fakeResolver struct {
 	resolveErr  error
 }
 
-func (r *fakeResolver) ResolveClient(_ context.Context, provider, model string) (*chatclient.Client, error) {
-	r.gotProvider, r.gotModel = provider, model
+func (r *fakeResolver) ResolveClient(_ context.Context, selection modelref.Selection) (*chatclient.Client, error) {
+	r.gotProvider, r.gotModel = selection.Provider(), selection.Model()
 	if r.resolveErr != nil {
 		return nil, r.resolveErr
 	}

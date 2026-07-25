@@ -3,6 +3,8 @@ package turn
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
@@ -36,16 +38,15 @@ type BoundaryMaintenance interface {
 }
 
 // BoundaryMaintenanceInput is the finished turn's maintenance context.
-// Provider and Model identify the model pinned by this turn; an empty pair
+// ModelSelection identifies the model pinned by this turn; an unset selection
 // leaves compaction to its configured fallback window. PreCompact is invoked
 // only when a compaction is about to commit and may veto it.
 type BoundaryMaintenanceInput struct {
-	SessionID  string
-	Cwd        string
-	Provider   string
-	Model      string
-	ToolCalls  int
-	PreCompact func(context.Context) bool
+	SessionID      string
+	Cwd            string
+	ModelSelection modelref.Selection
+	ToolCalls      int
+	PreCompact     func(context.Context) bool
 }
 
 // BoundaryMaintenanceResult reports the observable outcome of one maintenance

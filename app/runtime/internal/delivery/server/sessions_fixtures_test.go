@@ -42,11 +42,11 @@ type testRuntime interface {
 type turnRuntime interface {
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, string) error
-	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
+	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
-	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
 }
 

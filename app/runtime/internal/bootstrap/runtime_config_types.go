@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -13,11 +12,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
+
+// ShutdownResource is a process-owned adapter released by Host after every
+// task-owning component has stopped. Shutdown receives Host's shared deadline.
+// It should stop promptly when that context ends; if it cannot, Host retains
+// the in-flight close operation and lets a later Close join it instead of
+// issuing a concurrent second teardown.
+type ShutdownResource interface {
+	Shutdown(context.Context) error
+}
 
 // Config is the construction-time bundle for [Assemble]. Engine carries the
 // engine's own construction config verbatim; the remaining fields are
@@ -46,11 +55,13 @@ type Config struct {
 
 	IdempotencyStore *sqlitestore.IdempotencyStore
 
-	// Resources are process adapters whose ownership transfers to Runtime only
-	// when [Assemble] succeeds. Close releases them after background tasks and the
-	// execution/tool capabilities have stopped; callers retain ownership when
-	// construction fails.
-	Resources []io.Closer
+	// Resources are process adapters whose ownership transfers to Runtime when
+	// [Assemble] succeeds. When rollback cannot finish, Assemble instead returns
+	// a non-zero Host that takes ownership and must be closed by the caller;
+	// otherwise callers retain ownership after construction fails. Shutdown
+	// releases resources after background tasks and execution/tool capabilities
+	// have stopped under Host's deadline.
+	Resources []ShutdownResource
 
 	// UtilityRoleStore persists the global utility-model role; the (provider,
 	// model) the in-house maintenance services (compaction / extraction /
@@ -139,7 +150,7 @@ type Config struct {
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
 	// disables the feature (no update_goal tool, goals.* report
 	// capability_not_negotiated). The composition root injects the sqlite store.
-	GoalStore goals.Store
+	GoalStore goals.DurableStore
 
 	// KnowledgeStore persists the human-authored LYRA.md cascade for both the
 	// workspace use case and the execution adapter's read-only prompt view.
@@ -275,8 +286,10 @@ type ScheduleStore interface {
 	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
-	Due(ctx context.Context, now time.Time) ([]schedule.Schedule, error)
-	MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error
+	Due(ctx context.Context, now time.Time, limit int) ([]schedule.Schedule, error)
+	Claim(ctx context.Context, occurrence schedule.Occurrence) (bool, error)
+	Pending(ctx context.Context, limit int) ([]schedule.Occurrence, error)
+	Accept(ctx context.Context, occurrenceID, runID string) error
 	RecordRun(ctx context.Context, id string, ranAt time.Time) error
 }
 
@@ -296,13 +309,13 @@ type Transactor func(ctx context.Context, fn func(context.Context) error) error
 // sqlite-backed implementation. A nil store disables persistence — the role
 // stays in-process only. Consumed by bootstrap + the capabilities coordinator.
 type UtilityRoleStore interface {
-	LoadUtilityRole(ctx context.Context) (provider, model string, err error)
-	SaveUtilityRole(ctx context.Context, provider, model string) error
+	LoadUtilityRole(ctx context.Context) (modelrole.Role, error)
+	SaveUtilityRole(ctx context.Context, role modelrole.Role) error
 }
 
 // EmbeddingRoleStore persists the embedding-model role across restarts. nil
 // disables persistence — the role stays whatever was last set in-process.
 type EmbeddingRoleStore interface {
-	LoadEmbeddingRole(ctx context.Context) (provider, model string, err error)
-	SaveEmbeddingRole(ctx context.Context, provider, model string) error
+	LoadEmbeddingRole(ctx context.Context) (modelrole.Role, error)
+	SaveEmbeddingRole(ctx context.Context, role modelrole.Role) error
 }

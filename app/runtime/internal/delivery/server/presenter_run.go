@@ -19,7 +19,7 @@ func presentRun(run transcript.Run) protocol.RunRef {
 	}
 	ref := protocol.RunRef{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
-		Provider: run.Provider, Model: run.Model, Status: status,
+		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(), Status: status,
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 	}
 	if run.State != execution.Running {

@@ -30,7 +30,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
-	defer tp.Close()
+	t.Cleanup(func() { shutdownTransport(t, tp) })
 
 	req, err := transport.NewCall("1", "runtime.discover", map[string]any{})
 	if err != nil {
@@ -64,7 +64,7 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTransport: %v", err)
 	}
-	defer tp.Close()
+	t.Cleanup(func() { shutdownTransport(t, tp) })
 
 	// A method the fakeRuntime doesn't declare falls through to
 	// the dispatcher's default branch.
@@ -123,9 +123,7 @@ func TestInProcessCloseCancelsAndJoinsActiveCall(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("dispatcher call did not start")
 	}
-	if err := tp.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
+	shutdownTransport(t, tp)
 	select {
 	case <-api.stopped:
 	default:
@@ -186,12 +184,20 @@ func TestInProcessStreamingCallLivesUntilTransportClose(t *testing.T) {
 	case <-time.After(20 * time.Millisecond):
 	}
 
-	if err := tp.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
-	}
+	shutdownTransport(t, tp)
 	select {
 	case <-api.canceled:
 	case <-time.After(time.Second):
 		t.Fatal("Close did not cancel the streaming call context")
+	}
+}
+
+func shutdownTransport(t testing.TB, tp *inprocess.Transport) {
+	t.Helper()
+	tp.BeginShutdown()
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+	defer cancel()
+	if err := tp.AwaitShutdown(ctx); err != nil {
+		t.Fatalf("AwaitShutdown: %v", err)
 	}
 }

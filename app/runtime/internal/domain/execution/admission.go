@@ -3,6 +3,8 @@ package execution
 import (
 	"errors"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // ErrSessionBusy reports that admitting a Run was rejected because the Session
@@ -21,11 +23,10 @@ var ErrSessionBusy = errors.New("execution: session has a non-terminal run")
 // handles do not belong on the Run row; a parked interrupt records the actual
 // process snapshot id at the point where it is known.
 type RunDraft struct {
-	RunID     string
-	SessionID string
-	Provider  string
-	Model     string
-	CreatedAt time.Time
+	RunID          string
+	SessionID      string
+	ModelSelection modelref.Selection
+	CreatedAt      time.Time
 }
 
 // ResumeDraft is the durable identity of a parked Run whose next segment is

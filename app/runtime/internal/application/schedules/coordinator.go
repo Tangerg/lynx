@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -46,13 +47,12 @@ type Dependencies struct {
 
 // CreateCommand is the complete editable state of a new schedule.
 type CreateCommand struct {
-	Title    string
-	Prompt   string
-	Cwd      string
-	Provider string
-	Model    string
-	Cron     string
-	Enabled  bool
+	Title          string
+	Prompt         string
+	Cwd            string
+	ModelSelection modelref.Selection
+	Cron           string
+	Enabled        bool
 }
 
 // UpdateCommand applies a partial edit to one stored schedule.
@@ -92,13 +92,12 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 		return schedule.Schedule{}, schedule.ErrUnavailable
 	}
 	sc, err := (schedule.Schedule{
-		Title:    cmd.Title,
-		Prompt:   cmd.Prompt,
-		Cwd:      cmd.Cwd,
-		Provider: cmd.Provider,
-		Model:    cmd.Model,
-		Cron:     cmd.Cron,
-		Enabled:  cmd.Enabled,
+		Title:          cmd.Title,
+		Prompt:         cmd.Prompt,
+		Cwd:            cmd.Cwd,
+		ModelSelection: cmd.ModelSelection,
+		Cron:           cmd.Cron,
+		Enabled:        cmd.Enabled,
 	}).ScheduledAfter(c.now())
 	if err != nil {
 		return schedule.Schedule{}, err
@@ -156,7 +155,11 @@ func (c *Coordinator) updateExisting(
 	patch schedule.Patch,
 	expectedRevision uint64,
 ) (schedule.Schedule, error) {
-	updated, err := existing.Apply(patch).ScheduledAfter(c.now())
+	updated, err := existing.Apply(patch)
+	if err != nil {
+		return schedule.Schedule{}, err
+	}
+	updated, err = updated.ScheduledAfter(c.now())
 	if err != nil {
 		return schedule.Schedule{}, err
 	}

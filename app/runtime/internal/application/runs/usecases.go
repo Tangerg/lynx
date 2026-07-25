@@ -18,6 +18,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err := c.requireUseCaseDependencies(); err != nil {
 		return StartResult{}, err
 	}
+	if err := cmd.ValidateScheduledIdentity(); err != nil {
+		return StartResult{}, err
+	}
 	message, media, openingUserText, err := cmd.MaterializeInput()
 	if err != nil {
 		return StartResult{}, err
@@ -25,8 +28,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	draft := StartTurn{
 		Message:        message,
 		Media:          media,
-		Provider:       cmd.Provider,
-		Model:          cmd.Model,
+		ModelSelection: cmd.ModelSelection,
 		MaxBudget:      cmd.MaxBudget,
 		MaxCostUSD:     cmd.MaxCostUSD,
 		MaxSteps:       cmd.MaxSteps,
@@ -41,7 +43,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 
-	sess, err := c.resolveSession(ctx, cmd.SessionID, cmd.DefaultCwd, cmd.NewSessionTitle)
+	sess, scheduled, err := c.resolveSession(ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultCwd, cmd.NewSessionTitle)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -51,11 +53,6 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}
 	defer runAdmission.Release()
 
-	if cmd.Model != "" {
-		if err := c.sessions.SetModel(ctx, sess.ID, cmd.Model); err != nil {
-			return StartResult{}, err
-		}
-	}
 	draft.SessionID = sess.ID
 	execCwd, isolated, err := c.executionCwd(ctx, sess)
 	if err != nil {
@@ -71,20 +68,31 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 
-	runID, segmentID := c.newRunID(), c.newSegmentID()
+	runID := cmd.RunID
+	if runID == "" {
+		runID = c.newRunID()
+	}
+	segmentID := c.newSegmentID()
 	createdAt := c.now().UTC()
+	var sessionModel *SessionModelUpdate
+	if cmd.ModelSelection.Configured() {
+		sessionModel = &SessionModelUpdate{SessionID: sess.ID, Model: cmd.ModelSelection.Model()}
+	}
 	events, err := c.openSegment(ctx, segmentSpec{
-		RunID:           runID,
-		SegmentID:       segmentID,
-		SessionID:       sess.ID,
-		Cwd:             sess.Cwd,
-		TurnID:          turn.TurnID,
-		Provider:        cmd.Provider,
-		Model:           cmd.Model,
-		CreatedAt:       createdAt,
-		OpeningUserText: openingUserText,
-		Input:           cmd.Input,
-		admission:       &runAdmission,
+		RunID:            runID,
+		SegmentID:        segmentID,
+		SessionID:        sess.ID,
+		Cwd:              sess.Cwd,
+		TurnID:           turn.TurnID,
+		ModelSelection:   cmd.ModelSelection,
+		GoalLeaseID:      cmd.GoalLeaseID,
+		ScheduledSession: scheduled,
+		SessionModel:     sessionModel,
+		ScheduleFiring:   cmd.ScheduleFiring,
+		CreatedAt:        createdAt,
+		OpeningUserText:  openingUserText,
+		Input:            cmd.Input,
+		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)
 		},
@@ -150,16 +158,15 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	createdAt := pending.RunCreatedAt
 	pendingCopy := pending
 	events, err := c.openSegment(ctx, segmentSpec{
-		RunID:     cmd.RunID,
-		SegmentID: segmentID,
-		SessionID: pending.SessionID,
-		Cwd:       sess.Cwd,
-		TurnID:    turn.TurnID,
-		Provider:  pending.Provider,
-		Model:     pending.Model,
-		CreatedAt: createdAt,
-		Pending:   &pendingCopy,
-		admission: &runAdmission,
+		RunID:          cmd.RunID,
+		SegmentID:      segmentID,
+		SessionID:      pending.SessionID,
+		Cwd:            sess.Cwd,
+		TurnID:         turn.TurnID,
+		ModelSelection: pending.ModelSelection,
+		CreatedAt:      createdAt,
+		Pending:        &pendingCopy,
+		admission:      &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Resume(activateCtx, turn, resolution, cmd.InterruptKinds)
 		},
@@ -257,11 +264,20 @@ func (c *Coordinator) liveRecord(runID string) (Record, bool) {
 	return e.record, true
 }
 
-func (c *Coordinator) resolveSession(ctx context.Context, id, defaultCwd, title string) (session.Session, error) {
-	if id == "" {
-		return c.sessions.Create(ctx, title, defaultCwd)
+func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultCwd, title string) (session.Session, *session.Session, error) {
+	if newID != "" {
+		sess, err := c.sessions.PrepareScheduled(ctx, newID, title, defaultCwd)
+		if err != nil {
+			return session.Session{}, nil, err
+		}
+		return sess, &sess, nil
 	}
-	return c.sessions.Get(ctx, id)
+	if id == "" {
+		sess, err := c.sessions.Create(ctx, title, defaultCwd)
+		return sess, nil, err
+	}
+	sess, err := c.sessions.Get(ctx, id)
+	return sess, nil, err
 }
 
 func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
@@ -328,12 +344,11 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		return execution.TurnRef{}, errors.Join(ErrRunNotFound, errors.New("runs: interrupt has no recorded process id"))
 	}
 	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
-		SessionID: pending.SessionID,
-		TurnID:    pending.TurnID,
-		ProcessID: pending.ProcessID,
-		Provider:  pending.Provider,
-		Model:     pending.Model,
-		Cwd:       cwd,
+		SessionID:      pending.SessionID,
+		TurnID:         pending.TurnID,
+		ProcessID:      pending.ProcessID,
+		ModelSelection: pending.ModelSelection,
+		Cwd:            cwd,
 	})
 	if err != nil {
 		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)

@@ -53,12 +53,12 @@ func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
 	if err != nil {
 		return RunHandle{}, err
 	}
-	handle, err := Fire(ctx, f.runner, sc)
+	handle, err := Fire(ctx, f.runner, schedule.Occurrence{Schedule: sc})
 	if err != nil {
 		return RunHandle{}, err
 	}
 
-	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), firingStateWriteTimeout)
+	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), manualRunRecordTimeout)
 	defer cancel()
 	if err := f.registry.RecordRun(writeCtx, id, f.now().UTC()); err != nil {
 		return RunHandle{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
@@ -81,10 +81,14 @@ func (disabledFiringStore) RecordRun(context.Context, string, time.Time) error {
 	return schedule.ErrUnavailable
 }
 
-func (disabledFiringStore) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+func (disabledFiringStore) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
 	return nil, nil
 }
 
-func (disabledFiringStore) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
-	return schedule.ErrUnavailable
+func (disabledFiringStore) Claim(context.Context, schedule.Occurrence) (bool, error) {
+	return false, schedule.ErrUnavailable
+}
+
+func (disabledFiringStore) Pending(context.Context, int) ([]schedule.Occurrence, error) {
+	return nil, schedule.ErrUnavailable
 }

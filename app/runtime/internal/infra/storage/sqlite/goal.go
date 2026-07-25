@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // GoalStore is the SQLite persistence adapter for autonomous goals: one row per session, the
@@ -71,7 +72,7 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 			`INSERT INTO goals(session_id, objective, status, reason_cause, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
-			g.SessionID, g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.Provider, g.Model,
+			g.SessionID, g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
 			string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
 		if err != nil {
 			return false, fmt.Errorf("sqlite: insert goal: %w", err)
@@ -81,13 +82,62 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE goals SET objective = ?, status = ?, reason_cause = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
 		 WHERE session_id = ? AND lease_id = ? AND revision = ?`,
-		g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.Provider, g.Model,
+		g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
 		string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
 		g.SessionID, expected.LeaseID, expected.Revision)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: save goal: %w", err)
 	}
 	return rowsAffected(res)
+}
+
+// RecordTurn records a terminal goal-owned Run and applies its aggregate
+// accounting in one transaction. goal_turns is an immutable idempotency ledger:
+// a repeated terminal delivery for the same Run cannot charge the Goal twice,
+// while a stale lease is retained as history but never mutates a newer goal.
+func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) error {
+	if record.SessionID == "" || record.LeaseID == "" || record.RunID == "" {
+		return errors.New("sqlite: goal turn identity is required")
+	}
+	if record.CompletedAt.IsZero() {
+		return errors.New("sqlite: goal turn completion time is required")
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		res, err := conn(ctx, s.db).ExecContext(ctx,
+			`INSERT INTO goal_turns(run_id, session_id, lease_id, outcome, cost_usd, steps, completed_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT(run_id) DO NOTHING`,
+			record.RunID, record.SessionID, record.LeaseID, record.Outcome.String(), record.CostUSD, record.Steps, record.CompletedAt.UTC().UnixNano())
+		if err != nil {
+			return fmt.Errorf("sqlite: record goal turn: %w", err)
+		}
+		inserted, err := rowsAffected(res)
+		if err != nil {
+			return err
+		}
+		if !inserted {
+			return nil
+		}
+
+		g, found, err := s.Get(ctx, record.SessionID)
+		if err != nil {
+			return err
+		}
+		if !found || g.LeaseID != record.LeaseID {
+			return nil
+		}
+		expected := g.Version()
+		g.RecordTurn(record)
+		g.AdvanceRevision()
+		applied, err := s.Save(ctx, g, expected)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			return errors.New("sqlite: record goal turn lost goal ownership")
+		}
+		return nil
+	})
 }
 
 func rowsAffected(res sql.Result) (bool, error) {
@@ -148,15 +198,21 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 		g                    goal.Goal
 		status               string
 		reasonCause          int
+		provider, model      string
 		budgetJSON, usedJSON string
 		createdAt, updatedAt int64
 	)
-	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCause, &g.Reason.Detail, &g.Provider, &g.Model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCause, &g.Reason.Detail, &provider, &model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}
 		return goal.Goal{}, fmt.Errorf("sqlite: scan goal: %w", err)
 	}
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		return goal.Goal{}, fmt.Errorf("sqlite: decode goal model selection: %w", err)
+	}
+	g.ModelSelection = selection
 	var budget goalBudget
 	if err := json.Unmarshal([]byte(budgetJSON), &budget); err != nil {
 		return goal.Goal{}, fmt.Errorf("sqlite: decode goal budget: %w", err)

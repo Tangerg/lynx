@@ -52,7 +52,7 @@ func (s *Suite) Maintain(ctx context.Context, input turn.BoundaryMaintenanceInpu
 	}
 
 	contextWindow := 0
-	if info, ok := catalog.Lookup(input.Provider, input.Model); ok {
+	if info, ok := catalog.Lookup(input.ModelSelection.Provider(), input.ModelSelection.Model()); ok {
 		contextWindow = int(info.Limits.ContextWindow)
 	}
 	compaction, err := s.compactor.MaybeCompact(ctx, input.SessionID, contextWindow, input.PreCompact)

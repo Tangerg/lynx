@@ -5,19 +5,20 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // Record is the observable state of an active run segment.
 type Record struct {
-	ID           string
-	SegmentID    string
-	SessionID    string
-	Cwd          string
-	CreatedAt    time.Time
-	TurnID       string
-	Provider     string
-	Model        string
-	CancelReason string
+	ID             string
+	SegmentID      string
+	SessionID      string
+	Cwd            string
+	CreatedAt      time.Time
+	TurnID         string
+	ModelSelection modelref.Selection
+	CancelReason   string
 }
 
 // liveSegment is the coordinator's process-local state for a currently active

@@ -3,6 +3,8 @@ package modelrole
 import (
 	"errors"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 func TestNew(t *testing.T) {
@@ -10,13 +12,13 @@ func TestNew(t *testing.T) {
 		name       string
 		providerID string
 		model      string
-		want       Role
+		wantSet    bool
 		wantErr    error
 	}{
-		{name: "configured", providerID: "openai", model: "gpt-5", want: Role{providerID: "openai", model: "gpt-5"}},
-		{name: "unset", want: Role{}},
-		{name: "empty model clears provider", providerID: "openai", want: Role{}},
-		{name: "model requires provider", model: "gpt-5", wantErr: ErrProviderRequired},
+		{name: "configured", providerID: "openai", model: "gpt-5", wantSet: true},
+		{name: "unset"},
+		{name: "provider requires model", providerID: "openai", wantErr: modelref.ErrIncomplete},
+		{name: "model requires provider", model: "gpt-5", wantErr: modelref.ErrIncomplete},
 	}
 
 	for _, tt := range tests {
@@ -25,11 +27,14 @@ func TestNew(t *testing.T) {
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("New() error = %v, want %v", err, tt.wantErr)
 			}
-			if got != tt.want {
-				t.Fatalf("New() = %+v, want %+v", got, tt.want)
+			if got.Configured() != tt.wantSet {
+				t.Fatalf("Configured() = %t, want %t", got.Configured(), tt.wantSet)
 			}
-			if got.Configured() != (tt.want.model != "") {
-				t.Fatalf("Configured() = %t", got.Configured())
+			if got.ProviderID() != tt.providerID && tt.wantErr == nil {
+				t.Fatalf("ProviderID() = %q, want %q", got.ProviderID(), tt.providerID)
+			}
+			if got.Model() != tt.model && tt.wantErr == nil {
+				t.Fatalf("Model() = %q, want %q", got.Model(), tt.model)
 			}
 		})
 	}

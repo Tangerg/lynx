@@ -51,15 +51,7 @@ type Resolver struct {
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
 	task            tools.Tool                                  // delegation tool; coding role only, nil until set
-	askUser         tools.Tool                                  // ask_user HITL tool; coding role only (askuser.New, via Deps)
-	exitPlan        tools.Tool                                  // exit_plan_mode HITL tool; coding role only (exitplan.New, via dependencies); nil without an approval policy
-	todo            tools.Tool                                  // todo_write task-list tool; both roles, nil when no todo store
-	schedule        tools.Tool                                  // schedule management op-tool; coding role only, nil when no registry
-	toolResult      tools.Tool                                  // read_tool_result offloaded-output reader; both roles, nil when eviction is off
-	memorySearch    tools.Tool                                  // memory_search agent-memory reader; both roles, nil when agent memory is off
-	sessionSearch   tools.Tool                                  // session_search past-transcript reader; both roles, nil when no transcript store
-	skillPropose    tools.Tool                                  // propose_skill authoring tool; coding role only, nil when authoring is off
-	goalUpdate      tools.Tool                                  // update_goal loop-signal tool; coding role only, offered only while a goal is active
+	staticTools     []staticToolSpec                            // built-once tools with one role/phase policy shared by catalog + turns
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active goal; nil → update_goal never offered
 
 	// codebaseIndex backs codebase_search (both roles). Held as the index (not
@@ -83,6 +75,37 @@ type Resolver struct {
 	mcpToolDisabled func(mcpserver.ToolRef) bool
 }
 
+type toolAudience uint8
+
+const (
+	toolAudienceBoth toolAudience = iota
+	toolAudienceCoding
+)
+
+func (a toolAudience) includes(role string) bool {
+	return a == toolAudienceBoth || role == toolport.ToolRoleCoding
+}
+
+type toolPlacement uint8
+
+const (
+	toolAfterSkill toolPlacement = iota
+	toolAfterCodebase
+	toolCodingTail
+)
+
+// staticToolSpec is the single policy table for built-once tools. The direct
+// catalog consumes every present entry; a turn consumes only entries in its
+// placement and audience, evaluating the one dynamic active-goal condition.
+// That keeps tools.list and the per-turn manifest as projections of one source
+// of truth without turning tool resolution into a generic registry framework.
+type staticToolSpec struct {
+	tool         tools.Tool
+	audience     toolAudience
+	placement    toolPlacement
+	requiresGoal bool
+}
+
 // Deps bundles the working-directory-independent inputs the resolver captures
 // at construction. The fs/shell/lsp/skill tools are rebuilt per resolution
 // against the turn's cwd; the online / A2A sets and the code-intelligence
@@ -95,8 +118,8 @@ type Deps struct {
 	A2A             []tools.Tool                                // remote A2A delegation tools
 	LSP             []tools.Tool                                // code-intelligence tools
 	Shell           []tools.Tool                                // shell tools (shell / shell_output / shell_kill)
-	AskUser         tools.Tool                                  // ask_user HITL tool (coding role only)
-	ExitPlan        tools.Tool                                  // exit_plan_mode HITL tool (coding role only); nil → omitted
+	AskUser         tools.Tool                                  // ask_user HITL tool (both roles)
+	ExitPlan        tools.Tool                                  // exit_plan_mode HITL tool (both roles); nil → omitted
 	Todo            tools.Tool                                  // todo_write task-list tool (both roles); nil → omitted
 	Schedule        tools.Tool                                  // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      tools.Tool                                  // read_tool_result offloaded-output reader (both roles); nil → omitted
@@ -150,15 +173,17 @@ func NewResolver(d Deps) (*Resolver, error) {
 		a2a:             slices.Clone(d.A2A),
 		lsp:             slices.Clone(d.LSP),
 		shell:           slices.Clone(shellTools),
-		askUser:         d.AskUser,
-		exitPlan:        d.ExitPlan,
-		todo:            d.Todo,
-		schedule:        d.Schedule,
-		toolResult:      d.ToolResult,
-		memorySearch:    d.MemorySearch,
-		sessionSearch:   d.SessionSearch,
-		skillPropose:    d.SkillPropose,
-		goalUpdate:      d.GoalUpdate,
+		staticTools: []staticToolSpec{
+			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
+			{tool: d.Todo, audience: toolAudienceBoth, placement: toolAfterSkill},
+			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail},
+			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
+			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill},
+			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill},
+			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail},
+			{tool: d.ExitPlan, audience: toolAudienceBoth, placement: toolAfterCodebase},
+			{tool: d.GoalUpdate, audience: toolAudienceCoding, placement: toolCodingTail, requiresGoal: true},
+		},
 		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
 		readTracker:     d.ReadTracker,
@@ -186,32 +211,9 @@ func (r *Resolver) catalogTools() ([]tools.Tool, error) {
 	catalog = append(catalog, r.a2a...)
 	catalog = append(catalog, r.lsp...)
 	catalog = append(catalog, r.shell...)
-	if r.askUser != nil {
-		catalog = append(catalog, r.askUser)
-	}
-	if r.todo != nil {
-		catalog = append(catalog, r.todo)
-	}
-	if r.schedule != nil {
-		catalog = append(catalog, r.schedule)
-	}
-	if r.toolResult != nil {
-		catalog = append(catalog, r.toolResult)
-	}
-	if r.memorySearch != nil {
-		catalog = append(catalog, r.memorySearch)
-	}
-	if r.sessionSearch != nil {
-		catalog = append(catalog, r.sessionSearch)
-	}
-	if r.skillPropose != nil {
-		catalog = append(catalog, r.skillPropose)
-	}
-	if r.exitPlan != nil {
-		catalog = append(catalog, r.exitPlan)
-	}
-	if r.goalUpdate != nil {
-		catalog = append(catalog, r.goalUpdate)
+	catalog, err := r.appendStaticTools(context.Background(), catalog, toolAfterSkill, "", true)
+	if err != nil {
+		return nil, err
 	}
 	if r.codebaseIndex != nil {
 		codebaseSearch, err := codebasesearch.New(r.codebaseIndex)
@@ -221,6 +223,28 @@ func (r *Resolver) catalogTools() ([]tools.Tool, error) {
 		catalog = append(catalog, codebaseSearch)
 	}
 	return catalog, nil
+}
+
+func (r *Resolver) appendStaticTools(ctx context.Context, into []tools.Tool, placement toolPlacement, role string, catalog bool) ([]tools.Tool, error) {
+	for _, spec := range r.staticTools {
+		if spec.tool == nil || (!catalog && (spec.placement != placement || !spec.audience.includes(role))) {
+			continue
+		}
+		if !catalog && spec.requiresGoal {
+			if r.goalActive == nil {
+				continue
+			}
+			active, err := r.goalActive(ctx, turnctx.TurnSession(ctx))
+			if err != nil {
+				return nil, fmt.Errorf("toolset: resolve update_goal availability: %w", err)
+			}
+			if !active {
+				continue
+			}
+		}
+		into = append(into, spec.tool)
+	}
+	return into, nil
 }
 
 // UseTaskTool installs the `task` delegation tool for the coding role and the
@@ -372,29 +396,12 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
-	// todo_write is working-directory independent (it keys off the session id,
-	// not the cwd), so it's built once and given to both roles — a delegated
-	// subtask tracks its own task list the same way the main agent does.
-	if g.resolver.todo != nil {
-		tools = append(tools, g.resolver.todo)
-	}
-	// read_tool_result (both roles): reads back a tool output offloaded on
-	// eviction. Session-keyed, cwd-independent so a subtask reads its own
-	// offloaded results the same way the main agent does.
-	if g.resolver.toolResult != nil {
-		tools = append(tools, g.resolver.toolResult)
-	}
-	// memory_search (both roles): keyword + semantic search over the agent's
-	// curated memory for the turn's project. Always offered when wired — keyword
-	// search needs no embedding model.
-	if g.resolver.memorySearch != nil {
-		tools = append(tools, g.resolver.memorySearch)
-	}
-	// session_search (both roles): full-text recall over past conversation
-	// transcripts across all sessions. Working-directory independent, always
-	// offered when wired.
-	if g.resolver.sessionSearch != nil {
-		tools = append(tools, g.resolver.sessionSearch)
+	// Built-once, session-keyed helpers (todo/result/memory/transcript search)
+	// are projected from the same policy table as tools.list.
+	var err error
+	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterSkill, g.role, false)
+	if err != nil {
+		return nil, err
 	}
 	// codebase_search (both roles): semantic code search over the turn's cwd.
 	// Offered only when an embedding model is configured (Available reads the
@@ -416,36 +423,20 @@ func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {
 	}
 	// Both roles can ask the user and leave plan mode. A child question parks
 	// through the same nested suspension tree as a child approval.
-	if g.resolver.askUser != nil {
-		tools = append(tools, g.resolver.askUser)
-	}
-	if g.resolver.exitPlan != nil {
-		tools = append(tools, g.resolver.exitPlan)
+	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterCodebase, g.role, false)
+	if err != nil {
+		return nil, err
 	}
 	if g.role == toolport.ToolRoleCoding {
-		// Coding role only: task (no recursive delegation) and schedule (a
-		// root-owned orchestration capability).
+		// Coding role only: task (no recursive delegation). The remaining root
+		// capabilities (schedule, authoring, active-goal update) use the policy
+		// table below.
 		if task := g.resolver.taskTool(); task != nil {
 			tools = append(tools, task)
 		}
-		if g.resolver.schedule != nil {
-			tools = append(tools, g.resolver.schedule)
-		}
-		// propose_skill curates the user's global skill library — a root-agent
-		// orchestration capability, gated behind human approval; a delegated
-		// subtask shouldn't author skills.
-		if g.resolver.skillPropose != nil {
-			tools = append(tools, g.resolver.skillPropose)
-		}
-		// update_goal ends the autonomous loop (coding role only — a subtask must
-		// not complete its parent's goal). Offered only while a goal is active for
-		// the session, so it never clutters an ordinary turn. A reader failure is
-		// not fatal: it just omits the tool for this turn (the loop keeps driving;
-		// the model simply lacks the signal until the next resolution succeeds).
-		if g.resolver.goalUpdate != nil && g.resolver.goalActive != nil {
-			if active, err := g.resolver.goalActive(ctx, turnctx.TurnSession(ctx)); err == nil && active {
-				tools = append(tools, g.resolver.goalUpdate)
-			}
+		tools, err = g.resolver.appendStaticTools(ctx, tools, toolCodingTail, g.role, false)
+		if err != nil {
+			return nil, err
 		}
 	}
 	// search_tools (both roles): the progressive-disclosure surface over the

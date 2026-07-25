@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/pkg/mime"
@@ -38,20 +39,28 @@ var (
 	// durable process state and the application Run must be recovered lost.
 	ErrTurnStateLost = errors.New("runs: turn state lost")
 
-	ErrInputRequired            = errors.New("runs: input required")
-	ErrIncompleteModelSelection = errors.New("runs: incomplete model selection")
-	ErrUnsupportedMedia         = errors.New("runs: unsupported media")
-	ErrInvalidTurnLimit         = errors.New("runs: invalid turn limit")
-	ErrInvalidTurnOptions       = errors.New("runs: invalid turn options")
+	ErrInputRequired      = errors.New("runs: input required")
+	ErrUnsupportedMedia   = errors.New("runs: unsupported media")
+	ErrInvalidTurnLimit   = errors.New("runs: invalid turn limit")
+	ErrInvalidTurnOptions = errors.New("runs: invalid turn options")
+	// ErrInvalidScheduledStart reports an internal start command that carries
+	// only part of the durable schedule-occurrence identity. A scheduled run
+	// must be all-or-nothing: its Run, Session, and occurrence rows are one
+	// opening transaction, never independently creatable facts.
+	ErrInvalidScheduledStart = errors.New("runs: invalid scheduled start")
 )
 
 // StartCommand is the protocol-neutral runs.start use case input.
 type StartCommand struct {
+	// RunID and NewSessionID are set only by a durable scheduled occurrence.
+	// They make re-dispatch after a crash resume the same logical run/session.
+	RunID           string
+	NewSessionID    string
+	ScheduleFiring  string
 	SessionID       string
 	DefaultCwd      string
 	NewSessionTitle string
-	Provider        string
-	Model           string
+	ModelSelection  modelref.Selection
 	MaxBudget       int64
 	MaxCostUSD      float64
 	MaxSteps        int
@@ -62,6 +71,25 @@ type StartCommand struct {
 	// that launched it, so the run's update_goal signal only affects that goal
 	// (see the goals application store's lease-and-revision CAS). Empty for ordinary runs.
 	GoalLeaseID string
+}
+
+// ValidateScheduledIdentity ensures the three stable identifiers supplied by a
+// scheduler travel as one capability. Ordinary starts leave all three empty.
+// Keeping this at the command boundary prevents a future caller from creating
+// a caller-chosen Session or Run without the occurrence that makes retries
+// safe.
+func (c StartCommand) ValidateScheduledIdentity() error {
+	scheduled := c.RunID != "" || c.NewSessionID != "" || c.ScheduleFiring != ""
+	if !scheduled {
+		return nil
+	}
+	if c.RunID == "" || c.NewSessionID == "" || c.ScheduleFiring == "" {
+		return fmt.Errorf("%w: run ID, new session ID, and schedule firing are required together", ErrInvalidScheduledStart)
+	}
+	if c.SessionID != "" {
+		return fmt.Errorf("%w: scheduled start cannot also select an existing session", ErrInvalidScheduledStart)
+	}
+	return nil
 }
 
 // MaterializeInput derives the executor message/media pair and the durable
@@ -163,9 +191,6 @@ type StartResult struct {
 func (r StartTurn) Validate() error {
 	if r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired
-	}
-	if (r.Model == "") != (r.Provider == "") {
-		return ErrIncompleteModelSelection
 	}
 	if r.MaxBudget < 0 {
 		return fmt.Errorf("%w: MaxBudget must be non-negative", ErrInvalidTurnLimit)

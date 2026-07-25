@@ -2,12 +2,14 @@ package modelclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/Tangerg/lynx/embeddingclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
 
@@ -26,8 +28,12 @@ func NewEmbeddingResolver(providers CredentialLookup) *EmbeddingResolver {
 	return &EmbeddingResolver{providers: providers, cache: map[string]codebaseindex.Embedder{}}
 }
 
-// Resolve builds (or returns a cached) embedder for (provider, model).
-func (r *EmbeddingResolver) Resolve(ctx context.Context, providerID, model string) (codebaseindex.Embedder, error) {
+// Resolve builds (or returns a cached) embedder for selection.
+func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (codebaseindex.Embedder, error) {
+	if !selection.Configured() {
+		return nil, errors.New("modelclient: explicit model selection is required")
+	}
+	providerID, model := selection.Provider(), selection.Model()
 	entry, ok, err := r.providers.Get(ctx, providerID)
 	if err != nil {
 		return nil, err
@@ -62,7 +68,11 @@ func (r *EmbeddingResolver) Resolve(ctx context.Context, providerID, model strin
 // ValidateEmbeddingModel implements the application role-validation port while
 // keeping the usable embedder inside the adapter that owns it.
 func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, providerID, model string) error {
-	_, err := r.Resolve(ctx, providerID, model)
+	selection, err := modelref.New(providerID, model)
+	if err != nil {
+		return err
+	}
+	_, err = r.Resolve(ctx, selection)
 	return err
 }
 

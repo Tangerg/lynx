@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
@@ -64,13 +65,13 @@ type approvalUseCases interface {
 
 type modelUseCases interface {
 	ConfigureProvider(ctx context.Context, cmd models.ConfigureProviderCommand) (models.ProviderInfo, error)
-	EmbeddingRole() models.Role
+	EmbeddingRole() modelrole.Role
 	ListModels(ctx context.Context, providerID string) []models.Model
 	ListProviders(ctx context.Context) ([]models.ProviderInfo, error)
-	SetEmbeddingRole(ctx context.Context, providerID, model string) (models.Role, error)
-	SetUtilityRole(ctx context.Context, provider, model string) (models.Role, error)
+	SetEmbeddingRole(ctx context.Context, providerID, model string) (modelrole.Role, error)
+	SetUtilityRole(ctx context.Context, provider, model string) (modelrole.Role, error)
 	TestProvider(ctx context.Context, id string) (models.ProviderTestOutcome, error)
-	UtilityRole() models.Role
+	UtilityRole() modelrole.Role
 }
 
 type toolUseCases interface {

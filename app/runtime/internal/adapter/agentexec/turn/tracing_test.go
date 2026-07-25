@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
@@ -30,7 +31,7 @@ func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
 
 	stub := &stubEngine{runReply: "ok", discardErr: discardErr}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 
 	stub := &stubEngine{runReply: "ok"}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(entryCtx, turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	handle, err := dispatcher.StartTurn(entryCtx, runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}

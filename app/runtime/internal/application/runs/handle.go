@@ -17,14 +17,20 @@ const runCleanupTimeout = 5 * time.Second
 // and the cancel bookkeeping that linearizes cancellation against interrupt
 // publication. The reducer reads its late-bound cancellation reason.
 type handle struct {
-	mu              sync.Mutex
-	cancel          context.CancelFunc
-	owner           context.Context
-	hub             *Journal
-	cancelRequested bool
-	cancelReason    string
-	interruptDone   chan struct{}
-	interruptCancel context.CancelFunc
+	mu                sync.Mutex
+	cancel            context.CancelFunc
+	owner             context.Context
+	hub               *Journal
+	cancelRequested   bool
+	cancelReason      string
+	inflightInterrupt *interruptCommit
+}
+
+// interruptCommit is the one cancellable interrupt publication a run may own.
+// A nil pointer means there is no commit to interrupt or join.
+type interruptCommit struct {
+	done   chan struct{}
+	cancel context.CancelFunc
 }
 
 // requestCancel linearizes cancellation with interrupt publication. Once it
@@ -39,17 +45,16 @@ func (h *handle) requestCancel(reason string) {
 	h.cancelRequested = true
 	h.cancelReason = reason
 	cancelRun := h.cancel
-	cancelInterrupt := h.interruptCancel
-	interruptDone := h.interruptDone
+	inflight := h.inflightInterrupt
 	h.mu.Unlock()
 	if cancelRun != nil {
 		cancelRun()
 	}
-	if cancelInterrupt != nil {
-		cancelInterrupt()
+	if inflight != nil {
+		inflight.cancel()
 	}
-	if interruptDone != nil {
-		<-interruptDone
+	if inflight != nil {
+		<-inflight.done
 	}
 }
 
@@ -68,22 +73,20 @@ func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Contex
 		cancelCommit()
 		return false, nil
 	}
-	if h.interruptDone != nil {
+	if h.inflightInterrupt != nil {
 		h.mu.Unlock()
 		cancelCommit()
 		return false, errors.New("runs: interrupt commit already in flight")
 	}
-	done := make(chan struct{})
-	h.interruptDone = done
-	h.interruptCancel = cancelCommit
+	inflight := &interruptCommit{done: make(chan struct{}), cancel: cancelCommit}
+	h.inflightInterrupt = inflight
 	h.mu.Unlock()
 
 	err = commit(commitCtx)
 	cancelCommit()
 	h.mu.Lock()
-	close(done)
-	h.interruptDone = nil
-	h.interruptCancel = nil
+	close(inflight.done)
+	h.inflightInterrupt = nil
 	h.mu.Unlock()
 	if err != nil {
 		return false, err

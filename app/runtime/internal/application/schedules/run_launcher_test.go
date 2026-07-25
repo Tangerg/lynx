@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -24,9 +25,9 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	var fired string
 	launcher := NewRunLauncher(useCases, "/default", func(id string) { fired = id })
 
-	handle, err := launcher.StartScheduledRun(context.Background(), schedule.Schedule{
-		ID: "sch_1", Prompt: "summarize", Provider: "p", Model: "m",
-	})
+	handle, err := launcher.StartScheduledRun(context.Background(), schedule.Occurrence{Schedule: schedule.Schedule{
+		ID: "sch_1", Prompt: "summarize", ModelSelection: mustScheduleSelection("p", "m"),
+	}})
 	if err != nil {
 		t.Fatalf("StartScheduledRun: %v", err)
 	}
@@ -36,8 +37,16 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	if useCases.cmd.DefaultCwd != "/default" || useCases.cmd.NewSessionTitle != "" {
 		t.Fatalf("command defaults = %+v", useCases.cmd)
 	}
-	if len(useCases.cmd.Input) != 1 || useCases.cmd.Input[0].Text != "summarize" || useCases.cmd.Provider != "p" || useCases.cmd.Model != "m" {
+	if len(useCases.cmd.Input) != 1 || useCases.cmd.Input[0].Text != "summarize" || useCases.cmd.ModelSelection.Provider() != "p" || useCases.cmd.ModelSelection.Model() != "m" {
 		t.Fatalf("command mapping = %+v", useCases.cmd)
 	}
 	<-useCases.canceled
+}
+
+func mustScheduleSelection(provider, model string) modelref.Selection {
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }

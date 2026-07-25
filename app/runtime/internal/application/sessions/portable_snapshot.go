@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -71,6 +72,10 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		Runs:        make([]transcript.Run, 0, len(p.Runs)),
 	}
 	for _, portable := range p.Runs {
+		selection, err := modelref.New(portable.Provider, portable.Model)
+		if err != nil {
+			return Snapshot{}, fmt.Errorf("%w: run %q model selection: %w", ErrInvalidPortableSnapshot, portable.ID, err)
+		}
 		state, ok := execution.Running.Terminate(portable.Outcome)
 		if !ok {
 			return Snapshot{}, fmt.Errorf("%w: run %q has invalid outcome %s", ErrInvalidPortableSnapshot, portable.ID, portable.Outcome)
@@ -83,8 +88,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			SessionID:       portable.SessionID,
 			ID:              portable.ID,
 			SpawnedByItemID: portable.SpawnedByItemID,
-			Provider:        portable.Provider,
-			Model:           portable.Model,
+			ModelSelection:  selection,
 			State:           state,
 			Outcome:         &outcome,
 			Result:          portable.Result,
@@ -171,8 +175,8 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			SessionID:       run.SessionID,
 			ID:              run.ID,
 			SpawnedByItemID: run.SpawnedByItemID,
-			Provider:        run.Provider,
-			Model:           run.Model,
+			Provider:        run.ModelSelection.Provider(),
+			Model:           run.ModelSelection.Model(),
 			Outcome:         *run.Outcome,
 			Result:          run.Result,
 			Detail:          run.Detail,

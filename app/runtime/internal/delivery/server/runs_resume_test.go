@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // resumeOKTurns is a turn dispatcher whose Resume succeeds and whose Cancel is a
@@ -36,12 +37,11 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
-		RunID:     "run_1",
-		SessionID: sess.ID,
-		TurnID:    "turn_parked",
-		ProcessID: "turn_parked",
-		Provider:  "openai",
-		Model:     "gpt",
+		RunID:          "run_1",
+		SessionID:      sess.ID,
+		TurnID:         "turn_parked",
+		ProcessID:      "turn_parked",
+		ModelSelection: mustResumeSelection(t, "openai", "gpt"),
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_1",
 			Kind:   transcript.ApprovalInterrupt,
@@ -76,6 +76,15 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	if _, found, err := rt.interrupts.Get(ctx, "run_1"); err != nil || !found {
 		t.Fatalf("interrupt changed after rejected resume Start (found=%v err=%v)", found, err)
 	}
+}
+
+func mustResumeSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {

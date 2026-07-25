@@ -19,6 +19,20 @@ type Store interface {
 	List(ctx context.Context) ([]goal.Goal, error)
 }
 
+// TurnStore records one terminal goal-owned Run exactly once. It joins the
+// terminal Run transaction, rather than asking the loop to reconstruct durable
+// accounting after it has observed a streamed terminal event.
+type TurnStore interface {
+	RecordTurn(ctx context.Context, record goal.TurnRecord) error
+}
+
+// DurableStore is the complete persistence surface the composition root gives
+// to a Run terminalizer. The Driver and State consume the smaller Store slice.
+type DurableStore interface {
+	Store
+	TurnStore
+}
+
 // State is the narrowly exposed autonomous-goal state use case. Tool adapters
 // can report a terminal status and gate their manifest, but never read or
 // write the persistence model directly.

@@ -1,24 +1,51 @@
 package goal
 
 import (
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 func TestNewValidates(t *testing.T) {
 	now := time.Unix(0, 0)
-	if _, err := New("", "obj", "", "", Budget{}, now); err == nil {
+	if _, err := New("", "obj", modelref.Selection{}, Budget{}, now); err == nil {
 		t.Fatal("empty session should error")
 	}
-	if _, err := New("s", "", "", "", Budget{}, now); err == nil {
+	if _, err := New("s", "", modelref.Selection{}, Budget{}, now); err == nil {
 		t.Fatal("empty objective should error")
 	}
-	g, err := New("s", "obj", "p", "m", Budget{MaxTurns: 3}, now)
+	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: -1}, now); err == nil {
+		t.Fatal("negative budget should error")
+	}
+	selection, err := modelref.New("p", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := New("s", "obj", selection, Budget{MaxTurns: 3}, now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	if g.Status != StatusActive {
 		t.Fatalf("new goal status = %q, want active", g.Status)
+	}
+}
+
+func TestResumeRejectsSpentBudget(t *testing.T) {
+	now := time.Unix(0, 0)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.AddTurn(0, 0, now)
+	g.Block(ReasonTurnBudgetReached, "", now)
+	if err := g.Resume(now); !errors.Is(err, ErrBudgetExhausted) {
+		t.Fatalf("Resume error = %v, want ErrBudgetExhausted", err)
+	}
+	if g.Status != StatusBlocked {
+		t.Fatalf("status after rejected Resume = %q, want blocked", g.Status)
 	}
 }
 
@@ -46,9 +73,28 @@ func TestBudgetExceeded(t *testing.T) {
 	}
 }
 
+func TestRecordTurnPreservesPriorTerminalReport(t *testing.T) {
+	now := time.Unix(0, 0)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.Block(ReasonBlockedByModel, "need a credential", now)
+	g.RecordTurn(TurnRecord{
+		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: execution.OutcomeCompleted,
+		CostUSD: 0.25, Steps: 2, CompletedAt: now.Add(time.Second),
+	})
+	if g.Status != StatusBlocked || g.Reason != (Reason{Cause: ReasonBlockedByModel, Detail: "need a credential"}) {
+		t.Fatalf("status/reason after terminal record = %q/%+v", g.Status, g.Reason)
+	}
+	if g.Used != (Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) {
+		t.Fatalf("usage after terminal record = %+v", g.Used)
+	}
+}
+
 func TestTransitions(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, _ := New("s", "obj", "", "", Budget{}, now)
+	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, now)
 
 	g.AddTurn(0.5, 2, now)
 	g.AddTurn(0.25, 1, now)

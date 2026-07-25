@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 var (
@@ -36,6 +37,10 @@ var (
 	// ErrGoalConflict reports that a concurrent lifecycle transition won the goal's
 	// compare-and-swap; the caller read a version that was already superseded.
 	ErrGoalConflict = errors.New("goals: goal changed concurrently")
+	// ErrClosed reports a lifecycle command after the driver has stopped accepting
+	// work. A caller must never be told an active goal was accepted when no loop
+	// can be attached to drive it.
+	ErrClosed = errors.New("goals: driver closed")
 )
 
 // RunUseCases is the goal loop's narrow view of the run entry point — the same
@@ -82,9 +87,13 @@ type Driver struct {
 	prompt   PromptBuilder
 
 	mutations *SessionMutations
+	closed    bool // guarded by mutations.commands
 }
 
-type loopHandle struct{ cancel context.CancelFunc }
+type loopHandle struct {
+	leaseID string
+	cancel  context.CancelFunc
+}
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
@@ -112,9 +121,12 @@ func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions Sessi
 // clobber a goal that is already actively driving, and refuses a session that
 // does not exist. The new goal gets a fresh lease so a straggler from any
 // previously-cleared goal can no longer write.
-func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, model string, budget goal.Budget) (goal.Goal, error) {
+func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
 	d.mutations.lock()
 	defer d.mutations.unlock()
+	if d.closed {
+		return goal.Goal{}, ErrClosed
+	}
 	exists, err := d.sessions.Exists(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -127,13 +139,14 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
+		d.ensureDriveLocked(ctx, sessionID, existing.LeaseID)
 		return goal.Goal{}, ErrGoalActive
 	}
 	var expected goal.Version
 	if ok {
 		expected = existing.Version()
 	}
-	g, err := goal.New(sessionID, objective, provider, model, budget, d.now())
+	g, err := goal.New(sessionID, objective, selection, budget, d.now())
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -145,7 +158,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launch(ctx, sessionID, g.LeaseID)
+	d.launchLocked(ctx, sessionID, g.LeaseID)
 	return g, nil
 }
 
@@ -155,6 +168,9 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective, provider, mode
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
 	d.mutations.lock()
 	defer d.mutations.unlock()
+	if d.closed {
+		return goal.Goal{}, ErrClosed
+	}
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -163,10 +179,13 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, ErrNoGoal
 	}
 	if g.Status == goal.StatusActive {
+		d.ensureDriveLocked(ctx, sessionID, g.LeaseID)
 		return g, nil
 	}
 	expected := g.Version()
-	g.Resume(d.now())
+	if err := g.Resume(d.now()); err != nil {
+		return goal.Goal{}, err
+	}
 	g.RenewLease(d.newLease())
 	applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
@@ -175,7 +194,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launch(ctx, sessionID, g.LeaseID)
+	d.launchLocked(ctx, sessionID, g.LeaseID)
 	return g, nil
 }
 
@@ -185,6 +204,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
 	d.mutations.lock()
 	defer d.mutations.unlock()
+	if d.closed {
+		return goal.Goal{}, ErrClosed
+	}
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
@@ -265,12 +287,32 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 	return nil
 }
 
-// Close cancels and joins every running loop at shutdown.
+// BeginShutdown cancels every running goal loop.
+func (d *Driver) BeginShutdown() {
+	if d == nil {
+		return
+	}
+	d.mutations.lock()
+	d.closed = true
+	d.tasks.Cancel()
+	d.mutations.unlock()
+}
+
+// AwaitShutdown joins every running goal loop after [BeginShutdown].
+func (d *Driver) AwaitShutdown(ctx context.Context) error {
+	if d == nil {
+		return nil
+	}
+	return d.tasks.Wait(ctx)
+}
+
+// Close cancels and joins every running goal loop. Host shutdown uses the
+// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
 func (d *Driver) Close() error {
-	d.tasks.Close()
-	return nil
+	d.BeginShutdown()
+	return d.AwaitShutdown(context.Background())
 }
 
 func (d *Driver) recoverDrive(ctx context.Context, sessionID, leaseID string) {
-	d.launch(ctx, sessionID, leaseID)
+	d.ensureDriveLocked(ctx, sessionID, leaseID)
 }

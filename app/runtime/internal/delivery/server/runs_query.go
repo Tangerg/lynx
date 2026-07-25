@@ -20,8 +20,8 @@ func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*prot
 		out = append(out, protocol.RunRef{
 			ID:        r.ID,
 			SessionID: r.SessionID,
-			Provider:  r.Provider,
-			Model:     r.Model,
+			Provider:  r.ModelSelection.Provider(),
+			Model:     r.ModelSelection.Model(),
 			Status:    protocol.RunStatusRunning,
 		})
 	}

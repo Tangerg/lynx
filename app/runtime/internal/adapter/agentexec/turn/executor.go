@@ -20,11 +20,11 @@ import (
 type executorDispatcher interface {
 	Events(context.Context, TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, TurnHandle, string) error
-	PrepareTurn(context.Context, StartTurnRequest) (TurnHandle, error)
+	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
 	ActivateTurn(context.Context, TurnHandle) error
 	Resume(context.Context, TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
 	ProcessID(context.Context, TurnHandle) (string, error)
-	Rehydrate(context.Context, RehydrateRequest) (TurnHandle, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error)
 	Cancel(context.Context, TurnHandle) error
 }
 
@@ -65,9 +65,9 @@ func (e *Executor) ValidateStart(request runs.StartTurn) error {
 	if err := request.Validate(); err != nil {
 		return err
 	}
-	if len(request.Media) > 0 && request.Provider != "" && request.Model != "" {
-		if info, ok := catalog.Lookup(request.Provider, request.Model); ok && !info.Modalities.AcceptsInput(catalog.ModalityImage) {
-			return fmt.Errorf("%w: model %q (provider %q) does not accept image input", runs.ErrUnsupportedMedia, request.Model, request.Provider)
+	if len(request.Media) > 0 && request.ModelSelection.Configured() {
+		if info, ok := catalog.Lookup(request.ModelSelection.Provider(), request.ModelSelection.Model()); ok && !info.Modalities.AcceptsInput(catalog.ModalityImage) {
+			return fmt.Errorf("%w: model %q (provider %q) does not accept image input", runs.ErrUnsupportedMedia, request.ModelSelection.Model(), request.ModelSelection.Provider())
 		}
 	}
 	return nil
@@ -76,21 +76,7 @@ func (e *Executor) ValidateStart(request runs.StartTurn) error {
 // PrepareStart creates a fresh executor turn without entering the model/tool
 // engine. The application activates it only after durable run admission.
 func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (execution.TurnRef, error) {
-	handle, err := e.dispatcher.PrepareTurn(ctx, StartTurnRequest{
-		SessionID:      request.SessionID,
-		Message:        request.Message,
-		Media:          request.Media,
-		Cwd:            request.Cwd,
-		Isolated:       request.Isolated,
-		Provider:       request.Provider,
-		Model:          request.Model,
-		MaxBudget:      request.MaxBudget,
-		MaxCostUSD:     request.MaxCostUSD,
-		MaxSteps:       request.MaxSteps,
-		Options:        request.Options,
-		InterruptKinds: request.InterruptKinds,
-		GoalLeaseID:    request.GoalLeaseID,
-	})
+	handle, err := e.dispatcher.PrepareTurn(ctx, request)
 	if err != nil {
 		return execution.TurnRef{}, err
 	}
@@ -118,14 +104,7 @@ func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, resolution
 
 // Rehydrate rebuilds a parked turn from its durable process snapshot.
 func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (execution.TurnRef, error) {
-	handle, err := e.dispatcher.Rehydrate(ctx, RehydrateRequest{
-		SessionID: request.SessionID,
-		TurnID:    request.TurnID,
-		ProcessID: request.ProcessID,
-		Provider:  request.Provider,
-		Model:     request.Model,
-		Cwd:       request.Cwd,
-	})
+	handle, err := e.dispatcher.Rehydrate(ctx, request)
 	if err != nil {
 		return execution.TurnRef{}, mapControlError(err)
 	}

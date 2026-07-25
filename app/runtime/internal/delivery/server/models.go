@@ -8,7 +8,7 @@ import (
 
 	modelapp "github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // ListModels projects the application-owned model-discovery result onto the
@@ -28,7 +28,7 @@ func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) 
 // model (models.getUtilityRole).
 func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
 	role := s.models.UtilityRole()
-	return &protocol.UtilityRole{Provider: role.Provider, Model: role.Model}, nil
+	return &protocol.UtilityRole{Provider: role.ProviderID(), Model: role.Model()}, nil
 }
 
 // SetUtilityRole points the maintenance services at a (provider, model),
@@ -38,7 +38,7 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 	if err != nil {
 		return nil, mapModelError(err)
 	}
-	return &protocol.UtilityRole{Provider: role.Provider, Model: role.Model}, nil
+	return &protocol.UtilityRole{Provider: role.ProviderID(), Model: role.Model()}, nil
 }
 
 // GetEmbeddingRole reports the (provider, model) the @codebase semantic index
@@ -46,7 +46,7 @@ func (s *Server) SetUtilityRole(ctx context.Context, in protocol.UtilityRole) (*
 // (models.getEmbeddingRole).
 func (s *Server) GetEmbeddingRole(_ context.Context) (*protocol.EmbeddingRole, error) {
 	role := s.models.EmbeddingRole()
-	return &protocol.EmbeddingRole{Provider: role.Provider, Model: role.Model}, nil
+	return &protocol.EmbeddingRole{Provider: role.ProviderID(), Model: role.Model()}, nil
 }
 
 // SetEmbeddingRole points the index at an (embedding-capable provider, model),
@@ -56,7 +56,7 @@ func (s *Server) SetEmbeddingRole(ctx context.Context, in protocol.EmbeddingRole
 	if err != nil {
 		return nil, mapModelError(err)
 	}
-	return &protocol.EmbeddingRole{Provider: role.Provider, Model: role.Model}, nil
+	return &protocol.EmbeddingRole{Provider: role.ProviderID(), Model: role.Model()}, nil
 }
 
 func mapModelError(err error) error {
@@ -67,7 +67,7 @@ func mapModelError(err error) error {
 		errors.Is(err, modelapp.ErrProviderBaseURLRequired) ||
 		errors.Is(err, modelapp.ErrProviderUnconfigured) ||
 		errors.Is(err, modelapp.ErrEmbeddingUnsupported) ||
-		errors.Is(err, modelrole.ErrProviderRequired) {
+		errors.Is(err, modelref.ErrIncomplete) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	return err

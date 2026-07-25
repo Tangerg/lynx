@@ -47,7 +47,7 @@ func (s *RunStateStore) Admit(ctx context.Context, draft execution.RunDraft) err
 		`INSERT INTO runs(run_id, session_id, state, provider, model, outcome, started_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
 		draft.RunID, draft.SessionID, runStateRunning,
-		draft.Provider, draft.Model, now, now)
+		draft.ModelSelection.Provider(), draft.ModelSelection.Model(), now, now)
 	if isUniqueViolation(err) {
 		return execution.ErrSessionBusy
 	}

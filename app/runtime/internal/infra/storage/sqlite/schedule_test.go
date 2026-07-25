@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -57,7 +58,7 @@ func TestScheduleCRUD(t *testing.T) {
 	}
 
 	// Due: the past nextRunAt is in (0, now], so it's returned.
-	due, err := s.Due(ctx, time.Now())
+	due, err := s.Due(ctx, time.Now(), 100)
 	if err != nil {
 		t.Fatalf("due: %v", err)
 	}
@@ -71,7 +72,7 @@ func TestScheduleCRUD(t *testing.T) {
 	if err := s.MarkFired(ctx, created.ID, now, created.NextRunAt, future); err != nil {
 		t.Fatalf("markFired: %v", err)
 	}
-	due, _ = s.Due(ctx, time.Now())
+	due, _ = s.Due(ctx, time.Now(), 100)
 	if len(due) != 0 {
 		t.Errorf("due after markFired = %+v, want none", due)
 	}
@@ -135,9 +136,135 @@ func TestScheduleRecordRunLeavesCursor(t *testing.T) {
 	if !got.LastRunAt.Equal(ranAt) {
 		t.Errorf("LastRunAt = %v, want %v", got.LastRunAt, ranAt)
 	}
-	due, _ := s.Due(ctx, time.Now())
+	due, _ := s.Due(ctx, time.Now(), 100)
 	if len(due) != 0 {
 		t.Errorf("due after RecordRun = %+v, want none (cursor still in the future)", due)
+	}
+}
+
+func TestScheduleOccurrenceSurvivesDispatchAndAcceptsOnce(t *testing.T) {
+	ctx := t.Context()
+	store := newScheduleStore(t)
+	dueAt := time.Date(2026, 7, 25, 9, 0, 0, 0, time.UTC)
+	nextAt := dueAt.Add(time.Hour)
+	created, err := store.Create(ctx, schedule.Schedule{
+		Title: "hourly", Prompt: "review", Cron: "0 * * * *", Enabled: true, NextRunAt: dueAt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	occurrence := schedule.Occurrence{
+		ID: created.ID + ":" + "1784960400000", Schedule: created,
+		DueAt: dueAt, FiredAt: dueAt.Add(time.Minute), NextRunAt: nextAt,
+		SessionID: "ses_occurrence", RunID: "run_occurrence",
+	}
+	claimed, err := store.Claim(ctx, occurrence)
+	if err != nil || !claimed {
+		t.Fatalf("Claim = (%v, %v), want true, nil", claimed, err)
+	}
+	claimed, err = store.Claim(ctx, occurrence)
+	if err != nil || claimed {
+		t.Fatalf("repeat Claim = (%v, %v), want false, nil", claimed, err)
+	}
+	pending, err := store.Pending(ctx, 100)
+	if err != nil || len(pending) != 1 || pending[0].RunID != occurrence.RunID || pending[0].SessionID != occurrence.SessionID {
+		t.Fatalf("Pending = (%+v, %v), want persisted occurrence", pending, err)
+	}
+	got, err := store.Get(ctx, created.ID)
+	if err != nil || !got.NextRunAt.Equal(nextAt) || !got.LastRunAt.IsZero() {
+		t.Fatalf("schedule after Claim = (%+v, %v), want advanced cursor and no accepted run", got, err)
+	}
+	if err := store.Accept(ctx, occurrence.ID, occurrence.RunID); err != nil {
+		t.Fatalf("Accept: %v", err)
+	}
+	if pending, err = store.Pending(ctx, 100); err != nil || len(pending) != 0 {
+		t.Fatalf("Pending after Accept = (%+v, %v), want empty", pending, err)
+	}
+	got, err = store.Get(ctx, created.ID)
+	if err != nil || !got.NextRunAt.Equal(nextAt) || !got.LastRunAt.Equal(occurrence.FiredAt) {
+		t.Fatalf("schedule after Claim = (%+v, %v), want advanced cursor", got, err)
+	}
+}
+
+func TestScheduleClaimKeepsOnlyOnePendingOccurrencePerSchedule(t *testing.T) {
+	ctx := t.Context()
+	store := newScheduleStore(t)
+	firstDueAt := time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	secondDueAt := firstDueAt.Add(time.Hour)
+	thirdDueAt := secondDueAt.Add(time.Hour)
+	created, err := store.Create(ctx, schedule.Schedule{
+		Title: "hourly", Prompt: "review", Cron: "0 * * * *", Enabled: true, NextRunAt: firstDueAt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	first := schedule.Occurrence{
+		ID: created.ID + ":first", Schedule: created,
+		DueAt: firstDueAt, FiredAt: firstDueAt, NextRunAt: secondDueAt,
+		SessionID: "ses_first", RunID: "run_first",
+	}
+	claimed, err := store.Claim(ctx, first)
+	if err != nil || !claimed {
+		t.Fatalf("first Claim = (%v, %v), want true, nil", claimed, err)
+	}
+
+	// The worker can observe the later cron slot while this first occurrence is
+	// still waiting for Run admission. It must not advance the cursor again or
+	// materialize a second recovery item for the same schedule.
+	second := schedule.Occurrence{
+		ID: created.ID + ":second", Schedule: created,
+		DueAt: secondDueAt, FiredAt: secondDueAt, NextRunAt: thirdDueAt,
+		SessionID: "ses_second", RunID: "run_second",
+	}
+	claimed, err = store.Claim(ctx, second)
+	if err != nil || claimed {
+		t.Fatalf("second Claim = (%v, %v), want false, nil while first is pending", claimed, err)
+	}
+	pending, err := store.Pending(ctx, 100)
+	if err != nil || len(pending) != 1 || pending[0].ID != first.ID {
+		t.Fatalf("Pending = (%+v, %v), want only first occurrence", pending, err)
+	}
+	got, err := store.Get(ctx, created.ID)
+	if err != nil || !got.NextRunAt.Equal(secondDueAt) {
+		t.Fatalf("schedule cursor = (%v, %v), want %v", got.NextRunAt, err, secondDueAt)
+	}
+
+	if err := store.Accept(ctx, first.ID, first.RunID); err != nil {
+		t.Fatalf("Accept first occurrence: %v", err)
+	}
+	claimed, err = store.Claim(ctx, second)
+	if err != nil || !claimed {
+		t.Fatalf("second Claim after accept = (%v, %v), want true, nil", claimed, err)
+	}
+}
+
+func TestScheduleStoreRejectsDuplicatePendingRows(t *testing.T) {
+	ctx := t.Context()
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewScheduleStore(db)
+	dueAt := time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	created, err := store.Create(ctx, schedule.Schedule{
+		Prompt: "review", Cron: "@hourly", Enabled: true, NextRunAt: dueAt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	insert := func(id, sessionID, runID string) error {
+		_, err := db.ExecContext(ctx, `INSERT INTO schedule_firings(
+			id, schedule_id, prompt, cron, due_at, fired_at, next_run_at, session_id, run_id, state
+		) VALUES (?, ?, 'review', '@hourly', ?, ?, ?, ?, ?, 'pending')`,
+			id, created.ID, dueAt.UnixMilli(), dueAt.UnixMilli(), dueAt.Add(time.Hour).UnixMilli(), sessionID, runID)
+		return err
+	}
+	if err := insert("first", "ses_first", "run_first"); err != nil {
+		t.Fatalf("insert first pending occurrence: %v", err)
+	}
+	if err := insert("second", "ses_second", "run_second"); err == nil {
+		t.Fatal("second pending occurrence inserted despite the per-schedule invariant")
 	}
 }
 
@@ -201,7 +328,7 @@ func TestScheduleDueSkipsDisabled(t *testing.T) {
 	if _, err := s.Create(ctx, schedule.Schedule{Prompt: "p", Cron: "@daily", Enabled: false, NextRunAt: past}); err != nil {
 		t.Fatal(err)
 	}
-	due, err := s.Due(ctx, time.Now())
+	due, err := s.Due(ctx, time.Now(), 100)
 	if err != nil {
 		t.Fatalf("due: %v", err)
 	}
@@ -238,7 +365,7 @@ func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 		t.Fatalf("reopen store: %v", err)
 	}
 	t.Cleanup(func() { _ = reopenedDB.Close() })
-	due, err := sqlite.NewScheduleStore(reopenedDB).Due(ctx, time.Now())
+	due, err := sqlite.NewScheduleStore(reopenedDB).Due(ctx, time.Now(), 100)
 	if err != nil {
 		t.Fatalf("due after reopen: %v", err)
 	}
@@ -271,7 +398,7 @@ func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	due, err := store.Due(t.Context(), time.UnixMilli(nextRunAt))
+	due, err := store.Due(t.Context(), time.UnixMilli(nextRunAt), 100)
 	if err != nil {
 		t.Fatalf("Due: %v", err)
 	}
@@ -282,11 +409,53 @@ func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 		}
 		return out
 	}
-	want := []string{"sch_c", "sch_b", "sch_a"}
-	if got := ids(listed); !slices.Equal(got, want) {
+	if got, want := ids(listed), []string{"sch_c", "sch_b", "sch_a"}; !slices.Equal(got, want) {
 		t.Fatalf("List IDs = %v, want %v", got, want)
 	}
-	if got := ids(due); !slices.Equal(got, want) {
+	if got, want := ids(due), []string{"sch_a", "sch_b", "sch_c"}; !slices.Equal(got, want) {
 		t.Fatalf("Due IDs = %v, want %v", got, want)
+	}
+}
+
+func TestScheduleDuePrioritizesOldestBacklog(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	store := sqlite.NewScheduleStore(db)
+	ctx := t.Context()
+	oldDueAt := time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
+	newDueAt := oldDueAt.Add(time.Minute)
+	insert := func(id string, dueAt time.Time) {
+		t.Helper()
+		_, err := db.ExecContext(ctx, `INSERT INTO schedules(
+			id, title, prompt, cwd, provider, model, cron, enabled,
+			last_run_at, next_run_at, created_at, revision
+		) VALUES (?, '', 'review', '', '', '', '0 9 * * *', 1, 0, ?, ?, 1)`,
+			id, dueAt.UnixMilli(), dueAt.UnixMilli())
+		if err != nil {
+			t.Fatalf("insert %s: %v", id, err)
+		}
+	}
+	insert("sch_old", oldDueAt)
+	for index := range 32 {
+		insert(fmt.Sprintf("sch_new_%02d", index), newDueAt)
+	}
+
+	due, err := store.Due(ctx, newDueAt, 32)
+	if err != nil {
+		t.Fatalf("Due: %v", err)
+	}
+	if len(due) != 32 {
+		t.Fatalf("Due count = %d, want 32", len(due))
+	}
+	if due[0].ID != "sch_old" {
+		t.Fatalf("first due ID = %q, want oldest backlog sch_old", due[0].ID)
+	}
+	for _, item := range due[1:] {
+		if item.ID == "sch_old" {
+			t.Fatalf("oldest backlog appeared more than once: %+v", due)
+		}
 	}
 }

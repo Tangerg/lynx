@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // in-memory goals.Store for the tool tests.
@@ -53,7 +54,7 @@ func (s *memStore) List(context.Context) ([]goal.Goal, error) { return nil, nil 
 
 // activeGoal builds a stored active goal with an opaque current lease.
 func activeGoal(session string) goal.Goal {
-	g, _ := goal.New(session, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g, _ := goal.New(session, "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
 	g.RenewLease("lease-active")
 	return g
 }

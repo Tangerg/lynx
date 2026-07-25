@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -23,25 +25,34 @@ var (
 // arise from the same EngineEvent decision. The pump commits it before placing
 // Event on the Journal.
 type reduction struct {
-	Event     RunEvent
-	Commit    *EventCommit
-	Nudge     *Nudge
-	Interrupt bool
+	Event  RunEvent
+	Commit *EventCommit
+	Nudge  *Nudge
+}
+
+// reductionBatch is the complete publication unit for one executor event. A
+// normal batch commits individual durable events in order. A park batch owns
+// one explicit write-set that must commit before any of its events become
+// visible; keeping that boundary on the batch avoids encoding it as a boolean
+// or a privileged first element in the event slice.
+type reductionBatch struct {
+	events     []reduction
+	parkCommit *EventCommit
 }
 
 type reducerConfig struct {
-	RunID        string
-	SegmentID    string
-	SessionID    string
-	Cwd          string
-	TurnID       string
-	Provider     string
-	Model        string
-	CreatedAt    time.Time
-	UserInput    []transcript.ContentBlock
-	Pending      *interrupts.Pending
-	Now          func() time.Time
-	CancelReason func() string
+	RunID          string
+	SegmentID      string
+	SessionID      string
+	Cwd            string
+	TurnID         string
+	GoalLeaseID    string
+	ModelSelection modelref.Selection
+	CreatedAt      time.Time
+	UserInput      []transcript.ContentBlock
+	Pending        *interrupts.Pending
+	Now            func() time.Time
+	CancelReason   func() string
 }
 
 // reducer is the per-segment state machine that turns executor events into the
@@ -105,9 +116,9 @@ func (r *reducer) nextItemID() string {
 
 func userMessageItemID(segmentID string) string { return itemIDPrefix + segmentID + "_u" }
 
-func (r *reducer) open() ([]reduction, error) {
+func (r *reducer) open() (reductionBatch, error) {
 	if r.resume != nil && r.resume.err != nil {
-		return nil, fmt.Errorf("%w: %w", errReducerInvariant, r.resume.err)
+		return reductionBatch{}, fmt.Errorf("%w: %w", errReducerInvariant, r.resume.err)
 	}
 	createdAt := r.cfg.CreatedAt
 	if createdAt.IsZero() {
@@ -115,15 +126,15 @@ func (r *reducer) open() ([]reduction, error) {
 	}
 	out := []RunEvent{SegmentStarted{Run: transcript.Run{
 		ID: r.cfg.RunID, SessionID: r.cfg.SessionID,
-		Provider: r.cfg.Provider, Model: r.cfg.Model,
-		State: execution.Running, CreatedAt: createdAt, UpdatedAt: r.now(), MessageMark: -1,
+		ModelSelection: r.cfg.ModelSelection,
+		State:          execution.Running, CreatedAt: createdAt, UpdatedAt: r.now(), MessageMark: -1,
 	}}}
 	out = append(out, r.openUserMessage()...)
 	out = append(out, r.resumeQuestionCompletions()...)
 	return r.project(out)
 }
 
-func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
+func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 	var out []RunEvent
 	switch e := ev.(type) {
 	case MessageDelta:
@@ -136,13 +147,13 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 		var err error
 		out, err = r.toolStart(e)
 		if err != nil {
-			return nil, fmt.Errorf("%w: tool call start: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorProtocol, err)
 		}
 	case ToolCallEnd:
 		var err error
 		out, err = r.toolEnd(e)
 		if err != nil {
-			return nil, fmt.Errorf("%w: tool call end: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorProtocol, err)
 		}
 	case UsageReported:
 		out = r.usageProgress(e)
@@ -156,25 +167,25 @@ func (r *reducer) reduce(ev EngineEvent) ([]reduction, error) {
 		var err error
 		out, err = r.interrupt(e)
 		if err != nil {
-			return nil, fmt.Errorf("%w: interrupt: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorProtocol, err)
 		}
 	case TurnEnd:
 		var err error
 		out, err = r.turnEnd(e)
 		if err != nil {
-			return nil, fmt.Errorf("%w: turn end: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: turn end: %w", errExecutorProtocol, err)
 		}
 	default:
-		return nil, fmt.Errorf("%w: unhandled event %T", errExecutorProtocol, ev)
+		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorProtocol, ev)
 	}
 	return r.project(out)
 }
 
-func (r *reducer) synthesizeTerminal() ([]reduction, error) {
+func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	out := r.closeStreaming()
 	drained, err := r.drainTools()
 	if err != nil {
-		return nil, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
+		return reductionBatch{}, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
 	}
 	out = append(out, drained...)
 	result := &transcript.RunResult{}
@@ -189,7 +200,7 @@ func (r *reducer) synthesizeTerminal() ([]reduction, error) {
 	}
 	terminal, err := r.finishedRun(outcome, result, detail)
 	if err != nil {
-		return nil, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
+		return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
 	}
 	out = append(out, terminal)
 	return r.project(out)
@@ -210,12 +221,12 @@ func normalizeRunProblem(problem transcript.Problem) *transcript.Problem {
 	return &problem
 }
 
-func (r *reducer) project(events []RunEvent) ([]reduction, error) {
+func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 	out := make([]reduction, 0, len(events))
 	for _, event := range events {
 		reduced, err := r.projectOne(event)
 		if err != nil {
-			return nil, err
+			return reductionBatch{}, err
 		}
 		out = append(out, reduced)
 	}
@@ -223,32 +234,31 @@ func (r *reducer) project(events []RunEvent) ([]reduction, error) {
 	// A park is one durable boundary: any drained/closed items, its running
 	// approval/question items, open interrupt record, interrupted transcript run,
 	// and admission transition must commit together before ANY event in this
-	// reduction batch is published. Collapse every item projection into the park
-	// write-set and mark the first reduction as the batch boundary; the pump then
-	// commits and publishes the entire batch inside the cancel-linearization lock.
-	interruptAt := -1
+	// batch is published. Build an explicit batch-owned write-set instead of
+	// moving it onto a privileged event position.
+	parkAt := -1
 	for i := range out {
-		if out[i].Interrupt {
-			if interruptAt >= 0 {
-				return nil, fmt.Errorf("%w: reduction batch has multiple interrupt boundaries", errReducerInvariant)
+		if out[i].Commit != nil && out[i].Commit.State == StateSuspend {
+			if parkAt >= 0 {
+				return reductionBatch{}, fmt.Errorf("%w: reduction batch has multiple park boundaries", errReducerInvariant)
 			}
-			interruptAt = i
+			parkAt = i
 		}
 		if itemStarted, ok := out[i].Event.(ItemStarted); ok {
 			itemStarted.Item.SessionID = r.cfg.SessionID
 			out[i].Event = itemStarted
 		}
 	}
-	if interruptAt >= 0 {
-		commit := out[interruptAt].Commit
+	if parkAt >= 0 {
+		commit := out[parkAt].Commit
 		if commit == nil {
-			return nil, fmt.Errorf("%w: interrupt boundary has no durable commit", errReducerInvariant)
+			return reductionBatch{}, fmt.Errorf("%w: park boundary has no durable commit", errReducerInvariant)
 		}
 		items := make([]transcript.Item, 0, len(out))
 		for i, reduced := range out {
-			if i != interruptAt && reduced.Commit != nil {
+			if i != parkAt && reduced.Commit != nil {
 				if reduced.Commit.Run != nil || reduced.Commit.Interrupt != nil || reduced.Commit.State != StateUnchanged {
-					return nil, fmt.Errorf("%w: interrupt batch contains another lifecycle transition", errReducerInvariant)
+					return reductionBatch{}, fmt.Errorf("%w: park batch contains another lifecycle transition", errReducerInvariant)
 				}
 				items = append(items, reduced.Commit.Items...)
 			}
@@ -256,16 +266,19 @@ func (r *reducer) project(events []RunEvent) ([]reduction, error) {
 				items = append(items, itemStarted.Item)
 			}
 			out[i].Commit = nil
-			out[i].Interrupt = false
 		}
 		commit.Items = items
-		out[0].Commit = commit
-		out[0].Interrupt = true
+		batch := reductionBatch{events: out, parkCommit: commit}
+		if err := validateReductionBatch(batch); err != nil {
+			return reductionBatch{}, err
+		}
+		return batch, nil
 	}
-	if err := validateReductionBatch(out); err != nil {
-		return nil, err
+	batch := reductionBatch{events: out}
+	if err := validateReductionBatch(batch); err != nil {
+		return reductionBatch{}, err
 	}
-	return out, nil
+	return batch, nil
 }
 
 func (r *reducer) projectOne(event RunEvent) (reduction, error) {
@@ -286,16 +299,17 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		if e.Run.State == execution.Interrupted {
 			commit.Interrupt = &interrupts.Pending{
 				RunID: r.cfg.RunID, SessionID: r.cfg.SessionID, TurnID: r.cfg.TurnID,
-				Provider: r.cfg.Provider, Model: r.cfg.Model,
-				Interrupts: e.Run.Interrupts, DrainedTools: r.drained,
+				ModelSelection: r.cfg.ModelSelection,
+				Interrupts:     e.Run.Interrupts, DrainedTools: r.drained,
 				RunCreatedAt: r.cfg.CreatedAt, CreatedAt: r.now(),
 			}
 			commit.State = StateSuspend
-			return reduction{Event: event, Commit: &commit, Interrupt: true}, nil
+			return reduction{Event: event, Commit: &commit}, nil
 		}
 		commit.State = StateTerminalize
 		if e.Run.Outcome != nil {
 			commit.Outcome = *e.Run.Outcome
+			commit.GoalTurn = r.goalTurn(e.Run)
 		}
 	case SegmentProgressed, ItemStarted, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. Interrupt ItemStarted
@@ -310,79 +324,101 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	return reduction{Event: event, Commit: durable, Nudge: nudge}, nil
 }
 
+func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
+	if r.cfg.GoalLeaseID == "" || run.Outcome == nil {
+		return nil
+	}
+	record := &goal.TurnRecord{
+		SessionID:   r.cfg.SessionID,
+		LeaseID:     r.cfg.GoalLeaseID,
+		RunID:       r.cfg.RunID,
+		Outcome:     *run.Outcome,
+		CompletedAt: run.UpdatedAt,
+	}
+	if record.CompletedAt.IsZero() {
+		record.CompletedAt = r.now()
+	}
+	if run.Result != nil {
+		record.Steps = run.Result.Steps
+		if run.Result.Usage != nil && run.Result.Usage.CostUSD != nil {
+			record.CostUSD = *run.Result.Usage.CostUSD
+		}
+	}
+	return record
+}
+
 // validateReductionBatch checks the pump-facing shape before any commit or
 // publication occurs. The reducer normally constructs this shape itself; the
 // second check keeps future projection changes from creating partial durable
 // boundaries.
-func validateReductionBatch(reductions []reduction) error {
-	if len(reductions) == 0 {
+func validateReductionBatch(batch reductionBatch) error {
+	if len(batch.events) == 0 {
+		if batch.parkCommit != nil {
+			return fmt.Errorf("%w: empty batch has a park commit", errReducerInvariant)
+		}
 		return nil
 	}
 
-	interrupt, terminalAt, err := validateReductionShape(reductions)
+	terminalAt, err := validateReductionEvents(batch.events)
 	if err != nil {
 		return err
 	}
-	if interrupt {
-		return validateInterruptReductionBatch(reductions, terminalAt)
+	if batch.parkCommit != nil {
+		return validateParkReductionBatch(batch, terminalAt)
 	}
 	if terminalAt < 0 {
 		return nil
 	}
-	return validateTerminalReduction(reductions[terminalAt])
+	return validateTerminalReduction(batch.events[terminalAt])
 }
 
-func validateReductionShape(reductions []reduction) (interrupt bool, terminalAt int, err error) {
-	interrupt = reductions[0].Interrupt
+func validateReductionEvents(reductions []reduction) (terminalAt int, err error) {
 	terminalAt = -1
 	for i, reduced := range reductions {
 		if reduced.Event == nil {
-			return false, -1, fmt.Errorf("%w: reduction[%d] has no event", errReducerInvariant, i)
+			return -1, fmt.Errorf("%w: reduction[%d] has no event", errReducerInvariant, i)
 		}
 		if reduced.Event.Terminal() {
 			terminalAt = i
 			if i != len(reductions)-1 {
-				return false, -1, fmt.Errorf("%w: terminal reduction[%d] is not last", errReducerInvariant, i)
+				return -1, fmt.Errorf("%w: terminal reduction[%d] is not last", errReducerInvariant, i)
 			}
-		}
-		if reduced.Interrupt && i != 0 {
-			return false, -1, fmt.Errorf("%w: interrupt boundary at reduction[%d] must be first", errReducerInvariant, i)
 		}
 		if reduced.Commit != nil {
 			switch reduced.Commit.State {
 			case StateUnchanged:
 			case StateSuspend:
-				if !interrupt || i != 0 {
-					return false, -1, fmt.Errorf("%w: suspend commit at reduction[%d] has no interrupt boundary", errReducerInvariant, i)
-				}
+				return -1, fmt.Errorf("%w: reduction[%d] carries a park commit", errReducerInvariant, i)
 			case StateTerminalize:
-				if interrupt || !reduced.Event.Terminal() {
-					return false, -1, fmt.Errorf("%w: terminal commit at reduction[%d] has no terminal event", errReducerInvariant, i)
+				if !reduced.Event.Terminal() {
+					return -1, fmt.Errorf("%w: terminal commit at reduction[%d] has no terminal event", errReducerInvariant, i)
 				}
 			default:
-				return false, -1, fmt.Errorf("%w: reduction[%d] has unknown state change %d", errReducerInvariant, i, reduced.Commit.State)
+				return -1, fmt.Errorf("%w: reduction[%d] has unknown state change %d", errReducerInvariant, i, reduced.Commit.State)
 			}
 		}
-		if interrupt && i > 0 && reduced.Commit != nil {
-			return false, -1, fmt.Errorf("%w: interrupt reduction[%d] repeats a durable commit", errReducerInvariant, i)
-		}
 	}
-	return interrupt, terminalAt, nil
+	return terminalAt, nil
 }
 
-func validateInterruptReductionBatch(reductions []reduction, terminalAt int) error {
-	commit := reductions[0].Commit
+func validateParkReductionBatch(batch reductionBatch, terminalAt int) error {
+	for i, reduced := range batch.events {
+		if reduced.Commit != nil {
+			return fmt.Errorf("%w: park batch event[%d] repeats a durable commit", errReducerInvariant, i)
+		}
+	}
+	commit := batch.parkCommit
 	switch {
 	case commit == nil:
-		return fmt.Errorf("%w: interrupt batch has no durable commit", errReducerInvariant)
+		return fmt.Errorf("%w: park batch has no durable commit", errReducerInvariant)
 	case commit.State != StateSuspend:
-		return fmt.Errorf("%w: interrupt batch commit does not suspend the run", errReducerInvariant)
+		return fmt.Errorf("%w: park batch commit does not suspend the run", errReducerInvariant)
 	case commit.Interrupt == nil:
-		return fmt.Errorf("%w: interrupt batch commit has no pending interrupt", errReducerInvariant)
+		return fmt.Errorf("%w: park batch commit has no pending interrupt", errReducerInvariant)
 	case commit.Run == nil || commit.Run.State != execution.Interrupted:
-		return fmt.Errorf("%w: interrupt batch commit has no interrupted run", errReducerInvariant)
-	case terminalAt != len(reductions)-1:
-		return fmt.Errorf("%w: interrupt batch has no terminal boundary event", errReducerInvariant)
+		return fmt.Errorf("%w: park batch commit has no interrupted run", errReducerInvariant)
+	case terminalAt != len(batch.events)-1:
+		return fmt.Errorf("%w: park batch has no terminal boundary event", errReducerInvariant)
 	}
 	return nil
 }
@@ -398,6 +434,8 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: terminal event commit has no terminal run", errReducerInvariant)
 	case commit.Run.Outcome == nil || *commit.Run.Outcome != commit.Outcome:
 		return fmt.Errorf("%w: terminal event commit has an inconsistent outcome", errReducerInvariant)
+	case commit.GoalTurn != nil && (commit.GoalTurn.RunID != commit.RunID || commit.GoalTurn.SessionID != commit.SessionID || commit.GoalTurn.Outcome != commit.Outcome):
+		return fmt.Errorf("%w: terminal event commit has an inconsistent goal turn", errReducerInvariant)
 	}
 	wantState, ok := execution.Running.Terminate(commit.Outcome)
 	if !ok || commit.Run.State != wantState {

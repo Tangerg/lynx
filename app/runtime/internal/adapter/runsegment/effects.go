@@ -20,15 +20,32 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 // SessionStore is the run-segment side-effect view of session persistence.
-// Terminal maintenance only needs the session's cwd/title and the atomic
-// untitled-title update; it should not depend on the full domain Store.
+// Opening and terminal maintenance only need the session's cwd, accepted-model
+// fact, and atomic untitled-title update; it should not depend on the full
+// domain Store.
 type SessionStore interface {
 	Get(ctx context.Context, id string) (session.Session, error)
+	Ensure(ctx context.Context, sess session.Session) (session.Session, error)
+	SetModel(ctx context.Context, id, model string) error
 	RenameIfUntitled(ctx context.Context, id, title string) error
+}
+
+// ScheduleFiringStore confirms the durable occurrence that owns a scheduled
+// run. The confirmation shares the opening transaction with run admission, so
+// an accepted occurrence and its Run cannot diverge across a crash.
+type ScheduleFiringStore interface {
+	Accept(ctx context.Context, occurrenceID, runID string) error
+}
+
+// GoalTurnStore records the budget charge for a terminal goal-owned Run. It
+// runs in the same transaction as terminalizing that Run.
+type GoalTurnStore interface {
+	RecordTurn(ctx context.Context, record goal.TurnRecord) error
 }
 
 // InterruptStore is the run-segment write side of the open-interrupt registry.
@@ -104,6 +121,8 @@ type FileChangePublisher func(runs.FileChange)
 type Config struct {
 	Interrupts         InterruptStore
 	Sessions           SessionStore
+	ScheduleFirings    ScheduleFiringStore
+	GoalTurns          GoalTurnStore
 	Transcript         TranscriptStore
 	ToolResults        ToolResultStore
 	Messages           MessageCounter
@@ -119,18 +138,20 @@ type Config struct {
 // Effects coordinates run-segment side effects. It is stateless beyond its
 // dependencies and safe to share.
 type Effects struct {
-	interrupts  InterruptStore
-	sessions    SessionStore
-	transcript  TranscriptStore
-	toolResults ToolResultStore
-	messages    MessageCounter
-	titles      TitleGenerator
-	processes   ProcessLookup
-	runState    RunStateWriter
-	tx          Transactor
-	checkpoints Checkpoints
-	tasks       TaskLauncher
-	publish     FileChangePublisher
+	interrupts      InterruptStore
+	sessions        SessionStore
+	scheduleFirings ScheduleFiringStore
+	goalTurns       GoalTurnStore
+	transcript      TranscriptStore
+	toolResults     ToolResultStore
+	messages        MessageCounter
+	titles          TitleGenerator
+	processes       ProcessLookup
+	runState        RunStateWriter
+	tx              Transactor
+	checkpoints     Checkpoints
+	tasks           TaskLauncher
+	publish         FileChangePublisher
 }
 
 var _ runs.Effects = (*Effects)(nil)
@@ -140,18 +161,20 @@ const runsegmentTracerName = "lynx/lyra/runsegment"
 // New returns an Effects coordinator.
 func New(cfg Config) *Effects {
 	return &Effects{
-		interrupts:  cfg.Interrupts,
-		sessions:    cfg.Sessions,
-		transcript:  cfg.Transcript,
-		toolResults: cfg.ToolResults,
-		messages:    cfg.Messages,
-		titles:      cfg.Titles,
-		processes:   cfg.Processes,
-		runState:    cfg.RunState,
-		tx:          cfg.Tx,
-		checkpoints: cfg.Checkpoints,
-		tasks:       cfg.Tasks,
-		publish:     cfg.PublishFileChanges,
+		interrupts:      cfg.Interrupts,
+		sessions:        cfg.Sessions,
+		scheduleFirings: cfg.ScheduleFirings,
+		goalTurns:       cfg.GoalTurns,
+		transcript:      cfg.Transcript,
+		toolResults:     cfg.ToolResults,
+		messages:        cfg.Messages,
+		titles:          cfg.Titles,
+		processes:       cfg.Processes,
+		runState:        cfg.RunState,
+		tx:              cfg.Tx,
+		checkpoints:     cfg.Checkpoints,
+		tasks:           cfg.Tasks,
+		publish:         cfg.PublishFileChanges,
 	}
 }
 

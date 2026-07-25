@@ -1,7 +1,6 @@
 package bootstrap
 
 import (
-	"io"
 	"path/filepath"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
@@ -17,7 +16,7 @@ import (
 // process adapters.
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
-		Resources:       []io.Closer{stores},
+		Resources:       []ShutdownResource{stores},
 		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
 		Engine: agentexec.Config{
 			BuildID:      buildID,

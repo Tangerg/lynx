@@ -46,10 +46,10 @@ type utilitySaverRecorder struct {
 	calls    int
 }
 
-func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, provider, model string) error {
+func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, role modelrole.Role) error {
 	s.calls++
-	s.provider = provider
-	s.model = model
+	s.provider = role.ProviderID()
+	s.model = role.Model()
 	return nil
 }
 
@@ -74,6 +74,21 @@ func TestSetUtilityRoleRequiresConfiguredProvider(t *testing.T) {
 	})
 	if !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("set utility role err = %v, want ErrInvalidParams", err)
+	}
+	if saver.calls != 0 {
+		t.Fatalf("utility role calls = %d, want 0", saver.calls)
+	}
+}
+
+func TestSetUtilityRoleRejectsPartialSelection(t *testing.T) {
+	saver := &utilitySaverRecorder{}
+	s := modelRoleServer(map[string]provider.Provider{
+		"anthropic": {ID: "anthropic", APIKey: "sk-secret"},
+	}, saver)
+
+	_, err := s.SetUtilityRole(context.Background(), protocol.UtilityRole{Provider: "anthropic"})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("set partial utility role err = %v, want ErrInvalidParams", err)
 	}
 	if saver.calls != 0 {
 		t.Fatalf("utility role calls = %d, want 0", saver.calls)

@@ -100,7 +100,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 		childArguments: scenario.childArguments,
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -183,7 +183,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		defaults: &chat.Options{Model: "b8-two-questions"},
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -254,7 +254,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		}, hooks.NewRunner(firstHooks, nil)),
 	}, store, historyStore, buildID)
 
-	original, err := first.StartTurn(t.Context(), turn.StartTurnRequest{
+	original, err := first.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		Cwd:            cwd,
@@ -297,7 +297,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 		}, hooks.NewRunner(restoredHooks, nil)),
 	}, store, historyStore, buildID)
-	restoredHandle, err := restored.Rehydrate(t.Context(), turn.RehydrateRequest{
+	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: original.SessionID,
 		TurnID:    original.TurnID,
 		ProcessID: processID,
@@ -362,7 +362,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	dispatcher := buildB8PersistentDispatcher(
 		t, model, policy, staticHookResolver{}, store, history.NewInMemoryStore(), buildID,
 	)
-	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -416,7 +416,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	first := buildB8PersistentDispatcher(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
-	handle, err := first.StartTurn(t.Context(), turn.StartTurnRequest{
+	handle, err := first.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -459,7 +459,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	restored := buildB8PersistentDispatcher(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
-	_, err = restored.Rehydrate(t.Context(), turn.RehydrateRequest{
+	_, err = restored.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: handle.SessionID,
 		TurnID:    handle.TurnID,
 		ProcessID: rootID,
@@ -480,7 +480,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 	dispatcher := buildB8Dispatcher(t, model, policy, staticHookResolver{})
 
 	for index := range 20 {
-		handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+		handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),

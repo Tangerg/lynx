@@ -2,9 +2,12 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -22,32 +25,56 @@ func TestUtilityRoleStore_RoundTrip(t *testing.T) {
 	s := newUtilityRoleStore(t)
 	ctx := context.Background()
 
-	// Unset → both empty, no error.
-	if p, m, err := s.LoadUtilityRole(ctx); err != nil || p != "" || m != "" {
-		t.Fatalf("empty load = (%q, %q, %v); want ('', '', nil)", p, m, err)
+	// Unset → zero role, no error.
+	if role, err := s.LoadUtilityRole(ctx); err != nil || role.Configured() {
+		t.Fatalf("empty load = (%+v, %v); want (zero, nil)", role, err)
 	}
 
 	// Save then load round-trips.
-	if err := s.SaveUtilityRole(ctx, "anthropic", "claude-haiku-4-5"); err != nil {
+	if err := s.SaveUtilityRole(ctx, mustStoredRole(t, "anthropic", "claude-haiku-4-5")); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if p, m, err := s.LoadUtilityRole(ctx); err != nil || p != "anthropic" || m != "claude-haiku-4-5" {
-		t.Fatalf("load = (%q, %q, %v); want (anthropic, claude-haiku-4-5, nil)", p, m, err)
+	if role, err := s.LoadUtilityRole(ctx); err != nil || role.ProviderID() != "anthropic" || role.Model() != "claude-haiku-4-5" {
+		t.Fatalf("load = (%+v, %v); want (anthropic, claude-haiku-4-5, nil)", role, err)
 	}
 
 	// Save again upserts the single row (no duplicate, latest wins).
-	if err := s.SaveUtilityRole(ctx, "openai", "gpt-5-mini"); err != nil {
+	if err := s.SaveUtilityRole(ctx, mustStoredRole(t, "openai", "gpt-5-mini")); err != nil {
 		t.Fatalf("re-save: %v", err)
 	}
-	if p, m, _ := s.LoadUtilityRole(ctx); p != "openai" || m != "gpt-5-mini" {
-		t.Fatalf("load after re-save = (%q, %q); want (openai, gpt-5-mini)", p, m)
+	if role, _ := s.LoadUtilityRole(ctx); role.ProviderID() != "openai" || role.Model() != "gpt-5-mini" {
+		t.Fatalf("load after re-save = %+v; want (openai, gpt-5-mini)", role)
 	}
 
-	// Clearing (empty model) round-trips as unset.
-	if err := s.SaveUtilityRole(ctx, "", ""); err != nil {
+	// Clearing (zero role) round-trips as unset.
+	if err := s.SaveUtilityRole(ctx, modelrole.Role{}); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
-	if p, m, _ := s.LoadUtilityRole(ctx); p != "" || m != "" {
-		t.Fatalf("load after clear = (%q, %q); want empty", p, m)
+	if role, _ := s.LoadUtilityRole(ctx); role.Configured() {
+		t.Fatalf("load after clear = %+v; want empty", role)
 	}
+}
+
+func TestUtilityRoleStoreRejectsPartialPersistedSelection(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	if _, err := db.Exec(`INSERT INTO utility_role (id, provider, model) VALUES (1, ?, ?)`, "anthropic", ""); err != nil {
+		t.Fatalf("seed corrupt role: %v", err)
+	}
+	_, err = sqlite.NewUtilityRoleStore(db).LoadUtilityRole(context.Background())
+	if !errors.Is(err, modelref.ErrIncomplete) {
+		t.Fatalf("load partial role error = %v, want %v", err, modelref.ErrIncomplete)
+	}
+}
+
+func mustStoredRole(t testing.TB, provider, model string) modelrole.Role {
+	t.Helper()
+	role, err := modelrole.New(provider, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return role
 }

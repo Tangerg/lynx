@@ -41,14 +41,13 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 
 func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 	return transcript.Run{
-		SessionID:   r.cfg.SessionID,
-		ID:          r.cfg.RunID,
-		Provider:    r.cfg.Provider,
-		Model:       r.cfg.Model,
-		State:       state,
-		CreatedAt:   r.cfg.CreatedAt,
-		UpdatedAt:   r.now(),
-		MessageMark: -1,
+		SessionID:      r.cfg.SessionID,
+		ID:             r.cfg.RunID,
+		ModelSelection: r.cfg.ModelSelection,
+		State:          state,
+		CreatedAt:      r.cfg.CreatedAt,
+		UpdatedAt:      r.now(),
+		MessageMark:    -1,
 	}
 }
 

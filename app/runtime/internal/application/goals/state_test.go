@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 type stateStore struct {
@@ -32,7 +33,7 @@ func (s *stateStore) List(context.Context) ([]goal.Goal, error) { return nil, ni
 
 func TestStateReportOwnsTerminalGoalTransition(t *testing.T) {
 	now := time.Date(2026, time.July, 23, 9, 0, 0, 0, time.UTC)
-	g, err := goal.New("ses_1", "finish", "", "", goal.Budget{}, now.Add(-time.Hour))
+	g, err := goal.New("ses_1", "finish", modelref.Selection{}, goal.Budget{}, now.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // ProcessSnapshotValidator asks the executor that owns processID whether its
@@ -112,11 +113,10 @@ func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, process
 }
 
 type nonTerminalRun struct {
-	runID     string
-	sessionID string
-	provider  string
-	model     string
-	state     execution.RunState
+	runID          string
+	sessionID      string
+	modelSelection modelref.Selection
+	state          execution.RunState
 }
 
 func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
@@ -131,10 +131,15 @@ func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, 
 	var out []nonTerminalRun
 	for rows.Next() {
 		var run nonTerminalRun
-		var coarse string
-		if err := rows.Scan(&run.runID, &run.sessionID, &run.provider, &run.model, &coarse); err != nil {
+		var provider, model, coarse string
+		if err := rows.Scan(&run.runID, &run.sessionID, &provider, &model, &coarse); err != nil {
 			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
 		}
+		selection, err := modelref.New(provider, model)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: decode non-terminal run %q model selection: %w", run.runID, err)
+		}
+		run.modelSelection = selection
 		switch coarse {
 		case runStateRunning:
 			run.state = execution.Running

@@ -8,22 +8,22 @@ import (
 	"maps"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-// clientResolver resolves a per-turn chat client for an explicit
-// (provider, model). It is turn's own narrow dependency on the runtime model
-// registry; an unavailable provider or model is reported as an error.
+// clientResolver resolves a per-turn chat client for one explicit model
+// selection. It is turn's own narrow dependency on the runtime model registry;
+// an unavailable provider or model is reported as an error.
 type clientResolver interface {
-	ResolveClient(ctx context.Context, provider, model string) (*chatclient.Client, error)
+	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }
 
 // todoLister reads a session's current todo list — narrow consumer view of the
@@ -189,18 +189,10 @@ func (s *memoryDispatcher) isClosed() bool {
 	return s.closed
 }
 
-const turnCloseTimeout = 5 * time.Second
-
-// Close cancels and joins the complete live-turn set within a bounded shutdown
-// budget. The dispatcher, not the delivery run registry, is authoritative
+// BeginShutdown rejects future turns and starts cancellation for the complete
+// live-turn set. The dispatcher, not the delivery run registry, is authoritative
 // because parked turns remain live after their streaming segment has ended.
-func (s *memoryDispatcher) Close() error {
-	ctx, cancel := context.WithTimeout(context.Background(), turnCloseTimeout)
-	defer cancel()
-	return s.close(ctx)
-}
-
-func (s *memoryDispatcher) close(ctx context.Context) error {
+func (s *memoryDispatcher) BeginShutdown() {
 	s.closeOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
@@ -222,7 +214,16 @@ func (s *memoryDispatcher) close(ctx context.Context) error {
 			}()
 		}
 	})
+}
 
+// AwaitShutdown joins the turns cancelled by [BeginShutdown]. Its caller owns
+// the deadline, so a timeout remains visible and a later await can finish the
+// same shutdown rather than burying work behind a one-shot close result.
+func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("turn: shutdown context is required")
+	}
+	s.BeginShutdown()
 	for _, target := range s.closing {
 		select {
 		case <-target.cancelDone:
@@ -239,6 +240,13 @@ func (s *memoryDispatcher) close(ctx context.Context) error {
 		}
 	}
 	return cancelErr
+}
+
+// Close is retained for isolated adapter ownership sites. Process-level
+// shutdown must use BeginShutdown/AwaitShutdown so the Host owns the deadline.
+func (s *memoryDispatcher) Close() error {
+	s.BeginShutdown()
+	return s.AwaitShutdown(context.Background())
 }
 
 func closeTimeoutError(targets []*closeTarget) error {

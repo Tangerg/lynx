@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
+func (s *memoryDispatcher) StartTurn(ctx context.Context, request runs.StartTurn) (TurnHandle, error) {
 	handle, err := s.PrepareTurn(ctx, request)
 	if err != nil {
 		return TurnHandle{}, err
@@ -21,11 +23,11 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request StartTurnReque
 // PrepareTurn establishes all reversible turn state but deliberately does not
 // launch the engine. The application can now durably admit its Run before
 // ActivateTurn crosses the model/tool side-effect boundary.
-func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnRequest) (TurnHandle, error) {
+func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTurn) (TurnHandle, error) {
 	if request.SessionID == "" {
 		return TurnHandle{}, errors.New("turn: SessionID is required")
 	}
-	request = request.snapshot()
+	request = snapshotStartTurn(request)
 	if err := request.Validate(); err != nil {
 		return TurnHandle{}, err
 	}
@@ -39,8 +41,8 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request StartTurnReq
 	}
 	state := newTurnState(ctx, handle)
 	handle.state = state
-	state.model = modelOr(request.Model)
-	state.provider = request.Provider
+	state.model = modelOr(request.ModelSelection.Model())
+	state.modelSelection = request.ModelSelection
 	state.cwd = request.Cwd
 	state.setInterruptKinds(request.InterruptKinds)
 	// Open the turn span synchronously (before the goroutine launches and

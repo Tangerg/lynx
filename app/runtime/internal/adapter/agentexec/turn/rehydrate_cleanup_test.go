@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 type closeOnRestoreEngine struct {
@@ -18,7 +19,8 @@ func (*closeOnRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (
 }
 
 func (e *closeOnRestoreEngine) RestoreTurn(context.Context, string, agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
-	if err := e.dispatcher.close(context.Background()); err != nil {
+	e.dispatcher.BeginShutdown()
+	if err := e.dispatcher.AwaitShutdown(context.Background()); err != nil {
 		return nil, err
 	}
 	return e.process, nil
@@ -39,7 +41,7 @@ func TestRehydratePreservesCloseRaceCleanupFailure(t *testing.T) {
 	}
 	engine.dispatcher = dispatcher
 
-	_, err := dispatcher.Rehydrate(t.Context(), RehydrateRequest{
+	_, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "ses_1",
 		TurnID:    "turn_1",
 		ProcessID: "proc_1",

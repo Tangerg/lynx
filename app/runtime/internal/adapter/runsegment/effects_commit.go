@@ -33,10 +33,43 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			if e.runState == nil {
 				return errors.New("runsegment: run-state persistence is unavailable")
 			}
+			if opening.ScheduledSession != nil {
+				if opening.ScheduledSession.ID != opening.Admit.SessionID {
+					return errors.New("runsegment: opening scheduled-session mismatch")
+				}
+				if e.sessions == nil {
+					return errors.New("runsegment: session persistence is unavailable")
+				}
+				if _, err := e.sessions.Ensure(ctx, *opening.ScheduledSession); err != nil {
+					return fmt.Errorf("runsegment: persist opening scheduled session: %w", err)
+				}
+			}
 			if err := e.runState.Admit(ctx, *opening.Admit); err != nil {
 				return err
 			}
+			if opening.SessionModel != nil {
+				if opening.SessionModel.SessionID != opening.Admit.SessionID {
+					return errors.New("runsegment: opening session-model session mismatch")
+				}
+				if e.sessions == nil {
+					return errors.New("runsegment: session persistence is unavailable")
+				}
+				if err := e.sessions.SetModel(ctx, opening.SessionModel.SessionID, opening.SessionModel.Model); err != nil {
+					return fmt.Errorf("runsegment: persist opening session model: %w", err)
+				}
+			}
+			if opening.ScheduleFiring != "" {
+				if e.scheduleFirings == nil {
+					return errors.New("runsegment: schedule-firing persistence is unavailable")
+				}
+				if err := e.scheduleFirings.Accept(ctx, opening.ScheduleFiring, opening.Admit.RunID); err != nil {
+					return fmt.Errorf("runsegment: accept scheduled occurrence: %w", err)
+				}
+			}
 		case opening.Resume != nil:
+			if opening.ScheduledSession != nil || opening.SessionModel != nil || opening.ScheduleFiring != "" {
+				return errors.New("runsegment: resumed opening cannot carry fresh-run facts")
+			}
 			if err := e.consumeResume(ctx, *opening.Resume); err != nil {
 				return err
 			}
@@ -123,7 +156,18 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pend
 			return err
 		}
 	}
-	return e.applyState(ctx, commit)
+	if err := e.applyState(ctx, commit); err != nil {
+		return err
+	}
+	if commit.GoalTurn != nil {
+		if e.goalTurns == nil {
+			return errors.New("runsegment: goal-turn persistence is unavailable")
+		}
+		if err := e.goalTurns.RecordTurn(ctx, *commit.GoalTurn); err != nil {
+			return fmt.Errorf("runsegment: record goal turn: %w", err)
+		}
+	}
+	return nil
 }
 
 func (e *Effects) consumeResume(ctx context.Context, resume execution.ResumeDraft) error {

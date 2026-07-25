@@ -79,7 +79,14 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 	}
 	host, err := bootstrap.Assemble(ctx, runtimeCfg)
 	if err != nil {
-		return bootstrap.Host{}, config.Config{}, err
+		// A non-zero failed Host owns rollback that outlived Assemble's first
+		// bounded attempt, including stores once it needs them for ordered
+		// teardown. Hand it to run rather than letting this deferred store close
+		// race an in-flight tool or dispatcher shutdown.
+		if bootstrap.OwnsShutdown(host) {
+			owned = false
+		}
+		return host, config.Config{}, err
 	}
 	owned = false // successful Runtime construction takes ownership of stores
 	return host, cfg, nil

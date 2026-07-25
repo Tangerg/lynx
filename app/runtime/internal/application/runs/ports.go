@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -46,7 +47,7 @@ type SegmentExecutor interface {
 type SessionLifecycle interface {
 	Get(ctx context.Context, id string) (session.Session, error)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
-	SetModel(ctx context.Context, id, model string) error
+	PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error)
 	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) error
@@ -64,8 +65,7 @@ type StartTurn struct {
 	// project directory; only the executor sees the copy.
 	Cwd            string
 	Isolated       bool
-	Provider       string
-	Model          string
+	ModelSelection modelref.Selection
 	MaxBudget      int64
 	MaxCostUSD     float64
 	MaxSteps       int
@@ -79,12 +79,11 @@ type StartTurn struct {
 // RehydrateTurn describes rebuilding a parked executor turn from its durable
 // process snapshot after process-local state was lost.
 type RehydrateTurn struct {
-	SessionID string
-	TurnID    string
-	ProcessID string
-	Provider  string
-	Model     string
-	Cwd       string
+	SessionID      string
+	TurnID         string
+	ProcessID      string
+	ModelSelection modelref.Selection
+	Cwd            string
 }
 
 // IsolationProvider resolves the sandbox working-copy directory an isolated
@@ -149,9 +148,21 @@ type Effects interface {
 // facts in one transaction prevents a successful start response from naming a
 // Run whose opening record does not exist.
 type OpeningCommit struct {
-	Admit  *execution.RunDraft
-	Resume *execution.ResumeDraft
-	Events []EventCommit
+	Admit            *execution.RunDraft
+	Resume           *execution.ResumeDraft
+	ScheduledSession *session.Session
+	SessionModel     *SessionModelUpdate
+	ScheduleFiring   string
+	Events           []EventCommit
+}
+
+// SessionModelUpdate is the session fact established by accepting a fresh run
+// with an explicit model selection. It is committed with that run's admission,
+// so an opening rejection cannot leave the session advertising a model that
+// never successfully started.
+type SessionModelUpdate struct {
+	SessionID string
+	Model     string
 }
 
 // Finish describes the terminal run-boundary maintenance the Effects port runs
@@ -180,13 +191,16 @@ type segmentSpec struct {
 	SessionID string
 	Cwd       string
 	// TurnID is the executor's durable turn identity recorded on the live run.
-	TurnID          string
-	Provider        string
-	Model           string
-	CreatedAt       time.Time
-	OpeningUserText string
-	Input           []transcript.ContentBlock
-	Pending         *interrupts.Pending
+	TurnID           string
+	ModelSelection   modelref.Selection
+	GoalLeaseID      string
+	ScheduledSession *session.Session
+	SessionModel     *SessionModelUpdate
+	ScheduleFiring   string
+	CreatedAt        time.Time
+	OpeningUserText  string
+	Input            []transcript.ContentBlock
+	Pending          *interrupts.Pending
 	// admission is the pre-commit reservation Start or Resume transfers to the
 	// live run immediately after its durable opening commit succeeds.
 	admission *admission.RunAdmission

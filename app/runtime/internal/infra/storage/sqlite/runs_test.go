@@ -548,7 +548,7 @@ func TestReconcileOrphansRejectsParkModelMismatch(t *testing.T) {
 	store, ints, transcripts, processes := newRunRecoveryStores(t)
 	ctx := t.Context()
 	if err := store.Admit(ctx, execution.RunDraft{
-		RunID: "run_park", SessionID: "ses_park", Provider: "openai", Model: "gpt-test", CreatedAt: time.Unix(0, 0),
+		RunID: "run_park", SessionID: "ses_park", ModelSelection: testModelSelection(t, "openai", "gpt-test"), CreatedAt: time.Unix(0, 0),
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}

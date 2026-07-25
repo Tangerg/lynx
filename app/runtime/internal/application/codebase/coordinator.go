@@ -66,8 +66,27 @@ func New(index Index, roots RootResolver) *Coordinator {
 	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}
 }
 
-// Close cancels + joins the background reindex tasks (§10.3).
-func (c *Coordinator) Close() { c.tasks.Close() }
+// BeginShutdown prevents new reindexes and cancels the background work.
+func (c *Coordinator) BeginShutdown() {
+	if c != nil {
+		c.tasks.Cancel()
+	}
+}
+
+// AwaitShutdown joins background reindex tasks after [BeginShutdown].
+func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	return c.tasks.Wait(ctx)
+}
+
+// Close cancels and joins background reindex work. Host shutdown uses the
+// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
+func (c *Coordinator) Close() {
+	c.BeginShutdown()
+	_ = c.AwaitShutdown(context.Background())
+}
 
 // Available reports whether semantic-index use cases are wired in this runtime.
 func (c *Coordinator) Available() bool { return c != nil && c.index != nil }

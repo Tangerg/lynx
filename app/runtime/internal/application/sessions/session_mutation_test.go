@@ -361,6 +361,9 @@ func (*mutationStores) Get(context.Context, string) (session.Session, error) { p
 func (*mutationStores) Create(context.Context, string, string) (session.Session, error) {
 	panic("unused")
 }
+func (*mutationStores) Ensure(context.Context, session.Session) (session.Session, error) {
+	panic("unused")
+}
 func (*mutationStores) Patch(context.Context, string, session.Patch) (session.Session, error) {
 	panic("unused")
 }

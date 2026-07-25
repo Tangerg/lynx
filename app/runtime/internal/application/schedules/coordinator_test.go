@@ -187,11 +187,12 @@ func (r *runNowRegistry) Update(_ context.Context, sc schedule.Schedule, _ uint6
 	return sc, nil
 }
 func (r *runNowRegistry) Delete(context.Context, string) error { return nil }
-func (r *runNowRegistry) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+func (r *runNowRegistry) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
 	return nil, nil
 }
-func (r *runNowRegistry) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
-	return nil
+func (r *runNowRegistry) Claim(context.Context, schedule.Occurrence) (bool, error) { return false, nil }
+func (r *runNowRegistry) Pending(context.Context, int) ([]schedule.Occurrence, error) {
+	return nil, nil
 }
 func (r *runNowRegistry) RecordRun(ctx context.Context, id string, at time.Time) error {
 	r.recordedID, r.recordedAt, r.recordCtxErr = id, at, ctx.Err()

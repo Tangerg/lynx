@@ -8,10 +8,12 @@ package modelclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/chatclient"
@@ -24,10 +26,10 @@ type CredentialLookup interface {
 	Get(ctx context.Context, id string) (provider.Provider, bool, error)
 }
 
-// ClientResolver resolves a per-turn [chatclient.Client] for an explicit
-// (provider, model). The provider is taken as given (the wire carries it; it is
-// never inferred from the model id); the resolver pulls that provider's
-// credentials from the registry, then builds and caches the client.
+// ClientResolver resolves a per-turn [chatclient.Client] for an explicit model
+// selection. The provider is taken as given (the wire carries it; it is never
+// inferred from the model id); the resolver pulls that provider's credentials
+// from the registry, then builds and caches the client.
 type ClientResolver struct {
 	providers CredentialLookup
 
@@ -43,10 +45,14 @@ func NewClientResolver(providers CredentialLookup) *ClientResolver {
 	}
 }
 
-// ResolveClient returns the client for (provider, model), building it from the
+// ResolveClient returns the client for selection, building it from the
 // provider's registry credentials. Errors when the provider isn't configured /
 // enabled — the run then ends with a clear "set its API key first" error.
-func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model string) (*chatclient.Client, error) {
+func (r *ClientResolver) ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error) {
+	if !selection.Configured() {
+		return nil, errors.New("modelclient: explicit model selection is required")
+	}
+	providerID, model := selection.Provider(), selection.Model()
 	entry, ok, err := r.providers.Get(ctx, providerID)
 	if err != nil {
 		return nil, err
@@ -82,6 +88,10 @@ func (r *ClientResolver) ResolveClient(ctx context.Context, providerID, model st
 // ValidateChatModel implements the application model-role validation port
 // without leaking the concrete chat client into the use-case layer.
 func (r *ClientResolver) ValidateChatModel(ctx context.Context, providerID, model string) error {
-	_, err := r.ResolveClient(ctx, providerID, model)
+	selection, err := modelref.New(providerID, model)
+	if err != nil {
+		return err
+	}
+	_, err = r.ResolveClient(ctx, selection)
 	return err
 }

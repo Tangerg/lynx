@@ -112,11 +112,26 @@ type mcpDial struct {
 	cancel context.CancelFunc
 }
 
-// Close cancels and joins this component's post-commit reconcile work (§10.3).
+// BeginShutdown cancels this component's post-commit reconcile work.
 // Idempotent; safe to call on a nil Coordinator.
-func (c *Coordinator) Close() {
+func (c *Coordinator) BeginShutdown() {
 	if c == nil {
 		return
 	}
-	c.tasks.Close()
+	c.tasks.Cancel()
+}
+
+// AwaitShutdown joins post-commit reconcile work after [BeginShutdown].
+func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+	return c.tasks.Wait(ctx)
+}
+
+// Close cancels and joins post-commit reconcile work. Host shutdown uses the
+// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
+func (c *Coordinator) Close() {
+	c.BeginShutdown()
+	_ = c.AwaitShutdown(context.Background())
 }

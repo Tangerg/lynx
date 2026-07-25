@@ -16,23 +16,33 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // turnDriver is the external-package test's view of a constructed dispatcher.
 // Production consumers each use smaller ports; these integration tests exercise
 // the complete turn lifecycle.
 type turnDriver interface {
-	StartTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
-	PrepareTurn(context.Context, turn.StartTurnRequest) (turn.TurnHandle, error)
+	StartTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
+	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
 	ActivateTurn(context.Context, turn.TurnHandle) error
 	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.EngineEvent], error)
 	InjectSteering(context.Context, turn.TurnHandle, string) error
 	Resume(context.Context, turn.TurnHandle, interrupts.Resolution, []runs.InterruptKind) error
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
-	Rehydrate(context.Context, turn.RehydrateRequest) (turn.TurnHandle, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
 	Close() error
 	ForgetSession(string)
+}
+
+func testModelSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -107,9 +108,9 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
-		Message:    "delegate this",
-		Provider:   "selected-provider",
-		ChatClient: selectedClient,
+		Message:        "delegate this",
+		ModelSelection: mustTestSelection(t, "selected-provider", "selected-model"),
+		ChatClient:     selectedClient,
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -133,6 +134,15 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 			t.Fatalf("pricing providers = %v, child fell back to default provider", providers)
 		}
 	}
+}
+
+func mustTestSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testing.T) {

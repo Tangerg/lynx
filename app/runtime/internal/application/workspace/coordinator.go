@@ -23,6 +23,11 @@ var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 // Delivery maps it to capability_not_negotiated.
 var ErrSkillDraftsUnavailable = errors.New("workspace: skill drafts unavailable")
 
+// ErrSkillLibraryUnavailable reports that this runtime was built without the
+// skill-library curator. Library mutations must fail explicitly rather than
+// acknowledge a change that could not have happened.
+var ErrSkillLibraryUnavailable = errors.New("workspace: skill library unavailable")
+
 // ErrFileWatchUnavailable reports that this runtime has no workspace-change
 // observer. A subscription without requested watches remains useful for
 // application-published events; callers requesting Git-state watches receive
@@ -285,20 +290,21 @@ func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]SkillInfo, error
 }
 
 // ListManagedSkills returns the global self-authored skill library — active and
-// archived skills, each tagged with its lifecycle (skills.library.list). Empty
-// when no authoring store is wired.
+// archived skills, each tagged with its lifecycle (skills.library.list).
+// Reports [ErrSkillLibraryUnavailable] when no curator is wired.
 func (c *Skills) ListManagedSkills(ctx context.Context) ([]skills.Entry, error) {
 	if c.curator == nil {
-		return nil, nil
+		return nil, ErrSkillLibraryUnavailable
 	}
 	return c.curator.List(ctx)
 }
 
 // ArchiveSkill removes a skill from active use without deleting it
-// (skills.library.archive). No-op when no authoring store is wired.
+// (skills.library.archive). Reports [ErrSkillLibraryUnavailable] when no
+// curator is wired.
 func (c *Skills) ArchiveSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
-		return nil
+		return ErrSkillLibraryUnavailable
 	}
 	if err := c.curator.Archive(ctx, name); err != nil {
 		return err
@@ -308,10 +314,11 @@ func (c *Skills) ArchiveSkill(ctx context.Context, name string) error {
 }
 
 // RestoreSkill returns an archived skill to active use
-// (skills.library.restore). No-op when no authoring store is wired.
+// (skills.library.restore). Reports [ErrSkillLibraryUnavailable] when no
+// curator is wired.
 func (c *Skills) RestoreSkill(ctx context.Context, name string) error {
 	if c.curator == nil {
-		return nil
+		return ErrSkillLibraryUnavailable
 	}
 	if err := c.curator.Restore(ctx, name); err != nil {
 		return err

@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
 // UtilityRoleStore persists the global utility-model role — the (provider,
@@ -18,14 +20,14 @@ func NewUtilityRoleStore(db *sql.DB) *UtilityRoleStore {
 	return &UtilityRoleStore{store: newRoleStore(db, "utility_role", "utility role")}
 }
 
-// LoadUtilityRole returns the stored (provider, model); both empty when unset
-// (no row yet) — the caller then runs maintenance on the main turn model.
-func (s *UtilityRoleStore) LoadUtilityRole(ctx context.Context) (provider, model string, err error) {
+// LoadUtilityRole returns the stored role, or its zero value when unset (no
+// row yet) — the caller then runs maintenance on the main turn model.
+func (s *UtilityRoleStore) LoadUtilityRole(ctx context.Context) (modelrole.Role, error) {
 	return s.store.load(ctx)
 }
 
-// SaveUtilityRole upserts the single utility-role row. An empty model clears
-// the role back to the main turn model.
-func (s *UtilityRoleStore) SaveUtilityRole(ctx context.Context, provider, model string) error {
-	return s.store.save(ctx, provider, model)
+// SaveUtilityRole upserts the single utility-role row. A zero role clears it
+// back to the main turn model.
+func (s *UtilityRoleStore) SaveUtilityRole(ctx context.Context, role modelrole.Role) error {
+	return s.store.save(ctx, role)
 }

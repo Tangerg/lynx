@@ -13,6 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -118,6 +120,111 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	var stateName string
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
 		t.Fatalf("run state=%q err=%v, want running", stateName, err)
+	}
+}
+
+// TestCommitOpeningRollsBackScheduledSession proves the occurrence-owned
+// Session is not durable until every fresh-opening fact is accepted. In
+// particular, a rejected occurrence must not leave a session that can later be
+// mistaken for a user-created conversation.
+func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	sessions := sqlite.NewSessionStore(db)
+	state := sqlite.NewRunStateStore(db)
+	history := sqlite.NewTranscriptStore(db)
+	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
+		Sessions:        sessions,
+		ScheduleFirings: sqlite.NewScheduleStore(db),
+		RunState:        state,
+		Tx:              func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+	})
+	created := time.Now().UTC()
+	draft := execution.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", CreatedAt: created}
+	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", Cwd: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
+	err = effects.CommitOpening(ctx, runs.OpeningCommit{
+		Admit:            &draft,
+		ScheduledSession: &scheduled,
+		// No firing is seeded: Accept fails after Ensure and Admit, so the
+		// test exercises rollback rather than a preflight rejection.
+		ScheduleFiring: "fire_missing",
+		Events: []runs.EventCommit{{
+			RunID: draft.RunID, SessionID: draft.SessionID,
+			Run: &transcript.Run{ID: draft.RunID, SessionID: draft.SessionID, UpdatedAt: created},
+		}},
+	})
+	if err == nil {
+		t.Fatal("CommitOpening accepted an unknown scheduled occurrence")
+	}
+	if _, getErr := sessions.Get(ctx, draft.SessionID); !errors.Is(getErr, session.ErrNotFound) {
+		t.Fatalf("scheduled session survived rejected opening: %v", getErr)
+	}
+	if err := state.Admit(ctx, draft); err != nil {
+		t.Fatalf("rejected opening left run admission behind: %v", err)
+	}
+}
+
+// TestCommitEventRecordsGoalTurnWithTerminalRun proves budget accounting is a
+// terminal Run fact, not a best-effort follow-up by the Goal driver. Both the
+// Run state and the Goal aggregate must become visible together.
+func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	created := time.Now().UTC()
+	goals := sqlite.NewGoalStore(db)
+	sessions := sqlite.NewSessionStore(db)
+	if err := sessions.Restore(ctx, session.Session{ID: "ses_goal", StartedAt: created, UpdatedAt: created, Revision: 1}); err != nil {
+		t.Fatalf("seed goal session: %v", err)
+	}
+	selection := mustEffectSelection(t, "provider", "model")
+	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxTurns: 1}, created)
+	if err != nil {
+		t.Fatalf("new goal: %v", err)
+	}
+	g.RenewLease("lease_goal")
+	if saved, err := goals.Save(ctx, g, goal.Version{}); err != nil || !saved {
+		t.Fatalf("seed goal saved=%v err=%v", saved, err)
+	}
+	state := sqlite.NewRunStateStore(db)
+	draft := execution.RunDraft{RunID: "run_goal", SessionID: g.SessionID, CreatedAt: created}
+	if err := state.Admit(ctx, draft); err != nil {
+		t.Fatalf("admit goal run: %v", err)
+	}
+	history := sqlite.NewTranscriptStore(db)
+	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
+		GoalTurns: goals,
+		RunState:  state,
+		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+	})
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
+		Outcome: execution.OutcomeCompleted,
+		Run:     &transcript.Run{ID: draft.RunID, SessionID: draft.SessionID, UpdatedAt: created},
+		GoalTurn: &goal.TurnRecord{
+			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
+			Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 2, CompletedAt: created,
+		},
+	}); err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
+	got, found, err := goals.Get(ctx, g.SessionID)
+	if err != nil || !found {
+		t.Fatalf("goal after terminal found=%v err=%v", found, err)
+	}
+	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) || got.Status != goal.StatusBlocked || got.Reason.Cause != goal.ReasonTurnBudgetReached {
+		t.Fatalf("goal after terminal = %+v", got)
+	}
+	var runState string
+	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, draft.RunID).Scan(&runState); err != nil || runState != "terminal" {
+		t.Fatalf("run state=%q err=%v, want terminal", runState, err)
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -11,7 +13,7 @@ import (
 // UserPromptSubmit hook before a turn starts. It returns the (possibly
 // context-prefixed) message, or an error wrapping [ErrPromptBlocked] when a hook
 // blocked the prompt.
-func (s *memoryDispatcher) runPromptHooks(ctx context.Context, request StartTurnRequest, st *turnState) (string, error) {
+func (s *memoryDispatcher) runPromptHooks(ctx context.Context, request runs.StartTurn, st *turnState) (string, error) {
 	var blocked bool
 	var reason, inject string
 	add := func(d hooks.Decision) {

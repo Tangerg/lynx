@@ -29,7 +29,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -73,7 +73,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	})))
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
-	if _, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+	if _, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "sess-hook-error",
 		Message:   "hi",
 		Cwd:       t.TempDir(),
@@ -101,7 +101,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	})))
 	t.Cleanup(func() { _ = dispatcher.Close() })
 
-	handle, err := dispatcher.StartTurn(t.Context(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
 	})
 	if err != nil {
@@ -127,7 +127,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "hi"})
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agentexec.StopReasonBudget}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
 		MaxBudget: 1,
@@ -183,7 +183,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -215,7 +215,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "m",
 	})
@@ -252,7 +252,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.Rehydrate(context.Background(), turn.RehydrateRequest{
+	handle, err := dispatcher.Rehydrate(context.Background(), runs.RehydrateTurn{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-42",
@@ -303,7 +303,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.Rehydrate(context.Background(), turn.RehydrateRequest{
+	handle, err := dispatcher.Rehydrate(context.Background(), runs.RehydrateTurn{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-99",
@@ -341,11 +341,10 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	resolver := &fakeResolver{client: sentinel}
 
 	dispatcher := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
-		SessionID: "s",
-		Message:   "hi",
-		Provider:  "some-provider",
-		Model:     "some-model",
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+		SessionID:      "s",
+		Message:        "hi",
+		ModelSelection: testModelSelection(t, "some-provider", "some-model"),
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -368,13 +367,13 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 }
 
 // TestStartTurn_PassesCwd verifies the session's working directory flows
-// from StartTurnRequest.Cwd through to the engine's TurnRequest.Cwd —
+// from runs.StartTurn.Cwd through to the engine's TurnRequest.Cwd —
 // the turn-dispatcher half of per-session tool working directories.
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "hi",
 		Cwd:       "/work/project-a",
@@ -401,7 +400,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	temp := 0.7
 
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "hi",
 		Options:   &corechat.Options{Temperature: &temp},
@@ -443,7 +442,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	images := []*media.Media{image}
 	interruptKinds := []runs.InterruptKind{runs.ApprovalInterruptKind}
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          images,
@@ -494,7 +493,7 @@ func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing
 	engine := &immediateStartFailureEngine{err: startErr}
 	dispatcher := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "session",
 		Message:   "hello",
 	})
@@ -515,7 +514,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesOnce(t *testing.T)
 	engine := newBlockedStartFailureEngine(startErr)
 	dispatcher := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "session",
 		Message:   "hello",
 	})

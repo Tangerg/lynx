@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -19,6 +21,38 @@ func newGoalStore(t *testing.T) (*sqlite.GoalStore, *sqlite.SessionStore) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return sqlite.NewGoalStore(db), sqlite.NewSessionStore(db)
+}
+
+func TestGoalStoreRecordTurnIsIdempotentAndBlocksAtBudget(t *testing.T) {
+	store, sessions := newGoalStore(t)
+	const sessionID = "ses_goal_turn"
+	seedSession(t, sessions, sessionID)
+	now := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
+	g, err := goal.New(sessionID, "finish", modelref.Selection{}, goal.Budget{MaxTurns: 1}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g.RenewLease("lease_goal_turn")
+	if applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
+		t.Fatalf("Save = (%v, %v), want true, nil", applied, err)
+	}
+	record := goal.TurnRecord{
+		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run_goal_turn",
+		Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
+	}
+	if err := store.RecordTurn(t.Context(), record); err != nil {
+		t.Fatalf("RecordTurn: %v", err)
+	}
+	if err := store.RecordTurn(t.Context(), record); err != nil {
+		t.Fatalf("repeat RecordTurn: %v", err)
+	}
+	got, found, err := store.Get(t.Context(), sessionID)
+	if err != nil || !found {
+		t.Fatalf("Get = (%v, %v), want found", found, err)
+	}
+	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 3}) || got.Status != goal.StatusBlocked || got.Reason.Cause != goal.ReasonTurnBudgetReached {
+		t.Fatalf("goal after idempotent RecordTurn = %+v", got)
+	}
 }
 
 func seedSession(t *testing.T, store *sqlite.SessionStore, id string) {
@@ -39,7 +73,7 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	}
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	g, err := goal.New(sess, "ship the feature", "anthropic", "claude", goal.Budget{MaxTurns: 5, MaxCostUSD: 2.5}, now)
+	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxTurns: 5, MaxCostUSD: 2.5}, now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -56,12 +90,21 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	if got.Objective != "ship the feature" || got.Status != goal.StatusActive ||
 		got.Budget.MaxTurns != 5 || got.Budget.MaxCostUSD != 2.5 ||
 		got.Used.Turns != 1 || got.Used.CostUSD != 0.4 || got.Used.Steps != 3 ||
-		got.Provider != "anthropic" || got.Model != "claude" {
+		got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
 	if !got.CreatedAt.Equal(now) {
 		t.Fatalf("created_at = %v, want %v", got.CreatedAt, now)
 	}
+}
+
+func testModelSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func TestGoalStore_ListAndClear(t *testing.T) {
@@ -71,7 +114,7 @@ func TestGoalStore_ListAndClear(t *testing.T) {
 
 	for _, s := range []string{"a", "b"} {
 		seedSession(t, sessions, s)
-		g, _ := goal.New(s, "obj-"+s, "", "", goal.Budget{}, now)
+		g, _ := goal.New(s, "obj-"+s, modelref.Selection{}, goal.Budget{}, now)
 		g.RenewLease("lease-" + s)
 		if applied, err := store.Save(ctx, g, goal.Version{}); err != nil || !applied {
 			t.Fatalf("Save(%s): applied=%v err=%v", s, applied, err)
@@ -109,7 +152,7 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 	seedSession(t, sessions, sess)
 
 	mk := func(leaseID string, revision int64, status goal.Status) goal.Goal {
-		g, _ := goal.New(sess, "obj", "", "", goal.Budget{}, now)
+		g, _ := goal.New(sess, "obj", modelref.Selection{}, goal.Budget{}, now)
 		g.LeaseID = leaseID
 		g.Revision = revision
 		g.Status = status
@@ -165,7 +208,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 	seedSession(t, sessions, sessionID)
 	now := time.Unix(1_700_000_000, 0).UTC()
 
-	stale, _ := goal.New(sessionID, "old", "", "", goal.Budget{}, now)
+	stale, _ := goal.New(sessionID, "old", modelref.Selection{}, goal.Budget{}, now)
 	stale.RenewLease("lease-old")
 	if applied, err := store.Save(t.Context(), stale, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed stale goal: applied=%v err=%v", applied, err)
@@ -174,7 +217,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 		t.Fatalf("Clear: %v", err)
 	}
 
-	fresh, _ := goal.New(sessionID, "new", "", "", goal.Budget{}, now)
+	fresh, _ := goal.New(sessionID, "new", modelref.Selection{}, goal.Budget{}, now)
 	fresh.RenewLease("lease-fresh")
 	if applied, err := store.Save(t.Context(), fresh, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed fresh goal: applied=%v err=%v", applied, err)
@@ -196,7 +239,7 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 
 func TestGoalStoreRejectsMissingSession(t *testing.T) {
 	store, _ := newGoalStore(t)
-	g, _ := goal.New("missing", "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g, _ := goal.New("missing", "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
 	g.RenewLease("lease-missing")
 	if applied, err := store.Save(t.Context(), g, goal.Version{}); err == nil || applied {
 		t.Fatalf("Save(missing session) = applied=%v err=%v, want false/non-nil", applied, err)
@@ -207,7 +250,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	store, sessions := newGoalStore(t)
 	const sessionID = "s"
 	seedSession(t, sessions, sessionID)
-	g, _ := goal.New(sessionID, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
 	g.RenewLease("lease")
 	if applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
@@ -225,7 +268,7 @@ func TestGoalStoreRejectsInvalidVersion(t *testing.T) {
 	store, sessions := newGoalStore(t)
 	const sessionID = "s"
 	seedSession(t, sessions, sessionID)
-	g, _ := goal.New(sessionID, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
 
 	if applied, err := store.Save(t.Context(), g, goal.Version{}); err == nil || applied {
 		t.Fatalf("Save(zero version) = applied=%v err=%v, want false/non-nil", applied, err)

@@ -3,10 +3,12 @@ package bootstrap
 import (
 	"context"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
 func TestLoadUtilityRoleUsesLoaderPort(t *testing.T) {
-	loader := &fakeUtilityRoleLoader{provider: "anthropic", model: "claude-haiku"}
+	loader := &fakeUtilityRoleLoader{role: mustBootstrapRole(t, "anthropic", "claude-haiku")}
 
 	role, err := loadUtilityRole(context.Background(), loader)
 	if err != nil {
@@ -19,7 +21,7 @@ func TestLoadUtilityRoleUsesLoaderPort(t *testing.T) {
 }
 
 func TestLoadEmbeddingRoleUsesLoaderPort(t *testing.T) {
-	loader := &fakeEmbeddingRoleLoader{provider: "openai", model: "text-embedding-3-small"}
+	loader := &fakeEmbeddingRoleLoader{role: mustBootstrapRole(t, "openai", "text-embedding-3-small")}
 
 	role, err := loadEmbeddingRole(context.Background(), loader)
 	if err != nil {
@@ -32,23 +34,30 @@ func TestLoadEmbeddingRoleUsesLoaderPort(t *testing.T) {
 }
 
 type fakeUtilityRoleLoader struct {
-	provider string
-	model    string
-	calls    int
+	role  modelrole.Role
+	calls int
 }
 
-func (s *fakeUtilityRoleLoader) LoadUtilityRole(context.Context) (string, string, error) {
+func (s *fakeUtilityRoleLoader) LoadUtilityRole(context.Context) (modelrole.Role, error) {
 	s.calls++
-	return s.provider, s.model, nil
+	return s.role, nil
 }
 
 type fakeEmbeddingRoleLoader struct {
-	provider string
-	model    string
-	calls    int
+	role  modelrole.Role
+	calls int
 }
 
-func (s *fakeEmbeddingRoleLoader) LoadEmbeddingRole(context.Context) (string, string, error) {
+func (s *fakeEmbeddingRoleLoader) LoadEmbeddingRole(context.Context) (modelrole.Role, error) {
 	s.calls++
-	return s.provider, s.model, nil
+	return s.role, nil
+}
+
+func mustBootstrapRole(t testing.TB, provider, model string) modelrole.Role {
+	t.Helper()
+	role, err := modelrole.New(provider, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return role
 }

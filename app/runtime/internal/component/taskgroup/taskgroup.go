@@ -10,25 +10,19 @@ import (
 	"maps"
 	"slices"
 	"sync"
-	"time"
 )
-
-// closeGraceTimeout bounds how long Close waits for canceled tasks to return.
-// Every task is canceled before the join and is expected to observe it promptly;
-// the budget only stops a task that ignored its context from hanging shutdown
-// forever. No current task reaches it — it is a safety net, mirroring the turn
-// dispatcher's bounded close.
-const closeGraceTimeout = 10 * time.Second
 
 // Group starts request-detached tasks and cancels and joins them at Close.
 // The zero value is ready to use. Start and Close are safe to call
 // concurrently; once closed, a Group cannot be reused.
 type Group struct {
-	mu      sync.Mutex
-	wg      sync.WaitGroup
-	closed  bool
-	nextID  uint64
-	cancels map[uint64]context.CancelFunc
+	mu       sync.Mutex
+	closed   bool
+	finished bool
+	nextID   uint64
+	active   int
+	cancels  map[uint64]context.CancelFunc
+	allDone  chan struct{}
 }
 
 // Start launches task with parent values but without parent cancellation. It
@@ -96,7 +90,7 @@ func (g *Group) attach(parent context.Context) (ctx context.Context, release fun
 	g.nextID++
 	id := g.nextID
 	g.cancels[id] = cancel
-	g.wg.Add(1)
+	g.active++
 	g.mu.Unlock()
 
 	var once sync.Once
@@ -110,31 +104,74 @@ func (g *Group) finish(id uint64, cancel context.CancelFunc) {
 	cancel()
 	g.mu.Lock()
 	delete(g.cancels, id)
+	g.active--
+	g.finishCloseLocked()
 	g.mu.Unlock()
-	g.wg.Done()
 }
 
-// Close rejects new tasks, cancels active tasks, and waits for them to return.
-// It is safe to call repeatedly.
-func (g *Group) Close() {
+// Cancel rejects new tasks and cancels every active task. It does not wait for
+// them to return, allowing a process owner to stop every component before it
+// starts joining any one component.
+func (g *Group) Cancel() {
 	g.mu.Lock()
 	g.closed = true
 	cancels := slices.Collect(maps.Values(g.cancels))
+	g.finishCloseLocked()
 	g.mu.Unlock()
 
 	for _, cancel := range cancels {
 		cancel()
 	}
-	// Bounded join: proceed (leaking the misbehaving task) rather than block the
-	// whole process's shutdown if a canceled task fails to return within the grace
-	// window — a permanent hang is the worse failure.
-	done := make(chan struct{})
-	go func() {
-		g.wg.Wait()
-		close(done)
-	}()
+
+}
+
+// Wait joins all active tasks after [Cancel]. The caller owns the deadline, so
+// a shutdown timeout becomes observable instead of silently leaking work.
+func (g *Group) Wait(ctx context.Context) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	g.mu.Lock()
+	done := g.doneLocked()
+	g.mu.Unlock()
 	select {
 	case <-done:
-	case <-time.After(closeGraceTimeout):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
+}
+
+// Close rejects new tasks, cancels active tasks, and waits for them to return.
+// It is safe to call repeatedly.
+func (g *Group) Close(ctx context.Context) error {
+	g.Cancel()
+	return g.Wait(ctx)
+}
+
+// BeginShutdown implements the component shutdown phase used by the
+// composition root.
+func (g *Group) BeginShutdown() { g.Cancel() }
+
+// AwaitShutdown implements the component shutdown phase used by the
+// composition root.
+func (g *Group) AwaitShutdown(ctx context.Context) error { return g.Wait(ctx) }
+
+func (g *Group) doneLocked() chan struct{} {
+	if g.allDone == nil {
+		g.allDone = make(chan struct{})
+	}
+	g.finishCloseLocked()
+	return g.allDone
+}
+
+func (g *Group) finishCloseLocked() {
+	if !g.closed || g.active != 0 || g.finished {
+		return
+	}
+	if g.allDone == nil {
+		g.allDone = make(chan struct{})
+	}
+	close(g.allDone)
+	g.finished = true
 }

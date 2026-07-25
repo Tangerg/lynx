@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -24,11 +25,14 @@ import (
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	options := generationOptionsFromWire(in.Params)
+	selection, err := modelref.New(in.Provider, in.Model)
+	if err != nil {
+		return nil, nil, wireRunStartErr(err)
+	}
 	result, err := s.coordinator.Start(ctx, runs.StartCommand{
 		SessionID:      in.SessionID,
 		DefaultCwd:     s.serverInfo.Cwd,
-		Provider:       in.Provider,
-		Model:          in.Model,
+		ModelSelection: selection,
 		MaxCostUSD:     in.MaxBudgetUSD,
 		MaxSteps:       in.MaxSteps,
 		Options:        options,
@@ -59,13 +63,15 @@ func wireRunStartErr(err error) error {
 	switch {
 	case errors.Is(err, runs.ErrInputRequired):
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
-	case errors.Is(err, runs.ErrIncompleteModelSelection):
+	case errors.Is(err, modelref.ErrIncomplete):
 		return protocol.ErrInvalidParams
 	case errors.Is(err, runs.ErrInvalidTurnLimit):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrInvalidTurnOptions):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrUnsupportedMedia):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	case errors.Is(err, runs.ErrInvalidScheduledStart):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrSessionBusy):
 		return protocol.ErrSessionBusy

@@ -13,11 +13,12 @@ import (
 // ListManagedSkills returns the global self-authored skill library —
 // active and archived skills, each tagged with its lifecycle
 // (skills.library.list). The library is small, so it comes back in one page
-// (same as skills.discovered.list). Empty when no authoring store is wired.
+// (same as skills.discovered.list). capability_not_negotiated when the library
+// curator is disabled.
 func (s *Server) ListManagedSkills(ctx context.Context, _ protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
 	entries, err := s.workspaceSkills.ListManagedSkills(ctx)
 	if err != nil {
-		return nil, err
+		return nil, mapSkillLibraryErr(err, "skills.library.list")
 	}
 	out := make([]protocol.ManagedSkill, 0, len(entries))
 	for _, e := range entries {
@@ -53,7 +54,7 @@ func (s *Server) ArchiveSkill(ctx context.Context, in protocol.SkillNameRequest)
 		return protocol.ErrInvalidParams
 	}
 	if err := s.workspaceSkills.ArchiveSkill(ctx, in.Name); err != nil {
-		return err
+		return mapSkillLibraryErr(err, "skills.library.archive")
 	}
 	return nil
 }
@@ -66,7 +67,7 @@ func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest)
 		return protocol.ErrInvalidParams
 	}
 	if err := s.workspaceSkills.RestoreSkill(ctx, in.Name); err != nil {
-		return err
+		return mapSkillLibraryErr(err, "skills.library.restore")
 	}
 	return nil
 }
@@ -139,4 +140,11 @@ func mapSkillDraftErr(err error, method string) error {
 	default:
 		return err
 	}
+}
+
+func mapSkillLibraryErr(err error, method string) error {
+	if errors.Is(err, workspace.ErrSkillLibraryUnavailable) {
+		return capabilityNotNegotiated(method)
+	}
+	return err
 }

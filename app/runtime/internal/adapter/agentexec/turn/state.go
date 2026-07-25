@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // turnState holds the per-turn bookkeeping the implementation needs:
@@ -65,10 +66,9 @@ type turnState struct {
 	// the span + metrics + logs. "default" when the turn didn't pick one.
 	model string
 
-	// provider pairs with model to resolve the run's model in the catalog (e.g.
-	// its context window for the compaction trigger). "" when the turn uses the
-	// default model.
-	provider string
+	// modelSelection remains the canonical per-run choice for maintenance and
+	// recovery. model above is its observability projection ("default" when unset).
+	modelSelection modelref.Selection
 
 	// startedAt stamps the turn's wall-clock start so TurnEnd carries a
 	// duration that spans any interrupt/resume cycles.
@@ -102,7 +102,7 @@ type turnState struct {
 	// startPending linearizes ActivateTurn against Cancel: exactly one side
 	// claims the pre-execution state, so a rejected application admission can
 	// tear the turn down without ever entering the model/tool engine.
-	startRequest StartTurnRequest
+	startRequest runs.StartTurn
 	startPending bool
 
 	// parked is true while the turn is suspended on a HITL interrupt
@@ -141,22 +141,22 @@ type turnState struct {
 	toolCalls int
 }
 
-func (st *turnState) prepareStart(request StartTurnRequest) {
+func (st *turnState) prepareStart(request runs.StartTurn) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.startRequest = request
 	st.startPending = true
 }
 
-func (st *turnState) claimStart() (StartTurnRequest, bool) {
+func (st *turnState) claimStart() (runs.StartTurn, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if !st.startPending {
-		return StartTurnRequest{}, false
+		return runs.StartTurn{}, false
 	}
 	st.startPending = false
 	request := st.startRequest
-	st.startRequest = StartTurnRequest{}
+	st.startRequest = runs.StartTurn{}
 	return request, true
 }
 
@@ -167,7 +167,7 @@ func (st *turnState) cancelPrepared() bool {
 		return false
 	}
 	st.startPending = false
-	st.startRequest = StartTurnRequest{}
+	st.startRequest = runs.StartTurn{}
 	return true
 }
 

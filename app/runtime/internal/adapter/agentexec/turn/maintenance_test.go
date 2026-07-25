@@ -41,8 +41,8 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := dispatcher.PrepareTurn(t.Context(), turn.StartTurnRequest{
-		SessionID: "session", Message: "hello", Cwd: "/project", Provider: "openai", Model: "gpt-test",
+	handle, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+		SessionID: "session", Message: "hello", Cwd: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
 	})
 	if err != nil {
 		t.Fatalf("PrepareTurn: %v", err)
@@ -72,7 +72,7 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	if !called {
 		t.Fatal("maintenance was not called")
 	}
-	if input.SessionID != "session" || input.Cwd != "/project" || input.Provider != "openai" || input.Model != "gpt-test" {
+	if input.SessionID != "session" || input.Cwd != "/project" || input.ModelSelection.Provider() != "openai" || input.ModelSelection.Model() != "gpt-test" {
 		t.Fatalf("maintenance input = %+v", input)
 	}
 	if input.PreCompact == nil || !input.PreCompact(t.Context()) {

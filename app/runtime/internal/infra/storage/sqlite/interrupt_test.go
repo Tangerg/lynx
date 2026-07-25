@@ -27,11 +27,10 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	store := newInterruptStore(t)
 
 	p := interrupts.Pending{
-		RunID:     "run_1",
-		SessionID: "ses_a",
-		TurnID:    "turn_1",
-		Provider:  "anthropic",
-		Model:     "claude-opus-4-8",
+		RunID:          "run_1",
+		SessionID:      "ses_a",
+		TurnID:         "turn_1",
+		ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", Kind: transcript.QuestionInterrupt,
 			Question: &transcript.Question{Prompt: "Choose"},
@@ -56,8 +55,8 @@ func TestInterruptStore_PutGetListDelete(t *testing.T) {
 	}
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
 	// the SAME model client instead of dropping to the default).
-	if got.Provider != "anthropic" || got.Model != "claude-opus-4-8" {
-		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", got.Provider, got.Model)
+	if got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude-opus-4-8" {
+		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", got.ModelSelection.Provider(), got.ModelSelection.Model())
 	}
 
 	if list, _ := store.List(ctx, "ses_b"); len(list) != 1 {

@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/robfig/cron/v3"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // IDPrefix is the type prefix every schedule id carries (mirrors the session /
@@ -41,10 +43,6 @@ var (
 	ErrPromptRequired = errors.New("schedule: prompt is required")
 	// ErrCronRequired — a schedule with no cron has no trigger.
 	ErrCronRequired = errors.New("schedule: cron is required")
-	// ErrIncompleteModelSelection — provider and model must be set together
-	// (both to pin a model, neither for the runtime default — the same rule
-	// runs.start applies; provider is never inferred from model).
-	ErrIncompleteModelSelection = errors.New("schedule: provider and model must be set together")
 	// ErrInvalidCron — the cron expression is not a supported five-field spec.
 	ErrInvalidCron = errors.New("schedule: invalid cron")
 	// ErrCwdUnavailable — the configured working directory cannot be admitted.
@@ -52,21 +50,33 @@ var (
 )
 
 // Schedule is a saved prompt fired on a cron trigger. Cwd anchors the headless
-// run's tools (empty → the serve directory); Provider/Model are optional (empty
-// → the runtime default, paired — both or neither).
+// run's tools (empty → the serve directory); ModelSelection is optional (its
+// zero value uses the runtime default).
 type Schedule struct {
+	ID             string
+	Title          string
+	Prompt         string // the final text sent as the run's input
+	Cwd            string
+	ModelSelection modelref.Selection
+	Cron           string    // 5-field standard cron: "min hour dom month dow"
+	Enabled        bool      // a disabled schedule never fires (NextRunAt cleared)
+	LastRunAt      time.Time // zero ⇒ never fired
+	NextRunAt      time.Time // next due time, computed from Cron; zero ⇒ not scheduled (disabled)
+	CreatedAt      time.Time
+	Revision       uint64
+}
+
+// Occurrence is one durable cron firing intent. Its schedule snapshot and
+// stable session/run identities let a worker resume an interrupted dispatch
+// without recreating a second headless session or run for the same due time.
+type Occurrence struct {
 	ID        string
-	Title     string
-	Prompt    string // the final text sent as the run's input
-	Cwd       string
-	Provider  string
-	Model     string
-	Cron      string    // 5-field standard cron: "min hour dom month dow"
-	Enabled   bool      // a disabled schedule never fires (NextRunAt cleared)
-	LastRunAt time.Time // zero ⇒ never fired
-	NextRunAt time.Time // next due time, computed from Cron; zero ⇒ not scheduled (disabled)
-	CreatedAt time.Time
-	Revision  uint64
+	Schedule  Schedule
+	DueAt     time.Time
+	FiredAt   time.Time
+	NextRunAt time.Time
+	SessionID string
+	RunID     string
 }
 
 // Patch is a partial update to a Schedule. Nil fields keep the existing value;
@@ -81,9 +91,9 @@ type Patch struct {
 	Enabled  *bool
 }
 
-// Apply returns s with p applied. It does not validate or recompute NextRunAt;
-// call [Schedule.ScheduledAfter] before persisting.
-func (s Schedule) Apply(p Patch) Schedule {
+// Apply returns s with p applied. It does not recompute NextRunAt; call
+// [Schedule.ScheduledAfter] before persisting.
+func (s Schedule) Apply(p Patch) (Schedule, error) {
 	if p.Title != nil {
 		s.Title = *p.Title
 	}
@@ -93,11 +103,19 @@ func (s Schedule) Apply(p Patch) Schedule {
 	if p.Cwd != nil {
 		s.Cwd = *p.Cwd
 	}
-	if p.Provider != nil {
-		s.Provider = *p.Provider
-	}
-	if p.Model != nil {
-		s.Model = *p.Model
+	if p.Provider != nil || p.Model != nil {
+		provider, model := s.ModelSelection.Provider(), s.ModelSelection.Model()
+		if p.Provider != nil {
+			provider = *p.Provider
+		}
+		if p.Model != nil {
+			model = *p.Model
+		}
+		selection, err := modelref.New(provider, model)
+		if err != nil {
+			return Schedule{}, err
+		}
+		s.ModelSelection = selection
 	}
 	if p.Cron != nil {
 		s.Cron = *p.Cron
@@ -105,12 +123,11 @@ func (s Schedule) Apply(p Patch) Schedule {
 	if p.Enabled != nil {
 		s.Enabled = *p.Enabled
 	}
-	return s
+	return s, nil
 }
 
 // Validate checks a schedule draft before it is persisted: a prompt and a
-// parseable cron are required, and provider/model are paired. Returns one of the
-// package's validation sentinels (or a [ValidateCron] error). Create/update call
+// parseable cron are required. Create/update call
 // it so the rule lives on the entity, not in the protocol adapter.
 func (s Schedule) Validate() error {
 	if s.Prompt == "" {
@@ -118,9 +135,6 @@ func (s Schedule) Validate() error {
 	}
 	if s.Cron == "" {
 		return ErrCronRequired
-	}
-	if (s.Provider == "") != (s.Model == "") {
-		return ErrIncompleteModelSelection
 	}
 	return ValidateCron(s.Cron)
 }

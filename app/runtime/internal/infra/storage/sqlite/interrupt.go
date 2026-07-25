@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // InterruptStore is the SQLite-backed durable open-interrupt registry for
@@ -64,7 +65,7 @@ func (s *InterruptStore) Put(ctx context.Context, p interrupts.Pending) error {
 		   drained_tools   = excluded.drained_tools,
 		   run_created_at  = excluded.run_created_at,
 		   created_at      = excluded.created_at`,
-		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.Provider, p.Model, string(payload), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
+		p.RunID, p.SessionID, p.TurnID, p.ProcessID, p.ModelSelection.Provider(), p.ModelSelection.Model(), string(payload), drained, p.RunCreatedAt.UnixNano(), p.CreatedAt.UnixNano(),
 	)
 	if err != nil {
 		return fmt.Errorf("sqlite: put interrupt: %w", err)
@@ -150,17 +151,24 @@ func (s *InterruptStore) Delete(ctx context.Context, runID string) error {
 func scanPending(row scanRow) (interrupts.Pending, error) {
 	var (
 		p            interrupts.Pending
+		provider     string
+		model        string
 		payload      string
 		drained      string
 		runCreatedNs int64
 		createdNs    int64
 	)
-	if err := row.Scan(&p.RunID, &p.SessionID, &p.TurnID, &p.ProcessID, &p.Provider, &p.Model, &payload, &drained, &runCreatedNs, &createdNs); err != nil {
+	if err := row.Scan(&p.RunID, &p.SessionID, &p.TurnID, &p.ProcessID, &provider, &model, &payload, &drained, &runCreatedNs, &createdNs); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return interrupts.Pending{}, err
 		}
 		return interrupts.Pending{}, fmt.Errorf("sqlite: scan interrupt: %w", err)
 	}
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt model selection: %w", err)
+	}
+	p.ModelSelection = selection
 	if payload != "" {
 		if err := json.Unmarshal([]byte(payload), &p.Interrupts); err != nil {
 			return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)

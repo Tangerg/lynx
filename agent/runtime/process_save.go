@@ -94,11 +94,6 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	if process, ok := e.Process(processID); ok {
 		sequenceKey = e.processTreeRootID(process)
 	}
-	releaseSave, err := e.processSaves.acquire(ctx, sequenceKey)
-	if err != nil {
-		return fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err)
-	}
-	defer releaseSave()
 	tree, err := e.discoverProcessTrees([]string{processID})
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Discard: %w", err)
@@ -119,6 +114,16 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	if err := tree.claim(); err != nil {
 		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
+	// An active Run owns its final automatic snapshot while it exits after Kill.
+	// Do not take this tree's persistence sequence until that Run has joined: it
+	// would otherwise wait for the sequence that Discard holds, turning teardown
+	// into a snapshot-timeout lock inversion.
+	releaseSave, err := e.processSaves.acquire(ctx, sequenceKey)
+	if err != nil {
+		tree.releaseClaims()
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err))
+	}
+	defer releaseSave()
 	if e.processStore != nil {
 		change := core.ProcessSnapshotChange{DeleteRoots: []string{processID}}
 		if err := e.processStore.Apply(ctx, change); err != nil {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -15,9 +16,18 @@ func usd(v float64) *float64 { return &v }
 func finishedRun(t *testing.T, provider, model string, at time.Time, usage transcript.Usage) transcript.Run {
 	t.Helper()
 	return transcript.Run{
-		ID: "run_x", Provider: provider, Model: model, State: execution.Completed,
+		ID: "run_x", ModelSelection: mustUsageSelection(t, provider, model), State: execution.Completed,
 		FinishedAt: at, Result: &transcript.RunResult{Usage: &usage},
 	}
+}
+
+func mustUsageSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func TestFoldRunFoldsAllDimensions(t *testing.T) {

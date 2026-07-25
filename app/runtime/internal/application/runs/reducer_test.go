@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -20,8 +22,25 @@ func testReducerConfig() reducerConfig {
 	now := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	return reducerConfig{
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1", Cwd: "/work",
-		TurnID: "turn_1", Provider: "anthropic", Model: "claude", CreatedAt: now,
+		TurnID: "turn_1", ModelSelection: mustReducerSelection("anthropic", "claude"), CreatedAt: now,
 		Now: func() time.Time { return now },
+	}
+}
+
+func TestReducerTerminalIncludesGoalTurnRecord(t *testing.T) {
+	config := testReducerConfig()
+	config.GoalLeaseID = "goal_lease"
+	reducer := newReducer(config)
+	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
+	reductions := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted, CostUSD: 0.75})
+	commit := reductions[len(reductions)-1].Commit
+	if commit == nil || commit.GoalTurn == nil {
+		t.Fatal("terminal commit did not carry goal turn accounting")
+	}
+	want := goal.TurnRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: execution.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
+	if got := *commit.GoalTurn; got != want {
+		t.Fatalf("GoalTurn = %+v", got)
 	}
 }
 
@@ -29,20 +48,41 @@ type unsupportedEngineEvent struct{ engineEventBase }
 
 func mustOpen(t *testing.T, reducer *reducer) []reduction {
 	t.Helper()
-	reductions, err := reducer.open()
+	batch, err := reducer.open()
 	if err != nil {
 		t.Fatalf("open reducer: %v", err)
 	}
-	return reductions
+	return testReductions(batch)
 }
 
 func mustReduce(t *testing.T, reducer *reducer, event EngineEvent) []reduction {
 	t.Helper()
-	reductions, err := reducer.reduce(event)
+	batch, err := reducer.reduce(event)
 	if err != nil {
 		t.Fatalf("reduce %T: %v", event, err)
 	}
-	return reductions
+	return testReductions(batch)
+}
+
+func mustReduceBatch(t *testing.T, reducer *reducer, event EngineEvent) reductionBatch {
+	t.Helper()
+	batch, err := reducer.reduce(event)
+	if err != nil {
+		t.Fatalf("reduce %T: %v", event, err)
+	}
+	return batch
+}
+
+// testReductions keeps the event-focused reducer tests concise. Production
+// code carries a park commit on reductionBatch rather than assigning it to an
+// arbitrary event; the test projection places it alongside the first event
+// only for older helpers that inspect durable item contents.
+func testReductions(batch reductionBatch) []reduction {
+	events := slices.Clone(batch.events)
+	if batch.parkCommit != nil && len(events) > 0 {
+		events[0].Commit = batch.parkCommit
+	}
+	return events
 }
 
 func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
@@ -55,7 +95,7 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 		t.Fatalf("opening reductions = %d, want segment + user item pair", len(opening))
 	}
 	started, ok := opening[0].Event.(SegmentStarted)
-	if !ok || started.Run.ID != "run_1" || started.Run.SessionID != "ses_1" || started.Run.Model != "claude" {
+	if !ok || started.Run.ID != "run_1" || started.Run.SessionID != "ses_1" || started.Run.ModelSelection.Model() != "claude" {
 		t.Fatalf("opening run = %#v", opening[0].Event)
 	}
 	itemStarted, ok := opening[1].Event.(ItemStarted)
@@ -72,6 +112,14 @@ func TestReducerOpeningCreatesCanonicalRunAndUserItem(t *testing.T) {
 	if again := mustOpen(t, reducer); len(again) != 1 {
 		t.Fatalf("second opening repeated user input: %+v", again)
 	}
+}
+
+func mustReducerSelection(provider, model string) modelref.Selection {
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }
 
 func TestReducerOwnsOpeningUserInput(t *testing.T) {
@@ -365,7 +413,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 
 func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	reduced := mustReduce(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
+	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
 		{Kind: ApprovalInterruptKind, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
 		}},
@@ -375,23 +423,17 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 		}},
 	}})
 
-	interruptReduction := -1
-	for i, reduction := range reduced {
-		if reduction.Interrupt {
-			if interruptReduction >= 0 {
-				t.Fatal("park has more than one atomic commit boundary")
-			}
-			interruptReduction = i
-		}
-	}
-	if interruptReduction < 0 {
+	if batch.parkCommit == nil {
 		t.Fatal("park has no atomic commit boundary")
 	}
-	first, ok := reduced[interruptReduction].Event.(ItemStarted)
-	if !ok || first.Item.SessionID != "ses_1" || interruptReduction != 0 {
-		t.Fatalf("atomic boundary event = %#v at %d, want first persisted interrupt item at batch start", reduced[interruptReduction].Event, interruptReduction)
+	if len(batch.events) == 0 {
+		t.Fatal("park has no events")
 	}
-	commit := reduced[interruptReduction].Commit
+	first, ok := batch.events[0].Event.(ItemStarted)
+	if !ok || first.Item.SessionID != "ses_1" {
+		t.Fatalf("first park event = %#v, want first persisted interrupt item", batch.events[0].Event)
+	}
+	commit := batch.parkCommit
 	if commit == nil || len(commit.Items) != 2 || commit.Run == nil || commit.Interrupt == nil || commit.State != StateSuspend {
 		t.Fatalf("park commit = %+v, want items + run + interrupt + suspend", commit)
 	}
@@ -400,7 +442,7 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 			t.Fatalf("persisted interrupt item = %+v", item)
 		}
 	}
-	if terminal := reduced[len(reduced)-1]; terminal.Commit != nil || terminal.Interrupt {
+	if terminal := batch.events[len(batch.events)-1]; terminal.Commit != nil {
 		t.Fatalf("terminal event repeated park commit: %+v", terminal)
 	}
 }
@@ -544,7 +586,7 @@ func TestReducerRejectsInvalidInterruptProjection(t *testing.T) {
 }
 
 func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
-	interruptCommit := func() *EventCommit {
+	parkCommit := func() *EventCommit {
 		run := transcript.Run{State: execution.Interrupted}
 		return &EventCommit{
 			State:     StateSuspend,
@@ -555,73 +597,42 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 	terminalCommit := func() *EventCommit {
 		outcome := execution.OutcomeCompleted
 		run := transcript.Run{State: execution.Completed, Outcome: &outcome}
-		return &EventCommit{
-			State:   StateTerminalize,
-			Outcome: outcome,
-			Run:     &run,
-		}
+		return &EventCommit{State: StateTerminalize, Outcome: outcome, Run: &run}
 	}
 	invalidTerminalCommit := terminalCommit()
 	invalidTerminalCommit.Run.State = execution.Failed
 	tests := []struct {
-		name       string
-		reductions []reduction
+		name  string
+		batch reductionBatch
 	}{
-		{
-			name:       "missing event",
-			reductions: []reduction{{}},
-		},
-		{
-			name: "terminal is not last",
-			reductions: []reduction{
-				{Event: SegmentFinished{}, Commit: terminalCommit()},
-				{Event: SegmentProgressed{}},
+		{name: "missing event", batch: reductionBatch{events: []reduction{{}}}},
+		{name: "terminal is not last", batch: reductionBatch{events: []reduction{
+			{Event: SegmentFinished{}, Commit: terminalCommit()},
+			{Event: SegmentProgressed{}},
+		}}},
+		{name: "terminal has no commit", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}}}}},
+		{name: "terminal lifecycle is inconsistent", batch: reductionBatch{events: []reduction{{Event: SegmentFinished{}, Commit: invalidTerminalCommit}}}},
+		{name: "commit state is unknown", batch: reductionBatch{events: []reduction{{
+			Event: ItemCompleted{}, Commit: &EventCommit{State: StateChange(255)},
+		}}}},
+		{name: "park has no terminal event", batch: reductionBatch{
+			events: []reduction{{Event: ItemStarted{}}}, parkCommit: parkCommit(),
+		}},
+		{name: "park event repeats a durable commit", batch: reductionBatch{
+			events: []reduction{
+				{Event: ItemStarted{}, Commit: new(EventCommit)},
+				{Event: SegmentFinished{}},
 			},
-		},
-		{
-			name:       "terminal has no commit",
-			reductions: []reduction{{Event: SegmentFinished{}}},
-		},
-		{
-			name:       "terminal lifecycle is inconsistent",
-			reductions: []reduction{{Event: SegmentFinished{}, Commit: invalidTerminalCommit}},
-		},
-		{
-			name: "commit state is unknown",
-			reductions: []reduction{{
-				Event:  ItemCompleted{},
-				Commit: &EventCommit{State: StateChange(255)},
-			}},
-		},
-		{
-			name: "interrupt marker is not first",
-			reductions: []reduction{
-				{Event: SegmentProgressed{}},
-				{Event: SegmentFinished{}, Commit: interruptCommit(), Interrupt: true},
-			},
-		},
-		{
-			name:       "interrupt has no commit",
-			reductions: []reduction{{Event: SegmentFinished{}, Interrupt: true}},
-		},
-		{
-			name: "interrupt has no terminal event",
-			reductions: []reduction{
-				{Event: ItemStarted{}, Commit: interruptCommit(), Interrupt: true},
-			},
-		},
-		{
-			name: "interrupt repeats a commit",
-			reductions: []reduction{
-				{Event: ItemStarted{}, Commit: interruptCommit(), Interrupt: true},
-				{Event: SegmentFinished{}, Commit: new(EventCommit)},
-			},
-		},
+			parkCommit: parkCommit(),
+		}},
+		{name: "park commit does not suspend", batch: reductionBatch{
+			events: []reduction{{Event: SegmentFinished{}}}, parkCommit: new(EventCommit),
+		}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := validateReductionBatch(test.reductions); !errors.Is(err, errReducerInvariant) {
+			if err := validateReductionBatch(test.batch); !errors.Is(err, errReducerInvariant) {
 				t.Fatalf("validateReductionBatch error = %v, want reducer invariant violation", err)
 			}
 		})

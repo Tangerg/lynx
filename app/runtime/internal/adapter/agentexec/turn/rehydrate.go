@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -14,7 +15,7 @@ import (
 // persisted turn handle and leaves the restored process parked so the run
 // coordinator can first establish the event owner and atomically accept the
 // continuation; [Resume] delivers the decision only after those gates succeed.
-func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateRequest) (TurnHandle, error) {
+func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (TurnHandle, error) {
 	if request.ProcessID == "" {
 		return TurnHandle{}, errors.New("turn: ProcessID is required")
 	}
@@ -41,18 +42,18 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request RehydrateReque
 	// the StartTurn path). No selection / no resolver / a provider since removed
 	// → nil client = engine default, and the span records "default".
 	var client *chatclient.Client
-	if request.Provider != "" && request.Model != "" && s.resolver != nil {
-		c, err := s.resolver.ResolveClient(state.ctx, request.Provider, request.Model)
+	if request.ModelSelection.Configured() && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(state.ctx, request.ModelSelection)
 		if err != nil {
 			state.cancel()
 			return TurnHandle{}, err
 		}
 		client = c
-		state.model = request.Model
-		state.provider = request.Provider
+		state.model = request.ModelSelection.Model()
 	} else {
 		state.model = "default"
 	}
+	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{dispatcher: s, st: state}
 	state.lifecycle = &turnLifecycle{

@@ -28,7 +28,7 @@ import (
 func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	dispatcher, _ := buildDispatcher(t)
 
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-1",
 		Message:   "say lyra via shell",
 	})
@@ -96,7 +96,7 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 
 func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turn.Dependencies{Engine: &slowStubEngine{}}))
-	handle, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-close",
 		Message:   "wait",
 	})
@@ -121,7 +121,7 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	if _, err := dispatcher.Events(context.Background(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("Events after Close = %v, want ErrTurnNotFound", err)
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrDispatcherClosed) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrDispatcherClosed) {
 		t.Fatalf("StartTurn after Close = %v, want ErrDispatcherClosed", err)
 	}
 	dispatcher.Close()
@@ -140,7 +140,7 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turnDeps(eng)))
 
 	// Turn 1.
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-steer",
 		Message:   "hi",
 	})
@@ -158,7 +158,7 @@ func TestDispatcher_InjectSteering_LandsInNextTurn(t *testing.T) {
 	turn1Msgs := stub.seenLengths[0]
 
 	// Turn 2 — should see (original user + assistant + steering + new user) = at least turn1Msgs+3.
-	handle2, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle2, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-steer",
 		Message:   "go on",
 	})
@@ -197,7 +197,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "sess-approve",
 		Message:        "echo lyra",
 		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
@@ -256,7 +256,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "sess-rmodel",
 		Message:        "echo lyra",
 		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
@@ -314,7 +314,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "sess-cancel-parked",
 		Message:        "echo lyra",
 		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
@@ -358,7 +358,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "sess-deny",
 		Message:        "echo lyra",
 		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
@@ -399,7 +399,7 @@ func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeYolo, nil)))))
 
-	handle, _ := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{
+	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-yolo",
 		Message:   "echo lyra",
 	})
@@ -416,27 +416,27 @@ func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 func TestDispatcher_StartTurn_Validation(t *testing.T) {
 	dispatcher, _ := buildDispatcher(t)
 
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{Message: "x"}); err == nil {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{Message: "x"}); err == nil {
 		t.Error("missing SessionID should error")
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s"}); err == nil {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s"}); err == nil {
 		t.Error("missing Message should error")
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxSteps: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxSteps: -1}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxSteps err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxCostUSD: -0.01}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxCostUSD: -0.01}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxCostUSD err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, turn.ErrInvalidTurnLimit) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", MaxBudget: -1}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
 		t.Fatalf("negative MaxBudget err = %v, want ErrInvalidTurnLimit", err)
 	}
 	opts := &chatmodel.Options{Model: "should-not-select-model-here"}
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, runs.ErrInvalidTurnOptions) {
 		t.Fatalf("Options.Model err = %v, want ErrInvalidTurnOptions", err)
 	}
 	maxTokens := int64(0)
-	if _, err := dispatcher.StartTurn(context.Background(), turn.StartTurnRequest{SessionID: "s", Message: "x", Options: &chatmodel.Options{MaxTokens: &maxTokens}}); !errors.Is(err, turn.ErrInvalidTurnOptions) {
+	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Options: &chatmodel.Options{MaxTokens: &maxTokens}}); !errors.Is(err, runs.ErrInvalidTurnOptions) {
 		t.Fatalf("MaxTokens=0 err = %v, want ErrInvalidTurnOptions", err)
 	}
 }

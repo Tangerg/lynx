@@ -11,13 +11,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
 type fakeRunSessions struct {
 	sess          session.Session
 	createdTitle  string
-	model         string
 	pending       map[string]interrupts.Pending
 	canceledRunID string
 	cancelReason  string
@@ -37,9 +37,10 @@ func (f *fakeRunSessions) Create(_ context.Context, title, cwd string) (session.
 	return f.sess, nil
 }
 
-func (f *fakeRunSessions) SetModel(_ context.Context, _ string, model string) error {
-	f.model = model
-	return nil
+func (f *fakeRunSessions) PrepareScheduled(_ context.Context, id, title, cwd string) (session.Session, error) {
+	f.createdTitle = title
+	f.sess = session.Session{ID: id, Cwd: cwd}
+	return f.sess, nil
 }
 
 func (f *fakeRunSessions) ListOpenInterrupts(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
@@ -161,6 +162,14 @@ func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions Ses
 	return NewCoordinator(deps)
 }
 
+func mustUseCaseSelection(provider, model string) modelref.Selection {
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		panic(err)
+	}
+	return selection
+}
+
 func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
@@ -171,10 +180,9 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	result, err := c.Start(context.Background(), StartCommand{
-		SessionID: "ses_1",
-		Provider:  "provider",
-		Model:     "model",
-		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+		SessionID:      "ses_1",
+		ModelSelection: mustUseCaseSelection("provider", "model"),
+		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -190,11 +198,10 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if !turns.activated || !activatedAfterOpening {
 		t.Fatalf("activated=%v activatedAfterOpening=%v", turns.activated, activatedAfterOpening)
 	}
-	if sessions.model != "model" {
-		t.Fatalf("recorded model = %q", sessions.model)
-	}
 	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
+	} else if opening.SessionModel == nil || opening.SessionModel.SessionID != "ses_1" || opening.SessionModel.Model != "model" {
+		t.Fatalf("opening session model = %+v, want ses_1/model", opening.SessionModel)
 	}
 }
 
@@ -215,6 +222,30 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	}
 	if exec.cancels() != 1 {
 		t.Fatalf("prepared turn cancels = %d, want 1", exec.cancels())
+	}
+}
+
+func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
+	for _, command := range []StartCommand{
+		{RunID: "run_1"},
+		{NewSessionID: "ses_1"},
+		{ScheduleFiring: "fire_1"},
+		{RunID: "run_1", NewSessionID: "ses_1", ScheduleFiring: "fire_1", SessionID: "ses_existing"},
+	} {
+		t.Run("partial", func(t *testing.T) {
+			exec := &fakeExecutor{}
+			turns := &fakeTurnControl{}
+			effects := &fakeEffects{}
+			sessions := &fakeRunSessions{sess: session.Session{ID: "ses_existing", Cwd: "/work"}}
+			command.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
+			_, err := newUseCaseCoordinator(exec, turns, sessions, effects).Start(t.Context(), command)
+			if !errors.Is(err, ErrInvalidScheduledStart) {
+				t.Fatalf("Start error = %v, want ErrInvalidScheduledStart", err)
+			}
+			if turns.started.SessionID != "" || len(effects.openings) != 0 {
+				t.Fatalf("partial scheduled identity reached side effects: turn=%+v openings=%d", turns.started, len(effects.openings))
+			}
+		})
 	}
 }
 

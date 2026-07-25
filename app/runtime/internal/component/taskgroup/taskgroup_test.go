@@ -2,6 +2,7 @@ package taskgroup
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -20,7 +21,9 @@ func TestGroupCloseCancelsAndWaits(t *testing.T) {
 	}
 	<-started
 
-	tasks.Close()
+	if err := tasks.Close(context.Background()); err != nil {
+		t.Fatalf("Close error = %v", err)
+	}
 	select {
 	case <-stopped:
 	case <-time.After(time.Second):
@@ -46,7 +49,9 @@ func TestGroupStartRacesClose(t *testing.T) {
 		}
 		closed := make(chan struct{})
 		go func() {
-			tasks.Close()
+			if err := tasks.Close(context.Background()); err != nil {
+				t.Errorf("Close error = %v", err)
+			}
 			close(closed)
 		}()
 		starters.Wait()
@@ -73,7 +78,9 @@ func TestGroupDetachesRequestCancellationAndKeepsValues(t *testing.T) {
 	if !<-result {
 		t.Fatal("task context did not detach cancellation while preserving values")
 	}
-	tasks.Close()
+	if err := tasks.Close(context.Background()); err != nil {
+		t.Fatalf("Close error = %v", err)
+	}
 }
 
 func TestGroupAttachIsCanceledByCloseAndReleaseIsIdempotent(t *testing.T) {
@@ -89,7 +96,9 @@ func TestGroupAttachIsCanceledByCloseAndReleaseIsIdempotent(t *testing.T) {
 		release()
 		close(done)
 	}()
-	tasks.Close()
+	if err := tasks.Close(context.Background()); err != nil {
+		t.Fatalf("Close error = %v", err)
+	}
 	select {
 	case <-done:
 	case <-time.After(time.Second):
@@ -114,5 +123,30 @@ func TestGroupAttachLinkedKeepsParentCancellation(t *testing.T) {
 		t.Fatal("linked context ignored parent cancellation")
 	}
 	release()
-	tasks.Close()
+	if err := tasks.Close(context.Background()); err != nil {
+		t.Fatalf("Close error = %v", err)
+	}
+}
+
+func TestGroupWaitReportsCallerDeadlineForUncooperativeTask(t *testing.T) {
+	var tasks Group
+	started := make(chan struct{})
+	allowReturn := make(chan struct{})
+	if !tasks.Start(context.Background(), func(context.Context) {
+		close(started)
+		<-allowReturn
+	}) {
+		t.Fatal("Start rejected before Close")
+	}
+	<-started
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := tasks.Close(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Close error = %v, want context.Canceled", err)
+	}
+	close(allowReturn)
+	if err := tasks.Wait(context.Background()); err != nil {
+		t.Fatalf("Wait after task return = %v", err)
+	}
 }

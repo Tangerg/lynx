@@ -32,17 +32,19 @@ func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg c
 // over the config file. An empty / identical-to-main UtilityModel seeds
 // nothing (maintenance then runs on the main model).
 func SeedUtilityRole(ctx context.Context, store UtilityRoleStore, cfg config.Config) error {
-	if _, model, err := store.LoadUtilityRole(ctx); err != nil {
+	role, err := store.LoadUtilityRole(ctx)
+	if err != nil {
 		return err
-	} else if model != "" {
+	}
+	if role.Configured() {
 		return nil
 	}
 	if cfg.UtilityModel == "" || cfg.UtilityModel == cfg.Model {
 		return nil
 	}
-	role, err := modelrole.New(cfg.Provider, cfg.UtilityModel)
+	role, err = modelrole.New(cfg.Provider, cfg.UtilityModel)
 	if err != nil {
 		return err
 	}
-	return store.SaveUtilityRole(ctx, role.ProviderID(), role.Model())
+	return store.SaveUtilityRole(ctx, role)
 }

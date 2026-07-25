@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 )
 
 // EmbeddingRoleStore persists the global embedding-model role — the (provider,
@@ -19,14 +21,14 @@ func NewEmbeddingRoleStore(db *sql.DB) *EmbeddingRoleStore {
 	return &EmbeddingRoleStore{store: newRoleStore(db, "embedding_role", "embedding role")}
 }
 
-// LoadEmbeddingRole returns the stored (provider, model); both empty when unset
-// (no row yet) — the index feature is then off until one is configured.
-func (s *EmbeddingRoleStore) LoadEmbeddingRole(ctx context.Context) (provider, model string, err error) {
+// LoadEmbeddingRole returns the stored role, or its zero value when unset (no
+// row yet) — the index feature is then off until one is configured.
+func (s *EmbeddingRoleStore) LoadEmbeddingRole(ctx context.Context) (modelrole.Role, error) {
 	return s.store.load(ctx)
 }
 
-// SaveEmbeddingRole upserts the single embedding-role row. An empty model
-// clears the role (turns the index feature off).
-func (s *EmbeddingRoleStore) SaveEmbeddingRole(ctx context.Context, provider, model string) error {
-	return s.store.save(ctx, provider, model)
+// SaveEmbeddingRole upserts the single embedding-role row. A zero role clears
+// it (turns the index feature off).
+func (s *EmbeddingRoleStore) SaveEmbeddingRole(ctx context.Context, role modelrole.Role) error {
+	return s.store.save(ctx, role)
 }

@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-func TestStartTurnRequestSnapshotOwnsProtocolValues(t *testing.T) {
+func TestSnapshotStartTurnOwnsProtocolValues(t *testing.T) {
 	t.Parallel()
 
 	image, err := media.NewBytes("image/png", []byte{1, 2, 3})
@@ -16,7 +16,7 @@ func TestStartTurnRequestSnapshotOwnsProtocolValues(t *testing.T) {
 		t.Fatalf("media.NewBytes: %v", err)
 	}
 	temperature := 0.7
-	request := StartTurnRequest{
+	request := runs.StartTurn{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          []*media.Media{image},
@@ -24,7 +24,7 @@ func TestStartTurnRequestSnapshotOwnsProtocolValues(t *testing.T) {
 		InterruptKinds: []runs.InterruptKind{runs.ApprovalInterruptKind},
 	}
 
-	snapshot := request.snapshot()
+	snapshot := snapshotStartTurn(request)
 	*request.Options.Temperature = 1.4
 	request.Options.Stop[0] = "changed"
 	request.Media[0].Source.Bytes[0] = 9

@@ -17,7 +17,7 @@ func TestSetUtilityRoleUsesSaverPort(t *testing.T) {
 	saver := &fakeUtilityRoleSaver{}
 	c := New(Config{UtilityRoleState: state, UtilityStore: saver})
 
-	if _, err := c.SetUtilityRole(context.Background(), "anthropic", ""); err != nil {
+	if _, err := c.SetUtilityRole(context.Background(), "", ""); err != nil {
 		t.Fatalf("SetUtilityRole err = %v", err)
 	}
 
@@ -96,7 +96,7 @@ func TestSetEmbeddingRoleUsesSaverPort(t *testing.T) {
 	saver := &fakeEmbeddingRoleSaver{}
 	c := New(Config{EmbeddingRoleState: state, EmbeddingStore: saver})
 
-	if _, err := c.SetEmbeddingRole(context.Background(), "openai", ""); err != nil {
+	if _, err := c.SetEmbeddingRole(context.Background(), "", ""); err != nil {
 		t.Fatalf("SetEmbeddingRole err = %v", err)
 	}
 
@@ -159,7 +159,7 @@ func TestSetEmbeddingRoleSerializesPersistAndPublish(t *testing.T) {
 	assertRoleMutationSerializesPersistAndPublish(t, state, saver.blockingRoleSaver, c.SetEmbeddingRole)
 }
 
-type roleMutation func(context.Context, string, string) (Role, error)
+type roleMutation func(context.Context, string, string) (modelrole.Role, error)
 
 func assertRoleMutationSerializesPersistAndPublish(t *testing.T, state *RoleState, saver *blockingRoleSaver, setRole roleMutation) {
 	t.Helper()
@@ -203,10 +203,10 @@ type fakeUtilityRoleSaver struct {
 	calls    int
 }
 
-func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, provider, model string) error {
+func (s *fakeUtilityRoleSaver) SaveUtilityRole(_ context.Context, role modelrole.Role) error {
 	s.calls++
-	s.provider = provider
-	s.model = model
+	s.provider = role.ProviderID()
+	s.model = role.Model()
 	return nil
 }
 
@@ -228,10 +228,10 @@ type fakeEmbeddingRoleSaver struct {
 	calls    int
 }
 
-func (s *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, provider, model string) error {
+func (s *fakeEmbeddingRoleSaver) SaveEmbeddingRole(_ context.Context, role modelrole.Role) error {
 	s.calls++
-	s.provider = provider
-	s.model = model
+	s.provider = role.ProviderID()
+	s.model = role.Model()
 	return nil
 }
 
@@ -300,8 +300,8 @@ func newBlockingUtilitySaver() *blockingUtilitySaver {
 	return &blockingUtilitySaver{blockingRoleSaver: newBlockingRoleSaver()}
 }
 
-func (s *blockingUtilitySaver) SaveUtilityRole(_ context.Context, _, model string) error {
-	s.save(model)
+func (s *blockingUtilitySaver) SaveUtilityRole(_ context.Context, role modelrole.Role) error {
+	s.save(role.Model())
 	return nil
 }
 
@@ -311,7 +311,7 @@ func newBlockingEmbeddingSaver() *blockingEmbeddingSaver {
 	return &blockingEmbeddingSaver{blockingRoleSaver: newBlockingRoleSaver()}
 }
 
-func (s *blockingEmbeddingSaver) SaveEmbeddingRole(_ context.Context, _, model string) error {
-	s.save(model)
+func (s *blockingEmbeddingSaver) SaveEmbeddingRole(_ context.Context, role modelrole.Role) error {
+	s.save(role.Model())
 	return nil
 }

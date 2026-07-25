@@ -62,11 +62,8 @@ func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending)
 	if pending.TurnID == "" {
 		return fmt.Errorf("sqlite: validate parked run %q: turn id is required", active.runID)
 	}
-	if (pending.Provider == "") != (pending.Model == "") {
-		return fmt.Errorf("sqlite: validate parked run %q: provider and model must both be set or both be empty", active.runID)
-	}
-	if active.provider != pending.Provider || active.model != pending.Model {
-		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.provider, active.model, pending.Provider, pending.Model)
+	if active.modelSelection != pending.ModelSelection {
+		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.modelSelection.Provider(), active.modelSelection.Model(), pending.ModelSelection.Provider(), pending.ModelSelection.Model())
 	}
 	return nil
 }
@@ -84,8 +81,8 @@ func (active nonTerminalRun) validateParkedTranscript(run transcript.Run, pendin
 	if run.State != execution.Interrupted || run.Outcome != nil || run.Result != nil || !run.FinishedAt.IsZero() || run.MessageMark != -1 {
 		return fmt.Errorf("sqlite: validate parked run %q: invalid interrupted transcript boundary", active.runID)
 	}
-	if run.Provider != pending.Provider || run.Model != pending.Model {
-		return fmt.Errorf("sqlite: validate parked run %q: transcript model %q/%q differs from interrupt model %q/%q", active.runID, run.Provider, run.Model, pending.Provider, pending.Model)
+	if run.ModelSelection != pending.ModelSelection {
+		return fmt.Errorf("sqlite: validate parked run %q: transcript model %q/%q differs from interrupt model %q/%q", active.runID, run.ModelSelection.Provider(), run.ModelSelection.Model(), pending.ModelSelection.Provider(), pending.ModelSelection.Model())
 	}
 	if !run.CreatedAt.Equal(pending.RunCreatedAt) {
 		return fmt.Errorf("sqlite: validate parked run %q: transcript and interrupt creation times differ", active.runID)

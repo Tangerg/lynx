@@ -161,15 +161,15 @@ type segmentPublisher struct {
 // publish validates a complete batch before any side effect, then commits every
 // durable fact before appending its event. published=false without an error
 // means cancellation won the interrupt-commit race.
-func (p segmentPublisher) publish(ctx context.Context, reductions []reduction) (reductionPublication, error) {
-	if err := validateReductionBatch(reductions); err != nil {
+func (p segmentPublisher) publish(ctx context.Context, batch reductionBatch) (reductionPublication, error) {
+	if err := validateReductionBatch(batch); err != nil {
 		return reductionPublication{}, err
 	}
-	if len(reductions) > 0 && reductions[0].Interrupt {
-		return p.publishInterrupt(ctx, reductions)
+	if batch.parkCommit != nil {
+		return p.publishPark(ctx, batch)
 	}
 	publication := reductionPublication{published: true}
-	for _, reduced := range reductions {
+	for _, reduced := range batch.events {
 		// Commit before publish: a durable event's atomic commit (for a terminal,
 		// recording the run + terminalizing the run-state) lands before the event
 		// is delivered or retained for replay, so a subscriber never observes an
@@ -188,17 +188,17 @@ func (p segmentPublisher) publish(ctx context.Context, reductions []reduction) (
 	return publication, nil
 }
 
-func (p segmentPublisher) publishInterrupt(ctx context.Context, reductions []reduction) (reductionPublication, error) {
+func (p segmentPublisher) publishPark(ctx context.Context, batch reductionBatch) (reductionPublication, error) {
 	// Park is a batch boundary, not one event: commit every transcript
 	// projection + the open interrupt + Suspend, then publish the complete
 	// batch under one reserved boundary. A cancellation therefore observes
 	// either no park or the complete park and cancels + joins an in-flight
 	// durable commit without waiting on a mutex held across I/O.
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
-		if err := p.coordinator.effects.CommitEvent(interruptCtx, *reductions[0].Commit); err != nil {
+		if err := p.coordinator.effects.CommitEvent(interruptCtx, *batch.parkCommit); err != nil {
 			return err
 		}
-		for _, reduced := range reductions {
+		for _, reduced := range batch.events {
 			p.append(reduced)
 		}
 		return nil

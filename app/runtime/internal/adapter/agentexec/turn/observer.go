@@ -28,11 +28,18 @@ import (
 // loop signal while still tolerating a normal retry or two.
 const doomLoopThreshold = 3
 
-// turnObserver bridges the engine's tool observer to the turn's event
-// channel. Each Approve / Start / End notification is translated into a
-// ToolCallStart / ToolCallEnd event so transport adapters surface them
-// verbatim.
+// turnObserver projects the engine's post-gate tool lifecycle and streaming
+// notifications onto the turn's event channel. Approval policy lives in
+// toolGate so event projection cannot accidentally own a pre-execution rule.
 type turnObserver struct {
+	dispatcher *memoryDispatcher
+	st         *turnState
+}
+
+// toolGate owns the pre-execution protocol for one tool call: hook input,
+// standing policy, remembered decisions, HITL suspension, and the doom-loop
+// brake. It deliberately does not project tool events or post-tool hooks.
+type toolGate struct {
 	dispatcher *memoryDispatcher
 	st         *turnState
 }
@@ -56,6 +63,10 @@ type turnObserver struct {
 // is re-presented on resume. This is the one interrupt mental model shared by
 // every HITL flavor.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
+	return (&toolGate{dispatcher: t.dispatcher, st: t.st}).ApproveToolCall(ctx, callID, toolName, arguments, target)
+}
+
+func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
 	// task is pure orchestration. Its child tools are independently observed and
 	// gated, while SubagentStart/SubagentStop own the task lifecycle hooks.
 	// Running tool hooks or approval for task itself would double-count the
@@ -195,7 +206,7 @@ func shellCommandFromArguments(toolName, raw string) string {
 // on denial it also receives recoverable feedback and must change approach. No
 // standing rule is consulted or recorded — this is a one-off brake, not a
 // persistent permission.
-func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName, arguments string, safetyClass tool.SafetyClass) agentexec.ToolApprovalVerdict {
+func (t *toolGate) doomLoopEscalation(ctx context.Context, callID, toolName, arguments string, safetyClass tool.SafetyClass) agentexec.ToolApprovalVerdict {
 	t.st.resetDoomLoop()
 	res, err := t.awaitApproval(ctx, toolName, arguments, runs.ApprovalPrompt{
 		CallID:      callID,
@@ -212,7 +223,7 @@ func (t *turnObserver) doomLoopEscalation(ctx context.Context, callID, toolName,
 	return approvalResolutionVerdict(res, arguments)
 }
 
-func (t *turnObserver) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupts.Resolution, error) {
+func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupts.Resolution, error) {
 	pending := runs.Interrupt{Kind: runs.ApprovalInterruptKind, Approval: &prompt}
 	if err := pending.Validate(); err != nil {
 		return interrupts.Resolution{}, fmt.Errorf("turn: build approval interrupt: %w", err)
@@ -220,7 +231,7 @@ func (t *turnObserver) awaitApproval(ctx context.Context, toolName, arguments st
 	return suspension.Interrupt(ctx, interrupts.InterruptKey(string(runs.ApprovalInterruptKind), toolName, arguments), pending)
 }
 
-func (t *turnObserver) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
+func (t *toolGate) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
 	if resolution.RememberScope == "" || t.dispatcher.approval == nil {
 		return nil
 	}
@@ -280,7 +291,7 @@ func fileMutationScope(reporter tools.FileMutationReporter, arguments, cwd strin
 // this tool. Approval responses terminate the gate directly; question
 // responses restore the effective arguments and let the question tool consume
 // the same response at its hitl.Interrupt call site.
-func (t *turnObserver) resumedToolVerdict(ctx context.Context, toolName string) (agentexec.ToolApprovalVerdict, bool) {
+func (t *toolGate) resumedToolVerdict(ctx context.Context, toolName string) (agentexec.ToolApprovalVerdict, bool) {
 	process := core.ProcessViewFrom(ctx)
 	if process == nil {
 		return agentexec.ToolApprovalVerdict{}, false

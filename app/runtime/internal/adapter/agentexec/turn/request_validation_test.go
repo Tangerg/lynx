@@ -5,11 +5,11 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-func TestStartTurnRequestValidateDelegatesCoreOptions(t *testing.T) {
+func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -29,12 +29,12 @@ func TestStartTurnRequestValidateDelegatesCoreOptions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (turn.StartTurnRequest{
+			err := (runs.StartTurn{
 				SessionID: "session",
 				Message:   "hello",
 				Options:   &test.options,
 			}).Validate()
-			if !errors.Is(err, turn.ErrInvalidTurnOptions) {
+			if !errors.Is(err, runs.ErrInvalidTurnOptions) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidTurnOptions", err)
 			}
 			if !errors.Is(err, corechat.ErrInvalidOptions) {

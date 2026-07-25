@@ -21,6 +21,7 @@ func TestPumpStreamStopsWhenCallCanceledUnderBackpressure(t *testing.T) {
 	tp := &Transport{
 		in:    make(chan transport.Message, 1),
 		close: make(chan struct{}),
+		done:  make(chan struct{}),
 	}
 	tp.in <- blocker
 
@@ -51,7 +52,8 @@ func TestPumpStreamStopsWhenCallCanceledUnderBackpressure(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("stream pump remained blocked on Recv after its call context was canceled")
 	}
-	if err := tp.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	tp.BeginShutdown()
+	if err := tp.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("AwaitShutdown: %v", err)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
@@ -148,6 +149,56 @@ func TestAutoSnapshotPersistsCancellationWithDetachedContext(t *testing.T) {
 	}
 	if snapshot.Status != core.StatusKilled {
 		t.Fatalf("snapshot status = %s, want killed", snapshot.Status)
+	}
+}
+
+// TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock pins the
+// teardown ordering between Discard and an active Run's final automatic
+// snapshot. Discard must first cancel and join the Run; otherwise the Run waits
+// for the save sequence held by Discard while Discard waits for the Run.
+func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *testing.T) {
+	entered := make(chan struct{})
+	a := agent.New(agent.AgentConfig{
+		Name: "discard-active-snapshot",
+		Actions: []agent.Action{agent.NewAction("block", func(ctx context.Context, _ *core.ProcessContext, _ word) (wordCount, error) {
+			close(entered)
+			<-ctx.Done()
+			return wordCount{}, ctx.Err()
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "never reached"})},
+	})
+	store := storetest.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:                 "discard-active-snapshot",
+		ProcessStore:            store,
+		AutoSnapshot:            true,
+		SnapshotFinalizeTimeout: time.Second,
+	})
+	mustDeploy(t, engine, a)
+	process, done, err := engine.Start(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("process action did not start")
+	}
+	discardCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err := engine.Discard(discardCtx, process.ID()); err != nil {
+		t.Fatalf("Discard: %v", err)
+	}
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("discard did not join active run")
+	}
+	if _, live := engine.Process(process.ID()); live {
+		t.Fatal("discarded process remains live")
+	}
+	if _, err := store.Load(t.Context(), process.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("discarded snapshot load error = %v, want ErrSnapshotNotFound", err)
 	}
 }
 

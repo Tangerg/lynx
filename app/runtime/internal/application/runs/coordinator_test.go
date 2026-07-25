@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // These fakes exercise the application-owned reducer and journal. Delivery
@@ -160,9 +161,17 @@ func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
 func testSegment() segmentSpec {
 	return segmentSpec{
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1",
-		TurnID: "turn_1", Provider: "openai", Model: "model",
+		TurnID: "turn_1", ModelSelection: mustSelection("openai", "model"),
 		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
 	}
+}
+
+func mustSelection(provider, model string) modelref.Selection {
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		panic(err)
+	}
+	return selection
 }
 
 func testAdmittedSegment(t *testing.T, c *Coordinator, spec segmentSpec) segmentSpec {

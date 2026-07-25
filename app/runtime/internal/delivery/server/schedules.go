@@ -7,6 +7,7 @@ import (
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -40,14 +41,17 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	if !s.features.schedules {
 		return nil, capabilityNotNegotiated("schedules.create")
 	}
+	selection, err := modelref.New(in.Provider, in.Model)
+	if err != nil {
+		return nil, mapScheduleErr(err, "schedules.create", "")
+	}
 	created, err := s.schedules.Create(ctx, scheduleapp.CreateCommand{
-		Title:    in.Title,
-		Prompt:   in.Prompt,
-		Cwd:      in.Cwd,
-		Provider: in.Provider,
-		Model:    in.Model,
-		Cron:     in.Cron,
-		Enabled:  true,
+		Title:          in.Title,
+		Prompt:         in.Prompt,
+		Cwd:            in.Cwd,
+		ModelSelection: selection,
+		Cron:           in.Cron,
+		Enabled:        true,
 	})
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
@@ -126,7 +130,7 @@ func mapScheduleErr(err error, method, id string) error {
 		errors.Is(err, schedule.ErrRevisionRequired) ||
 		errors.Is(err, schedule.ErrPromptRequired) ||
 		errors.Is(err, schedule.ErrCronRequired) ||
-		errors.Is(err, schedule.ErrIncompleteModelSelection) ||
+		errors.Is(err, modelref.ErrIncomplete) ||
 		errors.Is(err, schedule.ErrInvalidCron) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
@@ -141,8 +145,8 @@ func scheduleToWire(sc schedule.Schedule) protocol.Schedule {
 		Title:     sc.Title,
 		Prompt:    sc.Prompt,
 		Cwd:       sc.Cwd,
-		Provider:  sc.Provider,
-		Model:     sc.Model,
+		Provider:  sc.ModelSelection.Provider(),
+		Model:     sc.ModelSelection.Model(),
 		Cron:      sc.Cron,
 		Enabled:   sc.Enabled,
 		CreatedAt: sc.CreatedAt,

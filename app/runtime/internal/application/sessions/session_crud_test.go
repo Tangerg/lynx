@@ -35,6 +35,10 @@ func (s *crudSessionStore) Create(_ context.Context, title, cwd string) (session
 	return session.Session{ID: "ses_created", Title: title, Cwd: cwd}, nil
 }
 
+func (s *crudSessionStore) Ensure(_ context.Context, sess session.Session) (session.Session, error) {
+	return sess, nil
+}
+
 func (*crudSessionStore) Children(context.Context, string) ([]session.Session, error) {
 	return nil, nil
 }

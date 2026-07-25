@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -19,8 +20,7 @@ type Run struct {
 	SessionID       string
 	ID              string
 	SpawnedByItemID string
-	Provider        string
-	Model           string
+	ModelSelection  modelref.Selection
 	State           execution.RunState
 	Outcome         *execution.Outcome
 	Result          *RunResult

@@ -27,7 +27,7 @@ func (r *ClientResolver) UtilityClient(main *chatclient.Client, roles RoleSource
 		if !role.Configured() {
 			return main
 		}
-		client, err := r.ResolveClient(ctx, role.ProviderID(), role.Model())
+		client, err := r.ResolveClient(ctx, role.Selection())
 		if err != nil || client == nil {
 			return main
 		}
@@ -55,7 +55,7 @@ func (r *RoleEmbedder) Resolve(ctx context.Context) (codebaseindex.Embedder, err
 	if !role.Configured() {
 		return nil, codebaseindex.ErrNoEmbeddingModel
 	}
-	return r.resolver.Resolve(ctx, role.ProviderID(), role.Model())
+	return r.resolver.Resolve(ctx, role.Selection())
 }
 
 // ResolveMemory adapts the same live embedder to agent-memory search.

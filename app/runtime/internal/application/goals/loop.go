@@ -17,28 +17,57 @@ import (
 
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
-// launch spawns the loop for sessionID, canceling any prior loop for the same
-// session first. The loop runs request-detached (task group) so it outlives the
-// call that started it and is canceled by Stop or shutdown.
-func (d *Driver) launch(parent context.Context, sessionID, leaseID string) {
+// launchLocked attaches exactly one loop to an already-accepted active goal.
+// Callers hold mutations.commands, which is also held by BeginShutdown; that
+// linearizes the durable active transition with task-group admission.
+func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string) {
 	ctx, release, ok := d.tasks.Attach(parent)
 	if !ok {
-		return // shutting down
+		panic("goals: accepted an active goal after driver shutdown")
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	handle := &loopHandle{cancel: cancel}
+	handle := &loopHandle{leaseID: leaseID, cancel: cancel}
 
 	d.mutations.launch(sessionID, handle)
 
 	go func() {
-		defer release()
-		defer d.forget(sessionID, handle)
 		d.drive(ctx, sessionID, leaseID)
+		d.forget(sessionID, handle)
+		release()
+		d.restoreDrive(ctx, sessionID, leaseID)
 	}()
 }
 
 func (d *Driver) forget(sessionID string, handle *loopHandle) {
 	d.mutations.forget(sessionID, handle)
+}
+
+// ensureDriveLocked restores the in-process side of an authoritative active
+// goal. It is used after a command discovers an active row and by Stop's
+// failed-write recovery. The caller holds mutations.commands.
+func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID string) {
+	if d.closed || d.mutations.driving(sessionID, leaseID) {
+		return
+	}
+	d.launchLocked(ctx, sessionID, leaseID)
+}
+
+// restoreDrive closes the gap between a loop ending and a durable state change.
+// A loop may lose a CAS or a store write after a run has completed; it must not
+// turn the still-active durable intent into an orphan. This performs one fresh
+// authoritative read and only attaches a replacement for the same lease. It is
+// not a retry policy: a durable non-active transition always wins immediately.
+func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string) {
+	d.mutations.lock()
+	defer d.mutations.unlock()
+	if d.closed {
+		return
+	}
+	g, ok, err := d.goals.Get(detached(ctx), sessionID)
+	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
+		return
+	}
+	d.ensureDriveLocked(detached(ctx), sessionID, leaseID)
 }
 
 // drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
@@ -104,6 +133,15 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	}
 
 	finished := drainTerminal(result.Events)
+	if finished != nil {
+		if outcome, terminalErr := outcomeOf(finished); terminalErr == nil {
+			span.SetAttributes(
+				attribute.String("run.outcome", outcome.String()),
+				attribute.Float64("goal.cost_usd", turnCost(finished)),
+				attribute.Int("goal.steps", turnSteps(finished)),
+			)
+		}
+	}
 
 	// Re-read: the model may have set complete/blocked mid-turn via update_goal.
 	reread, ok, err := d.goals.Get(ctx, g.SessionID)
@@ -142,7 +180,6 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		return dispPaused
 	}
 
-	cost, steps := turnUsage(finished)
 	outcome, err := outcomeOf(finished)
 	if err != nil {
 		span.RecordError(err)
@@ -153,27 +190,13 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	}
 	span.SetAttributes(
 		attribute.String("run.outcome", outcome.String()),
-		attribute.Float64("goal.cost_usd", cost),
-		attribute.Int("goal.steps", steps),
+		attribute.Float64("goal.cost_usd", turnCost(finished)),
+		attribute.Int("goal.steps", turnSteps(finished)),
 	)
-	g.AddTurn(cost, steps, d.now())
-
-	if outcome != execution.OutcomeCompleted {
-		g.Pause(goal.ReasonRunNotCompleted, outcome.String(), d.now())
-		d.save(ctx, *g)
-		return dispPaused
-	}
-	if limit, over := g.Budget.Exceeded(g.Used); over {
-		g.Block(reasonForBudgetLimit(limit), "", d.now())
-		d.save(ctx, *g)
-		return dispBlocked
-	}
-	if !d.checkpoint(ctx, *g) {
-		// The goal was superseded or cleared out from under this loop (a
-		// Stop/Start or a session delete/rollback revoked the lease); stop
-		// rather than drive a goal we no longer own.
-		return ""
-	}
+	// The terminal Run transaction has already recorded this turn's usage (and
+	// derived any pause/block) under the goal lease. Do not reconstruct that
+	// durable fact from the stream: a failed post-hoc checkpoint can otherwise
+	// start an extra run against an undercounted budget.
 	return dispContinue
 }
 
@@ -183,9 +206,8 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 // gates tools — yolo runs everything, a stricter stance keeps the agent read-only).
 func (d *Driver) command(g goal.Goal) runs.StartCommand {
 	return runs.StartCommand{
-		SessionID: g.SessionID,
-		Provider:  g.Provider,
-		Model:     g.Model,
+		SessionID:      g.SessionID,
+		ModelSelection: g.ModelSelection,
 		Input: []transcript.ContentBlock{{
 			Kind: transcript.TextContent,
 			Text: d.prompt(PromptInput{
@@ -198,19 +220,6 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
 		// complete/blocked — its lease no longer matches.
 		GoalLeaseID: g.LeaseID,
-	}
-}
-
-func reasonForBudgetLimit(limit goal.BudgetLimit) goal.ReasonCause {
-	switch limit {
-	case goal.BudgetLimitTurns:
-		return goal.ReasonTurnBudgetReached
-	case goal.BudgetLimitCost:
-		return goal.ReasonCostBudgetReached
-	case goal.BudgetLimitSteps:
-		return goal.ReasonStepBudgetReached
-	default:
-		return goal.ReasonNone
 	}
 }
 
@@ -236,14 +245,14 @@ func outcomeOf(run *transcript.Run) (execution.Outcome, error) {
 	return *run.Outcome, nil
 }
 
-func turnUsage(run *transcript.Run) (costUSD float64, steps int) {
+func turnCost(run *transcript.Run) float64 {
 	if run.Result == nil {
-		return 0, 0
+		return 0
 	}
 	if run.Result.Usage != nil && run.Result.Usage.CostUSD != nil {
-		costUSD = *run.Result.Usage.CostUSD
+		return *run.Result.Usage.CostUSD
 	}
-	return costUSD, run.Result.Steps
+	return 0
 }
 
 // save / clear persist the loop's TERMINAL state even when ctx was canceled by
@@ -265,22 +274,11 @@ func (d *Driver) clear(ctx context.Context, g goal.Goal) {
 	recordSaveError(ctx, err)
 }
 
-// checkpoint persists mid-loop usage progress and reports whether the loop still
-// owns the goal. It HONORS ctx and CAS-guards on the loop's version: a
-// concurrent Stop/Start (lease renewal) or session delete (goal cleared) makes
-// the CAS not apply, and the caller stops driving. A ctx cancellation here is the
-// expected Stop path (the loop is being torn down), not an error worth recording.
-func (d *Driver) checkpoint(ctx context.Context, g goal.Goal) (owned bool) {
-	expected := g.Version()
-	g.AdvanceRevision()
-	applied, err := d.goals.Save(ctx, g, expected)
-	if err != nil {
-		if ctx.Err() == nil {
-			recordSaveError(ctx, err)
-		}
-		return false
+func turnSteps(run *transcript.Run) int {
+	if run.Result == nil {
+		return 0
 	}
-	return applied
+	return run.Result.Steps
 }
 
 func detached(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }

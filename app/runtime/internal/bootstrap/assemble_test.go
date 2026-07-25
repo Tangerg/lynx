@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -19,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -140,7 +140,7 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		toolClosed     atomic.Int32
 		resourceClosed atomic.Int32
 	)
-	cfg.Resources = []io.Closer{closerFunc(func() error {
+	cfg.Resources = []ShutdownResource{closerFunc(func() error {
 		resourceClosed.Add(1)
 		return nil
 	})}
@@ -161,10 +161,10 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		built.closers = append(built.closers, func() error {
+		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
-		})
+		}))
 		return built, nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "BuildID") {
@@ -175,6 +175,66 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 	}
 	if got := resourceClosed.Load(); got != 0 {
 		t.Fatalf("caller resource closer calls = %d, want 0 before successful ownership transfer", got)
+	}
+}
+
+func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	// Fail after tools exist, then make the last tool closer fail once. The
+	// failed Host must retain the same shutdown.Step so a retry continues the
+	// dependency-ordered teardown instead of silently abandoning it.
+	cfg.Engine.BuildID = "dev"
+	closeErr := errors.New("tool close")
+	var attempts, resourceClosed atomic.Int32
+	cfg.Resources = []ShutdownResource{closerFunc(func() error {
+		resourceClosed.Add(1)
+		return nil
+	})}
+
+	failedHost, err := assemble(t.Context(), cfg, func(
+		ctx context.Context,
+		cfg Config,
+		ecfg agentexec.Config,
+		policy *approval.RuntimePolicy,
+		mcpEnv mcpEnvironment,
+		index toolset.CodebaseIndex,
+		searcher *agentmemory.Searcher,
+		scheduleCoord *scheduleapp.Coordinator,
+		goalState *goals.State,
+		skillStore *skillauthoring.Store,
+	) (toolEnvironment, error) {
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, index, searcher, scheduleCoord, goalState, skillStore)
+		if err != nil {
+			return toolEnvironment{}, err
+		}
+		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
+			if attempts.Add(1) == 1 {
+				return closeErr
+			}
+			return nil
+		}))
+		return built, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "BuildID") || !errors.Is(err, closeErr) {
+		t.Fatalf("assemble error = %v, want joined engine and tool-close errors", err)
+	}
+	if failedHost.lifetime == nil {
+		t.Fatal("failed assembly returned no owner for incomplete tool teardown")
+	}
+	if got := attempts.Load(); got != 1 {
+		t.Fatalf("tool close attempts after assemble = %d, want 1", got)
+	}
+	if got := resourceClosed.Load(); got != 0 {
+		t.Fatalf("resource closer calls before rollback completes = %d, want 0", got)
+	}
+	if err := failedHost.Close(); err != nil {
+		t.Fatalf("retry failed-host Close: %v", err)
+	}
+	if got := attempts.Load(); got != 2 {
+		t.Fatalf("tool close attempts after retry = %d, want 2", got)
+	}
+	if got := resourceClosed.Load(); got != 1 {
+		t.Fatalf("resource closer calls after retry = %d, want 1", got)
 	}
 }
 
@@ -198,10 +258,10 @@ func TestAssembleDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		if err != nil {
 			return toolEnvironment{}, err
 		}
-		built.closers = append(built.closers, func() error {
+		built.closers = append(built.closers, shutdown.New(func(context.Context) error {
 			toolClosed.Add(1)
 			return nil
-		})
+		}))
 		// The agent resolver is intentionally absent. Direct client-invoked
 		// diagnostics have a separate fixed catalog and must not inherit the
 		// agent's process-bound capability catalog.

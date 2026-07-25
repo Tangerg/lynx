@@ -67,3 +67,10 @@ func (m *SessionMutations) quiesce(sessionID string) {
 	}
 	m.mu.Unlock()
 }
+
+func (m *SessionMutations) driving(sessionID, leaseID string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	handle := m.running[sessionID]
+	return handle != nil && handle.leaseID == leaseID
+}

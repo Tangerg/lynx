@@ -10,6 +10,8 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // SteerSource yields user messages queued for mid-run injection. It is
@@ -33,10 +35,10 @@ type TurnRequest struct {
 	// Message is the user's input for this turn.
 	Message string
 
-	// Provider is the turn's provider id (the per-run selection; empty for a
-	// default turn). Carried only so per-round cost pricing attributes spend to
-	// the right provider — the client itself is supplied via ChatClient below.
-	Provider string
+	// ModelSelection is the explicit per-run model choice. Its zero value uses
+	// the engine default; a configured value identifies the provider used for
+	// per-round cost attribution and the resolved ChatClient below.
+	ModelSelection modelref.Selection
 
 	// Media carries the turn's image attachments, attached to the opening
 	// user message as UserMessage.Media. Nil for a text-only turn.
@@ -76,7 +78,7 @@ type TurnRequest struct {
 	MaxSteps int
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
-	// sequences). Model selection stays on Provider/ChatClient; these options
+	// sequences). Model selection stays on ModelSelection/ChatClient; these options
 	// are merged over the selected client's model defaults.
 	Options *chat.Options
 
@@ -140,7 +142,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	input := turnInput{Message: request.Message, Provider: request.Provider, Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, GoalLeaseID: request.GoalLeaseID, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
+	input := turnInput{Message: request.Message, Provider: request.ModelSelection.Provider(), Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, GoalLeaseID: request.GoalLeaseID, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
 
 	guardrails, err := e.steeringGuardrails(request.Steer)
 	if err != nil {

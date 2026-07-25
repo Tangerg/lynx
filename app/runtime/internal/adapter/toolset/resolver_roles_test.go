@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -16,6 +17,13 @@ import (
 type availabilityIndex struct {
 	available bool
 	err       error
+}
+
+type failingGoalState struct{ err error }
+
+func (s failingGoalState) Active(context.Context, string) (bool, error) { return false, s.err }
+func (failingGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+	return goals.ReportNoActiveGoal, nil
 }
 
 func (i availabilityIndex) Available(context.Context) (bool, error) {
@@ -114,6 +122,26 @@ func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing
 			t.Fatalf("Tools error = %v, want %v", err, wantErr)
 		}
 	})
+}
+
+func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
+	wantErr := errors.New("goal store unavailable")
+	built, err := Build(t.Context(), BuildConfig{
+		Workdir: t.TempDir(),
+		Goals:   failingGoalState{err: wantErr},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+
+	group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	if err != nil || !ok {
+		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+	}
+	if _, err := group.Tools(t.Context()); !errors.Is(err, wantErr) {
+		t.Fatalf("Tools error = %v, want %v", err, wantErr)
+	}
 }
 
 func closeBuiltToolset(t *testing.T, built Built) {

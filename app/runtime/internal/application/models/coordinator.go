@@ -72,13 +72,13 @@ type EmbeddingModelValidator interface {
 // UtilityRoleSaver persists the utility-model role across restarts. nil disables
 // persistence (the role stays in-process only).
 type UtilityRoleSaver interface {
-	SaveUtilityRole(ctx context.Context, provider, model string) error
+	SaveUtilityRole(ctx context.Context, role modelrole.Role) error
 }
 
 // EmbeddingRoleSaver persists the embedding-model role across restarts. nil
 // disables persistence.
 type EmbeddingRoleSaver interface {
-	SaveEmbeddingRole(ctx context.Context, provider, model string) error
+	SaveEmbeddingRole(ctx context.Context, role modelrole.Role) error
 }
 
 // Coordinator owns provider + model configuration. Any nil dependency disables

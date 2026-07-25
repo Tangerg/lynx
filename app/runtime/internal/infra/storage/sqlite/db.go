@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 22
+const schemaVersion = 24
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -252,6 +252,20 @@ func installCurrentSchema(db *sql.DB) error {
 			created_at INTEGER NOT NULL,
 			updated_at INTEGER NOT NULL
 		)`,
+		// One immutable row per terminal goal-owned Run. This is not a cache of
+		// Goal.Used: it is the idempotency identity that lets terminal Run state
+		// and cross-turn budget accounting commit as one fact.
+		`CREATE TABLE IF NOT EXISTS goal_turns (
+			run_id       TEXT    PRIMARY KEY,
+			session_id   TEXT    NOT NULL,
+			lease_id     TEXT    NOT NULL,
+			outcome      TEXT    NOT NULL,
+			cost_usd     REAL    NOT NULL,
+			steps        INTEGER NOT NULL,
+			completed_at INTEGER NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_goal_turns_session
+			ON goal_turns(session_id, lease_id)`,
 		// Persistent fine-grained approval rules (AUX_API §6). id is
 		// deterministic over (scope, scope_key, tool, subject) so re-remembering
 		// the same rule upserts the decision; scope_key is the session id /
@@ -294,6 +308,29 @@ func installCurrentSchema(db *sql.DB) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_schedules_due
 			ON schedules(enabled, next_run_at)`,
+		`CREATE TABLE IF NOT EXISTS schedule_firings (
+			id          TEXT    PRIMARY KEY,
+			schedule_id TEXT    NOT NULL,
+			title       TEXT    NOT NULL DEFAULT '',
+			prompt      TEXT    NOT NULL,
+			cwd         TEXT    NOT NULL DEFAULT '',
+			provider    TEXT    NOT NULL DEFAULT '',
+			model       TEXT    NOT NULL DEFAULT '',
+			cron        TEXT    NOT NULL,
+			due_at      INTEGER NOT NULL,
+			fired_at    INTEGER NOT NULL,
+			next_run_at INTEGER NOT NULL,
+			session_id  TEXT    NOT NULL UNIQUE,
+			run_id      TEXT    NOT NULL UNIQUE,
+			state       TEXT    NOT NULL CHECK(state IN ('pending', 'accepted'))
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_schedule_firings_pending
+			ON schedule_firings(state, due_at, id)`,
+		// A schedule has one recoverable occurrence at a time. Keeping this as a
+		// partial uniqueness invariant prevents each later cron tick from adding
+		// another pending firing while Run admission is temporarily unavailable.
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_schedule_firings_schedule_pending
+			ON schedule_firings(schedule_id) WHERE state = 'pending'`,
 		`CREATE TABLE IF NOT EXISTS idempotency_records (
 			key         TEXT PRIMARY KEY,
 			fingerprint TEXT NOT NULL,

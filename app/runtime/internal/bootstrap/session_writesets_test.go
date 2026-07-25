@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -470,7 +471,7 @@ func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
 	} else if err != nil {
 		t.Fatalf("get goal session %q: %v", sessionID, err)
 	}
-	g, _ := goal.New(sessionID, "obj", "", "", goal.Budget{}, time.Unix(0, 0))
+	g, _ := goal.New(sessionID, "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
 	g.RenewLease("lease-" + sessionID)
 	if applied, err := ss.goals.Save(context.Background(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal %q: applied=%v err=%v", sessionID, applied, err)

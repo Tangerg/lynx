@@ -10,7 +10,7 @@ import (
 // embeddingRoleLoader is the boot-time load view of the embedding-role store
 // (persistence save belongs to the capabilities coordinator's SetEmbeddingRole).
 type embeddingRoleLoader interface {
-	LoadEmbeddingRole(ctx context.Context) (provider, model string, err error)
+	LoadEmbeddingRole(ctx context.Context) (modelrole.Role, error)
 }
 
 // loadEmbeddingRole reads the persisted startup assignment. Runtime mutation
@@ -18,14 +18,11 @@ type embeddingRoleLoader interface {
 func loadEmbeddingRole(ctx context.Context, roleStore embeddingRoleLoader) (modelrole.Role, error) {
 	var role modelrole.Role
 	if roleStore != nil {
-		p, m, err := roleStore.LoadEmbeddingRole(ctx)
+		loaded, err := roleStore.LoadEmbeddingRole(ctx)
 		if err != nil {
 			return modelrole.Role{}, fmt.Errorf("bootstrap: load embedding role: %w", err)
 		}
-		role, err = modelrole.New(p, m)
-		if err != nil {
-			return modelrole.Role{}, fmt.Errorf("bootstrap: load embedding role: %w", err)
-		}
+		role = loaded
 	}
 	return role, nil
 }

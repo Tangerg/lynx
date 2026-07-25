@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // Pending is one parked run awaiting a human decision. RunID is the STABLE
@@ -37,10 +38,9 @@ type Pending struct {
 	// rehydrate rebuilds the SAME model client instead of silently dropping to
 	// the platform default — both empty means the run used the default. The live
 	// process holds its client in memory, so same-process resume ignores these.
-	Provider     string
-	Model        string
-	Interrupts   []transcript.Interrupt
-	DrainedTools []DrainedTool
+	ModelSelection modelref.Selection
+	Interrupts     []transcript.Interrupt
+	DrainedTools   []DrainedTool
 	// RunCreatedAt is the RUN's original start time, carried unchanged across
 	// every resume. A resume continuation stamps it back onto the run's durable
 	// transcript record so the run keeps its timeline position (rollback/fork

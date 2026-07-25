@@ -26,6 +26,25 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 	return sess, nil
 }
 
+// Ensure inserts sess under its caller-owned identity, or returns the existing
+// row when an interrupted durable operation resumes. The generated schedule
+// occurrence id is globally unique, so an existing row is the same operation,
+// not a request to overwrite editable session state.
+func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (session.Session, error) {
+	_, err := conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO sessions(`+sessionColumns+`)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(id) DO NOTHING`,
+		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
+		sess.Model, sess.Kind, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
+	)
+	if err != nil {
+		return session.Session{}, fmt.Errorf("sqlite: ensure session: %w", err)
+	}
+	return s.Get(ctx, sess.ID)
+}
+
 // Restore upserts a session row verbatim (INSERT OR REPLACE) — the write side
 // of sessions.import. It preserves the supplied id and all fields, overwriting
 // any existing row with that id (restore semantics).

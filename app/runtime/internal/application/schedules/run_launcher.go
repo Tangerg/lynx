@@ -31,17 +31,20 @@ func NewRunLauncher(runUseCases RunUseCases, defaultCwd string, fired func(strin
 
 // StartScheduledRun starts one schedule through the same Application Runs entry
 // point as transports, then immediately drops the unused event subscription.
-func (l RunLauncher) StartScheduledRun(ctx context.Context, sc schedule.Schedule) (RunHandle, error) {
+func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
+	sc := occurrence.Schedule
 	cwd := sc.Cwd
 	if cwd == "" {
 		cwd = l.defaultCwd
 	}
 	fireCtx, cancel := context.WithCancel(ctx)
 	result, err := l.runs.Start(fireCtx, runs.StartCommand{
+		RunID:           occurrence.RunID,
+		NewSessionID:    occurrence.SessionID,
+		ScheduleFiring:  occurrence.ID,
 		DefaultCwd:      cwd,
 		NewSessionTitle: sc.Title,
-		Provider:        sc.Provider,
-		Model:           sc.Model,
+		ModelSelection:  sc.ModelSelection,
 		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},
 	})
 	cancel()

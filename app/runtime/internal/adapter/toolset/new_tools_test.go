@@ -416,7 +416,7 @@ func (m *memoryScheduleRegistry) Delete(_ context.Context, id string) error {
 	return nil
 }
 
-func (m *memoryScheduleRegistry) Due(context.Context, time.Time) ([]schedule.Schedule, error) {
+func (m *memoryScheduleRegistry) Due(context.Context, time.Time, int) ([]schedule.Schedule, error) {
 	return nil, nil
 }
 

@@ -30,7 +30,7 @@ func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
 }
 
 func (*executorFakeDispatcher) InjectSteering(context.Context, TurnHandle, string) error { return nil }
-func (*executorFakeDispatcher) PrepareTurn(context.Context, StartTurnRequest) (TurnHandle, error) {
+func (*executorFakeDispatcher) PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error) {
 	return TurnHandle{}, nil
 }
 func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
@@ -38,7 +38,7 @@ func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, interrupts.Re
 	return nil
 }
 func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }
-func (*executorFakeDispatcher) Rehydrate(context.Context, RehydrateRequest) (TurnHandle, error) {
+func (*executorFakeDispatcher) Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error) {
 	return TurnHandle{}, nil
 }
 

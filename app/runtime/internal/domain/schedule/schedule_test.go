@@ -4,6 +4,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 func TestScheduleValidate(t *testing.T) {
@@ -14,11 +16,9 @@ func TestScheduleValidate(t *testing.T) {
 		want error // nil = accept
 	}{
 		{"valid, default model", func(s Schedule) Schedule { return s }, nil},
-		{"valid, paired model", func(s Schedule) Schedule { s.Provider, s.Model = "anthropic", "claude"; return s }, nil},
+		{"valid, paired model", func(s Schedule) Schedule { s.ModelSelection = mustSelection(t, "anthropic", "claude"); return s }, nil},
 		{"missing prompt", func(s Schedule) Schedule { s.Prompt = ""; return s }, ErrPromptRequired},
 		{"missing cron", func(s Schedule) Schedule { s.Cron = ""; return s }, ErrCronRequired},
-		{"provider without model", func(s Schedule) Schedule { s.Provider = "anthropic"; return s }, ErrIncompleteModelSelection},
-		{"model without provider", func(s Schedule) Schedule { s.Model = "claude"; return s }, ErrIncompleteModelSelection},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -47,14 +47,31 @@ func TestScheduleApplyPatch(t *testing.T) {
 		Enabled: true,
 	}
 
-	got := sc.Apply(Patch{
+	got, err := sc.Apply(Patch{
 		Title:   &title,
 		Cwd:     &emptyCwd,
 		Enabled: &enabled,
 	})
+	if err != nil {
+		t.Fatalf("Apply: %v", err)
+	}
 	if got.Title != title || got.Cwd != "" || got.Prompt != sc.Prompt || got.Cron != sc.Cron || got.Enabled {
 		t.Fatalf("patched schedule = %+v", got)
 	}
+
+	provider := "anthropic"
+	if _, err := sc.Apply(Patch{Provider: &provider}); !errors.Is(err, modelref.ErrIncomplete) {
+		t.Fatalf("partial model patch error = %v, want %v", err, modelref.ErrIncomplete)
+	}
+}
+
+func mustSelection(t testing.TB, provider, model string) modelref.Selection {
+	t.Helper()
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+	}
+	return selection
 }
 
 func TestScheduleScheduledAfter(t *testing.T) {

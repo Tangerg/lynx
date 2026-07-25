@@ -48,13 +48,15 @@ type Transport struct {
 
 	// close signals every sender to stop; gone short-circuits new sends.
 	// mu makes "reserve a send slot" and "begin closing" mutually exclusive,
-	// and sending counts in-flight sends so Close waits them out before close(in).
+	// and sending counts in-flight sends so AwaitShutdown closes in only after
+	// every reserved sender has drained.
 	close   chan struct{}
 	gone    atomic.Bool
 	mu      sync.Mutex
 	sending sync.WaitGroup
 	pumps   sync.WaitGroup
 	calls   taskgroup.Group
+	done    chan struct{}
 }
 
 // reserve registers one in-flight send unless the transport is closing. On true
@@ -95,6 +97,7 @@ func NewTransport(cfg Config) (*Transport, error) {
 		dispatcher: dispatch.New(cfg.Runtime),
 		in:         make(chan transport.Message, cfg.RecvBuffer),
 		close:      make(chan struct{}),
+		done:       make(chan struct{}),
 	}, nil
 }
 
@@ -160,7 +163,7 @@ func (t *Transport) startPump(ctx context.Context, events iter.Seq[dispatch.Stre
 // pre-encoded notification onto Recv. The dispatch already encoded + tagged each
 // frame (run / workspace), so the sequence ending just means "stream done". The
 // source unwinds when the call context is canceled — including on transport
-// Close, since the call context is task-group-linked (AttachLinked) — so a range
+// BeginShutdown, since the call context is task-group-linked (AttachLinked) — so a range
 // blocked between frames is released; tryEmit guards the send against ctx and
 // transport close.
 func (t *Transport) pumpStream(ctx context.Context, events iter.Seq[dispatch.StreamFrame]) {
@@ -192,18 +195,38 @@ func (t *Transport) tryEmit(ctx context.Context, msg transport.Message) bool {
 // Recv returns the inbound channel — responses + notifications.
 func (t *Transport) Recv() <-chan transport.Message { return t.in }
 
-// Close signals streams and senders to stop, joins them, then closes the Recv
-// channel. Idempotent and safe to call concurrently with Send.
-func (t *Transport) Close() error {
+// BeginShutdown rejects new sends and cancels every attached call. It is safe
+// to invoke repeatedly and does not wait, so a process owner can broadcast
+// cancellation across all of its components before draining any one of them.
+func (t *Transport) BeginShutdown() {
 	t.once.Do(func() {
 		t.mu.Lock()
 		t.gone.Store(true)
 		close(t.close)
 		t.mu.Unlock()
-		t.calls.Close()
-		t.pumps.Wait()
-		t.sending.Wait()
-		close(t.in)
+		t.calls.Cancel()
+		go func() {
+			_ = t.calls.Wait(context.Background())
+			t.pumps.Wait()
+			t.sending.Wait()
+			close(t.in)
+			close(t.done)
+		}()
 	})
-	return nil
+}
+
+// AwaitShutdown waits until all calls, streams, and in-flight sends have
+// drained and Recv is closed. The caller supplies the deadline; a timeout is
+// observable and a later await may continue waiting for the same shutdown.
+func (t *Transport) AwaitShutdown(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("inprocess: shutdown context is required")
+	}
+	t.BeginShutdown()
+	select {
+	case <-t.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

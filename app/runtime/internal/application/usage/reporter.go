@@ -157,7 +157,7 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 		total.runs++
 	}
 	if byProvider != nil {
-		bucket := accumulatorFor(byProvider, cmp.Or(run.Provider, defaultProvider, "unknown"))
+		bucket := accumulatorFor(byProvider, cmp.Or(run.ModelSelection.Provider(), defaultProvider, "unknown"))
 		bucket.add(usage)
 		bucket.runs++
 	}
@@ -177,7 +177,7 @@ func foldRun(run transcript.Run, since time.Time, defaultProvider, defaultModel 
 		}
 		return
 	}
-	bucket := accumulatorFor(byModel, cmp.Or(run.Model, defaultModel, "unknown"))
+	bucket := accumulatorFor(byModel, cmp.Or(run.ModelSelection.Model(), defaultModel, "unknown"))
 	bucket.add(usage)
 	bucket.runs++
 }

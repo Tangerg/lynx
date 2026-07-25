@@ -24,6 +24,9 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
 	host, cfg, err := bootstrapRuntime(ctx)
+	if bootstrap.OwnsShutdown(host) {
+		defer func() { err = errors.Join(err, host.Close()) }()
+	}
 	if err != nil {
 		return err
 	}
@@ -31,7 +34,6 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	// integrations reconcile + codebase reindex tasks, then the run pump + engine +
 	// persistence. api.Close (the run supervisor) is deferred later, so LIFO runs
 	// it first — transport → supervisor → reconciler → engine/persistence.
-	defer func() { err = errors.Join(err, host.Close()) }()
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
 		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins

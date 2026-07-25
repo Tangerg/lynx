@@ -34,6 +34,19 @@ func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
 	}
 }
 
+func TestManagedSkillsWithoutCuratorReportUnavailable(t *testing.T) {
+	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil, nil)
+	if _, err := c.ListManagedSkills(context.Background()); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("ListManagedSkills err = %v, want ErrSkillLibraryUnavailable", err)
+	}
+	if err := c.ArchiveSkill(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("ArchiveSkill err = %v, want ErrSkillLibraryUnavailable", err)
+	}
+	if err := c.RestoreSkill(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("RestoreSkill err = %v, want ErrSkillLibraryUnavailable", err)
+	}
+}
+
 func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	curator := &fakeSkillCurator{}
 	drafts := &fakeSkillDrafts{}

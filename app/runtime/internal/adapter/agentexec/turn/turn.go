@@ -20,13 +20,13 @@ import (
 // segment to a suspension point — a HITL interrupt (park) or a terminal
 // state. Later segments are driven by [memoryDispatcher.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
-func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
+func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	// Resolve a per-turn client when the run picked a provider+model and a
 	// resolver is wired; no selection / no resolver runs on the engine's
 	// default client.
 	var client *chatclient.Client
-	if request.Provider != "" && request.Model != "" && s.resolver != nil {
-		c, err := s.resolver.ResolveClient(st.ctx, request.Provider, request.Model)
+	if request.ModelSelection.Configured() && s.resolver != nil {
+		c, err := s.resolver.ResolveClient(st.ctx, request.ModelSelection)
 		if err != nil {
 			s.finishFailedTurn(st, problemFromError(err), err)
 			return
@@ -37,20 +37,20 @@ func (s *memoryDispatcher) runTurn(request StartTurnRequest, st *turnState) {
 	observer := &turnObserver{dispatcher: s, st: st}
 	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
 	process, err := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
-		SessionID:     request.SessionID,
-		Message:       request.Message,
-		Provider:      request.Provider,
-		Media:         request.Media,
-		Cwd:           request.Cwd,
-		Isolated:      request.Isolated,
-		GoalLeaseID:   request.GoalLeaseID,
-		MaxBudget:     request.MaxBudget,
-		MaxCostUSD:    request.MaxCostUSD,
-		MaxSteps:      request.MaxSteps,
-		Options:       request.Options,
-		ChatClient:    client,
-		Observer:      observer,
-		EventListener: st.lifecycle.listener(st.handle.TurnID),
+		SessionID:      request.SessionID,
+		Message:        request.Message,
+		ModelSelection: request.ModelSelection,
+		Media:          request.Media,
+		Cwd:            request.Cwd,
+		Isolated:       request.Isolated,
+		GoalLeaseID:    request.GoalLeaseID,
+		MaxBudget:      request.MaxBudget,
+		MaxCostUSD:     request.MaxCostUSD,
+		MaxSteps:       request.MaxSteps,
+		Options:        request.Options,
+		ChatClient:     client,
+		Observer:       observer,
+		EventListener:  st.lifecycle.listener(st.handle.TurnID),
 		// Mid-run steering: drained before each continuation round (with the
 		// next-turn flushSteering as the after-last-round fallback).
 		Steer: s.steerSource(st),
@@ -212,12 +212,11 @@ func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnStat
 		return !dec.Block
 	}
 	result := s.maintenance.Maintain(ctx, BoundaryMaintenanceInput{
-		SessionID:  sessionID,
-		Cwd:        st.cwd,
-		Provider:   st.provider,
-		Model:      st.model,
-		ToolCalls:  st.toolCallCount(),
-		PreCompact: preCompact,
+		SessionID:      sessionID,
+		Cwd:            st.cwd,
+		ModelSelection: st.modelSelection,
+		ToolCalls:      st.toolCallCount(),
+		PreCompact:     preCompact,
 	})
 	for _, err := range result.Errors {
 		recordTurnMaintenanceError(st, err)

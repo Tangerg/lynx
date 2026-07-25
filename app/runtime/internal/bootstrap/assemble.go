@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"sync"
@@ -40,6 +39,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -110,6 +110,13 @@ type Host struct {
 	lifetime *hostLifetime
 }
 
+// OwnsShutdown reports whether host owns a process shutdown graph. It remains
+// true after a successful Close, which lets composition roots distinguish a
+// zero Host returned on an early construction error from a Host that has
+// already completed (or still needs) rollback without growing Host into a
+// runtime facade.
+func OwnsShutdown(host Host) bool { return host.lifetime != nil }
+
 // RecoverStartup completes durable work that must be reconciled before any
 // delivery adapter starts accepting requests. Keeping it as a composition-root
 // function, rather than a Host method, keeps Host's public surface limited to
@@ -122,62 +129,98 @@ func RecoverStartup(ctx context.Context, stack Stack) error {
 }
 
 type hostLifetime struct {
-	once sync.Once
-	err  error
+	closeMu         sync.Mutex
+	stopping        bool
+	closed          bool
+	err             error
+	shutdownTimeout time.Duration
 
+	goals        shutdownComponent
 	integrations shutdownComponent
 	codebase     shutdownComponent
 	coordinator  shutdownComponent
-	dispatcher   shutdownDispatcher
+	dispatcher   shutdownComponent
 	effectsTasks shutdownComponent
-	toolClosers  []func() error
-	resources    []io.Closer
+	toolClosers  []ShutdownResource
+	resources    []ShutdownResource
 }
 
 type shutdownComponent interface {
-	Close()
+	BeginShutdown()
+	AwaitShutdown(context.Context) error
 }
 
-type shutdownDispatcher interface {
-	Close() error
-}
+const hostShutdownTimeout = 10 * time.Second
 
 // Close shuts the assembled application tier down in reverse dependency order
-// (§10.3): the integrations component's post-commit reconcile tasks + the
-// codebase reindex tasks first (they depend on the MCP pool / embedding index),
-// then the run coordinator (cancel + join every live pump), live turns, the
-// run-boundary maintenance tasks, and finally tool capabilities plus injected
-// process resources / persistence. Pumps join before maintenance tasks so every
-// terminal's boundary work is scheduled. Idempotent across Host copies.
+// (§10.3). It first broadcasts cancellation to every task-owning component,
+// then joins them under one Host-owned deadline. A timeout leaves the graph in
+// its stopping phase: a later Close gets a new caller-owned shutdown budget and
+// resumes the same in-flight teardown before closing dependent resources.
+// Idempotent across Host copies once the graph has fully closed.
 func (h Host) Close() error {
 	if h.lifetime == nil {
 		return nil
 	}
-	h.lifetime.once.Do(func() {
-		var errs []error
-		if h.lifetime.integrations != nil {
-			h.lifetime.integrations.Close()
+	lifetime := h.lifetime
+	lifetime.closeMu.Lock()
+	defer lifetime.closeMu.Unlock()
+	if lifetime.closed {
+		return lifetime.err
+	}
+	components := []shutdownComponent{
+		lifetime.goals,
+		lifetime.integrations,
+		lifetime.codebase,
+		lifetime.coordinator,
+		lifetime.effectsTasks,
+	}
+	if !lifetime.stopping {
+		lifetime.stopping = true
+		for _, component := range components {
+			if component != nil {
+				component.BeginShutdown()
+			}
 		}
-		if h.lifetime.codebase != nil {
-			h.lifetime.codebase.Close()
+	}
+
+	timeout := lifetime.shutdownTimeout
+	if timeout <= 0 {
+		timeout = hostShutdownTimeout
+	}
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	var errs []error
+	for _, component := range components {
+		if component != nil {
+			errs = append(errs, component.AwaitShutdown(shutdownCtx))
 		}
-		if h.lifetime.coordinator != nil {
-			h.lifetime.coordinator.Close()
+	}
+	if componentErr := errors.Join(errs...); componentErr != nil {
+		return componentErr
+	}
+
+	if lifetime.dispatcher != nil {
+		lifetime.dispatcher.BeginShutdown()
+		if err := lifetime.dispatcher.AwaitShutdown(shutdownCtx); err != nil {
+			return err
 		}
-		if h.lifetime.dispatcher != nil {
-			errs = append(errs, h.lifetime.dispatcher.Close())
-		}
-		if h.lifetime.effectsTasks != nil {
-			h.lifetime.effectsTasks.Close()
-		}
-		errs = append(
-			errs,
-			runClosers(h.lifetime.toolClosers),
-			closeResources(h.lifetime.resources),
-		)
-		h.lifetime.err = errors.Join(errs...)
-	})
-	return h.lifetime.err
+	}
+	var err error
+	lifetime.toolClosers, err = closePendingResources(shutdownCtx, lifetime.toolClosers)
+	if err != nil {
+		// A closer that failed is still owned by this Host. Keep only those
+		// unresolved steps so a later Close retries the real incomplete graph
+		// without closing dependencies below an incomplete step.
+		return err
+	}
+	lifetime.resources, err = closePendingResources(shutdownCtx, lifetime.resources)
+	if err != nil {
+		return err
+	}
+	lifetime.err = nil
+	lifetime.closed = true
+	return nil
 }
 
 // Assemble builds the application Host from cfg: it constructs the engine, turn
@@ -186,7 +229,9 @@ func (h Host) Close() error {
 // queries, turn control, workspace, schedules) from those materials, and hands the
 // process resources to the Host for shutdown. Returns an error when a required
 // dependency is missing or any internal constructor fails — engine deployment,
-// MCP dial, etc.
+// MCP dial, etc. When rollback cannot finish within its shutdown budget, the
+// returned Host remains non-zero and owns the unfinished rollback; callers that
+// keep running after the error must call Close again before discarding it.
 func Assemble(ctx context.Context, cfg Config) (Host, error) {
 	return assemble(ctx, cfg, buildToolEnvironment)
 }
@@ -204,7 +249,7 @@ type toolEnvironmentBuilder func(
 	*skillauthoring.Store,
 ) (toolEnvironment, error)
 
-func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (_ Host, err error) {
+func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (host Host, err error) {
 	if err := validateAssemblyConfig(cfg); err != nil {
 		return Host{}, err
 	}
@@ -290,9 +335,22 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		return Host{}, err
 	}
 	transferred := false
+	rollback := &hostLifetime{toolClosers: slices.Clone(built.closers)}
 	defer func() {
-		if !transferred {
-			err = errors.Join(err, runClosers(built.closers))
+		if transferred {
+			return
+		}
+		cleanup := Host{lifetime: rollback}
+		if cleanupErr := cleanup.Close(); cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("runtime: rollback partial assembly: %w", cleanupErr))
+			// A partial rollback now owns every resource that would have moved to
+			// a successful Host. Keeping the resources behind its unresolved
+			// dependencies preserves their close order for the caller's retry.
+			rollback.resources = shutdownResources(cfg.Resources)
+			// Keep the exact graph — including any in-flight shutdown.Step — owned
+			// by the returned Host. A caller can therefore retry Close without
+			// racing a second closer or losing dependencies below it.
+			host = cleanup
 		}
 	}()
 	attachToolEnvironment(&ecfg, built.tools)
@@ -327,12 +385,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if err != nil {
 		return Host{}, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
-	dispatcherTransferred := false
-	defer func() {
-		if !dispatcherTransferred {
-			err = errors.Join(err, turnDispatcher.Close())
-		}
-	}()
+	rollback.dispatcher = turnDispatcher
 	home, _ := os.UserHomeDir()
 	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
 	toolRegistry := toolset.NewDiagnosticRegistry()
@@ -363,9 +416,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
+	rollback.effectsTasks = effectsTasks
 	runEffects := runsegment.New(runsegment.Config{
 		Interrupts:         cfg.InterruptStore,
 		Sessions:           cfg.SessionStore,
+		ScheduleFirings:    cfg.ScheduleStore,
+		GoalTurns:          cfg.GoalStore,
 		Transcript:         cfg.TranscriptStore,
 		ToolResults:        cfg.ToolResultStore,
 		Messages:           messages.conversation,
@@ -459,6 +515,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		runDeps.Isolation = isolator
 	}
 	runCoord := runs.NewCoordinator(runDeps)
+	rollback.coordinator = runCoord
 	scheduleFires := &signal.Signal[string]{}
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
@@ -478,6 +535,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		MCPPolicy:             mcpEnv.policy,
 		MCPStatus:             mcpStatus.Publish,
 	})
+	rollback.integrations = integrationsCoord
 
 	// Goal mode: the autonomous-execution loop driver over the run coordinator.
 	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
@@ -486,17 +544,17 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
 		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
+		rollback.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
 	}
 	toolClosers := slices.Clone(built.closers)
-	if goalDriver != nil {
-		toolClosers = append(toolClosers, goalDriver.Close)
-	}
 	if isolator != nil {
 		// Destroy any live isolated working copies on shutdown.
-		toolClosers = append(toolClosers, isolator.Close)
+		toolClosers = append(toolClosers, shutdown.New(func(context.Context) error {
+			return isolator.Close()
+		}))
 	}
 
 	// Same discipline for the skill library: leave the ports interface-nil when
@@ -522,11 +580,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
 	codebaseCoord := codebase.New(codebaseUseCases, workspaceContext)
+	rollback.codebase = codebaseCoord
 	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
 		Store: cfg.AgentMemoryStore,
 		Roots: workspaceContext,
 	})
-	host := Host{
+	host = Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
 			Integrations:     integrationsCoord,
@@ -566,16 +625,16 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			TodosEnabled:       cfg.TodoStore != nil,
 		},
 		lifetime: &hostLifetime{
+			goals:        goalDriver,
 			integrations: integrationsCoord,
 			codebase:     codebaseCoord,
 			coordinator:  runCoord,
 			dispatcher:   turnDispatcher,
 			effectsTasks: effectsTasks,
 			toolClosers:  toolClosers,
-			resources:    slices.Clone(cfg.Resources),
+			resources:    shutdownResources(cfg.Resources),
 		},
 	}
-	dispatcherTransferred = true
 	transferred = true
 	return host, nil
 }
@@ -614,24 +673,47 @@ func validateAssemblyConfig(cfg Config) error {
 	return nil
 }
 
-// runClosers closes creation-ordered tool resources in reverse.
-func runClosers(closers []func() error) error {
-	var errs []error
-	for index := len(closers) - 1; index >= 0; index-- {
-		closeFn := closers[index]
-		if closeFn != nil {
-			errs = append(errs, closeFn())
+func shutdownResources(resources []ShutdownResource) []ShutdownResource {
+	steps := make([]ShutdownResource, 0, len(resources))
+	for _, resource := range resources {
+		if resource == nil {
+			continue
 		}
+		steps = append(steps, shutdown.New(resource.Shutdown))
 	}
-	return errors.Join(errs...)
+	return steps
 }
 
-func closeResources(resources []io.Closer) error {
-	var errs []error
+func shutdownClosers(closers []func() error) []ShutdownResource {
+	steps := make([]ShutdownResource, 0, len(closers))
+	for _, closeFn := range closers {
+		if closeFn == nil {
+			continue
+		}
+		closeFn := closeFn
+		steps = append(steps, shutdown.New(func(context.Context) error {
+			return closeFn()
+		}))
+	}
+	return steps
+}
+
+func closeResources(ctx context.Context, resources []ShutdownResource) error {
+	_, err := closePendingResources(ctx, resources)
+	return err
+}
+
+func closePendingResources(ctx context.Context, resources []ShutdownResource) ([]ShutdownResource, error) {
 	for index := len(resources) - 1; index >= 0; index-- {
 		if resource := resources[index]; resource != nil {
-			errs = append(errs, resource.Close())
+			if err := resource.Shutdown(ctx); err != nil {
+				// The slice is creation ordered, so the not-yet-run prefix contains
+				// dependencies of this failing closer. Do not tear them down beneath
+				// an in-flight or failed dependent operation; retain that exact prefix
+				// for a later Close instead.
+				return slices.Clone(resources[:index+1]), err
+			}
 		}
 	}
-	return errors.Join(errs...)
+	return nil, nil
 }

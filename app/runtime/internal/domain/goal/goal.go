@@ -12,6 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // Status is where a goal sits in the autonomous loop.
@@ -47,6 +50,14 @@ type Budget struct {
 	MaxTurns   int     // total autonomous turns
 	MaxCostUSD float64 // summed USD across turns
 	MaxSteps   int     // summed model calls across turns
+}
+
+// Validate reports whether every configured budget ceiling is non-negative.
+func (b Budget) Validate() error {
+	if b.MaxTurns < 0 || b.MaxCostUSD < 0 || b.MaxSteps < 0 {
+		return errors.New("goal: negative budget")
+	}
+	return nil
 }
 
 // Usage accumulates what the loop has spent across its turns so far.
@@ -125,14 +136,13 @@ type Reason struct {
 
 // Goal is one session's autonomous objective and loop state.
 type Goal struct {
-	SessionID string
-	Objective string
-	Status    Status
-	Reason    Reason // why it is paused or blocked; zero while active
-	Provider  string // model the loop runs each turn against
-	Model     string
-	Budget    Budget
-	Used      Usage
+	SessionID      string
+	Objective      string
+	Status         Status
+	Reason         Reason             // why it is paused or blocked; zero while active
+	ModelSelection modelref.Selection // model the loop runs each turn against
+	Budget         Budget
+	Used           Usage
 	// LeaseID names the currently valid driving-loop incarnation. It is generated
 	// afresh at every lifecycle transition, never inferred from row existence.
 	LeaseID string
@@ -147,26 +157,35 @@ var (
 	errSessionRequired   = errors.New("goal: session ID is required")
 	errObjectiveRequired = errors.New("goal: objective is required")
 	errInvalidSnapshot   = errors.New("goal: invalid snapshot")
+	// ErrBudgetExhausted rejects a resume that would start work beyond the
+	// durable cross-turn budget. Changing a budget is a separate intent, never
+	// an implicit side effect of resuming a blocked goal.
+	ErrBudgetExhausted = errors.New("goal: budget exhausted")
+	// ErrNotResumable rejects a lifecycle transition from a terminal/transient
+	// status. A complete goal is cleared rather than revived.
+	ErrNotResumable = errors.New("goal: status is not resumable")
 )
 
 // New builds an active goal for sessionID. now is passed in (not read from the
 // clock) so callers stay testable and the runtime keeps a single time source.
-func New(sessionID, objective, provider, model string, budget Budget, now time.Time) (Goal, error) {
+func New(sessionID, objective string, selection modelref.Selection, budget Budget, now time.Time) (Goal, error) {
 	if sessionID == "" {
 		return Goal{}, errSessionRequired
 	}
 	if objective == "" {
 		return Goal{}, errObjectiveRequired
 	}
+	if err := budget.Validate(); err != nil {
+		return Goal{}, err
+	}
 	return Goal{
-		SessionID: sessionID,
-		Objective: objective,
-		Status:    StatusActive,
-		Provider:  provider,
-		Model:     model,
-		Budget:    budget,
-		CreatedAt: now,
-		UpdatedAt: now,
+		SessionID:      sessionID,
+		Objective:      objective,
+		Status:         StatusActive,
+		ModelSelection: selection,
+		Budget:         budget,
+		CreatedAt:      now,
+		UpdatedAt:      now,
 	}, nil
 }
 
@@ -186,8 +205,8 @@ func (g Goal) ValidateSnapshot() error {
 	if !g.Reason.Cause.Valid() {
 		return fmt.Errorf("%w: unknown reason cause %d", errInvalidSnapshot, g.Reason.Cause)
 	}
-	if g.Budget.MaxTurns < 0 || g.Budget.MaxCostUSD < 0 || g.Budget.MaxSteps < 0 {
-		return fmt.Errorf("%w: negative budget", errInvalidSnapshot)
+	if err := g.Budget.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", errInvalidSnapshot, err)
 	}
 	if g.Used.Turns < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 {
 		return fmt.Errorf("%w: negative usage", errInvalidSnapshot)
@@ -213,6 +232,43 @@ func (g *Goal) AddTurn(costUSD float64, steps int, now time.Time) {
 	g.UpdatedAt = now
 }
 
+// TurnRecord is the immutable accounting fact emitted when one goal-owned Run
+// terminalizes. RunID makes the store-level recording idempotent; LeaseID keeps
+// a straggling Run from charging a later goal incarnation.
+type TurnRecord struct {
+	SessionID   string
+	LeaseID     string
+	RunID       string
+	Outcome     execution.Outcome
+	CostUSD     float64
+	Steps       int
+	CompletedAt time.Time
+}
+
+// RecordTurn folds one terminal Run into the matching goal lease. It always
+// records work the lease actually performed; a model report may already have
+// changed Active to Complete or Blocked before the Run terminalizes, and that
+// transition must not erase the turn's cost. Only an active goal derives a new
+// lifecycle state from the terminal outcome or budget — an earlier explicit
+// stop/report remains authoritative.
+//
+// The persistence adapter invokes this within the same transaction that
+// terminalizes the Run, so a completed Run and its budget charge cannot
+// diverge.
+func (g *Goal) RecordTurn(record TurnRecord) {
+	g.AddTurn(record.CostUSD, record.Steps, record.CompletedAt)
+	if g.Status != StatusActive {
+		return
+	}
+	if record.Outcome != execution.OutcomeCompleted {
+		g.Pause(ReasonRunNotCompleted, record.Outcome.String(), record.CompletedAt)
+		return
+	}
+	if limit, over := g.Budget.Exceeded(g.Used); over {
+		g.Block(reasonForBudgetLimit(limit), "", record.CompletedAt)
+	}
+}
+
 // Complete marks the objective done. It is a transient state: the driver
 // observes it once, announces, and clears the goal — a completed goal is never a
 // durable resting state (see [Status]).
@@ -231,19 +287,42 @@ func (g *Goal) Pause(cause ReasonCause, detail string, now time.Time) {
 }
 
 // Block records a typed deadlock the user must resolve (budget spent, or the
-// model declared itself stuck). Like paused, it is resumable, but it signals
-// the loop stopped itself rather than the user stopping it.
+// model declared itself stuck). Model-declared blocks may be resumed; a spent
+// budget is deliberately not resumable because another Run would exceed the
+// configured cap before it could be accounted.
 func (g *Goal) Block(cause ReasonCause, detail string, now time.Time) {
 	g.Status = StatusBlocked
 	g.Reason = Reason{Cause: cause, Detail: detail}
 	g.UpdatedAt = now
 }
 
-// Resume returns a paused or blocked goal to active so the driver drives it again.
-func (g *Goal) Resume(now time.Time) {
+// Resume returns a paused or blocked goal to active so the driver drives it
+// again. A spent budget is not resumable: starting another Run would violate
+// the aggregate's durable cap before any later accounting can stop it.
+func (g *Goal) Resume(now time.Time) error {
+	if g.Status != StatusPaused && g.Status != StatusBlocked {
+		return ErrNotResumable
+	}
+	if _, exhausted := g.Budget.Exceeded(g.Used); exhausted {
+		return ErrBudgetExhausted
+	}
 	g.Status = StatusActive
 	g.Reason = Reason{}
 	g.UpdatedAt = now
+	return nil
+}
+
+func reasonForBudgetLimit(limit BudgetLimit) ReasonCause {
+	switch limit {
+	case BudgetLimitTurns:
+		return ReasonTurnBudgetReached
+	case BudgetLimitCost:
+		return ReasonCostBudgetReached
+	case BudgetLimitSteps:
+		return ReasonStepBudgetReached
+	default:
+		return ReasonNone
+	}
 }
 
 // Version returns the value a caller must use to condition its next mutation.
