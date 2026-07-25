@@ -7,7 +7,7 @@ import {
   setScheduleEnabled,
   type ScheduleConfig,
 } from "../application/scheduleCommands";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";

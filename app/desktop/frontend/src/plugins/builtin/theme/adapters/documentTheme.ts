@@ -14,6 +14,7 @@ import { usePluginStore } from "@/plugins/sdk/registry";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import { resolveScheme } from "@/plugins/sdk/selectors/theme";
+import { publishMotionScale, publishScheme } from "@/lib/appearance";
 import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import type { Theme, UiState } from "@/state/uiPreferences";
@@ -49,6 +50,10 @@ function applyTheme(theme: Theme, accent: string, contrast: number): void {
 
   root.style.setProperty("--depth-step", `${(2 + (contrast / 100) * 8).toFixed(1)}%`);
   appliedTokenNames.push("--depth-step");
+
+  // Leaf code (the Shiki preset) can't read the store or the registry — the
+  // scheme reaches it from here, where it just became true.
+  publishScheme(scheme);
 }
 
 function applyFonts(
@@ -94,6 +99,7 @@ function applyShape(density: string, radiusScale: number, motionScale: number): 
   }
   root.style.setProperty("--radius-scale", String(radiusScale));
   root.style.setProperty("--motion-scale", String(motionScale));
+  publishMotionScale(motionScale);
   if (motionScale === 0) root.setAttribute("data-motion", "off");
   else root.removeAttribute("data-motion");
 }

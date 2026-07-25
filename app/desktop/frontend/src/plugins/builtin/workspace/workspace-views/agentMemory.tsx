@@ -10,7 +10,7 @@ import { useCallback, useRef, useState } from "react";
 import { DataView, EmptyState, Icon, IconButton, PillButton, SectionLabel, TextArea } from "@/ui";
 
 import { useT } from "@/lib/i18n";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";

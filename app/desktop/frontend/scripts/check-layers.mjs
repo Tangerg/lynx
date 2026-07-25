@@ -119,10 +119,20 @@ const FORBIDDEN = {
   // Type-only imports of the SDK's contract types stay allowed — madge's graph
   // is value-level, so those don't appear here anyway.
   state: [...UI, "sdk", "plugins-glue"],
-  // Utility layer — no UI, no concrete plugins.
-  lib: [...UI],
-  // Local design-system layer — presentation only, never backend wiring.
-  ui: ["main", "rpc"],
+  // Utility layer. `rpc` stays allowed — it's the standalone protocol layer
+  // below lib (see `rpc` above, which forbids lib), so mapping an error type to
+  // copy from here runs downhill. Everything else is uphill and was the hole
+  // that mattered: with only `[...UI]` forbidden, lib could import the store and
+  // the plugin registry, and it did — so `ui/atoms/shiki-code-block` reached
+  // both *through* `lib/highlight`, laundering the edge the `ui` rings forbid.
+  // A module in lib that needs app state is not a utility; it either belongs to
+  // the context that owns the state, or the value gets published down to it
+  // (`lib/appearance`).
+  lib: [...UI, "state", "sdk", "protocol", "infra", "domain", "main"],
+  // Local design-system layer — presentation only, never backend wiring. `sdk`
+  // is forbidden alongside `state`: an atom that reads the plugin registry is an
+  // atom that can only be dressed by this app.
+  ui: ["main", "rpc", "state", "sdk", "plugins-glue", "builtin", "protocol", "components", "pages"],
   // Headless ring: Base UI re-exports and nothing else. It must not know about
   // the tokens, the atoms, or the shell that consume it.
   "ui-primitives": [
@@ -136,6 +146,7 @@ const FORBIDDEN = {
     "builtin",
     "plugins-glue",
     "state",
+    "sdk",
   ],
   // Token-dressed controls. May reach primitives; must not reach the shell ring
   // above it, or anything outside the design system.
@@ -148,12 +159,13 @@ const FORBIDDEN = {
     "builtin",
     "plugins-glue",
     "state",
+    "sdk",
   ],
   // Shell composites. May reach atoms and primitives; still no wiring, and no
   // reaching back into the app that mounts it.
-  "ui-agent": ["main", "rpc", "components", "pages", "builtin", "plugins-glue", "state"],
+  "ui-agent": ["main", "rpc", "components", "pages", "builtin", "plugins-glue", "state", "sdk"],
   // The view layer reaches the backend only through hooks / stores (state,
-  // lib/data query hooks, plugin SDK selectors) — never the composition root
+  // the SDK's data-query hooks and selectors) — never the composition root
   // (`main/container`) or the raw protocol client (`rpc`) directly. Keeps
   // components a thin presentation + store-wiring layer; business access stays
   // behind a minimal hook/selector seam.

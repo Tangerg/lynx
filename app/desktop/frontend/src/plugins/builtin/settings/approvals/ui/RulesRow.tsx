@@ -7,7 +7,7 @@ import {
 } from "../application/approvalConfig";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import { useActiveSession } from "@/plugins/builtin/agent/public/session";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

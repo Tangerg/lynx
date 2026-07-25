@@ -1,4 +1,4 @@
-import { createDataQuery, createParameterizedDataQuery } from "@/lib/data/dataQuery";
+import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
 import { useRecipes } from "@/plugins/builtin/chat/recipes/public/data";
 
 export interface WorkspaceProjectSummary {

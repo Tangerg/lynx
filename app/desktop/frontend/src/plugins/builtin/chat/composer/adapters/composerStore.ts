@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
 import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import type { ComposerImage, PastedText } from "../domain/draft";
 import {
   emptyComposerDraft,

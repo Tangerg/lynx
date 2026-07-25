@@ -7,7 +7,7 @@
 import { useCallback, useRef, useState } from "react";
 import { DataView, PillButton, SectionLabel } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { defineWorkspaceView } from "./defineWorkspaceView";
 import {

@@ -6,7 +6,7 @@ import {
   useAuthorizeMCPServer,
   useSetMCPServerEnabled,
 } from "../application/mcpServerConfig";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { ServerForm } from "./ServerForm";
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Icon, PillButton, Surface, TextArea, TextButton } from "@/ui";
 import { useConfigureMCPServer } from "../application/mcpServerConfig";
-import { notifyInfo } from "@/lib/notify";
+import { notifyInfo } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { parseMcpImport } from "../application/mcpImport";
 

@@ -1,4 +1,4 @@
-import { createDataQuery, createParameterizedDataQuery } from "@/lib/data/dataQuery";
+import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
 
 export interface MCPServer {
   id: string;

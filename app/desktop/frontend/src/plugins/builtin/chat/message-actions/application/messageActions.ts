@@ -4,7 +4,7 @@
 
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { t } from "@/lib/i18n";
-import { notifyError, notifyInfo } from "@/lib/notify";
+import { notifyError, notifyInfo } from "@/plugins/sdk";
 import { buildInput } from "@/plugins/builtin/chat/composer/public/input";
 import { composerInputToAgentInput } from "./inputBridge";
 import { describeRpcError } from "@/lib/rpcErrors";

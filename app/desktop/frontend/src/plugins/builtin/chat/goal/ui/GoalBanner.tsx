@@ -10,7 +10,7 @@ import { Icon, PillButton, TextArea, TextField } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { useRuntimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import { resumeGoal, startGoal, stopGoal, useGoal } from "../application/goalConfig";

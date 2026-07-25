@@ -1,4 +1,4 @@
-import { createParameterizedDataQuery } from "@/lib/data/dataQuery";
+import { createParameterizedDataQuery } from "@/plugins/sdk";
 
 export interface HookReadModel {
   event: string;

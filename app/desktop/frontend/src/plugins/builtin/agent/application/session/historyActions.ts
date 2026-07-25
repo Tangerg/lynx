@@ -1,7 +1,7 @@
 import type { Message } from "@/plugins/sdk/types/agentView";
 import { t } from "@/lib/i18n";
 import type { AgentInput } from "../../domain/input";
-import { notifyInfo } from "@/lib/notify";
+import { notifyInfo } from "@/plugins/sdk";
 import { agentRuntime, type AgentRestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentViewState } from "../ports/viewState";

@@ -1,6 +1,12 @@
+// Cached read hooks over the DATA_PROVIDER extension point — the read half of
+// the contract whose write half is `contributeDataProvider`. It sat in `lib/`
+// and imported the SDK from there, which let a utility module depend on the
+// plugin registry; the hooks ARE the registry's read surface, so they live with
+// it.
+
 import type { UseQueryResult } from "@tanstack/react-query";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { lookupDataProvider } from "@/plugins/sdk";
+import { lookupDataProvider } from "./selectors/runtime";
 
 const STATIC_QUERY_OPTIONS = {
   staleTime: 5 * 60_000,

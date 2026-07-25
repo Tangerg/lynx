@@ -6,16 +6,14 @@
 
 import type { Highlighter } from "shiki";
 import { useEffect, useState } from "react";
-import { resolveScheme } from "@/plugins/sdk/selectors/theme";
-import { useUiStore } from "@/state/uiStore";
+import { useScheme } from "../appearance";
 import { getHighlighter } from "./shiki";
 
-/** The Shiki theme preset matching the active UI scheme. Goes through
- *  resolveScheme (not `id === "light"`) so third-party light themes
- *  ("solarized-light" etc.) also pick the right preset. */
+/** The Shiki theme preset matching the active UI scheme. Keyed on the scheme,
+ *  never the theme id, so third-party light themes ("solarized-light" etc.)
+ *  also pick the right preset. */
 export function useShikiTheme(): string {
-  const themeId = useUiStore((s) => s.theme);
-  return resolveScheme(themeId) === "light" ? "github-light" : "github-dark";
+  return useScheme() === "light" ? "github-light" : "github-dark";
 }
 
 /** The shared highlighter loaded into state (null until ready) plus the active

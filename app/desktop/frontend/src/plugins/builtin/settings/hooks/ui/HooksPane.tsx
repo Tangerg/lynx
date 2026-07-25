@@ -15,7 +15,7 @@ import type { HookConfig } from "../application/hookConfig";
 import { useHookConfigs } from "../application/hookConfig";
 import { setHookTrust } from "../application/hookTrust";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

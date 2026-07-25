@@ -1,7 +1,7 @@
 import { Icon } from "@/ui";
 import { APPROVAL_MODES, saveApprovalMode, type ApprovalMode } from "../application/approvalConfig";
 import { rpcErrorText } from "@/lib/rpcErrors";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 

@@ -3,7 +3,7 @@
 // console.error reads as "the click did nothing" in the UI — while the
 // console keeps the raw error object for diagnostics.
 
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 
 export function reportSessionError(action: string, err: unknown, description?: string): void {
   console.error(`[session] ${action} failed:`, err);

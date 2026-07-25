@@ -3,7 +3,7 @@ import { fileTransfer } from "./ports/fileTransfer";
 import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { toast } from "sonner";
 import { z } from "zod";
-import { notifyError } from "@/lib/notify";
+import { notifyError } from "@/plugins/sdk";
 import { t } from "@/lib/i18n";
 import { lookupExtensionByKey } from "@/plugins/sdk";
 import { MESSAGE_ROLE } from "@/plugins/sdk/kernelPoints";

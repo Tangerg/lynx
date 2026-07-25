@@ -36,8 +36,12 @@ export { evalWhen } from "./evalWhen";
 
 export type { WhenContext } from "./evalWhen";
 
-// Persistent notification feed.
-export { useNotificationStore } from "./notifications";
+// Persistent notification feed + the app-side notify pair that writes to it.
+export { notifyError, notifyInfo, useNotificationStore } from "./notifications";
+export type { NotifyOptions } from "./notifications";
+// Cached read hooks over a contributed data provider.
+export { createDataQuery, createParameterizedDataQuery } from "./dataQuery";
+export type { ParameterizedQueryOptions } from "./dataQuery";
 // The registry store — imperative observation of contributions (subscribe /
 // getState). `normalizeCombo` + the toast-event contract stay internal to
 // `./registry` / `./hostToast` (plugins don't need them — points normalize combos
