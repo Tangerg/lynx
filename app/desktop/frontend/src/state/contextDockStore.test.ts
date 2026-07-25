@@ -41,7 +41,6 @@ describe("context dock session scopes", () => {
     expect(s.splitViewId).toBe("diff");
   }
 
-  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
   it("activateSessionScope saves and restores each session's dock state", () => {
     useContextDockStore.getState().activateSessionScope("s1");
     seedDock();
@@ -67,7 +66,6 @@ describe("context dock session scopes", () => {
     expect(s.splitViewId).toBe("terminal");
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
   it("forgetSessionScopes drops dock state for sessions no longer open", () => {
     useContextDockStore.getState().activateSessionScope("s1");
     seedDock();

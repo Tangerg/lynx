@@ -69,7 +69,7 @@ export function CwdMissingBanner() {
                   spellCheck={false}
                   // The input appears from an explicit "Relocate" click, so
                   // focusing it is the expected continuation, not a steal.
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  // oxlint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
                   className="w-72 max-w-full"
                 />

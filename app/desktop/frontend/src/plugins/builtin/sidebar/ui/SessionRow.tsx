@@ -96,7 +96,7 @@ export function SessionRow({
             // Rename only ever starts from an explicit user action (the
             // context-menu item), so stealing focus here is the expectation,
             // not a surprise — the a11y concern the rule guards against.
-            // eslint-disable-next-line jsx-a11y/no-autofocus
+            // oxlint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => {

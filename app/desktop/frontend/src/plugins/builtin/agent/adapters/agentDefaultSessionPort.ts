@@ -22,7 +22,7 @@ function useDefaultChatSession() {
       // the callback identity as its rebuild key. Re-creating the
       // callback when the active session changes tears down the old
       // agent and stands up a fresh one bound to the new session.
-      // eslint-disable-next-line react/exhaustive-deps
+      // oxlint-disable-next-line react/exhaustive-deps
     }, [activeSessionId]),
     activeSessionId,
   );

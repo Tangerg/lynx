@@ -15,7 +15,6 @@ export function PluginContentBlock({ block }: { block: ContentBlock }) {
     <PluginBoundary plugin={`content-block:${block.kind}`} label={`${block.kind} block`}>
       {/* Renderer's prop type is per-kind; storage widens to the union root.
           Cast the block to `any` here so React passes it through. */}
-      {/* eslint-disable-next-line ts/no-explicit-any */}
       <Renderer block={block as any} />
     </PluginBoundary>
   );

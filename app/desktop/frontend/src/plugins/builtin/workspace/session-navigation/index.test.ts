@@ -134,7 +134,6 @@ describe("workspace session navigation", () => {
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- helper functions contain the assertions.
   it("selecting a different session restores that session's workspace scope", () => {
     seedInspector();
 
@@ -160,7 +159,6 @@ describe("workspace session navigation", () => {
     expect(state.splitViewId).toBe("terminal");
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStatePreserved contains the assertions.
   it("re-selecting the same session preserves session-scoped workspace state", () => {
     seedInspector();
 
@@ -169,7 +167,6 @@ describe("workspace session navigation", () => {
     expectSessionScopedStatePreserved();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateBlank contains the assertions.
   it("moving to a session without saved dock state starts blank", () => {
     seedInspector();
 
@@ -178,7 +175,6 @@ describe("workspace session navigation", () => {
     expectSessionScopedStateBlank();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStatePreserved contains the assertions.
   it("closing a background session keeps the active session's workspace state", () => {
     seedInspector();
 
@@ -187,7 +183,6 @@ describe("workspace session navigation", () => {
     expectSessionScopedStatePreserved();
   });
 
-  // oxlint-disable-next-line vitest/expect-expect -- expectSessionScopedStateBlank contains the assertions.
   it("forgets workspace scopes for closed sessions", () => {
     seedInspector();
 

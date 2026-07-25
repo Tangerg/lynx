@@ -98,7 +98,7 @@ export function MermaidBlock({ code }: Props) {
     // them from getComputedStyle at call time. Pinning them in deps
     // re-triggers the memo when the user switches palette so the SVG
     // re-paints with the new tokens.
-    // eslint-disable-next-line react/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [debouncedCode, isSettling, theme, accent, renderer]);
 
   const [zoomed, setZoomed] = useState(false);
