@@ -35,9 +35,9 @@ interface AgentRowProps extends Omit<ButtonProps, "children" | "variant" | "size
 }
 
 /**
- * A work-index row. Hover and selection share one fill: selection reads through
- * ink strength rather than a heavier background, so a long list stays quiet and
- * the accent colour stays reserved for live state.
+ * A work-index row. Hover and selection share one fill, and selection reads through
+ * the background rather than the label's weight — the label itself stays at full
+ * ink, because dimming resting nav text is what makes a sidebar look washed out.
  */
 export function AgentRow({
   active,
@@ -61,7 +61,7 @@ export function AgentRow({
       className={cn(
         "h-[var(--density-row-height)] w-full justify-start rounded-sm text-left text-ui-md font-normal",
         "gap-[var(--density-row-gap)]",
-        "text-fg/89 transition-[background-color,color] duration-100",
+        "text-fg transition-[background-color,color] duration-100",
         "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.04]",
         "data-[active]:bg-fg/[0.04] data-[active]:text-fg",
         indent === "nested" ? "px-2 pl-8" : "px-2",

@@ -319,9 +319,10 @@
      ladder, so it must not drift when the contrast slider moves. */
   --color-control: #f1f1f4;
 
-  /* Ink — a neutral-800 anchor, not near-black: against an almost-white shell
-     #171717 body copy reads harsh and leaves no room above it. */
-  --color-text: #262626;
+  /* Ink — near-black. Measured against Codex, its body copy sits at #030303 and its
+     chrome labels at #282828; a neutral-800 anchor put ours a visible step lighter
+     than both, and `soft` prose put it two. Keep in step with `themes/lyra-light.ts`. */
+  --color-text: #171717;
   --color-text-bright: #000000;
   --color-text-soft: #4d4d4d;
   --color-text-muted: #686868;
@@ -380,12 +381,12 @@
      Absolute px, NOT rem: geometry must not move when the type base moves —
      a rem ladder drags every padding/width along and makes fixed chrome heights
      (header, rows) impossible to hold. */
-  --fs-ui-2xs: 10px;
-  --fs-ui-xs: 11px;
-  --fs-ui-sm: 12px;
-  --fs-ui-md: 13px;
-  --fs-ui-lg: 14px;
-  --fs-code: 12px;
+  --fs-ui-2xs: 11px;
+  --fs-ui-xs: 12px;
+  --fs-ui-sm: 13px;
+  --fs-ui-md: 14px;
+  --fs-ui-lg: 15px;
+  --fs-code: 13px;
 
   /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
@@ -774,11 +775,10 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
   background-clip: content-box;
 }
 
-/* Markdown body overrides — .msg-content keeps the className because
-   migrating every markdownComponents child to Tailwind isn't worth it. */
-html.theme-light .msg-content {
-  color: var(--color-text-soft);
-}
+/* Markdown body overrides — .msg-content keeps the className because migrating
+   every markdownComponents child to Tailwind isn't worth it. Note there is no
+   colour rule here: prose takes the full ink from markdown.css, and a light-only
+   `soft` override used to dim it a second time. */
 html.theme-light .msg-content code {
   background: var(--color-surface-2);
   color: var(--color-text);

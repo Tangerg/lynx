@@ -86,7 +86,7 @@ function MessageBlockInner({
           {isUser ? (
             <div className="group flex flex-col items-end" data-slot="message-user">
               <MessageContextMenu msg={msg}>
-                <div className="msg-content min-w-0 max-w-[80%] rounded-bubble bg-control px-4 py-2.5 text-left text-ui-md leading-body text-fg">
+                <div className="msg-content min-w-0 max-w-[80%] rounded-bubble bg-control px-4 py-2.5 text-left text-ui-lg leading-relaxed text-fg">
                   {content}
                 </div>
               </MessageContextMenu>

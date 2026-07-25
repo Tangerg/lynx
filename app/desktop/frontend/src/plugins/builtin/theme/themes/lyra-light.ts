@@ -25,10 +25,11 @@ const c = {
   // `surface1` keeps recessed fills (segmented wells, inputs, hover rows) in step
   // with --depth-step and the user's contrast setting.
 
-  // Ink ramp — a neutral-800 anchor rather than near-black: against an almost
-  // white shell, #171717 body copy reads harsh and leaves no room above it.
+  // Ink ramp — near-black anchor. Measured against Codex, body copy there is
+  // essentially black and chrome labels sit around #282828; anchoring at
+  // neutral-800 put every step here a visible notch lighter than both.
   inkBright: "#000000",
-  ink: "#262626",
+  ink: "#171717",
   inkSoft: "#4d4d4d",
   inkMuted: "#686868",
   inkFaint: "#8f8f8f",
