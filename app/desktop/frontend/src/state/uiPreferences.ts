@@ -21,6 +21,7 @@ export interface UiState {
   streamReveal: "smooth" | "typewriter";
   splitRatio: number;
   sidebarRail: boolean;
+  sidebarWidth: number;
   dockCollapsed: boolean;
   completionSound: boolean;
 }

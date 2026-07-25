@@ -5,10 +5,14 @@
  * names (`bg-canvas / text-fg / …`) so theme plugins (which write to
  * `:root.style` at runtime) propagate to every callsite.
  *
- * The remaining standalone files (`markdown.css`, `layout.css`,
- * `overlays.css`, `tool.css`) carry rules that legitimately can't live
- * in Tailwind utilities: rehype-emitted DOM, pseudo-element scrollbars,
- * `@property` conic-gradient masks, `::highlight()` ranges.
+ * The app shell lives at the bottom of this file rather than in its own
+ * stylesheet: its geometry must be unlayered so no utility class can override a
+ * structural height or the seam pseudo-elements.
+ *
+ * The remaining standalone files (`markdown.css`, `overlays.css`, `tool.css`)
+ * carry rules that legitimately can't live in Tailwind utilities:
+ * rehype-emitted DOM, pseudo-element scrollbars, `@property` conic-gradient
+ * masks, `::highlight()` ranges.
  */
 
 /* Fonts: the native system stack (SF Pro / PingFang on macOS, the app's
@@ -68,10 +72,11 @@
   --color-cta-hover: var(--color-cta-hover);
   --color-cta-text: var(--color-cta-text);
 
-  /* Large regions keep the JetBrains-style surface ladder: canvas / sidebar /
-     nested rows separate by brightness deltas, not global grey borders. These
-     decorative line utilities stay transparent by default; use field or an
-     explicit structural hairline only when a local control truly needs one. */
+  /* Decorative line utilities stay transparent by default. Region separation is
+     structural and owned by the shell: the seam ring (`--seam-line`) between
+     drawer and card, and the chrome hairline (`--app-surface-divider`) under
+     header bars. Reach for `field` when a local control needs an editable edge —
+     never for laying out regions. */
   --color-line: transparent;
   --color-line-soft: transparent;
   --color-divider: transparent;
@@ -437,7 +442,27 @@
     0 16px 34px -14px rgb(17 17 17 / 0.18);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
-  /* Content max-width — the centered reading island (REDESIGN.md §3.4). */
+  /* -----------------------------------------------------------------------
+   *  Shell materials — the drawer's frosted panel and the content card's seam.
+   *
+   *  All derived from the active theme's own tokens, so every theme (not just
+   *  the two lyra ones) gets a coherent seam for free. The drawer is the CARD
+   *  color at partial opacity over the shell background: that reads as a
+   *  translucent panel of the same material as the card, which is what makes the
+   *  card look lifted off it rather than merely a different grey.
+   * ----------------------------------------------------------------------- */
+  --app-drawer-surface: color-mix(in srgb, var(--color-bg) 64%, transparent);
+  --app-drawer-backdrop: blur(8px) saturate(135%);
+  --app-drawer-shadow: inset 0 1px 0 rgb(0 0 0 / 0.025);
+  /* The card's outer edge should read as solid — deliberately stronger than the
+     internal chrome hairline below. Do not unify the two. */
+  --seam-line: color-mix(in srgb, var(--color-text) 8%, transparent);
+  --seam-shadow-color: rgb(0 0 0 / 0.1);
+  /* Internal chrome dividers (header bottoms, pane splits) sit a step more
+     transparent than the seam so they recede behind it. */
+  --app-surface-divider: color-mix(in srgb, var(--color-border) 60%, transparent);
+
+  /* Content max-width — the centered reading island. */
   --content-max: 768px;
 
   /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
@@ -675,6 +700,13 @@ html.theme-dark {
   --shadow-popover:
     0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34),
     0 12px 32px -12px rgb(0 0 0 / 0.68);
+
+  /* Dark shell materials — the drawer carries a touch more of the card color
+     (the near-black surfaces sit closer together, so 64% would read as flat),
+     and the seam shadow needs far more alpha to register at all. */
+  --app-drawer-surface: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  --app-drawer-shadow: inset 0 1px 0 rgb(255 255 255 / 0.024);
+  --seam-shadow-color: rgb(0 0 0 / 0.36);
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. */
@@ -703,12 +735,415 @@ html.theme-light .msg-content code {
 }
 
 /* =========================================================================
+ *  App shell — a DRAWER shell, not a grid.
+ *
+ *  The sidebar is a fixed-position drawer plus an in-flow spacer that
+ *  collapses to zero width; both animate in lockstep. Because the content
+ *  card outranks the drawer on z-index, collapsing slides the sidebar
+ *  *under* the card and the card never moves — the motion "goes over".
+ *  The previous shell was `grid-template-columns`, and a template swap
+ *  cannot be interpolated, which is why collapsing snapped.
+ *
+ *  Everything here is unlayered on purpose: these rules own structural
+ *  geometry (heights, seam pseudo-elements, clip paths) that a call site
+ *  must not be able to override with a utility class.
+ * ========================================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --app-min-width: 1120px;
+  --app-min-height: 720px;
+  /* Drawer width. Live-updated inline on the shell element while dragging the
+     seam rail; AgentAppShell restores the persisted value on mount. */
+  --sidebar-width: 256px;
+  /* Chrome bar height. Shared by the sidebar header and every content header so
+     the two line up across the seam — the single number the macOS traffic-light
+     gutter is centred against. */
+  --surface-header-height: 46px;
+  /* Drawer slide. One duration + curve for the sidebar container, its spacer,
+     the seam corner, and the card's depth shadow, so they move as one object. */
+  --dur-drawer: calc(300ms * var(--motion-scale));
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+  overflow: hidden;
+}
+
+#root {
+  height: 100vh;
+}
+
+html {
+  color-scheme: light;
+}
+html.theme-dark {
+  color-scheme: dark;
+}
+
+.agent-shell {
+  position: relative;
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  min-width: var(--app-min-width);
+  min-height: var(--app-min-height);
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+/* ---------- Drawer ---------- */
+
+/* In-flow spacer: this is what actually reserves the drawer's width in the
+   layout. Collapsing it to 0 is animatable, unlike a grid template change. */
+.agent-drawer-gap {
+  position: relative;
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: width var(--dur-drawer) var(--ease-drawer);
+}
+.agent-shell[data-sidebar="collapsed"] .agent-drawer-gap {
+  width: 0;
+}
+
+/* Top-corner sheen on the drawer — a faint highlight where the window's own
+   edge catches light, so the frosted panel reads as a material rather than a
+   flat fill. */
+.agent-drawer-gap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(90% 75% at 0% 0%, rgb(255 255 255 / 0.06), transparent 58%),
+    linear-gradient(180deg, rgb(255 255 255 / 0.025), rgb(255 255 255 / 0.008));
+}
+
+/* The drawer itself is out of flow, so it can slide without reflowing the card.
+   z-index 0 keeps it UNDER the content card (z-index 15). */
+.agent-drawer {
+  position: fixed;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  display: flex;
+  width: var(--sidebar-width);
+  height: 100vh;
+  transition:
+    left var(--dur-drawer) var(--ease-drawer),
+    width var(--dur-drawer) var(--ease-drawer);
+}
+.agent-shell[data-sidebar="collapsed"] .agent-drawer {
+  left: calc(var(--sidebar-width) * -1);
+}
+
+/* Mid-drag the width changes every pointer-move, so the slide transition would
+   make the drawer chase the cursor 300ms behind it. AgentSeamRail sets this for
+   the duration of the drag only. */
+.agent-shell[data-resizing] .agent-drawer,
+.agent-shell[data-resizing] .agent-drawer-gap {
+  transition: none;
+}
+
+/* Inner surface — the only place the drawer is skinned. The outer shell owns
+   position and motion so a visual tweak can never break the slide. */
+.agent-drawer-surface {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--app-drawer-surface);
+  box-shadow: var(--app-drawer-shadow);
+  backdrop-filter: var(--app-drawer-backdrop);
+  -webkit-backdrop-filter: var(--app-drawer-backdrop);
+}
+
+/* ---------- Seam rail ---------- */
+
+/* Drag handle for the seam. Deliberately carries NO visible line: the divider
+   is the card's inset ring (below). A border here would draw a second vertical
+   line right beside it. z-index 25 puts it above the card so the cursor target
+   survives the card's own stacking. */
+.agent-seam-rail {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 25;
+  width: 10px;
+  transform: translateX(-5px);
+  cursor: col-resize;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+.agent-shell[data-sidebar="collapsed"] .agent-seam-rail {
+  display: none;
+}
+
+/* ---------- Content card ---------- */
+
+/* Parent of the card. Its ::after backs the card's rounded-corner wedge with
+   the exact drawer material, so the area outside the radius reads as the drawer
+   continuing underneath instead of a transparent notch. The card is
+   `overflow: hidden`, so that wedge can never be filled from inside it. */
+.agent-card-backing {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  height: 100vh;
+}
+
+.agent-card-backing::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  z-index: 0;
+  width: var(--shape-seam);
+  pointer-events: none;
+  background: var(--app-drawer-surface);
+  backdrop-filter: var(--app-drawer-backdrop);
+  -webkit-backdrop-filter: var(--app-drawer-backdrop);
+  opacity: 1;
+  transition: opacity var(--dur-drawer) var(--ease-drawer);
+}
+/* Collapsed, the wedge strip would sit at the window edge and a blurred strip
+   there paints over the OS window's own rounded corner. */
+.agent-shell[data-sidebar="collapsed"] .agent-card-backing::after {
+  opacity: 0;
+}
+
+/* The card reads as a raised surface floating over the drawer: rounded on the
+   seam side, one inset hairline ring, one soft directional shadow. */
+.agent-content-card {
+  position: relative;
+  z-index: 15;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-bg);
+  border-start-start-radius: var(--shape-seam);
+  border-end-start-radius: var(--shape-seam);
+  /* Low spread + negative offset keeps the shadow hugging the seam instead of
+     fanning across the drawer. */
+  box-shadow: -6.5px 0 12px -10px var(--seam-shadow-color);
+  transition:
+    box-shadow var(--dur-drawer) var(--ease-drawer),
+    border-radius var(--dur-drawer) var(--ease-drawer);
+}
+
+/* The divider is an inset RING, not a border: a ring follows the inherited
+   rounded corner. It is then clipped to the seam-side radius strip so only the
+   vertical edge and its two curves show — the straight top/bottom strokes would
+   read as an L bracketing the card. */
+.agent-content-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--seam-line);
+  clip-path: inset(0 calc(100% - var(--shape-seam)) 0 0);
+  transition: opacity var(--dur-drawer) var(--ease-drawer);
+}
+
+/* Hovering the rail intensifies the same line the ring already draws — never a
+   second element. */
+.agent-shell:has(.agent-seam-rail:hover) .agent-content-card {
+  --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+
+/* Collapsed the card spans edge to edge, so its rounded seam corner would
+   overlap the OS window's own corner — two mismatched curves. Square it and
+   drop the seam. The shadow fades via its color token rather than
+   `box-shadow: none`, which Chromium snaps instead of interpolating. */
+.agent-shell[data-sidebar="collapsed"] .agent-content-card {
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  --seam-shadow-color: transparent;
+}
+.agent-shell[data-sidebar="collapsed"] .agent-content-card::before {
+  opacity: 0;
+}
+
+/* ---------- Chrome bars ---------- */
+
+.agent-surface-header {
+  display: flex;
+  height: var(--surface-header-height);
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding-inline: 12px;
+}
+@media (min-width: 640px) {
+  .agent-surface-header {
+    padding-inline: 20px;
+  }
+}
+
+/* Bottom hairline for every chrome bar. Painted as a 1px background gradient,
+   NOT a border and NOT a positioned pseudo-element: a border bleeds into the
+   seam corner, and an absolute line would force the header to become a
+   containing block (its toolbars rely on their own portals/stacking). A
+   gradient is layout-neutral and can be shortened on one side. */
+.agent-surface-divider {
+  background-image: linear-gradient(var(--app-surface-divider), var(--app-surface-divider));
+  background-repeat: no-repeat;
+  background-position: left bottom;
+  background-size: 100% 1px;
+}
+
+/* Inside the rounded card the horizontal hairline meets the vertical seam
+   stroke. Two 1px semi-transparent lines sharing a pixel double their alpha and
+   read as a bright dot, so pull the hairline off the seam side by 1px. */
+.agent-content-card .agent-surface-divider {
+  background-position: left 1px bottom;
+  background-size: calc(100% - 1px) 1px;
+}
+
+/* macOS traffic lights live in the top-left of the window. When the drawer is
+   collapsed the card reaches that corner, so its header has to yield the slot.
+   This is why the padding lives here and not in a `pl-*` utility: unlayered
+   rules outrank `@layer utilities`, so a utility could never win. */
+.agent-shell[data-sidebar="collapsed"] .agent-content-card > .agent-surface-header {
+  padding-inline-start: 96px;
+}
+
+/* ---------- Context dock ---------- */
+/* NOTE: still the fixed-width flex column. The overlay-card dock is a separate
+   change; these rules move here verbatim from the deleted layout.css. */
+.agent-context-dock {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.agent-context-dock .workspace-view-layout {
+  background: var(--color-surface);
+}
+
+.agent-dock-tabs {
+  display: flex;
+  height: var(--surface-header-height);
+  flex-shrink: 0;
+  align-items: stretch;
+  gap: 4px;
+  overflow-x: auto;
+  padding: 0 18px;
+  scrollbar-width: none;
+}
+
+.agent-dock-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.agent-dock-tab {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 160px;
+  align-items: center;
+  gap: 7px;
+  border: 0;
+  background: transparent;
+  padding: 0 9px;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: var(--fs-ui-lg);
+  font-weight: 600;
+  line-height: 1;
+  outline: none;
+}
+
+.agent-dock-tab:hover,
+.agent-dock-tab:focus-visible,
+.agent-dock-tab[data-active] {
+  color: var(--color-text);
+}
+
+.agent-dock-tab[data-active]::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: var(--shape-pill);
+  background: var(--color-accent);
+  content: "";
+}
+
+/* ---------- Scroll containers ---------- */
+.panel-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* No rubber-band glow / scroll-chaining at the edges — a native pane stops
+     dead at its bounds, it doesn't bounce or hand the scroll to a parent.
+     `.panel-scroll` is THE scroller everywhere (view panes + the chat's inner
+     stick-to-bottom div via scrollClassName), so this covers both. */
+  overscroll-behavior: contain;
+  /* Intentionally no `overflow-x: hidden` here — adding it broke
+     use-stick-to-bottom during streaming (rapid content-height changes
+     interacted badly with WebKit's scrollbar-recompute path, causing the chat to
+     snap back to the top). The enclosing pane clips anything that still escapes. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-soft) transparent;
+}
+.panel-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.panel-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border-soft);
+  border-radius: var(--shape-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.panel-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-soft);
+  background-clip: content-box;
+}
+
+/* StickToBottom outer wrapper. The lib renders its own scrolling div inside, so
+   the outer is just a flex-sized frame; `position: relative` gives any overlay
+   (e.g. a sticky reply hint) a coordinate origin. The actual scroll styles
+   (.panel-scroll) live on the inner div via scrollClassName. */
+.msg-scroll-frame {
+  flex: 1 1 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* =========================================================================
  *  Surviving standalone files — kept separate because each carries a
  *  big rule set keyed off DOM the JSX layer never owns (rehype output,
  *  scrollbar pseudo-elements, conic-gradient @property masks, range
  *  highlights).
  * ========================================================================= */
-@import "./layout.css";
 @import "./markdown.css";
 @import "./overlays.css";
 @import "./tool.css";

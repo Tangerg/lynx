@@ -87,19 +87,15 @@ describe("buildTokenMap", () => {
     expect(tokens["color-cta-hover"]).toMatch(/^#[0-9a-f]{6}$/i);
   });
 
-  it("emits surface2/3/4 only when explicitly provided", () => {
-    const noLadder = buildTokenMap(makeSpec());
-    expect(noLadder).not.toHaveProperty("color-surface-2");
-    expect(noLadder).not.toHaveProperty("color-surface-3");
-
-    const withLadder = buildTokenMap(
-      makeSpec({
-        surfaces: { bg: "#0a0a0a", surface: "#1a1a1a", surface2: "#2a", surface3: "#3a" },
-      }),
-    );
-    expect(withLadder["color-surface-2"]).toBe("#2a");
-    expect(withLadder["color-surface-3"]).toBe("#3a");
-    expect(withLadder).not.toHaveProperty("color-surface-4");
+  // The -2/-3/-4 steps are the color-mix() ladder in globals.css so they track
+  // --depth-step (the contrast preference). A theme must not be able to pin
+  // them, or the contrast slider goes partially dead on that theme.
+  it("never emits the derived surface ladder steps", () => {
+    const tokens = buildTokenMap(makeSpec({ surfaces: { bg: "#0a0a0a", surface: "#1a1a1a" } }));
+    expect(tokens["color-surface"]).toBe("#1a1a1a");
+    expect(tokens).not.toHaveProperty("color-surface-2");
+    expect(tokens).not.toHaveProperty("color-surface-3");
+    expect(tokens).not.toHaveProperty("color-surface-4");
   });
 
   it("dark scheme picks DARK_SHADOWS; light picks LIGHT_SHADOWS", () => {

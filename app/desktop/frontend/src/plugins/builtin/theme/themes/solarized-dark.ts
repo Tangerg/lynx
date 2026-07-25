@@ -31,9 +31,6 @@ export default defineThemePlugin({
     bg: c.base03,
     surface: c.base02,
     // Lifted surfaces extend the blue-grey axis (not a lightness step).
-    surface2: "#0e4250",
-    surface3: "#134e5e",
-    surface4: "#185868",
   },
   ink: {
     text: c.base0,

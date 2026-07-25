@@ -1,5 +1,5 @@
-import { AgentPane } from "@/ui/agent";
 import { dragClasses, noDragClasses, ScrollArea } from "@/ui";
+import { AgentSurfaceHeader } from "@/ui/agent";
 import { cn } from "@/lib/utils";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
@@ -9,10 +9,11 @@ export function SidebarExpanded() {
   const items = useWorkIndexItems("expanded");
 
   return (
-    <AgentPane tone="sidebar" className={cn("sidebar", dragClasses)}>
-      {/* Draggable top strip that clears the native macOS traffic-light inset
-          (TitleBarHiddenInset) — the OS draws the only window controls here. */}
-      <div className="h-[38px] shrink-0" aria-hidden />
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", dragClasses)}>
+      {/* Same chrome-bar height as the content card's header so the two line up
+          across the seam. Empty and undivided by design: the OS draws the window
+          controls in this corner (TitleBarHiddenInset). */}
+      <AgentSurfaceHeader divider={false} aria-hidden />
 
       <ScrollArea hideScrollbar style={{ padding: "2px 10px 14px" }}>
         <div className={cn("flex flex-col gap-y-3", noDragClasses)}>
@@ -34,6 +35,6 @@ export function SidebarExpanded() {
       <div className={cn("mt-auto", noDragClasses)}>
         <Slot name="sidebar.footer" />
       </div>
-    </AgentPane>
+    </div>
   );
 }

@@ -36,9 +36,6 @@ export default defineThemePlugin({
     bg: c.panel,
     surface: c.editor,
     // Atom's selection ladder is non-linear; pin the canonical tones.
-    surface2: c.selection1,
-    surface3: c.selection2,
-    surface4: c.selection3,
   },
   ink: {
     text: c.fg,

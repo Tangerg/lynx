@@ -35,9 +35,6 @@ export default defineThemePlugin({
   surfaces: {
     bg: c.mantle,
     surface: c.base,
-    surface2: c.surface0,
-    surface3: c.surface1,
-    surface4: c.surface2,
   },
   ink: {
     text: c.text,

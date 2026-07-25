@@ -1,29 +1,60 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
+import { useEffect, useRef } from "react";
+import { clampSidebarWidth } from "@/lib/shellGeometry";
+import { AgentSeamRail, AgentSidebar } from "./sidebar";
 
 interface AgentAppShellProps {
-  rail?: boolean;
+  /** Work-index content. Omit to run without a drawer (settings takes over the window). */
   sidebar?: ReactNode;
+  /** Drawer open state. Collapsing slides it under the content card. */
+  sidebarOpen: boolean;
+  /** Persisted drawer width in px; the rail commits new values through `onResize`. */
+  sidebarWidth: number;
+  onResize: (width: number) => void;
   main: ReactNode;
   overlay?: ReactNode;
-  mode?: "work" | "single";
 }
 
-export function AgentAppShell({ rail, sidebar, main, overlay, mode = "work" }: AgentAppShellProps) {
-  const single = mode === "single";
+/**
+ * The window shell: drawer, content card, overlays.
+ *
+ * The drawer's width lives as a custom property on this element so the rail can
+ * drag it without a React render, and so the spacer, the panel, the seam wedge
+ * and the card's corner all read one number. Collapse is a single attribute
+ * flip that every one of those transitions off.
+ */
+export function AgentAppShell({
+  sidebar,
+  sidebarOpen,
+  sidebarWidth,
+  onResize,
+  main,
+  overlay,
+}: AgentAppShellProps) {
+  const shellRef = useRef<HTMLDivElement>(null);
+  const hasSidebar = sidebar !== undefined;
+
+  // The rail writes `--sidebar-width` directly during a drag, so this effect is
+  // what re-syncs the element with the store afterwards (and on first paint).
+  useEffect(() => {
+    const shell = shellRef.current;
+    if (!shell) return;
+    shell.style.setProperty(
+      "--sidebar-width",
+      `${clampSidebarWidth(sidebarWidth, shell.clientWidth)}px`,
+    );
+  }, [sidebarWidth]);
+
   return (
     <div
-      className={cn("agent-app", rail && !single && "agent-app-rail", single && "agent-app-single")}
+      ref={shellRef}
+      className="agent-shell"
+      data-sidebar={hasSidebar && sidebarOpen ? "expanded" : "collapsed"}
     >
-      <div className="agent-shell-grid">
-        {!single && !rail && (
-          <aside aria-label="Work index" className="agent-region agent-region-sidebar">
-            {sidebar}
-          </aside>
-        )}
-        <main aria-label="Agent workspace" className="agent-region agent-region-main">
-          {main}
-        </main>
+      {hasSidebar && <AgentSidebar>{sidebar}</AgentSidebar>}
+      <div className="agent-card-backing">
+        {hasSidebar && sidebarOpen && <AgentSeamRail onCommit={onResize} />}
+        {main}
       </div>
       {overlay}
     </div>

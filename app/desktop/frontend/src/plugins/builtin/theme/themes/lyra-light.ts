@@ -1,34 +1,44 @@
-// Lyra Light — the default skin. Vercel Geist design language: white canvas,
-// neutral gray chrome separated by background delta (no rules), Geist ink ramp.
+// Lyra Light — the default skin.
+//
+// The separation model is a raised content card over a frosted drawer, so the
+// two big regions sit at almost the same value: the seam ring and the card's
+// depth shadow carry the split, not a brightness delta. That is why `surface`
+// (the shell the drawer floats on) is a hair BELOW pure white instead of a step
+// of grey — a grey rail beside a white column reads as two pasted rectangles.
+//
 // Accent (blue-700) is reserved for live / focus / links; the primary CTA is the
-// inverting ink-on-white button (Vercel / ChatGPT signature), so blue stays rare.
+// inverting ink-on-white button, so blue stays rare.
 
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Geist blue-700 — the one accent. Live indicators, focus rings, links.
+  // The one accent. Live indicators, focus rings, links.
   accent: "#006bff",
 
-  // JetBrains-style region split: canvas is white; durable chrome (sidebar,
-  // dock, cards) is a neutral achromatic gray ladder. Large regions read
-  // distinct by brightness delta, never by a grey rule.
-  canvas: "#ffffff", // background-100
-  surface1: "#f2f2f2", // gray-100 — sidebar / dock / card chrome
-  surface2: "#e8e8e8", // hover row, user bubble, chip
-  surface3: "#dedede", // active row, dropdown
-  surface4: "#d1d1d1", // deepest lifted
+  // Card is pure white; the shell behind the drawer is a half-step down. The
+  // drawer itself is the card color at partial opacity over this shell (see
+  // `--app-drawer-surface`), which is what makes it read as the same material.
+  canvas: "#ffffff",
+  surface1: "#fcfcfc",
 
-  // Geist gray scale (text/icons): gray-1000 / 900 / 700 / 600.
+  // surface2/3/4 are deliberately NOT pinned: deriving them as ink mixes off
+  // `surface1` keeps recessed fills (segmented wells, inputs, hover rows) in step
+  // with --depth-step and the user's contrast setting.
+
+  // Ink ramp — a neutral-800 anchor rather than near-black: against an almost
+  // white shell, #171717 body copy reads harsh and leaves no room above it.
   inkBright: "#000000",
-  ink: "#171717", // gray-1000
-  inkSoft: "#4d4d4d", // gray-900 — body / secondary
-  inkMuted: "#8f8f8f", // gray-700 — meta / inactive
-  inkFaint: "#a8a8a8", // gray-600 — footnote / disabled
+  ink: "#262626",
+  inkSoft: "#4d4d4d",
+  inkMuted: "#6b6b6b",
+  inkFaint: "#8f8f8f",
 
-  // Geist gray-alpha scale (translucent borders/dividers/hover fills).
-  hairline: "rgb(17 17 17 / 0.08)",
-  hairStrong: "rgb(17 17 17 / 0.14)",
-  hairTertiary: "rgb(17 17 17 / 0.05)",
+  // Hairlines ARE the separation mechanism here, so they are tuned low: the seam
+  // ring and the chrome divider both derive from `border`, and anything heavier
+  // turns the UI into a wireframe.
+  hairline: "rgb(0 0 0 / 0.05)",
+  hairStrong: "rgb(0 0 0 / 0.1)",
+  hairTertiary: "rgb(0 0 0 / 0.04)",
 };
 
 export default defineThemePlugin({
@@ -44,9 +54,6 @@ export default defineThemePlugin({
   surfaces: {
     bg: c.canvas,
     surface: c.surface1,
-    surface2: c.surface2,
-    surface3: c.surface3,
-    surface4: c.surface4,
   },
   ink: {
     text: c.ink,
@@ -66,8 +73,7 @@ export default defineThemePlugin({
     info: "#006bff", // blue-700
     success: "#28a948", // green-700
   },
-  // Primary CTA — inverting ink-on-white (Vercel primary button). Hover goes
-  // pure black (Geist `.press:hover`). Accent stays reserved for "live".
+  // Primary CTA — inverting ink-on-white. Hover goes pure black.
   cta: {
     cta: "#171717",
     ctaHover: "#000000",

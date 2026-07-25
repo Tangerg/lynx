@@ -35,8 +35,6 @@ export default defineThemePlugin({
   surfaces: {
     bg: c.bgDark,
     surface: c.bg,
-    surface2: c.bgHighlight,
-    surface3: c.bgHover,
   },
   ink: {
     text: c.fg,

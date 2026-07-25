@@ -20,6 +20,7 @@ export interface WorkspaceNavigationPort {
   useSelectTool(): (id: string) => void;
   useToggleTool(): (id: string) => void;
   useSidebarRail(): boolean;
+  useSidebarWidth(): { width: number; setWidth: (width: number) => void };
   selectChat(): void;
   openView(tab: WorkspaceViewTab): void;
   openViewBeside(tab: WorkspaceViewTab): void;

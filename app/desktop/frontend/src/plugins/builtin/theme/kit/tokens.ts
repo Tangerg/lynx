@@ -58,8 +58,6 @@ export const SCHEME_ICON: Record<"dark" | "light", string> = {
  *    colord unless the spec passes explicit overrides
  *  - CTA defaults to accent-driven (accent fill + textOnAccent ink);
  *    spec.cta overrides individual fields
- *  - surface2 / surface3 / surface4 emit only when explicitly provided —
- *    otherwise tokens.css color-mix() ladder kicks in
  *  - spec.extras wins on collision (last spread)
  */
 export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
@@ -93,13 +91,10 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "color-accent-press": accentPress,
     "color-text-on-accent": spec.brand.textOnAccent,
 
-    // Surfaces — surface2/3/4 default to color-mix() in tokens.css; only
-    // emit explicit values when the theme provided them.
+    // Surfaces — the -2/-3/-4 steps are the color-mix() ladder in globals.css,
+    // never emitted here: they track --depth-step (the contrast preference).
     "color-bg": spec.surfaces.bg,
     "color-surface": spec.surfaces.surface,
-    ...(spec.surfaces.surface2 ? { "color-surface-2": spec.surfaces.surface2 } : {}),
-    ...(spec.surfaces.surface3 ? { "color-surface-3": spec.surfaces.surface3 } : {}),
-    ...(spec.surfaces.surface4 ? { "color-surface-4": spec.surfaces.surface4 } : {}),
 
     // Ink — soft/muted/faint default to `text` at decreasing alpha (Apple
     // label model) so a theme can ship just `text` + `textBright` and get an

@@ -2,14 +2,13 @@ import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import type { IconName } from "@/ui";
 import {
+  AgentContentCard,
   AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
   AgentIconButton,
-  AgentPane,
-  AgentPaneHeader,
   AgentStatusPill,
-  AgentToolbarButton,
+  AgentSurfaceHeader,
 } from "@/ui/agent";
 import { dragClasses, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
@@ -51,7 +50,7 @@ interface Props {
 function DockHeader({ tabs, onToggle }: { tabs: AgentDockTab[]; onToggle: () => void }) {
   const t = useT();
   return (
-    <div className="flex h-[52px] shrink-0 items-center pr-2">
+    <div className="flex h-[var(--surface-header-height)] shrink-0 items-center pr-2">
       <div className="min-w-0 flex-1">
         <AgentDockTabs tabs={tabs} />
       </div>
@@ -122,7 +121,7 @@ export function ChatPanel({ onSend }: Props) {
   const showDock = Boolean(splitViewId) || !dockCollapsed;
 
   return (
-    <AgentPane tone="main" className="relative">
+    <AgentContentCard>
       {activeMainView ? (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
@@ -135,10 +134,10 @@ export function ChatPanel({ onSend }: Props) {
             className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
             style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
           >
-            {/* Header padding (incl. the traffic-light gutter when the sidebar
-                is collapsed) is owned by `.agent-pane-header` in layout.css —
+            {/* Height, inset, and the traffic-light gutter (when the drawer is
+                collapsed) are owned by `.agent-surface-header` in globals.css —
                 a `pl-*` utility here can't win against that unlayered rule. */}
-            <AgentPaneHeader className={dragClasses}>
+            <AgentSurfaceHeader className={dragClasses}>
               <AgentIconButton
                 icon="panel-l"
                 size="sm"
@@ -155,21 +154,10 @@ export function ChatPanel({ onSend }: Props) {
               <span className="min-w-0 max-w-[320px] truncate text-ui-lg font-semibold text-fg">
                 {activeSession?.title || t("welcome.title")}
               </span>
-              {running && <AgentStatusPill tone="running">运行中</AgentStatusPill>}
-              <AgentIconButton
-                icon="more"
-                size="sm"
-                aria-label="更多操作"
-                className={noDragClasses}
-              />
+              {running && (
+                <AgentStatusPill tone="running">{t("session.status.running")}</AgentStatusPill>
+              )}
               <span className="min-w-4 flex-1" />
-              <AgentToolbarButton
-                icon="folder"
-                trailingIcon="chevron-down"
-                className={noDragClasses}
-              >
-                打开位置
-              </AgentToolbarButton>
               {!showDock && (
                 <AgentIconButton
                   icon="panel-r"
@@ -179,7 +167,7 @@ export function ChatPanel({ onSend }: Props) {
                   className={noDragClasses}
                 />
               )}
-            </AgentPaneHeader>
+            </AgentSurfaceHeader>
             <ChatStream onSend={onSend} />
           </div>
           {/* Right context dock — a full-height column with its own tab header.
@@ -203,6 +191,6 @@ export function ChatPanel({ onSend }: Props) {
             ))}
         </div>
       )}
-    </AgentPane>
+    </AgentContentCard>
   );
 }

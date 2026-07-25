@@ -9,6 +9,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 // Same reason the extension-point reads below import from the deep
@@ -39,6 +40,7 @@ const uiPersistSchema = z.object({
   streamReveal: z.enum(["smooth", "typewriter"]),
   splitRatio: z.number(),
   sidebarRail: z.boolean(),
+  sidebarWidth: z.number(),
   dockCollapsed: z.boolean(),
   completionSound: z.boolean(),
 });
@@ -66,6 +68,7 @@ interface UiActions {
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
   setSplitRatio: (ratio: number) => void;
   toggleSidebar: () => void;
+  setSidebarWidth: (width: number) => void;
   toggleDock: () => void;
   setCompletionSound: (on: boolean) => void;
 }
@@ -87,6 +90,7 @@ export const useUiStore = create<UiState & UiActions>()(
       streamReveal: "smooth",
       splitRatio: 0.5,
       sidebarRail: false,
+      sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
       dockCollapsed: false,
       completionSound: false,
 
@@ -115,6 +119,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setStreamReveal: (streamReveal) => set({ streamReveal }),
       setSplitRatio: (splitRatio) => set({ splitRatio }),
       toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
+      setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
       toggleDock: () => set((s) => ({ dockCollapsed: !s.dockCollapsed })),
       setCompletionSound: (completionSound) => set({ completionSound }),
     }),

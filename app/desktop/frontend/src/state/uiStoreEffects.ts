@@ -40,9 +40,6 @@ function applyTheme(theme: Theme, accent: string, contrast: number): void {
   appliedTokenNames = [];
 
   for (const [name, value] of Object.entries(spec?.tokens ?? {})) {
-    if (name === "color-surface-2" || name === "color-surface-3" || name === "color-surface-4") {
-      continue;
-    }
     const property = `--${name}`;
     root.style.setProperty(property, value);
     appliedTokenNames.push(property);

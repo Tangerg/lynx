@@ -1,7 +1,7 @@
 // Composer for the appearance settings pane. The component itself only lays out
 // sections; each section owns its own preference subscription.
 
-import { AgentSurface } from "@/ui/agent";
+import { Surface } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { AccentSection } from "./AccentSection";
 import { ContrastSection } from "./ContrastSection";
@@ -52,7 +52,7 @@ function ThemePreviewStrip() {
 
 function ThemeCodePreview() {
   return (
-    <AgentSurface className="mt-8 grid grid-cols-2 overflow-hidden">
+    <Surface className="mt-8 grid grid-cols-2 overflow-hidden">
       <div className="p-5 font-mono text-ui-md leading-7 text-fg-muted">
         <div>
           <span className="text-[#c084fc]">const</span> theme = {"{"}
@@ -77,7 +77,7 @@ function ThemeCodePreview() {
         <div className="mt-2">contrast: 68</div>
         <div>{"};"}</div>
       </div>
-    </AgentSurface>
+    </Surface>
   );
 }
 
@@ -95,7 +95,7 @@ export function AppearancePane() {
       </header>
       <ThemePreviewStrip />
       <ThemeCodePreview />
-      <AgentSurface className="mt-10 overflow-hidden">
+      <Surface className="mt-10 overflow-hidden">
         <ThemeSection />
         <CustomThemeColors />
         <AccentSection />
@@ -103,7 +103,7 @@ export function AppearancePane() {
         <FontSection />
         <ShapeMotionSection />
         <LanguageSection />
-      </AgentSurface>
+      </Surface>
     </div>
   );
 }

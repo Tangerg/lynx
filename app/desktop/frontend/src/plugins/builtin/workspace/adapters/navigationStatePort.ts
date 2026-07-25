@@ -30,6 +30,10 @@ export function installWorkspaceNavigationPort(): () => void {
       const splitOpen = useContextDockStore((state) => state.splitViewId !== null);
       return preferRail || splitOpen;
     },
+    useSidebarWidth: () => ({
+      width: useUiStore((state) => state.sidebarWidth),
+      setWidth: useUiStore((state) => state.setSidebarWidth),
+    }),
     selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
     openView: (tab) => {
       useWorkspaceSurfaceStore.getState().openMainView(withWorkspaceViewMetadata(tab));

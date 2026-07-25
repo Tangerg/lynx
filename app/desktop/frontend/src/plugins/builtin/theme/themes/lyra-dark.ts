@@ -1,37 +1,36 @@
-// Lyra Dark — system default. Synthesis of Linear (surface ladder) +
-// Vercel (typography). Source of truth; tokens.css `:root` only stands in
-// until this plugin's setup runs.
+// Lyra Dark — system default.
+//
+// Mirror of the light scheme's separation model: card and shell sit at nearly the
+// same value and the seam ring plus depth shadow do the dividing. On dark that
+// matters more, not less — a lightness step big enough to read as a region split
+// makes the chrome look like a lighter panel glued on, while a near-black pair
+// with one hairline between them reads as depth.
 
 import { defineThemePlugin } from "../kit/defineThemePlugin";
 
 const c = {
-  // Geist blue-700 accent (same hue as light; reads clean on dark).
+  // Same accent hue as light; reads clean on near-black.
   accent: "#006bff",
 
-  // Cool-slate surface ladder — a SINGLE hue (262°, the accent's OKLCH family)
-  // at a constant low chroma, stepped only in lightness (JetBrains New UI
-  // model). This replaces the old dead-pure-neutral greys: a whisper of shared
-  // cool cast is what makes a grey read as "designed" rather than flat. Region
-  // + card separation is carried entirely by this even L delta — no lines, no
-  // shadows. The chroma is deliberately low (0.02) to stay a near-neutral slate,
-  // not a blue theme.
-  canvas: "oklch(0.145 0.02 262)",
-  surface1: "oklch(0.205 0.02 262)",
-  surface2: "oklch(0.245 0.02 262)",
-  surface3: "oklch(0.285 0.02 262)",
-  surface4: "oklch(0.325 0.02 262)",
+  // Card is a whisper above the shell — enough for the frosted drawer (card color
+  // at 72%) to separate, not enough to read as a different material.
+  canvas: "#0f0f0f",
+  surface1: "#0e0e0e",
+
+  // surface2/3/4 derive as ink mixes off `surface1`, same as light.
 
   // Ink
   inkBright: "#ffffff",
-  ink: "#ededed",
+  ink: "#f5f5f5",
   inkSoft: "#a1a1a1",
   inkMuted: "#8f8f8f",
   inkFaint: "#636363",
 
-  // Hairlines — alpha-based so they sit softly on dark surfaces
-  hairline: "rgba(255, 255, 255, 0.10)",
-  hairStrong: "rgba(255, 255, 255, 0.21)",
-  hairTertiary: "rgba(255, 255, 255, 0.08)",
+  // Hairlines — very low alpha. The seam ring derives from `border`, and on a
+  // near-black surface even 10% white reads as a drawn line rather than an edge.
+  hairline: "rgb(255 255 255 / 0.04)",
+  hairStrong: "rgb(255 255 255 / 0.1)",
+  hairTertiary: "rgb(255 255 255 / 0.03)",
 };
 
 export default defineThemePlugin({
@@ -42,14 +41,11 @@ export default defineThemePlugin({
 
   brand: {
     accent: c.accent,
-    textOnAccent: "#ffffff", // white ink on the blue accent
+    textOnAccent: "#ffffff",
   },
   surfaces: {
     bg: c.canvas,
     surface: c.surface1,
-    surface2: c.surface2,
-    surface3: c.surface3,
-    surface4: c.surface4,
   },
   ink: {
     text: c.ink,
@@ -72,8 +68,8 @@ export default defineThemePlugin({
   // Primary CTA — inverting ink button (near-white fill on dark), mirroring the
   // light scheme's ink-on-white. Accent (blue) stays reserved for "live".
   cta: {
-    cta: "#ededed",
+    cta: "#f5f5f5",
     ctaHover: "#ffffff",
-    ctaText: "#0a0a0a",
+    ctaText: "#171717",
   },
 });

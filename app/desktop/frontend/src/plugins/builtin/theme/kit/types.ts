@@ -23,22 +23,15 @@ export interface ThemeBrand {
   accentPress?: string;
 }
 
-/** Canvas (the outermost frame) + surface (the lifted panel). The
- *  surface-2 / surface-3 / surface-4 steps are derived by color-mix
- *  unless the theme overrides them — pass values here only if the
- *  scheme has its own non-linear ladder (e.g. Catppuccin's
- *  surface0/1/2/overlay0). */
+/** Canvas (the content card) + surface (the shell behind the drawer).
+ *  The surface-2 / -3 / -4 steps are ALWAYS derived by color-mix off `surface`
+ *  and `--depth-step`: a theme cannot pin them, because the contrast preference
+ *  drives that step and a pinned ladder would make the slider partially dead. */
 export interface ThemeSurfaces {
   /** Page-level background. */
   bg: string;
-  /** Default lifted surface — pane, sidebar, message bubble. */
+  /** Default lifted surface — the shell the drawer floats on. */
   surface: string;
-  /** Optional explicit step 2 — hover/active row, command palette. */
-  surface2?: string;
-  /** Optional explicit step 3 — sub-nav, dropdown, popover. */
-  surface3?: string;
-  /** Optional explicit step 4 — deepest lifted surface. */
-  surface4?: string;
 }
 
 /** The five-step ink ladder. Each step has a defined role — see
@@ -145,9 +138,8 @@ export interface ThemePluginSpec {
   radii?: Partial<ThemeRadii>;
   /**
    * Surface ladder step in percent (e.g. "5%"). Default = 5%.
-   * Higher values give more contrast between surface / surface-2 / -3 /
-   * -4, lower values flatten the ladder. Only effective when the theme
-   * does NOT also supply explicit surface2/3/4 values.
+   * Higher values give more contrast between surface / surface-2 / -3 / -4,
+   * lower values flatten the ladder.
    */
   depthStep?: string;
 

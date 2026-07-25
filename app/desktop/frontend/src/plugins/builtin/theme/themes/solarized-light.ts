@@ -30,9 +30,6 @@ export default defineThemePlugin({
     surface: c.base3,
     // Solarized doesn't canonically define light lifted surfaces;
     // these step toward base2's hue.
-    surface2: "#e7e0c8",
-    surface3: "#d8d0b4",
-    surface4: "#cac1a4",
   },
   ink: {
     text: c.base00,

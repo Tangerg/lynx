@@ -35,9 +35,6 @@ export default defineThemePlugin({
   surfaces: {
     bg: c.panel,
     surface: c.editor,
-    surface2: c.sel1,
-    surface3: c.sel2,
-    surface4: c.sel3,
   },
   ink: {
     text: c.fg,
