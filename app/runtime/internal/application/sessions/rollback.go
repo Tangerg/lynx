@@ -35,30 +35,34 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	// terminalizes it (Terminate) so the session can start a fresh run afterward.
 	// The partial unique index guarantees at most one non-terminal row per session.
 	sessionIDs := append([]string{sessionID}, dropSessionIDs...)
-	if err := c.withGoalMutation(ctx, sessionIDs, func(ctx context.Context) error {
-		if c.writes == nil {
-			return errors.New("sessions: write sets are unavailable")
-		}
-		return c.writes.ApplyRollback(ctx, RollbackPlan{
-			SessionID:      sessionID,
-			RunID:          parkedRunID(parked),
-			KeepMark:       boundary.KeepMark,
-			DropRunIDs:     dropRunIDs,
-			DropSessionIDs: dropSessionIDs,
-			ProcessIDs:     parkedProcessIDs(parked),
-			Terminate:      len(parked) > 0,
-		})
-	}); err != nil {
-		return err
-	}
-	var cleanupErrs []error
-	for _, r := range slices.Concat(parked, childParked) {
-		if err := c.cancelTurn(ctx, r); err != nil {
-			cleanupErrs = append(cleanupErrs, err)
-		}
-	}
-	cleanupErrs = append(cleanupErrs, c.dropSessionResources(dropSessionIDs, "rolled-back subtask")...)
-	return errors.Join(cleanupErrs...)
+	return c.withGoalMutation(
+		ctx,
+		sessionIDs,
+		func(ctx context.Context) error {
+			if c.writes == nil {
+				return errors.New("sessions: write sets are unavailable")
+			}
+			return c.writes.ApplyRollback(ctx, RollbackPlan{
+				SessionID:      sessionID,
+				RunID:          parkedRunID(parked),
+				KeepMark:       boundary.KeepMark,
+				DropRunIDs:     dropRunIDs,
+				DropSessionIDs: dropSessionIDs,
+				ProcessIDs:     parkedProcessIDs(parked),
+				Terminate:      len(parked) > 0,
+			})
+		},
+		func(ctx context.Context) error {
+			var cleanupErrs []error
+			for _, r := range slices.Concat(parked, childParked) {
+				if err := c.cancelTurn(ctx, r); err != nil {
+					cleanupErrs = append(cleanupErrs, err)
+				}
+			}
+			cleanupErrs = append(cleanupErrs, c.dropSessionResources(dropSessionIDs, "rolled-back subtask")...)
+			return errors.Join(cleanupErrs...)
+		},
+	)
 }
 
 func parkedProcessIDs(parked []RunTurnBinding) []string {

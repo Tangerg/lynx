@@ -76,8 +76,7 @@ func (m *SessionMutations) acquire(sessionIDs ...string) func() {
 func normalizeSessionIDs(sessionIDs []string) []string {
 	ids := slices.Clone(sessionIDs)
 	slices.Sort(ids)
-	ids = slices.Compact(ids)
-	return slices.DeleteFunc(ids, func(sessionID string) bool { return sessionID == "" })
+	return slices.Compact(ids)
 }
 
 func (m *SessionMutations) acquireAll() func() {
@@ -85,14 +84,20 @@ func (m *SessionMutations) acquireAll() func() {
 	return m.admission.Unlock
 }
 
-// WithSessionMutation commits apply before quiescing affected Goal loops. A
-// failed write leaves the authoritative loop intact; a successful mutation does
-// not return until the affected loops have relinquished their owned Runs.
-func (m *SessionMutations) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
+// WithSessionMutation owns both phases of a session mutation. A failed commit
+// leaves the authoritative Goal loop intact. Once commit succeeds, affected
+// loops are quiesced and afterCommit is always attempted; failures from either
+// post-commit phase are reported together.
+func (m *SessionMutations) WithSessionMutation(
+	ctx context.Context,
+	sessionIDs []string,
+	commit func(context.Context) error,
+	afterCommit func(context.Context) error,
+) error {
 	sessionIDs = normalizeSessionIDs(sessionIDs)
 	release := m.acquire(sessionIDs...)
 	defer release()
-	if err := apply(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return err
 	}
 	handles := make([]*loopHandle, 0, len(sessionIDs))
@@ -106,6 +111,7 @@ func (m *SessionMutations) WithSessionMutation(ctx context.Context, sessionIDs [
 	for _, handle := range handles {
 		errs = append(errs, handle.wait(ctx))
 	}
+	errs = append(errs, afterCommit(ctx))
 	return errors.Join(errs...)
 }
 

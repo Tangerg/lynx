@@ -29,36 +29,40 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 	}()
 
 	var pending []interrupts.Pending
-	if err := c.withGoalMutation(ctx, sessionIDs, func(ctx context.Context) error {
-		for _, id := range sessionIDs {
-			if c.interrupts == nil {
-				return errors.New("sessions: interrupt store is unavailable")
+	return c.withGoalMutation(
+		ctx,
+		sessionIDs,
+		func(ctx context.Context) error {
+			for _, id := range sessionIDs {
+				if c.interrupts == nil {
+					return errors.New("sessions: interrupt store is unavailable")
+				}
+				open, err := c.interrupts.List(ctx, id)
+				if err != nil {
+					return err
+				}
+				pending = append(pending, open...)
 			}
-			open, err := c.interrupts.List(ctx, id)
-			if err != nil {
-				return err
+			if c.writes == nil {
+				return errors.New("sessions: write sets are unavailable")
 			}
-			pending = append(pending, open...)
-		}
-		if c.writes == nil {
-			return errors.New("sessions: write sets are unavailable")
-		}
-		return c.writes.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
-	}); err != nil {
-		return err
-	}
-	var cleanupErrs []error
-	for _, item := range pending {
-		if err := c.cancelTurn(ctx, RunTurnBinding{
-			RunID:     item.RunID,
-			SessionID: item.SessionID,
-			TurnID:    item.TurnID,
-		}); err != nil {
-			cleanupErrs = append(cleanupErrs, err)
-		}
-	}
-	cleanupErrs = append(cleanupErrs, c.dropSessionResources(sessionIDs, "deleted")...)
-	return errors.Join(cleanupErrs...)
+			return c.writes.ApplyDelete(ctx, DeletePlan{SessionIDs: sessionIDs})
+		},
+		func(ctx context.Context) error {
+			var cleanupErrs []error
+			for _, item := range pending {
+				if err := c.cancelTurn(ctx, RunTurnBinding{
+					RunID:     item.RunID,
+					SessionID: item.SessionID,
+					TurnID:    item.TurnID,
+				}); err != nil {
+					cleanupErrs = append(cleanupErrs, err)
+				}
+			}
+			cleanupErrs = append(cleanupErrs, c.dropSessionResources(sessionIDs, "deleted")...)
+			return errors.Join(cleanupErrs...)
+		},
+	)
 }
 
 func (c *Coordinator) claimDeleteTree(ctx context.Context, sessionID string) ([]RunAdmission, []string, error) {
@@ -166,11 +170,19 @@ func (c *Coordinator) dropSessionResources(sessionIDs []string, action string) [
 	return errs
 }
 
-func (c *Coordinator) withGoalMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
+func (c *Coordinator) withGoalMutation(
+	ctx context.Context,
+	sessionIDs []string,
+	commit func(context.Context) error,
+	afterCommit func(context.Context) error,
+) error {
 	if c.goals == nil {
-		return apply(ctx)
+		if err := commit(ctx); err != nil {
+			return err
+		}
+		return afterCommit(ctx)
 	}
-	return c.goals.WithSessionMutation(ctx, sessionIDs, apply)
+	return c.goals.WithSessionMutation(ctx, sessionIDs, commit, afterCommit)
 }
 
 // restoreSession applies a canonical archive and, when requested, derives its
@@ -193,26 +205,35 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return SessionView{}, err
 	}
 	snapshot.Session.Cwd = cwd
-	if err := c.withGoalMutation(ctx, []string{snapshot.Session.ID}, func(ctx context.Context) error {
-		if c.writes == nil {
-			return errors.New("sessions: write sets are unavailable")
-		}
-		return c.writes.ApplyRestore(ctx, restorePlan(snapshot))
-	}); err != nil {
-		return SessionView{}, err
-	}
-	// Restore replaced the whole history: any isolated working copy from before
-	// the restore is stale, so drop it post-commit and let the next isolated run
-	// rebuild a fresh copy from the restored project. Best-effort cleanup.
-	if c.sandbox != nil {
-		if err := c.sandbox.Discard(snapshot.Session.ID); err != nil {
-			return SessionView{}, fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", err)
-		}
-	}
-	if !present {
-		return SessionView{}, nil
-	}
-	return c.view(ctx, snapshot.Session, SessionIdle)
+	var view SessionView
+	err = c.withGoalMutation(
+		ctx,
+		[]string{snapshot.Session.ID},
+		func(ctx context.Context) error {
+			if c.writes == nil {
+				return errors.New("sessions: write sets are unavailable")
+			}
+			return c.writes.ApplyRestore(ctx, restorePlan(snapshot))
+		},
+		func(ctx context.Context) error {
+			// Restore replaced the whole history: any isolated working copy
+			// from before the restore is stale, so discard it before exposing
+			// the restored aggregate.
+			var postCommitErrs []error
+			if c.sandbox != nil {
+				if discardErr := c.sandbox.Discard(snapshot.Session.ID); discardErr != nil {
+					postCommitErrs = append(postCommitErrs, fmt.Errorf("sessions: discard stale sandbox copy on restore: %w", discardErr))
+				}
+			}
+			if present {
+				var viewErr error
+				view, viewErr = c.view(ctx, snapshot.Session, SessionIdle)
+				postCommitErrs = append(postCommitErrs, viewErr)
+			}
+			return errors.Join(postCommitErrs...)
+		},
+	)
+	return view, err
 }
 
 // RestorePortableSession rebuilds and restores one transport-neutral archive.

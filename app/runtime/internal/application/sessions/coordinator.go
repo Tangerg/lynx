@@ -130,10 +130,16 @@ type SandboxDiscarder interface {
 }
 
 // GoalMutationGuard serializes a session write-set with Goal lifecycle
-// commands. It quiesces loops only after apply commits, so a failed mutation
-// leaves an active Goal's loop intact. nil disables it (Goal mode off).
+// commands. It owns the complete commit boundary: afterCommit runs exactly
+// once after commit succeeds, even when quiescing an affected Goal fails.
+// nil disables it (Goal mode off).
 type GoalMutationGuard interface {
-	WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error
+	WithSessionMutation(
+		ctx context.Context,
+		sessionIDs []string,
+		commit func(context.Context) error,
+		afterCommit func(context.Context) error,
+	) error
 }
 
 // WorkspaceMutations is the recoverable operation log for file rollbacks (§8.5):

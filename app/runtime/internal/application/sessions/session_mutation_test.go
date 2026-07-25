@@ -84,6 +84,25 @@ func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	}
 }
 
+func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
+	quiesceErr := errors.New("goal quiesce failed")
+	stores := newMutationStores("")
+	coordinator := New(testDependencies(stores, Dependencies{
+		Turns: mutationTurns{operations: &stores.operations},
+		Paths: testCwdResolver{},
+		Goals: mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
+	}))
+
+	err := coordinator.DeleteSession(t.Context(), "ses_1")
+	if !errors.Is(err, quiesceErr) {
+		t.Fatalf("DeleteSession error = %v, want quiesce failure", err)
+	}
+	want := []string{"goal.mutation", "interrupts.list", "apply.delete", "goal.quiesce", "turn.cancel", "session.forget"}
+	if !slices.Equal(stores.operations, want) {
+		t.Fatalf("operations = %v, want post-commit cleanup despite quiesce failure", stores.operations)
+	}
+}
+
 func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing.T) {
 	stores := newMutationStores("")
 	turns := new(observingTurns)
@@ -281,15 +300,23 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 
 var errMutationStage = errors.New("mutation stage failed")
 
-type mutationGoalGuard struct{ operations *[]string }
+type mutationGoalGuard struct {
+	operations *[]string
+	quiesceErr error
+}
 
-func (g mutationGoalGuard) WithSessionMutation(ctx context.Context, _ []string, apply func(context.Context) error) error {
+func (g mutationGoalGuard) WithSessionMutation(
+	ctx context.Context,
+	_ []string,
+	commit func(context.Context) error,
+	afterCommit func(context.Context) error,
+) error {
 	*g.operations = append(*g.operations, "goal.mutation")
-	if err := apply(ctx); err != nil {
+	if err := commit(ctx); err != nil {
 		return err
 	}
 	*g.operations = append(*g.operations, "goal.quiesce")
-	return nil
+	return errors.Join(g.quiesceErr, afterCommit(ctx))
 }
 
 // mutationStores supplies the coordinator's named persistence ports for mutation write-sets: it

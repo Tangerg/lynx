@@ -73,6 +73,7 @@ func TestSessionMutationQuiescesEveryGoalBeforeJoining(t *testing.T) {
 		t.Context(),
 		[]string{"ses_1", "ses_2"},
 		func(context.Context) error { return nil },
+		func(context.Context) error { return nil },
 	)
 	if !errors.Is(err, firstErr) {
 		t.Fatalf("WithSessionMutation error = %v, want first cleanup failure", err)
