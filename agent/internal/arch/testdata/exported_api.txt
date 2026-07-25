@@ -546,7 +546,7 @@ runtime: func (e *Engine) Dependencies() *core.Dependencies
 runtime: func (e *Engine) Deploy(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
-runtime: func (e *Engine) Discard(ctx context.Context, processID string) error
+runtime: func (e *Engine) Discard(ctx context.Context, processID string) (DiscardResult, error)
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
@@ -602,6 +602,7 @@ runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[str
 runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails BindConversation func(context.Context, string) context.Context ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
+runtime: type DiscardResult struct { Released bool }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }

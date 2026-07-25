@@ -510,7 +510,7 @@ func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing
 	assertCreateFailureEvents(t, events, startErr)
 }
 
-func TestStartTurnCancelRacingProcessCreationFailureTerminatesOnce(t *testing.T) {
+func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *testing.T) {
 	startErr := errors.New("create process failed")
 	engine := newBlockedStartFailureEngine(startErr)
 	dispatcher := mustTurn(turn.New(turnDeps(engine)))
@@ -533,7 +533,18 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesOnce(t *testing.T)
 	if err != nil {
 		t.Fatalf("Events after cancel/create failure race: %v", err)
 	}
-	assertCreateFailureEvents(t, events, startErr)
+	var terminals int
+	for event := range events {
+		if end, ok := event.(runs.TurnEnd); ok {
+			terminals++
+			if end.Reason != execution.OutcomeCanceled || end.Problem != nil {
+				t.Errorf("TurnEnd = %+v, want cancellation without a problem", end)
+			}
+		}
+	}
+	if terminals != 1 {
+		t.Fatalf("terminal events = %d, want 1", terminals)
+	}
 }
 
 func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHandle) {

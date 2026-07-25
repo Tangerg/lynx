@@ -112,9 +112,8 @@ func (p *turnProcess) Discard(ctx context.Context) (bool, error) {
 		return false, errors.New("agentexec: discard process: incomplete turn process")
 	}
 	processID := p.process.ID()
-	err := p.engine.Discard(ctx, processID)
-	_, retained := p.engine.Process(processID)
-	return !retained, err
+	result, err := p.engine.Discard(ctx, processID)
+	return result.Released, err
 }
 
 func (p *turnProcess) Output() (TurnOutput, error) {

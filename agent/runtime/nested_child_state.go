@@ -242,7 +242,7 @@ func (p *Process) abortStagedNestedChildren(ctx context.Context) (int, error) {
 	}
 	var cleanupErrs []error
 	for _, childID := range childIDs {
-		if err := p.engine.Discard(ctx, childID); err != nil {
+		if _, err := p.engine.Discard(ctx, childID); err != nil {
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("discard staged child %q: %w", childID, err))
 		}
 	}

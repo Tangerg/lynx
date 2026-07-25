@@ -235,28 +235,6 @@ func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.Tu
 	return cause
 }
 
-// CancelBinding identifies the durable run/turn a cancel must act on.
-type CancelBinding struct {
-	SessionID string
-	TurnID    string
-}
-
-// beginCancel marks a live run for cancellation and returns its durable binding
-// plus terminal join handle. It records the reason on the handle before the
-// registry snapshot so a cancel cannot delete an interrupt the pump is about to
-// recreate. ok=false sends the caller through the parked-run path.
-func (c *Coordinator) beginCancel(runID, reason string) (CancelBinding, *handle, bool) {
-	e, ok := c.registry.Get(runID)
-	if !ok {
-		return CancelBinding{}, nil, false
-	}
-	if e.handle != nil {
-		e.handle.requestCancel(reason)
-	}
-	c.registry.MarkCancel(runID, reason)
-	return CancelBinding{SessionID: e.record.SessionID, TurnID: e.record.TurnID}, e.handle, true
-}
-
 // SubscribeLive opens a coherent subscription to a live run. The record and
 // Journal are captured from the same registry entry, so Delivery cannot return
 // a segment id from one entry and subscribe to a replacement or removed entry.

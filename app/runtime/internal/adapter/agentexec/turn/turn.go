@@ -28,7 +28,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	if request.ModelSelection.Configured() && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, request.ModelSelection)
 		if err != nil {
-			s.finishFailedTurn(st, problemFromError(err), err)
+			s.finishExecutionError(st, problemFromError(err), err)
 			return
 		}
 		client = c
@@ -56,12 +56,12 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		s.finishFailedTurn(st, internalRunProblem(), err)
+		s.finishExecutionError(st, internalRunProblem(), err)
 		return
 	}
 	if process == nil {
 		err := errors.New("turn: engine returned a nil process")
-		s.finishFailedTurn(st, internalRunProblem(), err)
+		s.finishExecutionError(st, internalRunProblem(), err)
 		return
 	}
 	// Record the root process id so the lifecycle gate keeps subtask

@@ -78,8 +78,9 @@ type PromptBuilder func(PromptInput) string
 //
 // Every durable goal write is a compare-and-swap on [goal.Version]. An opaque
 // lease distinguishes loop ownership across clears, and the revision protects
-// mutations inside one lease. The mutex serializes explicit lifecycle commands
-// and session write-sets; loop goroutines and update_goal use the store CAS.
+// mutations inside one lease. Per-session command locks serialize explicit
+// lifecycle commands with session write-sets without coupling unrelated
+// sessions; loop goroutines and update_goal use the store CAS.
 type Driver struct {
 	goals    Store
 	runs     RunUseCases
@@ -90,7 +91,7 @@ type Driver struct {
 	prompt   PromptBuilder
 
 	mutations *SessionMutations
-	closed    bool // guarded by mutations.commands
+	closed    bool // guarded by mutations.admission
 }
 
 type loopHandle struct {
@@ -100,19 +101,27 @@ type loopHandle struct {
 	done    chan struct{}
 	err     error
 
-	mu            sync.Mutex
-	stopping      bool
-	stopCtx       context.Context
-	loopReconcile bool
-	run           *ownedRun
+	mu           sync.Mutex
+	stopping     bool
+	run          *ownedRun
+	stopResolved chan stopResolution
+	resolveOnce  sync.Once
 }
 
 type ownedRun struct {
-	mu      sync.Mutex
-	cancel  func(context.Context) error
-	err     error
-	stopped bool
+	owner  context.Context
+	cancel func(context.Context) error
+	once   sync.Once
+	done   chan struct{}
+	err    error
 }
+
+type stopResolution uint8
+
+const (
+	stopRestoreDrive stopResolution = iota
+	stopLeaveQuiesced
+)
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
@@ -141,8 +150,8 @@ func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions Sessi
 // does not exist. The new goal gets a fresh lease so a straggler from any
 // previously-cleared goal can no longer write.
 func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
-	d.mutations.lock()
-	defer d.mutations.unlock()
+	release := d.mutations.acquire(sessionID)
+	defer release()
 	if d.closed {
 		return goal.Goal{}, ErrClosed
 	}
@@ -154,6 +163,20 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 		return goal.Goal{}, ErrNoSession
 	}
 	existing, ok, err := d.goals.Get(ctx, sessionID)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if ok && existing.Status == goal.StatusActive {
+		d.ensureDriveLocked(ctx, sessionID, existing.LeaseID)
+		return goal.Goal{}, ErrGoalActive
+	}
+	if err := d.quiesceDrive(ctx, sessionID); err != nil {
+		return goal.Goal{}, err
+	}
+	// A terminating loop may have committed its final accounting after the
+	// first read. Re-read after the ownership boundary so the replacement CAS
+	// is based on the complete prior incarnation, never a pre-quiesce snapshot.
+	existing, ok, err = d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -184,12 +207,26 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 // idempotent on an already-active goal. The resume renews the lease so
 // the fresh loop owns the goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
-	d.mutations.lock()
-	defer d.mutations.unlock()
+	release := d.mutations.acquire(sessionID)
+	defer release()
 	if d.closed {
 		return goal.Goal{}, ErrClosed
 	}
 	g, ok, err := d.goals.Get(ctx, sessionID)
+	if err != nil {
+		return goal.Goal{}, err
+	}
+	if !ok {
+		return goal.Goal{}, ErrNoGoal
+	}
+	if g.Status == goal.StatusActive {
+		d.ensureDriveLocked(ctx, sessionID, g.LeaseID)
+		return g, nil
+	}
+	if err := d.quiesceDrive(ctx, sessionID); err != nil {
+		return goal.Goal{}, err
+	}
+	g, ok, err = d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -220,8 +257,8 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 // post-terminal snapshot. This ordering preserves terminal accounting and makes
 // the user stop the final lifecycle transition rather than racing it.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
-	d.mutations.lock()
-	defer d.mutations.unlock()
+	release := d.mutations.acquire(sessionID)
+	defer release()
 	if d.closed {
 		return goal.Goal{}, ErrClosed
 	}
@@ -235,49 +272,56 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	if g.Status != goal.StatusActive {
 		return g, nil
 	}
-	handle := d.mutations.quiesce(ctx, sessionID)
+	handle := d.mutations.quiesce(sessionID)
+	resolution := stopRestoreDrive
+	if handle != nil {
+		defer func() { handle.resolveStop(resolution) }()
+	}
 	var quiesceErr error
 	if handle != nil {
 		quiesceErr = handle.wait(ctx)
 		if !handle.finished() {
-			handle.returnReconcile()
 			return goal.Goal{}, quiesceErr
 		}
 	}
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
-		if handle != nil {
-			handle.returnReconcile()
-		}
 		return goal.Goal{}, errors.Join(err, quiesceErr)
 	}
 	if !ok {
+		resolution = stopLeaveQuiesced
 		return goal.Goal{}, errors.Join(ErrNoGoal, quiesceErr)
 	}
-	authoritative := current
 	expected := current.Version()
 	current.Pause(goal.ReasonStoppedByUser, "", d.now())
 	current.RenewLease(d.newLease())
 	saved, applied, err := d.goals.Save(ctx, current, expected)
 	if err != nil {
-		if authoritative.Status == goal.StatusActive {
-			d.ensureDriveLocked(ctx, sessionID, authoritative.LeaseID)
-		}
 		return goal.Goal{}, errors.Join(err, quiesceErr)
 	}
 	if !applied {
-		authoritative, found, loadErr := d.goals.Get(ctx, sessionID)
-		if loadErr == nil && found && authoritative.Status == goal.StatusActive {
-			d.ensureDriveLocked(ctx, sessionID, authoritative.LeaseID)
-		}
-		return goal.Goal{}, errors.Join(ErrGoalConflict, loadErr, quiesceErr)
+		return goal.Goal{}, errors.Join(ErrGoalConflict, quiesceErr)
 	}
+	resolution = stopLeaveQuiesced
 	return saved, quiesceErr
 }
 
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (d *Driver) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	return d.goals.Get(ctx, sessionID)
+}
+
+// quiesceDrive joins a lingering driver before a new goal incarnation is
+// written. The handle stays registered until its goroutine actually exits, so
+// a timed-out caller cannot lose the only join point and a later command cannot
+// overlap the old Run's admission with a replacement.
+func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
+	handle := d.mutations.quiesce(sessionID)
+	if handle == nil {
+		return nil
+	}
+	handle.resolveStop(stopLeaveQuiesced)
+	return handle.wait(ctx)
 }
 
 // Reconcile degrades goals left mid-flight by a previous process. A goal whose
@@ -324,10 +368,10 @@ func (d *Driver) BeginShutdown() {
 	if d == nil {
 		return
 	}
-	d.mutations.lock()
+	release := d.mutations.acquireAll()
+	defer release()
 	d.closed = true
 	d.tasks.Cancel()
-	d.mutations.unlock()
 }
 
 // AwaitShutdown joins every running goal loop after [BeginShutdown].

@@ -2,6 +2,8 @@ package goals
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"sync"
 )
 
@@ -10,10 +12,16 @@ import (
 // either coordinator, so Session lifecycle coordination never needs a mutable
 // Bootstrap proxy to reach a Driver constructed later.
 type SessionMutations struct {
-	commands sync.Mutex
+	admission sync.RWMutex
 
-	mu      sync.Mutex
-	running map[string]*loopHandle
+	mu           sync.Mutex
+	commandLocks map[string]*sessionCommandLock
+	running      map[string]*loopHandle
+}
+
+type sessionCommandLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 // NewSessionMutations returns the shared lifecycle coordinator for one runtime.
@@ -21,27 +29,84 @@ func NewSessionMutations() *SessionMutations {
 	return &SessionMutations{running: map[string]*loopHandle{}}
 }
 
-func (m *SessionMutations) lock() { m.commands.Lock() }
+// acquire serializes lifecycle commands only for the sessions they mutate.
+// admission's read side lets unrelated sessions progress concurrently; shutdown
+// takes its write side to close task admission after every accepted command has
+// left its launch boundary.
+func (m *SessionMutations) acquire(sessionIDs ...string) func() {
+	ids := normalizeSessionIDs(sessionIDs)
 
-func (m *SessionMutations) unlock() { m.commands.Unlock() }
+	m.admission.RLock()
+	m.mu.Lock()
+	if m.commandLocks == nil {
+		m.commandLocks = make(map[string]*sessionCommandLock)
+	}
+	locks := make([]*sessionCommandLock, 0, len(ids))
+	for _, sessionID := range ids {
+		lock := m.commandLocks[sessionID]
+		if lock == nil {
+			lock = &sessionCommandLock{}
+			m.commandLocks[sessionID] = lock
+		}
+		lock.refs++
+		locks = append(locks, lock)
+	}
+	m.mu.Unlock()
+
+	for _, lock := range locks {
+		lock.mu.Lock()
+	}
+	return func() {
+		for i := len(locks) - 1; i >= 0; i-- {
+			locks[i].mu.Unlock()
+		}
+		m.mu.Lock()
+		for i, sessionID := range ids {
+			lock := locks[i]
+			lock.refs--
+			if lock.refs == 0 {
+				delete(m.commandLocks, sessionID)
+			}
+		}
+		m.mu.Unlock()
+		m.admission.RUnlock()
+	}
+}
+
+func normalizeSessionIDs(sessionIDs []string) []string {
+	ids := slices.Clone(sessionIDs)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	return slices.DeleteFunc(ids, func(sessionID string) bool { return sessionID == "" })
+}
+
+func (m *SessionMutations) acquireAll() func() {
+	m.admission.Lock()
+	return m.admission.Unlock
+}
 
 // WithSessionMutation commits apply before quiescing affected Goal loops. A
 // failed write leaves the authoritative loop intact; a successful mutation does
 // not return until the affected loops have relinquished their owned Runs.
 func (m *SessionMutations) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
-	m.lock()
-	defer m.unlock()
+	sessionIDs = normalizeSessionIDs(sessionIDs)
+	release := m.acquire(sessionIDs...)
+	defer release()
 	if err := apply(ctx); err != nil {
 		return err
 	}
+	handles := make([]*loopHandle, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
-		if handle := m.quiesce(ctx, sessionID); handle != nil {
-			if err := handle.wait(ctx); err != nil {
-				return err
-			}
+		if handle := m.quiesce(sessionID); handle != nil {
+			handle.resolveStop(stopLeaveQuiesced)
+			handles = append(handles, handle)
 		}
 	}
-	return nil
+	var errs []error
+	for _, handle := range handles {
+		errs = append(errs, handle.wait(ctx))
+	}
+	return errors.Join(errs...)
 }
 
 func (m *SessionMutations) launch(sessionID string, handle *loopHandle) {
@@ -49,8 +114,9 @@ func (m *SessionMutations) launch(sessionID string, handle *loopHandle) {
 	if m.running == nil {
 		m.running = map[string]*loopHandle{}
 	}
-	if prior := m.running[sessionID]; prior != nil {
-		prior.cancel()
+	if m.running[sessionID] != nil {
+		m.mu.Unlock()
+		panic("goals: launch attempted before the prior session driver was joined")
 	}
 	m.running[sessionID] = handle
 	m.mu.Unlock()
@@ -64,15 +130,15 @@ func (m *SessionMutations) forget(sessionID string, handle *loopHandle) {
 	m.mu.Unlock()
 }
 
-func (m *SessionMutations) quiesce(ctx context.Context, sessionID string) *loopHandle {
+func (m *SessionMutations) quiesce(sessionID string) *loopHandle {
 	m.mu.Lock()
 	handle := m.running[sessionID]
-	if handle != nil {
+	if handle != nil && handle.finished() {
 		delete(m.running, sessionID)
 	}
 	m.mu.Unlock()
 	if handle != nil {
-		handle.quiesce(ctx)
+		handle.quiesce()
 	}
 	return handle
 }

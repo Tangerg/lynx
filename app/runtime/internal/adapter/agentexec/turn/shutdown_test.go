@@ -217,6 +217,9 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	dispatcher.BeginShutdown()
+	for _, target := range dispatcher.shutdownTargets {
+		target.attempt(ctx, dispatcher)
+	}
 	result := make(chan error, 1)
 	go func() { result <- dispatcher.AwaitShutdown(ctx) }()
 	var failedCancelDone <-chan struct{}
@@ -225,7 +228,11 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 			continue
 		}
 		target.mu.Lock()
-		failedCancelDone = target.cancelDone
+		if target.active != nil {
+			failedCancelDone = target.active.done
+		} else if target.last != nil {
+			failedCancelDone = target.last.done
+		}
 		target.mu.Unlock()
 		break
 	}

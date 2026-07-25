@@ -21,6 +21,12 @@ type flakyProcessStore struct {
 	err   error
 }
 
+type failNextProcessStore struct {
+	inner *storetest.MemoryProcessStore
+	fail  atomic.Bool
+	err   error
+}
+
 func newFlakyProcessStore(err error) *flakyProcessStore {
 	store := &flakyProcessStore{inner: storetest.NewMemoryProcessStore(), err: err}
 	store.fail.Store(true)
@@ -39,6 +45,21 @@ func (s *flakyProcessStore) Load(ctx context.Context, id string) (core.ProcessSn
 }
 
 func (s *flakyProcessStore) List(ctx context.Context) ([]string, error) {
+	return s.inner.List(ctx)
+}
+
+func (s *failNextProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
+	if s.fail.Swap(false) {
+		return s.err
+	}
+	return s.inner.Apply(ctx, change)
+}
+
+func (s *failNextProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
+	return s.inner.Load(ctx, id)
+}
+
+func (s *failNextProcessStore) List(ctx context.Context) ([]string, error) {
 	return s.inner.List(ctx)
 }
 
@@ -186,7 +207,7 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	}
 	discardCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if err := engine.Discard(discardCtx, process.ID()); err != nil {
+	if result, err := engine.Discard(discardCtx, process.ID()); err != nil || !result.Released {
 		t.Fatalf("Discard: %v", err)
 	}
 	select {
@@ -341,6 +362,34 @@ func TestKillWaitingProcessReportsTerminalSnapshotFailure(t *testing.T) {
 	}
 	if snapshot.Status != core.StatusWaiting {
 		t.Fatalf("last durable snapshot = %#v, want original waiting state", snapshot)
+	}
+}
+
+func TestDiscardReportsReleasedAfterNonFatalTerminationDiagnostic(t *testing.T) {
+	storeErr := errors.New("terminal snapshot unavailable")
+	store := &failNextProcessStore{
+		inner: storetest.NewMemoryProcessStore(),
+		err:   storeErr,
+	}
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID: "discard-termination-diagnostic", ProcessStore: store, AutoSnapshot: true,
+	})
+	a := autoSnapshotWaitingAgent()
+	proc, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	if err != nil || proc.Status() != core.StatusWaiting {
+		t.Fatalf("waiting run status=%s err=%v", proc.Status(), err)
+	}
+
+	store.fail.Store(true)
+	result, err := engine.Discard(t.Context(), proc.ID())
+	if !result.Released || !errors.Is(err, storeErr) {
+		t.Fatalf("Discard = (%+v, %v), want released with termination diagnostic", result, err)
+	}
+	if _, ok := engine.Process(proc.ID()); ok {
+		t.Fatal("released discard retained the live process")
+	}
+	if _, err := store.Load(t.Context(), proc.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("released discard retained the durable snapshot: %v", err)
 	}
 }
 

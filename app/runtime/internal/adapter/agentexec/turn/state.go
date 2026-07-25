@@ -20,7 +20,7 @@ import (
 // onto every emitted event.
 //
 // The turn owns its own synchronization: mu guards the cross-goroutine
-// mutable state (the backing process, the parked flag, the steering queue),
+// mutable state (the backing process, lifecycle phase, the steering queue),
 // reached only through the methods below, so the dispatcher mutex is left to
 // guard just the live-turn registry. The remaining fields are set once at
 // the entry point and read without locking thereafter.
@@ -36,19 +36,12 @@ type turnState struct {
 	// or a park/cancel hand-off.
 	eventMu      sync.Mutex
 	eventsClosed bool
-	terminalOnce sync.Once
-	doneOnce     sync.Once
 
-	// cancelMu serializes process cancellation attempts. A failed attempt keeps
-	// the turn addressable so a later Cancel or shutdown await can retry it.
-	cancelMu sync.Mutex
-
-	// cleanupMu serializes terminal process discard and registry release. Event
-	// delivery can finish before cleanup, but done closes only after both the
-	// process and its persisted snapshot have been released.
-	cleanupMu sync.Mutex
-	terminal  bool
-	released  bool
+	// lifecycleMu serializes external lifecycle commands (process cancellation
+	// and terminal discard). The phase itself lives under mu so process
+	// publication and Resume can make short atomic transitions without holding a
+	// lock across engine I/O.
+	lifecycleMu sync.Mutex
 
 	// cwd is the session working directory the turn ran in — threaded to
 	// post-turn maintenance so extracted facts land in that project's ledger.
@@ -99,6 +92,14 @@ type turnState struct {
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
 
+	// phase is the complete execution-ownership state machine. A single phase
+	// replaces independent prepared/parked/canceling/terminal/released flags, so
+	// impossible combinations cannot be represented. lifecycleChanged wakes a
+	// shutdown owner when late process publication or terminal cleanup makes new
+	// progress possible.
+	phase            turnPhase
+	lifecycleChanged chan struct{}
+
 	// Exactly one segment consumes events at a time. A parked turn releases its
 	// active consumer so the continuation segment can take over; a terminal turn
 	// permits only its first (possibly late) drain.
@@ -112,21 +113,10 @@ type turnState struct {
 	agentProcess agentexec.TurnProcess
 
 	// startRequest is the immutable request owned by a prepared fresh turn.
-	// startPending linearizes ActivateTurn against Cancel: exactly one side
+	// turnPrepared linearizes ActivateTurn against Cancel: exactly one side
 	// claims the pre-execution state, so a rejected application admission can
 	// tear the turn down without ever entering the model/tool engine.
 	startRequest runs.StartTurn
-	startPending bool
-
-	// parked is true while the turn is suspended on a HITL interrupt
-	// (StatusWaiting) awaiting Resume. A parked turn stays
-	// registered (events channel open) until claimPark drives it to a
-	// terminal state.
-	parked bool
-	// canceling retains ownership after Cancel claims a parked turn. It remains
-	// true across a failed process cancellation, preventing Resume while allowing
-	// a later Cancel attempt to finish the same turn.
-	canceling bool
 
 	// steering is the queue of mid-turn user messages injected via
 	// InjectSteering. The runtime flushes it to the chat history
@@ -158,34 +148,91 @@ type turnState struct {
 	toolCalls int
 }
 
+type turnPhase uint8
+
+const (
+	turnNew turnPhase = iota
+	turnPrepared
+	turnStarting
+	turnRunning
+	turnParked
+	turnResuming
+	turnRestoring
+	// turnCancelDriven means a start/run/resume owner will publish the terminal.
+	turnCancelDriven
+	// turnCancelIdle means no drive goroutine owns completion; Cancel must finish
+	// a prepared turn or terminate a restored/parked process.
+	turnCancelIdle
+	turnTerminal
+	turnReleased
+)
+
+type cancellationAction uint8
+
+const (
+	cancelObserve cancellationAction = iota
+	cancelFinish
+	cancelProcess
+	cancelCleanup
+	cancelComplete
+)
+
 func (st *turnState) prepareStart(request runs.StartTurn) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.startRequest = request
-	st.startPending = true
+	st.setPhaseLocked(turnPrepared)
+}
+
+func (st *turnState) prepareRestore() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.setPhaseLocked(turnRestoring)
 }
 
 func (st *turnState) claimStart() (runs.StartTurn, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if !st.startPending {
+	if st.phase != turnPrepared {
 		return runs.StartTurn{}, false
 	}
-	st.startPending = false
 	request := st.startRequest
 	st.startRequest = runs.StartTurn{}
+	st.setPhaseLocked(turnStarting)
 	return request, true
 }
 
-func (st *turnState) cancelPrepared() bool {
+func (st *turnState) requestCancellation() cancellationAction {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if !st.startPending {
-		return false
+	switch st.phase {
+	case turnPrepared:
+		st.startRequest = runs.StartTurn{}
+		st.setPhaseLocked(turnCancelIdle)
+		return cancelFinish
+	case turnRestoring:
+		st.setPhaseLocked(turnCancelIdle)
+		return cancelObserve
+	case turnParked:
+		st.setPhaseLocked(turnCancelIdle)
+		return cancelProcess
+	case turnStarting, turnRunning, turnResuming:
+		st.setPhaseLocked(turnCancelDriven)
+		return cancelObserve
+	case turnCancelIdle:
+		if st.agentProcess != nil {
+			return cancelProcess
+		}
+		return cancelObserve
+	case turnCancelDriven, turnNew:
+		return cancelObserve
+	case turnTerminal:
+		return cancelCleanup
+	case turnReleased:
+		return cancelComplete
+	default:
+		return cancelObserve
 	}
-	st.startPending = false
-	st.startRequest = runs.StartTurn{}
-	return true
 }
 
 // newTurnState builds a fresh per-turn state. Its lifetime ctx derives from the
@@ -198,12 +245,13 @@ func (st *turnState) cancelPrepared() bool {
 func newTurnState(ctx context.Context, handle TurnHandle) *turnState {
 	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
-		handle:    handle,
-		events:    make(chan runs.EngineEvent, 32),
-		done:      make(chan struct{}),
-		cancel:    cancel,
-		ctx:       lifeCtx,
-		startedAt: time.Now(),
+		handle:           handle,
+		events:           make(chan runs.EngineEvent, 32),
+		done:             make(chan struct{}),
+		cancel:           cancel,
+		ctx:              lifeCtx,
+		startedAt:        time.Now(),
+		lifecycleChanged: make(chan struct{}),
 	}
 }
 
@@ -302,24 +350,37 @@ func hashOutput(output string) uint64 {
 	return h.Sum64()
 }
 
-// setProcess records the agent process backing this turn. runTurn writes it
-// once the engine dispatch succeeds; process() then hands it to caller
-// goroutines.
+// setProcess publishes the process owned by a fresh start. The drive goroutine
+// remains the terminal owner even when cancellation won before publication.
 func (st *turnState) setProcess(process agentexec.TurnProcess) {
 	st.mu.Lock()
+	defer st.mu.Unlock()
 	st.agentProcess = process
-	st.mu.Unlock()
+	switch st.phase {
+	case turnStarting, turnNew:
+		st.setPhaseLocked(turnRunning)
+	}
 }
 
 // setRestoredProcess publishes a restored process and its parked ownership
-// atomically. A concurrent Cancel either claims that parked process, or cancels
-// ctx first and makes live false; the restoring goroutine then owns teardown.
+// atomically. A concurrent Cancel either transitions restoring→cancel-idle or
+// observes the parked process after this method; exactly one lifecycle owner
+// then tears it down.
 func (st *turnState) setRestoredProcess(process agentexec.TurnProcess) (live bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.agentProcess = process
-	st.parked = true
-	return st.ctx.Err() == nil
+	switch st.phase {
+	case turnRestoring, turnNew:
+		st.setPhaseLocked(turnParked)
+		return st.ctx.Err() == nil
+	case turnCancelIdle:
+		st.signalLifecycleLocked()
+		return false
+	default:
+		st.signalLifecycleLocked()
+		return false
+	}
 }
 
 // process returns the backing agent process, or nil before the turn has
@@ -344,48 +405,90 @@ func (st *turnState) process() agentexec.TurnProcess {
 func (st *turnState) parkIfLive() bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if st.ctx.Err() != nil {
+	if st.ctx.Err() != nil || st.phase != turnRunning {
 		return false
 	}
-	st.parked = true
+	st.setPhaseLocked(turnParked)
 	return true
 }
 
-// claimPark atomically tests-and-clears the parked flag, reporting whether
-// THIS caller claimed the suspended turn. Resume and Cancel
-// both race to act on a parked turn; whoever flips the flag false wins and owns
-// driving it to a terminal state, so the loser is a no-op. Returns false for a
-// turn that isn't parked (never suspended, or already claimed).
+// claimPark transfers a parked process to the synchronous Resume operation.
+// Cancel transitions the same phase to turnCancelIdle; only one transition can
+// win.
 func (st *turnState) claimPark() bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if !st.parked {
+	if st.phase != turnParked {
 		return false
 	}
-	st.parked = false
+	st.setPhaseLocked(turnResuming)
 	return true
 }
 
-func (st *turnState) claimCancellation() bool {
+func (st *turnState) resumeStarted() {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if st.parked {
-		st.parked = false
-		st.canceling = true
+	if st.phase == turnResuming {
+		st.setPhaseLocked(turnRunning)
 	}
-	return st.canceling
 }
 
-func (st *turnState) finishCancellation() {
+func (st *turnState) cancelRequested() bool {
 	st.mu.Lock()
-	st.canceling = false
-	st.mu.Unlock()
+	defer st.mu.Unlock()
+	return st.phase == turnCancelDriven || st.phase == turnCancelIdle
+}
+
+func (st *turnState) beginTerminal() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.phase == turnTerminal || st.phase == turnReleased {
+		return false
+	}
+	st.setPhaseLocked(turnTerminal)
+	return true
 }
 
 func (st *turnState) terminalized() bool {
-	st.cleanupMu.Lock()
-	defer st.cleanupMu.Unlock()
-	return st.terminal
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.phase == turnTerminal || st.phase == turnReleased
+}
+
+func (st *turnState) released() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return st.phase == turnReleased
+}
+
+func (st *turnState) markReleased() {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	st.setPhaseLocked(turnReleased)
+}
+
+func (st *turnState) lifecycleChange() <-chan struct{} {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.lifecycleChanged == nil {
+		st.lifecycleChanged = make(chan struct{})
+	}
+	return st.lifecycleChanged
+}
+
+func (st *turnState) setPhaseLocked(next turnPhase) {
+	if st.phase == next {
+		return
+	}
+	st.phase = next
+	st.signalLifecycleLocked()
+}
+
+func (st *turnState) signalLifecycleLocked() {
+	if st.lifecycleChanged != nil {
+		close(st.lifecycleChanged)
+	}
+	st.lifecycleChanged = make(chan struct{})
 }
 
 // appendSteering pushes one user message onto the pending-steering queue, or

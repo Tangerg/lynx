@@ -16,26 +16,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// terminalizeTurn closes the observable turn while retaining its registry
-// identity until process discard succeeds. That separation lets clients observe
-// the terminal promptly without making failed cleanup impossible to retry.
-func (s *memoryDispatcher) terminalizeTurn(st *turnState) {
-	st.cleanupMu.Lock()
-	st.terminal = true
-	st.closeEvents()
-	st.cleanupMu.Unlock()
-}
-
-// cleanupTurn releases the terminal process and only then removes the turn from
-// the registry and closes done. A failure leaves the same state addressable for
-// a later Cancel or shutdown retry.
-func (s *memoryDispatcher) cleanupTurn(st *turnState) error {
-	st.cleanupMu.Lock()
-	defer st.cleanupMu.Unlock()
-	if st.released {
+// cleanupTurnOwned releases the terminal process and only then removes the turn
+// from the registry and closes done. The caller holds lifecycleMu. A failure
+// leaves the same state addressable for a later Cancel or shutdown retry.
+func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
+	if st.released() {
 		return nil
 	}
-	if !st.terminal {
+	if !st.terminalized() {
 		return errors.New("turn: cleanup requested before terminal")
 	}
 	var cleanupErr error
@@ -57,8 +45,8 @@ func (s *memoryDispatcher) cleanupTurn(st *turnState) error {
 		delete(s.turns, st.handle.TurnID)
 	}
 	s.mu.Unlock()
-	st.released = true
-	st.doneOnce.Do(func() { close(st.done) })
+	st.markReleased()
+	close(st.done)
 	return cleanupErr
 }
 
@@ -83,12 +71,18 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) (bool, e
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by terminal cleanup in [drive].
 func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) error {
-	return s.completeTurn(st, func() {
-		dur := time.Since(st.startedAt)
-		finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
-		recordTurnDuration(st.ctx, reason, st.model, dur)
-		s.emit(st, runs.TurnEnd{Reason: reason, Duration: dur})
-	})
+	return s.completeTurn(st, func() { s.emitFinishedTurn(st, reason) })
+}
+
+func (s *memoryDispatcher) finishTurnOwned(st *turnState, reason execution.Outcome) error {
+	return s.completeTurnOwned(st, func() { s.emitFinishedTurn(st, reason) })
+}
+
+func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outcome) {
+	dur := time.Since(st.startedAt)
+	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
+	recordTurnDuration(st.ctx, reason, st.model, dur)
+	s.emit(st, runs.TurnEnd{Reason: reason, Duration: dur})
 }
 
 // finishFailedTurn closes an emergency error path with one self-contained
@@ -108,12 +102,31 @@ func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Pr
 	})
 }
 
+// finishExecutionError resolves an engine operation failure against concurrent
+// cancellation before publishing the terminal. Cancellation is the user's
+// authoritative intent when it already won the lifecycle transition; otherwise
+// the operation's stable problem is surfaced. The returned error is teardown
+// only, so synchronous callers can join it with the operation error without
+// losing either fact.
+func (s *memoryDispatcher) finishExecutionError(st *turnState, problem transcript.Problem, err error) error {
+	if st.cancelRequested() {
+		return s.finishTurn(st, execution.OutcomeCanceled)
+	}
+	return s.finishFailedTurn(st, problem, err)
+}
+
 func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) error {
-	st.terminalOnce.Do(func() {
+	st.lifecycleMu.Lock()
+	defer st.lifecycleMu.Unlock()
+	return s.completeTurnOwned(st, emitTerminal)
+}
+
+func (s *memoryDispatcher) completeTurnOwned(st *turnState, emitTerminal func()) error {
+	if st.beginTerminal() {
 		emitTerminal()
-		s.terminalizeTurn(st)
-	})
-	return s.cleanupTurn(st)
+		st.closeEvents()
+	}
+	return s.cleanupTurnOwned(st)
 }
 
 // emitTurnEnd maps the captured agent runtime terminal event onto a

@@ -81,13 +81,21 @@ func (e *Engine) Save(ctx context.Context, processID string) error {
 	return e.saveProcess(ctx, process, false)
 }
 
+// DiscardResult reports the authoritative postcondition of [Engine.Discard].
+// Released is true only after both the durable process tree and every live
+// registry entry have been removed. An error may accompany Released=true when
+// termination produced diagnostics but release still completed.
+type DiscardResult struct {
+	Released bool
+}
+
 // Discard terminates a process tree, waits for every active run to release its
 // final-snapshot ownership, asks the configured store to delete its durable
 // tree, and removes the live processes from the registry in descendant-first
 // order.
-func (e *Engine) Discard(ctx context.Context, processID string) error {
+func (e *Engine) Discard(ctx context.Context, processID string) (DiscardResult, error) {
 	if e == nil {
-		return errors.New("runtime.Engine.Discard: nil Engine")
+		return DiscardResult{}, errors.New("runtime.Engine.Discard: nil Engine")
 	}
 	ctx = normalizeContext(ctx)
 	sequenceKey := processID
@@ -96,7 +104,7 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	}
 	tree, err := e.discoverProcessTrees([]string{processID})
 	if err != nil {
-		return fmt.Errorf("runtime.Engine.Discard: %w", err)
+		return DiscardResult{}, fmt.Errorf("runtime.Engine.Discard: %w", err)
 	}
 	var terminateErrs []error
 	for _, id := range tree.order {
@@ -109,10 +117,10 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		}
 	}
 	if err := tree.wait(ctx); err != nil {
-		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
+		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	if err := tree.claim(); err != nil {
-		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
+		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	// An active Run owns its final automatic snapshot while it exits after Kill.
 	// Do not take this tree's persistence sequence until that Run has joined: it
@@ -121,18 +129,18 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 	releaseSave, err := e.processSaves.acquire(ctx, sequenceKey)
 	if err != nil {
 		tree.releaseClaims()
-		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err))
+		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err))
 	}
 	defer releaseSave()
 	if e.processStore != nil {
 		change := core.ProcessSnapshotChange{DeleteRoots: []string{processID}}
 		if err := e.processStore.Apply(ctx, change); err != nil {
 			tree.releaseClaims()
-			return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err))
+			return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err))
 		}
 	}
 	tree.release()
-	return errors.Join(terminateErrs...)
+	return DiscardResult{Released: true}, errors.Join(terminateErrs...)
 }
 
 func (e *Engine) saveProcess(ctx context.Context, process *Process, allowActiveRun bool) error {

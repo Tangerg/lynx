@@ -23,10 +23,20 @@ type handle struct {
 	owner             context.Context
 	hub               *Journal
 	done              chan struct{}
+	completionErr     error
 	cancelRequested   bool
 	cancelReason      string
+	interrupt         interruptDisposition
 	inflightInterrupt *interruptCommit
 }
+
+type interruptDisposition uint8
+
+const (
+	interruptAbsent interruptDisposition = iota
+	interruptCommitting
+	interruptCommitted
+)
 
 // interruptCommit is the one cancellable interrupt publication a run may own.
 // A nil pointer means there is no commit to interrupt or join.
@@ -39,9 +49,9 @@ type interruptCommit struct {
 // returns, no new interrupt can be committed for this run; a commit already in
 // progress has observed cancellation and completed before cancellation proceeds.
 // External I/O never runs under mu: the in-flight channel is the join point.
-func (h *handle) requestCancel(reason string) {
+func (h *handle) requestCancel(ctx context.Context, reason string) (interruptDisposition, error) {
 	if h == nil {
-		return
+		return interruptAbsent, nil
 	}
 	h.mu.Lock()
 	h.cancelRequested = true
@@ -56,8 +66,16 @@ func (h *handle) requestCancel(reason string) {
 		inflight.cancel()
 	}
 	if inflight != nil {
-		<-inflight.done
+		select {
+		case <-inflight.done:
+		case <-ctx.Done():
+			return interruptAbsent, ctx.Err()
+		}
 	}
+	h.mu.Lock()
+	disposition := h.interrupt
+	h.mu.Unlock()
+	return disposition, nil
 }
 
 // commitInterrupt reserves the interrupt boundary, runs its context-bounded
@@ -75,18 +93,24 @@ func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Contex
 		cancelCommit()
 		return false, nil
 	}
-	if h.inflightInterrupt != nil {
+	if h.interrupt != interruptAbsent || h.inflightInterrupt != nil {
 		h.mu.Unlock()
 		cancelCommit()
-		return false, errors.New("runs: interrupt commit already in flight")
+		return false, errors.New("runs: interrupt boundary already resolved")
 	}
 	inflight := &interruptCommit{done: make(chan struct{}), cancel: cancelCommit}
+	h.interrupt = interruptCommitting
 	h.inflightInterrupt = inflight
 	h.mu.Unlock()
 
 	err = commit(commitCtx)
 	cancelCommit()
 	h.mu.Lock()
+	if err == nil {
+		h.interrupt = interruptCommitted
+	} else {
+		h.interrupt = interruptAbsent
+	}
 	close(inflight.done)
 	h.inflightInterrupt = nil
 	h.mu.Unlock()
@@ -129,7 +153,7 @@ func (h *handle) wait(ctx context.Context) error {
 	}
 	select {
 	case <-h.done:
-		return nil
+		return h.completionErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}

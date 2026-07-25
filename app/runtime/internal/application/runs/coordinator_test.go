@@ -66,16 +66,19 @@ func (f *fakeExecutor) cancels() int {
 }
 
 type fakeEffects struct {
-	mu             sync.Mutex
-	commits        []EventCommit
-	openings       []OpeningCommit
-	finishes       []Finish
-	nudges         int
-	openingErr     error
-	commitErr      error
-	rejectCanceled bool
-	finishStarted  chan<- struct{}
-	finishRelease  <-chan struct{}
+	mu              sync.Mutex
+	commits         []EventCommit
+	openings        []OpeningCommit
+	finishes        []Finish
+	nudges          int
+	openingErr      error
+	commitErr       error
+	rejectCanceled  bool
+	suspendStarted  chan<- struct{}
+	suspendCanceled chan<- struct{}
+	suspendRelease  <-chan struct{}
+	finishStarted   chan<- struct{}
+	finishRelease   <-chan struct{}
 }
 
 func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
@@ -90,6 +93,18 @@ func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) er
 }
 
 func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error {
+	if commit.State == StateSuspend {
+		if e.suspendStarted != nil {
+			e.suspendStarted <- struct{}{}
+		}
+		if e.suspendCanceled != nil {
+			<-ctx.Done()
+			e.suspendCanceled <- struct{}{}
+		}
+		if e.suspendRelease != nil {
+			<-e.suspendRelease
+		}
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.rejectCanceled && ctx.Err() != nil {
@@ -592,6 +607,9 @@ func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	coordinator := testCoordinator(executor, &fakeEffects{})
+	turns := &fakeTurnControl{}
+	coordinator.turns = turns
+	coordinator.sessions = &fakeRunSessions{}
 	requestContext, cancelRequest := context.WithCancel(context.Background())
 	stream, err := coordinator.openSegment(requestContext, testSegment())
 	if err != nil {
@@ -602,14 +620,14 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	next() // consume the opening event so the pump is live
 	cancelRequest()
 
-	binding, live, ok := coordinator.beginCancel("run_1", "stop")
-	if !ok {
-		t.Fatal("beginCancel did not find the live run")
+	if err := coordinator.Cancel(requestContext, CancelCommand{RunID: "run_1", Reason: "stop"}); err != nil {
+		t.Fatalf("Cancel with finished request context: %v", err)
 	}
-	cleanupContext, cancelCleanup := live.cleanupContext(context.Background())
-	defer cancelCleanup()
-	if cleanupContext.Err() != nil || binding.SessionID != "ses_1" || binding.TurnID != "turn_1" {
-		t.Fatalf("binding=%+v cleanup error=%v", binding, cleanupContext.Err())
+	if executor.cancels() != 1 {
+		t.Fatalf("pump executor cancellations = %d, want one", executor.cancels())
+	}
+	if len(turns.canceled) != 0 {
+		t.Fatalf("control-surface cancellations = %+v, want pump-only ownership", turns.canceled)
 	}
 	requireCoordinatorShutdown(t, coordinator)
 	for _, ok := next(); ok; _, ok = next() { // drain whatever remains

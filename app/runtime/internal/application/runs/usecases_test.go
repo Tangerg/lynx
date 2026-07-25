@@ -491,9 +491,9 @@ func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T
 
 func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T) {
 	cleanupErr := errors.New("turn cleanup failed")
-	executor := &fakeExecutor{block: true}
+	executor := &fakeExecutor{block: true, cancelErr: cleanupErr}
 	effects := &fakeEffects{}
-	turns := &fakeTurnControl{cancelErr: cleanupErr}
+	turns := &fakeTurnControl{}
 	c := NewCoordinator(Dependencies{Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects, Admissions: new(admission.Gate)})
 	stream, err := c.openSegment(t.Context(), testSegment())
 	if err != nil {
@@ -553,6 +553,72 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 		t.Fatal("Cancel returned before releasing session admission")
 	}
 	for range result.Events {
+	}
+}
+
+func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
+	suspendStarted := make(chan struct{}, 1)
+	suspendCanceled := make(chan struct{}, 1)
+	releaseSuspend := make(chan struct{})
+	executor := &fakeExecutor{events: []EngineEvent{
+		ToolCallStart{
+			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+			SafetyClass: "write",
+		},
+		TurnInterrupted{Interrupts: []Interrupt{{
+			Kind: ApprovalInterruptKind,
+			Approval: &ApprovalPrompt{
+				CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+				SafetyClass: "write",
+			},
+		}}},
+	}}
+	effects := &fakeEffects{
+		suspendStarted: suspendStarted, suspendCanceled: suspendCanceled,
+		suspendRelease: releaseSuspend,
+	}
+	var operations []string
+	turns := &fakeTurnControl{operations: &operations}
+	sessions := &fakeRunSessions{operations: &operations}
+	c := NewCoordinator(Dependencies{
+		Segments: executor, Turns: turns, Sessions: sessions, Effects: effects,
+		Admissions: new(admission.Gate),
+	})
+	stream, err := c.openSegment(t.Context(), testSegment())
+	if err != nil {
+		t.Fatalf("openSegment: %v", err)
+	}
+	streamDone := make(chan struct{})
+	go func() {
+		collectEvents(stream)
+		close(streamDone)
+	}()
+	select {
+	case <-suspendStarted:
+	case <-time.After(time.Second):
+		t.Fatal("interrupt commit did not start")
+	}
+
+	cancelDone := make(chan error, 1)
+	go func() {
+		cancelDone <- c.Cancel(t.Context(), CancelCommand{RunID: "run_1", Reason: "stop"})
+	}()
+	select {
+	case <-suspendCanceled:
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not reach the in-flight interrupt commit")
+	}
+	close(releaseSuspend)
+	if err := <-cancelDone; err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	<-streamDone
+
+	if executor.cancels() != 0 {
+		t.Fatalf("pump executor cancellations = %d, want parked owner to remain intact until durable cancel", executor.cancels())
+	}
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "turn.cancel" {
+		t.Fatalf("cancel operations = %v, want durable cancel before parked turn cleanup", operations)
 	}
 }
 

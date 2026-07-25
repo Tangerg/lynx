@@ -2,9 +2,9 @@ package turn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -25,46 +25,30 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 	if err != nil {
 		return err
 	}
-	state.cancelMu.Lock()
-	defer state.cancelMu.Unlock()
-	if state.terminalized() {
-		return s.cleanupTurn(state)
-	}
+	state.lifecycleMu.Lock()
+	defer state.lifecycleMu.Unlock()
 	state.cancel()
-	if state.cancelPrepared() {
-		return s.finishTurn(state, execution.OutcomeCanceled)
-	}
-	if state.terminalized() {
-		return s.cleanupTurn(state)
-	}
-	process := state.process()
-	claimed := state.claimCancellation()
-	if process != nil {
-		status := process.Status()
-		switch {
-		case claimed && status != core.StatusRunning:
-			// This Cancel owns the parked suspension. There is no continuation
-			// loop to observe ctx cancellation, so terminate the whole tree.
-			err = cancelTurnProcess(ctx, process)
-		case !claimed && status != core.StatusRunning && status != core.StatusWaiting:
-			// A not-yet-running, non-parked process also has no loop that can
-			// observe ctx cancellation. Waiting is deliberately excluded: a
-			// racing Resume may have won claimPark but not yet recorded the
-			// response. Killing that transient Waiting process would clear its
-			// suspension and make the winning Resume fail stale.
-			err = cancelTurnProcess(ctx, process)
+	switch state.requestCancellation() {
+	case cancelFinish:
+		return s.finishTurnOwned(state, execution.OutcomeCanceled)
+	case cancelProcess:
+		if process := state.process(); process != nil {
+			if err := cancelTurnProcess(ctx, process); err != nil {
+				return err
+			}
+			return s.finishTurnOwned(state, execution.OutcomeCanceled)
 		}
+		return nil
+	case cancelCleanup:
+		return s.cleanupTurnOwned(state)
+	case cancelComplete:
+		return ErrTurnNotFound
+	default:
+		// A start/run/resume goroutine owns the terminal, or Restore has not yet
+		// published its process. Shutdown waits on lifecycle changes and retries
+		// when ownership becomes actionable.
+		return nil
 	}
-	if err != nil {
-		return err
-	}
-	if claimed {
-		// The turn was parked on an interrupt — no drive goroutine is waiting on
-		// it, so emit the terminal + tear down here.
-		state.finishCancellation()
-		return s.finishTurn(state, execution.OutcomeCanceled)
-	}
-	return nil
 }
 
 func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error {
@@ -106,9 +90,12 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
 	resumed, err := state.process().Resume(state.ctx, resolution)
 	if err != nil {
-		s.finishFailedTurn(state, problemFromError(err), err)
-		return err
+		return errors.Join(
+			err,
+			s.finishExecutionError(state, problemFromError(err), err),
+		)
 	}
+	state.resumeStarted()
 	go s.drive(state, resumed)
 	return nil
 }

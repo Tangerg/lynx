@@ -69,10 +69,16 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			}
 			cancelTerminal()
 		}
-		if ctx.Err() != nil || abortTurn {
+		// A committed park transfers teardown to Cancel's durable parked-run
+		// path. Cancel first removes the open interrupt and terminalizes the Run,
+		// then releases the parked executor turn. Tearing it down here merely
+		// because requestCancel canceled ctx would reverse that transaction order
+		// and leave a durable interrupt pointing at a missing process on crash.
+		if !parked && (ctx.Err() != nil || abortTurn) {
 			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			if err := c.executor.CancelTurn(teardownCtx, spec.turnRef()); err != nil && !errors.Is(err, ErrTurnNotLive) {
-				recordRunCleanupError(teardownCtx, fmt.Errorf("runs: tear down turn %q: %w", spec.TurnID, err))
+				live.completionErr = fmt.Errorf("runs: tear down turn %q: %w", spec.TurnID, err)
+				recordRunCleanupError(teardownCtx, live.completionErr)
 			}
 			cancelTeardown()
 		}

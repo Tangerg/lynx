@@ -33,7 +33,10 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		h.requestCancel("user canceled")
+		disposition, err := h.requestCancel(t.Context(), "user canceled")
+		if err != nil || disposition != interruptCommitted {
+			t.Errorf("requestCancel = (%v, %v), want committed", disposition, err)
+		}
 		close(cancelDone)
 	}()
 	select {
@@ -92,7 +95,10 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		h.requestCancel("user canceled")
+		disposition, err := h.requestCancel(t.Context(), "user canceled")
+		if err != nil || disposition != interruptAbsent {
+			t.Errorf("requestCancel = (%v, %v), want no committed interrupt", disposition, err)
+		}
 		close(cancelDone)
 	}()
 
@@ -104,6 +110,45 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 	if err := <-commitResult; !errors.Is(err, context.Canceled) {
 		t.Fatalf("commit error = %v, want context.Canceled", err)
 	}
+}
+
+func TestHandleRetainsCommittedInterruptOutcomeAfterCommitReturns(t *testing.T) {
+	h := &handle{}
+	committed, err := h.commitInterrupt(t.Context(), func(context.Context) error {
+		return nil
+	})
+	if err != nil || !committed {
+		t.Fatalf("commitInterrupt = (%v, %v), want committed", committed, err)
+	}
+
+	disposition, err := h.requestCancel(t.Context(), "user canceled")
+	if err != nil || disposition != interruptCommitted {
+		t.Fatalf("requestCancel = (%v, %v), want retained committed outcome", disposition, err)
+	}
+}
+
+func TestHandleCancelWaitIsContextBounded(t *testing.T) {
+	commitStarted := make(chan struct{})
+	releaseCommit := make(chan struct{})
+	h := &handle{}
+	commitDone := make(chan struct{})
+	go func() {
+		defer close(commitDone)
+		_, _ = h.commitInterrupt(t.Context(), func(context.Context) error {
+			close(commitStarted)
+			<-releaseCommit
+			return nil
+		})
+	}()
+	<-commitStarted
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := h.requestCancel(ctx, "user canceled"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("requestCancel error = %v, want context canceled", err)
+	}
+	close(releaseCommit)
+	<-commitDone
 }
 
 func TestHandleCleanupContextDetachesFinishedOwner(t *testing.T) {

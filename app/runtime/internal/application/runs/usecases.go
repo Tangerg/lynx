@@ -185,51 +185,63 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	if err := c.requireControlDependencies(); err != nil {
 		return err
 	}
-	binding, liveHandle, live := c.beginCancel(cmd.RunID, cmd.Reason)
-	cleanupCtx, cancel := liveHandle.cleanupContext(ctx)
+	entry, live := c.registry.Get(cmd.RunID)
+	cleanupCtx, cancel := entry.handle.cleanupContext(ctx)
 	defer cancel()
 	if live {
-		var cancelErr error
-		if err := c.turns.CancelTurn(cleanupCtx, execution.TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
-			cancelErr = fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
+		ref := execution.TurnRef{
+			SessionID: entry.record.SessionID,
+			TurnID:    entry.record.TurnID,
 		}
-		// A park can commit durably in the window between cancellation observing the
-		// run as live and turns.Cancel tearing it down (the interrupt commit is a DB
-		// transaction). Tearing the turn down then leaves the run durably Interrupted
-		// — surfaced as resumable — while the caller was told cancel succeeded. If an
-		// open interrupt now exists, reconcile it through the durable cancel write-set.
-		reconcileErr := c.cancelParkedRun(cleanupCtx, cmd, false)
-		return errors.Join(cancelErr, reconcileErr, liveHandle.wait(ctx))
+		interrupt, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
+		c.registry.MarkCancel(cmd.RunID, cmd.Reason)
+		if requestErr != nil {
+			return errors.Join(requestErr, entry.handle.wait(cleanupCtx))
+		}
+		if interrupt == interruptCommitted {
+			// The interrupt transaction won before cancellation. Its pump owns the
+			// live admission until it has published and closed the parked segment;
+			// join that boundary, then apply the known durable cancel directly.
+			if err := entry.handle.wait(cleanupCtx); err != nil {
+				return err
+			}
+			return c.cancelParkedBinding(cleanupCtx, cmd, ref)
+		}
+		// The pump owns every non-parked live teardown. requestCancel has stopped
+		// its stream context; joining the handle returns that single owner's
+		// cleanup result without racing a second CancelTurn from this goroutine.
+		return entry.handle.wait(cleanupCtx)
 	}
-	return c.cancelParkedRun(cleanupCtx, cmd, true)
+	return c.cancelParkedRun(cleanupCtx, cmd)
 }
 
 // cancelParkedRun applies the durable cancel write-set to a run parked on an open
-// interrupt. requireOpen selects the entry contract: the parked-cancel path
-// requires an open interrupt (its absence means the run is unknown), while the
-// live-cancel path calls this to reconcile a park that may have committed under
-// the race — there, no open interrupt means the live cancel already fully handled
-// it, so the reconciliation is a clean success.
-func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, requireOpen bool) error {
+// interrupt. Live cancellation never probes this store to infer a race outcome:
+// the handle's interrupt boundary reports that outcome directly.
+func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand) error {
 	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return err
 	}
 	if !found {
-		if requireOpen {
-			return ErrRunNotFound
-		}
-		return nil
+		return ErrRunNotFound
 	}
-	releaseSession, ok := c.admission.AcquireSession(pending.SessionID)
+	return c.cancelParkedBinding(ctx, cmd, execution.TurnRef{
+		SessionID: pending.SessionID,
+		TurnID:    pending.TurnID,
+	})
+}
+
+func (c *Coordinator) cancelParkedBinding(ctx context.Context, cmd CancelCommand, ref execution.TurnRef) error {
+	releaseSession, ok := c.admission.AcquireSession(ref.SessionID)
 	if !ok {
 		return ErrSessionBusy
 	}
 	defer releaseSession()
-	if err := c.sessions.ApplyRunCancel(ctx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
+	if err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
 		return err
 	}
-	if err := c.turns.CancelTurn(ctx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
+	if err := c.turns.CancelTurn(ctx, ref); err != nil && !errors.Is(err, ErrTurnNotLive) {
 		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}
 	return nil

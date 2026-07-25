@@ -28,6 +28,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	}
 	handle := TurnHandle{SessionID: request.SessionID, TurnID: turnID}
 	state := newTurnState(ctx, handle)
+	state.prepareRestore()
 	state.cwd = request.Cwd
 	if s.hooks != nil {
 		var err error
@@ -74,21 +75,38 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		ChatClient:    client,
 	})
 	if err != nil {
-		_ = s.finishFailedTurn(state, problemFromError(err), err)
-		return TurnHandle{}, err
+		return TurnHandle{}, errors.Join(
+			err,
+			s.finishExecutionError(state, problemFromError(err), err),
+		)
 	}
 	if process == nil {
 		err := errors.New("turn: engine returned a nil restored process")
-		_ = s.finishFailedTurn(state, internalRunProblem(), err)
-		return TurnHandle{}, err
+		return TurnHandle{}, errors.Join(
+			err,
+			s.finishExecutionError(state, internalRunProblem(), err),
+		)
 	}
 	state.lifecycle.setRoot(process.ID())
-	if !state.setRestoredProcess(process) || s.isClosed() {
-		cancelErr := s.Cancel(context.WithoutCancel(ctx), handle)
+	live := state.setRestoredProcess(process)
+	if s.isClosed() {
+		// BeginShutdown captured this registered state before RestoreTurn crossed
+		// the process-publication boundary. The shutdown owner is waiting on the
+		// lifecycle notification and now owns teardown.
+		return TurnHandle{}, ErrDispatcherClosed
+	}
+	if !live {
+		// A normal Cancel (not dispatcher shutdown) won while RestoreTurn was in
+		// flight. Process publication makes cancellation actionable, so this
+		// publisher completes the ownership handoff synchronously and leaves a
+		// failed cleanup addressable for a later Cancel.
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
+		cancelErr := s.Cancel(cleanupCtx, handle)
+		cancel()
 		if errors.Is(cancelErr, ErrTurnNotFound) {
 			cancelErr = nil
 		}
-		return TurnHandle{}, errors.Join(ErrDispatcherClosed, cancelErr)
+		return TurnHandle{}, errors.Join(ErrParkClaimed, cancelErr)
 	}
 
 	return handle, nil
