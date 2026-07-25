@@ -57,7 +57,7 @@ export function SessionRow({
         : formatRelative(session.time);
 
   const row = (
-    <div className="relative group select-none">
+    <div className="relative select-none">
       <AgentRow
         icon={session.favorite ? "star" : "chat"}
         iconClassName={session.favorite ? "text-accent" : undefined}
@@ -117,7 +117,7 @@ export function SessionRow({
               }
               setRenaming(false);
             }}
-            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-lg leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-md leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
           />
         ) : (
           session.title

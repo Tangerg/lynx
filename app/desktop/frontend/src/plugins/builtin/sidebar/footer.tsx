@@ -1,7 +1,7 @@
 // Sidebar footer — pinned at the bottom of the expanded Work Index so global
 // status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
-import { AgentIconButton } from "@/ui/agent";
+import { AgentRow } from "@/ui/agent";
 import { Icon, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -48,38 +48,12 @@ function SidebarFooter() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className={cn("px-3 pb-3 pt-2", noDragClasses)}>
-      <div className="flex items-center gap-2.5">
-        <button
-          type="button"
-          onClick={actions.openSettings}
-          data-chrome-focus=""
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm border-0 bg-transparent px-1 py-1 text-left transition-colors hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none"
-        >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cta font-sans text-ui-md font-semibold text-cta-text">
-            TA
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-ui-lg font-semibold leading-[16px] text-fg">
-              亮 唐
-            </span>
-            <span className="block truncate text-ui-sm leading-[15px] text-fg-muted">Pro</span>
-          </span>
-        </button>
-        <Slot name="sidebar.footer.status" className="hidden items-center gap-0.5" />
-        <div className="flex items-center gap-0.5">
-          <ThemeToggle />
-          <AgentIconButton
-            icon="settings"
-            size="sm"
-            onClick={actions.openSettings}
-            data-chrome-focus=""
-            title={t("sidebar.action.settings")}
-            aria-label={t("sidebar.action.settings")}
-            className="h-7 w-7"
-          />
-        </div>
-      </div>
+    <div className={cn("flex items-center gap-1 p-2", noDragClasses)}>
+      <AgentRow icon="settings" className="min-w-0 flex-1" onClick={actions.openSettings}>
+        {t("sidebar.action.settings")}
+      </AgentRow>
+      <Slot name="sidebar.footer.status" className="hidden items-center gap-0.5" />
+      <ThemeToggle />
     </div>
   );
 }

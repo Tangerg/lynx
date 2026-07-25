@@ -1,11 +1,18 @@
-import { AgentIconButton, AgentRow } from "@/ui/agent";
+import {
+  AGENT_ROW_GROUP,
+  AGENT_ROW_HOVER_ACTION,
+  AGENT_ROW_RESTING_GLYPH,
+  AgentIconButton,
+  AgentRow,
+} from "@/ui/agent";
 import { Icon } from "@/ui";
+import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import type { WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
 
-// Project group header — the folder node of the sidebar tree (Codex-style:
-// one 项目 tree, sessions nested under their project). The row reads as a
-// soft selected pill, leaving accent colour for live state and CTAs.
+// Project group header — the folder node of the work-index tree, with sessions
+// nested under it. The session count holds the trailing slot at rest and yields
+// it to the "new session" action on hover, so the two never stack.
 export function ProjectRow({
   project,
   active,
@@ -24,16 +31,21 @@ export function ProjectRow({
 }) {
   const t = useT();
   return (
-    <div className="group relative select-none">
+    <div className={cn("relative select-none", AGENT_ROW_GROUP)}>
       <AgentRow
         icon="folder"
         active={active}
         onClick={() => onToggle()}
         title={project.id}
         aria-expanded={open}
-        className="pr-[52px] font-normal"
+        className="pr-8"
         trailing={
-          <span className="font-mono text-ui-sm leading-none text-fg-faint tabular-nums">
+          <span
+            className={cn(
+              "font-mono text-ui-sm leading-none text-fg-faint tabular-nums",
+              AGENT_ROW_RESTING_GLYPH,
+            )}
+          >
             {count}
           </span>
         }
@@ -53,11 +65,11 @@ export function ProjectRow({
       <AgentIconButton
         icon="plus"
         size="sm"
-        iconSize={11}
+        iconSize={12}
         data-chrome-focus=""
         aria-label={t("project.row.newSession", { name: project.name })}
         onClick={() => onNewSession(project)}
-        className="absolute top-0 right-6 h-7 w-7 opacity-0 group-hover:opacity-100"
+        className={cn("absolute top-0 right-1 h-7 w-7", AGENT_ROW_HOVER_ACTION)}
       />
     </div>
   );
