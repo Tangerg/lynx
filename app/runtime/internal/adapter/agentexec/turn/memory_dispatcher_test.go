@@ -95,7 +95,7 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 }
 
 func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
-	dispatcher := mustTurn(turn.New(turn.Dependencies{Engine: &slowStubEngine{}}))
+	dispatcher := mustTurn(turn.New(turnDeps(&slowStubEngine{})))
 	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-close",
 		Message:   "wait",
@@ -125,6 +125,13 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 		t.Fatalf("StartTurn after Close = %v, want ErrDispatcherClosed", err)
 	}
 	shutdownDispatcher(t, dispatcher)
+}
+
+func TestNewRequiresApprovalGate(t *testing.T) {
+	_, err := turn.New(turn.Dependencies{Engine: &stubEngine{}})
+	if err == nil {
+		t.Fatal("New accepted a dispatcher without an approval gate")
+	}
 }
 
 // TestDispatcher_InjectSteering_LandsInNextTurn verifies the "next-turn"

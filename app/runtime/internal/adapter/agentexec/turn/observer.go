@@ -58,10 +58,8 @@ type toolGate struct {
 //     runs-with-edited-args accordingly.
 //
 // The interrupt key is the stable tool name + arguments rather than an
-// adapter-generated lifecycle ID. That semantic key survives persisted
-// records from older runtimes and still identifies the same gated call when it
-// is re-presented on resume. This is the one interrupt mental model shared by
-// every HITL flavor.
+// adapter-generated lifecycle ID. It identifies the same logical call when the
+// suspended action is re-entered on resume.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
 	return (&toolGate{dispatcher: t.dispatcher, st: t.st}).ApproveToolCall(ctx, callID, toolName, arguments, target)
 }
@@ -100,24 +98,18 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 		}
 	}
 
-	mode := approval.ModeYolo
-	approvalConfigured := t.dispatcher.approval != nil
-	if approvalConfigured {
-		var err error
-		mode, err = t.dispatcher.approval.Mode(ctx)
-		if err != nil {
-			return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
-		}
+	mode, err := t.dispatcher.approval.Mode(ctx)
+	if err != nil {
+		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}
 
 	plan := approval.ToolCallInput{
-		Tool:               toolName,
-		Arguments:          arguments,
-		Mode:               mode,
-		ApprovalConfigured: approvalConfigured,
-		Hook:               hookDecision,
-		FileMutation:       fileMutationScope(target.FileMutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
-		ShellCommand:       shellCommandFromArguments(toolName, cmp.Or(hookDecision.RewriteArguments, arguments)),
+		Tool:         toolName,
+		Arguments:    arguments,
+		Mode:         mode,
+		Hook:         hookDecision,
+		FileMutation: fileMutationScope(target.FileMutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
+		ShellCommand: shellCommandFromArguments(toolName, cmp.Or(hookDecision.RewriteArguments, arguments)),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
 	var rememberedArguments tool.Arguments
@@ -129,15 +121,11 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 				Interrupt: fmt.Errorf("turn: validate gated tool %q arguments: %w", toolName, err),
 			}
 		}
-		var d approval.Decision
-		var ok bool
-		if approvalConfigured {
-			query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: rememberedArguments}
-			d, ok, err = t.dispatcher.approval.Decide(ctx, query)
-			if err != nil {
-				return agentexec.ToolApprovalVerdict{
-					Interrupt: fmt.Errorf("turn: evaluate remembered approval for tool %q: %w", toolName, err),
-				}
+		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: rememberedArguments}
+		d, ok, err := t.dispatcher.approval.Decide(ctx, query)
+		if err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: evaluate remembered approval for tool %q: %w", toolName, err),
 			}
 		}
 		autoApproved := false
@@ -232,7 +220,7 @@ func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string
 }
 
 func (t *toolGate) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
-	if resolution.RememberScope == "" || t.dispatcher.approval == nil {
+	if resolution.RememberScope == "" {
 		return nil
 	}
 	if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{

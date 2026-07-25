@@ -54,8 +54,8 @@ type hookResolver interface {
 }
 
 // Dependencies names the collaborators needed by the in-process dispatcher.
-// Engine is required; every other field is optional and has a nil-default
-// behavior documented on the field.
+// Engine and Approval are required; optional collaborators document their
+// nil behavior on the field.
 type Dependencies struct {
 	// Engine starts or restores the Agent process tree. Required.
 	Engine engineDep
@@ -68,8 +68,7 @@ type Dependencies struct {
 	// complete maintenance sweep.
 	Maintenance BoundaryMaintenance
 
-	// Approval gates tool calls. nil auto-approves every tool, useful for tests
-	// and smoke runs.
+	// Approval gates every tool call. Required.
 	Approval ApprovalGate
 
 	// ClientResolver resolves an explicit per-turn provider/model client. nil
@@ -116,6 +115,9 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
 	}
+	if deps.Approval == nil {
+		return nil, errors.New("turn: approval gate is required")
+	}
 	return &memoryDispatcher{
 		engine:              deps.Engine,
 		steering:            deps.Steering,
@@ -137,9 +139,9 @@ type memoryDispatcher struct {
 	engine      engineDep
 	steering    SteeringSink
 	maintenance BoundaryMaintenance // optional — nil = no turn-boundary maintenance
-	approval    ApprovalGate        // optional — nil = auto-approve every tool
-	resolver    clientResolver      // optional — nil = always use the default model
-	todos       todoLister          // optional — nil = no state.snapshot{todos} projection
+	approval    ApprovalGate
+	resolver    clientResolver // optional — nil = always use the default model
+	todos       todoLister     // optional — nil = no state.snapshot{todos} projection
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

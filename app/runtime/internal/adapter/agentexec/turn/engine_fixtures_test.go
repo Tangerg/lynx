@@ -30,11 +30,20 @@ func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependen
 		Engine:      engine,
 		Steering:    services,
 		Maintenance: services,
+		Approval:    explicitYoloPolicy(),
 	}
 	for _, opt := range opts {
 		opt(&deps)
 	}
 	return deps
+}
+
+func explicitYoloPolicy() turn.ApprovalGate {
+	policy, err := approval.New(approval.ModeYolo, nil)
+	if err != nil {
+		panic(err)
+	}
+	return policy
 }
 
 func withApproval(policy turn.ApprovalGate) func(*turn.Dependencies) {

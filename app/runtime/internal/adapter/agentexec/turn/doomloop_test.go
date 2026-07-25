@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
 // TestDoomLoopCounterTracksNoProgress checks the state machine that backs the
@@ -49,9 +50,9 @@ func TestDoomLoopCounterTracksNoProgress(t *testing.T) {
 func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	// nil suspension → hitl.Interrupt raises a fresh SuspendedError we can decode.
 	ctx := core.WithProcessView(t.Context(), suspendedProcessView{})
-	// approval nil → Yolo → GatePass, so only the doom-loop brake can stop it.
+	// Yolo passes the base read call, so only the doom-loop brake can stop it.
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{},
+		dispatcher: &memoryDispatcher{approval: yoloTestApproval()},
 		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 	args := `{"file_path":"x.go"}`
@@ -101,7 +102,7 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 	ctx := core.WithProcessView(t.Context(), suspendedProcessView{})
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{},
+		dispatcher: &memoryDispatcher{approval: yoloTestApproval()},
 		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
 	}
 	args := `{"id":"bg-1"}`
@@ -112,4 +113,12 @@ func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 	if v := obs.ApproveToolCall(ctx, "c", "shell_output", args, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || v.Denied {
 		t.Fatalf("progressing polls must not brake: %+v", v)
 	}
+}
+
+func yoloTestApproval() ApprovalGate {
+	policy, err := approval.New(approval.ModeYolo, nil)
+	if err != nil {
+		panic(err)
+	}
+	return policy
 }

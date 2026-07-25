@@ -18,13 +18,12 @@ type StandingDecision struct {
 
 // ToolCallInput is the pure policy input for one tool call.
 type ToolCallInput struct {
-	Tool               string
-	Arguments          string
-	Mode               Mode
-	ApprovalConfigured bool
-	Hook               HookDecision
-	FileMutation       tool.FileMutationScope
-	ShellCommand       string
+	Tool         string
+	Arguments    string
+	Mode         Mode
+	Hook         HookDecision
+	FileMutation tool.FileMutationScope
+	ShellCommand string
 }
 
 // ToolCallPlan is the approval policy's verdict before any HITL interrupt is
@@ -95,10 +94,6 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 		plan.Denial = Denial{Cause: DenialHook, Detail: in.Hook.Reason}
 		return plan
 	}
-	if !in.ApprovalConfigured {
-		return plan
-	}
-
 	action := GateFor(cls, in.Mode)
 	// Bypass-immune escalation: a call dangerous enough (a mutation escaping the
 	// workspace, or a high-confidence catastrophic shell command) is confirmed
