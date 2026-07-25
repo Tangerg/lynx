@@ -190,8 +190,7 @@ describe("UI preference DOM synchronization", () => {
 
     expect(style.getPropertyValue("--font-sans")).toBe("");
     expect(style.getPropertyValue("--font-mono")).toBe("");
-    // `null` = the ladder's default base, not "unset".
-    expect(style.getPropertyValue("--fs-ui-md")).toBe("12px");
+    expect(style.getPropertyValue("--fs-ui-md")).toBe("13px");
   });
 
   it("applies contrast, radius, and reduced-motion preferences", () => {

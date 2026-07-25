@@ -15,8 +15,8 @@ export function SidebarExpanded() {
           controls in this corner (TitleBarHiddenInset). */}
       <AgentSurfaceHeader divider={false} aria-hidden />
 
-      <ScrollArea hideScrollbar className="px-2 pt-0.5 pb-3.5">
-        <div className={cn("flex flex-col gap-y-3", noDragClasses)}>
+      <ScrollArea hideScrollbar className="px-2 pt-1 pb-4">
+        <div className={cn("flex flex-col gap-y-5", noDragClasses)}>
           {items.map((item) => {
             const Body = item.component;
             return (

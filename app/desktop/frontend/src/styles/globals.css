@@ -382,12 +382,12 @@
      Absolute px, NOT rem: geometry must not move when the type base moves —
      a rem ladder drags every padding/width along and makes fixed chrome heights
      (header, rows) impossible to hold. */
-  --fs-ui-2xs: 9px;
-  --fs-ui-xs: 10px;
-  --fs-ui-sm: 11px;
-  --fs-ui-md: 12px;
-  --fs-ui-lg: 13px;
-  --fs-code: 11px;
+  --fs-ui-2xs: 10px;
+  --fs-ui-xs: 11px;
+  --fs-ui-sm: 12px;
+  --fs-ui-md: 13px;
+  --fs-ui-lg: 14px;
+  --fs-code: 12px;
 
   /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
@@ -424,7 +424,7 @@
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
      are NOT here on purpose: they stay pinned so the drawer and content headers
      keep lining up across the seam. */
-  --density-row-height: 28px;
+  --density-row-height: 30px;
   --density-row-gap: 8px;
   --density-column-gutter: 12px;
   --density-column-gutter-wide: 20px;

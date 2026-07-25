@@ -9,8 +9,13 @@
 // The steps are absolute px, never rem: geometry (header height, row height,
 // gutters) must hold still when the type base moves. A rem ladder drags every
 // padding and width along with it, which makes fixed chrome heights impossible.
+//
+// Base 13, not 12. At 12 the row label was small enough that a 28px row read as
+// mostly empty — measured against Codex, our row PITCH was already the larger of
+// the two (3.0× the cap height against its 2.4×), so the cramped feeling came from
+// undersized text in a roomy row, not from tight spacing.
 
-export const UI_FONT_SIZE_DEFAULT_PX = 12;
+export const UI_FONT_SIZE_DEFAULT_PX = 13;
 export const UI_FONT_SIZE_MIN_PX = 11;
 export const UI_FONT_SIZE_MAX_PX = 18;
 

@@ -15,7 +15,7 @@ function SidebarNewSession() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className="flex flex-col gap-px">
+    <div className="flex flex-col gap-0.5">
       <AgentRow icon="edit" className="font-medium" onClick={actions.createSession}>
         {t("sidebar.action.newSession")}
       </AgentRow>

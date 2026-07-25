@@ -25,12 +25,12 @@ describe("normalizeUiFontSize", () => {
 describe("uiTypeLadder", () => {
   it("lands the default base on the whole-pixel grid", () => {
     expect(uiTypeLadder(UI_FONT_SIZE_DEFAULT_PX)).toEqual({
-      "ui-2xs": 9,
-      "ui-xs": 10,
-      "ui-sm": 11,
-      "ui-md": 12,
-      "ui-lg": 13,
-      code: 11,
+      "ui-2xs": 10,
+      "ui-xs": 11,
+      "ui-sm": 12,
+      "ui-md": 13,
+      "ui-lg": 14,
+      code: 12,
     });
   });
 
@@ -58,12 +58,12 @@ describe("uiTypeLadder", () => {
 describe("uiTypeLadderCssVariables", () => {
   it("emits every ladder step as a px custom property", () => {
     expect(uiTypeLadderCssVariables(UI_FONT_SIZE_DEFAULT_PX)).toEqual({
-      "--fs-ui-2xs": "9px",
-      "--fs-ui-xs": "10px",
-      "--fs-ui-sm": "11px",
-      "--fs-ui-md": "12px",
-      "--fs-ui-lg": "13px",
-      "--fs-code": "11px",
+      "--fs-ui-2xs": "10px",
+      "--fs-ui-xs": "11px",
+      "--fs-ui-sm": "12px",
+      "--fs-ui-md": "13px",
+      "--fs-ui-lg": "14px",
+      "--fs-code": "12px",
     });
   });
 });
