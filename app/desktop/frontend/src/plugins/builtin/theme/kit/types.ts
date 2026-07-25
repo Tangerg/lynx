@@ -105,14 +105,6 @@ export interface ThemeShadows {
 /** Global radius scale — themes that want a sharper or rounder feel
  *  override the relevant tiers (e.g. brutalist themes set every radius
  *  to 0; Catppuccin-style themes might prefer 10/14 instead of 8/12). */
-export interface ThemeRadii {
-  xs: string;
-  sm: string;
-  md: string;
-  lg: string;
-  xl: string;
-}
-
 export interface ThemePluginSpec {
   /** Stable id — what `uiStore` persists to `lyra.ui`. */
   id: string;
@@ -135,7 +127,6 @@ export interface ThemePluginSpec {
   /** Optional overrides — leave undefined to inherit scheme defaults. */
   cta?: Partial<ThemeCta>;
   shadows?: Partial<ThemeShadows>;
-  radii?: Partial<ThemeRadii>;
   /**
    * Surface ladder step in percent (e.g. "5%"). Default = 5%.
    * Higher values give more contrast between surface / surface-2 / -3 / -4,

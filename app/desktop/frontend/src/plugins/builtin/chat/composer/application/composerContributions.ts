@@ -42,6 +42,14 @@ export function composerModelSlot(component: LayoutSlotSpec["component"]): Layou
   };
 }
 
+export function composerContextSlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
+  return {
+    id: "context",
+    order: 0,
+    component,
+  };
+}
+
 export function composerSendSlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
   return {
     id: "send",

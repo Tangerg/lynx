@@ -5,9 +5,9 @@
 // machinery.
 
 import { colord } from "colord";
-import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./types";
+import type { ThemeCta, ThemePluginSpec, ThemeShadows } from "./types";
 
-// Default shadow + radii ladders.
+// Default shadow ladders.
 //
 // Floating surfaces use the desktop polish model: optical edge ring + contact
 // shadow + ambient shadow. The first layer is a 0.5px shadow ring, not a CSS
@@ -15,28 +15,16 @@ import type { ThemeCta, ThemePluginSpec, ThemeRadii, ThemeShadows } from "./type
 // chrome. Tiled/docked regions still separate by background delta and structural
 // hairlines; these shadows are reserved for composer and transient surfaces.
 export const DARK_SHADOWS: ThemeShadows = {
-  composer:
-    "0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35), 0 16px 40px -14px rgb(0 0 0 / 0.72)",
-  popover:
-    "0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34), 0 12px 32px -12px rgb(0 0 0 / 0.68)",
+  composer: "0 6px 24px -10px rgb(0 0 0 / 0.3)",
+  popover: "0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4)",
   // Geist two-layer focus ring: 2px gap in surface color + 2px accent.
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
 };
 
 export const LIGHT_SHADOWS: ThemeShadows = {
-  composer:
-    "0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05), 0 12px 28px -12px rgb(17 17 17 / 0.16)",
-  popover:
-    "0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05), 0 16px 34px -14px rgb(17 17 17 / 0.18)",
+  composer: "0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent)",
+  popover: "0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
   focus: "0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent)",
-};
-
-export const DEFAULT_RADII: ThemeRadii = {
-  xs: "4px",
-  sm: "6px",
-  md: "8px",
-  lg: "12px",
-  xl: "16px",
 };
 
 export const SCHEME_ICON: Record<"dark" | "light", string> = {
@@ -53,7 +41,6 @@ export const SCHEME_ICON: Record<"dark" | "light", string> = {
  * Resolution rules:
  *  - shadow defaults pick from DARK/LIGHT by `spec.scheme`; spec.shadows
  *    overrides per-key
- *  - radii defaults pick from DEFAULT_RADII; spec.radii overrides per-key
  *  - accentBorder / accentPress auto-derive from spec.brand.accent via
  *    colord unless the spec passes explicit overrides
  *  - CTA defaults to accent-driven (accent fill + textOnAccent ink);
@@ -63,7 +50,6 @@ export const SCHEME_ICON: Record<"dark" | "light", string> = {
 export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
   const shadowDefaults = spec.scheme === "dark" ? DARK_SHADOWS : LIGHT_SHADOWS;
   const shadows: ThemeShadows = { ...shadowDefaults, ...spec.shadows };
-  const radii: ThemeRadii = { ...DEFAULT_RADII, ...spec.radii };
 
   // Auto-derive accentBorder / accentPress from the base accent via
   // colord. Themes can still pass explicit values when the perceptual
@@ -127,11 +113,6 @@ export function buildTokenMap(spec: ThemePluginSpec): Record<string, string> {
     "shadow-focus": shadows.focus,
 
     // Radii
-    "radius-xs": radii.xs,
-    "radius-sm": radii.sm,
-    "radius-md": radii.md,
-    "radius-lg": radii.lg,
-    "radius-xl": radii.xl,
 
     // Free-form extras win on collision so theme-level overrides
     // always take precedence.

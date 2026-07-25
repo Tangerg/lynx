@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { ThemePluginSpec } from "./types";
-import { DARK_SHADOWS, DEFAULT_RADII, LIGHT_SHADOWS, SCHEME_ICON, buildTokenMap } from "./tokens";
+import { DARK_SHADOWS, LIGHT_SHADOWS, SCHEME_ICON, buildTokenMap } from "./tokens";
 
 function makeSpec(overrides: Partial<ThemePluginSpec> = {}): ThemePluginSpec {
   return {
@@ -120,11 +120,12 @@ describe("buildTokenMap", () => {
     expect(tokens["shadow-focus"]).toBe(DARK_SHADOWS.focus);
   });
 
-  it("spec.radii merges per-key over DEFAULT_RADII", () => {
-    const tokens = buildTokenMap(makeSpec({ radii: { sm: "10px", xl: "20px" } }));
-    expect(tokens["radius-sm"]).toBe("10px");
-    expect(tokens["radius-xl"]).toBe("20px");
-    expect(tokens["radius-md"]).toBe(DEFAULT_RADII.md);
+  // Corner radius is NOT a theme concern: one continuous `--shape-*` ladder in
+  // globals.css owns it, scaled by the user's Shape preference. A theme emitting
+  // radius tokens would be writing values nothing reads.
+  it("never emits radius tokens", () => {
+    const tokens = buildTokenMap(makeSpec());
+    expect(Object.keys(tokens).filter((key) => key.startsWith("radius-"))).toEqual([]);
   });
 
   it("depthStep defaults to 5% but spec can override", () => {

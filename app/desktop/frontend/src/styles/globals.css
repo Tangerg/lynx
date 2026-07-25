@@ -425,21 +425,17 @@
   --polish-med: var(--dur-med) var(--ease-out);
 
   /* -----------------------------------------------------------------------
-   *  Shadow system — optical 0.5px edge ring + contact + ambient. Mirrors
-   *  DESKTOP_UI_POLISH.md and the AI Agent Kit examples: crisp surface edges
-   *  without grey CSS borders, with the ambient layer kept low enough that
-   *  light UI does not turn foggy.
+   *  Shadow system — one soft directional layer per role. The edge is now drawn
+   *  by a real 1px border on the surfaces that need one (composer, menus), so
+   *  these carry depth only; stacking an optical ring on top of a border reads as
+   *  a double edge.
    * ----------------------------------------------------------------------- */
   --shadow-border: 0 0 0 0.5px rgb(17 17 17 / 0.08);
   --shadow-control:
     0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
     0 4px 10px -4px rgb(17 17 17 / 0.07);
-  --shadow-composer:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
-    0 12px 28px -12px rgb(17 17 17 / 0.16);
-  --shadow-popover:
-    0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 2px rgb(17 17 17 / 0.05),
-    0 16px 34px -14px rgb(17 17 17 / 0.18);
+  --shadow-composer: 0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
+  --shadow-popover: 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* -----------------------------------------------------------------------
@@ -694,12 +690,8 @@ html.theme-dark {
   --shadow-control:
     0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
     0 7px 18px -14px rgb(0 0 0 / 0.62);
-  --shadow-composer:
-    0 0 0 0.5px rgb(255 255 255 / 0.12), 0 1px 2px rgb(0 0 0 / 0.35),
-    0 16px 40px -14px rgb(0 0 0 / 0.72);
-  --shadow-popover:
-    0 0 0 0.5px rgb(255 255 255 / 0.13), 0 1px 2px rgb(0 0 0 / 0.34),
-    0 12px 32px -12px rgb(0 0 0 / 0.68);
+  --shadow-composer: 0 6px 24px -10px rgb(0 0 0 / 0.3);
+  --shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
 
   /* Dark shell materials — the drawer carries a touch more of the card color
      (the near-black surfaces sit closer together, so 64% would read as flat),

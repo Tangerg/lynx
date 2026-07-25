@@ -19,8 +19,10 @@ import { definePlugin } from "@/plugins/sdk";
 import {
   composerApprovalSlot,
   composerAttachSlot,
+  composerContextSlot,
   composerModelSlot,
 } from "./application/composerContributions";
+import { ComposerContextBar } from "./ui/ComposerContextBar";
 import { useAddComposerImageFiles } from "./public/attachments";
 import {
   useComposerModelPreference,
@@ -186,5 +188,6 @@ export const composerToolbar = definePlugin({
     host.layout.register("composer.toolbar.start", composerAttachSlot(AttachButton));
     host.layout.register("composer.toolbar.start", composerApprovalSlot(ApprovalModePill));
     host.layout.register("composer.toolbar.start", composerModelSlot(ModelPicker));
+    host.layout.register("composer.context", composerContextSlot(ComposerContextBar));
   },
 });

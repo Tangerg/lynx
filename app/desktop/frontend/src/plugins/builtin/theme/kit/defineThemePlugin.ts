@@ -1,7 +1,7 @@
 // Helper for the "theme as plugin" pattern — turns a typed ThemePluginSpec
 // into a PluginSpec ready for the builtin manifest. Required sections
 // (brand / surfaces / ink / borders / semantic) are enforced by TypeScript;
-// shadows / radii / depthStep / cta / extras are optional overrides.
+// shadows / depthStep / cta / extras are optional overrides.
 //
 // The token-computation workhorse (buildTokenMap + default ladders) lives
 // in `./tokens.ts` so it can be unit-tested in isolation. The type
@@ -20,7 +20,6 @@ export type {
   ThemeCta,
   ThemeInk,
   ThemePluginSpec,
-  ThemeRadii,
   ThemeSemantic,
   ThemeShadows,
   ThemeSurfaces,
