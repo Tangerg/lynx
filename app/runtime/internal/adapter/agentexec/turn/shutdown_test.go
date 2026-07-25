@@ -71,10 +71,9 @@ func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 }
 
 type blockingCancelProcess struct {
-	release         <-chan struct{}
-	err             error
-	discardErr      error
-	discardReleased bool
+	release    <-chan struct{}
+	err        error
+	discardErr error
 }
 
 func (*blockingCancelProcess) ID() string                 { return "proc_1" }
@@ -91,8 +90,8 @@ func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) (<-
 	return nil, nil
 }
 func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
-func (p *blockingCancelProcess) Discard(context.Context) (bool, error) {
-	return p.discardErr == nil || p.discardReleased, p.discardErr
+func (p *blockingCancelProcess) Discard(context.Context) error {
+	return p.discardErr
 }
 
 func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
@@ -161,34 +160,6 @@ func TestCancelRetainsTerminalTurnUntilDiscardSucceeds(t *testing.T) {
 	}
 	if !channelClosed(st.done) {
 		t.Fatal("successful terminal cleanup did not release the turn")
-	}
-}
-
-func TestCancelReleasesTerminalTurnWhenDiscardCompletesWithDiagnostic(t *testing.T) {
-	diagnostic := errors.New("process terminated with cleanup warning")
-	release := make(chan struct{})
-	close(release)
-	st := newTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
-	process := &blockingCancelProcess{
-		release: release, discardErr: diagnostic, discardReleased: true,
-	}
-	st.setProcess(process)
-	if !st.parkIfLive() {
-		t.Fatal("failed to park test turn")
-	}
-	dispatcher := &memoryDispatcher{
-		turns:        map[string]*turnState{st.handle.TurnID: st},
-		seenSessions: map[string]struct{}{},
-	}
-
-	if err := dispatcher.Cancel(t.Context(), st.handle); !errors.Is(err, diagnostic) {
-		t.Fatalf("Cancel error = %v, want diagnostic", err)
-	}
-	if !channelClosed(st.done) {
-		t.Fatal("completed discard did not release the turn")
-	}
-	if _, err := dispatcher.findTurn(st.handle.TurnID); !errors.Is(err, ErrTurnNotFound) {
-		t.Fatalf("released turn remains registered: %v", err)
 	}
 }
 

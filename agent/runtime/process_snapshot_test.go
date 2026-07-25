@@ -729,7 +729,7 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
-	if result, err := engine.Discard(t.Context(), "root"); err != nil || !result.Released {
+	if err := engine.Discard(t.Context(), "root"); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := store.List(t.Context())
@@ -759,8 +759,8 @@ func TestEngineDiscardStoreFailurePreservesWholeDurableTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
-	if result, err := engine.Discard(t.Context(), "root"); !errors.Is(err, storeErr) || result.Released {
-		t.Fatalf("Discard = (%+v, %v), want retained store failure", result, err)
+	if err := engine.Discard(t.Context(), "root"); !errors.Is(err, storeErr) {
+		t.Fatalf("Discard = %v, want retained store failure", err)
 	}
 	ids, err := store.inner.List(t.Context())
 	if err != nil || !slices.Equal(ids, []string{"child", "root"}) {

@@ -28,12 +28,9 @@ func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 	}
 	var cleanupErr error
 	if p := st.process(); p != nil {
-		released, err := discardProcess(st.ctx, p)
-		if err != nil {
+		if err := discardProcess(st.ctx, p); err != nil {
 			recordTurnCleanupError(st, err)
 			cleanupErr = err
-		}
-		if !released {
 			return cleanupErr
 		}
 	}
@@ -52,17 +49,14 @@ func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 
 const processDiscardTimeout = 2 * time.Second
 
-func discardProcess(ctx context.Context, process agentexec.TurnProcess) (bool, error) {
+func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
 	defer cancel()
-	released, err := process.Discard(cleanupCtx)
+	err := process.Discard(cleanupCtx)
 	if err != nil {
-		err = fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
+		return fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
 	}
-	if !released && err == nil {
-		err = fmt.Errorf("turn: discard process %q retained without an error", process.ID())
-	}
-	return released, err
+	return nil
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)

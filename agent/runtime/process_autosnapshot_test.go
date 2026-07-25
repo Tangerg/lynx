@@ -207,7 +207,7 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	}
 	discardCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if result, err := engine.Discard(discardCtx, process.ID()); err != nil || !result.Released {
+	if err := engine.Discard(discardCtx, process.ID()); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	select {
@@ -365,7 +365,7 @@ func TestKillWaitingProcessReportsTerminalSnapshotFailure(t *testing.T) {
 	}
 }
 
-func TestDiscardReportsReleasedAfterNonFatalTerminationDiagnostic(t *testing.T) {
+func TestDiscardReleasesAfterNonFatalTerminationDiagnostic(t *testing.T) {
 	storeErr := errors.New("terminal snapshot unavailable")
 	store := &failNextProcessStore{
 		inner: storetest.NewMemoryProcessStore(),
@@ -381,9 +381,8 @@ func TestDiscardReportsReleasedAfterNonFatalTerminationDiagnostic(t *testing.T) 
 	}
 
 	store.fail.Store(true)
-	result, err := engine.Discard(t.Context(), proc.ID())
-	if !result.Released || !errors.Is(err, storeErr) {
-		t.Fatalf("Discard = (%+v, %v), want released with termination diagnostic", result, err)
+	if err := engine.Discard(t.Context(), proc.ID()); err != nil {
+		t.Fatalf("Discard = %v, want released with diagnostic confined to observability", err)
 	}
 	if _, ok := engine.Process(proc.ID()); ok {
 		t.Fatal("released discard retained the live process")
