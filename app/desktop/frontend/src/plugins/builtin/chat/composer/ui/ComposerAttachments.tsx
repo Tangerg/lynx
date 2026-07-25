@@ -104,7 +104,7 @@ function PasteChip({ paste, onRemove }: { paste: PastedText; onRemove: () => voi
       : t("composer.paste.chars", { count: paste.text.length });
   return (
     <Tooltip label={preview}>
-      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-fg/[0.05] pl-2.5 pr-1.5 font-mono text-[11.5px] text-fg-muted">
+      <span className="group inline-flex h-6 max-w-[220px] items-center gap-1.5 rounded-full bg-fg/[0.05] pl-2.5 pr-1.5 font-mono text-ui-sm text-fg-muted">
         <Icon name="filetext" size={11} className="shrink-0 text-fg-faint" />
         <span className="truncate">{label}</span>
         <button

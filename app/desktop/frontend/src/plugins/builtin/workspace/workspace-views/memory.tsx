@@ -65,8 +65,8 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
           size={12}
           className={cn("text-fg-faint transition-transform", !open && "-rotate-90")}
         />
-        <span className="truncate font-mono text-[12px] text-fg">{row.path}</span>
-        <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
+        <span className="truncate font-mono text-ui-md text-fg">{row.path}</span>
+        <span className="rounded-full bg-surface-2 px-1.5 py-px text-ui-xs text-fg-muted">
           {row.scopeLabel}
         </span>
       </button>
@@ -88,7 +88,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
               {t("memory.revert")}
             </PillButton>
             {row.updatedAt && (
-              <span className="ml-auto text-[10.5px] text-fg-faint">
+              <span className="ml-auto text-ui-xs text-fg-faint">
                 {t("memory.updated")} {new Date(row.updatedAt).toLocaleString()}
               </span>
             )}

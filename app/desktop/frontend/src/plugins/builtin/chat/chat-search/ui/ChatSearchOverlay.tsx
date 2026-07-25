@@ -76,7 +76,7 @@ export function ChatSearchOverlay() {
         value={query}
         onChange={(event) => setQuery(event.target.value)}
         placeholder={t("chatSearch.placeholder")}
-        className="h-7 w-56 rounded-md border-0 bg-transparent px-2 font-sans text-[13px] text-fg outline-none placeholder:text-fg-faint"
+        className="h-7 w-56 rounded-md border-0 bg-transparent px-2 font-sans text-ui-lg text-fg outline-none placeholder:text-fg-faint"
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === "Escape") {
@@ -89,7 +89,7 @@ export function ChatSearchOverlay() {
           }
         }}
       />
-      <span className="px-1.5 font-mono text-[11px] text-fg-faint">
+      <span className="px-1.5 font-mono text-ui-sm text-fg-faint">
         {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
       <Tooltip label={`${t("chatSearch.prev")} (⇧⏎)`}>

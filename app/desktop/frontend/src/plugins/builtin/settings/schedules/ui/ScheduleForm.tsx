@@ -60,7 +60,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] bg-surface p-4">
+    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
       <input
         value={draft.title}
         onChange={(event) => updateDraft("title", event.target.value)}
@@ -83,7 +83,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
             type="button"
             onClick={() => updateDraft("cron", preset.cron)}
             className={cn(
-              "rounded-pill px-2.5 py-1 text-[11px] font-medium transition-colors",
+              "rounded-pill px-2.5 py-1 text-ui-sm font-medium transition-colors",
               draft.cron === preset.cron ? "bg-fg/[0.075] text-fg" : "text-fg hover:bg-fg/[0.04]",
             )}
           >

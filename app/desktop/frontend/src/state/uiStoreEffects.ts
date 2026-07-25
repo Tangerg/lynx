@@ -3,6 +3,7 @@ import type { StoreApi } from "zustand";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
+import { uiTypeLadderCssVariables } from "@/lib/typography";
 import type { Theme, UiState } from "./uiPreferences";
 
 type UiEffectStore<T extends UiState> = Pick<StoreApi<T>, "getState" | "subscribe">;
@@ -82,7 +83,12 @@ function applyFonts(
     root.style.removeProperty("--font-mono");
   }
 
-  root.style.fontSize = fontSize ? `${fontSize}px` : "";
+  // The type base drives the derived `--fs-*` ladder, NOT the root font-size.
+  // Scaling `<html>` would move every rem-based padding, gap and width along with
+  // the text, so fixed chrome geometry (header height, row height) could not hold.
+  for (const [property, value] of Object.entries(uiTypeLadderCssVariables(fontSize))) {
+    root.style.setProperty(property, value);
+  }
 }
 
 function applyShape(radiusScale: number, motionScale: number): void {

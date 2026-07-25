@@ -11,7 +11,7 @@ import {
 import { useT } from "@/lib/i18n";
 
 const triggerClass =
-  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-[0.5px] border-field bg-canvas pl-2 pr-2.5 text-[12px] font-medium text-fg whitespace-nowrap transition-colors hover:bg-fg/[0.04] data-[popup-open]:bg-fg/[0.04]";
+  "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border-[0.5px] border-field bg-canvas pl-2 pr-2.5 text-ui-md font-medium text-fg whitespace-nowrap transition-colors hover:bg-fg/[0.04] data-[popup-open]:bg-fg/[0.04]";
 
 const itemClass = "grid-cols-[16px_minmax(0,1fr)_14px] px-2";
 
@@ -29,16 +29,16 @@ function RoleSectionShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] bg-surface p-4">
+    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-[13px] font-medium text-fg">{title}</span>
-          <span className="text-[13px] leading-snug text-fg-muted">{description}</span>
+          <span className="text-ui-lg font-medium text-fg">{title}</span>
+          <span className="text-ui-lg leading-snug text-fg-muted">{description}</span>
         </div>
         {children}
       </div>
       {note}
-      {error && <p className="text-[12px] leading-snug text-negative">{error}</p>}
+      {error && <p className="text-ui-md leading-snug text-negative">{error}</p>}
     </div>
   );
 }
@@ -73,7 +73,7 @@ export function UtilityModelSection() {
               {isSet && selected ? (
                 <>
                   <ProviderIcon provider={selected.provider} size={14} />
-                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
+                  <span className="max-w-[160px] truncate font-mono text-ui-sm">
                     {selected.label}
                   </span>
                 </>
@@ -134,7 +134,7 @@ export function EmbeddingModelSection() {
       error={error}
       note={
         capableProviders.length === 0 ? (
-          <p className="text-[12px] leading-snug text-fg-muted">{t("providers.embedding.none")}</p>
+          <p className="text-ui-md leading-snug text-fg-muted">{t("providers.embedding.none")}</p>
         ) : null
       }
     >
@@ -149,9 +149,7 @@ export function EmbeddingModelSection() {
               {isSet && role?.provider ? (
                 <>
                   <ProviderIcon provider={role.provider} size={14} />
-                  <span className="max-w-[160px] truncate font-mono text-[11.5px]">
-                    {role.model}
-                  </span>
+                  <span className="max-w-[160px] truncate font-mono text-ui-sm">{role.model}</span>
                 </>
               ) : (
                 <span className="text-fg-muted">{t("providers.embedding.off")}</span>

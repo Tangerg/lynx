@@ -16,9 +16,9 @@ const buttonStyles = cva(
         danger: "bg-transparent text-negative hover:bg-negative/10",
       },
       size: {
-        xs: "h-6 rounded-sm px-2 text-[11.5px]",
-        sm: "h-7 rounded-md px-2.5 text-[13px]",
-        md: "h-8 rounded-md px-3 text-[13px]",
+        xs: "h-6 rounded-sm px-2 text-ui-sm",
+        sm: "h-7 rounded-md px-2.5 text-ui-lg",
+        md: "h-8 rounded-md px-3 text-ui-lg",
         "icon-sm": "h-7 w-7 rounded-md p-0",
         "icon-md": "h-8 w-8 rounded-md p-0",
         "icon-lg": "h-10 w-10 rounded-md p-0",

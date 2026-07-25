@@ -19,10 +19,10 @@ function ThemePreviewStrip() {
         type="button"
         className="group flex flex-col items-center gap-3 border-0 bg-transparent p-0 text-center"
       >
-        <div className="h-[86px] w-full overflow-hidden rounded-[14px] bg-[#111] shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.16)]">
+        <div className="h-[86px] w-full overflow-hidden rounded-lg bg-[#111] shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.16)]">
           <div className="h-full w-[38%] bg-[#e8e8e9]" />
         </div>
-        <span className="text-[13px] font-medium text-fg-soft group-hover:text-fg">
+        <span className="text-ui-lg font-medium text-fg-soft group-hover:text-fg">
           {t("settings.theme.system")}
         </span>
       </button>
@@ -30,19 +30,19 @@ function ThemePreviewStrip() {
         type="button"
         className="group flex flex-col items-center gap-3 border-0 bg-transparent p-0 text-center"
       >
-        <div className="h-[86px] w-full overflow-hidden rounded-[14px] bg-canvas shadow-[0_0_0_2px_var(--color-accent),inset_0_0_0_0.5px_var(--color-field)]">
+        <div className="h-[86px] w-full overflow-hidden rounded-lg bg-canvas shadow-[0_0_0_2px_var(--color-accent),inset_0_0_0_0.5px_var(--color-field)]">
           <div className="h-full w-[38%] bg-surface" />
         </div>
-        <span className="text-[13px] font-semibold text-fg">{t("settings.theme.light")}</span>
+        <span className="text-ui-lg font-semibold text-fg">{t("settings.theme.light")}</span>
       </button>
       <button
         type="button"
         className="group flex flex-col items-center gap-3 border-0 bg-transparent p-0 text-center"
       >
-        <div className="h-[86px] w-full overflow-hidden rounded-[14px] bg-[#17181c] shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.14)]">
+        <div className="h-[86px] w-full overflow-hidden rounded-lg bg-[#17181c] shadow-[inset_0_0_0_0.5px_rgb(255_255_255/0.14)]">
           <div className="h-full w-[38%] bg-[#2b2c31]" />
         </div>
-        <span className="text-[13px] font-medium text-fg-soft group-hover:text-fg">
+        <span className="text-ui-lg font-medium text-fg-soft group-hover:text-fg">
           {t("settings.theme.dark")}
         </span>
       </button>
@@ -53,11 +53,11 @@ function ThemePreviewStrip() {
 function ThemeCodePreview() {
   return (
     <AgentSurface className="mt-8 grid grid-cols-2 overflow-hidden">
-      <div className="p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
+      <div className="p-5 font-mono text-ui-md leading-7 text-fg-muted">
         <div>
           <span className="text-[#c084fc]">const</span> theme = {"{"}
         </div>
-        <div className="mt-2 rounded-[7px] bg-success/10 px-3 py-1 text-fg">
+        <div className="mt-2 rounded-xs bg-success/10 px-3 py-1 text-fg">
           surface: <span className="text-success">"sidebar"</span>,
           <br />
           accent: <span className="text-success">"#d92662"</span>,
@@ -65,11 +65,11 @@ function ThemeCodePreview() {
         <div className="mt-2">contrast: 42</div>
         <div>{"};"}</div>
       </div>
-      <div className="bg-surface-2 p-5 font-mono text-[12.5px] leading-7 text-fg-muted">
+      <div className="bg-surface-2 p-5 font-mono text-ui-md leading-7 text-fg-muted">
         <div>
           <span className="text-[#c084fc]">const</span> theme = {"{"}
         </div>
-        <div className="mt-2 rounded-[7px] bg-negative/10 px-3 py-1 text-fg">
+        <div className="mt-2 rounded-xs bg-negative/10 px-3 py-1 text-fg">
           surface: <span className="text-negative">"sidebar-elevated"</span>,
           <br />
           accent: <span className="text-negative">"#0ea5e9"</span>,
@@ -86,8 +86,10 @@ export function AppearancePane() {
   return (
     <div className="pb-16">
       <header>
-        <h1 className="m-0 text-[28px] font-semibold text-fg">{t("settings.pane.appearance")}</h1>
-        <p className="m-0 mt-2 text-[13.5px] leading-6 text-fg-muted">
+        <h1 className="m-0 text-display-lg font-semibold text-fg">
+          {t("settings.pane.appearance")}
+        </h1>
+        <p className="m-0 mt-2 text-ui-lg leading-6 text-fg-muted">
           {t("settings.appearance.hero")}
         </p>
       </header>

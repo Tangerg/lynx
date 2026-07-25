@@ -63,7 +63,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
     <div data-slot="tool-card-root" className="group relative my-1">
       <div
         className={cn(
-          "overflow-hidden rounded-[12px] transition-colors duration-150",
+          "overflow-hidden rounded-lg transition-colors duration-150",
           model.isError ? "bg-negative/10" : model.needsAction ? "bg-warning/10" : "bg-surface",
         )}
       >
@@ -91,7 +91,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
             <span
               title={model.intent.label}
               className={cn(
-                "truncate text-[13px] font-medium leading-[1.3]",
+                "truncate text-ui-lg font-medium leading-[1.3]",
                 model.isError
                   ? "text-negative"
                   : model.needsAction
@@ -107,7 +107,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
               <span
                 title={model.detail}
                 className={cn(
-                  "font-mono text-[12px] leading-[1.4]",
+                  "font-mono text-ui-md leading-[1.4]",
                   model.isError ? "break-words text-negative/80" : "truncate text-fg-muted",
                 )}
               >
@@ -188,7 +188,7 @@ function IconChip({ status, tool }: { status: ToolCall["status"]; tool: ToolCall
   return (
     <span
       data-slot="tool-card-status"
-      className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-[8px]", tone)}
+      className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-sm", tone)}
     >
       <Icon name={icon} size={15} />
     </span>
@@ -205,7 +205,7 @@ function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean 
         <span
           key={item.id}
           className={cn(
-            "inline-flex h-5 items-center rounded-pill px-2 font-mono text-[11px] font-medium",
+            "inline-flex h-5 items-center rounded-pill px-2 font-mono text-ui-sm font-medium",
             toolMetaToneClass(item.tone),
           )}
         >

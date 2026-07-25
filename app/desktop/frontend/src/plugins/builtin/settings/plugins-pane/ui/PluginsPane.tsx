@@ -80,17 +80,17 @@ export function PluginsPane() {
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
                 <div>
-                  <div className="text-[14px] font-medium text-fg">
+                  <div className="text-ui-lg font-medium text-fg">
                     {spec.name}
                     <OriginBadge origin={origin} />
                   </div>
-                  <div className="font-mono text-[12px] text-fg-muted">v{spec.version}</div>
+                  <div className="font-mono text-ui-md text-fg-muted">v{spec.version}</div>
                   {errCount > 0 && (
                     <button
                       type="button"
                       onClick={() => toggle(spec.name)}
                       title={open ? t("plugins.errorDetail.hide") : t("plugins.errorDetail.show")}
-                      className="mt-1.5 inline-flex items-center gap-1.5 text-[12px] text-negative hover:opacity-80"
+                      className="mt-1.5 inline-flex items-center gap-1.5 text-ui-md text-negative hover:opacity-80"
                     >
                       <Icon name="bug" size={12} />
                       {t("plugins.errors", { count: errCount })}
@@ -125,7 +125,7 @@ export function PluginsPane() {
         })}
       </div>
 
-      <div className="mt-4 text-[13px] leading-[1.55] text-fg-muted">
+      <div className="mt-4 text-ui-lg leading-[1.55] text-fg-muted">
         Sideload by dropping a plugin folder containing{" "}
         <code className={INLINE_CODE}>index.js</code> into{" "}
         <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app. See{" "}
@@ -135,7 +135,7 @@ export function PluginsPane() {
   );
 }
 
-const INLINE_CODE = "rounded-[3px] bg-surface-2 px-1.5 py-px font-mono text-fg";
+const INLINE_CODE = "rounded-2xs bg-surface-2 px-1.5 py-px font-mono text-fg";
 
 // Where the error was caught (sdk/errors.ts PluginErrorSource).
 const SOURCE_LABEL: Record<PluginErrorSource, string> = {
@@ -156,21 +156,21 @@ function ErrorEntry({ err }: { err: PluginError }) {
   return (
     <div className="rounded-md bg-surface-2 px-2.5 py-2">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
-        <span className="rounded-full bg-negative/15 px-1.5 py-px font-mono text-[10px] font-semibold text-negative">
+        <span className="rounded-full bg-negative/15 px-1.5 py-px font-mono text-ui-xs font-semibold text-negative">
           {SOURCE_LABEL[err.source]}
         </span>
-        <span className="truncate font-medium text-[12px] text-fg" title={err.message}>
+        <span className="truncate font-medium text-ui-md text-fg" title={err.message}>
           {err.message}
         </span>
         <div className="flex items-center gap-1.5">
-          <span className="font-mono text-[10.5px] text-fg-faint">{time}</span>
+          <span className="font-mono text-ui-xs text-fg-faint">{time}</span>
           <IconButton title={t("plugins.copyError")} onClick={copy}>
             <Icon name="copy" size={12} />
           </IconButton>
         </div>
       </div>
       {err.detail && (
-        <pre className="mt-1.5 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.5] text-fg-muted">
+        <pre className="mt-1.5 max-h-56 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-[1.5] text-fg-muted">
           {err.detail}
         </pre>
       )}
@@ -188,7 +188,7 @@ function OriginBadge({ origin }: { origin: "builtin" | "sideload" }) {
           : t("plugins.origin.sideload.title")
       }
       className={cn(
-        "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-[10px] font-semibold align-middle tracking-normal",
+        "ml-2 inline-block rounded-full px-1.5 py-px font-mono text-ui-xs font-semibold align-middle tracking-normal",
         origin === "builtin" ? "bg-surface-2 text-fg-muted" : "bg-info/10 text-info",
       )}
     >

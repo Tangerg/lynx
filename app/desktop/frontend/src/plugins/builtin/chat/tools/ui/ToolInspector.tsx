@@ -14,7 +14,7 @@ export function ToolInspector({ tool }: { tool: ToolCall }) {
         <InspectorSection title={t("toolInspector.result")} body={model.result} />
       )}
       {model.showNoResult && (
-        <div className="font-mono text-[11px] text-fg-faint">{t("toolInspector.noResult")}</div>
+        <div className="font-mono text-ui-sm text-fg-faint">{t("toolInspector.noResult")}</div>
       )}
     </div>
   );
@@ -25,12 +25,12 @@ function InspectorSection({ title, body }: { title: string; body: ToolInspectorB
   return (
     <div className="mb-2 last:mb-0">
       <div className="mb-1 flex items-baseline gap-2">
-        <span className="font-mono text-[10px] font-semibold text-fg-faint">{title}</span>
-        {body.isJson && <span className="font-mono text-[10px] text-fg-faint">json</span>}
+        <span className="font-mono text-ui-xs font-semibold text-fg-faint">{title}</span>
+        {body.isJson && <span className="font-mono text-ui-xs text-fg-faint">json</span>}
       </div>
       <pre
         className={cn(
-          "max-h-60 overflow-y-auto rounded-[8px] bg-surface-2 px-3 py-2.5 font-mono text-[11.5px] leading-[1.55] text-fg-soft",
+          "max-h-60 overflow-y-auto rounded-sm bg-surface-2 px-3 py-2.5 font-mono text-ui-sm leading-[1.55] text-fg-soft",
           // JSON shows whitespace-pre to preserve indentation; raw text
           // wraps so long stdout / stderr lines stay readable.
           body.isJson ? "whitespace-pre" : "whitespace-pre-wrap break-all",

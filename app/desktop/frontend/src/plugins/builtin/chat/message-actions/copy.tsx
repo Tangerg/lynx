@@ -75,8 +75,8 @@ function CopyItem({
       onClick={onSelect}
       className="flex flex-col gap-0.5 rounded-sm px-2.5 py-1.5 outline-none data-[highlighted]:bg-surface-2"
     >
-      <span className="text-[12.5px] text-fg">{label}</span>
-      <span className="text-[11px] text-fg-faint">{hint}</span>
+      <span className="text-ui-md text-fg">{label}</span>
+      <span className="text-ui-sm text-fg-faint">{hint}</span>
     </DropdownMenu.Item>
   );
 }

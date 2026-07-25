@@ -18,9 +18,9 @@ function ColorRow({
 }) {
   return (
     <label className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
-      <span className="text-[13px] text-fg-muted">{label}</span>
+      <span className="text-ui-lg text-fg-muted">{label}</span>
       <span className="relative inline-flex items-center gap-2">
-        <span className="font-mono text-[12px] uppercase text-fg">{value}</span>
+        <span className="font-mono text-ui-md uppercase text-fg">{value}</span>
         <span
           className="h-4.5 w-4.5 rounded-full border-[0.5px] border-field bg-clip-padding"
           style={{ background: value }}

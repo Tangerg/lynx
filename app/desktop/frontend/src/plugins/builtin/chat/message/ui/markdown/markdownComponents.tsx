@@ -13,7 +13,7 @@ import { MermaidBlock } from "./MermaidBlock";
 function SourceFavicon({ domain }: { domain: string }) {
   const letter = (domain.replace(/^www\./, "")[0] ?? "?").toUpperCase();
   return (
-    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] bg-surface-3 text-[9px] font-semibold text-fg-muted">
+    <span className="grid h-4 w-4 shrink-0 place-items-center rounded-2xs bg-surface-3 text-ui-2xs font-semibold text-fg-muted">
       {letter}
     </span>
   );
@@ -43,7 +43,7 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
       className="max-w-[360px] px-3 py-2.5"
       trigger={
         <sup
-          className="cite-marker cursor-help rounded-[5px] bg-surface-2 px-1.5 py-px text-[11px] font-medium text-fg-muted transition-colors hover:bg-accent hover:text-on-accent"
+          className="cite-marker cursor-help rounded-2xs bg-surface-2 px-1.5 py-px text-ui-sm font-medium text-fg-muted transition-colors hover:bg-accent hover:text-on-accent"
           data-citation={n}
         >
           {label}
@@ -52,10 +52,10 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
     >
       <div className="flex items-center gap-1.5">
         <SourceFavicon domain={source.domain} />
-        <span className="truncate font-mono text-[11px] text-fg-faint">{source.domain}</span>
+        <span className="truncate font-mono text-ui-sm text-fg-faint">{source.domain}</span>
       </div>
-      <div className="mt-1.5 text-[12.5px] font-semibold text-fg leading-snug">{source.title}</div>
-      <div className="mt-1 text-[11.5px] text-fg-muted leading-snug line-clamp-3">
+      <div className="mt-1.5 text-ui-md font-semibold text-fg leading-snug">{source.title}</div>
+      <div className="mt-1 text-ui-sm text-fg-muted leading-snug line-clamp-3">
         {source.snippet}
       </div>
     </RichTooltip>

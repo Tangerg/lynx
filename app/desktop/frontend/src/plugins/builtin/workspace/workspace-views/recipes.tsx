@@ -37,20 +37,20 @@ function RecipesTab() {
             {rows.map((r) => (
               <div key={r.id} className="px-4 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-mono text-[13px] font-semibold text-accent">
+                  <span className="truncate font-mono text-ui-lg font-semibold text-accent">
                     {r.command}
                   </span>
                   {r.argumentHint && (
-                    <span className="truncate font-mono text-[11px] text-fg-faint">
+                    <span className="truncate font-mono text-ui-sm text-fg-faint">
                       {r.argumentHint}
                     </span>
                   )}
-                  <span className="ml-auto shrink-0 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
+                  <span className="ml-auto shrink-0 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs text-fg-faint">
                     {r.scope}
                   </span>
                 </div>
                 {r.description && (
-                  <div className="mt-0.5 text-[11.5px] leading-[1.45] text-fg-muted">
+                  <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">
                     {r.description}
                   </div>
                 )}

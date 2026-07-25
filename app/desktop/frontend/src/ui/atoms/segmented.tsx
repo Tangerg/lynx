@@ -42,7 +42,7 @@ export function Segmented<T extends string | number>({
             key={String(opt.value)}
             value={String(opt.value)}
             className={cn(
-              "h-6 rounded-[6px] border-0 bg-transparent px-2.5 text-[12px] font-medium text-fg transition-[background-color,box-shadow] duration-[120ms] ease-out",
+              "h-6 rounded-xs border-0 bg-transparent px-2.5 text-ui-md font-medium text-fg transition-[background-color,box-shadow] duration-[120ms] ease-out",
               mono && "font-mono",
               "data-[active]:bg-canvas data-[active]:shadow-[var(--shadow-control)]",
               "focus-visible:outline-none",

@@ -32,7 +32,7 @@ function FileSection({
   return (
     <section>
       {showHeader && (
-        <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 font-mono text-[11px] text-fg-muted">
+        <div className="flex items-center gap-2 bg-surface-2 px-3 py-1.5 font-mono text-ui-sm text-fg-muted">
           <span className="truncate">{header.displayPath}</span>
           {header.added !== undefined && (
             <span className="ml-auto text-success">+{header.added}</span>
@@ -41,7 +41,7 @@ function FileSection({
         </div>
       )}
       {file.binary ? (
-        <p className="m-0 px-3 py-2 font-mono text-[11.5px] text-fg-faint">{t("diff.binary")}</p>
+        <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>
       ) : (
         <DiffView rows={file.rows} layout={layout} path={file.path} />
       )}
@@ -139,7 +139,7 @@ function DiffViewTab() {
               />
             ))}
             {view.truncated && (
-              <p className="m-0 px-3 py-2 font-mono text-[11px] text-fg-faint">
+              <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">
                 {t("diff.truncated")}
               </p>
             )}

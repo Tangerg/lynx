@@ -32,7 +32,7 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px] text-fg hover:bg-fg/[0.04]",
+          "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-ui-lg text-fg hover:bg-fg/[0.04]",
           selectedPath === entry.path && !isDir && "bg-fg/[0.06]",
         )}
         style={indent}
@@ -54,7 +54,7 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
         <div>
           {isLoading && (
             <div
-              className="py-1 text-[12px] text-fg-faint"
+              className="py-1 text-ui-md text-fg-faint"
               style={{ paddingLeft: `${(depth + 1) * 12 + 6}px` }}
             >
               …

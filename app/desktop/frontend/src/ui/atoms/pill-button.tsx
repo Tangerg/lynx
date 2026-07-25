@@ -20,8 +20,8 @@ const styles = cva(
         danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/10",
       },
       size: {
-        sm: "h-6.5 px-3 text-[11px]",
-        md: "h-8 px-3.5 text-[13px]",
+        sm: "h-6.5 px-3 text-ui-sm",
+        md: "h-8 px-3.5 text-ui-lg",
       },
     },
     defaultVariants: { variant: "outlined", size: "md" },

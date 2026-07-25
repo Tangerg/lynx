@@ -35,7 +35,7 @@ export function JsonImport() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg"
+        className="flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg"
       >
         <Icon name="download" size={13} />
         {t("mcp.import")}
@@ -43,8 +43,8 @@ export function JsonImport() {
     );
   }
   return (
-    <div className="flex flex-col gap-2.5 rounded-[14px] bg-surface p-4">
-      <span className="text-[12px] text-fg-muted">{t("mcp.import.hint")}</span>
+    <div className="flex flex-col gap-2.5 rounded-lg bg-surface p-4">
+      <span className="text-ui-md text-fg-muted">{t("mcp.import.hint")}</span>
       <textarea
         value={text}
         onChange={(event) => setText(event.target.value)}
@@ -57,7 +57,7 @@ export function JsonImport() {
         className={TEXT_AREA}
       />
       {error && (
-        <span className="inline-flex items-center gap-1 text-[12px] text-negative">
+        <span className="inline-flex items-center gap-1 text-ui-md text-negative">
           <Icon name="alert" size={13} />
           <span className="truncate" title={error}>
             {error}

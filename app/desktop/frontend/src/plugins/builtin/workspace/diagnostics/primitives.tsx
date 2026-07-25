@@ -8,7 +8,7 @@ import { useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 export function Empty({ hint }: { hint: string }) {
-  return <div className="text-[13px] text-fg-faint">No data yet — {hint}</div>;
+  return <div className="text-ui-lg text-fg-faint">No data yet — {hint}</div>;
 }
 
 export function Row({
@@ -23,8 +23,8 @@ export function Row({
   return (
     <div
       className={
-        "flex items-center gap-3 px-1 font-mono text-[12px] " +
-        (head ? "text-[10px] text-fg-faint" : "text-fg hover:bg-fg/[0.04]") +
+        "flex items-center gap-3 px-1 font-mono text-ui-md " +
+        (head ? "text-ui-xs text-fg-faint" : "text-fg hover:bg-fg/[0.04]") +
         (className ? " " + className : "")
       }
     >

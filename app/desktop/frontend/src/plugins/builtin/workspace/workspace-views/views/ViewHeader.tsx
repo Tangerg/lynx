@@ -69,7 +69,7 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           className={cn(
-            "min-w-0 truncate text-[13px] font-medium text-fg",
+            "min-w-0 truncate text-ui-lg font-medium text-fg",
             // A label title ("Notifications") reads in the UI face; a filename /
             // process title stays mono so paths and identifiers align.
             titleStrong ? "font-sans" : "font-mono",
@@ -82,10 +82,10 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
         </span>
         {sub !== undefined && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-[13px] leading-none text-fg-faint">
+            <span aria-hidden="true" className="shrink-0 text-ui-lg leading-none text-fg-faint">
               ·
             </span>
-            <span className="min-w-0 truncate font-mono text-[12px] text-fg-muted">{sub}</span>
+            <span className="min-w-0 truncate font-mono text-ui-md text-fg-muted">{sub}</span>
           </>
         )}
       </div>

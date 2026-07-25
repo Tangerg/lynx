@@ -22,7 +22,7 @@ export function PlanCheck({ status }: { status: PlanItem["status"] }) {
 
 export const planItemRow = (status: PlanItem["status"]) =>
   cn(
-    "flex items-center gap-2 text-[13px] py-0.5",
+    "flex items-center gap-2 text-ui-lg py-0.5",
     status === "done" && "text-fg",
     status === "doing" && "text-fg font-medium",
     status === "todo" && "text-fg-muted",

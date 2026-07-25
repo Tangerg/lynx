@@ -25,7 +25,7 @@ export function AgentToolbarButton({
       type={type}
       variant="outline"
       size="md"
-      className={cn("px-2.5 text-[12.5px]", className)}
+      className={cn("px-2.5 text-ui-md", className)}
     >
       {icon && <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0" />}
       {children}

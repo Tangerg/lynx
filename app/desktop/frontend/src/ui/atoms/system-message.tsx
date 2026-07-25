@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "@/ui/icons";
 import { Button, type ButtonProps } from "./button";
 
-const banner = cva("flex flex-row items-center gap-3 rounded-[12px] px-3 py-2", {
+const banner = cva("flex flex-row items-center gap-3 rounded-lg px-3 py-2", {
   variants: {
     variant: {
       info: "bg-info/10 text-info",
@@ -64,7 +64,7 @@ export function SystemMessage({
             <Icon name={iconName} size={15} />
           </span>
         )}
-        <div className="min-w-0 flex-1 text-[13px]">{children}</div>
+        <div className="min-w-0 flex-1 text-ui-lg">{children}</div>
       </div>
       {action && (
         <Button variant={action.variant ?? "soft"} size="sm" onClick={action.onClick}>

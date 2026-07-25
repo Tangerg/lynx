@@ -97,14 +97,14 @@ function SettingsSidebarHeader({
         type="button"
         data-chrome-focus=""
         onClick={selectWorkspaceChat}
-        className="mb-4 flex h-8 items-center gap-2 rounded-[8px] border-0 bg-transparent px-2 text-[13px] font-medium text-fg-muted transition-[background-color,color] duration-[120ms] hover:bg-fg/[0.045] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:outline-none"
+        className="mb-4 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[120ms] hover:bg-fg/[0.045] hover:text-fg focus-visible:bg-fg/[0.06] focus-visible:outline-none"
       >
         <Icon name="arrow-left" size={15} strokeWidth={1.8} />
         <span>{t("settings.backToApp")}</span>
       </button>
       <label
         className={[
-          "flex h-9 items-center gap-2 rounded-[8px] bg-canvas px-2.5 text-fg-muted",
+          "flex h-9 items-center gap-2 rounded-sm bg-canvas px-2.5 text-fg-muted",
           "shadow-[var(--shadow-border)] focus-within:text-fg focus-within:shadow-[var(--shadow-focus)]",
           noDragClasses,
         ].join(" ")}
@@ -114,7 +114,7 @@ function SettingsSidebarHeader({
           value={query}
           onChange={(event) => onQueryChange(event.currentTarget.value)}
           placeholder={searchPlaceholder}
-          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[13px] text-fg outline-none placeholder:text-fg-faint"
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-ui-lg text-fg outline-none placeholder:text-fg-faint"
         />
       </label>
     </div>

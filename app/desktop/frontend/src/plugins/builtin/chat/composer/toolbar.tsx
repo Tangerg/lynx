@@ -58,7 +58,7 @@ function ModelPicker() {
           <button
             type="button"
             aria-label={t("composer.switchModel")}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-[13px] font-medium text-fg-soft transition-colors hover:bg-fg/[0.05] hover:text-fg data-[popup-open]:bg-fg/[0.05] data-[popup-open]:text-fg"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium text-fg-soft transition-colors hover:bg-fg/[0.05] hover:text-fg data-[popup-open]:bg-fg/[0.05] data-[popup-open]:text-fg"
             data-slot="composer-model"
           >
             <StatusDot tone="idle" />
@@ -147,7 +147,7 @@ function ApprovalModePill() {
             type="button"
             aria-label={t("approvals.mode.aria")}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-[13px] font-medium transition-colors data-[popup-open]:bg-fg/[0.05]",
+              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-fg/[0.05]",
               full
                 ? "text-warning hover:bg-warning/10"
                 : "text-fg-soft hover:bg-fg/[0.05] hover:text-fg",
@@ -168,8 +168,8 @@ function ApprovalModePill() {
             className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-fg/[0.06]"
           >
             <span className="min-w-0">
-              <span className="block text-[12.5px] font-semibold text-fg">{t(m.labelKey)}</span>
-              <span className="block text-[11.5px] leading-snug text-fg-muted">{t(m.descKey)}</span>
+              <span className="block text-ui-md font-semibold text-fg">{t(m.labelKey)}</span>
+              <span className="block text-ui-sm leading-snug text-fg-muted">{t(m.descKey)}</span>
             </span>
             {m.value === mode && <Icon name="check" size={12} className="mt-0.5 text-accent" />}
           </DropdownMenu.Item>

@@ -131,7 +131,7 @@ export function DiffView({
   }
 
   return (
-    <div className="py-2 font-mono text-[12px] leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-[1.6]">
       {rows.map((row, i) => {
         const k = keyFor(row, i);
         if (row.type === "hunk") return <HunkRow key={k} text={row.text} />;
@@ -139,8 +139,8 @@ export function DiffView({
         const lnum = row.type === "deleted" ? row.leftLine : row.rightLine;
         return (
           <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", style.tone)}>
-            <span className={cn("text-right text-[11px] select-none", style.meta)}>{lnum}</span>
-            <span className={cn("text-center text-[11px] select-none", style.meta)}>
+            <span className={cn("text-right text-ui-sm select-none", style.meta)}>{lnum}</span>
+            <span className={cn("text-center text-ui-sm select-none", style.meta)}>
               {style.sign}
             </span>
             <CodeCell code={row.code} html={highlighted?.get(row)} />
@@ -153,7 +153,7 @@ export function DiffView({
 
 function HunkRow({ text }: { text: string }) {
   return (
-    <div className="mx-0 mt-2.5 mb-0 border-0 bg-fg/[0.03] px-3 py-1 text-[11px] text-fg-faint">
+    <div className="mx-0 mt-2.5 mb-0 border-0 bg-fg/[0.03] px-3 py-1 text-ui-sm text-fg-faint">
       {text}
     </div>
   );
@@ -211,7 +211,7 @@ function SplitDiff({
 }) {
   const split = useMemo(() => toSplitRows(rows), [rows]);
   return (
-    <div className="py-2 font-mono text-[12px] leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-[1.6]">
       {split.map((row, i) => {
         if ("hunk" in row) return <HunkRow key={`h:${i}`} text={row.hunk} />;
         return (
@@ -251,8 +251,8 @@ function DiffSide({
   const sign = row.type === "context" ? "" : style.sign;
   return (
     <div className={cn("grid grid-cols-[34px_16px_minmax(0,1fr)] gap-1.5 px-3", style.tone)}>
-      <span className={cn("text-right text-[11px] select-none", style.meta)}>{lnum}</span>
-      <span className={cn("text-center text-[11px] select-none", style.meta)}>{sign}</span>
+      <span className={cn("text-right text-ui-sm select-none", style.meta)}>{lnum}</span>
+      <span className={cn("text-center text-ui-sm select-none", style.meta)}>{sign}</span>
       <CodeCell code={row.code} html={highlighted?.get(row)} />
     </div>
   );

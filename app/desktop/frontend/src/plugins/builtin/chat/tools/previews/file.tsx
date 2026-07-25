@@ -18,13 +18,13 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
   const { data: lines } = useFileToolPreview(tool, MAX_FILE_LINES);
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-[11.5px] leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-[1.55]">
         {(lines ?? []).map((l) => (
           <div
             key={l.lineNumber}
-            className="grid grid-cols-[28px_1fr] gap-2.5 rounded-[4px] px-1 hover:bg-fg/[0.04]"
+            className="grid grid-cols-[28px_1fr] gap-2.5 rounded-2xs px-1 hover:bg-fg/[0.04]"
           >
-            <span className="text-right text-[11px] text-fg-faint tabular-nums select-none">
+            <span className="text-right text-ui-sm text-fg-faint tabular-nums select-none">
               {l.lineNumber}
             </span>
             <span className="whitespace-pre text-fg-soft">{l.text || " "}</span>

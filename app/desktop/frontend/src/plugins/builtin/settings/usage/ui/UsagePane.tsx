@@ -28,8 +28,8 @@ function BreakdownSection({
 }) {
   if (buckets.length === 0) return null;
   return (
-    <div className="rounded-[14px] bg-surface p-4">
-      <div className="mb-1.5 text-[12px] font-medium text-fg-muted">{title}</div>
+    <div className="rounded-lg bg-surface p-4">
+      <div className="mb-1.5 text-ui-md font-medium text-fg-muted">{title}</div>
       <div className="flex flex-col">
         {buckets.map((b) => (
           <div
@@ -38,9 +38,9 @@ function BreakdownSection({
           >
             <div className="flex min-w-0 items-center gap-2">
               {icon?.(b.key)}
-              <span className="truncate text-[13px] text-fg">{b.key}</span>
+              <span className="truncate text-ui-lg text-fg">{b.key}</span>
             </div>
-            <div className="flex items-center gap-3 font-mono text-[12px] tabular-nums">
+            <div className="flex items-center gap-3 font-mono text-ui-md tabular-nums">
               <span className="text-fg-muted">{fmtTokens(usageTokens(b))}</span>
               {b.costUsd !== undefined && (
                 <span className="w-16 text-right text-fg">{fmtCost(b.costUsd)}</span>
@@ -73,8 +73,8 @@ export function UsagePane() {
         />
       </div>
 
-      {isLoading && <div className="text-[12px] text-fg-muted">{t("usage.loading")}</div>}
-      {isError && <div className="text-[12px] text-negative">{t("usage.error")}</div>}
+      {isLoading && <div className="text-ui-md text-fg-muted">{t("usage.loading")}</div>}
+      {isError && <div className="text-ui-md text-negative">{t("usage.error")}</div>}
 
       {data && !hasSpend && (
         <EmptyState icon="chart" title={t("usage.empty")} sub={t("usage.empty.sub")} />
@@ -82,14 +82,14 @@ export function UsagePane() {
 
       {data && hasSpend && (
         <>
-          <div className="flex flex-col gap-2 rounded-[14px] bg-surface p-4">
+          <div className="flex flex-col gap-2 rounded-lg bg-surface p-4">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[12px] font-medium text-fg-muted">{t("usage.total")}</span>
-              <span className="font-mono text-[22px] font-semibold tabular-nums text-fg">
+              <span className="text-ui-md font-medium text-fg-muted">{t("usage.total")}</span>
+              <span className="font-mono text-display-md font-semibold tabular-nums text-fg">
                 {total?.costUsd !== undefined ? fmtCost(total.costUsd) : "—"}
               </span>
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[12px] tabular-nums text-fg-muted">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-ui-md tabular-nums text-fg-muted">
               <span>↑{fmtTokens(total?.inputTokens ?? 0)}</span>
               <span>↓{fmtTokens(total?.outputTokens ?? 0)}</span>
               {(total?.cacheReadTokens ?? 0) > 0 && (

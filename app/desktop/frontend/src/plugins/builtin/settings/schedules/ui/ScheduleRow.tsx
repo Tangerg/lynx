@@ -75,20 +75,20 @@ export function ScheduleRow({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-[14px] font-medium text-fg">
+            <span className="truncate text-ui-lg font-medium text-fg">
               {schedule.title || t("schedules.untitled")}
             </span>
-            <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">
+            <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-muted">
               {schedule.cron}
             </span>
           </div>
           <div
-            className="mt-0.5 truncate font-mono text-[12px] leading-[1.45] text-fg-muted"
+            className="mt-0.5 truncate font-mono text-ui-md leading-[1.45] text-fg-muted"
             title={schedule.prompt}
           >
             {schedule.prompt}
           </div>
-          <div className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-fg-faint">
+          <div className="mt-1 flex flex-wrap gap-x-3 text-ui-sm text-fg-faint">
             {schedule.enabled && schedule.nextRunAt && (
               <span>{t("schedules.next", { time: formatScheduleTime(schedule.nextRunAt) })}</span>
             )}

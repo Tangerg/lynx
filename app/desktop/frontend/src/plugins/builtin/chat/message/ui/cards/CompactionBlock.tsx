@@ -24,7 +24,7 @@ export function CompactionBlock({
     <div className="my-3" data-slot="compaction-block">
       {/* Centered label flanked by faint hairlines (bg-fg delta, no cheap
           grey rule). Clickable when a summary is available to expand inline. */}
-      <div className="flex items-center gap-3 text-[12px] text-fg-faint">
+      <div className="flex items-center gap-3 text-ui-md text-fg-faint">
         <span className="h-px flex-1 bg-fg/[0.08]" />
         {summary ? (
           <button
@@ -45,7 +45,7 @@ export function CompactionBlock({
         <span className="h-px flex-1 bg-fg/[0.08]" />
       </div>
       {open && summary && (
-        <div className="mx-auto mt-2 max-w-[640px] text-left text-[13px] leading-relaxed text-fg-muted">
+        <div className="mx-auto mt-2 max-w-[640px] text-left text-ui-lg leading-relaxed text-fg-muted">
           {summary}
         </div>
       )}

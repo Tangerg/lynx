@@ -48,7 +48,7 @@ function SearchTab() {
             placeholder={t("search.placeholder")}
             aria-label={t("search.aria")}
             spellCheck={false}
-            className="w-full border-0 bg-transparent font-mono text-[12.5px] text-fg outline-none placeholder:text-fg-faint"
+            className="w-full border-0 bg-transparent font-mono text-ui-md text-fg outline-none placeholder:text-fg-faint"
           />
         </div>
       </div>
@@ -69,7 +69,7 @@ function SearchTab() {
             <div className="flex flex-col pb-2">
               {groups.map((group) => (
                 <div key={group.path} className="px-4 py-1.5">
-                  <div className="truncate font-mono text-[11.5px] font-semibold text-fg">
+                  <div className="truncate font-mono text-ui-sm font-semibold text-fg">
                     {group.path}
                     <span className="ml-1.5 font-normal text-fg-faint">{group.matchCount}</span>
                   </div>
@@ -77,9 +77,9 @@ function SearchTab() {
                     {group.matches.map((m) => (
                       <div
                         key={m.lineNumber}
-                        className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-[12px] leading-[1.5]"
+                        className="grid grid-cols-[44px_minmax(0,1fr)] gap-2 py-px font-mono text-ui-md leading-[1.5]"
                       >
-                        <span className="text-right text-[11px] text-fg-faint select-none">
+                        <span className="text-right text-ui-sm text-fg-faint select-none">
                           {m.lineNumber}
                         </span>
                         <span className="truncate text-fg-soft" title={m.text}>
@@ -91,7 +91,7 @@ function SearchTab() {
                 </div>
               ))}
               {view.overflowCount > 0 && (
-                <div className="px-4 py-2 text-[11.5px] text-fg-faint">
+                <div className="px-4 py-2 text-ui-sm text-fg-faint">
                   … {view.overflowCount} more matches not shown — narrow the query.
                 </div>
               )}

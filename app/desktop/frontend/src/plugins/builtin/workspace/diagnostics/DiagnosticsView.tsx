@@ -31,8 +31,8 @@ export function DiagnosticsView() {
     <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[16px] font-semibold text-fg">Diagnostics</div>
-          <div className="mt-0.5 text-[12px] text-fg-muted">
+          <div className="text-display-sm font-semibold text-fg">Diagnostics</div>
+          <div className="mt-0.5 text-ui-md text-fg-muted">
             Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable
             record leaves via OTLP. "Clear" resets the buffers.
           </div>
@@ -47,7 +47,7 @@ export function DiagnosticsView() {
           <button
             type="button"
             onClick={clear}
-            className="rounded-md border-[0.5px] border-field bg-transparent px-2.5 py-1 text-[12px] text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
+            className="rounded-md border-[0.5px] border-field bg-transparent px-2.5 py-1 text-ui-md text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
           >
             Clear
           </button>
@@ -158,16 +158,16 @@ function InstrumentSection({ group }: { group: NameGroup }) {
   return (
     <section className="grid gap-1.5">
       <header>
-        <div className="font-mono text-[12px] font-semibold text-fg">
+        <div className="font-mono text-ui-md font-semibold text-fg">
           {group.name}
           <span className="ml-2 text-fg-faint">[{group.kind}]</span>
         </div>
         {group.description && (
-          <div className="mt-0.5 text-[11.5px] text-fg-muted">{group.description}</div>
+          <div className="mt-0.5 text-ui-sm text-fg-muted">{group.description}</div>
         )}
       </header>
-      <table className="text-[12px]">
-        <thead className="text-[10px] text-fg-faint">
+      <table className="text-ui-md">
+        <thead className="text-ui-xs text-fg-faint">
           <tr>
             <th className="py-1 pr-3 text-left font-medium">attrs</th>
             <th className="py-1 pr-3 text-right font-medium">count</th>

@@ -18,7 +18,7 @@ interface LinesFieldProps {
 export function LinesField({ label, value, onChange, placeholder }: LinesFieldProps) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-medium text-fg">{label}</span>
+      <span className="text-ui-lg font-medium text-fg">{label}</span>
       <textarea
         value={value}
         onChange={(event) => onChange(event.target.value)}

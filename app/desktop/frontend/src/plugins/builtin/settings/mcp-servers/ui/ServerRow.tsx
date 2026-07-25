@@ -23,7 +23,7 @@ const STATUS_TONE: Record<
 
 function TransportBadge({ transport }: { transport: MCPServerTransport }) {
   return (
-    <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-muted">
+    <span className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-muted">
       {transport}
     </span>
   );
@@ -59,19 +59,19 @@ export function ServerRow({ server }: { server: MCPServerConfig }) {
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <StatusDot tone={tone} />
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-[14px] font-medium text-fg" title={server.name}>
+          <span className="truncate text-ui-lg font-medium text-fg" title={server.name}>
             {server.name}
           </span>
           <TransportBadge transport={server.type} />
           {server.status === "failed" && server.errorDetail && (
-            <span className="truncate text-[12px] text-negative" title={server.errorDetail}>
+            <span className="truncate text-ui-md text-negative" title={server.errorDetail}>
               {server.errorDetail}
             </span>
           )}
         </div>
         <div className="flex items-center gap-2.5">
           {active && (
-            <span className="font-mono text-[12px] tabular-nums text-fg-muted">
+            <span className="font-mono text-ui-md tabular-nums text-fg-muted">
               {t("mcp.toolCount", { count: server.toolCount ?? 0 })}
             </span>
           )}

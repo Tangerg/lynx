@@ -41,7 +41,7 @@ export function HtmlArtifact({ code }: Props) {
       <div className="flex items-center justify-between px-3 py-1.5">
         <div className="inline-flex items-center gap-2">
           <Icon name="globe" size={12} className="text-fg-faint" />
-          <span className="font-mono text-[11px] font-semibold text-fg-faint">HTML artifact</span>
+          <span className="font-mono text-ui-sm font-semibold text-fg-faint">HTML artifact</span>
         </div>
         <div className="inline-flex items-center gap-1 rounded-md bg-surface-2 p-0.5">
           {(["preview", "source"] as const).map((id) => (
@@ -50,7 +50,7 @@ export function HtmlArtifact({ code }: Props) {
               type="button"
               onClick={() => setTab(id)}
               className={cn(
-                "rounded-sm px-2 py-0.5 text-[11px] font-sans font-medium transition-colors",
+                "rounded-sm px-2 py-0.5 text-ui-sm font-sans font-medium transition-colors",
                 tab === id
                   ? "bg-surface text-fg shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
                   : "bg-transparent text-fg-muted hover:text-fg",

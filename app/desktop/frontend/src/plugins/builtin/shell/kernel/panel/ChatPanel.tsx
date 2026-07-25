@@ -148,11 +148,11 @@ export function ChatPanel({ onSend }: Props) {
                 onClick={toggleSidebar}
                 className={noDragClasses}
               />
-              <span className="font-mono text-[12px] text-fg-faint">
+              <span className="font-mono text-ui-md text-fg-faint">
                 {activeSession?.cwd ? basename(activeSession.cwd) : "lynx"}
               </span>
-              <span className="text-[13px] text-fg-faint">/</span>
-              <span className="min-w-0 max-w-[320px] truncate text-[14.5px] font-semibold text-fg">
+              <span className="text-ui-lg text-fg-faint">/</span>
+              <span className="min-w-0 max-w-[320px] truncate text-ui-lg font-semibold text-fg">
                 {activeSession?.title || t("welcome.title")}
               </span>
               {running && <AgentStatusPill tone="running">运行中</AgentStatusPill>}

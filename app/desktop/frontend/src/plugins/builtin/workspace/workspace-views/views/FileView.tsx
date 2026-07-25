@@ -34,7 +34,7 @@ export function FileView({ content, targetLine }: { content: string; targetLine:
   }, [targetLine, highlighted]);
 
   return (
-    <div className="py-2 font-mono text-[12px] leading-[1.6]">
+    <div className="py-2 font-mono text-ui-md leading-[1.6]">
       {plain.map((line, i) => {
         const n = i + 1;
         const isTarget = n === targetLine;
@@ -45,7 +45,7 @@ export function FileView({ content, targetLine }: { content: string; targetLine:
             ref={isTarget ? targetRef : undefined}
             className={cn("grid grid-cols-[44px_1fr] gap-2 px-3", isTarget && "bg-accent/12")}
           >
-            <span className="text-right text-[11px] text-fg-faint select-none">{n}</span>
+            <span className="text-right text-ui-sm text-fg-faint select-none">{n}</span>
             {html !== undefined ? (
               <span
                 className="overflow-hidden whitespace-pre"

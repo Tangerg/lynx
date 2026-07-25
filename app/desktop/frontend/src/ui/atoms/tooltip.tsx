@@ -39,7 +39,7 @@ export function Tooltip({ label, side = "top", sideOffset = 6, delayDuration, ch
       side={side}
       sideOffset={sideOffset}
       delay={delayDuration}
-      className="max-w-[280px] bg-fg px-2 py-1 font-sans text-[12px] leading-snug text-on-fg"
+      className="max-w-[280px] bg-fg px-2 py-1 font-sans text-ui-md leading-snug text-on-fg"
     >
       {label}
     </RichTooltip>

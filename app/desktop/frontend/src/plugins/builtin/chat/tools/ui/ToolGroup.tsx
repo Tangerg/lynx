@@ -31,14 +31,14 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         onClick={() => setPinned(model.nextPinned)}
         aria-expanded={model.expanded}
         className={cn(
-          "flex w-full items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-left",
+          "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left",
           "transition-colors duration-100 hover:bg-fg/[0.03]",
           "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
         )}
       >
         <Icon name="search" size={14} className="shrink-0 text-fg-muted" />
-        <span className="truncate text-[13px] font-medium text-fg-muted">{model.summary}</span>
-        <span className="ml-auto shrink-0 rounded-pill bg-fg/[0.06] px-2 py-0.5 font-mono text-[11px] font-medium text-fg-muted">
+        <span className="truncate text-ui-lg font-medium text-fg-muted">{model.summary}</span>
+        <span className="ml-auto shrink-0 rounded-pill bg-fg/[0.06] px-2 py-0.5 font-mono text-ui-sm font-medium text-fg-muted">
           {model.count} calls
         </span>
         <Icon

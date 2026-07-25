@@ -14,8 +14,8 @@ export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] })
   return (
     <div className="my-3 flex flex-col gap-1" data-slot="plan-block">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-medium text-fg">{t("plan.title")}</span>
-        <span className="font-mono text-[11.5px] tabular-nums text-fg-faint">
+        <span className="text-ui-lg font-medium text-fg">{t("plan.title")}</span>
+        <span className="font-mono text-ui-sm tabular-nums text-fg-faint">
           {done}/{plan.length}
         </span>
       </div>

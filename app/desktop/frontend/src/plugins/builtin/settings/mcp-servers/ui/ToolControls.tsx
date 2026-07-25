@@ -55,7 +55,7 @@ export function ToolControls({ server, disabledTools, autoApproveTools, onChange
 
   return (
     <div className="rounded-md bg-surface-2 p-2.5">
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-1 px-1.5 pb-1.5 text-[11px] font-medium text-fg-muted">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 gap-y-1 px-1.5 pb-1.5 text-ui-sm font-medium text-fg-muted">
         <span>{t("mcp.tools.tool")}</span>
         <span className="w-12 text-center">{t("mcp.tools.enabled")}</span>
         <span className="w-12 text-center">{t("mcp.tools.autoApprove")}</span>
@@ -77,7 +77,7 @@ export function ToolControls({ server, disabledTools, autoApproveTools, onChange
                   className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 rounded-md px-1.5 py-1.5 transition-colors hover:bg-fg/[0.04]"
                 >
                   <code
-                    className="truncate font-mono text-[13px] text-fg"
+                    className="truncate font-mono text-ui-lg text-fg"
                     title={tool.description || tool.name}
                   >
                     {tool.name}

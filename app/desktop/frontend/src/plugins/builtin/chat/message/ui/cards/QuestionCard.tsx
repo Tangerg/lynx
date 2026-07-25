@@ -58,15 +58,15 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
     const shown = settled.answers;
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-2 flex flex-col gap-2 rounded-[14px] bg-surface p-4">
-        <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium text-fg-faint">
+      <div className="my-2 flex flex-col gap-2 rounded-lg bg-surface p-4">
+        <div className="flex items-center gap-1.5 font-mono text-ui-xs font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
         </div>
         {questions.map((q) => (
           <div key={q.id} className="flex flex-col gap-0.5">
-            <div className="text-[12.5px] leading-snug text-fg-muted">{q.question}</div>
-            <div className="text-[13px] font-medium text-fg">
+            <div className="text-ui-md leading-snug text-fg-muted">{q.question}</div>
+            <div className="text-ui-lg font-medium text-fg">
               {questionAnswerText(shown, q.id) || "—"}
             </div>
           </div>
@@ -89,16 +89,18 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
           return (
             <div key={q.id} className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] font-semibold text-fg-muted">
+                <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs font-semibold text-fg-muted">
                   {q.header}
                 </span>
                 {q.multiSelect && (
-                  <span className="font-mono text-[10px] text-fg-faint">
+                  <span className="font-mono text-ui-xs text-fg-faint">
                     {t("question.multiSelect")}
                   </span>
                 )}
               </div>
-              <div className="text-[16px] font-semibold leading-[1.4] text-fg">{q.question}</div>
+              <div className="text-display-sm font-semibold leading-[1.4] text-fg">
+                {q.question}
+              </div>
 
               <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">
                 {q.options.map((opt) => {
@@ -116,14 +118,14 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                           : "bg-surface-2 hover:bg-surface-3",
                       )}
                     >
-                      <span className="text-[13px] font-medium text-fg">{opt.label}</span>
+                      <span className="text-ui-lg font-medium text-fg">{opt.label}</span>
                       {opt.description && (
-                        <span className="text-[12px] leading-[1.45] text-fg-muted">
+                        <span className="text-ui-md leading-[1.45] text-fg-muted">
                           {opt.description}
                         </span>
                       )}
                       {opt.preview && (
-                        <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-[11px] text-fg-muted">
+                        <code className="mt-1 block whitespace-pre-wrap break-all rounded-sm bg-surface-3 px-2 py-1 font-mono text-ui-sm text-fg-muted">
                           {opt.preview}
                         </code>
                       )}
@@ -142,7 +144,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   onChange={(e) => {
                     setDraft((prev) => setQuestionText(prev, q, e.target.value));
                   }}
-                  className="w-full bg-transparent border-b-[0.5px] border-field py-1 text-[16px] text-fg placeholder:text-fg-faint outline-none focus:border-fg"
+                  className="w-full bg-transparent border-b-[0.5px] border-field py-1 text-display-sm text-fg placeholder:text-fg-faint outline-none focus:border-fg"
                 />
               )}
             </div>

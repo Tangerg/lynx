@@ -68,8 +68,8 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
     <div className={cn("flex items-start gap-2.5 px-3.5 py-2", dismissed && "opacity-50")}>
       <StatusDot tone={notificationDotTone(level)} className="mt-1.5" />
       <div className="min-w-0 flex-1">
-        <div className="whitespace-pre-wrap break-words text-[13px] text-fg-soft">{message}</div>
-        <div className="mt-0.5 text-[11px] text-fg-muted">
+        <div className="whitespace-pre-wrap break-words text-ui-lg text-fg-soft">{message}</div>
+        <div className="mt-0.5 text-ui-sm text-fg-muted">
           {plugin} · {formatRelative(timestamp)}
         </div>
       </div>

@@ -51,12 +51,12 @@ export function EmptyState({ icon, title, sub, action, size, style }: Props) {
       <div
         className={cn(
           "font-medium tracking-normal text-fg",
-          size === "compact" ? "text-xs" : "text-[13px]",
+          size === "compact" ? "text-xs" : "text-ui-lg",
         )}
       >
         {title}
       </div>
-      {sub && <div className="max-w-[280px] text-[11.5px] leading-[1.5] text-fg-muted">{sub}</div>}
+      {sub && <div className="max-w-[280px] text-ui-sm leading-[1.5] text-fg-muted">{sub}</div>}
       {action && <div className="mt-1.5">{action}</div>}
     </div>
   );

@@ -71,7 +71,7 @@ export function SessionRow({
         trailing={
           renaming ? undefined : session.attention === "none" ? (
             <span
-              className="shrink-0 font-mono text-[11px] leading-none text-fg-faint tabular-nums"
+              className="shrink-0 font-mono text-ui-sm leading-none text-fg-faint tabular-nums"
               title={session.time}
             >
               {subText}
@@ -117,7 +117,7 @@ export function SessionRow({
               }
               setRenaming(false);
             }}
-            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-[13px] leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            className="min-w-0 flex-1 rounded-xs border-0 bg-surface-3 px-1 py-0 text-ui-lg leading-[1.5] text-fg outline-none focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
           />
         ) : (
           session.title

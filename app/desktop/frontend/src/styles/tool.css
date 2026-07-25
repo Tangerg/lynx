@@ -4,6 +4,6 @@
   place-items: center;
   padding: 48px 16px;
   color: var(--color-text-faint);
-  font-size: 12px;
+  font-size: var(--fs-ui-md);
   letter-spacing: 0;
 }

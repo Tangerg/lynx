@@ -28,8 +28,8 @@ export function ShortcutsPane() {
   return (
     <div className="flex h-full flex-col gap-3 p-4">
       <div>
-        <div className="text-[16px] font-semibold text-fg">{t("shortcuts.title")}</div>
-        <div className="mt-0.5 text-[13px] text-fg-muted">{t("shortcuts.sub")}</div>
+        <div className="text-display-sm font-semibold text-fg">{t("shortcuts.title")}</div>
+        <div className="mt-0.5 text-ui-lg text-fg-muted">{t("shortcuts.sub")}</div>
       </div>
 
       <input
@@ -38,17 +38,17 @@ export function ShortcutsPane() {
         onChange={(e) => setQuery(e.target.value)}
         placeholder={t("shortcuts.filter")}
         aria-label={t("shortcuts.filterAria")}
-        className="w-full rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-2 text-[13px] text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong"
+        className="w-full rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-2 text-ui-lg text-fg placeholder:text-fg-faint outline-none focus-visible:border-field-strong"
       />
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg bg-surface">
         {filtered.length === 0 ? (
-          <div className="px-3 py-6 text-center text-[13px] text-fg-faint">
+          <div className="px-3 py-6 text-center text-ui-lg text-fg-faint">
             {t("shortcuts.empty")}
           </div>
         ) : (
-          <table className="w-full border-collapse text-left text-[13px]">
-            <thead className="sticky top-0 bg-surface-2 text-[11.5px] font-semibold text-fg-faint">
+          <table className="w-full border-collapse text-left text-ui-lg">
+            <thead className="sticky top-0 bg-surface-2 text-ui-sm font-semibold text-fg-faint">
               <tr>
                 <th className="px-3 py-1.5">{t("shortcuts.action")}</th>
                 <th className="w-[160px] px-3 py-1.5 text-right">{t("shortcuts.shortcut")}</th>

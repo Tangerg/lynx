@@ -112,7 +112,7 @@ function CodebaseTab() {
             }}
             placeholder={t("codebase.search.placeholder")}
             aria-label={t("codebase.search.placeholder")}
-            className="w-full rounded-md border-[0.5px] border-field bg-canvas px-2.5 py-1.5 text-[12px] text-fg outline-none transition-colors placeholder:text-fg-faint focus:border-field-strong"
+            className="w-full rounded-md border-[0.5px] border-field bg-canvas px-2.5 py-1.5 text-ui-md text-fg outline-none transition-colors placeholder:text-fg-faint focus:border-field-strong"
           />
           <PillButton
             variant="accent"
@@ -133,22 +133,22 @@ function CodebaseTab() {
           </button>
         </div>
 
-        {error && <p className="text-[12px] leading-snug text-negative">{error}</p>}
+        {error && <p className="text-ui-md leading-snug text-negative">{error}</p>}
 
         {resultsView.isEmpty && !error && (
-          <p className="text-[12px] text-fg-muted">{t("codebase.empty")}</p>
+          <p className="text-ui-md text-fg-muted">{t("codebase.empty")}</p>
         )}
 
         <div className="flex flex-col gap-2">
           {resultsView.rows.map((row) => (
-            <div key={row.id} className="rounded-[10px] bg-surface-2 px-3 py-2">
+            <div key={row.id} className="rounded-md bg-surface-2 px-3 py-2">
               <div className="flex items-center gap-2">
-                <span className="truncate font-mono text-[12px] text-accent">{row.pathRange}</span>
-                <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-fg-faint">
+                <span className="truncate font-mono text-ui-md text-accent">{row.pathRange}</span>
+                <span className="ml-auto shrink-0 font-mono text-ui-xs tabular-nums text-fg-faint">
                   {row.score}
                 </span>
               </div>
-              <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-[11px] leading-[1.45] text-fg-muted">
+              <pre className="mt-1 max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-sm leading-[1.45] text-fg-muted">
                 {row.snippet}
               </pre>
             </div>

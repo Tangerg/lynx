@@ -43,11 +43,11 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-[11.5px] leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-[1.55]">
         {rows.slice(0, MAX_DIFF_ROWS).map((row, i) => {
           if (row.type === "hunk") {
             return (
-              <div key={i} className="mx-0 mt-1.5 mb-1 px-1.5 py-1 text-[11px] text-fg-faint">
+              <div key={i} className="mx-0 mt-1.5 mb-1 px-1.5 py-1 text-ui-sm text-fg-faint">
                 {row.text}
               </div>
             );
@@ -55,7 +55,7 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
           const style = ROW_STYLE[row.type];
           return (
             <div key={i} className={cn("grid grid-cols-[18px_1fr] px-0.5", style.tone)}>
-              <span className={cn("text-center text-[11px] select-none", style.meta)}>
+              <span className={cn("text-center text-ui-sm select-none", style.meta)}>
                 {style.sign}
               </span>
               <span className={cn("whitespace-pre", style.codeTone)}>{row.code}</span>

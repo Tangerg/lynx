@@ -47,12 +47,12 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
         <ProviderIcon provider={p.id} size={20} />
         <div className="min-w-0">
-          <div className="truncate text-[14px] font-medium capitalize text-fg">{p.id}</div>
+          <div className="truncate text-ui-lg font-medium capitalize text-fg">{p.id}</div>
         </div>
         <span
           title={fromEnv ? p.apiKeyMasked : undefined}
           className={cn(
-            "rounded-pill px-2 py-0.5 font-mono text-[11px] font-medium",
+            "rounded-pill px-2 py-0.5 font-mono text-ui-sm font-medium",
             fromEnv
               ? "bg-info/10 text-info"
               : enabled
@@ -107,12 +107,12 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
         </Button>
 
         {probe.state === "ok" && (
-          <span className="inline-flex items-center gap-1 text-[12px] text-success">
+          <span className="inline-flex items-center gap-1 text-ui-md text-success">
             <Icon name="check" size={13} /> {t("providers.connectionOk")}
           </span>
         )}
         {probe.state === "error" && (
-          <span className="inline-flex min-w-0 items-center gap-1 text-[12px] text-negative">
+          <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
             <Icon name="alert" size={13} />
             <span className="truncate" title={probe.reason}>
               {probe.reason}

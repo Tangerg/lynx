@@ -28,8 +28,8 @@ function Section({
   return (
     <div className="px-4 py-3">
       <div className="mb-1.5 flex items-baseline gap-2">
-        <span className="text-[12px] font-semibold text-fg">{t(title)}</span>
-        <span className="font-mono text-[11px] text-fg-faint">{count}</span>
+        <span className="text-ui-md font-semibold text-fg">{t(title)}</span>
+        <span className="font-mono text-ui-sm text-fg-faint">{count}</span>
       </div>
       <div className="grid gap-1">{children}</div>
     </div>
@@ -87,7 +87,7 @@ function RunSummaryTab() {
       <div className="px-4 pb-2 pt-1">
         <span
           className={cn(
-            "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
+            "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
             view.statusBadge.className,
           )}
         >
@@ -99,12 +99,12 @@ function RunSummaryTab() {
         {view.changedFiles.items.map((f) => (
           <div
             key={f.path}
-            className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
+            className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted"
           >
             <Icon name="filetext" size={11} className="text-fg-faint" />
             <span className="truncate text-fg">{f.path}</span>
             {(f.added != null || f.removed != null) && (
-              <span className="ml-auto text-[11px]">
+              <span className="ml-auto text-ui-sm">
                 <span className="text-success">+{f.added ?? 0}</span>
                 {" / "}
                 <span className="text-negative">-{f.removed ?? 0}</span>
@@ -116,7 +116,7 @@ function RunSummaryTab() {
 
       <Section title="runSummary.section.readFiles" count={view.readFiles.count}>
         {view.readFiles.items.map((p) => (
-          <div key={p} className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted">
+          <div key={p} className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted">
             <Icon name="filetext" size={11} className="text-fg-faint" />
             <span className="truncate">{p}</span>
           </div>
@@ -125,7 +125,7 @@ function RunSummaryTab() {
 
       <Section title="runSummary.section.commands" count={view.commands.count}>
         {view.commands.items.map((c, i) => (
-          <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-[12px]">
+          <div key={`${c.cmd}:${i}`} className="flex items-baseline gap-2 font-mono text-ui-md">
             <Icon name="terminal" size={11} className="text-fg-faint" />
             <span className={cn("truncate", runSummaryCommandClassName(c.status))}>{c.cmd}</span>
           </div>
@@ -138,13 +138,13 @@ function RunSummaryTab() {
           return (
             <div
               key={`${a.command}:${i}`}
-              className="flex items-baseline gap-2 font-mono text-[12px] text-fg-muted"
+              className="flex items-baseline gap-2 font-mono text-ui-md text-fg-muted"
             >
               <Icon name="shield" size={11} className="text-fg-faint" />
               <span className="truncate">{a.command || t("runSummary.approval.noCommand")}</span>
               <span
                 className={cn(
-                  "ml-auto rounded-sm px-1 text-[10px] font-semibold",
+                  "ml-auto rounded-sm px-1 text-ui-xs font-semibold",
                   approval.className,
                 )}
               >
@@ -157,7 +157,7 @@ function RunSummaryTab() {
 
       <Section title="runSummary.section.errors" count={view.errors.count}>
         {view.errors.items.map((e, i) => (
-          <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-[12px] text-negative">
+          <div key={`${e}:${i}`} className="flex items-baseline gap-2 text-ui-md text-negative">
             <Icon name="bug" size={11} />
             <span className="whitespace-pre-wrap break-words">{e}</span>
           </div>

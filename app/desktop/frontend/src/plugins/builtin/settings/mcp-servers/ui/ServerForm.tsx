@@ -75,7 +75,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-[14px] bg-surface p-4">
+    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <input
           type="text"
@@ -156,7 +156,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       )}
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-[13px] font-medium text-fg">{t("mcp.form.timeout")}</span>
+        <span className="text-ui-lg font-medium text-fg">{t("mcp.form.timeout")}</span>
         <input
           type="number"
           min={0}
@@ -180,7 +180,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
       {server && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-medium text-fg">{t("mcp.tools.manage")}</span>
+          <span className="text-ui-lg font-medium text-fg">{t("mcp.tools.manage")}</span>
           <ToolControls
             server={server.name}
             disabledTools={draft.disabledTools}
@@ -219,12 +219,12 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
         )}
 
         {probe.state === "ok" && (
-          <span className="inline-flex items-center gap-1 text-[12px] text-success">
+          <span className="inline-flex items-center gap-1 text-ui-md text-success">
             <Icon name="check" size={13} /> {t("mcp.connectionOk")}
           </span>
         )}
         {probe.state === "error" && (
-          <span className="inline-flex min-w-0 items-center gap-1 text-[12px] text-negative">
+          <span className="inline-flex min-w-0 items-center gap-1 text-ui-md text-negative">
             <Icon name="alert" size={13} />
             <span className="truncate" title={probe.reason}>
               {probe.reason}

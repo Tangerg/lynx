@@ -31,7 +31,7 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "group h-7 w-full justify-start gap-2 rounded-[7px] text-left text-[13px] text-fg",
+        "group h-7 w-full justify-start gap-2 rounded-xs text-left text-ui-lg text-fg",
         "transition-[background-color] duration-100",
         "hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] data-[active]:bg-fg/[0.075]",
         indent === "nested" ? "px-2.5 pl-7" : "px-2.5",

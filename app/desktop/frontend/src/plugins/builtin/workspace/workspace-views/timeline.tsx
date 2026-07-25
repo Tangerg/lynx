@@ -60,13 +60,13 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
       <Icon name={icon} size={12} className="mt-1 shrink-0 text-fg-faint" />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
-          <span className="shrink-0 text-[11.5px] font-medium text-fg">
+          <span className="shrink-0 text-ui-sm font-medium text-fg">
             {t(KIND_I18N[entry.kind])}
           </span>
           {entry.summary && (
             // `title=` preserves full text when the inline column
             // truncates a long command / tool name on hover.
-            <span title={entry.summary} className="truncate font-mono text-[11.5px] text-fg-muted">
+            <span title={entry.summary} className="truncate font-mono text-ui-sm text-fg-muted">
               {entry.summary}
             </span>
           )}
@@ -78,7 +78,7 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
           className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[entry.status])}
         />
       )}
-      <span className="mt-0.5 shrink-0 font-mono text-[10.5px] text-fg-faint">
+      <span className="mt-0.5 shrink-0 font-mono text-ui-xs text-fg-faint">
         {timelineTimeOfDay(entry.ts)}
       </span>
     </div>
@@ -113,7 +113,7 @@ function TimelineTab() {
         view.groups.map((g, gi) => (
           <div key={timelineGroupKey(g, gi)} className={cn(gi > 0 && "mt-3 pt-1")}>
             {g.runId && (
-              <div className="px-3.5 pb-1 font-mono text-[10px] text-fg-faint">run {g.runId}</div>
+              <div className="px-3.5 pb-1 font-mono text-ui-xs text-fg-faint">run {g.runId}</div>
             )}
             {g.items.map((entry) => (
               <TimelineRow key={entry.id} entry={entry} />

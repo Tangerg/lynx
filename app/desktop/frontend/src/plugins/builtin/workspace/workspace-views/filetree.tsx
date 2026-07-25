@@ -24,17 +24,17 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 px-3 py-2 text-left font-mono text-[12px] text-fg-muted hover:text-fg"
+        className="flex items-center gap-1.5 px-3 py-2 text-left font-mono text-ui-md text-fg-muted hover:text-fg"
       >
         <Icon name="chevron-down" size={12} className="shrink-0 -rotate-90" />
         <span className="truncate">{path}</span>
       </button>
       {isLoading ? (
-        <div className="px-3 text-[12px] text-fg-faint">{t("filetree.loading")}</div>
+        <div className="px-3 text-ui-md text-fg-faint">{t("filetree.loading")}</div>
       ) : isError || !data ? (
-        <div className="px-3 text-[12px] text-negative">{t("filetree.readError")}</div>
+        <div className="px-3 text-ui-md text-negative">{t("filetree.readError")}</div>
       ) : (
-        <pre className="whitespace-pre-wrap break-words px-3 pb-3 font-mono text-[12px] leading-relaxed text-fg">
+        <pre className="whitespace-pre-wrap break-words px-3 pb-3 font-mono text-ui-md leading-relaxed text-fg">
           {data.content}
           {data.truncated ? `\n\n${t("filetree.truncated")}` : ""}
         </pre>

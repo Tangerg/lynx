@@ -65,14 +65,14 @@ export function PlanProgressBanner() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -3 }}
                   transition={swift}
-                  className="min-w-0 flex-1 truncate text-[13px] leading-[1.4] text-fg"
+                  className="min-w-0 flex-1 truncate text-ui-lg leading-[1.4] text-fg"
                 >
                   {expanded
                     ? t("plan.complete", { done: progress.done, total: progress.total })
                     : progress.current.text}
                 </motion.span>
               </AnimatePresence>
-              <span className="shrink-0 font-mono text-[11px] font-medium text-fg-muted">
+              <span className="shrink-0 font-mono text-ui-sm font-medium text-fg-muted">
                 {progress.percent}%
               </span>
               <Icon
@@ -123,7 +123,7 @@ export function PlanProgressBanner() {
 
 function itemTextClass(status: PlanItem["status"]) {
   return cn(
-    "min-w-0 flex-1 truncate text-[13px] leading-[1.5]",
+    "min-w-0 flex-1 truncate text-ui-lg leading-[1.5]",
     status === "done" && "text-fg-faint line-through decoration-line-soft",
     status === "doing" && "font-semibold text-fg",
     status === "todo" && "text-fg-soft",

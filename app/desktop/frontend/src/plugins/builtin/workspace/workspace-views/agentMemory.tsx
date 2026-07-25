@@ -59,7 +59,7 @@ function useRowAction(): { busy: boolean; run: (op: () => Promise<void>) => void
 function OriginBadge({ origin }: { origin: AgentMemoryItemInfo["origin"] }) {
   const t = useT();
   return (
-    <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-px text-[10px] text-fg-faint">
+    <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-px text-ui-xs text-fg-faint">
       {origin === "auto" ? t("agentMemory.origin.auto") : t("agentMemory.origin.user")}
     </span>
   );
@@ -71,11 +71,11 @@ function PendingRow({ item }: { item: AgentMemoryItemInfo }) {
   return (
     <div className="flex items-start gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
-        <div className="text-[12.5px] leading-[1.5] text-fg">{item.content}</div>
+        <div className="text-ui-md leading-[1.5] text-fg">{item.content}</div>
         <div className="mt-1 flex items-center gap-2">
           <OriginBadge origin={item.origin} />
           {item.sessionId && (
-            <span className="truncate text-[11px] text-fg-faint" title={item.sessionId}>
+            <span className="truncate text-ui-sm text-fg-faint" title={item.sessionId}>
               {t("agentMemory.fromSession")}
             </span>
           )}
@@ -132,18 +132,18 @@ function ActiveRow({ item }: { item: AgentMemoryItemInfo }) {
               className={cn(FIELD_CLASSES, "w-full resize-y px-3 py-2 leading-[1.5] text-fg-soft")}
             />
           ) : (
-            <div className="text-[12.5px] leading-[1.5] text-fg">{item.content}</div>
+            <div className="text-ui-md leading-[1.5] text-fg">{item.content}</div>
           )}
           <div className="mt-1 flex items-center gap-2">
             {item.pinned && (
-              <span className="flex shrink-0 items-center gap-1 text-[11px] text-accent">
+              <span className="flex shrink-0 items-center gap-1 text-ui-sm text-accent">
                 <Icon name="star" size={11} />
                 {t("agentMemory.pinnedLabel")}
               </span>
             )}
             <OriginBadge origin={item.origin} />
             {item.updatedAt && (
-              <span className="truncate text-[11px] text-fg-faint">
+              <span className="truncate text-ui-sm text-fg-faint">
                 {t("agentMemory.updated")} {new Date(item.updatedAt).toLocaleDateString()}
               </span>
             )}

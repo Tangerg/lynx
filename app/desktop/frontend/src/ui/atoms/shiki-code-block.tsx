@@ -113,18 +113,18 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
     // `<pre class="shiki">` + child `<code>` Shiki emits as a string.
     <div
       className={cn(
-        "shiki-block group/code my-3 overflow-hidden rounded-[10px] font-mono text-[13px]",
+        "shiki-block group/code my-3 overflow-hidden rounded-md font-mono text-code",
         "bg-surface-2",
         folded && "folded",
       )}
     >
       {/* Header — craft-aligned: flex row, lang left, copy right, subtle surface step. */}
       <div className="flex items-center justify-between gap-3 px-3 py-1.5">
-        <span className="font-mono text-[10px] font-medium text-fg-faint uppercase tracking-wider">
+        <span className="font-mono text-ui-xs font-medium text-fg-faint uppercase tracking-wider">
           {lang || "text"}
         </span>
         {file && (
-          <span className="truncate font-mono text-[11px] text-fg-muted flex-1 text-center">
+          <span className="truncate font-mono text-ui-sm text-fg-muted flex-1 text-center">
             {file}
           </span>
         )}
@@ -179,4 +179,4 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
 }
 
 const FOLD_TOGGLE =
-  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-[11.5px] font-medium text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-fg/[0.05] hover:text-fg";
+  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-ui-sm font-medium text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-fg/[0.05] hover:text-fg";

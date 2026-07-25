@@ -19,13 +19,13 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   // §7.5 no-silent-caps: surface both our preview cap and server truncation.
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="font-mono text-[11.5px] leading-[1.55]">
+      <div className="font-mono text-ui-sm leading-[1.55]">
         {shown.map((r, i) => (
           <div
             key={i}
-            className="grid grid-cols-[200px_1fr] gap-3 overflow-hidden rounded-[4px] px-1 py-0.5 whitespace-nowrap hover:bg-fg/[0.04]"
+            className="grid grid-cols-[200px_1fr] gap-3 overflow-hidden rounded-2xs px-1 py-0.5 whitespace-nowrap hover:bg-fg/[0.04]"
           >
-            <span className="truncate text-[11px] text-fg-muted">
+            <span className="truncate text-ui-sm text-fg-muted">
               <LinkedText text={r.loc} />
             </span>
             <span className="truncate text-fg-soft">{r.text}</span>

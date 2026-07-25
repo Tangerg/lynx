@@ -33,22 +33,18 @@ function McpToolList({ server }: { server: string }) {
   const { data: tools, isLoading } = useMCPServerToolConfigs(server);
   if (isLoading)
     return (
-      <p className="m-0 px-4 pb-3 pl-[68px] text-[11.5px] text-fg-faint">
-        {t("tools.loadingTools")}
-      </p>
+      <p className="m-0 px-4 pb-3 pl-[68px] text-ui-sm text-fg-faint">{t("tools.loadingTools")}</p>
     );
   if (!tools?.length)
-    return (
-      <p className="m-0 px-4 pb-3 pl-[68px] text-[11.5px] text-fg-faint">{t("tools.noTools")}</p>
-    );
+    return <p className="m-0 px-4 pb-3 pl-[68px] text-ui-sm text-fg-faint">{t("tools.noTools")}</p>;
   return (
     <ul className="m-0 list-none px-4 pb-3 pl-[68px]">
       {tools.map((tool) => (
         <li key={tool.name} className="flex items-baseline gap-2 py-0.5">
-          <code className="shrink-0 rounded-sm bg-surface-2 px-1 font-mono text-[11px] text-fg">
+          <code className="shrink-0 rounded-sm bg-surface-2 px-1 font-mono text-ui-sm text-fg">
             {tool.name}
           </code>
-          <span className="truncate text-[11.5px] text-fg-faint" title={tool.description}>
+          <span className="truncate text-ui-sm text-fg-faint" title={tool.description}>
             {tool.description}
           </span>
         </li>
@@ -71,7 +67,7 @@ function McpAuthGuide({ server }: { server: string }) {
       <button
         type="button"
         onClick={openConfig}
-        className="inline-flex items-center gap-1.5 text-[12px] text-fg-muted hover:text-fg"
+        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg"
       >
         <Icon name="settings" size={13} />
         {t("tools.auth.configure", { server })}
@@ -107,15 +103,15 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
           onClick={() => setOpen((v) => !v)}
           className="min-w-0 border-0 bg-transparent p-0 text-left"
         >
-          <div className="text-[14px] font-semibold text-fg truncate">{server.name}</div>
-          <div className="mt-0.5 text-[12px] text-fg-faint truncate">{server.desc}</div>
+          <div className="text-ui-lg font-semibold text-fg truncate">{server.name}</div>
+          <div className="mt-0.5 text-ui-md text-fg-faint truncate">{server.desc}</div>
         </button>
-        <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-fg-faint">
+        <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-faint">
           {server.tools} tools
         </div>
         <div
           className={cn(
-            "rounded-sm px-1.5 py-0.5 font-mono text-[11px] font-semibold",
+            "rounded-sm px-1.5 py-0.5 font-mono text-ui-sm font-semibold",
             pill.classes,
           )}
           title={server.status === "failed" ? server.errorDetail : undefined}

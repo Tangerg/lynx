@@ -176,8 +176,13 @@ describe("UI preference DOM synchronization", () => {
     const style = document.documentElement.style;
     expect(style.getPropertyValue("--font-sans")).toContain('"Inter"');
     expect(style.getPropertyValue("--font-mono")).toContain('"JetBrains Mono"');
-    expect(style.fontSize).toBe("17px");
     expect(style.getPropertyValue("-webkit-font-smoothing")).toBe("auto");
+    // The base size drives the derived ladder, never the root font-size —
+    // scaling <html> would drag every rem-based padding and width with it.
+    expect(style.fontSize).toBe("");
+    expect(style.getPropertyValue("--fs-ui-md")).toBe("17px");
+    expect(style.getPropertyValue("--fs-ui-lg")).toBe("18px");
+    expect(style.getPropertyValue("--fs-ui-sm")).toBe("16px");
 
     useUiStore.getState().setUiFont("");
     useUiStore.getState().setCodeFont("");
@@ -185,7 +190,8 @@ describe("UI preference DOM synchronization", () => {
 
     expect(style.getPropertyValue("--font-sans")).toBe("");
     expect(style.getPropertyValue("--font-mono")).toBe("");
-    expect(style.fontSize).toBe("");
+    // `null` = the ladder's default base, not "unset".
+    expect(style.getPropertyValue("--fs-ui-md")).toBe("12px");
   });
 
   it("applies contrast, radius, and reduced-motion preferences", () => {

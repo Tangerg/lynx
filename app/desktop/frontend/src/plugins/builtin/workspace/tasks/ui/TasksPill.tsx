@@ -31,15 +31,15 @@ export function TasksPill() {
               className={cn(tone, readout.head.status === "running" && "animate-pulse-dot")}
             />
             {readout.runningCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-[9px] font-semibold text-on-accent">
+              <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-ui-2xs font-semibold text-on-accent">
                 {readout.runningCount}
               </span>
             )}
           </button>
         }
       />
-      <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-lg">
-        <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-fg-faint">Tasks</div>
+      <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-xl">
+        <div className="px-3 pt-2 pb-1 text-ui-xs font-semibold text-fg-faint">Tasks</div>
         <div className="max-h-[280px] overflow-y-auto">
           {readout.tasks.map((task) => (
             <TaskRow key={task.id} task={task} />
@@ -62,17 +62,13 @@ function TaskRow({ task }: { task: TaskReadoutTask }) {
           size={11}
           className={cn(tone, task.status === "running" && "animate-pulse-dot")}
         />
-        <span className="flex-1 truncate text-[12.5px] font-semibold text-fg">{task.label}</span>
-        {percent !== null && (
-          <span className="font-mono text-[11px] text-fg-faint">{percent}%</span>
-        )}
+        <span className="flex-1 truncate text-ui-md font-semibold text-fg">{task.label}</span>
+        {percent !== null && <span className="font-mono text-ui-sm text-fg-faint">{percent}%</span>}
       </div>
       {task.message && (
-        <div className="mt-0.5 pl-[18px] text-[11.5px] text-fg-muted">{task.message}</div>
+        <div className="mt-0.5 pl-[18px] text-ui-sm text-fg-muted">{task.message}</div>
       )}
-      {task.error && (
-        <div className="mt-0.5 pl-[18px] text-[11.5px] text-negative">{task.error}</div>
-      )}
+      {task.error && <div className="mt-0.5 pl-[18px] text-ui-sm text-negative">{task.error}</div>}
       {percent !== null && <ProgressBar value={percent} className="mt-1.5 ml-[18px]" />}
     </div>
   );

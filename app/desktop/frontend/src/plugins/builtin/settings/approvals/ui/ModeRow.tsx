@@ -16,15 +16,13 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   };
   return (
     <div>
-      <div className="text-[13px] font-medium text-fg">{t("approvals.mode")}</div>
-      <div className="mt-0.5 text-[13px] leading-[1.5] text-fg-muted">
-        {t("approvals.mode.sub")}
-      </div>
+      <div className="text-ui-lg font-medium text-fg">{t("approvals.mode")}</div>
+      <div className="mt-0.5 text-ui-lg leading-[1.5] text-fg-muted">{t("approvals.mode.sub")}</div>
       {mode === undefined ? (
         // Until the saved stance loads, show a quiet placeholder rather than
         // selecting a default row — a fake selection could contradict the real
         // mode for a frame.
-        <div className="mt-3 h-[184px] rounded-[14px] bg-surface" aria-hidden />
+        <div className="mt-3 h-[184px] rounded-lg bg-surface" aria-hidden />
       ) : (
         <div className="mt-3 flex flex-col gap-0.5">
           {APPROVAL_MODES.map((o) => {
@@ -43,11 +41,11 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
               >
                 <div className="min-w-0 flex-1">
                   <div
-                    className={cn("text-[14px]", selected ? "font-medium text-accent" : "text-fg")}
+                    className={cn("text-ui-lg", selected ? "font-medium text-accent" : "text-fg")}
                   >
                     {t(o.labelKey)}
                   </div>
-                  <div className="mt-0.5 text-[12px] leading-[1.45] text-fg-muted">
+                  <div className="mt-0.5 text-ui-md leading-[1.45] text-fg-muted">
                     {t(o.descKey)}
                   </div>
                 </div>

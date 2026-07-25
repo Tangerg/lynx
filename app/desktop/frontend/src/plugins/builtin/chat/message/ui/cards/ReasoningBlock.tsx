@@ -126,20 +126,20 @@ export function ReasoningBlock({ text, status }: Props) {
   const showBottomFade = isOpen && streaming && hasOverflow && !atBottom;
 
   return (
-    <div data-slot="reasoning-root" className="my-2 rounded-[14px] bg-surface">
+    <div data-slot="reasoning-root" className="my-2 rounded-lg bg-surface">
       <div className="flex w-full items-center gap-2">
         <button
           type="button"
           onClick={toggle}
           data-slot="reasoning-trigger"
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-[14px] border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
         >
           <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
-          <span className="shrink-0 text-[13px] font-medium text-fg [font-feature-settings:'tnum']">
+          <span className="shrink-0 text-ui-lg font-medium text-fg [font-feature-settings:'tnum']">
             {label}
           </span>
           {!isOpen && preview && (
-            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-normal text-fg-faint">
+            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-ui-md font-normal text-fg-faint">
               {preview}
             </span>
           )}
@@ -165,7 +165,7 @@ export function ReasoningBlock({ text, status }: Props) {
               stopActiveAgentRun();
             }}
             data-slot="reasoning-answer-now"
-            className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-[12px] leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
+            className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-ui-md leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
           >
             {t("reasoning.answerNow")}
           </button>
@@ -197,11 +197,11 @@ export function ReasoningBlock({ text, status }: Props) {
           />
           <div
             ref={contentRef}
-            className="whitespace-pre-wrap pl-[26px] text-[13px] leading-[1.6] text-fg-muted"
+            className="whitespace-pre-wrap pl-[26px] text-ui-lg leading-[1.6] text-fg-muted"
           >
             <MarkdownMessage text={text} streaming={streaming} />
             {status === "incomplete" && (
-              <div className="mt-1 font-mono text-[11px] text-fg-faint">
+              <div className="mt-1 font-mono text-ui-sm text-fg-faint">
                 <Icon name="x" size={10} /> {t("reasoning.interrupted")}
               </div>
             )}

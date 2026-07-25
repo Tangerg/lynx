@@ -46,9 +46,9 @@ export function CwdMissingBanner() {
   return (
     <SystemMessage variant="warning" className="mx-4 mt-2.5 mb-1 items-start px-4 py-3">
       <div className="min-w-0">
-        <div className="mb-0.5 text-[13px] font-semibold text-warning">{t("cwdMissing.title")}</div>
-        <div className="text-[13px] text-fg-soft break-words">
-          <code className="font-mono text-[12px]">{session.cwd}</code> · {t("cwdMissing.body")}
+        <div className="mb-0.5 text-ui-lg font-semibold text-warning">{t("cwdMissing.title")}</div>
+        <div className="text-ui-lg text-fg-soft break-words">
+          <code className="font-mono text-ui-md">{session.cwd}</code> · {t("cwdMissing.body")}
         </div>
         {relocateEnabled && (
           <div className="mt-2">

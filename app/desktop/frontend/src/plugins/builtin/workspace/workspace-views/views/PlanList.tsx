@@ -8,7 +8,7 @@ export function PlanList({ plan }: { plan: readonly PlanItem[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">
-      <div className="mb-3 font-mono text-[11px] font-semibold text-fg-faint">
+      <div className="mb-3 font-mono text-ui-sm font-semibold text-fg-faint">
         {t("plan.list.heading")}
       </div>
       {plan.map((p) => (

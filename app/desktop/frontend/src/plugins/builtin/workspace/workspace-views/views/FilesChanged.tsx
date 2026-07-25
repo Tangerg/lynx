@@ -21,7 +21,7 @@ export const FilesChanged = memo(function FilesChanged({ view, onSelect }: Props
 
   return (
     <div className="px-1.5">
-      <div className="flex items-center gap-2 px-2 py-2 font-mono text-[11px] font-semibold text-fg-faint">
+      <div className="flex items-center gap-2 px-2 py-2 font-mono text-ui-sm font-semibold text-fg-faint">
         <span>{t("files.changed", { count: view.fileCount })}</span>
         <span className="ml-auto text-success">+{view.totalAdded}</span>
         <span className="text-negative">−{view.totalRemoved}</span>
@@ -47,21 +47,21 @@ const FileRow = memo(function FileRow({
       aria-pressed={row.active}
       onClick={() => onSelect(row.path)}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-[12px] text-fg hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
+        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
         row.active && "bg-fg/[0.06]",
       )}
     >
       <Icon name="file" size={12} className="shrink-0" />
-      <span className={cn("shrink-0 text-[9px] font-semibold", row.tag.className)}>
+      <span className={cn("shrink-0 text-ui-2xs font-semibold", row.tag.className)}>
         {row.tag.letter}
       </span>
       <span className="flex-1 truncate">{row.path}</span>
       {row.lineStats.kind === "binary" ? (
-        <span className="rounded-sm bg-surface-2 px-1 text-[9px] text-fg-faint">
+        <span className="rounded-sm bg-surface-2 px-1 text-ui-2xs text-fg-faint">
           {t("files.binary")}
         </span>
       ) : (
-        <span className="flex shrink-0 gap-1.5 text-[10px]">
+        <span className="flex shrink-0 gap-1.5 text-ui-xs">
           <span className="text-success">+{row.lineStats.added}</span>
           <span className="text-negative">−{row.lineStats.removed}</span>
         </span>

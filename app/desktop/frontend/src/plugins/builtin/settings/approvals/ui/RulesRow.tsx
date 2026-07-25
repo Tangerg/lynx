@@ -38,8 +38,8 @@ export function RulesRow() {
 
   return (
     <div>
-      <div className="text-[13px] font-medium text-fg">{t("approvals.rules")}</div>
-      <div className="mt-0.5 text-[13px] leading-[1.5] text-fg-muted">
+      <div className="text-ui-lg font-medium text-fg">{t("approvals.rules")}</div>
+      <div className="mt-0.5 text-ui-lg leading-[1.5] text-fg-muted">
         {t("approvals.rules.sub")}
       </div>
       <div className="mt-3">
@@ -67,7 +67,7 @@ export function RulesRow() {
               <div className="flex justify-end">
                 <button
                   type="button"
-                  className="text-[12px] text-fg-muted transition-colors hover:text-fg"
+                  className="text-ui-md text-fg-muted transition-colors hover:text-fg"
                   onClick={() => void forgetAll(rows)}
                 >
                   {t("approvals.clearAll")}
@@ -80,7 +80,7 @@ export function RulesRow() {
                 >
                   <span
                     className={cn(
-                      "shrink-0 rounded-sm px-1.5 py-px font-mono text-[10px] font-medium",
+                      "shrink-0 rounded-sm px-1.5 py-px font-mono text-ui-xs font-medium",
                       SCOPE_CHIP[r.scope],
                     )}
                   >
@@ -88,13 +88,13 @@ export function RulesRow() {
                   </span>
                   <span
                     className={cn(
-                      "shrink-0 text-[11px] font-medium",
+                      "shrink-0 text-ui-sm font-medium",
                       r.decision === "deny" ? "text-negative" : "text-success",
                     )}
                   >
                     {r.decision === "deny" ? t("approvals.deny") : t("approvals.allow")}
                   </span>
-                  <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-fg">
+                  <span className="min-w-0 flex-1 truncate font-mono text-ui-md text-fg">
                     {r.tool}
                     {r.subject ? <span className="text-fg-muted"> · {r.subject}</span> : null}
                     {r.dir ? <span className="text-fg-faint"> — {r.dir}</span> : null}

@@ -150,7 +150,7 @@ export function ChatStream({ onSend }: Props) {
         <CwdMissingBanner key={resetKey} />
         <RunErrorBanner />
         <div className="panel-scroll flex flex-1 flex-col items-center justify-center overflow-y-auto px-4">
-          <h1 className="text-balance text-center text-[28px] font-medium tracking-display text-fg">
+          <h1 className="text-balance text-center text-display-lg font-medium tracking-display text-fg">
             {t("welcome.title")}
           </h1>
           <div className="mt-8 w-full max-w-[var(--content-max)]">{composer}</div>

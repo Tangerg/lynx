@@ -83,7 +83,7 @@ function TurnSeparator({ createdAt }: { createdAt?: string }) {
   const label = formatTurnTime(createdAt);
   if (!label) return null;
   return (
-    <div className="my-4 text-center text-[12px] text-fg-faint" data-slot="turn-separator">
+    <div className="my-4 text-center text-ui-md text-fg-faint" data-slot="turn-separator">
       {label}
     </div>
   );
@@ -95,7 +95,7 @@ function SessionMetaLine() {
   return (
     <div className="mb-2 flex items-center gap-3 text-fg-faint">
       <span className="h-px flex-1 bg-field/70" />
-      <span className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-[11px] leading-none">
+      <span className="inline-flex items-center gap-2 whitespace-nowrap font-mono text-ui-sm leading-none">
         <span className="h-1.5 w-1.5 rounded-full bg-success" />
         会话已连接
         <span className="text-fg-faint/45">·</span>

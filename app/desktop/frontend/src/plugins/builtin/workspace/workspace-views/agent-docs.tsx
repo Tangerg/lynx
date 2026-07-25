@@ -40,12 +40,10 @@ function AgentDocsTab() {
                 className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 px-4 py-2"
               >
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold text-fg">{d.title}</div>
-                  <div className="mt-0.5 truncate font-mono text-[11px] text-fg-faint">
-                    {d.path}
-                  </div>
+                  <div className="truncate text-ui-lg font-semibold text-fg">{d.title}</div>
+                  <div className="mt-0.5 truncate font-mono text-ui-sm text-fg-faint">{d.path}</div>
                 </div>
-                <span className="rounded-full bg-surface-2 px-1.5 py-px text-[10px] text-fg-muted">
+                <span className="rounded-full bg-surface-2 px-1.5 py-px text-ui-xs text-fg-muted">
                   {d.scopeLabel}
                 </span>
               </div>

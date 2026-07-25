@@ -36,11 +36,13 @@ function previewTokens(spec: ThemeSpec): { bg: string; surface: string; accent: 
 function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; accent: string }) {
   return (
     <span
-      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px]", MEDIA_OUTLINE)}
+      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs", MEDIA_OUTLINE)}
       style={{ background: bg }}
     >
+      {/* Nested rounded rect: the inner radius has to be the outer one minus the
+          inset, or the two curves fight. Derived so it tracks the shape scale. */}
       <span
-        className="absolute inset-x-[3px] top-[3px] bottom-[2px] rounded-[1.5px]"
+        className="absolute inset-x-[3px] top-[3px] bottom-[2px] rounded-[calc(var(--shape-2xs)-3px)]"
         style={{ background: surface }}
       />
       <span
@@ -55,7 +57,7 @@ function ThemeSwatch({ bg, surface, accent }: { bg: string; surface: string; acc
 function SystemSwatch() {
   return (
     <span
-      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-[3px]", MEDIA_OUTLINE)}
+      className={cn("relative block h-4 w-6 shrink-0 overflow-hidden rounded-2xs", MEDIA_OUTLINE)}
     >
       <span
         className="absolute inset-y-0 left-0 w-1/2"
@@ -83,7 +85,7 @@ function ThemeItem({
   return (
     <DropdownMenu.Item className="grid-cols-[24px_minmax(0,1fr)_14px]" onClick={onSelect}>
       {swatch}
-      <span className="truncate text-[13px] text-fg">{label}</span>
+      <span className="truncate text-ui-lg text-fg">{label}</span>
       {active ? <Icon name="check" size={13} className="text-accent" /> : <span aria-hidden />}
     </DropdownMenu.Item>
   );
@@ -110,7 +112,7 @@ export function ThemeSection() {
           aria-label={t("settings.theme")}
         >
           {triggerSwatch}
-          <span className="flex-1 truncate text-left text-[13px] font-medium">{triggerLabel}</span>
+          <span className="flex-1 truncate text-left text-ui-lg font-medium">{triggerLabel}</span>
           <Icon name="more" size={11} className="-rotate-90 text-fg-faint" />
         </DropdownMenu.Trigger>
         <DropdownMenu.Content

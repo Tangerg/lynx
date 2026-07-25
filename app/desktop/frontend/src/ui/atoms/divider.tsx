@@ -20,7 +20,7 @@ export function Divider({
   return (
     <div
       className={cn(
-        "my-2 flex items-center gap-3 text-[11px] font-medium text-fg-faint",
+        "my-2 flex items-center gap-3 text-ui-sm font-medium text-fg-faint",
         "before:flex-1 before:h-px before:content-[''] before:bg-fg/[0.08]",
         "after:flex-1  after:h-px  after:content-[''] after:bg-fg/[0.08]",
         className,

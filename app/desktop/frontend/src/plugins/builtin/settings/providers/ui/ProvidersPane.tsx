@@ -26,7 +26,7 @@ export function ProvidersPane() {
         }}
       >
         {(rows) => (
-          <div className="flex flex-col gap-1 rounded-[14px] bg-surface p-2">
+          <div className="flex flex-col gap-1 rounded-lg bg-surface p-2">
             {rows.map((p) => (
               <ProviderRow key={p.id} p={p} />
             ))}

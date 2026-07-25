@@ -42,7 +42,7 @@ export function ConnectionPane() {
         align="start"
       >
         <div className="grid gap-2">
-          <label htmlFor="runtime-base-url" className="text-[12px] font-medium text-fg-muted">
+          <label htmlFor="runtime-base-url" className="text-ui-md font-medium text-fg-muted">
             {t("settings.connection.url")}
           </label>
           <div className="flex items-center gap-2">
@@ -62,7 +62,7 @@ export function ConnectionPane() {
               placeholder={DEFAULT_RUNTIME_ENDPOINT}
               className={cn(
                 FIELD_CLASSES,
-                "h-9 flex-1 px-3 text-[13px] text-fg",
+                "h-9 flex-1 px-3 text-ui-lg text-fg",
                 error && "border-negative focus:border-negative",
               )}
               spellCheck={false}
@@ -85,7 +85,7 @@ export function ConnectionPane() {
             )}
           </div>
           {error ? (
-            <div className="flex items-center gap-1.5 text-[11.5px] text-negative">
+            <div className="flex items-center gap-1.5 text-ui-sm text-negative">
               <StatusDot tone="err" />
               <span>{error}</span>
             </div>

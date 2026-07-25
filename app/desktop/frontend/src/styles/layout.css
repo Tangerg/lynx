@@ -165,7 +165,7 @@ html.theme-dark {
   bottom: 0;
   left: 8px;
   height: 2px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--shape-pill);
   background: var(--color-accent);
   content: "";
 }
@@ -197,7 +197,7 @@ html.theme-dark {
 }
 .panel-scroll::-webkit-scrollbar-thumb {
   background: var(--color-border-soft);
-  border-radius: var(--radius-pill);
+  border-radius: var(--shape-pill);
   border: 2px solid transparent;
   background-clip: content-box;
 }

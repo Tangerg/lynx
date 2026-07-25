@@ -126,7 +126,7 @@ export function ApprovalCard({
       trailing={
         <span
           className={cn(
-            "rounded-sm px-1.5 py-px text-[10px] font-medium",
+            "rounded-sm px-1.5 py-px text-ui-xs font-medium",
             approvalRiskToneClass(riskView.tone),
           )}
         >
@@ -134,17 +134,17 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1.5 text-[16px] font-semibold leading-[1.4] text-fg">{what}</div>
+      <div className="mb-1.5 text-display-sm font-semibold leading-[1.4] text-fg">{what}</div>
       {/* Shell-prompt command line — only for command-style approvals. Other
           tools have no `cmd` (their payload is just args), so skip the box
           instead of rendering a lonely "$". Dark code chip on the light card. */}
       {cmd.trim() && (
-        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-[8px] bg-fg p-3 font-mono text-[12px] text-on-fg">
+        <code className="my-1.5 block whitespace-pre-wrap break-all rounded-sm bg-fg p-3 font-mono text-ui-md text-on-fg">
           $ {cmd}
         </code>
       )}
       {dangers.length > 0 && (
-        <div className="my-1.5 flex items-start gap-2 rounded-[8px] bg-negative/10 px-3 py-2 text-[12px] leading-[1.5] text-negative">
+        <div className="my-1.5 flex items-start gap-2 rounded-sm bg-negative/10 px-3 py-2 text-ui-md leading-[1.5] text-negative">
           <Icon name="alert" size={13} className="mt-px shrink-0" />
           <span>
             <span className="font-semibold">{t("approval.danger")}</span> {dangers.join(" · ")}
@@ -168,14 +168,14 @@ export function ApprovalCard({
           fields are the protocol's, untouched. */}
       {(scopeViews.length > 0 || target || reversibilityView) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
-          <span className="mr-0.5 text-[11px] font-medium text-fg-faint">
+          <span className="mr-0.5 text-ui-sm font-medium text-fg-faint">
             {t("approval.grants")}
           </span>
           {scopeViews.map((view) => (
             <span
               key={view.scope}
               className={cn(
-                "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
                 approvalScopeToneClass(view.tone),
               )}
             >
@@ -183,7 +183,7 @@ export function ApprovalCard({
             </span>
           ))}
           {target && (
-            <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[11px] text-fg-muted">
+            <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-sm text-fg-muted">
               <Icon name="folder" size={10} className="text-fg-faint" />
               {target}
             </span>
@@ -191,7 +191,7 @@ export function ApprovalCard({
           {reversibilityView && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-sm px-1.5 py-px font-mono text-[10.5px] font-semibold",
+                "inline-flex items-center gap-1 rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
                 approvalReversibilityToneClass(reversibilityView.tone),
               )}
             >
@@ -200,7 +200,7 @@ export function ApprovalCard({
           )}
         </div>
       )}
-      <div className="mb-2 text-[13px] leading-[1.55] text-fg-muted">{reason}</div>
+      <div className="mb-2 text-ui-lg leading-[1.55] text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
         <Button
           variant="primary"
@@ -210,7 +210,7 @@ export function ApprovalCard({
           onClick={approve}
         >
           {t("approval.action.approve")}
-          {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⌘↵</kbd>}
+          {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⌘↵</kbd>}
         </Button>
         <Button
           variant="outline"
@@ -220,10 +220,10 @@ export function ApprovalCard({
           onClick={decline}
         >
           {t("approval.action.decline")}
-          {!disabled && <kbd className="ml-1.5 font-mono text-[10px] opacity-60">⇧⌘⌫</kbd>}
+          {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⇧⌘⌫</kbd>}
         </Button>
         {rememberable && (
-          <label className="ml-auto flex items-center gap-1.5 text-[11.5px] text-fg-muted select-none">
+          <label className="ml-auto flex items-center gap-1.5 text-ui-sm text-fg-muted select-none">
             <Checkbox
               checked={remember}
               onCheckedChange={setRemember}

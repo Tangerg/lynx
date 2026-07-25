@@ -48,15 +48,15 @@ function SkillsTab() {
             {rows.map((s) => (
               <div key={s.id} className="px-4 py-2">
                 <div className="flex items-center gap-2">
-                  <div className="text-[13px] font-semibold text-fg truncate">{s.name}</div>
+                  <div className="text-ui-lg font-semibold text-fg truncate">{s.name}</div>
                   {s.source && (
-                    <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-[10px] text-fg-faint">
+                    <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs text-fg-faint">
                       {s.source}
                     </span>
                   )}
                 </div>
                 {s.description && (
-                  <div className="mt-0.5 text-[11.5px] leading-[1.45] text-fg-muted">
+                  <div className="mt-0.5 text-ui-sm leading-[1.45] text-fg-muted">
                     {s.description}
                   </div>
                 )}

@@ -110,9 +110,9 @@ export function IconShowcase() {
 
   return (
     <div className="flex flex-col gap-4.5">
-      <p className="m-0 mb-1 text-[14px] leading-[1.55] text-fg-muted">
+      <p className="m-0 mb-1 text-ui-lg leading-[1.55] text-fg-muted">
         A curated set of {total} brand glyphs from{" "}
-        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-[12px] text-fg">
+        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-ui-md text-fg">
           @lobehub/icons
         </code>
         . Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
@@ -120,7 +120,7 @@ export function IconShowcase() {
 
       {SECTIONS.map((sec) => (
         <section key={sec.title} className="flex flex-col gap-2">
-          <header className="flex items-baseline justify-between font-mono text-[11px] font-medium tracking-normal text-fg-muted">
+          <header className="flex items-baseline justify-between font-mono text-ui-sm font-medium tracking-normal text-fg-muted">
             <span>{sec.title}</span>
             <span className="font-mono text-fg-faint">{sec.ids.length}</span>
           </header>
@@ -147,7 +147,7 @@ function ShowcaseCard({ id }: { id: string }) {
       <div className="grid h-8.5 w-8.5 place-items-center rounded-sm bg-surface-2 text-fg">
         {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}
       </div>
-      <div className="max-w-full truncate text-center text-[11px] font-medium text-fg">{title}</div>
+      <div className="max-w-full truncate text-center text-ui-sm font-medium text-fg">{title}</div>
     </div>
   );
 }

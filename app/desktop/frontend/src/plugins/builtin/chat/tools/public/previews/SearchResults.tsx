@@ -18,18 +18,18 @@ export function SearchResults({ results }: { results: SearchResult[] }) {
         // an index would swap DOM nodes by position and clobber hover/focus.
         <div
           key={r.url}
-          className="group flex flex-col gap-1.5 rounded-[10px] bg-surface-2 px-3.5 py-3 transition-colors duration-150 ease-out hover:bg-surface-3"
+          className="group flex flex-col gap-1.5 rounded-md bg-surface-2 px-3.5 py-3 transition-colors duration-150 ease-out hover:bg-surface-3"
         >
-          <div className="flex items-center gap-1.5 font-mono text-[11px] text-fg-muted">
-            <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] bg-surface-3 font-sans text-[8px] font-semibold text-fg-muted transition-colors group-hover:text-fg">
+          <div className="flex items-center gap-1.5 font-mono text-ui-sm text-fg-muted">
+            <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-2xs bg-surface-3 font-sans text-ui-2xs font-semibold text-fg-muted transition-colors group-hover:text-fg">
               {(r.domain[0] ?? "?").toUpperCase()}
             </span>
             <span className="truncate">{r.domain}</span>
           </div>
-          <div className="line-clamp-2 text-[14px] font-semibold leading-[1.35] text-fg">
+          <div className="line-clamp-2 text-ui-lg font-semibold leading-[1.35] text-fg">
             {r.title}
           </div>
-          <div className="line-clamp-3 text-[13px] leading-[1.5] text-fg-muted">{r.snippet}</div>
+          <div className="line-clamp-3 text-ui-lg leading-[1.5] text-fg-muted">{r.snippet}</div>
         </div>
       ))}
     </div>

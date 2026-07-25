@@ -77,7 +77,7 @@ function SpanRowItem({
         type="button"
         onClick={onToggle}
         aria-expanded={open}
-        className="flex min-h-8 w-full items-center gap-3 bg-transparent px-1 font-mono text-[12px] text-fg hover:bg-fg/[0.04]"
+        className="flex min-h-8 w-full items-center gap-3 bg-transparent px-1 font-mono text-ui-md text-fg hover:bg-fg/[0.04]"
       >
         <span className="flex w-4 shrink-0 justify-center">
           <Icon
@@ -115,7 +115,7 @@ function SpanDetail({ span }: { span: SpanRow }) {
   ];
   const attrs = Object.entries(span.attrs);
   return (
-    <div className="mx-1 mb-1.5 grid gap-2 rounded-md bg-surface-2 px-3 py-2 font-mono text-[11.5px]">
+    <div className="mx-1 mb-1.5 grid gap-2 rounded-md bg-surface-2 px-3 py-2 font-mono text-ui-sm">
       {span.statusMessage && (
         <Field label="error">
           <span className="whitespace-pre-wrap break-words text-negative select-text">
@@ -136,7 +136,7 @@ function SpanDetail({ span }: { span: SpanRow }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-0.5">
-      <div className="text-[10px] text-fg-faint">{label}</div>
+      <div className="text-ui-xs text-fg-faint">{label}</div>
       {children}
     </div>
   );

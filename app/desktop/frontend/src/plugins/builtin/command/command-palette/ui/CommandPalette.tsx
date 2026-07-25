@@ -45,19 +45,19 @@ export function CommandPalette() {
       label={t("commandPalette.label")}
       className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-black/35"
     >
-      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-[14px] bg-canvas shadow-[var(--shadow-popover)]">
+      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg bg-canvas shadow-[var(--shadow-popover)]">
         <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">
           <Icon name="search" size={15} />
           <Command.Input
             value={query}
             onValueChange={setQuery}
             placeholder={t("commandPalette.placeholder")}
-            className="flex-1 bg-transparent text-[15px] text-fg outline-none placeholder:text-fg-faint"
+            className="flex-1 bg-transparent text-ui-lg text-fg outline-none placeholder:text-fg-faint"
           />
           <Kbd>esc</Kbd>
         </div>
         <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
-          <Command.Empty className="px-3 py-6 text-center text-[12px] text-fg-faint">
+          <Command.Empty className="px-3 py-6 text-center text-ui-md text-fg-faint">
             {t("commandPalette.empty")}
           </Command.Empty>
           {visible.map((command) => (
@@ -70,7 +70,7 @@ export function CommandPalette() {
                 ...(command.keywords ?? []),
               ].join(" ")}
               onSelect={() => runPaletteCommand(command, close)}
-              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06]"
+              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06]"
             >
               {command.icon && (
                 <Icon name={command.icon as IconName} size={14} className="shrink-0 text-fg" />
@@ -78,17 +78,17 @@ export function CommandPalette() {
               <div className="flex min-w-0 flex-1 flex-col">
                 <div className="truncate font-medium">{command.label}</div>
                 {command.description && (
-                  <div className="truncate text-[11.5px] text-fg-faint">{command.description}</div>
+                  <div className="truncate text-ui-sm text-fg-faint">{command.description}</div>
                 )}
               </div>
-              {command.group && <span className="text-[11px] text-fg-faint">{command.group}</span>}
+              {command.group && <span className="text-ui-sm text-fg-faint">{command.group}</span>}
               {command.combo && <Kbd>{comboGlyph(command.combo)}</Kbd>}
             </Command.Item>
           ))}
           {sessionMatches.length > 0 && (
             <Command.Group
               heading={t("commandPalette.sessions")}
-              className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:text-fg-faint"
+              className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-ui-sm [&_[cmdk-group-heading]]:text-fg-faint"
             >
               {sessionMatches.map((session) => (
                 <Command.Item
@@ -98,7 +98,7 @@ export function CommandPalette() {
                     selectAgentSession(session.id);
                     close();
                   }}
-                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13px] text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06]"
+                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06]"
                 >
                   <Icon name="history" size={14} className="shrink-0 text-fg-faint" />
                   <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>

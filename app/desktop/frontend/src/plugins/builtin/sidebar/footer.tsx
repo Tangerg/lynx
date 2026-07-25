@@ -54,16 +54,16 @@ function SidebarFooter() {
           type="button"
           onClick={actions.openSettings}
           data-chrome-focus=""
-          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[9px] border-0 bg-transparent px-1 py-1 text-left transition-colors hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none"
+          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-sm border-0 bg-transparent px-1 py-1 text-left transition-colors hover:bg-fg/[0.045] focus-visible:bg-fg/[0.06] focus-visible:outline-none"
         >
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cta font-sans text-[12px] font-semibold text-cta-text">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cta font-sans text-ui-md font-semibold text-cta-text">
             TA
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[13px] font-semibold leading-[16px] text-fg">
+            <span className="block truncate text-ui-lg font-semibold leading-[16px] text-fg">
               亮 唐
             </span>
-            <span className="block truncate text-[11.5px] leading-[15px] text-fg-muted">Pro</span>
+            <span className="block truncate text-ui-sm leading-[15px] text-fg-muted">Pro</span>
           </span>
         </button>
         <Slot name="sidebar.footer.status" className="hidden items-center gap-0.5" />

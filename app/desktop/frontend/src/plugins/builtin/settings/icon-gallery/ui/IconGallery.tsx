@@ -51,8 +51,8 @@ export function IconGallery() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
-          <div className="text-[15px] font-medium text-fg">@lobehub/icons</div>
-          <div className="mt-0.5 text-[13px] text-fg-muted">
+          <div className="text-display-sm font-medium text-fg">@lobehub/icons</div>
+          <div className="mt-0.5 text-ui-lg text-fg-muted">
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>
@@ -90,7 +90,7 @@ export function IconGallery() {
           if (list.length === 0) return null;
           return (
             <section key={g} className="px-5 pt-4.5 pb-3">
-              <header className="flex items-baseline justify-between pb-2.5 font-mono text-[11px] font-medium tracking-normal text-fg-muted">
+              <header className="flex items-baseline justify-between pb-2.5 font-mono text-ui-sm font-medium tracking-normal text-fg-muted">
                 <span>{GROUP_TITLES[g]}</span>
                 <span className="font-mono text-fg-faint">{list.length}</span>
               </header>
@@ -103,7 +103,7 @@ export function IconGallery() {
           );
         })}
         {items.length === 0 && (
-          <div className="px-5 py-16 text-center text-[12px] text-fg-faint">
+          <div className="px-5 py-16 text-center text-ui-md text-fg-faint">
             {t("iconGallery.empty", { q: query })}
           </div>
         )}
@@ -122,16 +122,16 @@ function IconCard({ entry }: { entry: (typeof rawToc)[number] }) {
       <div className="grid h-11 w-11 place-items-center rounded-md bg-surface-2 text-fg">
         {Component ? <Component size={28} /> : <span className="font-mono text-fg-faint">?</span>}
       </div>
-      <div className="max-w-full truncate text-center text-[11.5px] font-medium text-fg">
+      <div className="max-w-full truncate text-center text-ui-sm font-medium text-fg">
         {entry.fullTitle}
       </div>
-      <div className="flex items-center gap-1.5 text-[10px]">
+      <div className="flex items-center gap-1.5 text-ui-xs">
         <span
           title={entry.color}
           className="h-2 w-2 rounded-full border-[0.5px] border-field"
           style={{ background: entry.color }}
         />
-        <code className="font-mono text-[10px] text-fg-muted">{entry.id}</code>
+        <code className="font-mono text-ui-xs text-fg-muted">{entry.id}</code>
       </div>
     </div>
   );

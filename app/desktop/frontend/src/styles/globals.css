@@ -97,35 +97,64 @@
   --color-text-90: var(--color-text-90);
   --color-text-95: var(--color-text-95);
 
-  /* Typography scale — §3.2 recipe. Tailwind generates utilities like
-     `text-body-lg`, `leading-body`, `tracking-display`, `font-weight-medium`. */
-  --text-display-xl: var(--fs-display-xl);
-  --text-display-lg: var(--fs-display-lg);
-  --text-display-md: var(--fs-display-md);
-  --text-display-sm: var(--fs-display-sm);
-  --text-body-lg: var(--fs-body-lg);
-  --text-body-md: var(--fs-body-md);
-  --text-body-sm: var(--fs-body-sm);
-  --text-body-xs: var(--fs-body-xs);
-  --text-caption: var(--fs-caption);
+  /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
+     single base size at runtime (lib/typography.ts writes the --fs-* vars), so
+     the ladder cannot drift the way per-call-site pixel values did.
+     `--text-*--letter-spacing` rides along: Geist's default tracking is too
+     tight below 12px, so the small steps open up and the display steps close in.
+     Values must stay `var()` references — `@theme inline` inlines the reference,
+     which is what lets the runtime font-size preference reach every callsite. */
+  --text-ui-2xs: var(--fs-ui-2xs);
+  --text-ui-2xs--letter-spacing: 0.01em;
+  --text-ui-xs: var(--fs-ui-xs);
+  --text-ui-xs--letter-spacing: 0.008em;
+  --text-ui-sm: var(--fs-ui-sm);
+  --text-ui-sm--letter-spacing: 0.005em;
+  --text-ui-md: var(--fs-ui-md);
+  --text-ui-lg: var(--fs-ui-lg);
+  --text-code: var(--fs-code);
+
+  /* Editorial sizes — deliberately NOT derived from the UI base: headings are
+     composition, not chrome, and must not grow with a chrome density pick. */
+  --text-display-sm: 16px;
+  --text-display-sm--letter-spacing: -0.01em;
+  --text-display-md: 22px;
+  --text-display-md--letter-spacing: -0.015em;
+  --text-display-md--line-height: 1.2;
+  --text-display-lg: 26px;
+  --text-display-lg--letter-spacing: -0.015em;
+  --text-display-lg--line-height: 1.15;
+  --text-display-xl: 30px;
+  --text-display-xl--letter-spacing: -0.015em;
+  --text-display-xl--line-height: 1.15;
 
   --leading-tight: var(--leading-tight);
   --leading-snug: var(--leading-snug);
   --leading-body: var(--leading-body);
-
-  --tracking-display: var(--tracking-display);
-  --tracking-display-tight: var(--tracking-display-tight);
+  --leading-relaxed: var(--leading-relaxed);
 
   --weight-medium: 500;
   --weight-semibold: 600;
 
-  /* Radius — md (8px) is the default button radius. */
-  --radius-xs: 4px;
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 16px;
-  --radius-xl: 16px;
-  --radius-pill: 9999px;
+  /* Radius ladder — one continuous scale off a 10px base (×0.4/0.6/0.8/1/1.4/
+     1.8/2.2); `md` (10px) is the default control radius. `--seam` and
+     `--composer` are structural one-offs that still ride the same user scale so
+     the app has ONE shape system.
+     These MUST be `var()` references into the --shape-* source: `@theme inline`
+     inlines whatever is written here, so a literal px value here would bake the
+     number into every `rounded-*` utility and silently kill --radius-scale. */
+  --radius-2xs: var(--shape-2xs);
+  --radius-xs: var(--shape-xs);
+  --radius-sm: var(--shape-sm);
+  --radius-md: var(--shape-md);
+  --radius-lg: var(--shape-lg);
+  --radius-xl: var(--shape-xl);
+  --radius-2xl: var(--shape-2xl);
+  --radius-seam: var(--shape-seam);
+  --radius-composer: var(--shape-composer);
+  --radius-bubble: var(--shape-bubble);
+  --radius-pill: var(--shape-pill);
+  --radius-circle: var(--shape-circle);
 
   /* Fonts — Geist (bundled) leads; system stack backs it up for CJK
      (PingFang / Microsoft YaHei) + any glyph Geist lacks. Single source of
@@ -325,45 +354,50 @@
   --color-cta-hover: #000000;
   --color-cta-text: #ffffff;
 
-  /* Type scale (DESIGN.md §3). The px comments are nominal — actual
-     value resolves against the root 16px (we DO NOT set <html>
-     font-size; see the html block below for why). */
-  --fs-display-xl: 2rem; /* 32px */
-  --fs-display-lg: 1.5rem; /* 24px */
-  --fs-display-md: 1.25rem; /* 20px */
-  --fs-display-sm: 1rem; /* 16px */
-  --fs-body-lg: 1rem; /* 16px — Geist copy-16 */
-  --fs-body-md: 0.88rem; /* 14px */
-  --fs-body-sm: 0.81rem; /* 13px */
-  --fs-body-xs: 0.75rem; /* 12px */
-  --fs-caption: 0.72rem; /* 11.5px */
+  /* UI type ladder — first-paint defaults for a 12px base. installUiStoreEffects
+     recomputes all six from the user's base size (lib/typography.ts) and writes
+     them onto :root, so these literals only cover the pre-hydration frame.
+     Absolute px, NOT rem: geometry must not move when the type base moves —
+     a rem ladder drags every padding/width along and makes fixed chrome heights
+     (header, rows) impossible to hold. */
+  --fs-ui-2xs: 9px;
+  --fs-ui-xs: 10px;
+  --fs-ui-sm: 11px;
+  --fs-ui-md: 12px;
+  --fs-ui-lg: 13px;
+  --fs-code: 11px;
 
   /* 600 is the Geist heading weight — hierarchy via size + weight contrast. */
   --fw-regular: 400;
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  /* Geist display tracking — negative on headings, tighter on hero. */
-  --tracking-display: -0.02em;
-  --tracking-display-tight: -0.03em;
   --leading-tight: 1.1;
   --leading-snug: 1.35;
   --leading-body: 1.5;
+  /* Composer editor + message copy share this leading so a typed line and the
+     transcript line it becomes sit on the same rhythm. */
+  --leading-relaxed: 1.625;
 
-  /* Radius (DESIGN.md §6) — md (8px) is the default button radius.
-     All radii multiply through `--radius-scale` so the user can pick
-     a global shape preset (Sharp / Default / Soft) from Settings.
-     Themes can also override `--radius-scale` to ship their own
-     baseline (e.g. a maximalist theme might default to 1.4). */
+  /* Shape source — one continuous ladder off a 10px base. Everything multiplies
+     through `--radius-scale` (Settings → Shape: Sharp / Default / Soft), and
+     `@theme inline` aliases these into the `rounded-*` utilities by reference so
+     the preset actually reaches them. Themes may override --radius-scale to ship
+     their own baseline. */
   --radius-scale: 1;
-  --radius-xs: calc(4px * var(--radius-scale));
-  --radius-sm: calc(6px * var(--radius-scale));
-  --radius-md: calc(8px * var(--radius-scale));
-  --radius-lg: calc(16px * var(--radius-scale));
-  --radius-xl: calc(16px * var(--radius-scale));
+  --shape-2xs: calc(4px * var(--radius-scale)); /* inline code, kbd, cite marks */
+  --shape-xs: calc(6px * var(--radius-scale));
+  --shape-sm: calc(8px * var(--radius-scale));
+  --shape-md: calc(10px * var(--radius-scale)); /* default control radius */
+  --shape-lg: calc(14px * var(--radius-scale)); /* cards */
+  --shape-xl: calc(18px * var(--radius-scale)); /* menus, popovers, dock card */
+  --shape-2xl: calc(22px * var(--radius-scale));
+  --shape-seam: calc(14.4px * var(--radius-scale)); /* content-card seam corner */
+  --shape-composer: calc(19.2px * var(--radius-scale));
+  --shape-bubble: calc(12.8px * var(--radius-scale)); /* user message bubble */
   /* Pill / circle are conceptual ("fully round") — not scaled. */
-  --radius-pill: 9999px;
-  --radius-circle: 50%;
+  --shape-pill: 9999px;
+  --shape-circle: 50%;
 
   /* Motion — same curves as motion/react via lib/motion.ts. Duration
      tokens multiply through `--motion-scale` so a user preference
@@ -459,14 +493,16 @@ html.theme-dark .msg-content img:not([class]) {
   outline-color: rgba(255, 255, 255, 0.1);
 }
 body {
-  font-size: var(--fs-body-md);
+  font-size: var(--fs-ui-md);
   font-weight: var(--fw-regular);
   line-height: var(--leading-body);
   font-feature-settings: "tnum" 1;
 }
 
-/* Heading weight cap — REDESIGN.md §3.2: max 500 for display/UI.
-   The browser default 700 is too heavy for the restrained aesthetic. */
+/* Heading weight cap — the browser default 700 is too heavy for the restrained
+   aesthetic. Tracking is deliberately NOT set here: this rule is unlayered, so a
+   `letter-spacing` on it would outrank the `text-display-*` utilities that own
+   each step's optical tracking. */
 h1,
 h2,
 h3,
@@ -474,7 +510,6 @@ h4,
 h5,
 h6 {
   font-weight: 600;
-  letter-spacing: var(--tracking-display);
   /* §10 — even line lengths on short headings, no orphaned last word.
      Chromium only balances ≤6 lines, which every UI heading clears. */
   text-wrap: balance;

@@ -97,15 +97,15 @@ function ActiveGoal({ goal, sessionId }: { goal: GoalInfo; sessionId: string }) 
       <div className="flex items-start gap-2.5 px-3 py-2.5">
         <Icon name="spark" size={15} className={cn("mt-px shrink-0", statusTone(goal.status))} />
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] leading-[1.4] text-fg">{goal.objective}</div>
-          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-fg-muted">
+          <div className="truncate text-ui-lg leading-[1.4] text-fg">{goal.objective}</div>
+          <div className="mt-0.5 flex items-center gap-2 text-ui-sm text-fg-muted">
             <span className={cn("font-medium", statusTone(goal.status))}>
               {t(`goal.status.${goal.status}`)}
             </span>
             <span className="tabular-nums">{budgetSummary(t, goal)}</span>
           </div>
           {goal.status === "blocked" && goal.reason && (
-            <div className="mt-1 text-[11.5px] leading-[1.45] text-fg-soft">{goal.reason}</div>
+            <div className="mt-1 text-ui-sm leading-[1.45] text-fg-soft">{goal.reason}</div>
           )}
         </div>
         {driving ? (
@@ -150,7 +150,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
           onClick={() => setOpen(true)}
           className={cn(
             "flex items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1",
-            "text-[12px] text-fg-faint transition-colors hover:bg-surface hover:text-fg-soft",
+            "text-ui-md text-fg-faint transition-colors hover:bg-surface hover:text-fg-soft",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           )}
         >
@@ -201,7 +201,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
       transition={swift}
       className="mt-2 mb-1 flex flex-col gap-2 rounded-lg bg-surface p-3"
     >
-      <div className="flex items-center gap-1.5 text-[12px] font-medium text-fg-soft">
+      <div className="flex items-center gap-1.5 text-ui-md font-medium text-fg-soft">
         <Icon name="spark" size={13} className="text-accent" />
         {t("goal.startTitle")}
       </div>
@@ -226,7 +226,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
         <PillButton size="sm" disabled={busy} onClick={() => setOpen(false)}>
           {t("goal.cancel")}
         </PillButton>
-        <span className="ml-auto text-[10.5px] text-fg-faint">{t("goal.budgetHint")}</span>
+        <span className="ml-auto text-ui-xs text-fg-faint">{t("goal.budgetHint")}</span>
       </div>
     </motion.div>
   );
@@ -245,7 +245,7 @@ function BudgetField({
 }) {
   return (
     <label className="flex flex-col gap-1">
-      <span className="text-[10.5px] text-fg-faint">{label}</span>
+      <span className="text-ui-xs text-fg-faint">{label}</span>
       <input
         type="number"
         min={0}
@@ -254,7 +254,7 @@ function BudgetField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="∞"
-        className={cn(FIELD_CLASSES, "w-full px-2 py-1 text-[12px] tabular-nums")}
+        className={cn(FIELD_CLASSES, "w-full px-2 py-1 text-ui-md tabular-nums")}
       />
     </label>
   );

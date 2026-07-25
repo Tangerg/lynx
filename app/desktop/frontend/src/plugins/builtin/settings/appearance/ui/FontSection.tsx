@@ -1,10 +1,10 @@
-// Font customization — UI + code typefaces and base size. Empty
-// string reverts to the native system stack; numeric `null` reverts
-// size to the inherited 16px baseline.
-//
+// Font customization — UI + code typefaces and the base of the UI type ladder.
+// Empty string reverts a typeface to the native system stack; numeric `null`
+// reverts the size to the ladder's default base.
 import type { SegmentedOption } from "@/ui";
 import { useId } from "react";
 import { Checkbox, DropdownMenu, Icon, Segmented } from "@/ui";
+import { UI_FONT_SIZE_MAX_PX, UI_FONT_SIZE_MIN_PX } from "@/lib/typography";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "../application/systemFonts";
 import { cn } from "@/lib/utils";
@@ -30,10 +30,10 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
 
   return (
     <div className="grid grid-cols-[60px_auto_1fr] items-center gap-2">
-      <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
+      <span className="text-ui-md font-semibold text-fg-faint">{label}</span>
       <label
         htmlFor={checkboxId}
-        className="inline-flex items-center gap-1.5 text-[12.5px] text-fg-muted"
+        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted"
       >
         <Checkbox
           id={checkboxId}
@@ -47,9 +47,9 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
         <DropdownMenu.Trigger
           disabled={!customEnabled}
           className={cn(
-            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-2.5 py-1.5 text-[13px] text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
+            "inline-flex w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
             "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface-2",
-            mono && customEnabled && "font-mono text-[12.5px]",
+            mono && customEnabled && "font-mono text-ui-md",
           )}
           style={customEnabled ? { fontFamily: `"${value}"` } : undefined}
         >
@@ -82,8 +82,18 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
   );
 }
 
-const SIZE_VALUES = [13, 14, 15, 16, 17, 18] as const;
-// "default" sentinel = revert to the inherited 16px baseline (null in store).
+// The base of the derived UI type ladder (lib/typography.ts), not a root
+// font-size: picking 14 moves every chrome text step, never the geometry.
+const SIZE_VALUES = [
+  UI_FONT_SIZE_MIN_PX,
+  12,
+  13,
+  14,
+  15,
+  16,
+  UI_FONT_SIZE_MAX_PX,
+] as const satisfies readonly number[];
+// "default" sentinel = fall back to UI_FONT_SIZE_DEFAULT_PX (null in store).
 const SIZE_RESET = "default";
 
 function FontSizeField({
@@ -103,7 +113,7 @@ function FontSizeField({
   ];
   return (
     <div className="grid grid-cols-[60px_1fr] items-center gap-2">
-      <span className="text-[12px] font-semibold text-fg-faint">{label}</span>
+      <span className="text-ui-md font-semibold text-fg-faint">{label}</span>
       <Segmented
         value={value === null ? SIZE_RESET : String(value)}
         options={options}
@@ -154,7 +164,7 @@ export function FontSection() {
         />
         <label
           htmlFor={smoothingId}
-          className="mt-1 inline-flex items-center gap-2 text-[12.5px] text-fg-muted"
+          className="mt-1 inline-flex items-center gap-2 text-ui-md text-fg-muted"
         >
           <Checkbox
             id={smoothingId}

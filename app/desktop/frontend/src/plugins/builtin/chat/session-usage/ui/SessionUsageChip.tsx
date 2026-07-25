@@ -14,7 +14,7 @@ export function SessionUsageChip() {
     <div className="flex justify-end pt-1">
       <span
         title={t("usage.session.hint")}
-        className="inline-flex h-5 items-center gap-1.5 rounded-sm font-mono text-[11px] text-fg-muted tracking-tight whitespace-nowrap tabular-nums"
+        className="inline-flex h-5 items-center gap-1.5 rounded-sm font-mono text-ui-sm text-fg-muted tracking-tight whitespace-nowrap tabular-nums"
       >
         <span className="text-fg-soft">{t("usage.session.label")}</span>
         <span>↑{fmtTokens(readout.inputTokens)}</span>
