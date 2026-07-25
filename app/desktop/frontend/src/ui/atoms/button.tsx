@@ -41,7 +41,7 @@ const buttonStyles = cva(
         "icon-lg": "h-10 w-10 rounded-md p-0",
       },
       press: {
-        true: "active:scale-[0.96]",
+        true: "active:scale-[var(--press-scale)]",
         false: "",
       },
     },

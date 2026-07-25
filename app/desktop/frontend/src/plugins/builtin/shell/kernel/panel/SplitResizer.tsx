@@ -76,9 +76,7 @@ export function SplitResizer() {
       aria-orientation="vertical"
       aria-label={t("panel.split.resize")}
       onPointerDown={onPointerDown}
-      className="group relative w-2 shrink-0 cursor-col-resize touch-none"
-    >
-      <div className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded-full bg-transparent transition-colors group-hover:bg-fg/[0.08] group-active:bg-fg/[0.12]" />
-    </div>
+      className="agent-pane-resizer relative w-2 shrink-0 cursor-col-resize touch-none"
+    />
   );
 }

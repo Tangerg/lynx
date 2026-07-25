@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { AgentSectionLabel } from "@/ui/agent";
-import { DataView } from "@/ui";
+import { DataView, SectionLabel } from "@/ui";
 import { ProjectRow } from "./ui/ProjectRow";
 import { SessionRow } from "./ui/SessionRow";
 import { useT } from "@/lib/i18n";
@@ -99,7 +98,7 @@ function ProjectsSection() {
 
   return (
     <>
-      <AgentSectionLabel>{t("workIndex.section.projects")}</AgentSectionLabel>
+      <SectionLabel>{t("workIndex.section.projects")}</SectionLabel>
       <DataView
         items={workIndex.groups}
         isLoading={workIndex.isLoading}

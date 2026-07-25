@@ -10,4 +10,3 @@ export {
 } from "./navigation-row";
 export { AgentStatusPill } from "./status-pill";
 export { AgentSurfaceHeader } from "./surface-header";
-export { Kbd as AgentKbd, SectionLabel as AgentSectionLabel } from "@/ui";

@@ -9,7 +9,7 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 // stay compact while using softer native-pill corners.
 const styles = cva(
   "inline-flex items-center gap-1.5 rounded-pill font-sans font-medium tracking-normal " +
-    "transition-[background-color,color,scale] duration-150 ease-out active:scale-[0.96] " +
+    "transition-[background-color,color,scale] duration-150 ease-out active:scale-[var(--press-scale)] " +
     "disabled:cursor-not-allowed disabled:opacity-50",
   {
     variants: {

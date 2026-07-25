@@ -32,6 +32,15 @@ const LAYER_PREFIXES = [
   ["rpc/", "rpc"],
   ["state/", "state"],
   ["lib/", "lib"],
+  // The design system is three rings, and the direction between them is the
+  // whole point: Base UI lives behind `ui/primitives` (nothing else may reach
+  // for it), `ui/atoms` dresses those primitives, and `ui/agent` composes atoms
+  // into shell-shaped pieces. Before this split the three were one `ui` layer,
+  // so the primitives boundary held by discipline alone — and an atom drifted
+  // into the agent ring exactly once.
+  ["ui/primitives/", "ui-primitives"],
+  ["ui/atoms/", "ui-atoms"],
+  ["ui/agent/", "ui-agent"],
   ["ui/", "ui"],
   ["components/", "components"],
   ["pages/", "pages"],
@@ -45,7 +54,8 @@ function layerOf(path) {
 // Per guarded layer: the layers it must NEVER import. The inner three
 // (domain/infra/rpc) are near-total: they're meant to be self-contained
 // or contract-only. The outer guards lock the upward edges.
-const UI = ["ui", "components", "pages", "builtin", "plugins-glue"];
+const UI_RINGS = ["ui", "ui-primitives", "ui-atoms", "ui-agent"];
+const UI = [...UI_RINGS, "components", "pages", "builtin", "plugins-glue"];
 const FORBIDDEN = {
   // NOTE: `domain/` + `infra/` hold NO files today — the early clean-arch
   // gateway seam was superseded by the `rpc/` layer + main/container.ts
@@ -107,6 +117,35 @@ const FORBIDDEN = {
   lib: [...UI],
   // Local design-system layer — presentation only, never backend wiring.
   ui: ["main", "rpc"],
+  // Headless ring: Base UI re-exports and nothing else. It must not know about
+  // the tokens, the atoms, or the shell that consume it.
+  "ui-primitives": [
+    "main",
+    "rpc",
+    "ui",
+    "ui-atoms",
+    "ui-agent",
+    "components",
+    "pages",
+    "builtin",
+    "plugins-glue",
+    "state",
+  ],
+  // Token-dressed controls. May reach primitives; must not reach the shell ring
+  // above it, or anything outside the design system.
+  "ui-atoms": [
+    "main",
+    "rpc",
+    "ui-agent",
+    "components",
+    "pages",
+    "builtin",
+    "plugins-glue",
+    "state",
+  ],
+  // Shell composites. May reach atoms and primitives; still no wiring, and no
+  // reaching back into the app that mounts it.
+  "ui-agent": ["main", "rpc", "components", "pages", "builtin", "plugins-glue", "state"],
   // The view layer reaches the backend only through hooks / stores (state,
   // lib/data query hooks, plugin SDK selectors) — never the composition root
   // (`main/container`) or the raw protocol client (`rpc`) directly. Keeps

@@ -1,6 +1,7 @@
 // Sidebar global actions — the Work Index starts with app-level entry points.
 
-import { AgentKbd, AgentRow } from "@/ui/agent";
+import { Kbd } from "@/ui";
+import { AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import {
   contributeWorkIndexItem,
@@ -24,8 +25,8 @@ function SidebarNewSession() {
         onClick={() => usePaletteStore.getState().setOpen(true)}
         trailing={
           <span className="flex items-center gap-1">
-            <AgentKbd>⌘</AgentKbd>
-            <AgentKbd>K</AgentKbd>
+            <Kbd>⌘</Kbd>
+            <Kbd>K</Kbd>
           </span>
         }
       >

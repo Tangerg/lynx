@@ -447,6 +447,11 @@
   --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
 
   --dur-instant: calc(80ms * var(--motion-scale));
+  /* Press — how far a control sinks under the pointer. One value, because a
+     control that answers at 0.90 next to one at 0.98 reads as two different
+     apps; reach for it as `active:scale-[var(--press-scale)]`. */
+  --press-scale: 0.96;
+
   --dur-fast: calc(150ms * var(--motion-scale));
   --dur-med: calc(200ms * var(--motion-scale));
   --dur-slow: calc(360ms * var(--motion-scale));
@@ -973,6 +978,29 @@ html.theme-dark {
    second element. */
 .agent-shell:has(.agent-seam-rail:hover) .agent-content-card {
   --seam-line: color-mix(in srgb, var(--color-text) 30%, transparent);
+}
+
+/* Pane resizer — the shell's seam rail and this splitter are the same gesture,
+   so they answer in the same vocabulary: the divider line intensifies, and the
+   drag state pushes it to the seam rail's emphasised weight. Lives here rather
+   than as utilities at the callsite for the reason every other edge value does —
+   two drag dividers spelling their own intensities is how they drifted apart. */
+.agent-pane-resizer::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: var(--shape-pill);
+  background: transparent;
+  transition: background-color var(--dur-fast) ease-out;
+}
+.agent-pane-resizer:hover::after {
+  background: var(--seam-line);
+}
+.agent-pane-resizer:active::after {
+  background: color-mix(in srgb, var(--color-text) 30%, transparent);
 }
 
 /* Collapsed the card spans edge to edge, so there is no drawer left to divide

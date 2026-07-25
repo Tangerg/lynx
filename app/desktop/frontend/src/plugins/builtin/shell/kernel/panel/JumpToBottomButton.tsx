@@ -28,7 +28,7 @@ export function JumpToBottomButton({ visible, onClick }: Props) {
         "bg-canvas text-fg-soft border-0",
         "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[--dur-fast]",
         "hover:bg-surface-2 hover:text-fg",
-        "active:translate-y-0 active:scale-[0.96]",
+        "active:translate-y-0 active:scale-[var(--press-scale)]",
         visible
           ? "opacity-100 translate-y-0 pointer-events-auto"
           : "opacity-0 translate-y-1 pointer-events-none",

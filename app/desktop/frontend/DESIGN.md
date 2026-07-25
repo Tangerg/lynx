@@ -593,9 +593,16 @@ single 24px blur. Everything else builds depth from the ladder:
 |---|---|---|
 | 0 | No border, no shadow | Body text, message body, the main area |
 | 1 | `surface` background + 1px `hairline` border | Default card, tool-call card, message bubble, sidebar |
-| 2 | `surface-2` background | Active / hovered row, raised surface, inset reading pane |
+| 2 | `surface-2` background | Raised surface, inset reading pane |
 | 3 | `surface-3` background | Sub-nav, dropdown |
 | 4 | Stacked-subtle shadow + inset hairline | The few truly-floating overlays only |
+
+**Row state is not on this ladder.** Hover and selection are `bg-hover` /
+`bg-selected` — an ink wash (`--color-hover` / `--color-selected`), so a row
+lights up the same over a card, a menu or the drawer, and selection stays legible
+while the pointer sits on its neighbour. A surface step as a hover paints a slab
+where there was none; `check-interactive-chrome` fails the build on both that and
+a hand-picked `hover:bg-fg/[…]` alpha.
 
 This holds identically in **both schemes** — light also drops panel/card shadows
 (flush), reserving stacked shadows for floating overlays. (The earlier
@@ -629,7 +636,9 @@ shadows, and light's full 5-level shadow ladder — is gone.)
 - **Hover / press feedback**: `dur-fast` 140ms with `ease-out`. Every interactive element has a visible state change.
 - **Layout enter/exit** (modal, toast, palette): `dur-med` 220ms with `ease-emphasized`.
 - **Heavy transitions** (panel slide, accordion expand): `dur-slow` 360ms with `ease-emphasized`.
-- **Active press scale**: every clickable surface gets `:active { transform: scale(0.92-0.96) }` per element size — gives tactile confirmation.
+- **Active press scale**: `active:scale-[var(--press-scale)]`. One value for the
+  whole app — a control that sinks 0.90 next to one that sinks 0.98 reads as two
+  different apps. Per-element amounts were tried and drifted to four of them.
 - **`prefers-reduced-motion`**: all transitions degrade to ≤80ms, all scale animations disabled.
 
 ## 8. Components
