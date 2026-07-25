@@ -100,40 +100,22 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 
 	acceptKey := config.Name + "_acceptable"
 	historyState := core.NewBinding[*AttemptHistory[Out]](config.Name + historyStateSuffix)
-	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
 	feedbackState := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
 
-	acceptCondition := core.NewCondition(acceptKey, func(_ context.Context, env *core.ConditionEnv) core.Truth {
-		history, ok := core.Last[*AttemptHistory[Out]](env.Blackboard)
-		if !ok {
-			return core.False
-		}
-		if history.Count() >= maxIterations {
-			return core.True
-		}
-		best, ok := history.Best()
-		if !ok {
-			return core.False
-		}
-		if best.Feedback.Acceptable(threshold) {
-			return core.True
-		}
-		return core.False
-	})
-
-	task := core.NewAction[In, Out](
-		config.Name+"-task",
-		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *AttemptHistory[Out]]{
+		name:              config.Name,
+		description:       config.Description,
+		actionName:        config.Name + "-task",
+		actionDescription: "evaluator-optimizer loop body — produces, scores, keeps the best",
+		doneKey:           acceptKey,
+		goalDescription:   "produce best-scoring " + core.TypeName[Out](),
+		maxIterations:     maxIterations,
+		stateBinding:      historyState,
+		newState:          func() *AttemptHistory[Out] { return &AttemptHistory[Out]{} },
+		count:             (*AttemptHistory[Out]).Count,
+		durableState:      []core.Binding{feedbackState},
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history *AttemptHistory[Out]) (Out, error) {
 			var zero Out
-
-			history, ok := core.Last[*AttemptHistory[Out]](process.Blackboard())
-			if !ok {
-				history = &AttemptHistory[Out]{}
-				process.Blackboard().Store(historyState.Name, history)
-				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
-			} else if original, found := core.Last[loopInput[In]](process.Blackboard()); found {
-				input = original.Value
-			}
 
 			// The task sees prior outputs so it can revise.
 			output, err := config.Task(ctx, process, input, newHistory(history.outputs()))
@@ -154,19 +136,9 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 			best, _ := history.Best()
 			return best.Output, nil
 		},
-		core.ActionConfig{
-			Description: "evaluator-optimizer loop body — produces, scores, keeps the best",
-			Repeatable:  true,
-			Effects:     []string{acceptKey},
+		stop: func(_ context.Context, _ In, history *AttemptHistory[Out]) bool {
+			best, ok := history.Best()
+			return ok && best.Feedback.Acceptable(threshold)
 		},
-	)
-
-	return core.NewAgent(core.AgentConfig{
-		Name:         config.Name,
-		Description:  config.Description,
-		Actions:      []core.Action{task},
-		Conditions:   []core.Condition{acceptCondition},
-		DurableState: []core.Binding{historyState, inputState, feedbackState},
-		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce best-scoring " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

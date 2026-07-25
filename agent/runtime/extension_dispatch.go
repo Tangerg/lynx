@@ -83,18 +83,28 @@ func (r *extensionRegistry) register(scope string, extension core.Extension) err
 }
 
 func supportsEngineScope(extension core.Extension) bool {
+	return supportsProcessScope(extension) || supportsEngineOnlyScope(extension)
+}
+
+func supportsProcessScope(extension core.Extension) bool {
 	switch extension.(type) {
 	case core.ActionMiddleware,
 		core.ToolMiddleware,
-		core.AgentValidator,
 		core.GoalApprover,
 		core.ChatProvider,
 		core.StopPolicy,
 		core.ToolGroupResolver,
-		core.IDGenerator,
-		core.Blackboard,
 		planning.Planner,
 		EventListener:
+		return true
+	default:
+		return false
+	}
+}
+
+func supportsEngineOnlyScope(extension core.Extension) bool {
+	switch extension.(type) {
+	case core.AgentValidator, core.IDGenerator, core.Blackboard:
 		return true
 	default:
 		return false
@@ -116,19 +126,10 @@ func validateProcessExtensionScope(extension core.Extension) error {
 		return fmt.Errorf("engine-only capabilities: %s", strings.Join(engineOnly, ", "))
 	}
 
-	switch extension.(type) {
-	case core.ActionMiddleware,
-		core.ToolMiddleware,
-		core.GoalApprover,
-		core.ChatProvider,
-		core.StopPolicy,
-		core.ToolGroupResolver,
-		planning.Planner,
-		EventListener:
+	if supportsProcessScope(extension) {
 		return nil
-	default:
-		return errors.New("no process-scoped capability")
 	}
+	return errors.New("no process-scoped capability")
 }
 
 func extensionName(extension core.Extension) (name string, err error) {

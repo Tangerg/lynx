@@ -76,52 +76,21 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 		maxIterations = DefaultRepeatIterations
 	}
 
-	// Condition keys must not contain ':' — the determiner reserves
-	// that for type-binding keys. Use '_' as the separator.
 	acceptKey := config.Name + "_acceptable"
 	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
-	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
 
-	acceptCondition := core.NewCondition(acceptKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
-		history, ok := core.Last[*History[Out]](env.Blackboard)
-		if !ok {
-			return core.False
-		}
-		last, ok := history.Last()
-		if !ok {
-			return core.False
-		}
-		if history.Count() >= maxIterations {
-			return core.True
-		}
-		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
-		// In==Out the per-iteration outputs would shadow the input.
-		var input In
-		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			input = original.Value
-		}
-		if config.Accept(ctx, input, last, history) {
-			return core.True
-		}
-		return core.False
-	})
-
-	task := core.NewAction[In, Out](
-		config.Name+"-task",
-		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
-			history, ok := core.Last[*History[Out]](process.Blackboard())
-			if !ok {
-				history = &History[Out]{}
-				process.Blackboard().Store(historyState.Name, history)
-				// First iteration: `in` IS the original input (no Out bound yet to
-				// shadow it). Stash it so later iterations + Accept recover it even
-				// when In==Out.
-				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
-			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
-				// Later iterations: the framework binds `in` from Last[In], which is
-				// the latest Out when In==Out — restore the original.
-				input = original.Value
-			}
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
+		name:              config.Name,
+		description:       config.Description,
+		actionName:        config.Name + "-task",
+		actionDescription: "loop body — produces a candidate Out",
+		doneKey:           acceptKey,
+		goalDescription:   "produce acceptable " + core.TypeName[Out](),
+		maxIterations:     maxIterations,
+		stateBinding:      historyState,
+		newState:          func() *History[Out] { return &History[Out]{} },
+		count:             (*History[Out]).Count,
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
 			output, err := config.Task(ctx, process, input, history)
 			if err != nil {
 				var zero Out
@@ -130,19 +99,9 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 			history.record(output)
 			return output, nil
 		},
-		core.ActionConfig{
-			Description: "loop body — produces a candidate Out",
-			Repeatable:  true,
-			Effects:     []string{acceptKey},
+		stop: func(ctx context.Context, input In, history *History[Out]) bool {
+			last, ok := history.Last()
+			return ok && config.Accept(ctx, input, last, history)
 		},
-	)
-
-	return core.NewAgent(core.AgentConfig{
-		Name:         config.Name,
-		Description:  config.Description,
-		Actions:      []core.Action{task},
-		Conditions:   []core.Condition{acceptCondition},
-		DurableState: []core.Binding{historyState, inputState},
-		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{acceptKey}})},
 	}), nil
 }

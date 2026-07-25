@@ -100,53 +100,22 @@ func Loop[In, Out any](
 		maxIterations = DefaultLoopIterations
 	}
 
-	// Condition keys must not contain ':' — the determiner reserves
-	// that for type-binding keys. Use '_' as the separator.
 	doneKey := config.Name + "_done"
 	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
-	inputState := core.NewBinding[loopInput[In]](config.Name + inputStateSuffix)
 
-	doneCondition := core.NewCondition(doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
-		history, ok := core.Last[*History[Out]](env.Blackboard)
-		if !ok {
-			return core.False
-		}
-		last, ok := history.Last()
-		if !ok {
-			return core.False
-		}
-		if history.Count() >= maxIterations {
-			return core.True
-		}
-		// Read the ORIGINAL loop input via loopInput, not core.Last[In]: when
-		// In==Out the per-iteration outputs would shadow the input.
-		var input In
-		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
-			input = original.Value
-		}
-		if config.Until(ctx, input, last) {
-			return core.True
-		}
-		return core.False
-	})
-
-	iter := core.NewAction[In, Out](
-		config.Name+"-iter",
-		func(ctx context.Context, process *core.ProcessContext, input In) (Out, error) {
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
+		name:              config.Name,
+		description:       config.Description,
+		actionName:        config.Name + "-iter",
+		actionDescription: "loop body iteration (sub-agent run)",
+		doneKey:           doneKey,
+		goalDescription:   "produce acceptable " + core.TypeName[Out](),
+		maxIterations:     maxIterations,
+		stateBinding:      historyState,
+		newState:          func() *History[Out] { return &History[Out]{} },
+		count:             (*History[Out]).Count,
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
 			var zero Out
-
-			history, ok := core.Last[*History[Out]](process.Blackboard())
-			if !ok {
-				history = &History[Out]{}
-				process.Blackboard().Store(historyState.Name, history)
-				// First iteration: `in` is the original input — stash it so later
-				// iterations feed the SAME input to Body even when In==Out (else the
-				// framework binds `in` from the latest Out).
-				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
-			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
-				input = original.Value
-			}
-
 			child, err := childRuntime.RunChildIsolated(ctx, bodyDeployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
@@ -162,19 +131,9 @@ func Loop[In, Out any](
 			history.record(output)
 			return output, nil
 		},
-		core.ActionConfig{
-			Description: "loop body iteration (sub-agent run)",
-			Repeatable:  true,
-			Effects:     []string{doneKey},
+		stop: func(ctx context.Context, input In, history *History[Out]) bool {
+			last, ok := history.Last()
+			return ok && config.Until(ctx, input, last)
 		},
-	)
-
-	return core.NewAgent(core.AgentConfig{
-		Name:         config.Name,
-		Description:  config.Description,
-		Actions:      []core.Action{iter},
-		Conditions:   []core.Condition{doneCondition},
-		DurableState: []core.Binding{historyState, inputState},
-		Goals:        []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce acceptable " + core.TypeName[Out](), Preconditions: []string{doneKey}})},
 	}), nil
 }
