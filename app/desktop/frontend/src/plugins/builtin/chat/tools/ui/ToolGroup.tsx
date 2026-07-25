@@ -33,7 +33,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left",
           "transition-colors duration-100 hover:bg-hover",
-          "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
+          "focus-ring",
         )}
       >
         <Icon name="search" size={14} className="shrink-0 text-fg-muted" />

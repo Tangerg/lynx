@@ -35,7 +35,7 @@ export function Slider({
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb
           getAriaLabel={() => ariaLabel}
-          className="block h-3.5 w-3.5 rounded-full bg-canvas shadow-[var(--shadow-control)] transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="block h-3.5 w-3.5 rounded-full bg-canvas shadow-[var(--shadow-control)] transition-transform focus-ring"
         />
       </SliderPrimitive.Control>
     </SliderPrimitive.Root>

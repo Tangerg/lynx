@@ -118,7 +118,6 @@ describe("buildTokenMap", () => {
     expect(tokens["shadow-composer"]).toBe("0 0 red");
     expect(tokens["shadow-popover"]).toBe("2px 2px blue");
     // Untouched shadow keys still come from DARK defaults.
-    expect(tokens["shadow-focus"]).toBe(DARK_SHADOWS.focus);
   });
 
   // Corner radius is NOT a theme concern: one continuous `--shape-*` ladder in

@@ -94,12 +94,13 @@ export interface ThemeCta {
  *  delta, never shadow; JetBrains New UI model).
  *  composer: the composer, which floats over the scrolling stream.
  *  popover: dropdowns, popovers, modals, command palette.
- *  focus: quiet focus ring — no glow halo.
- *  Override individual keys when a theme wants a different elevation language. */
+ *  Override individual keys when a theme wants a different elevation language.
+ *  The keyboard focus ring is NOT here: it is an outline (it must compose with a
+ *  control's own shadow and survive a clipping ancestor), and a theme retunes it
+ *  through `--color-focus-ring`. */
 export interface ThemeShadows {
   composer: string;
   popover: string;
-  focus: string;
 }
 
 /** Global radius scale — themes that want a sharper or rounder feel

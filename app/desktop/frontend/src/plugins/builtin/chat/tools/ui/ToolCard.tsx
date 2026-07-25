@@ -79,7 +79,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
               : model.needsAction
                 ? "hover:bg-warning-wash"
                 : "hover:bg-hover",
-            "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
+            "focus-ring",
           )}
         >
           {/* Leading status chip — tool glyph, tinted by status. */}

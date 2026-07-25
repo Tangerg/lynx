@@ -1,14 +1,10 @@
 // Shared action button for the stream-top banners (RunErrorBanner /
 // CwdMissingBanner). `primary` renders the banner-tone-tinted emphasis
-// variant; the secondary shape is neutral chrome. `focus-visible` (not
-// `focus`) so mouse clicks don't trigger the keyboard ring.
+// variant; the secondary shape is neutral chrome.
 
 import type { IconName } from "@/ui";
 import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
-
-const FOCUS_RING =
-  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
 
 // Rests at the tint, lifts to the chip weight on hover — the same two steps
 // every other tonal surface uses, rather than this button's own third alpha.
@@ -45,7 +41,7 @@ export function BannerAction({
           ? cn("font-semibold", PRIMARY_TONE[tone])
           : "bg-canvas text-fg-soft hover:bg-surface-2 hover:text-fg",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        FOCUS_RING,
+        "focus-ring",
       )}
     >
       {icon && <Icon name={icon} size={11} />}

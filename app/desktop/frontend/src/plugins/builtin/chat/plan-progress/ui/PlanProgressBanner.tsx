@@ -53,7 +53,7 @@ export function PlanProgressBanner() {
               className={cn(
                 "flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5",
                 "border-0 bg-transparent text-left transition-colors hover:bg-hover",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
+                "focus-ring-inset",
               )}
             >
               <StepMark state={STEP_STATE[progress.current.status]} />

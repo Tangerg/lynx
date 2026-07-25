@@ -39,7 +39,7 @@ function ContextDockView() {
                     "flex min-h-9 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 py-1.5 text-left",
                     "text-ui-lg text-fg transition-[background-color] duration-100 ease-out",
                     "hover:bg-hover",
-                    "focus-visible:bg-hover focus-visible:shadow-[var(--shadow-focus)] focus-visible:outline-none",
+                    "focus-visible:bg-hover focus-ring",
                   )}
                 >
                   <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-surface-2 text-fg">

@@ -118,7 +118,7 @@ export function SessionRow({
               }
               setRenaming(false);
             }}
-            className="flex-1 rounded-xs bg-surface-3 px-1 leading-body focus-visible:shadow-[inset_0_0_0_1.5px_var(--color-accent)]"
+            className="flex-1 rounded-xs bg-surface-3 px-1 leading-body focus-ring-inset"
           />
         ) : (
           session.title

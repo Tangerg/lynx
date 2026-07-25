@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Interaction-chrome guard — keeps "the pointer is over this", "this is the
-// chosen one" and "this is being pressed" as one value each.
+// chosen one", "this is being pressed" and "the keyboard is here" as one value
+// each.
 //
 // Why this exists: these three facts were being decided at the callsite. The
 // tree carried eleven distinct spellings of a neutral hover (`fg/2%` through
@@ -10,10 +11,14 @@
 // feel before you can name it, and one that no amount of care at the callsite
 // can fix, because the callsite is the wrong place to hold the value.
 //
-// They now live in one place each: `--color-hover`, `--color-selected` and
-// `--press-scale` in globals.css (reached as `bg-hover`, `bg-selected`, and
-// `active:scale-[var(--press-scale)]`). A state-prefixed ink wash, a surface swap
-// over a transparent rest state, or a literal press amount is that decision
+// The focus ring had gone the same way: seven spellings over sixteen callsites —
+// an outline at three offsets, a two-layer shadow halo, and three hand-rolled
+// box-shadow rings at 1.5px and 2px, inset and outset.
+//
+// They now live in one place each: `--color-hover`, `--color-selected`,
+// `--press-scale` and the `focus-ring` / `focus-ring-inset` utilities in
+// globals.css. A state-prefixed ink wash, a surface swap over a transparent rest
+// state, a literal press amount or a hand-drawn focus ring is that decision
 // leaking back out to the callsite.
 //
 // Escape hatch: none by design. A state fill the two tokens cannot express is a
@@ -50,6 +55,15 @@ const RULES = [
     message: "literal press amount — use `active:scale-[var(--press-scale)]`",
     appliesTo: () => true,
   },
+  {
+    // A focus ring drawn at the callsite: an accent outline, or a box-shadow ring
+    // in accent. `focus-visible:outline-none` stays legal — that suppresses the
+    // browser default on a wrapper that isn't the focus target.
+    pattern:
+      /\bfocus-visible:(?:outline-(?:accent|offset-[[\]\d.px-]+)|shadow-\[[^\]]*--color-accent[^\]]*\])/g,
+    message: "hand-drawn focus ring — use `focus-ring` (or `focus-ring-inset` where it would clip)",
+    appliesTo: (_line, rel) => rel !== "styles/globals.css",
+  },
 ];
 
 function* walk(dir) {
@@ -80,4 +94,4 @@ if (violations.length > 0) {
   for (const violation of violations) console.error(`  ${violation}`);
   process.exit(1);
 }
-console.log("check-interactive-chrome: hover + selected + press each hold one value");
+console.log("check-interactive-chrome: hover + selected + press + focus each hold one value");

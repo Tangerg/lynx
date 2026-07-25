@@ -105,7 +105,7 @@ export function ThemeSection() {
     <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+          className="inline-flex w-fit min-w-[220px] items-center gap-2.5 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-ring"
           aria-label={t("settings.theme")}
         >
           {triggerSwatch}

@@ -29,7 +29,7 @@ export function Chip({ icon, children, title, onClose }: Props) {
         {onClose && (
           <ButtonPrimitive
             type="button"
-            className="grid h-5 w-5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint opacity-0 scale-[0.96] transition-[opacity,scale,background-color,color] group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 hover:bg-hover hover:text-fg active:scale-[var(--press-scale)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
+            className="grid h-5 w-5 place-items-center rounded-xs border-0 bg-transparent text-fg-faint opacity-0 scale-[0.96] transition-[opacity,scale,background-color,color] group-hover:opacity-100 group-hover:scale-100 group-focus-within:opacity-100 hover:bg-hover hover:text-fg active:scale-[var(--press-scale)] focus-ring"
             onClick={onClose}
             aria-label={t("common.remove")}
           >

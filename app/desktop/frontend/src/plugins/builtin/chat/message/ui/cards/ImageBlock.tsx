@@ -21,7 +21,7 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
         <button
           type="button"
           aria-label={t("message.image.view")}
-          className="my-1.5 block cursor-zoom-in overflow-hidden rounded-md border-0 bg-transparent p-0 outline-none focus-visible:shadow-[0_0_0_2px_var(--color-accent)]"
+          className="my-1.5 block cursor-zoom-in overflow-hidden rounded-md border-0 bg-transparent p-0 focus-ring"
         >
           <img
             src={src}
