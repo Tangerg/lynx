@@ -21,7 +21,7 @@ export function CompactionBlock({
       : t("compaction.compacted");
 
   return (
-    <div className="my-3" data-slot="compaction-block">
+    <div className="my-3">
       {/* Centered label flanked by faint hairlines (bg-fg delta, no cheap
           grey rule). Clickable when a summary is available to expand inline. */}
       <div className="flex items-center gap-3 text-ui-md text-fg-faint">

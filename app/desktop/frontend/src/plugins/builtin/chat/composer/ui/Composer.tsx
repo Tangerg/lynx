@@ -99,17 +99,13 @@ export function Composer({
              resting height tracks the type ladder instead of a pixel guess that
              goes wrong the moment the base size changes. */
           className="max-h-40 min-h-[2lh] resize-none p-0 leading-relaxed placeholder:tracking-normal"
-          data-slot="composer-input"
         />
       </div>
       {/* Bottom toolbar — ALL controls live below the input so the text area
           above stays pure: attach + model on the left, send on the right. Its
           inset is tighter than the editor's and flush to the card's edges,
           which is what keeps the controls reading as chrome, not content. */}
-      <div
-        className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]"
-        data-slot="composer-toolbar-bottom"
-      >
+      <div className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]">
         <Slot name="composer.toolbar.start" />
         <div className="flex-1 min-w-2" />
         <Slot name="composer.toolbar.end" />

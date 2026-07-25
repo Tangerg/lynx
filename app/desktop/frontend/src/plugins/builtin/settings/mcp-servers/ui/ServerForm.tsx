@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, Segmented, TextField } from "@/ui";
+import { Icon, PillButton, Segmented, Surface, TextField } from "@/ui";
 import {
   type MCPServerConfig,
   type MCPServerTransport,
@@ -74,7 +74,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
+    <Surface className="flex flex-col gap-3">
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <TextField
           type="text"
@@ -225,6 +225,6 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           </span>
         )}
       </div>
-    </div>
+    </Surface>
   );
 }

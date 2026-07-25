@@ -60,11 +60,7 @@ function TurnSeparator({ createdAt }: { createdAt?: string }) {
   useT();
   const label = formatDateTime(createdAt);
   if (!label) return null;
-  return (
-    <div className="my-4 text-center text-ui-md text-fg-faint" data-slot="turn-separator">
-      {label}
-    </div>
-  );
+  return <div className="my-4 text-center text-ui-md text-fg-faint">{label}</div>;
 }
 
 export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Props) {
@@ -140,7 +136,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
             hasn't opened its turn yet (last message is still the user's). Once
             the assistant message arrives it takes over, so this hides itself. */}
         {running && messages[messages.length - 1]?.role === "user" && (
-          <div data-slot="assistant-waiting" className="flex">
+          <div className="flex">
             <Loader variant="dots" />
           </div>
         )}

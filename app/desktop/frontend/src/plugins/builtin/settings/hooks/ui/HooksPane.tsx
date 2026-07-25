@@ -9,7 +9,7 @@
 // hook definitions themselves — those live in hooks.json files the user edits
 // directly; the GUI only audits them and grants/revokes project trust.
 
-import { DataView, EmptyState, Icon, Switch } from "@/ui";
+import { DataView, EmptyState, Icon, Surface, Switch } from "@/ui";
 import { isUnsupportedMethod, rpcErrorText } from "@/lib/rpcErrors";
 import type { HookConfig } from "../application/hookConfig";
 import { useHookConfigs } from "../application/hookConfig";
@@ -92,7 +92,7 @@ export function HooksPane() {
       <p className="text-ui-lg leading-body text-fg-muted">{t("hooks.intro")}</p>
 
       {projectRoot && data?.hasProjectHooks && (
-        <div className="flex items-center justify-between gap-3 rounded-lg bg-surface p-4">
+        <Surface className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-ui-lg font-medium text-fg">{t("hooks.trust")}</div>
             <div className="mt-0.5 text-ui-md leading-body text-fg-muted">
@@ -107,7 +107,7 @@ export function HooksPane() {
             onCheckedChange={(v) => void onTrust(v)}
             ariaLabel={t("hooks.trust.aria")}
           />
-        </div>
+        </Surface>
       )}
 
       <DataView

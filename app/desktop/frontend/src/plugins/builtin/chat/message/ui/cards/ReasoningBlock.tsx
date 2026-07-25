@@ -126,12 +126,11 @@ export function ReasoningBlock({ text, status }: Props) {
   const showBottomFade = isOpen && streaming && hasOverflow && !atBottom;
 
   return (
-    <div data-slot="reasoning-root" className="my-2 rounded-lg bg-surface">
+    <div className="my-2 rounded-lg bg-surface">
       <div className="flex w-full items-center gap-2">
         <button
           type="button"
           onClick={toggle}
-          data-slot="reasoning-trigger"
           className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-hover"
         >
           <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
@@ -164,7 +163,6 @@ export function ReasoningBlock({ text, status }: Props) {
             onClick={() => {
               stopActiveAgentRun();
             }}
-            data-slot="reasoning-answer-now"
             className="mr-3.5 shrink-0 border-b border-dotted border-fg-faint/60 pb-px text-ui-md leading-none text-fg-muted transition-colors hover:border-fg hover:text-fg"
           >
             {t("reasoning.answerNow")}
@@ -176,7 +174,6 @@ export function ReasoningBlock({ text, status }: Props) {
           use-stick-to-bottom clamp the chat to the top (see Collapsible). */}
       <Collapsible open={isOpen}>
         <div
-          data-slot="reasoning-content"
           ref={scrollRef}
           onScroll={handleScroll}
           className={cn(
@@ -187,7 +184,6 @@ export function ReasoningBlock({ text, status }: Props) {
           {/* Top fade — visible when scrolled down. Fades into the card's
               surface, not the canvas, so the mask is invisible against the bg. */}
           <div
-            data-slot="reasoning-fade-top"
             className={cn(
               "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
               "bg-[linear-gradient(to_bottom,var(--color-surface),transparent)]",
@@ -208,7 +204,6 @@ export function ReasoningBlock({ text, status }: Props) {
           </div>
           {/* Bottom fade — visible while streaming and not at bottom */}
           <div
-            data-slot="reasoning-fade-bottom"
             className={cn(
               "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
               "bg-[linear-gradient(to_top,var(--color-surface),transparent)]",

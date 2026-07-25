@@ -1,4 +1,4 @@
-import { DataView } from "@/ui";
+import { DataView, Surface } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useProviderConfigs } from "../application/providerConfig";
 import { ProviderRow } from "./ProviderRow";
@@ -26,11 +26,11 @@ export function ProvidersPane() {
         }}
       >
         {(rows) => (
-          <div className="flex flex-col gap-1 rounded-lg bg-surface p-2">
+          <Surface inset="sm" className="flex flex-col gap-1 p-2">
             {rows.map((p) => (
               <ProviderRow key={p.id} p={p} />
             ))}
-          </div>
+          </Surface>
         )}
       </DataView>
     </div>

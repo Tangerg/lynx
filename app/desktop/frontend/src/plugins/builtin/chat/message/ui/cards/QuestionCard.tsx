@@ -1,6 +1,6 @@
 import type { BlockStatus, QuestionItem } from "@/plugins/builtin/agent/public/viewState";
 import { useState } from "react";
-import { Button, Icon, TextField } from "@/ui";
+import { Button, Icon, Surface, TextField } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import {
@@ -58,7 +58,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
     const shown = settled.answers;
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <div className="my-2 flex flex-col gap-2 rounded-lg bg-surface p-4">
+      <Surface className="my-2 flex flex-col gap-2">
         <div className="flex items-center gap-1.5 font-mono text-ui-xs font-medium text-fg-faint">
           <Icon name="check" size={11} strokeWidth={3} />
           <span>{t("question.settled.answered")}</span>
@@ -71,13 +71,12 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
             </div>
           </div>
         ))}
-      </div>
+      </Surface>
     );
   }
 
   return (
     <HitlCardShell
-      data-slot="question-card"
       variant="neutral"
       icon="question"
       iconClassName="text-accent"
@@ -136,7 +135,6 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                 <TextField
                   variant="bare"
                   font="sans"
-                  data-slot="question-input"
                   value={cur.text}
                   aria-label={q.question}
                   placeholder={t("question.freetext.placeholder")}
@@ -152,13 +150,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
       </div>
 
       <div className="mt-3.5 flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
-          data-slot="question-submit"
-          disabled={actions.disabled}
-          onClick={actions.submit}
-        >
+        <Button variant="primary" size="sm" disabled={actions.disabled} onClick={actions.submit}>
           {t("question.action.submit")}
         </Button>
       </div>

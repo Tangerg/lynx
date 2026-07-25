@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, TextArea, TextButton } from "@/ui";
+import { Icon, PillButton, Surface, TextArea, TextButton } from "@/ui";
 import { useConfigureMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
@@ -38,7 +38,7 @@ export function JsonImport() {
     );
   }
   return (
-    <div className="flex flex-col gap-2.5 rounded-lg bg-surface p-4">
+    <Surface className="flex flex-col gap-2.5">
       <span className="text-ui-md text-fg-muted">{t("mcp.import.hint")}</span>
       <TextArea
         size="sm"
@@ -73,6 +73,6 @@ export function JsonImport() {
           {t("common.cancel")}
         </PillButton>
       </div>
-    </div>
+    </Surface>
   );
 }

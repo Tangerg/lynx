@@ -5,7 +5,7 @@
 
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { EmptyState, ProviderIcon, Segmented } from "@/ui";
+import { EmptyState, ProviderIcon, Segmented, Surface } from "@/ui";
 import { fmtCost, fmtTokens } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import {
@@ -28,7 +28,7 @@ function BreakdownSection({
 }) {
   if (buckets.length === 0) return null;
   return (
-    <div className="rounded-lg bg-surface p-4">
+    <Surface>
       <div className="mb-1.5 text-ui-md font-medium text-fg-muted">{title}</div>
       <div className="flex flex-col">
         {buckets.map((b) => (
@@ -49,7 +49,7 @@ function BreakdownSection({
           </div>
         ))}
       </div>
-    </div>
+    </Surface>
   );
 }
 
@@ -82,7 +82,7 @@ export function UsagePane() {
 
       {data && hasSpend && (
         <>
-          <div className="flex flex-col gap-2 rounded-lg bg-surface p-4">
+          <Surface className="flex flex-col gap-2">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-ui-md font-medium text-fg-muted">{t("usage.total")}</span>
               <span className="font-mono text-display-md font-semibold tabular-nums text-fg">
@@ -102,7 +102,7 @@ export function UsagePane() {
                 {t("usage.runs", { count: data.runs ?? 0 })}
               </span>
             </div>
-          </div>
+          </Surface>
 
           <BreakdownSection
             title={t("usage.byProvider")}

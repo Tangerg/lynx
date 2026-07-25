@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PillButton, TextArea, TextField } from "@/ui";
+import { PillButton, Surface, TextArea, TextField } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   createSchedule,
@@ -58,7 +58,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
   };
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
+    <Surface className="flex flex-col gap-3">
       <TextField
         font="sans"
         value={draft.title}
@@ -117,6 +117,6 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
           {t("common.cancel")}
         </PillButton>
       </div>
-    </div>
+    </Surface>
   );
 }

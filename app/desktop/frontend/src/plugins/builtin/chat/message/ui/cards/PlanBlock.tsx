@@ -20,7 +20,7 @@ export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] })
   const t = useT();
   const done = plan.filter((p) => p.status === "done").length;
   return (
-    <div className="my-3 flex flex-col gap-1" data-slot="plan-block">
+    <div className="my-3 flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
         <span className="text-ui-lg font-medium text-fg">{t("plan.title")}</span>
         <span className="font-mono text-ui-sm tabular-nums text-fg-faint">

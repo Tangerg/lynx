@@ -46,7 +46,7 @@ function MessageBlockInner({
   if (msg.role === "system") {
     return (
       <MessageContext.Provider value={msg}>
-        <div className={MESSAGE_CONTENT_CLASS} data-slot="message-system">
+        <div className={MESSAGE_CONTENT_CLASS}>
           {msg.blocks.map((block, index) => renderBlock(block, index, ctx))}
         </div>
       </MessageContext.Provider>
@@ -85,7 +85,7 @@ function MessageBlockInner({
             intended msg-stream column. */}
         <div className="relative grid grid-cols-[minmax(0,1fr)] gap-1.5">
           {isUser ? (
-            <div className="group flex flex-col items-end" data-slot="message-user">
+            <div className="group flex flex-col items-end">
               <MessageContextMenu msg={msg}>
                 <div
                   className={cn(
@@ -98,12 +98,12 @@ function MessageBlockInner({
               </MessageContextMenu>
               {/* Action bar — icon-only, rounded-full to match the bubble
                   language. Visibility follows the state machine above. */}
-              <div className={actionsClass} data-slot="message-actions">
+              <div className={actionsClass}>
                 <Slot name="message.actions" />
               </div>
             </div>
           ) : (
-            <div className="group flex" data-slot="message-assistant">
+            <div className="group flex">
               <div className="min-w-0 flex-1">
                 <MessageContextMenu msg={msg}>
                   <div
@@ -117,7 +117,7 @@ function MessageBlockInner({
                 </MessageContextMenu>
                 {/* Action bar — icon-only, rounded-md for quieter assistant
                     chrome. Visibility follows the state machine above. */}
-                <div className={actionsClass} data-slot="message-actions">
+                <div className={actionsClass}>
                   <Slot name="message.actions" />
                 </div>
               </div>

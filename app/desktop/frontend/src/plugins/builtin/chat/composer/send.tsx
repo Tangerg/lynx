@@ -39,7 +39,6 @@ function SendButton() {
               submitComposer({ value, clear, sendInput: send, images, pastes, recordHistory })
             }
             className={circle}
-            data-slot="composer-send"
           />
         </Tooltip>
       );
@@ -53,7 +52,6 @@ function SendButton() {
           disabled={!stop}
           onClick={() => stop?.()}
           className={stop ? circle : circleOff}
-          data-slot="composer-stop"
         />
       </Tooltip>
     );
@@ -72,7 +70,6 @@ function SendButton() {
         disabled={disabled}
         onClick={onClick}
         className={disabled ? circleOff : circle}
-        data-slot="composer-send"
       />
     </Tooltip>
   );

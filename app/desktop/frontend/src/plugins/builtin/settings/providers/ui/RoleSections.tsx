@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { DropdownMenu, Icon, ProviderIcon } from "@/ui";
+import { DropdownMenu, Icon, ProviderIcon, Surface } from "@/ui";
 import {
   type ProviderConfig,
   setEmbeddingRole,
@@ -29,7 +29,7 @@ function RoleSectionShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
+    <Surface className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-ui-lg font-medium text-fg">{title}</span>
@@ -39,7 +39,7 @@ function RoleSectionShell({
       </div>
       {note}
       {error && <p className="text-ui-md leading-snug text-negative">{error}</p>}
-    </div>
+    </Surface>
   );
 }
 

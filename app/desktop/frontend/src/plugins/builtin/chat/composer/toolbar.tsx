@@ -59,7 +59,6 @@ function ModelPicker() {
             variant="ghost"
             aria-label={t("composer.switchModel")}
             className="gap-1.5 whitespace-nowrap text-ui-lg text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
-            data-slot="composer-model"
           >
             <StatusDot tone="idle" />
             <span className="max-w-[168px] truncate">{selected.label}</span>
@@ -116,7 +115,6 @@ function AttachButton() {
           disabled={!canAttach}
           onClick={() => inputRef.current?.click()}
           className="disabled:opacity-25"
-          data-slot="composer-attach"
         />
       </Tooltip>
     </>
@@ -152,7 +150,6 @@ function ApprovalModePill() {
                 ? "text-warning hover:bg-warning-wash"
                 : "text-fg-soft hover:bg-hover hover:text-fg",
             )}
-            data-slot="composer-approval"
           >
             <Icon name={full ? "alert" : "shield"} size={14} className="shrink-0" />
             <span className="max-w-[132px] truncate">{t(current.labelKey)}</span>

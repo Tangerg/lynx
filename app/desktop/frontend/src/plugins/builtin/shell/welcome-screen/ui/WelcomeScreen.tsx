@@ -1,5 +1,5 @@
 import type { IconName } from "@/ui";
-import { Button, Icon, Kbd, PillButton, Tooltip } from "@/ui";
+import { Button, Icon, Kbd, PillButton, Surface, Tooltip } from "@/ui";
 import { comboGlyph } from "@/lib/combo";
 import { useProviders } from "@/plugins/builtin/settings/providers/public/data";
 import { useT } from "@/lib/i18n";
@@ -65,7 +65,7 @@ function SetupCard() {
   };
 
   return (
-    <div className="w-full rounded-lg bg-surface px-4 py-4 text-left">
+    <Surface className="w-full text-left">
       <div className="flex items-start gap-3">
         <Icon name="spark" size={16} className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
@@ -81,6 +81,6 @@ function SetupCard() {
           </PillButton>
         </div>
       </div>
-    </div>
+    </Surface>
   );
 }

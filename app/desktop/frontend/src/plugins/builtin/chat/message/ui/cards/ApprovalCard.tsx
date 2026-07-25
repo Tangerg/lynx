@@ -121,7 +121,6 @@ export function ApprovalCard({
   const dangers = cmd.trim() ? dangerHints(cmd) : [];
   return (
     <HitlCardShell
-      data-slot="approval-card"
       variant="warning"
       icon="shield"
       iconClassName="text-warning"
@@ -207,23 +206,11 @@ export function ApprovalCard({
       )}
       <div className="mb-2 text-ui-lg leading-body text-fg-muted">{reason}</div>
       <div className="flex items-center gap-2">
-        <Button
-          variant="primary"
-          size="sm"
-          data-slot="approval-approve"
-          disabled={disabled}
-          onClick={approve}
-        >
+        <Button variant="primary" size="sm" disabled={disabled} onClick={approve}>
           {t("approval.action.approve")}
           {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⌘↵</kbd>}
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          data-slot="approval-decline"
-          disabled={disabled}
-          onClick={decline}
-        >
+        <Button variant="outline" size="sm" disabled={disabled} onClick={decline}>
           {t("approval.action.decline")}
           {!disabled && <kbd className="ml-1.5 font-mono text-ui-xs opacity-60">⇧⌘⌫</kbd>}
         </Button>

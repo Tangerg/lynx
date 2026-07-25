@@ -60,7 +60,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
   );
 
   return (
-    <div data-slot="tool-card-root" className="group relative my-1">
+    <div className="group relative my-1">
       <div
         className={cn(
           "overflow-hidden rounded-lg transition-colors duration-150",
@@ -68,7 +68,6 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
         )}
       >
         <button
-          data-slot="tool-card-trigger"
           type="button"
           aria-expanded={expanded}
           onClick={onToggleExpand}
@@ -155,7 +154,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
 
         {/* Expanded inline preview — plugin renderer or ToolInspector fallback. */}
         <Collapsible open={expanded}>
-          <div data-slot="tool-card-content" className="px-3 pb-3 pt-0.5">
+          <div className="px-3 pb-3 pt-0.5">
             <ToolPreview tool={tool} onOpenView={onOpenView} />
           </div>
         </Collapsible>
@@ -186,10 +185,7 @@ function IconChip({ status, tool }: { status: ToolCall["status"]; tool: ToolCall
           ? "stop"
           : toolIconFor(toolRoutingKey(tool));
   return (
-    <span
-      data-slot="tool-card-status"
-      className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-sm", tone)}
-    >
+    <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-sm", tone)}>
       <Icon name={icon} size={15} />
     </span>
   );
