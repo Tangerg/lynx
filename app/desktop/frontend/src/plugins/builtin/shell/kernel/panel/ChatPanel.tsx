@@ -50,17 +50,15 @@ interface Props {
 function DockHeader({ tabs, onToggle }: { tabs: AgentDockTab[]; onToggle: () => void }) {
   const t = useT();
   return (
-    <div className="flex h-[var(--surface-header-height)] shrink-0 items-center pr-2">
-      <div className="min-w-0 flex-1">
-        <AgentDockTabs tabs={tabs} />
-      </div>
+    <AgentSurfaceHeader>
+      <AgentDockTabs tabs={tabs} />
       <AgentIconButton
         icon="panel-r"
         size="sm"
         aria-label={t("workspace.view.title.context")}
         onClick={onToggle}
       />
-    </div>
+    </AgentSurfaceHeader>
   );
 }
 

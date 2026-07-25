@@ -1021,8 +1021,11 @@ html.theme-dark {
 }
 
 /* ---------- Context dock ---------- */
-/* NOTE: still the fixed-width flex column. The overlay-card dock is a separate
-   change; these rules move here verbatim from the deleted layout.css. */
+
+/* An internal pane split inside the content card, so the divider is the chrome
+   hairline — the same token the header bottoms use — not a background step. The
+   dock carries the card's own fill: with a hairline doing the dividing, a second
+   surface value would read as a third region that isn't there. */
 .agent-context-dock {
   position: relative;
   display: flex;
@@ -1030,61 +1033,22 @@ html.theme-dark {
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  background: var(--color-surface);
-}
-
-.agent-context-dock .workspace-view-layout {
-  background: var(--color-surface);
+  background: var(--color-bg);
+  box-shadow: inset 1px 0 0 0 var(--app-surface-divider);
 }
 
 .agent-dock-tabs {
   display: flex;
-  height: var(--surface-header-height);
-  flex-shrink: 0;
-  align-items: stretch;
-  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
   overflow-x: auto;
-  padding: 0 18px;
   scrollbar-width: none;
 }
 
 .agent-dock-tabs::-webkit-scrollbar {
   display: none;
-}
-
-.agent-dock-tab {
-  position: relative;
-  display: inline-flex;
-  min-width: 0;
-  max-width: 160px;
-  align-items: center;
-  gap: 7px;
-  border: 0;
-  background: transparent;
-  padding: 0 9px;
-  color: var(--color-text-muted);
-  font-family: var(--font-sans);
-  font-size: var(--fs-ui-lg);
-  font-weight: 600;
-  line-height: 1;
-  outline: none;
-}
-
-.agent-dock-tab:hover,
-.agent-dock-tab:focus-visible,
-.agent-dock-tab[data-active] {
-  color: var(--color-text);
-}
-
-.agent-dock-tab[data-active]::after {
-  position: absolute;
-  right: 8px;
-  bottom: 0;
-  left: 8px;
-  height: 2px;
-  border-radius: var(--shape-pill);
-  background: var(--color-accent);
-  content: "";
 }
 
 /* ---------- Scroll containers ---------- */
