@@ -1,5 +1,6 @@
 // Sidebar global actions — the Work Index starts with app-level entry points.
 
+import { PLUGINS_PANE, SCHEDULES_PANE } from "@/plugins/builtin/settings/public/panes";
 import { Kbd } from "@/ui";
 import { AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
@@ -32,10 +33,10 @@ function SidebarNewSession() {
       >
         {t("common.search")}
       </AgentRow>
-      <AgentRow icon="history" onClick={() => openWorkspaceSettingsPane("schedules")}>
+      <AgentRow icon="history" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>
         {t("settings.pane.schedules")}
       </AgentRow>
-      <AgentRow icon="sparkle" onClick={() => openWorkspaceSettingsPane("plugins")}>
+      <AgentRow icon="sparkle" onClick={() => openWorkspaceSettingsPane(PLUGINS_PANE)}>
         {t("settings.pane.plugins")}
       </AgentRow>
     </div>

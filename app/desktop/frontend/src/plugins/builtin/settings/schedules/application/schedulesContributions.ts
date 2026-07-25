@@ -1,8 +1,9 @@
+import { SCHEDULES_PANE } from "../../public/panes";
 import type { SettingsPaneSpec } from "@/plugins/sdk";
 
 export function schedulesSettingsPane(component: SettingsPaneSpec["component"]): SettingsPaneSpec {
   return {
-    id: "schedules",
+    id: SCHEDULES_PANE,
     label: "settings.pane.schedules",
     group: "agent",
     icon: "command",

@@ -23,11 +23,7 @@ for (const file of files(SRC)) {
   const text = readFileSync(file, "utf8");
   const isTest = /\.(test|spec)\.[tj]sx?$/.test(rel);
 
-  if (
-    rel.startsWith("lib/data/") &&
-    rel !== "lib/data/dataQuery.ts" &&
-    rel !== "lib/data/queryClient.ts"
-  ) {
+  if (rel.startsWith("lib/data/") && rel !== "lib/data/queryClient.ts") {
     violations.push({
       file: rel,
       reason: "lib/data is query infrastructure only; business read models belong to contexts",
@@ -79,6 +75,30 @@ for (const file of files(SRC)) {
     violations.push({
       file: rel,
       reason: "plugin setup must retain and return the port installer's disposer",
+    });
+  }
+
+  // An id is a context's vocabulary, and a literal at a foreign callsite is a
+  // dependency on it that nothing checks: rename the view or the pane and the call
+  // still compiles, the click just lands nowhere. Seven had drifted in — three view
+  // ids and four pane ids. The owners publish the words: named openers in the
+  // workspace's `public/deeplinks`, id constants in the settings pack's
+  // `public/panes` (the same shape as a data-provider key).
+  if (
+    !isTest &&
+    !rel.startsWith("plugins/builtin/workspace/") &&
+    /\bopenWorkspaceView(?:Beside)?\(\s*["'`]/.test(text)
+  ) {
+    violations.push({
+      file: rel,
+      reason: "workspace view id spelled at a foreign callsite; use a public/deeplinks opener",
+    });
+  }
+
+  if (!isTest && /\bopenWorkspaceSettingsPane\(\s*["'`]/.test(text)) {
+    violations.push({
+      file: rel,
+      reason: "settings pane id spelled as a literal; use the constant from settings/public/panes",
     });
   }
 

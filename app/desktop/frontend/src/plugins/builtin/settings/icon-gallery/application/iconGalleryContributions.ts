@@ -1,3 +1,4 @@
+import { BRAND_ICONS_PANE } from "../../public/panes";
 import type { SettingsPaneSpec, WorkspaceViewSpec } from "@/plugins/sdk";
 import type { Translate } from "@/lib/i18n";
 
@@ -18,7 +19,7 @@ export function brandIconsSettingsPane(
   component: SettingsPaneSpec["component"],
 ): SettingsPaneSpec {
   return {
-    id: "brand-icons",
+    id: BRAND_ICONS_PANE,
     label: t("settings.pane.brandIcons"),
     group: "advanced",
     icon: "spark",

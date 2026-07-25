@@ -7,10 +7,8 @@ import {
   useRenameSession,
   useToggleFavorite,
 } from "@/plugins/builtin/agent/public/session";
-import {
-  openContextDockLauncher,
-  openWorkspaceView,
-} from "@/plugins/builtin/workspace/public/navigation";
+import { openContextDockLauncher } from "@/plugins/builtin/workspace/public/navigation";
+import { openSettingsView } from "@/plugins/builtin/workspace/public/deeplinks";
 
 export interface WorkIndexActions {
   createSession: () => void;
@@ -54,7 +52,7 @@ export function useWorkIndexActions(): WorkIndexActions {
       },
       openContextDock: openContextDockLauncher,
       openSettings: () => {
-        openWorkspaceView("settings");
+        openSettingsView();
       },
     }),
     [create, fork, remove, rename, toggleFavorite],

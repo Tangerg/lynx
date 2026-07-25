@@ -1,3 +1,4 @@
+import { PROVIDERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
 import { Button, Icon, Kbd, PillButton, Surface, Tooltip } from "@/ui";
 import { comboGlyph } from "@/lib/combo";
@@ -61,7 +62,7 @@ export function WelcomeScreen() {
 function SetupCard() {
   const t = useT();
   const onConfigure = () => {
-    openWorkspaceSettingsPane("providers");
+    openWorkspaceSettingsPane(PROVIDERS_PANE);
   };
 
   return (

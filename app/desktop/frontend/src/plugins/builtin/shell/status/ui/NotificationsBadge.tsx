@@ -1,6 +1,6 @@
 import { IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
-import { openWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
+import { openNotificationsView } from "@/plugins/builtin/workspace/public/deeplinks";
 import { useNotificationStore } from "@/plugins/sdk";
 import {
   notificationBadgeText,
@@ -13,7 +13,7 @@ export function NotificationsBadge() {
   const badgeText = notificationBadgeText(unread);
 
   const onClick = () => {
-    openWorkspaceView("notifications");
+    openNotificationsView();
   };
 
   return (

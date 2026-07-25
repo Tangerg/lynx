@@ -1,8 +1,9 @@
+import { USAGE_PANE } from "../../public/panes";
 import type { SettingsPaneSpec } from "@/plugins/sdk";
 
 export function usageSettingsPane(component: SettingsPaneSpec["component"]): SettingsPaneSpec {
   return {
-    id: "usage",
+    id: USAGE_PANE,
     label: "settings.pane.usage",
     group: "models",
     icon: "chart",

@@ -3,6 +3,7 @@
 // tools (tools.list — static per runtime build) and the connected MCP
 // servers (mcp.* — live 5-state lifecycle, expandable rows).
 
+import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import { Badge, DataView, Icon, TextButton } from "@/ui";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
@@ -57,7 +58,7 @@ function BuiltinToolsSection() {
 }
 
 function openMcpSettings(): void {
-  openWorkspaceSettingsPane("mcp-servers");
+  openWorkspaceSettingsPane(MCP_SERVERS_PANE);
 }
 
 function ToolsTab() {

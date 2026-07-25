@@ -1,3 +1,4 @@
+import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
 import { useState } from "react";
 import { Icon, IconButton, TextButton } from "@/ui";
@@ -60,7 +61,7 @@ function McpToolList({ server }: { server: string }) {
 function McpAuthGuide({ server }: { server: string }) {
   const t = useT();
   const openConfig = () => {
-    openWorkspaceSettingsPane("mcp-servers");
+    openWorkspaceSettingsPane(MCP_SERVERS_PANE);
   };
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">
