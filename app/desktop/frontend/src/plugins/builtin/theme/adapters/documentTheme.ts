@@ -13,7 +13,8 @@ import type { StoreApi } from "zustand";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
-import { resolveScheme } from "@/plugins/sdk/selectors/theme";
+import { resolveThemeScheme } from "../application/themeScheme";
+import { subscribeSystemScheme } from "./systemAppearance";
 import { publishMotionScale, publishScheme } from "@/lib/appearance";
 import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
@@ -30,7 +31,7 @@ let appliedTokenNames: string[] = [];
 
 function applyTheme(theme: Theme, accent: string, contrast: number): void {
   const root = document.documentElement;
-  const scheme = resolveScheme(theme);
+  const scheme = resolveThemeScheme(theme);
   const spec = lookupExtensionByKey(THEME, theme === "system" ? scheme : theme);
 
   root.classList.remove("theme-light", "theme-dark");
@@ -141,16 +142,10 @@ export function installDocumentTheme<T extends UiState>(store: UiEffectStore<T>)
     applyTheme(theme, accent, contrast);
   });
 
-  let unsubscribeScheme = () => {};
-  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onSchemeChange = () => {
-      const { theme, accent, contrast } = store.getState();
-      if (theme === "system") applyTheme(theme, accent, contrast);
-    };
-    media.addEventListener("change", onSchemeChange);
-    unsubscribeScheme = () => media.removeEventListener("change", onSchemeChange);
-  }
+  const unsubscribeScheme = subscribeSystemScheme(() => {
+    const { theme, accent, contrast } = store.getState();
+    if (theme === "system") applyTheme(theme, accent, contrast);
+  });
 
   return () => {
     unsubscribeScheme();

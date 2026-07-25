@@ -51,4 +51,3 @@ export {
 } from "./runtime";
 
 // Theme scheme resolution.
-export { resolveScheme } from "./theme";

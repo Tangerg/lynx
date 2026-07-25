@@ -1,12 +1,26 @@
 import { THEME } from "@/plugins/sdk/kernelPoints";
-import { lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
-import { resolveScheme } from "@/plugins/sdk/selectors/theme";
+import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
+import { systemAppearance } from "./ports/systemAppearance";
 import { themePreference } from "./ports/themePreference";
 
 export type ThemeScheme = "dark" | "light";
 
+/**
+ * Which scheme a theme id paints in.
+ *
+ * Callers wanting "is this light?" (the Shiki preset, the Mermaid theme, the
+ * accent variant) must resolve through here rather than comparing the id against
+ * `"light"` — a contributed id like `"solarized-light"` would mis-classify.
+ * Unregistered ids read as dark: that covers early boot and a saved id whose
+ * plugin is gone.
+ *
+ * This lived in the kernel's theme selector, where nothing in the kernel used it
+ * — the scheme of a contributed theme is this context's business, and it owns
+ * both the THEME point the answer comes from and the meaning of `"system"`.
+ */
 export function resolveThemeScheme(themeId: string): ThemeScheme {
-  return resolveScheme(themeId);
+  if (themeId === "system") return systemAppearance().scheme();
+  return lookupExtensionByKey(THEME, themeId)?.scheme ?? "dark";
 }
 
 export function isLightTheme(themeId: string): boolean {
@@ -27,7 +41,7 @@ export function isLightTheme(themeId: string): boolean {
  */
 export function toggleThemeScheme(): void {
   const preference = themePreference();
-  const target = resolveScheme(preference.activeTheme()) === "dark" ? "light" : "dark";
+  const target = resolveThemeScheme(preference.activeTheme()) === "dark" ? "light" : "dark";
   const next = lookupExtensionPoint(THEME).find((spec) => spec.scheme === target);
   if (next) preference.setTheme(next.id);
 }

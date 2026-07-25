@@ -65,7 +65,6 @@ export {
   pickComposerPlaceholder,
   pickPluginErrorFallback,
   resolveAgentRunStartOptions,
-  resolveScheme,
   useCitationSources,
   useCommands,
   useExtensionByKey,

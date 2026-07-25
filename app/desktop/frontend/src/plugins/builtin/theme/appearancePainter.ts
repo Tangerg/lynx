@@ -11,17 +11,21 @@ import { definePlugin } from "@/plugins/sdk";
 import { disposeOnHmr } from "@/lib/hmr";
 import { useUiStore } from "@/state/uiStore";
 import { installDocumentTheme } from "./adapters/documentTheme";
+import { installSystemAppearance } from "./adapters/systemAppearance";
 import { installThemePreferencePort } from "./adapters/uiThemePreference";
 
 export const appearancePainter = definePlugin({
   name: "lyra.builtin.appearance-painter",
   version: "1.0.0",
   setup() {
-    const releasePort = installThemePreferencePort();
+    const releasePreference = installThemePreferencePort();
+    // Before the painter: its first paint resolves the scheme, which asks this.
+    const releaseSystem = installSystemAppearance();
     const stopPainting = installDocumentTheme(useUiStore);
     const uninstall = () => {
       stopPainting();
-      releasePort();
+      releaseSystem();
+      releasePreference();
     };
     disposeOnHmr(uninstall);
     return uninstall;

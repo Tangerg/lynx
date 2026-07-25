@@ -15,6 +15,7 @@ import { createHost } from "@/plugins/sdk/host";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { useUiStore } from "@/state/uiStore";
 import { installDocumentTheme } from "./documentTheme";
+import { installSystemAppearance } from "./systemAppearance";
 import { toggleThemeScheme } from "../application/themeScheme";
 import { installThemePreferencePort } from "./uiThemePreference";
 
@@ -39,9 +40,10 @@ beforeEach(() => {
   });
   sink.length = 0;
   // The painter installs from the theme pack's setup in the app; a test drives
-  // it directly so each spec starts from a freshly attached subscription.
+  // it directly — in the same order, so resolving a scheme has its port.
   uninstall();
   installThemePreferencePort();
+  installSystemAppearance();
   uninstall = installDocumentTheme(useUiStore);
 });
 
