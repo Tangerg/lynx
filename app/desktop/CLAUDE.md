@@ -80,8 +80,8 @@
 - **Tailwind first**：组件样式用 utility class；`style={{}}` 内联只在 token 值真动态时用。
 - **不写新 .css 文件**：新样式进 className，`globals.css` 是唯一例外。
 - **Base UI first（硬规则）**：任何带交互 / 焦点 / 键盘 / aria 的组件一律先用 Base UI，在 `common/` 下薄包一层套设计 token，**绝不手写 focus trap / roving tabindex / aria-\* / 键盘事件**。唯一豁免（须注释写明理由）：纯展示无交互、Base UI 版有实测开销且无 a11y 收益、定制行为 Base UI 模型套不进 —— 判据是"Base UI 是否带来真实 a11y / 行为收益"，纯为统一不换。
-- **No cheap lines**（DESIGN.md + DESKTOP_UI_POLISH.md）：区域分隔优先用 surface ladder / shadow hairline，不用灰色硬边线堆卡片；真正的结构边界、focus ring、语义状态线例外。
-- **Cards-on-canvas + Grid/Flex first**：暗 canvas 上浮 surface 卡片；超过两个元素的排版用 Grid / Flex，不用 `position: absolute` 手算坐标 / `<table>` 排版 / 连串 margin 凑对齐（absolute 只用于浮层与锚点）；隐式 / 单列 grid 显式写 `minmax(0,1fr)` 防宽 child 撑爆。
+- **一个边界只画一条线**（DESIGN.md + DESKTOP_UI_POLISH.md，2026-07 修订）：drawer↔card 用卡片上**唯一**一条 inset ring（clip 到 seam 侧圆角）+ 定向阴影；pane 分隔 / chrome bar 底边用 `--app-surface-divider`；控件边缘（composer / 菜单 / 输入 / chip）用真 `border`。**禁止**同一个面同时有 border 和 shadow edge ring（双边），**禁止**同一个边界两条线（两条 1px 半透明线共像素会叠亮成点）。行状态用 fill delta，focus 走全局键盘环。⚠️ 这条**取代**了早前「区域分隔只用 background delta、不画线」的规则 —— 那个模型让 chrome 和阅读列读成两块拼贴的矩形。
+- **Grid/Flex first**：浮起的面用 surface ladder + 一条边（见上条），不手堆卡片阴影；超过两个元素的排版用 Grid / Flex，不用 `position: absolute` 手算坐标 / `<table>` 排版 / 连串 margin 凑对齐（absolute 只用于浮层与锚点）；隐式 / 单列 grid 显式写 `minmax(0,1fr)` 防宽 child 撑爆。
 - **Plugin 一定走 registry**：不直接 import 一个 builtin plugin，永远走 selector。
 - **运行时事件单向**：render 路径不回写 agent store；要"做事"调 store 上的 send / stop / resume。
 - **components 不直连后端**：`components/` / `pages/` 只经 store selector / query hook / SDK selector 触业务，**不得 import composition root 或协议客户端**（已有 layer 守卫强制）。

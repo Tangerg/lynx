@@ -241,6 +241,12 @@ export const es: Record<string, string> = {
   "settings.color.fg": "Primer plano",
   "settings.radius": "Esquinas",
   "settings.radius.sub": "Radio de esquina global.",
+  "settings.density": "Densidad",
+  "settings.density.sub":
+    "Cantidad de espacio en la interfaz: alto de fila, márgenes y espaciado interno del campo de entrada.",
+  "settings.density.compact": "Compacta",
+  "settings.density.comfortable": "Equilibrada",
+  "settings.density.spacious": "Espaciosa",
   "settings.motion": "Movimiento",
   "settings.motion.sub": "Velocidad de animación en toda la app.",
   "settings.contrast": "Contraste",

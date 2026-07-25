@@ -9,6 +9,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
+import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
@@ -34,6 +35,7 @@ const uiPersistSchema = z.object({
   codeFont: z.string(),
   fontSize: z.number().nullable(),
   fontSmoothing: z.boolean(),
+  density: z.enum(UI_DENSITY_MODES),
   radiusScale: z.number(),
   motionScale: z.number(),
   messageStyle: z.enum(["bubble", "plain"]),
@@ -62,6 +64,7 @@ interface UiActions {
   setCodeFont: (font: string) => void;
   setFontSize: (size: number | null) => void;
   setFontSmoothing: (on: boolean) => void;
+  setDensity: (density: UiDensity) => void;
   setRadiusScale: (scale: number) => void;
   setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
@@ -84,6 +87,7 @@ export const useUiStore = create<UiState & UiActions>()(
       codeFont: "",
       fontSize: null,
       fontSmoothing: true,
+      density: DEFAULT_UI_DENSITY,
       radiusScale: 1,
       motionScale: 1,
       messageStyle: "bubble",
@@ -113,6 +117,7 @@ export const useUiStore = create<UiState & UiActions>()(
       setCodeFont: (codeFont) => set({ codeFont }),
       setFontSize: (fontSize) => set({ fontSize }),
       setFontSmoothing: (fontSmoothing) => set({ fontSmoothing }),
+      setDensity: (density) => set({ density }),
       setRadiusScale: (radiusScale) => set({ radiusScale }),
       setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),

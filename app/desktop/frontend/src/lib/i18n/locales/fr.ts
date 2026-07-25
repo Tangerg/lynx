@@ -243,6 +243,12 @@ export const fr: Record<string, string> = {
   "settings.color.fg": "Premier plan",
   "settings.radius": "Coins",
   "settings.radius.sub": "Rayon des coins global.",
+  "settings.density": "Densité",
+  "settings.density.sub":
+    "Quantité d'espace dans l'interface : hauteur des lignes, marges et marges internes du champ de saisie.",
+  "settings.density.compact": "Compact",
+  "settings.density.comfortable": "Équilibré",
+  "settings.density.spacious": "Spacieux",
   "settings.motion": "Animations",
   "settings.motion.sub": "Vitesse des animations dans toute l'app.",
   "settings.contrast": "Contraste",

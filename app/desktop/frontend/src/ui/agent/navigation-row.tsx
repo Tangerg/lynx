@@ -59,7 +59,8 @@ export function AgentRow({
       press={false}
       data-active={active ? "" : undefined}
       className={cn(
-        "h-7 w-full justify-start gap-2 rounded-sm text-left text-ui-md font-normal",
+        "h-[var(--density-row-height)] w-full justify-start rounded-sm text-left text-ui-md font-normal",
+        "gap-[var(--density-row-gap)]",
         "text-fg/89 transition-[background-color,color] duration-100",
         "hover:bg-fg/[0.04] hover:text-fg focus-visible:bg-fg/[0.04]",
         "data-[active]:bg-fg/[0.04] data-[active]:text-fg",

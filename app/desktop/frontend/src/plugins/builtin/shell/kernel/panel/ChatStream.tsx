@@ -152,7 +152,7 @@ export function ChatStream({ onSend }: Props) {
         {/* Hero and composer are ONE vertically-centred group, so the composer
             sits at the optical centre rather than the heading floating above a
             bottom-anchored input. */}
-        <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-3 sm:px-5">
+        <div className="panel-scroll flex flex-1 flex-col items-center justify-center px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
           <div className="flex w-full max-w-[var(--content-max)] flex-col items-center gap-4 pb-5">
             <h1 className="text-balance text-center text-display-lg font-normal text-fg/95 sm:text-display-xl">
               {t("welcome.title")}
@@ -179,7 +179,7 @@ export function ChatStream({ onSend }: Props) {
           container, not this one). Plan-progress is the only built-in
           contributor today; the slot is open so plugins can stack
           their own "above the stream" banners here. */}
-      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-3 sm:px-5">
+      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
         <Slot name="chat.banner.top" />
       </div>
       {/* The transcript scrolls; the composer is a sibling in normal flow that

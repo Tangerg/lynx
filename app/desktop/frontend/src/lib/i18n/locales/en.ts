@@ -378,6 +378,12 @@ export const en: Record<string, string> = {
   "settings.color.fg": "Foreground",
   "settings.radius": "Corners",
   "settings.radius.sub": "Global corner radius.",
+  "settings.density": "Density",
+  "settings.density.sub":
+    "How much air the chrome gets. Row heights, gutters, and composer insets.",
+  "settings.density.compact": "Compact",
+  "settings.density.comfortable": "Comfortable",
+  "settings.density.spacious": "Spacious",
   "settings.motion": "Motion",
   "settings.motion.sub": "Animation speed across the app.",
   "settings.contrast": "Contrast",

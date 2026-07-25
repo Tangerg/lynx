@@ -1,7 +1,7 @@
 ---
 version: 1.0
 name: lyra-design-analysis
-description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. CURRENT DIRECTION (2026-07, light-first rewrite): a Vercel Geist design language read through an OpenAI/ChatGPT/Codex lens — light by default (white centered reading column between gray work-index + context-dock rails), three-column layout separated purely by JetBrains-style background delta (NO grey rules / hairlines), bundled Geist Sans/Mono, sans-first labels (mono for code/IDs/paths), one restrained blue-700 accent reserved for live/focus/links, and an inverting ink primary CTA (near-black on light / near-white on dark). Full light/dark parity via the theme plugin. AUTHORITATIVE TOKEN VALUES LIVE IN CODE: src/styles/globals.css (:root + html.theme-dark first-paint) and src/plugins/builtin/theme/themes/*.ts — the color/shadow/radius YAML below is historical illustration from the earlier dark-first spec and is pending a full refresh; trust globals.css + the theme files for real values. Shadows are reserved for genuinely-floating surfaces only (composer / popover / dialog / toast)."
+description: "Lyra is an agent client — a desktop chat shell that streams Lyra Runtime Protocol events from a Go runtime. CURRENT DIRECTION (2026-07, drawer + content card): the work index is a fixed-position DRAWER plus an in-flow spacer, and the content is a card that floats over it — card z-index outranks the drawer, so collapsing slides the drawer UNDER the card and the card never moves. The two regions sit at nearly the same value and the split is carried by ONE 1px inset ring on the card (clipped to the seam-side radius) plus a low-spread directional shadow; internal pane splits and chrome-bar bottoms use the more-transparent --app-surface-divider hairline. This SUPERSEDES the earlier background-delta / no-hairline model. One chrome-bar height (46px) is shared by the drawer and every content header so they align across the seam. Type and corner radius are derived ladders (--fs-* from one base size, --shape-* off a 10px base × the user Shape scale) — no per-callsite pixel values; check:tokens fails the build on any. Light by default with full dark parity, bundled Geist Sans/Mono, one restrained blue-700 accent reserved for live/focus/links, inverting ink primary CTA. AUTHORITATIVE VALUES LIVE IN CODE: src/styles/globals.css and src/plugins/builtin/theme/themes/*.ts — the YAML below is historical illustration from the dark-first spec; trust the code."
 
 colors:
   # ---- Accent ----
@@ -339,6 +339,27 @@ components:
     description: Run-error surface. Lives above the message stream, dismissible. Cleared automatically when the next run starts.
 ---
 
+> **Shell rewrite 2026-07 (landed on `main`) — read this first.** The structural
+> model below is superseded on these points:
+> - **Drawer, not a grid column.** The work index is `position: fixed` and slides;
+>   an in-flow spacer reserves its width. A grid template swap cannot be
+>   interpolated, which is why the old shell snapped on collapse.
+> - **Content is a card over the drawer.** Rounded on the seam side, one 1px inset
+>   ring clipped to that side's radius, one low-spread directional shadow, and the
+>   parent backs the rounded-corner wedge with the drawer's own material. Collapsed,
+>   the card squares off and drops ring + shadow so its corner cannot double up
+>   with the OS window's.
+> - **Separation is a hairline, NOT a background delta.** Drawer and card sit half
+>   a step apart on purpose; the ring does the dividing. The earlier "no grey
+>   rules, background delta only" rule is reversed — see DESKTOP_UI_POLISH.md §2.
+> - **One chrome-bar height** (`--surface-header-height`, 46px) shared by the
+>   drawer header and every content header, so they line up across the seam.
+> - **Composer floats over the transcript** (`-mt-5`), in normal flow. No reserved
+>   bottom padding, no gradient mask.
+> - **Derived ladders.** Type (`--fs-*`) comes from one base size; radius
+>   (`--shape-*`) from a 10px base × the user's Shape scale. Density (`--density-*`)
+>   is a third, independent axis. Per-callsite pixel values are a build failure.
+>
 > **Redesign 2026-06 (landed on `main`).** The OpenAI-restrained redesign
 > changed the structural design intent from the original spec below:
 > - **Tabs removed** — one active session; workspace views open full-pane and
@@ -361,10 +382,11 @@ components:
 
 The whole system reduces to five decisions. Everything below elaborates them.
 
-1. **Flush, edge-to-edge layout** — no cards-on-canvas. The sidebar + main run to
-   the window edge, separated by a **background delta** (`surface` vs `canvas`),
-   not a hairline. The sidebar is the one half-step-lifted surface; the main
-   area paints on the canvas. No gutters, no panel drop shadows (dark _or_ light).
+1. **Card over drawer** (revised 2026-07; was "flush, edge-to-edge, background
+   delta"). The work index is a frosted drawer; the content is an opaque card that
+   floats over it, rounded on the seam side. The two are nearly the same value and
+   a single 1px inset ring plus a low-spread directional shadow carries the split —
+   a background delta with no line between reads as two pasted rectangles.
 2. **Near-monochrome, one restrained accent** — overall black/white/grey; the
    accent (a calm **blue**, `#7b8efa` dark / `#2563eb` light by default,
    user-selectable) appears only on live / steer / focus, and focus is a single
@@ -502,35 +524,43 @@ The full scale is 11 tokens — narrower than the previous 13-step Spotify scale
 
 ### App shell
 
-Flush, edge-to-edge — a **background delta** divides the sidebar from the main
-area (`surface` vs `canvas`, no hairline); no gutters, no bottom status bar:
+A frosted drawer with an opaque content card floating over it, divided by the seam
+ring. No bottom status bar:
 
 ```
-┌────────────┬────────────────────────────────────────────────┐
-│ Sidebar    │ (drag region — thin strip, no tab strip)       │ 36px
-│ 248        │────────────────────────────────────────────────│
-│  · new     │                                                 │
-│  · search  │           Message stream (max-width 720)        │ 1fr
-│  Workspace │                                                 │
-│  Projects  │  ┌──────────────────────────────────────────┐   │
-│  …         │  │  Composer (max-width 720, rounded-xl)    │   │
-│  ⚙ settings │  └──────────────────────────────────────────┘   │
-└────────────┴────────────────────────────────────────────────┘
-   ↑ surface (chrome)        ↑ canvas (main reading area)
-   separated by background delta — no gap, no line, no shadow
+ drawer (fixed, slides)      content card (z-15, rounded on the seam side)
+┌─────────────┐╭──────────────────────────────────────────────┬─────────┐
+│ (46px hdr)  ││ (46px header, bottom hairline)               │ (46px)  │
+│  · new      │├──────────────────────────────────────────────┤ dock    │
+│  · search   ││                                              │ tabs    │
+│  Projects   ││        Message stream (max-width 736)        │─────────│
+│    · …      ││                                              │         │
+│             ││  ┌────────────────────────────────────────┐  │  views  │
+│  ⚙ settings ││  │ Composer (736, -mt-5 over the stream)  │  │         │
+└─────────────┘╰──┴────────────────────────────────────────┴──┴─────────┘
+       ↑            ↑ seam: 1px inset ring on the card,           ↑ hairline
+   --sidebar-width    clipped to the seam-side radius,          (pane split)
+   (256, resizable)   + -6.5px 0 12px -10px directional shadow
 ```
 
 ### Sidebar
 
-- **Default state: expanded** (248px). The primary-nav group (New chat / Search + a "Workspace" group of feature destinations) and the project/session tree are the navigation, visible up front. Features that used to hide behind the palette get first-class grouped entries here.
-- **Rail** (56px, icon-only) is the on-demand collapsed mode via `⌘B`.
-- The sidebar is the one lifted `surface`; the main area is `canvas`. They're flush, separated by a **background delta** (no `border-right`).
+- **Default state: expanded** (`--sidebar-width`, 256px, user-resizable by dragging
+  the seam rail; floor 208px, and the reading column never goes below 640px).
+- **Collapsed** (`⌘B`) slides the drawer fully off-canvas under the card — there is
+  no icon rail. The card then reaches the window edge, squares its seam corner, and
+  its header widens its leading inset to clear the macOS traffic lights.
+- The drawer is the card color at partial opacity over the shell background, with a
+  backdrop blur — the same material as the card, which is what makes the card read
+  as lifted off it rather than merely a different grey. It carries NO border: the
+  card's inset ring is the only line at that boundary.
 
 ### Chat measure
 
-- Message stream + composer both cap at **`--content-max: 720px`**, centered.
-- Reading ergonomics: 45–75 characters per line at body-md (14px) translates to ≈ 720–820px. 760 is the comfortable middle.
-- Long code blocks and tables can exceed 760 — they get horizontal scroll inside their own wrapper, the prose column stays at 760.
+- Message stream + composer both cap at **`--content-max: 736px`**, centered, with
+  a `--density-column-gutter` inset (12px, 20px at ≥640px).
+- Long code blocks and tables can exceed it — they scroll horizontally inside their
+  own wrapper; the prose column stays at 736.
 
 ### Tabs — removed (2026-06 redesign)
 

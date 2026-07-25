@@ -243,6 +243,12 @@ export const de: Record<string, string> = {
   "settings.color.fg": "Vordergrund",
   "settings.radius": "Ecken",
   "settings.radius.sub": "Globaler Eckenradius.",
+  "settings.density": "Dichte",
+  "settings.density.sub":
+    "Wie viel Luft die Oberfläche erhält – Zeilenhöhen, Abstände und Eingabefeld-Innenabstände.",
+  "settings.density.compact": "Kompakt",
+  "settings.density.comfortable": "Ausgewogen",
+  "settings.density.spacious": "Weit",
   "settings.motion": "Bewegung",
   "settings.motion.sub": "Animationsgeschwindigkeit in der gesamten App.",
   "settings.contrast": "Kontrast",

@@ -21,6 +21,8 @@ export function installAppearancePreferencesPort(): () => void {
     useSetFontSmoothing: () => useUiStore((state) => state.setFontSmoothing),
     useRadiusScale: () => useUiStore((state) => state.radiusScale),
     useMotionScale: () => useUiStore((state) => state.motionScale),
+    useDensity: () => useUiStore((state) => state.density),
+    useSetDensity: () => useUiStore((state) => state.setDensity),
     useSetRadiusScale: () => useUiStore((state) => state.setRadiusScale),
     useSetMotionScale: () => useUiStore((state) => state.setMotionScale),
   });

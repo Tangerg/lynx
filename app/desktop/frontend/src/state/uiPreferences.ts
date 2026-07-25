@@ -1,3 +1,5 @@
+import type { UiDensity } from "@/lib/density";
+
 /** A registered theme id. `system` resolves against the current OS scheme. */
 export type Theme = string;
 
@@ -15,6 +17,7 @@ export interface UiState {
   codeFont: string;
   fontSize: number | null;
   fontSmoothing: boolean;
+  density: UiDensity;
   radiusScale: number;
   motionScale: number;
   messageStyle: "bubble" | "plain";

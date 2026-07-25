@@ -18,28 +18,35 @@ References:
 The source article's useful idea is not "add stronger shadows". It is a layered
 model:
 
-1. **Edge ring**: a 1px optical boundary implemented as the first shadow layer.
+1. **Edge**: a 1px optical boundary.
 2. **Contact shadow**: a tiny near shadow that says the surface touches the
    background.
 3. **Ambient shadow**: a wide, low-alpha falloff that gives elevation without a
    muddy border.
 
-The key CSS shape from the article's image examples is:
+**Where the edge comes from (2026-07):** surfaces that need one now draw a real
+`border`, and the shadow tokens carry depth only. A shadow ring stacked on top of
+a border reads as a double edge, and it lands exactly where the eye is drawn — the
+composer's top edge, a menu's corner. So each role picks ONE:
+
+- real border + one soft directional shadow → composer, menus, popovers, tooltips,
+  segmented chips;
+- inset ring, no border → the content card's seam against the drawer, where the
+  ring has to follow a rounded corner that a border would bleed past;
+- background fill only → row hover/selection.
+
+Current shapes (authoritative values live in `globals.css` / the theme kit):
 
 ```css
-box-shadow:
-  0 0 0 1px rgb(15 23 42 / 0.08),
-  0 1px 2px rgb(15 23 42 / 0.06),
-  0 8px 24px rgb(15 23 42 / 0.1);
-```
+/* Depth for a floating surface that already has a border. */
+--shadow-composer: 0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
 
-For a stronger lifted surface:
-
-```css
-box-shadow:
-  0 0 0 1px rgb(15 23 42 / 0.08),
-  0 1px 2px rgb(15 23 42 / 0.06),
-  0 18px 48px rgb(15 23 42 / 0.14);
+/* A recessed well plus the chip that protrudes from it. */
+--shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
+--shadow-raised-chip:
+  0 1px 1.5px rgb(0 0 0 / 0.04),
+  inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
+  inset 0 1px 0 rgb(255 255 255 / 0.5);
 ```
 
 Do not paste these values directly into components. Translate them through the
@@ -51,22 +58,33 @@ theme system:
 
 ## 2. Border Discipline
 
-Hard borders are often what makes a light UI look gray, foggy, or cheap. Use a
-border only when it is a real structural rule or input affordance.
+A border is cheap when it is decoration or when it compensates for weak
+elevation. It is correct when it IS the edge of a control or a region.
+
+**Revised 2026-07.** The shell used to separate regions by background delta with
+no line at all — `#f2f2f2` chrome flush against a `#ffffff` column. That reads as
+two rectangles pasted together: with nothing between them, the eye has no cue that
+one floats above the other. The drawer and the content card now sit at nearly the
+same value and a single hairline plus a directional shadow carries the split, which
+is what reads as depth.
 
 Preferred:
 
-- floating surface edge: shadow ring;
-- sidebar/main separation: a restrained hairline on the shell boundary;
-- row state: surface fill delta;
-- focus: focus token;
+- drawer ↔ card: ONE inset ring on the card, clipped to the seam-side radius, plus
+  a low-spread directional shadow;
+- internal pane splits + chrome-bar bottoms: the `--app-surface-divider` hairline
+  (a step more transparent than the seam, so it recedes behind it);
+- control edge (composer, menus, popovers, inputs, chips): a real `border`;
+- row state: fill delta;
+- focus: the global keyboard-only ring — never a per-control one;
 - danger/warning state: semantic border/fill token.
 
 Avoid:
 
-- `border border-line` plus a large shadow on every card;
+- a border AND a shadow edge ring on the same surface (double edge);
 - gray borders that are only compensating for weak elevation;
-- one huge shadow without an edge ring;
+- more than one line at a boundary — two 1px semi-transparent lines sharing a pixel
+  double their alpha and read as a bright dot;
 - decorative outlines that do not communicate structure, focus, or state.
 
 ## 3. Native WebView Feel
@@ -81,8 +99,10 @@ Rules for Lyra:
 - Do not add hover highlights just because an element is interactive. Hover is
   reserved for dense lists, sidebar rows, icon buttons, and controls where it
   improves scanability.
-- Do not use glass blur as a cheap premium effect. It should appear only when
-  the shell/native environment calls for material; otherwise use tokenized
+- Glass blur is material, not decoration. It belongs on exactly two things: the
+  drawer surface (a translucent panel the content card floats over) and floating
+  panels (menus, popovers, tooltips), where letting a hint of what they cover show
+  through is what makes them read as above the surface. Everywhere else, tokenized
   surfaces and shadows.
 - Prefer native-feeling immediacy: no flicker, no layout jumps, no delayed
   reveal that makes a persistent surface feel like a web page entering.

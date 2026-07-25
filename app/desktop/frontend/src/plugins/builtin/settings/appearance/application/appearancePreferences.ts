@@ -51,6 +51,8 @@ export function useFontPreferences() {
 
 export function useShapeMotionPreferences() {
   return {
+    density: appearancePreferences().useDensity(),
+    setDensity: appearancePreferences().useSetDensity(),
     radiusScale: appearancePreferences().useRadiusScale(),
     motionScale: appearancePreferences().useMotionScale(),
     setRadiusScale: appearancePreferences().useSetRadiusScale(),

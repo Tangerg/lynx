@@ -3,6 +3,7 @@ import type { StoreApi } from "zustand";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
+import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import type { Theme, UiState } from "./uiPreferences";
 
@@ -88,8 +89,11 @@ function applyFonts(
   }
 }
 
-function applyShape(radiusScale: number, motionScale: number): void {
+function applyShape(density: string, radiusScale: number, motionScale: number): void {
   const root = document.documentElement;
+  for (const [property, value] of Object.entries(densityCssVariables(density))) {
+    root.style.setProperty(property, value);
+  }
   root.style.setProperty("--radius-scale", String(radiusScale));
   root.style.setProperty("--motion-scale", String(motionScale));
   if (motionScale === 0) root.setAttribute("data-motion", "off");
@@ -100,7 +104,7 @@ export function installUiStoreEffects<T extends UiState>(store: UiEffectStore<T>
   const initial = store.getState();
   applyTheme(initial.theme, initial.accent, initial.contrast);
   applyFonts(initial.uiFont, initial.codeFont, initial.fontSize, initial.fontSmoothing);
-  applyShape(initial.radiusScale, initial.motionScale);
+  applyShape(initial.density, initial.radiusScale, initial.motionScale);
 
   const unsubscribeUi = store.subscribe((state, previous) => {
     if (
@@ -118,8 +122,12 @@ export function installUiStoreEffects<T extends UiState>(store: UiEffectStore<T>
     ) {
       applyFonts(state.uiFont, state.codeFont, state.fontSize, state.fontSmoothing);
     }
-    if (state.radiusScale !== previous.radiusScale || state.motionScale !== previous.motionScale) {
-      applyShape(state.radiusScale, state.motionScale);
+    if (
+      state.density !== previous.density ||
+      state.radiusScale !== previous.radiusScale ||
+      state.motionScale !== previous.motionScale
+    ) {
+      applyShape(state.density, state.radiusScale, state.motionScale);
     }
   });
 

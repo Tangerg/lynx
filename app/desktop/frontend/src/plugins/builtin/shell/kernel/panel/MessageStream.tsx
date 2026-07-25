@@ -102,7 +102,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
       <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
         <StickToBottom.Content
           scrollClassName="panel-scroll"
-          className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-3 pt-8 pb-8 sm:px-5"
+          className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pt-8 pb-8 sm:px-[var(--density-column-gutter-wide)]"
         >
           <Slot name="chat.empty" />
         </StickToBottom.Content>
@@ -120,7 +120,7 @@ export function MessageStream({ messages, ctx, resetKey, onControlsChange }: Pro
     >
       <StickToBottom.Content
         scrollClassName="panel-scroll"
-        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-10 px-3 pt-8 pb-8 sm:px-5"
+        className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-10 px-[var(--density-column-gutter)] pt-8 pb-8 sm:px-[var(--density-column-gutter-wide)]"
       >
         <AnimatePresence initial={false}>
           {messages.map((m, i) => (

@@ -73,7 +73,7 @@ export function Composer({
             onHover={input.mentions.setIndex}
           />
         )}
-        <div className="pt-3 pr-3.5 pb-2 pl-3">
+        <div className="pt-[var(--density-composer-editor-top)] pr-[var(--density-composer-editor-end)] pb-[var(--density-composer-editor-bottom)] pl-[var(--density-composer-editor-start)]">
           <ComposerAttachments
             sources={attachmentSources}
             images={images}
@@ -108,7 +108,7 @@ export function Composer({
             inset is tighter than the editor's and flush to the card's edges,
             which is what keeps the controls reading as chrome, not content. */}
         <div
-          className="flex flex-nowrap items-center gap-1.5 pr-2 pb-1.5 pl-1.5"
+          className="flex flex-nowrap items-center gap-1.5 pr-[var(--density-composer-footer-end)] pb-[var(--density-composer-footer)] pl-[var(--density-composer-footer)]"
           data-slot="composer-toolbar-bottom"
         >
           <Slot name="composer.toolbar.start" />

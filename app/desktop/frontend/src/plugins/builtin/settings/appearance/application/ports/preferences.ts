@@ -1,3 +1,4 @@
+import type { UiDensity } from "@/lib/density";
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 export type Theme = string;
 
@@ -25,6 +26,8 @@ export interface AppearancePreferencesPort {
   useSetFontSmoothing(): (on: boolean) => void;
   useRadiusScale(): number;
   useMotionScale(): number;
+  useDensity(): UiDensity;
+  useSetDensity(): (density: UiDensity) => void;
   useSetRadiusScale(): (scale: number) => void;
   useSetMotionScale(): (scale: number) => void;
 }
