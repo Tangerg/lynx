@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
-import { AgentIconButton } from "@/ui/agent";
+import { AgentIconButton, AgentSurfaceHeader } from "@/ui/agent";
 import { Icon } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -62,9 +62,11 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   }
 
   return (
-    // No bottom border — the header separates from the body by whitespace and
-    // the dock/canvas surface delta, not a grey rule (Geist/Codex aesthetic).
-    <div className="flex h-[52px] shrink-0 items-center gap-2 px-3.5">
+    // Goes through AgentSurfaceHeader so a view's header is the SAME bar as the
+    // chat and dock headers: one height (`--surface-header-height`), one inset, one
+    // bottom hairline. It used to be 52px with its own inset and no divider, which
+    // read as a different kind of bar the moment a view was promoted beside one.
+    <AgentSurfaceHeader className="gap-2">
       <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
@@ -95,6 +97,6 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           {placementControls}
         </div>
       )}
-    </div>
+    </AgentSurfaceHeader>
   );
 }

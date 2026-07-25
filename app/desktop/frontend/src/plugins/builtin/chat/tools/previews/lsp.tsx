@@ -29,7 +29,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
           return (
             <div
               key={i}
-              className="truncate rounded-2xs px-1 py-0.5 text-fg-soft hover:bg-fg/[0.04]"
+              className="truncate rounded-2xs px-1 py-0.5 text-fg-soft hover:bg-fg/[0.04] transition-colors"
             >
               {row}
             </div>
@@ -38,7 +38,7 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
         return (
           <div
             key={i}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-2xs px-1 py-0.5 hover:bg-fg/[0.04]"
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 rounded-2xs px-1 py-0.5 hover:bg-fg/[0.04] transition-colors"
           >
             <span className="truncate text-fg-soft">{row.slice(0, sep)}</span>
             <span className="truncate text-ui-sm text-fg-muted">{row.slice(sep + 3)}</span>

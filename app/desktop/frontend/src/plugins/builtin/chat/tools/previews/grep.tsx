@@ -23,7 +23,7 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
         {shown.map((r, i) => (
           <div
             key={i}
-            className="grid grid-cols-[200px_1fr] gap-3 overflow-hidden rounded-2xs px-1 py-0.5 whitespace-nowrap hover:bg-fg/[0.04]"
+            className="grid grid-cols-[200px_1fr] gap-3 overflow-hidden rounded-2xs px-1 py-0.5 whitespace-nowrap hover:bg-fg/[0.04] transition-colors"
           >
             <span className="truncate text-ui-sm text-fg-muted">
               <LinkedText text={r.loc} />

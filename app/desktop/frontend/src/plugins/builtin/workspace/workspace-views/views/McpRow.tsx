@@ -67,7 +67,7 @@ function McpAuthGuide({ server }: { server: string }) {
       <button
         type="button"
         onClick={openConfig}
-        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg"
+        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg transition-colors"
       >
         <Icon name="settings" size={13} />
         {t("tools.auth.configure", { server })}
@@ -85,10 +85,10 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-fg/[0.04]">
+      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-fg/[0.04] transition-colors">
         <div
           className={cn(
-            "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg",
+            "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg transition-colors",
             server.status === "connected" && "bg-accent/10 text-accent",
             server.status === "failed" && "bg-negative/10 text-negative",
           )}

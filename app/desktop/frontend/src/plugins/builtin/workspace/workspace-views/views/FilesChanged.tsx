@@ -47,7 +47,7 @@ const FileRow = memo(function FileRow({
       aria-pressed={row.active}
       onClick={() => onSelect(row.path)}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)]",
+        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-fg/[0.04] focus-visible:outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--color-accent)] transition-colors",
         row.active && "bg-fg/[0.06]",
       )}
     >

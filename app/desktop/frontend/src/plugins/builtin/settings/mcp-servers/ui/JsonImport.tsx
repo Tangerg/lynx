@@ -35,7 +35,7 @@ export function JsonImport() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg"
+        className="flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg transition-colors"
       >
         <Icon name="download" size={13} />
         {t("mcp.import")}

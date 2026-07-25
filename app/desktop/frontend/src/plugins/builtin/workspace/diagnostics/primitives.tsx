@@ -24,7 +24,7 @@ export function Row({
     <div
       className={
         "flex items-center gap-3 px-1 font-mono text-ui-md " +
-        (head ? "text-ui-xs text-fg-faint" : "text-fg hover:bg-fg/[0.04]") +
+        (head ? "text-ui-xs text-fg-faint" : "text-fg hover:bg-fg/[0.04] transition-colors") +
         (className ? " " + className : "")
       }
     >

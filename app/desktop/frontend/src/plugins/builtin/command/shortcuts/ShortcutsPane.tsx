@@ -29,7 +29,7 @@ export function ShortcutsPane() {
     <div className="flex h-full flex-col gap-3 p-4">
       <div>
         <div className="text-display-sm font-semibold text-fg">{t("shortcuts.title")}</div>
-        <div className="mt-0.5 text-ui-lg text-fg-muted">{t("shortcuts.sub")}</div>
+        <div className="mt-1 text-ui-md text-fg-muted">{t("shortcuts.sub")}</div>
       </div>
 
       <input

@@ -17,7 +17,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   return (
     <div>
       <div className="text-ui-lg font-medium text-fg">{t("approvals.mode")}</div>
-      <div className="mt-0.5 text-ui-lg leading-body text-fg-muted">{t("approvals.mode.sub")}</div>
+      <div className="mt-1 text-ui-md leading-body text-fg-muted">{t("approvals.mode.sub")}</div>
       {mode === undefined ? (
         // Until the saved stance loads, show a quiet placeholder rather than
         // selecting a default row — a fake selection could contradict the real

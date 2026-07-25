@@ -33,7 +33,7 @@ function RoleSectionShell({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-ui-lg font-medium text-fg">{title}</span>
-          <span className="text-ui-lg leading-snug text-fg-muted">{description}</span>
+          <span className="text-ui-md leading-snug text-fg-muted">{description}</span>
         </div>
         {children}
       </div>

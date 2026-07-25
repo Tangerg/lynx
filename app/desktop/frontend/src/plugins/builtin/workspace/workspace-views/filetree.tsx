@@ -24,7 +24,7 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
       <button
         type="button"
         onClick={onBack}
-        className="flex items-center gap-1.5 px-3 py-2 text-left font-mono text-ui-md text-fg-muted hover:text-fg"
+        className="flex items-center gap-1.5 px-3 py-2 text-left font-mono text-ui-md text-fg-muted hover:text-fg transition-colors"
       >
         <Icon name="chevron-down" size={12} className="shrink-0 -rotate-90" />
         <span className="truncate">{path}</span>

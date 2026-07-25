@@ -95,7 +95,7 @@ function ToolsTab() {
             <button
               type="button"
               onClick={openMcpSettings}
-              className="m-0 flex items-center gap-1.5 px-4 pt-3.5 pb-4.5 text-ui-sm leading-body text-fg-muted hover:text-fg"
+              className="m-0 flex items-center gap-1.5 px-4 pt-3.5 pb-4.5 text-ui-sm leading-body text-fg-muted hover:text-fg transition-colors"
             >
               <Icon name="settings" size={12} />
               {t("tools.footer")}

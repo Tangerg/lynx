@@ -52,7 +52,7 @@ export function IconGallery() {
       <div className="flex items-center justify-between gap-4 px-5 py-4">
         <div>
           <div className="text-display-sm font-medium text-fg">@lobehub/icons</div>
-          <div className="mt-0.5 text-ui-lg text-fg-muted">
+          <div className="mt-1 text-ui-md text-fg-muted">
             {rawToc.length} icons · brands across LLM models, providers, and apps
           </div>
         </div>
