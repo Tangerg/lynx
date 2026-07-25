@@ -6,6 +6,7 @@
 // derivation lives here so it can be unit-tested in isolation (and so
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
+import type { Translate } from "@/lib/i18n";
 import type { AgentViewState, TimelineEntry } from "@/plugins/sdk/types/agentView";
 import { toolCategory } from "../domain/toolCategory";
 
@@ -140,20 +141,28 @@ export function deriveLatestRun(view: AgentViewState): RunDigest | null {
   return digest;
 }
 
-export function durationText(start: number, end: number | null): string {
+export function durationText(t: Translate, start: number, end: number | null): string {
   if (!end) return "—";
   const sec = Math.round((end - start) / 1000);
-  if (sec < 60) return `${sec}s`;
+  if (sec < 60) return t("duration.seconds", { sec });
   const min = Math.floor(sec / 60);
-  return `${min}m ${sec % 60}s`;
+  return t("duration.minutes", { min, sec: sec % 60 });
 }
 
-/** Plaintext rendering — for "Copy summary" / paste-into-PR workflows. */
-export function buildPlaintext(d: RunDigest): string {
+/** Plaintext rendering — for "Copy summary" / paste-into-PR workflows.
+ *
+ *  The section captions come from the catalogs like any other copy: this is what
+ *  the user copies out of the app, and there is no reason their notes should be in
+ *  a language the rest of the UI isn't. What stays verbatim is the runtime's own
+ *  vocabulary — a run status, a command status, an approval decision — because
+ *  those are the wire's words, and the bracketed slots would otherwise mix
+ *  languages. A missing decision reads as "—" rather than a translated
+ *  "pending" for the same reason. */
+export function buildPlaintext(t: Translate, d: RunDigest): string {
   const lines: string[] = [];
-  lines.push(`Run ${d.runId ?? "(unknown)"} — ${d.status}`);
+  lines.push(t("runDigest.plaintext.run", { id: d.runId ?? "—", status: d.status }));
   if (d.changedFiles.length > 0) {
-    lines.push("", "Changed files:");
+    lines.push("", t("runDigest.plaintext.changedFiles"));
     for (const f of d.changedFiles) {
       const diff =
         f.added != null || f.removed != null ? ` (+${f.added ?? 0} -${f.removed ?? 0})` : "";
@@ -161,15 +170,15 @@ export function buildPlaintext(d: RunDigest): string {
     }
   }
   if (d.commands.length > 0) {
-    lines.push("", "Commands:");
+    lines.push("", t("runDigest.plaintext.commands"));
     for (const c of d.commands) lines.push(`  [${c.status}] ${c.cmd}`);
   }
   if (d.approvals.length > 0) {
-    lines.push("", "Approvals:");
-    for (const a of d.approvals) lines.push(`  [${a.decision ?? "pending"}] ${a.command}`);
+    lines.push("", t("runDigest.plaintext.approvals"));
+    for (const a of d.approvals) lines.push(`  [${a.decision ?? "—"}] ${a.command}`);
   }
   if (d.errors.length > 0) {
-    lines.push("", "Errors:");
+    lines.push("", t("runDigest.plaintext.errors"));
     for (const e of d.errors) lines.push(`  ${e}`);
   }
   return lines.join("\n");

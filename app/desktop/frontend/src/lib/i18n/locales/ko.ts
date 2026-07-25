@@ -321,6 +321,7 @@ export const ko: Record<string, string> = {
   "cwdMissing.action.cancel": "취소",
   "cwdMissing.placeholder": "새 절대 경로",
 
+  "runError.unknown": "실행이 실패했습니다.",
   "runError.title": "Agent 오류",
   "runError.action.retry": "재시도",
   "runError.action.timeline": "타임라인 열기",
@@ -925,4 +926,12 @@ export const ko: Record<string, string> = {
   "diagnostics.empty.traces": "메시지를 보내면 — run과 RPC span이 여기에 표시됩니다.",
   "tool.askUser.answerPrefix": "답변 · ",
   "tool.askUser.waiting": "답변을 기다리고 있습니다…",
+
+  "duration.seconds": "{{sec}}초",
+  "duration.minutes": "{{min}}분 {{sec}}초",
+  "runDigest.plaintext.run": "실행 {{id}} — {{status}}",
+  "runDigest.plaintext.changedFiles": "변경된 파일:",
+  "runDigest.plaintext.commands": "명령:",
+  "runDigest.plaintext.approvals": "승인:",
+  "runDigest.plaintext.errors": "오류:",
 };

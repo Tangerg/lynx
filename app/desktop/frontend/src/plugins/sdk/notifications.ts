@@ -71,12 +71,35 @@ export const useNotificationStore = create<NotificationStoreState & Notification
 // (toast.success directly): they're feedback on an action the user just
 // watched succeed, not events worth re-reading.
 
+/**
+ * Who the feed credits an app-side notification to.
+ *
+ * A closed set, and an identifier rather than copy: it renders in the same column
+ * as a plugin's name (`host.notify` credits the plugin that called it), so it
+ * stays untranslated for the same reason plugin ids do — a mixed column reads as
+ * neither. Closed because it was `string`, and the same word was spelled at up to
+ * five callsites: one typo would have opened a second, silent attribution bucket
+ * that looks like a new subsystem in the feed.
+ */
+export type NotifySource =
+  | "composer"
+  | "events"
+  | "goal"
+  | "import"
+  | "mcp"
+  | "memory"
+  | "project"
+  | "render"
+  | "session"
+  | "setup"
+  | "skills";
+
 export interface NotifyOptions {
   /** Secondary line on the toast; folded into the feed entry's message. */
   description?: string;
   /** Feed attribution (the Notifications view's "{source} · time" line).
-   *  Defaults to "app"; pass a domain name ("session", "import", …). */
-  source?: string;
+   *  Defaults to "app". */
+  source?: NotifySource;
 }
 
 type Level = "info" | "error";

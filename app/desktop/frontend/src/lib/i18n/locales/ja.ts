@@ -325,6 +325,7 @@ export const ja: Record<string, string> = {
   "cwdMissing.action.cancel": "キャンセル",
   "cwdMissing.placeholder": "新しい絶対パス",
 
+  "runError.unknown": "実行が失敗しました。",
   "runError.title": "Agent エラー",
   "runError.action.retry": "再試行",
   "runError.action.timeline": "タイムラインを開く",
@@ -946,4 +947,12 @@ export const ja: Record<string, string> = {
   "diagnostics.empty.traces": "メッセージを送ると — run と RPC の span がここに出ます。",
   "tool.askUser.answerPrefix": "回答 · ",
   "tool.askUser.waiting": "回答を待っています…",
+
+  "duration.seconds": "{{sec}}秒",
+  "duration.minutes": "{{min}}分{{sec}}秒",
+  "runDigest.plaintext.run": "実行 {{id}} — {{status}}",
+  "runDigest.plaintext.changedFiles": "変更されたファイル:",
+  "runDigest.plaintext.commands": "コマンド:",
+  "runDigest.plaintext.approvals": "承認:",
+  "runDigest.plaintext.errors": "エラー:",
 };

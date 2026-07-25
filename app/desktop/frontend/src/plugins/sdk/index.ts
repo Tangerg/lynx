@@ -38,7 +38,7 @@ export type { WhenContext } from "./evalWhen";
 
 // Persistent notification feed + the app-side notify pair that writes to it.
 export { notifyError, notifyInfo, useNotificationStore } from "./notifications";
-export type { NotifyOptions } from "./notifications";
+export type { NotifyOptions, NotifySource } from "./notifications";
 // Cached read hooks over a contributed data provider.
 export { createDataQuery, createParameterizedDataQuery } from "./dataQuery";
 export type { ParameterizedQueryOptions } from "./dataQuery";

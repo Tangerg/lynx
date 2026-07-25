@@ -21,11 +21,21 @@ const tool = (overrides: Partial<ToolCall>): ToolCall => ({
 describe("toolPresentation", () => {
   it("projects tool args into a compact intent", () => {
     expect(
-      toolIntent(t, tool({ fn: "read", args: JSON.stringify({ path: "src/App.tsx" }) })),
+      toolIntent(
+        t,
+        tool({ name: "read", fn: "read", args: JSON.stringify({ path: "src/App.tsx" }) }),
+      ),
     ).toEqual({
       label: "Read",
       detail: "src/App.tsx",
     });
+  });
+
+  it("keeps a command verbatim even when it reads like a tool name", () => {
+    // `fn` normally IS the command; only a projection that had nothing but the
+    // tool's own name gets the table's word for it.
+    expect(toolIntent(t, tool({ name: "shell", fn: "grep" })).label).toBe("grep");
+    expect(toolIntent(t, tool({ name: "shell", fn: "shell" })).label).toBe("Shell");
   });
 
   it("ignores malformed args while keeping the tool label", () => {

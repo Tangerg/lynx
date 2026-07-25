@@ -78,7 +78,7 @@ function RunSummaryTab() {
   const view = runSummaryViewModel(t, digest);
 
   const onCopy = async () => {
-    if (await copyText(buildPlaintext(digest))) {
+    if (await copyText(buildPlaintext(t, digest))) {
       setCopied(true);
       clearTimeout(copyTimer.current);
       copyTimer.current = setTimeout(() => setCopied(false), 1500);

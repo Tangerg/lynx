@@ -9,6 +9,5 @@ export {
 } from "../application/messageActions";
 export {
   messageActionsVisibility,
-  messageActionsVisibilityClass,
   type MessageActionsVisibility,
 } from "../application/actionBarVisibility";

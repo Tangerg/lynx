@@ -329,6 +329,7 @@ export const es: Record<string, string> = {
   "cwdMissing.action.cancel": "Cancelar",
   "cwdMissing.placeholder": "Nueva ruta absoluta",
 
+  "runError.unknown": "La ejecución falló.",
   "runError.title": "Error de agent",
   "runError.action.retry": "Reintentar",
   "runError.action.timeline": "Abrir línea de tiempo",
@@ -953,4 +954,12 @@ export const es: Record<string, string> = {
   "diagnostics.empty.traces": "Envía un mensaje — los spans de run y RPC aparecen aquí.",
   "tool.askUser.answerPrefix": "respuesta · ",
   "tool.askUser.waiting": "Esperando tu respuesta…",
+
+  "duration.seconds": "{{sec}} s",
+  "duration.minutes": "{{min}} min {{sec}} s",
+  "runDigest.plaintext.run": "Ejecución {{id}} — {{status}}",
+  "runDigest.plaintext.changedFiles": "Archivos modificados:",
+  "runDigest.plaintext.commands": "Comandos:",
+  "runDigest.plaintext.approvals": "Aprobaciones:",
+  "runDigest.plaintext.errors": "Errores:",
 };

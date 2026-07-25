@@ -464,6 +464,7 @@ export const en: Record<string, string> = {
   "cwdMissing.action.cancel": "Cancel",
   "cwdMissing.placeholder": "New absolute path",
 
+  "runError.unknown": "The run failed.",
   "runError.title": "Agent error",
   "runError.action.retry": "Retry",
   "runError.action.retryIn": "Retry in {{seconds}}s",
@@ -984,4 +985,12 @@ export const en: Record<string, string> = {
   "diagnostics.empty.traces": "Send a message — run + RPC spans appear here.",
   "tool.askUser.answerPrefix": "answer · ",
   "tool.askUser.waiting": "Waiting for your answer…",
+
+  "duration.seconds": "{{sec}}s",
+  "duration.minutes": "{{min}}m {{sec}}s",
+  "runDigest.plaintext.run": "Run {{id}} — {{status}}",
+  "runDigest.plaintext.changedFiles": "Changed files:",
+  "runDigest.plaintext.commands": "Commands:",
+  "runDigest.plaintext.approvals": "Approvals:",
+  "runDigest.plaintext.errors": "Errors:",
 };

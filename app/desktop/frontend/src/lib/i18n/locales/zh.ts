@@ -450,6 +450,7 @@ export const zh: Record<string, string> = {
   "cwdMissing.action.cancel": "取消",
   "cwdMissing.placeholder": "新的绝对路径",
 
+  "runError.unknown": "运行失败。",
   "runError.title": "Agent 报错",
   "runError.action.retry": "重试",
   "runError.action.retryIn": "{{seconds}} 秒后可重试",
@@ -917,4 +918,12 @@ export const zh: Record<string, string> = {
   "diagnostics.empty.traces": "发一条消息 —— run 与 RPC 的 span 会出现在这里。",
   "tool.askUser.answerPrefix": "回答 · ",
   "tool.askUser.waiting": "等待你的回答…",
+
+  "duration.seconds": "{{sec}} 秒",
+  "duration.minutes": "{{min}} 分 {{sec}} 秒",
+  "runDigest.plaintext.run": "运行 {{id}} —— {{status}}",
+  "runDigest.plaintext.changedFiles": "改动的文件：",
+  "runDigest.plaintext.commands": "命令：",
+  "runDigest.plaintext.approvals": "审批：",
+  "runDigest.plaintext.errors": "错误：",
 };

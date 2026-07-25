@@ -29,6 +29,22 @@
 //      an interpolated verb) — shapes that stay wrong in every other language
 //      even once someone notices.
 //
+// Two more close the loop in the other direction — code → catalog:
+//
+//   5. Every `t("literal")` in the tree names a key `en` has. The three rules
+//      above compare catalogs against each other and never look at the code, so
+//      a key that exists nowhere renders as its own name ("runError.unknown")
+//      and no run says a word. Dynamic keys (a table of them, `t(`x.${y}`)`)
+//      can't be checked here and aren't.
+//   6. No copy in `presentation/` or `domain/`. Those rings map a model into a
+//      view model or hold a rule; the words belong to the view, which has a
+//      translator. Five modules had drifted — tool labels, meta chips, a group
+//      summary, nine danger reasons, a run digest — so seven locales read parts
+//      of the chat stream in English. `application/` is NOT covered: it
+//      legitimately carries developer strings (port messages, log lines), and a
+//      rule that needs an exemption list per callsite is a rule that stops
+//      being read.
+//
 // `en` is the reference: add a key there and the build names the seven files
 // that still owe a translation.
 
@@ -41,6 +57,17 @@ const KEY_PATTERN = /^\s*"([^"]+)":/gm;
 // A notify/toast call whose first argument opens a string literal.
 const LITERAL_COPY_PATTERN =
   /\b(?:notifyError|notifyInfo|toast\.(?:success|error|info|warning|message))\(\s*[`"']/g;
+// `t("some.key")` — only literal keys can be checked against the catalog.
+const LITERAL_KEY_PATTERN = /\bt\(\s*"([^"]+)"/g;
+// A string or template holding two consecutive words: prose, not an identifier.
+const PROSE_PATTERN = /(?:"([^"\n]*)"|`([^`\n]*)`)/g;
+const TWO_WORDS = /[A-Za-z]{2,}[ ,]+[A-Za-z]{2,}/;
+// Rings whose job is a model, a rule or a view model — never one locale's words.
+const COPY_FREE_RING = /plugins\/builtin\/.+\/(?:presentation|domain)\/.+\.tsx?$/;
+
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
 
 const duplicates = [];
 
@@ -99,10 +126,33 @@ function* sourceFiles(dir) {
 
 for (const path of sourceFiles(SRC_DIR)) {
   const source = readFileSync(path, "utf8");
+  const relative = path.slice(SRC_DIR.length);
+  if (relative.startsWith("lib/i18n/locales/")) continue;
+  const lineOf = (index) => source.slice(0, index).split("\n").length;
+
   for (const match of source.matchAll(LITERAL_COPY_PATTERN)) {
-    const line = source.slice(0, match.index).split("\n").length;
-    const relative = path.slice(SRC_DIR.length);
-    failures.push(`${relative}:${line}: literal copy in ${match[0].trim()} — use t("key")`);
+    failures.push(
+      `${relative}:${lineOf(match.index)}: literal copy in ${match[0].trim()} — use t("key")`,
+    );
+  }
+
+  const code = withoutComments(source);
+  for (const match of code.matchAll(LITERAL_KEY_PATTERN)) {
+    if (!en.has(match[1])) {
+      failures.push(`${relative}: t("${match[1]}") names a key no catalog has`);
+    }
+  }
+
+  if (COPY_FREE_RING.test(relative)) {
+    for (const line of code.split("\n")) {
+      if (line.includes("console.") || line.includes("Error(")) continue;
+      for (const match of line.matchAll(PROSE_PATTERN)) {
+        const text = match[1] ?? match[2] ?? "";
+        if (TWO_WORDS.test(text)) {
+          failures.push(`${relative}: prose in a copy-free ring — "${text}" belongs in a catalog`);
+        }
+      }
+    }
   }
 }
 

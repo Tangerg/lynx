@@ -7,7 +7,7 @@ import { Slot } from "@/plugins/host/Slot";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import {
   messageActionsVisibility,
-  messageActionsVisibilityClass,
+  type MessageActionsVisibility,
 } from "@/plugins/builtin/chat/message-actions/public/messageActions";
 import {
   messageBlockRenderUnits,
@@ -73,7 +73,7 @@ function MessageBlockInner({
 
   const actionsClass = cn(
     "mt-1 flex transition-opacity duration-[--dur-fast]",
-    messageActionsVisibilityClass(messageActionsVisibility({ isRunning, isLast })),
+    ACTIONS_VISIBILITY[messageActionsVisibility({ isRunning, isLast })],
   );
 
   return (
@@ -137,3 +137,14 @@ function MessageBlockInner({
 // delta). ctx identity is stabilised in ChatStream via useMemo so
 // non-tool / non-plan churn doesn't invalidate this memo either.
 export const MessageBlock = memo(MessageBlockInner);
+
+// How each action-bar visibility state looks. The state machine is the
+// message-actions context's rule; what it looks like is this view's, and this is
+// the only view that renders the bar. Hover reveal stays in CSS (`group-hover` /
+// `focus-within`) rather than JS so a hovering pointer never triggers a render;
+// the ancestor carrying `.group` is the message container below.
+const ACTIONS_VISIBILITY: Record<MessageActionsVisibility, string> = {
+  hidden: "pointer-events-none opacity-0",
+  hover: "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
+  pinned: "opacity-100",
+};

@@ -34,7 +34,11 @@ const READ_ONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
 
 export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   const parsed = parseToolArgs(tool.args);
-  const labelKey = TOOL_LABEL_KEYS[tool.fn];
+  // Only when the projection had nothing better than the tool's own name to show
+  // (`fn` is normally the command or the path it acted on). Keyed on that
+  // condition rather than on `fn` matching a name in the table, which is the same
+  // thing by coincidence until a shell command happens to be spelled `grep`.
+  const labelKey = tool.fn === tool.name ? TOOL_LABEL_KEYS[tool.name] : undefined;
   return {
     label: labelKey ? t(labelKey) : tool.fn,
     detail: parsed ? toolDetail(parsed) : undefined,

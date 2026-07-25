@@ -104,7 +104,7 @@ export function runSummarySubtext(
   const ended = digest.endedAt != null;
   const end = digest.endedAt ?? now;
   const elapsed = ended ? "" : t("runSummary.elapsed");
-  return `${runLabel} · ${durationText(digest.startedAt, end)}${elapsed}`;
+  return `${runLabel} · ${durationText(t, digest.startedAt, end)}${elapsed}`;
 }
 
 export function runSummaryCommandTone(status: CommandDigest["status"]): Tone {

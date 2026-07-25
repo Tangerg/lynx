@@ -129,7 +129,7 @@ export function onRunFinished(
     const errored: AgentViewState = {
       ...withRun,
       error: {
-        message: result?.error?.detail ?? result?.error?.type ?? "run failed",
+        message: result?.error?.detail ?? result?.error?.type,
         code: result?.error?.type,
         retryable: result?.error?.retryable,
         retryAfterSeconds: result?.error?.retryAfterSeconds,

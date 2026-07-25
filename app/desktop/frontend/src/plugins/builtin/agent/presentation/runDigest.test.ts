@@ -4,6 +4,7 @@
 // module lets us pin the bucketing rules directly.
 
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import { buildPlaintext, deriveLatestRun } from "./runDigest";
 import { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 
@@ -133,7 +134,7 @@ describe("deriveLatestRun", () => {
 
 describe("buildPlaintext", () => {
   it("renders only the buckets that have entries", () => {
-    const out = buildPlaintext({
+    const out = buildPlaintext(t, {
       runId: "r1",
       startedAt: 0,
       endedAt: 1000,

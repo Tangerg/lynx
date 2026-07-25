@@ -27,19 +27,3 @@ export function messageActionsVisibility({
   if (isLast) return "pinned";
   return "hover";
 }
-
-/**
- * Tailwind classes for a visibility state. Hover reveal is expressed in CSS
- * (`group-hover` / `focus-within`) rather than JS so a hovering pointer never
- * triggers a render; the ancestor with `.group` is the message container.
- */
-export function messageActionsVisibilityClass(v: MessageActionsVisibility): string {
-  switch (v) {
-    case "hidden":
-      return "pointer-events-none opacity-0";
-    case "hover":
-      return "opacity-0 group-hover:opacity-100 focus-within:opacity-100";
-    case "pinned":
-      return "opacity-100";
-  }
-}

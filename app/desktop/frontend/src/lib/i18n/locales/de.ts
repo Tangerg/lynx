@@ -330,6 +330,7 @@ export const de: Record<string, string> = {
   "cwdMissing.action.cancel": "Abbrechen",
   "cwdMissing.placeholder": "Neuer absoluter Pfad",
 
+  "runError.unknown": "Der Lauf ist fehlgeschlagen.",
   "runError.title": "Agent-Fehler",
   "runError.action.retry": "Erneut versuchen",
   "runError.action.timeline": "Timeline öffnen",
@@ -957,4 +958,12 @@ export const de: Record<string, string> = {
   "diagnostics.empty.traces": "Sende eine Nachricht — Run- und RPC-Spans erscheinen hier.",
   "tool.askUser.answerPrefix": "Antwort · ",
   "tool.askUser.waiting": "Warte auf deine Antwort…",
+
+  "duration.seconds": "{{sec}} s",
+  "duration.minutes": "{{min}} min {{sec}} s",
+  "runDigest.plaintext.run": "Lauf {{id}} — {{status}}",
+  "runDigest.plaintext.changedFiles": "Geänderte Dateien:",
+  "runDigest.plaintext.commands": "Befehle:",
+  "runDigest.plaintext.approvals": "Freigaben:",
+  "runDigest.plaintext.errors": "Fehler:",
 };

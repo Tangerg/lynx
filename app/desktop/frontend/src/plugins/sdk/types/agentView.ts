@@ -118,7 +118,11 @@ export interface RunState {
  *  failure surfaced to the banner). UI shows it as a dismissible banner;
  *  cleared the next time a run starts. */
 export interface RunError {
-  message: string;
+  /** What the runtime said went wrong (ProblemData.detail ?? type). Absent when
+   *  it said nothing — the banner supplies the words in that case, because a
+   *  fallback sentence in the fold is one locale's copy in the layer that folds
+   *  wire events. */
+  message?: string;
   code?: string;
   /** Transient failure worth retrying (429 / 5xx / timeout) — gates the banner's
    *  Retry affordance off (a permanent error like bad-credentials / invalid

@@ -53,7 +53,7 @@ export function RunErrorBanner() {
   // counting, Retry is shown but inert — don't hammer a provider that just
   // asked us to wait.
   const retryAfter = error?.retryAfterSeconds ?? 0;
-  const errKey = error ? (error.code ?? error.message) : null;
+  const errKey = error ? (error.code ?? error.message ?? "unknown") : null;
   const [retryIn, setRetryIn] = useState(0);
   useEffect(() => {
     if (retryAfter <= 0) {
@@ -100,7 +100,7 @@ export function RunErrorBanner() {
               {error.code ? ` · ${error.code}` : ""}
             </div>
             <div className="text-ui-lg text-fg-soft whitespace-pre-wrap break-words">
-              {error.message}
+              {error.message ?? t("runError.unknown")}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {canRetry && (

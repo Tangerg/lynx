@@ -106,6 +106,11 @@ function SpanRowItem({
 
 // Expanded span detail — mono key/value block. Error message first (the thing
 // the collapsed row can't carry), then ids/timing, then any attributes.
+//
+// The keys stay English and untranslated, all of them: `trace` / `span` /
+// `parent` / `kind` / `start` / `dur` / `error` / `attributes` are OTel's own
+// vocabulary, and this block is a data dump a developer matches against the spec,
+// not prose. The panel's prose — its empty states — goes through the catalogs.
 function SpanDetail({ span }: { span: SpanRow }) {
   const meta: [string, string][] = [
     ["trace", span.traceId],
