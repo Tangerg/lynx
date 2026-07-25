@@ -8,6 +8,7 @@ import { installSkillDraftsGateway } from "./adapters/runtimeSkillDraftsGateway"
 import { installToolCatalogGateway } from "./adapters/runtimeToolCatalogGateway";
 import { installWorkspaceErrorClassifier } from "./adapters/runtimeWorkspaceErrorClassifier";
 import { installWorkspaceNavigationPort } from "./adapters/navigationStatePort";
+import { installBrowserFileTransfer } from "./adapters/browserFileTransfer";
 
 export default definePlugin({
   name: "lyra.builtin.workspace-bootstrap",
@@ -23,6 +24,7 @@ export default definePlugin({
       installToolCatalogGateway(),
       installWorkspaceErrorClassifier(),
       installWorkspaceNavigationPort(),
+      installBrowserFileTransfer(),
     ];
     return () => {
       for (let index = disposers.length - 1; index >= 0; index--) disposers[index]!();

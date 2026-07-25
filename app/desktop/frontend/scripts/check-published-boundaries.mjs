@@ -153,6 +153,25 @@ for (const file of files(SRC)) {
     });
   }
 
+  // A use case is answerable without a browser. `document`, `window`, `Blob` and
+  // friends are the browser's mechanisms, and a layer that reaches for them cannot
+  // be exercised — or reasoned about — without one. Two modules had drifted here:
+  // the conversation export owned "this is how Chromium saves a file", and the
+  // font picker owned `document.fonts.check()`. Both are ports now, bound by an
+  // adapter. Comments and type positions are exempt; this looks for real access.
+  if (
+    !isTest &&
+    /plugins\/builtin\/.+\/(?:application|domain)\/.+\.(ts|tsx)$/.test(rel) &&
+    /(?:^|[^\w.'"`/])(?:document|window)\s*[.?[]|new (?:Blob|FileReader|Image)\(|URL\.(?:create|revoke)ObjectURL/m.test(
+      text.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, ""),
+    )
+  ) {
+    violations.push({
+      file: rel,
+      reason: "builtin context application / domain must reach the browser through a port",
+    });
+  }
+
   // `presentation/` maps a model into a view model. It does not render one, and it
   // does not decide what anything looks like — a component or a class string there
   // is a component or a class string that four callers cannot share without

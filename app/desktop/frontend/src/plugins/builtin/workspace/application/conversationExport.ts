@@ -1,4 +1,5 @@
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
+import { fileTransfer } from "./ports/fileTransfer";
 import { formatDateTime } from "@/lib/i18n/relativeTime";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -24,18 +25,6 @@ function timestampForFilename(): string {
   return new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 }
 
-function downloadBlob(filename: string, content: string, mime: string): void {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 // The role's display name belongs to whoever contributed the role — MESSAGE_ROLE
 // carries it, already localized. The fold used to bake a hardcoded English copy
 // onto every message, duplicating both this registry and the locale catalog it
@@ -58,11 +47,15 @@ async function exportServer(format: ConversationExportFormat): Promise<boolean> 
     const resp = await conversationArchiveGateway().exportConversation(sid, format);
     const stamp = timestampForFilename();
     if (resp.format === "md" && resp.markdown !== undefined) {
-      downloadBlob(`lyra-${sid}-${stamp}.md`, resp.markdown, "text/markdown;charset=utf-8");
+      fileTransfer().download(
+        `lyra-${sid}-${stamp}.md`,
+        resp.markdown,
+        "text/markdown;charset=utf-8",
+      );
       return true;
     }
     if (resp.format === "json" && resp.artifact) {
-      downloadBlob(
+      fileTransfer().download(
         `lyra-${sid}-${stamp}.json`,
         JSON.stringify(resp.artifact, null, 2),
         "application/json;charset=utf-8",
@@ -88,7 +81,7 @@ function exportLocalMarkdown(): void {
     const rendered = renderMessageMarkdown(msg);
     if (rendered) sections.push(rendered);
   }
-  downloadBlob(
+  fileTransfer().download(
     `lyra-${sid}-${timestampForFilename()}.md`,
     sections.join("\n"),
     "text/markdown;charset=utf-8",
@@ -107,7 +100,7 @@ function exportLocalJson(): void {
     timeline: view.timeline,
     toolCalls: view.toolCalls,
   };
-  downloadBlob(
+  fileTransfer().download(
     `lyra-${sid}-${timestampForFilename()}.json`,
     JSON.stringify(payload, null, 2),
     "application/json;charset=utf-8",
@@ -122,20 +115,6 @@ const artifactEnvelope = z.looseObject({
   items: z.array(z.unknown()),
 });
 
-function pickFile(): Promise<string | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json,.json";
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) return resolve(null);
-      void file.text().then(resolve, () => resolve(null));
-    };
-    input.click();
-  });
-}
-
 export async function exportConversationMarkdown(): Promise<void> {
   if (!(await exportServer("md"))) exportLocalMarkdown();
 }
@@ -149,7 +128,7 @@ export async function importConversationJson(): Promise<void> {
     notifyError(t("convExport.importUnsupported"), { source: "import" });
     return;
   }
-  const text = await pickFile();
+  const text = await fileTransfer().pickText("application/json,.json");
   if (text === null) return;
   let raw: unknown;
   try {

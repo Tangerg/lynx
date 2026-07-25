@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { clearChatSearchHighlights, paintChatSearchHighlights } from "../adapters/searchHighlights";
-import { CHAT_SEARCH_OPEN_EVENT } from "../application/openChatSearch";
+import { setChatSearchOpener } from "../application/openChatSearch";
 import { findMessageRanges } from "../adapters/messageRanges";
 
 export function ChatSearchOverlay() {
@@ -15,9 +15,8 @@ export function ChatSearchOverlay() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
-    window.addEventListener(CHAT_SEARCH_OPEN_EVENT, onOpen);
-    return () => window.removeEventListener(CHAT_SEARCH_OPEN_EVENT, onOpen);
+    setChatSearchOpener(() => setOpen(true));
+    return () => setChatSearchOpener(null);
   }, []);
 
   const activeSessionId = useActiveSessionId();

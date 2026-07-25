@@ -6,6 +6,7 @@
 import { definePlugin } from "@/plugins/sdk";
 import { registerSettingsPane } from "../public";
 import { appearanceSettingsPane } from "./application/appearanceContributions";
+import { installBrowserFontAvailability } from "./adapters/browserFontAvailability";
 import { installAppearancePreferencesPort } from "./adapters/uiAppearancePreferences";
 import { AppearancePane } from "./ui/AppearancePane";
 
@@ -14,7 +15,11 @@ export default definePlugin({
   version: "1.0.0",
   setup({ host }) {
     const disposePreferences = installAppearancePreferencesPort();
+    const disposeFonts = installBrowserFontAvailability();
     registerSettingsPane(host, appearanceSettingsPane(AppearancePane));
-    return disposePreferences;
+    return () => {
+      disposeFonts();
+      disposePreferences();
+    };
   },
 });
