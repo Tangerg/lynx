@@ -41,6 +41,17 @@ const MARKUP_RULES = [
     pattern: /(?<![\w-])(?:[a-z-]+:)*leading-\[[\d.]+\]/g,
     message: "arbitrary line height — use a `leading-*` step",
   },
+  {
+    // An ink or accent wash mixed by hand in an arbitrary value. The mermaid
+    // block had built two panels this way, out of four alphas of its own — which
+    // also opted them out of the contrast preference, since `--depth-step` is
+    // what moves the ladder.
+    pattern: /color-mix\([^)]*var\(--color-(?:text|accent)\)[^)]*\)/g,
+    message:
+      "hand-mixed token alpha — use a ladder step (`bg-surface*` / `border-field*` / `bg-<tone>-wash`)",
+    // The theme kit is where the ladder's values are authored — mixing is its job.
+    appliesTo: (rel) => !rel.startsWith("plugins/builtin/theme/"),
+  },
 ];
 
 const STYLESHEET_RULES = [
@@ -90,7 +101,8 @@ for (const path of walk(SRC)) {
   if (rules.length === 0) continue;
   const lines = readFileSync(path, "utf8").split("\n");
   lines.forEach((line, index) => {
-    for (const { pattern, message } of rules) {
+    for (const { pattern, message, appliesTo } of rules) {
+      if (appliesTo && !appliesTo(relative(SRC, path))) continue;
       for (const match of line.matchAll(pattern)) {
         violations.push(`${relative(SRC, path)}:${index + 1}  ${match[0]}  — ${message}`);
       }
