@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -170,16 +171,7 @@ type memoryDispatcher struct {
 // rather than duplicated.
 type shutdownTarget struct {
 	state *turnState
-	mu    sync.Mutex
-
-	active   *shutdownAttempt
-	complete bool
-	last     *shutdownAttempt
-}
-
-type shutdownAttempt struct {
-	done chan struct{}
-	err  error
+	step  *shutdown.Step
 }
 
 func (s *memoryDispatcher) register(st *turnState) bool {
@@ -211,7 +203,11 @@ func (s *memoryDispatcher) BeginShutdown() {
 		})
 		s.shutdownTargets = make([]*shutdownTarget, 0, len(states))
 		for _, st := range states {
-			s.shutdownTargets = append(s.shutdownTargets, &shutdownTarget{state: st})
+			state := st
+			s.shutdownTargets = append(s.shutdownTargets, &shutdownTarget{
+				state: state,
+				step:  shutdown.New(func(ctx context.Context) error { return s.shutdownTurn(ctx, state) }),
+			})
 		}
 		targets := slices.Clone(s.shutdownTargets)
 		s.mu.Unlock()
@@ -233,68 +229,22 @@ func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
 		return errors.New("turn: shutdown context is required")
 	}
 	s.BeginShutdown()
-	attempts := make([]*shutdownAttempt, 0, len(s.shutdownTargets))
+	attempts := make([]*shutdown.Attempt, 0, len(s.shutdownTargets))
 	for _, target := range s.shutdownTargets {
-		attempts = append(attempts, target.attempt(ctx, s))
+		attempts = append(attempts, target.step.Begin(ctx))
 	}
 	for _, attempt := range attempts {
-		select {
-		case <-attempt.done:
-		case <-ctx.Done():
-			if shutdownAttemptsDone(attempts) {
-				return shutdownAttemptErrors(s.shutdownTargets, attempts)
-			}
-			return errors.Join(
-				shutdownTimeoutError(s.shutdownTargets),
-				shutdownAttemptErrors(s.shutdownTargets, attempts),
-			)
+		if err := attempt.Wait(ctx); err != nil && ctx.Err() != nil {
+			break
 		}
+	}
+	if ctx.Err() != nil && shutdownRemaining(s.shutdownTargets) > 0 {
+		return errors.Join(
+			shutdownTimeoutError(s.shutdownTargets),
+			shutdownAttemptErrors(s.shutdownTargets, attempts),
+		)
 	}
 	return shutdownAttemptErrors(s.shutdownTargets, attempts)
-}
-
-func shutdownAttemptsDone(attempts []*shutdownAttempt) bool {
-	for _, attempt := range attempts {
-		select {
-		case <-attempt.done:
-		default:
-			return false
-		}
-	}
-	return true
-}
-
-// attempt joins an in-flight release or starts one under this Await caller's
-// context. A completed failure is retried by a later AwaitShutdown call.
-func (t *shutdownTarget) attempt(ctx context.Context, dispatcher *memoryDispatcher) *shutdownAttempt {
-	t.mu.Lock()
-	if t.complete {
-		done := t.last
-		t.mu.Unlock()
-		return done
-	}
-	if t.active != nil {
-		active := t.active
-		t.mu.Unlock()
-		return active
-	}
-	attempt := &shutdownAttempt{done: make(chan struct{})}
-	t.active = attempt
-	t.mu.Unlock()
-
-	go func() {
-		err := dispatcher.shutdownTurn(ctx, t.state)
-		attempt.err = err
-		t.mu.Lock()
-		t.last = attempt
-		t.complete = err == nil
-		if t.active == attempt {
-			t.active = nil
-		}
-		t.mu.Unlock()
-		close(attempt.done)
-	}()
-	return attempt
 }
 
 // shutdownTurn keeps cancellation attached to lifecycle progress. In
@@ -332,20 +282,24 @@ func (s *memoryDispatcher) shutdownTurn(ctx context.Context, state *turnState) e
 }
 
 func shutdownTimeoutError(targets []*shutdownTarget) error {
+	return fmt.Errorf("%w: %d turn(s) still shutting down", ErrShutdownTimeout, shutdownRemaining(targets))
+}
+
+func shutdownRemaining(targets []*shutdownTarget) int {
 	remaining := 0
 	for _, target := range targets {
 		if !channelClosed(target.state.done) {
 			remaining++
 		}
 	}
-	return fmt.Errorf("%w: %d turn(s) still shutting down", ErrShutdownTimeout, remaining)
+	return remaining
 }
 
-func shutdownAttemptErrors(targets []*shutdownTarget, attempts []*shutdownAttempt) error {
+func shutdownAttemptErrors(targets []*shutdownTarget, attempts []*shutdown.Attempt) error {
 	var errs []error
 	for i, attempt := range attempts {
-		err := completedShutdownError(targets[i], attempt)
-		if err != nil && !errors.Is(err, ErrTurnNotFound) {
+		err, complete := attempt.Result()
+		if complete && err != nil && !errors.Is(err, ErrTurnNotFound) {
 			errs = append(errs, fmt.Errorf(
 				"turn: shut down turn %q: %w",
 				targets[i].state.handle.TurnID,
@@ -354,30 +308,6 @@ func shutdownAttemptErrors(targets []*shutdownTarget, attempts []*shutdownAttemp
 		}
 	}
 	return errors.Join(errs...)
-}
-
-// completedShutdownError prefers this Await caller's completed attempt. When
-// it is still pending, the target's most recent completed failure remains a
-// valid diagnostic for the same unreleased turn and must not disappear merely
-// because a timeout raced the replacement attempt's goroutine.
-func completedShutdownError(target *shutdownTarget, current *shutdownAttempt) error {
-	select {
-	case <-current.done:
-		return current.err
-	default:
-	}
-	target.mu.Lock()
-	last := target.last
-	target.mu.Unlock()
-	if last == nil || last == current {
-		return nil
-	}
-	select {
-	case <-last.done:
-		return last.err
-	default:
-		return nil
-	}
 }
 
 func channelClosed(ch <-chan struct{}) bool {

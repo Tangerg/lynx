@@ -184,37 +184,9 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 		seenSessions: map[string]struct{}{},
 	}
 
-	ctx, cancel := context.WithCancel(t.Context())
-	dispatcher.BeginShutdown()
-	for _, target := range dispatcher.shutdownTargets {
-		target.attempt(ctx, dispatcher)
-	}
-	result := make(chan error, 1)
-	go func() { result <- dispatcher.AwaitShutdown(ctx) }()
-	var failedCancelDone <-chan struct{}
-	for _, target := range dispatcher.shutdownTargets {
-		if target.state != failed {
-			continue
-		}
-		target.mu.Lock()
-		if target.active != nil {
-			failedCancelDone = target.active.done
-		} else if target.last != nil {
-			failedCancelDone = target.last.done
-		}
-		target.mu.Unlock()
-		break
-	}
-	if failedCancelDone == nil {
-		t.Fatal("failed turn has no shutdown cancellation attempt")
-	}
-	select {
-	case <-failedCancelDone:
-	case <-time.After(time.Second):
-		t.Fatal("later cancellation did not finish")
-	}
-	cancel()
-	err := <-result
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	err := shutdownDispatcher(ctx, dispatcher)
 	if !errors.Is(err, ErrShutdownTimeout) {
 		t.Fatalf("shutdown error = %v, want ErrShutdownTimeout", err)
 	}

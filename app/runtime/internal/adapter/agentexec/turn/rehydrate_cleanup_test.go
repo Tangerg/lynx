@@ -108,7 +108,7 @@ func TestShutdownRetriesAfterLateRestoredProcessPublication(t *testing.T) {
 	dispatcher.BeginShutdown()
 	target := dispatcher.shutdownTargets[0]
 	lifecycleChanged := target.state.lifecycleChange()
-	attempt := target.attempt(t.Context(), dispatcher)
+	attempt := target.step.Begin(t.Context())
 	// The first shutdown cancellation must finish its no-process transition
 	// before Restore publishes the process; this is the interleaving that the old
 	// one-shot Cancel result lost.
@@ -118,9 +118,8 @@ func TestShutdownRetriesAfterLateRestoredProcessPublication(t *testing.T) {
 	if err := <-rehydrated; !errors.Is(err, ErrDispatcherClosed) {
 		t.Fatalf("Rehydrate error = %v, want dispatcher closed", err)
 	}
-	<-attempt.done
-	if !errors.Is(attempt.err, discardErr) {
-		t.Fatalf("late-publication shutdown = %v, want discard failure", attempt.err)
+	if err := attempt.Wait(t.Context()); !errors.Is(err, discardErr) {
+		t.Fatalf("late-publication shutdown = %v, want discard failure", err)
 	}
 	if _, err := dispatcher.findTurn("turn_1"); err != nil {
 		t.Fatalf("failed late cleanup lost turn ownership: %v", err)

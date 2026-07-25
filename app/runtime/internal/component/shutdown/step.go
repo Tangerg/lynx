@@ -24,6 +24,12 @@ type attempt struct {
 	err  error
 }
 
+// Attempt is one immutable Step execution. It lets an owner start several
+// teardown steps before joining them, while Step still serializes retries.
+type Attempt struct {
+	state *attempt
+}
+
 // New returns a context-aware teardown step around action. A nil action is a
 // no-op step, which keeps composition code free of nil-function branches.
 func New(action func(context.Context) error) *Step {
@@ -34,19 +40,26 @@ func New(action func(context.Context) error) *Step {
 // action makes future calls no-ops; a failed action remains retryable. The
 // caller's deadline is never extended by an action that ignores its context.
 func (s *Step) Shutdown(ctx context.Context) error {
+	return s.Begin(ctx).Wait(ctx)
+}
+
+// Begin starts action once, joins the current execution, or returns an already
+// completed no-op attempt. A failed execution remains retryable on the next
+// Begin after this attempt completes.
+func (s *Step) Begin(ctx context.Context) *Attempt {
 	if s == nil || s.action == nil {
-		return nil
+		return completedAttempt(nil)
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return err
+		return completedAttempt(err)
 	}
 	s.mu.Lock()
 	if s.complete {
 		s.mu.Unlock()
-		return nil
+		return completedAttempt(nil)
 	}
 	running := s.active
 	if running == nil {
@@ -55,13 +68,43 @@ func (s *Step) Shutdown(ctx context.Context) error {
 		go s.run(ctx, running)
 	}
 	s.mu.Unlock()
+	return &Attempt{state: running}
+}
 
+// Wait joins this immutable attempt. The caller's deadline does not cancel or
+// replace an execution already owned by Step.
+func (a *Attempt) Wait(ctx context.Context) error {
+	if a == nil || a.state == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	select {
-	case <-running.done:
-		return running.err
+	case <-a.state.done:
+		return a.state.err
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// Result returns the attempt error once it has completed.
+func (a *Attempt) Result() (error, bool) {
+	if a == nil || a.state == nil {
+		return nil, true
+	}
+	select {
+	case <-a.state.done:
+		return a.state.err, true
+	default:
+		return nil, false
+	}
+}
+
+func completedAttempt(err error) *Attempt {
+	state := &attempt{done: make(chan struct{}), err: err}
+	close(state.done)
+	return &Attempt{state: state}
 }
 
 func (s *Step) run(ctx context.Context, running *attempt) {
