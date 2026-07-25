@@ -21,12 +21,12 @@ export type {
   ToolCallStatus,
   ToolDiffRow,
 } from "@/plugins/sdk/types/agentView";
+export { INITIAL_VIEW_STATE } from "@/plugins/sdk/types/agentView";
 export {
-  INITIAL_VIEW_STATE,
   LOCAL_MESSAGE_PREFIX,
   LOCAL_STEER_PREFIX,
   isLocalMessageId,
   isLocalSteerMessageId,
-} from "@/plugins/sdk/types/agentView";
+} from "../domain/messageIdentity";
 export { isQuestionTool, toolCategory, type ToolCategory } from "../domain/toolCategory";
 export { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";

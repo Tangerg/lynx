@@ -5,7 +5,10 @@
 import type { Item } from "@/rpc";
 import type { BlockStatus, ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { AgentViewState, Message, ToolCall } from "@/plugins/sdk/types/agentView";
-import { isLocalMessageId, isLocalSteerMessageId } from "@/plugins/sdk/types/agentView";
+import {
+  isLocalMessageId,
+  isLocalSteerMessageId,
+} from "@/plugins/builtin/agent/domain/messageIdentity";
 import {
   argsText,
   contentText,
