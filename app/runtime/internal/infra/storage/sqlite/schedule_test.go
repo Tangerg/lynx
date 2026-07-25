@@ -23,7 +23,7 @@ func newScheduleStore(t *testing.T) *sqlite.ScheduleStore {
 }
 
 // TestScheduleCRUD covers create (id assigned, persisted verbatim), get, the
-// next-due query, mark-fired, update, and delete.
+// next-due query, update, and delete.
 func TestScheduleCRUD(t *testing.T) {
 	ctx := context.Background()
 	s := newScheduleStore(t)
@@ -66,21 +66,6 @@ func TestScheduleCRUD(t *testing.T) {
 		t.Fatalf("due = %+v, want the one past-due schedule", due)
 	}
 
-	// MarkFired records lastRunAt + advances nextRunAt to the future → no longer due.
-	now := time.Now().UTC().Truncate(time.Millisecond)
-	future := now.Add(24 * time.Hour)
-	if err := s.MarkFired(ctx, created.ID, now, created.NextRunAt, future); err != nil {
-		t.Fatalf("markFired: %v", err)
-	}
-	due, _ = s.Due(ctx, time.Now(), 100)
-	if len(due) != 0 {
-		t.Errorf("due after markFired = %+v, want none", due)
-	}
-	got, _ = s.Get(ctx, created.ID)
-	if !got.LastRunAt.Equal(now) {
-		t.Errorf("LastRunAt = %v, want %v", got.LastRunAt, now)
-	}
-
 	// Update: disabling clears the due index (NextRunAt zero) → never due.
 	got.Enabled = false
 	got.NextRunAt = time.Time{}
@@ -103,10 +88,9 @@ func TestScheduleCRUD(t *testing.T) {
 
 // TestScheduleRecordRunLeavesCursor: a manual run-now (RecordRun) updates
 // LastRunAt but must NOT touch NextRunAt. Re-stamping a cursor value read before
-// the worker advanced it would rewind the schedule and re-fire it every tick —
-// the bug RecordRun (vs MarkFired) exists to prevent.
+// the worker advanced it would rewind the schedule and re-fire it every tick.
 func TestScheduleRecordRunLeavesCursor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	s := newScheduleStore(t)
 
 	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
@@ -117,13 +101,21 @@ func TestScheduleRecordRunLeavesCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// The worker fires and advances the cursor into the future → no longer due.
 	future := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
-	if err := s.MarkFired(ctx, created.ID, time.Now().UTC(), created.NextRunAt, future); err != nil {
-		t.Fatalf("markFired: %v", err)
+	firedAt := time.Now().UTC().Truncate(time.Millisecond)
+	occurrence := schedule.Occurrence{
+		ID: created.ID + ":scheduled", Schedule: created,
+		DueAt: created.NextRunAt, FiredAt: firedAt, NextRunAt: future,
+		SessionID: "ses_scheduled", RunID: "run_scheduled",
+	}
+	claimed, err := s.Claim(ctx, occurrence)
+	if err != nil || !claimed {
+		t.Fatalf("Claim = (%v, %v), want true, nil", claimed, err)
+	}
+	if err := s.Accept(ctx, occurrence.ID, occurrence.RunID); err != nil {
+		t.Fatalf("Accept: %v", err)
 	}
 
-	// A manual run-now lands afterwards. It must leave the advanced cursor alone.
 	ranAt := time.Now().UTC().Truncate(time.Millisecond)
 	if err := s.RecordRun(ctx, created.ID, ranAt); err != nil {
 		t.Fatalf("recordRun: %v", err)
@@ -139,6 +131,57 @@ func TestScheduleRecordRunLeavesCursor(t *testing.T) {
 	due, _ := s.Due(ctx, time.Now(), 100)
 	if len(due) != 0 {
 		t.Errorf("due after RecordRun = %+v, want none (cursor still in the future)", due)
+	}
+}
+
+func TestScheduleClaimRejectsStaleRevisionWithUnchangedCursor(t *testing.T) {
+	ctx := t.Context()
+	store := newScheduleStore(t)
+	dueAt := time.Date(2026, 7, 26, 9, 0, 0, 0, time.UTC)
+	nextAt := dueAt.Add(time.Hour)
+	created, err := store.Create(ctx, schedule.Schedule{
+		Prompt: "old prompt", Cron: "0 * * * *", Enabled: true, NextRunAt: dueAt,
+	})
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	due, err := store.Due(ctx, dueAt, 1)
+	if err != nil || len(due) != 1 {
+		t.Fatalf("Due = (%+v, %v), want one schedule", due, err)
+	}
+
+	updated := created
+	updated.Prompt = "new prompt"
+	updated, err = store.Update(ctx, updated, created.Revision)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !updated.NextRunAt.Equal(dueAt) {
+		t.Fatalf("Update changed cursor to %v, want %v", updated.NextRunAt, dueAt)
+	}
+
+	stale := schedule.Occurrence{
+		ID: created.ID + ":stale", Schedule: due[0],
+		DueAt: dueAt, FiredAt: dueAt, NextRunAt: nextAt,
+		SessionID: "ses_stale", RunID: "run_stale",
+	}
+	claimed, err := store.Claim(ctx, stale)
+	if err != nil || claimed {
+		t.Fatalf("stale Claim = (%v, %v), want false, nil", claimed, err)
+	}
+
+	fresh := stale
+	fresh.ID = created.ID + ":fresh"
+	fresh.Schedule = updated
+	fresh.SessionID = "ses_fresh"
+	fresh.RunID = "run_fresh"
+	claimed, err = store.Claim(ctx, fresh)
+	if err != nil || !claimed {
+		t.Fatalf("fresh Claim = (%v, %v), want true, nil", claimed, err)
+	}
+	pending, err := store.Pending(ctx, 1)
+	if err != nil || len(pending) != 1 || pending[0].Schedule.Prompt != "new prompt" {
+		t.Fatalf("Pending = (%+v, %v), want the updated snapshot", pending, err)
 	}
 }
 
@@ -207,12 +250,16 @@ func TestScheduleClaimKeepsOnlyOnePendingOccurrencePerSchedule(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("first Claim = (%v, %v), want true, nil", claimed, err)
 	}
+	current, err := store.Get(ctx, created.ID)
+	if err != nil || !current.NextRunAt.Equal(secondDueAt) {
+		t.Fatalf("schedule cursor = (%v, %v), want %v", current.NextRunAt, err, secondDueAt)
+	}
 
 	// The worker can observe the later cron slot while this first occurrence is
 	// still waiting for Run admission. It must not advance the cursor again or
 	// materialize a second recovery item for the same schedule.
 	second := schedule.Occurrence{
-		ID: created.ID + ":second", Schedule: created,
+		ID: created.ID + ":second", Schedule: current,
 		DueAt: secondDueAt, FiredAt: secondDueAt, NextRunAt: thirdDueAt,
 		SessionID: "ses_second", RunID: "run_second",
 	}
@@ -224,13 +271,13 @@ func TestScheduleClaimKeepsOnlyOnePendingOccurrencePerSchedule(t *testing.T) {
 	if err != nil || len(pending) != 1 || pending[0].ID != first.ID {
 		t.Fatalf("Pending = (%+v, %v), want only first occurrence", pending, err)
 	}
-	got, err := store.Get(ctx, created.ID)
-	if err != nil || !got.NextRunAt.Equal(secondDueAt) {
-		t.Fatalf("schedule cursor = (%v, %v), want %v", got.NextRunAt, err, secondDueAt)
-	}
 
 	if err := store.Accept(ctx, first.ID, first.RunID); err != nil {
 		t.Fatalf("Accept first occurrence: %v", err)
+	}
+	second.Schedule, err = store.Get(ctx, created.ID)
+	if err != nil {
+		t.Fatalf("Get after Accept: %v", err)
 	}
 	claimed, err = store.Claim(ctx, second)
 	if err != nil || !claimed {
@@ -268,48 +315,6 @@ func TestScheduleStoreRejectsDuplicatePendingRows(t *testing.T) {
 	}
 }
 
-// TestScheduleMarkFiredCASLosesToReschedule: MarkFired advances the cursor only
-// if next_run_at is still what the worker saw at Due time. A concurrent
-// schedules.Update that rescheduled (new cron → new next_run_at) between the
-// worker's Due read and its MarkFired write must WIN — the worker must not
-// clobber the new cursor with a value computed from the stale cron. The firing
-// is still recorded (last_run_at) so the run isn't lost.
-func TestScheduleMarkFiredCASLosesToReschedule(t *testing.T) {
-	ctx := context.Background()
-	s := newScheduleStore(t)
-
-	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
-	created, err := s.Create(ctx, schedule.Schedule{Prompt: "p", Cron: "@daily", Enabled: true, NextRunAt: past})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// A user reschedules (new cron) between the worker's Due read (which saw
-	// `past`) and its MarkFired write: next_run_at is now `rescheduled`.
-	rescheduled := time.Now().Add(48 * time.Hour).UTC().Truncate(time.Millisecond)
-	got, _ := s.Get(ctx, created.ID)
-	got.NextRunAt = rescheduled
-	if _, err := s.Update(ctx, got, got.Revision); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-
-	// The worker now fires with the STALE prev (`past`) + a stale-cron next. The
-	// CAS must miss: the rescheduled cursor stays, but last_run_at is recorded.
-	ranAt := time.Now().UTC().Truncate(time.Millisecond)
-	staleNext := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Millisecond)
-	if err := s.MarkFired(ctx, created.ID, ranAt, past, staleNext); err != nil {
-		t.Fatalf("markFired: %v", err)
-	}
-
-	reread, _ := s.Get(ctx, created.ID)
-	if !reread.NextRunAt.Equal(rescheduled) {
-		t.Errorf("NextRunAt = %v, want %v (reschedule must win the stale advance)", reread.NextRunAt, rescheduled)
-	}
-	if !reread.LastRunAt.Equal(ranAt) {
-		t.Errorf("LastRunAt = %v, want %v (the firing must still be recorded)", reread.LastRunAt, ranAt)
-	}
-}
-
 // TestScheduleUpdateNotFound: updating an unknown id reports ErrNotFound.
 func TestScheduleUpdateNotFound(t *testing.T) {
 	s := newScheduleStore(t)
@@ -338,9 +343,8 @@ func TestScheduleDueSkipsDisabled(t *testing.T) {
 }
 
 // TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen covers the durable
-// half of worker restart semantics. The worker only calls MarkFired after the
-// application admits a Run; when it cannot, this unchanged due row must still
-// be discoverable through a fresh store after process restart.
+// half of worker restart semantics. An occurrence that was never claimed must
+// remain discoverable through a fresh store after process restart.
 func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "lyra.db")

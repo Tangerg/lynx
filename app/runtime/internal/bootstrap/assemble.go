@@ -698,11 +698,6 @@ func shutdownClosers(closers []func() error) []ShutdownResource {
 	return steps
 }
 
-func closeResources(ctx context.Context, resources []ShutdownResource) error {
-	_, err := closePendingResources(ctx, resources)
-	return err
-}
-
 func closePendingResources(ctx context.Context, resources []ShutdownResource) ([]ShutdownResource, error) {
 	for index := len(resources) - 1; index >= 0; index-- {
 		if resource := resources[index]; resource != nil {

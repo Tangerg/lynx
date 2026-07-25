@@ -420,10 +420,6 @@ func (m *memoryScheduleRegistry) Due(context.Context, time.Time, int) ([]schedul
 	return nil, nil
 }
 
-func (m *memoryScheduleRegistry) MarkFired(context.Context, string, time.Time, time.Time, time.Time) error {
-	return nil
-}
-
 func (m *memoryScheduleRegistry) RecordRun(context.Context, string, time.Time) error {
 	return nil
 }

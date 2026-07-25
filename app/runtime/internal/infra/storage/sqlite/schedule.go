@@ -116,12 +116,13 @@ func (s *ScheduleStore) Claim(ctx context.Context, occurrence schedule.Occurrenc
 	err = RunInTx(ctx, s.db, func(ctx context.Context) error {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE schedules SET next_run_at = ?, revision = revision + 1
-			 WHERE id = ? AND next_run_at = ?
-			   AND NOT EXISTS (
-					SELECT 1 FROM schedule_firings
-					 WHERE schedule_id = ? AND state = 'pending'
-			   )`,
-			toMillis(occurrence.NextRunAt), occurrence.Schedule.ID, toMillis(occurrence.DueAt), occurrence.Schedule.ID)
+				 WHERE id = ? AND revision = ? AND next_run_at = ?
+				   AND NOT EXISTS (
+						SELECT 1 FROM schedule_firings
+						 WHERE schedule_id = ? AND state = 'pending'
+				   )`,
+			toMillis(occurrence.NextRunAt), occurrence.Schedule.ID, occurrence.Schedule.Revision,
+			toMillis(occurrence.DueAt), occurrence.Schedule.ID)
 		if err != nil {
 			return fmt.Errorf("sqlite: claim schedule occurrence: %w", err)
 		}
@@ -221,29 +222,6 @@ func (s *ScheduleStore) Accept(ctx context.Context, occurrenceID, runID string) 
 		return nil
 	}
 	return errors.New("sqlite: schedule occurrence is owned by another run")
-}
-
-func (s *ScheduleStore) MarkFired(ctx context.Context, id string, ranAt, prevNextRunAt, nextRunAt time.Time) error {
-	// CAS the cursor: advance next_run_at only if it's still the value the worker
-	// saw at Due time. A concurrent schedules.Update that rescheduled (new cron →
-	// new next_run_at) between that read and now must win, not be overwritten with
-	// a value computed from the stale cron. If the guard misses (rescheduled, or
-	// the row was deleted), the run still fired — record last_run_at without
-	// rewinding the cursor.
-	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE schedules SET last_run_at = ?, next_run_at = ?, revision = revision + 1 WHERE id = ? AND next_run_at = ?`,
-		toMillis(ranAt), toMillis(nextRunAt), id, toMillis(prevNextRunAt))
-	if err != nil {
-		return fmt.Errorf("sqlite: mark schedule fired: %w", err)
-	}
-	changed, err := res.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("sqlite: inspect mark schedule fired: %w", err)
-	}
-	if changed == 0 {
-		return s.RecordRun(ctx, id, ranAt)
-	}
-	return nil
 }
 
 // RecordRun moves only last_run_at; next_run_at is left as-is so a manual
