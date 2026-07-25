@@ -568,11 +568,12 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	if err := <-proc.Done(); err != nil {
-		t.Fatalf("initial StartTurn: %v", err)
+	initial := proc.Await()
+	if initial.Err != nil {
+		t.Fatalf("initial StartTurn: %v", initial.Err)
 	}
-	if proc.Status() != core.StatusWaiting {
-		t.Fatalf("initial status = %s, want waiting", proc.Status())
+	if initial.Status != core.StatusWaiting {
+		t.Fatalf("initial status = %s, want waiting", initial.Status)
 	}
 
 	eng2, err := New(context.Background(), Config{
@@ -591,20 +592,17 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestoreTurn: %v", err)
 	}
-	if restored.Status() != core.StatusWaiting {
-		t.Fatalf("restored status = %s, want waiting", restored.Status())
-	}
-	done, err := restored.Resume(context.Background(), interrupts.Resolution{Approved: true})
-	if err != nil {
+	if err := restored.Resume(context.Background(), interrupts.Resolution{Approved: true}); err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("resumed run: %v", err)
+	resumed := restored.Await()
+	if resumed.Err != nil {
+		t.Fatalf("resumed run: %v", resumed.Err)
 	}
-	out, err := restored.Output()
-	if err != nil {
-		t.Fatalf("Output: %v", err)
+	if resumed.Output == nil {
+		t.Fatal("resumed run completed without output")
 	}
+	out := *resumed.Output
 	if out.Reply != "restored ok" {
 		t.Fatalf("reply = %q, want restored ok", out.Reply)
 	}
@@ -654,8 +652,8 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	if err := <-process.Done(); err != nil {
-		t.Fatalf("initial turn: %v", err)
+	if completion := process.Await(); completion.Err != nil {
+		t.Fatalf("initial turn: %v", completion.Err)
 	}
 	snapshot, err := store.Load(t.Context(), process.ID())
 	if err != nil {

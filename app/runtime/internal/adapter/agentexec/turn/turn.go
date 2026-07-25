@@ -66,24 +66,29 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	}
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
-	st.lifecycle.setRoot(process.ID())
+	if err := st.lifecycle.confirmRoot(process.ID()); err != nil {
+		st.setProcess(process)
+		st.cancel()
+		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+		s.finishExecutionError(st, internalRunProblem(), err)
+		return
+	}
 	st.setProcess(process)
 
-	s.drive(st, process.Done())
+	s.drive(st)
 }
 
-// drive consumes one run segment's completion. When the process parks
+// drive consumes one typed run-segment completion. When the process parks
 // on a HITL interrupt (StatusWaiting) it surfaces a [TurnInterrupted]
 // and leaves the turn registered (events channel open) for
 // [memoryDispatcher.Resume]. On a terminal state it drains steering, runs
-// post-turn maintenance on a clean finish, emits [TurnEnd], and tears
-// the turn down. doneCh is the segment's Done channel — the process's
-// for the first segment, the resume continuation's thereafter.
-func (s *memoryDispatcher) drive(st *turnState, doneCh <-chan error) {
-	runErr := <-doneCh
+// post-turn maintenance on a clean completion, emits [TurnEnd], and tears the
+// turn down.
+func (s *memoryDispatcher) drive(st *turnState) {
 	process := st.process()
+	completion := process.Await()
 
-	if process.Status() == core.StatusWaiting {
+	if completion.Status == core.StatusWaiting {
 		s.handleWaiting(st, process)
 		return
 	}
@@ -91,13 +96,13 @@ func (s *memoryDispatcher) drive(st *turnState, doneCh <-chan error) {
 	// Drain steering into history BEFORE maintenance so the compactor /
 	// extractor see it as part of the conversation they summarize.
 	s.flushSteering(st.ctx, st, st.handle.SessionID)
-	if runErr == nil && st.handle.SessionID != "" {
+	if completion.Status == core.StatusCompleted && completion.Err == nil && st.handle.SessionID != "" {
 		s.postTurnMaintenance(st.ctx, st, st.handle.SessionID)
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
 	s.completeTurn(st, func() {
-		s.emitTurnEnd(st, process, st.lifecycle.terminalEvent(), runErr, time.Since(st.startedAt), st.ctx.Err())
+		s.emitTurnEnd(st, completion, time.Since(st.startedAt))
 	})
 }
 

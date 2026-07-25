@@ -3,6 +3,7 @@ package turn
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -11,11 +12,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// turnLifecycle captures the first terminal process event the agent
-// runtime publishes for a turn's ROOT process. The lifecycle listener
-// wires into [agentexec.TurnRequest.EventListener] so the runtime fans
-// every event for the turn through capture; runTurn reads the captured
-// event after process.Done() to decide the TurnEnd reason.
+// turnLifecycle routes process events to subagent lifecycle hooks. The root
+// process identity prevents child events from being projected as root hooks.
 //
 // Sub-agent (subtask) processes now share this listener via runtime
 // SubtreeEventListener inheritance — their events arrive here too, tagged with
@@ -25,31 +23,33 @@ import (
 // root from the first ProcessCreated event, which the engine publishes
 // synchronously before it starts the root goroutine, so the capture gate is in
 // place before a child can emit anything.
-//
-// Only terminal events are kept — non-terminal events (PlanningStarted,
-// ActionStarted, etc.) are dropped to keep the listener
-// allocation-free in the hot path. Earliest-wins among the root's own
-// terminals: a race between e.g. ProcessKilled (from Kill) and
-// the run loop's exit ProcessFailed yields whichever arrived first.
 type turnLifecycle struct {
 	mu        sync.Mutex
 	rootID    string // turn's root process id; empty until the first ProcessCreated
-	terminal  event.Event
 	sessionID string
 	cwd       string
 	hooks     *hooks.Bound
 	subagents map[string]hooks.SubagentInput
 }
 
-// setRoot is a fallback for engine stubs and restored processes that do not
-// publish ProcessCreated through the listener. The production start path has
-// already bound the same id synchronously by the time StartTurn returns.
-func (l *turnLifecycle) setRoot(id string) {
-	l.mu.Lock()
-	if l.rootID == "" {
-		l.rootID = id
+// confirmRoot binds a restored process, or verifies that the synchronous
+// ProcessCreated event and the process returned by StartTurn identify the same
+// root.
+func (l *turnLifecycle) confirmRoot(id string) error {
+	if id == "" {
+		return errors.New("turn lifecycle: root process id is empty")
 	}
-	l.mu.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	switch {
+	case l.rootID == "":
+		l.rootID = id
+		return nil
+	case l.rootID == id:
+		return nil
+	default:
+		return fmt.Errorf("turn lifecycle: created root %q differs from returned process %q", l.rootID, id)
+	}
 }
 
 func (l *turnLifecycle) listener(turnID string) *event.NamedSubtreeListener {
@@ -58,18 +58,6 @@ func (l *turnLifecycle) listener(turnID string) *event.NamedSubtreeListener {
 			return
 		}
 		l.fireSubagentHook(ctx, e)
-		switch e.(type) {
-		case event.ProcessCompleted,
-			event.ProcessKilled,
-			event.ProcessFailed,
-			event.ProcessTerminated,
-			event.ProcessStuck:
-			l.mu.Lock()
-			if l.terminal == nil && l.rootID != "" && e.ProcessID() == l.rootID {
-				l.terminal = e
-			}
-			l.mu.Unlock()
-		}
 	})
 }
 
@@ -213,10 +201,4 @@ func errorString(err error) string {
 		return ""
 	}
 	return err.Error()
-}
-
-func (l *turnLifecycle) terminalEvent() event.Event {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.terminal
 }

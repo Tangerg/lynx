@@ -57,20 +57,13 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 	}
 }
 
-func TestTurnLifecycleBindsRootBeforeChildTerminal(t *testing.T) {
+func TestTurnLifecycleRejectsMismatchedReturnedRoot(t *testing.T) {
 	lifecycle := &turnLifecycle{}
 	listener := lifecycle.listener("turn")
 
 	listener.OnEvent(t.Context(), event.ProcessCreated{Header: event.NewHeader("root")})
-	listener.OnEvent(t.Context(), event.ProcessCompleted{Header: event.NewHeader("child")})
-	listener.OnEvent(t.Context(), event.ProcessKilled{Header: event.NewHeader("root")})
-
-	terminal := lifecycle.terminalEvent()
-	if terminal == nil || terminal.ProcessID() != "root" {
-		t.Fatalf("terminal = %#v, want root terminal", terminal)
-	}
-	if _, ok := terminal.(event.ProcessKilled); !ok {
-		t.Fatalf("terminal type = %T, want event.ProcessKilled", terminal)
+	if err := lifecycle.confirmRoot("other"); err == nil {
+		t.Fatal("confirmRoot accepted a returned process that differs from ProcessCreated")
 	}
 }
 

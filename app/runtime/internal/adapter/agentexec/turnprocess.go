@@ -12,10 +12,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-// TurnProcess is the handle [Engine.StartTurn] returns. It exposes
-// the underlying [runtime.Process] lifecycle (status, failure,
-// cancellation) plus a typed result extractor — turn.Dispatcher drives
-// the turn off Done() and queries Status() to decide TurnEnd reason.
+// TurnCompletion is the immutable result of one process segment. It is the
+// single source of truth for terminal mapping: status, typed output, and failure
+// are captured after the Agent runtime has joined the segment.
+type TurnCompletion struct {
+	Status core.ProcessStatus
+	Output *TurnOutput
+	Err    error
+}
+
+// TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
+// completion boundary instead of separate status, output, and done signals.
 //
 // The interface lives in this package (not in the turn dispatcher) so
 // test stubs can substitute a fake without standing up a full engine.
@@ -25,20 +32,9 @@ type TurnProcess interface {
 	// the runtime by process id.
 	ID() string
 
-	// Status reports the current [core.ProcessStatus] —
-	// Running while the action loop ticks, Completed / Failed /
-	// Killed / Terminated when the run ends.
-	Status() core.ProcessStatus
-
-	// Done delivers the final error (or nil on success) once the
-	// run loop exits. Buffered cap-1 so callers can receive after
-	// the goroutine has already finished.
-	Done() <-chan error
-
-	// Output extracts the typed [TurnOutput] from the process
-	// blackboard. Returns an error when the run produced no output
-	// (status reflects the terminal cause).
-	Output() (TurnOutput, error)
+	// Await joins the active segment and captures its immutable completion.
+	// Exactly one owner calls Await for each initial or resumed segment.
+	Await() TurnCompletion
 
 	// Cancel marks the process [core.StatusKilled] via the engine.
 	// The ongoing tick observes the status flip at its next checkpoint
@@ -48,10 +44,9 @@ type TurnProcess interface {
 	// Resume answers a HITL interrupt the process is parked on
 	// (StatusWaiting) — a gated tool call or an ask_user / exit_plan_mode
 	// question. It delivers the structured [interrupts.Resolution]
-	// to the parked suspension and continues the process, returning a fresh
-	// Done channel for the resumed run. Only valid while Status is
-	// [core.StatusWaiting].
-	Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error)
+	// to the parked suspension and starts the next segment. Only valid after an
+	// Await completion with [core.StatusWaiting].
+	Resume(ctx context.Context, resolution interrupts.Resolution) error
 
 	// Suspension returns the HITL request the process is parked
 	// on while StatusWaiting (a gated tool call or an ask_user /
@@ -80,26 +75,49 @@ type turnProcess struct {
 	engine  *runtime.Engine
 }
 
-func (p *turnProcess) ID() string                 { return p.process.ID() }
-func (p *turnProcess) Status() core.ProcessStatus { return p.process.Status() }
-func (p *turnProcess) Done() <-chan error         { return p.done }
+func (p *turnProcess) ID() string { return p.process.ID() }
+
+func (p *turnProcess) Await() TurnCompletion {
+	if p == nil || p.process == nil || p.done == nil {
+		return TurnCompletion{Err: errors.New("agentexec: await process: no active segment")}
+	}
+	runErr := <-p.done
+	p.done = nil
+	completion := TurnCompletion{Status: p.process.Status(), Err: runErr}
+	if output, ok := core.Result[TurnOutput](p.process); ok {
+		completion.Output = &output
+	}
+	if failure := p.process.Failure(); failure != nil {
+		completion.Err = failure
+	}
+	return completion
+}
+
 func (p *turnProcess) Cancel(ctx context.Context) error {
 	return p.engine.Kill(ctx, p.process.ID())
 }
 
-func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) (<-chan error, error) {
+func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resolution) error {
 	parked := p.process.Suspension()
 	if parked == nil {
-		return nil, fmt.Errorf("engine: process %s has no suspension", p.process.ID())
+		return fmt.Errorf("engine: process %s has no suspension", p.process.ID())
 	}
 	response, err := suspension.EncodeResolution(resolution)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if err := p.engine.Resume(p.process.ID(), parked.ID, response); err != nil {
-		return nil, err
+		return err
 	}
-	return p.engine.ContinueAsync(ctx, p.process.ID())
+	done, err := p.engine.ContinueAsync(ctx, p.process.ID())
+	if err != nil {
+		return err
+	}
+	if done == nil {
+		return errors.New("engine: continue process returned no completion boundary")
+	}
+	p.done = done
+	return nil
 }
 
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
@@ -109,17 +127,4 @@ func (p *turnProcess) Discard(ctx context.Context) error {
 		return errors.New("agentexec: discard process: incomplete turn process")
 	}
 	return p.engine.Discard(ctx, p.process.ID())
-}
-
-func (p *turnProcess) Output() (TurnOutput, error) {
-	output, ok := core.Result[TurnOutput](p.process)
-	if ok {
-		return output, nil
-	}
-	// Preserve the process failure's error chain when there is one (%w);
-	// a bare %w on a nil failure would format as "%!w(<nil>)".
-	if failure := p.process.Failure(); failure != nil {
-		return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s): %w", p.process.Status(), failure)
-	}
-	return TurnOutput{}, fmt.Errorf("engine: no TurnOutput produced (status=%s)", p.process.Status())
 }

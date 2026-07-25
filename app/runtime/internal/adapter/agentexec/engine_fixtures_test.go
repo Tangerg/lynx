@@ -104,10 +104,14 @@ func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, 
 	if err != nil {
 		return TurnOutput{}, fmt.Errorf("engine: start turn: %w", err)
 	}
-	if err := <-proc.Done(); err != nil {
-		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
+	completion := proc.Await()
+	if completion.Err != nil {
+		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", completion.Err)
 	}
-	return proc.Output()
+	if completion.Output == nil {
+		return TurnOutput{}, errors.New("engine: run turn: completed without output")
+	}
+	return *completion.Output, nil
 }
 
 type startCall struct {

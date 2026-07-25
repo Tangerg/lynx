@@ -87,7 +87,15 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 			s.finishExecutionError(state, internalRunProblem(), err),
 		)
 	}
-	state.lifecycle.setRoot(process.ID())
+	if err := state.lifecycle.confirmRoot(process.ID()); err != nil {
+		state.setRestoredProcess(process)
+		state.cancel()
+		return TurnHandle{}, errors.Join(
+			err,
+			cancelTurnProcess(state.ctx, process),
+			s.finishExecutionError(state, internalRunProblem(), err),
+		)
+	}
 	live := state.setRestoredProcess(process)
 	if s.isClosed() {
 		// BeginShutdown captured this registered state before RestoreTurn crossed

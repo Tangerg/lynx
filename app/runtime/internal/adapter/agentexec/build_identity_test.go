@@ -90,18 +90,18 @@ func TestAutoSnapshotFailureRemainsExecutionFailure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	doneErr := <-process.Done()
-	if !errors.Is(doneErr, want) {
-		t.Fatalf("Done error = %v, want snapshot failure", doneErr)
+	completion := process.Await()
+	if !errors.Is(completion.Err, want) {
+		t.Fatalf("completion error = %v, want snapshot failure", completion.Err)
 	}
-	if process.Status() != core.StatusFailed {
-		t.Fatalf("process status = %s, want failed", process.Status())
+	if completion.Status != core.StatusFailed {
+		t.Fatalf("process status = %s, want failed", completion.Status)
 	}
 	if store.saves.Load() == 0 {
 		t.Fatal("process never attempted an automatic snapshot")
 	}
-	if errors.Is(doneErr, ErrProcessSnapshotLost) {
-		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", doneErr)
+	if errors.Is(completion.Err, ErrProcessSnapshotLost) {
+		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Err)
 	}
 }
 

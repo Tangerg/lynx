@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -123,17 +122,14 @@ func (s *memoryDispatcher) completeTurnOwned(st *turnState, emitTerminal func())
 	return s.cleanupTurnOwned(st)
 }
 
-// emitTurnEnd maps the captured agent runtime terminal event onto a
-// transport-shape TurnEnd. The lifecycle listener fires terminal
-// events authoritatively (ProcessKilled / ProcessFailed /
-// ProcessStuck / ProcessTerminated / ProcessCompleted), so we read
-// those rather than re-deriving status from the run loop's error.
-// The runErr / ctxErr / status fallback covers stub tests where no
-// listener fired and any race where Done() returned before the
-// engine multicast delivered the terminal event.
-func (s *memoryDispatcher) emitTurnEnd(st *turnState, process agentexec.TurnProcess, terminal event.Event, runErr error, duration time.Duration, ctxErr error) {
-	out, _ := process.Output()
-	plan := planTurnEnd(terminal, out, runErr, ctxErr, process.Status())
+// emitTurnEnd maps the process segment's immutable completion onto the
+// transport-shape TurnEnd.
+func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnCompletion, duration time.Duration) {
+	plan := planTurnEnd(completion)
+	var out agentexec.TurnOutput
+	if completion.Output != nil {
+		out = *completion.Output
+	}
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
@@ -171,39 +167,41 @@ type turnEndPlan struct {
 	problem   *transcript.Problem
 }
 
-// planTurnEnd is the turnEndPlan constructor: it maps the captured
-// agent-runtime terminal event (plus the engine output and the run-loop's
-// error signals) onto the plan emitTurnEnd executes. The lifecycle listener
-// fires terminal events authoritatively (ProcessCompleted / Killed / Failed /
-// Stuck / Terminated), so those drive the decision; the default case is the
-// fallback for stub tests where no listener fired and the race where Done()
-// returned before the engine multicast delivered the event. completedPlan /
-// fallbackPlan are the per-branch builders it delegates to.
-func planTurnEnd(terminal event.Event, out agentexec.TurnOutput, runErr, ctxErr error, status core.ProcessStatus) turnEndPlan {
-	switch t := terminal.(type) {
-	case event.ProcessCompleted:
-		return completedPlan(out)
-	case event.ProcessKilled, event.ProcessTerminated:
-		return turnEndPlan{reason: execution.OutcomeCanceled}
-	case event.ProcessFailed:
-		msg := "engine error"
-		if t.Err != nil {
-			msg = t.Err.Error()
+// planTurnEnd maps one joined Agent completion onto the application terminal.
+// Every status is handled explicitly; an internally inconsistent completion is
+// an error rather than an implicit success.
+func planTurnEnd(completion agentexec.TurnCompletion) turnEndPlan {
+	switch completion.Status {
+	case core.StatusCompleted:
+		if completion.Err != nil {
+			return failurePlan(completion.Err)
 		}
-		problem := problemFromError(t.Err)
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: msg, problem: &problem}
-	case event.ProcessStuck:
+		if completion.Output == nil {
+			return failurePlan(errors.New("agent process completed without TurnOutput"))
+		}
+		return completedPlan(*completion.Output)
+	case core.StatusKilled, core.StatusTerminated:
+		return turnEndPlan{reason: execution.OutcomeCanceled}
+	case core.StatusFailed, core.StatusPaused:
+		return failurePlan(completion.Err)
+	case core.StatusStuck:
 		problem := problemForFailure(execution.FailureAgentStuck, 0)
 		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", problem: &problem}
 	default:
-		return fallbackPlan(out, runErr, ctxErr, status)
+		return failurePlan(fmt.Errorf("agent process joined in non-terminal status %s", completion.Status))
 	}
 }
 
-// completedPlan maps a cleanly-completed turn's output to its reason: a
-// budget stop is its own reason, otherwise a plain completion. Shared by
-// the ProcessCompleted case and the fallback so the mapping lives in one
-// place.
+func failurePlan(err error) turnEndPlan {
+	if err == nil {
+		err = errors.New("agent process failed without an error")
+	}
+	problem := problemFromError(err)
+	return turnEndPlan{reason: execution.OutcomeError, errMsg: err.Error(), problem: &problem}
+}
+
+// completedPlan maps a cleanly-completed turn's output to its reason: a budget
+// stop is its own reason, otherwise a plain completion.
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	switch out.StopReason {
 	case agentexec.StopReasonSteps:
@@ -216,21 +214,6 @@ func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 		problem := internalRunProblem()
 		return turnEndPlan{reason: execution.OutcomeError, errMsg: fmt.Sprintf("invalid turn stop reason %q", out.StopReason), problem: &problem}
 	}
-}
-
-// fallbackPlan derives the plan from the run-loop signals when no
-// terminal event was captured: a run error is a cancellation (ctx
-// canceled / killed) or an engine error; no error falls back to the
-// same completion mapping the happy path uses.
-func fallbackPlan(out agentexec.TurnOutput, runErr, ctxErr error, status core.ProcessStatus) turnEndPlan {
-	if runErr != nil {
-		if status == core.StatusKilled || errors.Is(ctxErr, context.Canceled) {
-			return turnEndPlan{reason: execution.OutcomeCanceled}
-		}
-		problem := problemFromError(runErr)
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: runErr.Error(), problem: &problem}
-	}
-	return completedPlan(out)
 }
 
 func problemFromError(err error) transcript.Problem {

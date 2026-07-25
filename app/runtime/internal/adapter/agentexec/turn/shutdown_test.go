@@ -76,18 +76,16 @@ type blockingCancelProcess struct {
 	discardErr error
 }
 
-func (*blockingCancelProcess) ID() string                 { return "proc_1" }
-func (*blockingCancelProcess) Status() core.ProcessStatus { return core.StatusWaiting }
-func (*blockingCancelProcess) Done() <-chan error         { return nil }
-func (*blockingCancelProcess) Output() (agentexec.TurnOutput, error) {
-	return agentexec.TurnOutput{}, nil
+func (*blockingCancelProcess) ID() string { return "proc_1" }
+func (*blockingCancelProcess) Await() agentexec.TurnCompletion {
+	return agentexec.TurnCompletion{Status: core.StatusWaiting}
 }
 func (p *blockingCancelProcess) Cancel(context.Context) error {
 	<-p.release
 	return p.err
 }
-func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) (<-chan error, error) {
-	return nil, nil
+func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) error {
+	return nil
 }
 func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
 func (p *blockingCancelProcess) Discard(context.Context) error {

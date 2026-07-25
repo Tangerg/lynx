@@ -88,13 +88,17 @@ func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess
 }
 
 func (cp *stubTurnProcess) ID() string { return cp.id }
-func (cp *stubTurnProcess) Status() core.ProcessStatus {
-	return core.ProcessStatus(cp.status.Load())
-}
-func (cp *stubTurnProcess) Failure() error     { return cp.failure }
-func (cp *stubTurnProcess) Done() <-chan error { return cp.done }
-func (cp *stubTurnProcess) Output() (agentexec.TurnOutput, error) {
-	return cp.output, nil
+func (cp *stubTurnProcess) Await() agentexec.TurnCompletion {
+	runErr := <-cp.done
+	if cp.failure != nil {
+		runErr = cp.failure
+	}
+	output := cp.output
+	return agentexec.TurnCompletion{
+		Status: core.ProcessStatus(cp.status.Load()),
+		Output: &output,
+		Err:    runErr,
+	}
 }
 func (cp *stubTurnProcess) Cancel(context.Context) error {
 	cp.status.Store(int32(core.StatusKilled))
@@ -104,14 +108,15 @@ func (cp *stubTurnProcess) Cancel(context.Context) error {
 	return nil
 }
 
-func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<-chan error, error) {
+func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) error {
 	if cp.resumeErr != nil {
-		return nil, cp.resumeErr
+		return cp.resumeErr
 	}
 	ch := make(chan error, 1)
 	ch <- nil
 	close(ch)
-	return ch, nil
+	cp.done = ch
+	return nil
 }
 
 func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
@@ -216,6 +221,7 @@ func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest)
 	}
 	cp.status.Store(int32(core.StatusRunning))
 	cp.onCancel = func() {
+		cp.status.Store(int32(core.StatusKilled))
 		select {
 		case cp.done <- errors.New("canceled"):
 		default:
@@ -223,6 +229,7 @@ func (s *slowStubEngine) StartTurn(ctx context.Context, _ agentexec.TurnRequest)
 	}
 	go func() {
 		<-ctx.Done()
+		cp.status.Store(int32(core.StatusKilled))
 		select {
 		case cp.done <- errors.New("canceled"):
 		default:

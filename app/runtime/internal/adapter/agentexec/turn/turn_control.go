@@ -88,14 +88,13 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 // (cross-restart) so the resume tail — deliver, on-error-finish, else-drive —
 // stays identical.
 func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
-	resumed, err := state.process().Resume(state.ctx, resolution)
-	if err != nil {
+	if err := state.process().Resume(state.ctx, resolution); err != nil {
 		return errors.Join(
 			err,
 			s.finishExecutionError(state, problemFromError(err), err),
 		)
 	}
 	state.resumeStarted()
-	go s.drive(state, resumed)
+	go s.drive(state)
 	return nil
 }
