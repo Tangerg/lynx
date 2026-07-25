@@ -23,13 +23,33 @@ export type Scheme = "dark" | "light";
 
 let scheme: Scheme = "dark";
 let scale = 1;
+let tokenRevision = 0;
 const listeners = new Set<() => void>();
+
+function announce(): void {
+  for (const listener of listeners) listener();
+}
 
 /** Publish the scheme the painter just applied. */
 export function publishScheme(next: Scheme): void {
   if (next === scheme) return;
   scheme = next;
-  for (const listener of listeners) listener();
+  announce();
+}
+
+/**
+ * Publish that the colour tokens on `:root` were just rewritten.
+ *
+ * For the code that can't use a token — an SVG generator handed literal colours,
+ * a canvas — and has to read the computed values instead. It needs to know WHEN
+ * to re-read, and only the painter knows that. The alternative is what the mermaid
+ * block used to do: subscribe to the two preferences it guessed were relevant
+ * (theme, accent) and silently keep stale colours when a third one (contrast,
+ * which moves the whole surface ladder) changed.
+ */
+export function publishTokens(): void {
+  tokenRevision += 1;
+  announce();
 }
 
 /** Publish the motion multiplier the painter just applied. No notification —
@@ -55,4 +75,10 @@ function snapshot(): Scheme {
 /** Reactive read — re-renders on a theme switch. */
 export function useScheme(): Scheme {
   return useSyncExternalStore(subscribe, snapshot);
+}
+
+/** An opaque, monotonic stamp of the last token repaint — an invalidation key for
+ *  anything that reads computed token values. */
+export function useTokenRevision(): number {
+  return useSyncExternalStore(subscribe, () => tokenRevision);
 }

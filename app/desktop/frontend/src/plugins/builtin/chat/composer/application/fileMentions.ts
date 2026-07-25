@@ -4,6 +4,22 @@
 // ↑/↓/Enter/Tab/Esc while open (Composer routes keydowns here before its normal
 // keymap). The file list is fetched lazily (only once a mention opens) and
 // cached per cwd by react-query.
+//
+// Hand-rolled rather than Base UI's Combobox (the §4 exemption, stated): a
+// Combobox owns an input and treats its value as the query, and here the query is
+// one `@token` inside a message that is otherwise free text — the input's value is
+// the whole draft. What that exemption costs is the ARIA the primitive would have
+// supplied, so the composer wires the combobox pattern by hand off these ids:
+// `MENTION_LISTBOX_ID` on the popup, `mentionOptionId(i)` per row, and
+// aria-activedescendant on the textarea.
+
+/** The popup's element id — `aria-controls` on the textarea points at it. */
+export const MENTION_LISTBOX_ID = "composer-mention-listbox";
+
+/** Per-row element id — `aria-activedescendant` names the focused one. */
+export function mentionOptionId(index: number): string {
+  return `composer-mention-option-${index}`;
+}
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWorkspaceListFiles } from "@/plugins/builtin/workspace/public/data";

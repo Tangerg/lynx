@@ -71,7 +71,6 @@ export function SplitResizer() {
     <div
       // A draggable vertical splitter IS role="separator" per ARIA; an <hr> is
       // a non-interactive horizontal thematic break — wrong for a resize handle.
-      // oxlint-disable-next-line jsx-a11y/prefer-tag-over-role
       role="separator"
       aria-orientation="vertical"
       aria-label={t("panel.split.resize")}

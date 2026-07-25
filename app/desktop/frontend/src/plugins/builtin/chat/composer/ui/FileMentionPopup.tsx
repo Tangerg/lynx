@@ -1,4 +1,8 @@
 import { Icon } from "@/ui";
+import {
+  MENTION_LISTBOX_ID,
+  mentionOptionId,
+} from "@/plugins/builtin/chat/composer/application/fileMentions";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -14,10 +18,19 @@ interface Props {
 // useFileMentions); hovering a row also selects it so click and key land on the
 // same target. Basename emphasized, directory dimmed — the path reads as
 // "name · where".
+//
+// A listbox of options, wired by hand: focus stays in the textarea (the caret has
+// to keep blinking where the user is typing), so the selected row is announced
+// through aria-activedescendant rather than by moving focus.
 export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
   const t = useT();
   return (
-    <div className="absolute bottom-full left-2 right-2 z-10 mb-2 overflow-hidden rounded-md bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in">
+    <div
+      id={MENTION_LISTBOX_ID}
+      role="listbox"
+      aria-label={t("composer.mention.heading")}
+      className="absolute bottom-full left-2 right-2 z-10 mb-2 overflow-hidden rounded-md bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in"
+    >
       <div className="px-2.5 pb-1 pt-1.5 font-mono text-ui-sm font-semibold text-fg-faint">
         {t("composer.mention.heading")}
       </div>
@@ -28,7 +41,10 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
         return (
           <button
             key={path}
+            id={mentionOptionId(i)}
             type="button"
+            role="option"
+            aria-selected={i === index}
             onMouseEnter={() => onHover(i)}
             onMouseDown={(e) => {
               // mousedown (not click) so the pick fires before the textarea blurs.

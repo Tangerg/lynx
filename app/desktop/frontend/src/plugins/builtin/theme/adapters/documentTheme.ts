@@ -15,7 +15,7 @@ import { ACCENT, THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import { resolveThemeScheme } from "../application/themeScheme";
 import { subscribeSystemScheme } from "./systemAppearance";
-import { publishMotionScale, publishScheme } from "@/lib/appearance";
+import { publishMotionScale, publishScheme, publishTokens } from "@/lib/appearance";
 import { densityCssVariables } from "@/lib/density";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import type { Theme, UiState } from "@/state/uiPreferences";
@@ -53,8 +53,11 @@ function applyTheme(theme: Theme, accent: string, contrast: number): void {
   appliedTokenNames.push("--depth-step");
 
   // Leaf code (the Shiki preset) can't read the store or the registry — the
-  // scheme reaches it from here, where it just became true.
+  // scheme reaches it from here, where it just became true. `publishTokens` is
+  // the broader signal: every colour on :root was just rewritten, which is what
+  // code reading computed values needs to hear.
   publishScheme(scheme);
+  publishTokens();
 }
 
 function applyFonts(

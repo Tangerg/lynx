@@ -3,7 +3,7 @@ import { useDebounce } from "use-debounce";
 import { LightboxDialog } from "@/ui";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
+import { useTokenRevision } from "@/lib/appearance";
 
 // `beautiful-mermaid` is heavy (~200KB) and only mounts when an
 // agent actually emits a mermaid fence. Cached module promise so
@@ -43,11 +43,13 @@ function readThemeColors() {
 // and stream-reveal feeds chars at ~30 Hz. Until the source settles we
 // show a quiet "pending" pre-block; settled + parses → SVG snaps in.
 export function MermaidBlock({ code }: Props) {
-  // theme + accent feed into readThemeColors() below via deps so the
-  // diagram re-paints when the palette switches.
   const t = useT();
-  const theme = useUiStore((s) => s.theme);
-  const accent = useUiStore((s) => s.accent);
+  // Mermaid is handed literal colours, so this reads the computed tokens — and
+  // needs re-reading whenever the painter rewrites them. The revision is that
+  // signal. It used to be `theme` + `accent` off the preference store, which
+  // named two of the inputs and missed the rest: a contrast change moves
+  // --color-surface-2 through --depth-step, and the diagram kept the old grey.
+  const tokenRevision = useTokenRevision();
   const [debouncedCode] = useDebounce(code, 300);
   const isSettling = code !== debouncedCode;
 
@@ -93,13 +95,11 @@ export function MermaidBlock({ code }: Props) {
         error: err instanceof Error ? err : new Error(String(err)),
       };
     }
-    // theme + accent feel "unnecessary" to the static analyser because
-    // useMemo doesn't read them directly, but readThemeColors() pulls
-    // them from getComputedStyle at call time. Pinning them in deps
-    // re-triggers the memo when the user switches palette so the SVG
-    // re-paints with the new tokens.
+    // `tokenRevision` reads as "unnecessary" to the static analyser because the
+    // memo doesn't reference it — it is the invalidation key for what
+    // readThemeColors() pulls out of getComputedStyle at call time.
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [debouncedCode, isSettling, theme, accent, renderer]);
+  }, [debouncedCode, isSettling, tokenRevision, renderer]);
 
   const [zoomed, setZoomed] = useState(false);
 

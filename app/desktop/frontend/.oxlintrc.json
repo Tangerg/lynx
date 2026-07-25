@@ -10,6 +10,13 @@
     // Our mocks are typed by the port interface they stand in for, so the type
     // parameter would restate what the assignment target already fixes.
     "vitest/require-mock-type-parameters": "off",
+    // Fired three times in the tree, on three correct roles: a resize handle
+    // (`separator`), and the mention picker's `listbox` / `option`. The rule maps a
+    // role to "the tag you should have used", which has no answer for a composite
+    // ARIA widget — a floating rich list cannot be a `<select>`, and `<option>` is
+    // only legal inside one. A rule that is wrong every time it fires teaches
+    // people to suppress reflexively.
+    "jsx-a11y/prefer-tag-over-role": "off",
     // The dock / session-navigation suites assert through `expect*` helpers so a
     // multi-step scenario reads as prose. Naming the convention once beats seven
     // line suppressions that each restate it.
