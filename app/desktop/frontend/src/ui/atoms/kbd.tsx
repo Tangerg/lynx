@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="inline-flex h-4 min-w-4 items-center justify-center rounded-2xs bg-surface-2 px-1.5 font-mono text-ui-sm font-medium leading-none text-fg-muted">
+    <kbd className="pointer-events-none inline-flex h-5 min-w-5 select-none items-center justify-center rounded-2xs bg-control px-1 font-sans text-ui-sm font-medium leading-none text-fg-muted">
       {children}
     </kbd>
   );
