@@ -465,7 +465,14 @@
   --shadow-control:
     0 0 0 0.5px rgb(17 17 17 / 0.08), 0 1px 1px rgb(17 17 17 / 0.04),
     0 4px 10px -4px rgb(17 17 17 / 0.07);
-  --shadow-composer: 0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
+  --shadow-composer:
+    0 0 0 1px var(--seam-line),
+    0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
+  /* Focus only strengthens the ring — the surface must not appear to rise when the
+     caret lands in it, or every click reads as the composer jumping. */
+  --shadow-composer-focus:
+    0 0 0 1px color-mix(in srgb, var(--color-text) 18%, transparent),
+    0 4px 18px -6px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-popover: 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
   /* Recessed track (segmented control): a hairline plus a faint inner shadow read
      the base as a sunken well, so the selected chip appears to protrude from it. */
@@ -729,7 +736,10 @@ html.theme-dark {
   --shadow-control:
     0 0 0 0.5px rgb(255 255 255 / 0.11), 0 1px 1px rgb(0 0 0 / 0.22),
     0 7px 18px -14px rgb(0 0 0 / 0.62);
-  --shadow-composer: 0 6px 24px -10px rgb(0 0 0 / 0.3);
+  --shadow-composer: 0 0 0 1px var(--seam-line), 0 6px 24px -10px rgb(0 0 0 / 0.3);
+  --shadow-composer-focus:
+    0 0 0 1px color-mix(in srgb, var(--color-text) 22%, transparent),
+    0 6px 24px -10px rgb(0 0 0 / 0.34);
   --shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
   /* Dark needs a deeper well and a far quieter highlight: on a near-black track a
      35% white rim reads as a drawn outline, so the lift comes from fill contrast. */

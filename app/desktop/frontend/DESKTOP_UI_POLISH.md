@@ -27,19 +27,24 @@ model:
 **Where the edge comes from (2026-07):** surfaces that need one now draw a real
 `border`, and the shadow tokens carry depth only. A shadow ring stacked on top of
 a border reads as a double edge, and it lands exactly where the eye is drawn — the
-composer's top edge, a menu's corner. So each role picks ONE:
+composer's top edge, a menu's corner. Each role picks ONE, and which one follows whether the surface FLOATS:
 
-- real border + one soft directional shadow → composer, menus, popovers, tooltips,
-  segmented chips;
-- inset ring, no border → the content card's seam against the drawer, where the
-  ring has to follow a rounded corner that a border would bleed past;
-- background fill only → row hover/selection.
+- **floating** (composer, and anything that overlaps content) → the edge is the
+  FIRST LAYER of the shadow, at the same `--seam-line` value the drawer seam uses,
+  plus an ambient layer. One mechanism, and the ring follows the corner radius more
+  evenly than a border does;
+- **fixed control** (inputs, chips, menu shells) → a real border;
+- **region boundary** → an inset 1px line (the drawer↔card seam, pane splits,
+  chrome-bar bottoms);
+- **state** → background fill only (row hover/selection).
 
 Current shapes (authoritative values live in `globals.css` / the theme kit):
 
 ```css
-/* Depth for a floating surface that already has a border. */
---shadow-composer: 0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
+/* Floating surface: edge ring + ambient in ONE token, no border. */
+--shadow-composer:
+  0 0 0 1px var(--seam-line),
+  0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
 
 /* A recessed well plus the chip that protrudes from it. */
 --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
@@ -74,7 +79,9 @@ Preferred:
   a low-spread directional shadow;
 - internal pane splits + chrome-bar bottoms: the `--app-surface-divider` hairline
   (a step more transparent than the seam, so it recedes behind it);
-- control edge (composer, menus, popovers, inputs, chips): a real `border`;
+- floating surface edge (composer): the shadow's own first layer at `--seam-line`,
+  never a border as well;
+- fixed control edge (inputs, chips, menu shells): a real `border`;
 - row state: fill delta;
 - focus: the global keyboard-only ring — never a per-control one;
 - danger/warning state: semantic border/fill token.
