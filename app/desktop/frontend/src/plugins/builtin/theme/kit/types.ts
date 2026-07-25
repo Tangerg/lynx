@@ -95,9 +95,9 @@ export interface ThemeCta {
  *  composer: the composer, which floats over the scrolling stream.
  *  popover: dropdowns, popovers, modals, command palette.
  *  Override individual keys when a theme wants a different elevation language.
- *  The keyboard focus ring is NOT here: it is an outline (it must compose with a
- *  control's own shadow and survive a clipping ancestor), and a theme retunes it
- *  through `--color-focus-ring`. */
+ *  The keyboard focus ring is NOT here: one global rule in globals.css draws it
+ *  as an outline for every focusable element, and a theme retunes it through
+ *  `--color-focus-ring`. */
 export interface ThemeShadows {
   composer: string;
   popover: string;

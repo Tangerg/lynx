@@ -30,6 +30,17 @@ const buttonStyles = cva(
         outline: "border-field bg-transparent text-fg-soft hover:bg-hover hover:text-fg",
         primary: "bg-cta text-cta-text hover:bg-cta-hover",
         danger: "bg-transparent text-negative hover:bg-negative-wash",
+        // A filled action in the tone of what it acts on — the emphasis button
+        // on a banner. Rests at the wash and lifts to the chip weight on hover,
+        // the same two steps every other tonal surface takes; `tone` picks which
+        // pair. The classes are the library's vocabulary: a banner had been
+        // spelling them itself, at its own third alpha.
+        tonal: "font-semibold",
+      },
+      /** Only read by `variant: "tonal"`. */
+      tone: {
+        negative: "",
+        warning: "",
       },
       size: {
         xs: "h-6 rounded-sm px-[7px] text-ui-sm",
@@ -45,6 +56,18 @@ const buttonStyles = cva(
         false: "",
       },
     },
+    compoundVariants: [
+      {
+        variant: "tonal",
+        tone: "negative",
+        class: "bg-negative-wash text-negative hover:bg-negative-badge",
+      },
+      {
+        variant: "tonal",
+        tone: "warning",
+        class: "bg-warning-wash text-warning hover:bg-warning-badge",
+      },
+    ],
     defaultVariants: {
       variant: "ghost",
       size: "md",
@@ -58,9 +81,12 @@ export type ButtonProps = Omit<ButtonPrimitiveProps, "children"> &
     children?: ReactNode;
   };
 
-export function Button({ variant, size, press, className, children, ...props }: ButtonProps) {
+export function Button({ variant, size, tone, press, className, children, ...props }: ButtonProps) {
   return (
-    <ButtonPrimitive {...props} className={cn(buttonStyles({ variant, size, press }), className)}>
+    <ButtonPrimitive
+      {...props}
+      className={cn(buttonStyles({ variant, size, tone, press }), className)}
+    >
       {children}
     </ButtonPrimitive>
   );

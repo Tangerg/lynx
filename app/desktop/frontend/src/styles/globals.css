@@ -49,29 +49,6 @@
   outline-offset: -1px;
 }
 
-/* The keyboard focus ring — one for the whole app.
-   It was answered seven ways across sixteen callsites: outline at three
-   different offsets, a two-layer `--shadow-focus` halo, and three hand-rolled
-   box-shadow rings at 1.5px / 2px, inset and outset. An outline (not a shadow)
-   because it composes with an element's own box-shadow instead of replacing it,
-   isn't clipped by an `overflow-hidden` ancestor, and shows the surface it sits
-   on through the gap rather than a fixed `--color-bg`. */
-@utility focus-ring {
-  &:focus-visible {
-    outline: 2px solid var(--color-focus-ring);
-    outline-offset: 1px;
-  }
-}
-
-/* For a control whose ring would land outside its own box: a row in a clipping
-   list, an inline input filling its cell. Same ring, drawn inside. */
-@utility focus-ring-inset {
-  &:focus-visible {
-    outline: 2px solid var(--color-focus-ring);
-    outline-offset: -2px;
-  }
-}
-
 @theme inline {
   /* Surface ladder */
   --color-canvas: var(--color-bg);
@@ -545,9 +522,10 @@
   --shadow-raised-chip:
     0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
     inset 0 1px 0 rgb(255 255 255 / 0.5);
-  /* The `focus-ring` utilities' only knob — a theme that wants a different
-     keyboard ring overrides this, not each control. */
-  --color-focus-ring: var(--color-accent);
+  /* The keyboard ring's only knob — a theme that wants a different one overrides
+     this, not each control. Quiet by design (DESIGN.md §9: a single thin stroke,
+     no halo). */
+  --color-focus-ring: color-mix(in oklab, var(--color-accent) 50%, transparent);
 
   /* -----------------------------------------------------------------------
    *  Shell materials — the drawer's frosted panel and the content card's seam.
@@ -697,8 +675,21 @@ body {
       from the rule itself, not merely overridden. */
 html:not([data-pointer])
   :focus-visible:not([data-chrome-focus]):not(input):not(textarea):not([contenteditable]) {
-  outline: 1.5px solid color-mix(in oklab, var(--color-accent) 50%, transparent);
+  outline: 1.5px solid var(--color-focus-ring);
   outline-offset: 1px;
+}
+/* Same ring, drawn inside — for a control whose ring would land outside its own
+   box, e.g. a header button inside a clipping (`overflow-hidden`) container. A
+   marker attribute read here rather than a utility class at the callsite: the rule
+   above wins on specificity against anything a class can say, and a ring that has
+   to out-shout the global one is a second ring. Sibling of
+   `[data-chrome-focus]`, which opts a row out of the ring entirely (rows carry
+   `bg-hover` / `bg-selected` instead). */
+html:not([data-pointer])
+  [data-focus-inset]:focus-visible:not([data-chrome-focus]):not(input):not(textarea):not(
+    [contenteditable]
+  ) {
+  outline-offset: -2px;
 }
 /* Belt-and-suspenders for form fields — they never take the accent ring in
    either modality; their component tokens carry the quiet focus affordance. */

@@ -466,7 +466,7 @@ user-selectable, with green / pink / orange as alternates) is reserved for
 
 1. Active tab indicator (2px underline on `chat-tab.active`)
 2. Primary CTA fill (`button-primary`, Send button)
-3. Focus ring (`:focus-visible` — a single thin stroke, **no halo / glow**; one utility, `focus-ring`, or `focus-ring-inset` where it would clip)
+3. Focus ring (`:focus-visible` — a single thin stroke, **no halo / glow**; one global rule, never drawn at a callsite)
 4. Live indicator (streaming dot, running pill, `tab-dot.running`)
 
 Forbidden surfaces for accent: section background, card fill, avatar background, decorative borders, status icons that are not "live". And **no bright accent ring on input focus or click** — inputs/composer strengthen their border quietly instead (the loud halo read as cheap).
@@ -678,7 +678,7 @@ Accent (default `#6c97ff` dark / `#2563eb` light, user-selectable) appears in:
 
 1. **Active tab indicator** — 2px underline on `chat-tab.active::after`
 2. **Primary CTA fill** — `button-primary` background, send button
-3. **Focus ring** — `:focus-visible`, a single thin accent stroke (**no halo / glow**, and never on plain mouse-focus of inputs). Reach it as `focus-ring` / `focus-ring-inset`; a theme retunes it through `--color-focus-ring`. Never drawn at the callsite — `check-interactive-chrome` fails the build
+3. **Focus ring** — `:focus-visible`, a single thin accent stroke (**no halo / glow**, and never on plain mouse-focus of inputs). One global rule in globals.css draws it for everything; mark `data-focus-inset` where it would land outside the box, `data-chrome-focus` where a row fills instead. A theme retunes it through `--color-focus-ring`. Never drawn at a callsite — `check-interactive-chrome` fails the build
 4. **Live indicator** — streaming `tab-dot.running`, status pill while `run.running === true`, the reasoning block's pulse dot
 
 That's the entire list. Accent does **not** appear in:

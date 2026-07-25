@@ -44,10 +44,11 @@ const FileRow = memo(function FileRow({
   return (
     <button
       type="button"
+      data-chrome-focus=""
       aria-pressed={row.active}
       onClick={() => onSelect(row.path)}
       className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-hover focus-ring-inset transition-colors",
+        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-hover focus-visible:bg-hover transition-colors",
         row.active && "bg-selected",
       )}
     >

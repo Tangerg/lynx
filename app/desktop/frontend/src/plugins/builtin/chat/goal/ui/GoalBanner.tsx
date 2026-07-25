@@ -151,7 +151,6 @@ function StartGoal({ sessionId }: { sessionId: string }) {
           className={cn(
             "flex items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1",
             "text-ui-md text-fg-faint transition-colors hover:bg-hover hover:text-fg-soft",
-            "focus-ring",
           )}
         >
           <Icon name="spark" size={13} />

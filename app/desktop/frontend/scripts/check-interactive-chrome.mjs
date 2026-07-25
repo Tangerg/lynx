@@ -11,15 +11,17 @@
 // feel before you can name it, and one that no amount of care at the callsite
 // can fix, because the callsite is the wrong place to hold the value.
 //
-// The focus ring had gone the same way: seven spellings over sixteen callsites —
-// an outline at three offsets, a two-layer shadow halo, and three hand-rolled
-// box-shadow rings at 1.5px and 2px, inset and outset.
+// The focus ring had gone the same way, and worse: globals.css has drawn one
+// global keyboard ring all along (modality-gated, quiet, `[data-chrome-focus]` to
+// opt a row out), and sixteen callsites had drawn a second, louder one over it in
+// seven spellings — an outline at three offsets, a two-layer shadow halo, and
+// three hand-rolled box-shadow rings at 1.5px and 2px, inset and outset. Those
+// fired on mouse clicks too, which the global rule deliberately avoids.
 //
 // They now live in one place each: `--color-hover`, `--color-selected`,
-// `--press-scale` and the `focus-ring` / `focus-ring-inset` utilities in
-// globals.css. A state-prefixed ink wash, a surface swap over a transparent rest
-// state, a literal press amount or a hand-drawn focus ring is that decision
-// leaking back out to the callsite.
+// `--press-scale` and the global focus rule in globals.css. A state-prefixed ink
+// wash, a surface swap over a transparent rest state, a literal press amount or a
+// hand-drawn focus ring is that decision leaking back out to the callsite.
 //
 // Escape hatch: none by design. A state fill the two tokens cannot express is a
 // signal that the interaction model needs a third state, not that this callsite
@@ -57,11 +59,15 @@ const RULES = [
   },
   {
     // A focus ring drawn at the callsite: an accent outline, or a box-shadow ring
-    // in accent. `focus-visible:outline-none` stays legal — that suppresses the
-    // browser default on a wrapper that isn't the focus target.
+    // in accent. The global rule already draws one for every focusable element —
+    // mark `data-focus-inset` if it would land outside the box, or
+    // `data-chrome-focus` if the control is a row that fills instead.
+    // `focus-visible:outline-none` stays legal — that suppresses the browser
+    // default on a wrapper that isn't the focus target.
     pattern:
       /\bfocus-visible:(?:outline-(?:accent|offset-[[\]\d.px-]+)|shadow-\[[^\]]*--color-accent[^\]]*\])/g,
-    message: "hand-drawn focus ring — use `focus-ring` (or `focus-ring-inset` where it would clip)",
+    message:
+      "hand-drawn focus ring — the global rule draws it; mark `data-focus-inset` if it would clip",
     appliesTo: (_line, rel) => rel !== "styles/globals.css",
   },
 ];

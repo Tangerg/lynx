@@ -24,7 +24,7 @@ export function LanguageSection() {
           (8 entries today, more via plugins) doesn't fit a single row. */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-ui-lg font-medium text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3 focus-ring"
+          className="inline-flex w-fit min-w-[180px] items-center justify-between gap-2 rounded-md border-[0.5px] border-field bg-surface-2 px-3 py-1.5 text-ui-lg font-medium text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
           aria-label={t("settings.language.label")}
         >
           <span>{active.label}</span>

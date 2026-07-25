@@ -21,7 +21,6 @@ export function Switch({ checked, onCheckedChange, disabled, ariaLabel, classNam
       className={cn(
         "relative inline-flex h-5 w-8 shrink-0 items-center rounded-pill border-[0.5px] transition-colors duration-150",
         "disabled:cursor-not-allowed disabled:opacity-50",
-        "focus-ring",
         checked ? "border-accent bg-accent" : "border-field bg-control",
         className,
       )}
