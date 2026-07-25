@@ -436,6 +436,14 @@
     0 4px 10px -4px rgb(17 17 17 / 0.07);
   --shadow-composer: 0 4px 18px -6px color-mix(in srgb, var(--color-text) 7%, transparent);
   --shadow-popover: 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent);
+  /* Recessed track (segmented control): a hairline plus a faint inner shadow read
+     the base as a sunken well, so the selected chip appears to protrude from it. */
+  --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.06);
+  /* The chip that protrudes: one soft directional drop grounds it, while the rim
+     and the top edge highlight define the raised edge. macOS's own treatment. */
+  --shadow-raised-chip:
+    0 1px 1.5px rgb(0 0 0 / 0.04), inset 0 0 0 0.5px rgb(255 255 255 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.5);
   --shadow-focus: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-accent);
 
   /* -----------------------------------------------------------------------
@@ -692,6 +700,10 @@ html.theme-dark {
     0 7px 18px -14px rgb(0 0 0 / 0.62);
   --shadow-composer: 0 6px 24px -10px rgb(0 0 0 / 0.3);
   --shadow-popover: 0 12px 32px -12px rgb(0 0 0 / 0.55), 0 2px 6px -2px rgb(0 0 0 / 0.4);
+  /* Dark needs a deeper well and a far quieter highlight: on a near-black track a
+     35% white rim reads as a drawn outline, so the lift comes from fill contrast. */
+  --shadow-well: inset 0 1px 2px rgb(0 0 0 / 0.25);
+  --shadow-raised-chip: 0 1px 1.5px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.04);
 
   /* Dark shell materials — the drawer carries a touch more of the card color
      (the near-black surfaces sit closer together, so 64% would read as flat),

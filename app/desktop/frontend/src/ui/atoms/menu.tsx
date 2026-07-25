@@ -3,13 +3,23 @@ import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "@/ui/icons";
 import { ContextMenuPrimitive, MenuPrimitive } from "@/ui/primitives";
 
-const MENU_CONTENT_CLASSES =
-  "z-50 overflow-hidden rounded-xl bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in";
+// Frosted, not opaque: a floating panel that lets a hint of what it covers show
+// through reads as glass sitting above the surface, where a solid fill reads as a
+// second page pasted over it. The blur goes on a `before` layer rather than the
+// popup itself so it composites under the content instead of blurring it.
+const MENU_CONTENT_CLASSES = [
+  "relative z-50 overflow-hidden rounded-xl border border-field p-1",
+  "bg-canvas/70 text-fg shadow-[var(--shadow-popover)] animate-rise-in",
+  "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
+  "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
+].join(" ");
 
-const MENU_ITEM_CLASSES =
-  "grid h-8 items-center gap-2 rounded-md px-2.5 text-ui-lg text-fg outline-none data-[highlighted]:bg-fg/[0.06]";
+const MENU_ITEM_CLASSES = [
+  "relative grid min-h-[26px] items-center gap-2 rounded-sm px-2 py-px",
+  "text-ui-md text-fg outline-none data-[highlighted]:bg-fg/[0.04]",
+].join(" ");
 
-const MENU_SEPARATOR_CLASSES = "mx-1 my-1 h-px bg-fg/[0.06]";
+const MENU_SEPARATOR_CLASSES = "relative mx-1 my-1 h-px bg-fg/[0.06]";
 
 type DropdownPositionerProps = ComponentProps<typeof MenuPrimitive.Positioner>;
 type DropdownPopupProps = ComponentProps<typeof MenuPrimitive.Popup>;

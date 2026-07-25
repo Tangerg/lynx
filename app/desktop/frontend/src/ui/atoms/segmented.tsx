@@ -31,8 +31,13 @@ export function Segmented<T extends string | number>({
         const opt = options.find((o) => String(o.value) === v);
         if (opt) onChange(opt.value);
       }}
+      /* A recessed well, so the selected segment reads as a chip physically
+         lifted out of it rather than a lighter rectangle painted on top. The
+         chip's own rim + top-edge highlight (--shadow-raised-chip) is what sells
+         the lift; the well's inner shadow is what it lifts out of. */
       className={cn(
-        "inline-flex w-fit items-center gap-0.5 rounded-md bg-surface-2 p-0.5",
+        "inline-flex w-fit items-center gap-0.5 rounded-md p-0.5",
+        "border border-fg/[0.07] bg-surface-2 shadow-[var(--shadow-well)]",
         className,
       )}
     >
@@ -42,9 +47,12 @@ export function Segmented<T extends string | number>({
             key={String(opt.value)}
             value={String(opt.value)}
             className={cn(
-              "h-6 rounded-xs border-0 bg-transparent px-2.5 text-ui-md font-medium text-fg transition-[background-color,box-shadow] duration-[120ms] ease-out",
+              "h-6 rounded-xs border border-transparent bg-transparent px-2 text-ui-sm font-medium",
+              "text-fg-muted transition-[background-color,border-color,box-shadow,color] duration-[120ms] ease-out",
               mono && "font-mono",
-              "data-[active]:bg-canvas data-[active]:shadow-[var(--shadow-control)]",
+              "hover:text-fg",
+              "data-[active]:border-fg/[0.05] data-[active]:bg-canvas data-[active]:text-fg",
+              "data-[active]:shadow-[var(--shadow-raised-chip)]",
               "focus-visible:outline-none",
             )}
           >

@@ -40,7 +40,11 @@ function PopoverContent({
         <PopoverPrimitive.Popup
           {...popupProps}
           className={cn(
-            "z-50 overflow-hidden rounded-xl bg-canvas shadow-[var(--shadow-popover)] animate-rise-in",
+            // Same frosted shell as the menus — see MENU_CONTENT_CLASSES.
+            "relative z-50 overflow-hidden rounded-xl border border-field",
+            "bg-canvas/70 shadow-[var(--shadow-popover)] animate-rise-in",
+            "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
+            "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
             className,
           )}
         >
