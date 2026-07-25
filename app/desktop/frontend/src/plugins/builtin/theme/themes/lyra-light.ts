@@ -30,7 +30,7 @@ const c = {
   inkBright: "#000000",
   ink: "#262626",
   inkSoft: "#4d4d4d",
-  inkMuted: "#6b6b6b",
+  inkMuted: "#686868",
   inkFaint: "#8f8f8f",
 
   // Hairlines ARE the separation mechanism here, so they are tuned low: the seam

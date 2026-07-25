@@ -14,7 +14,7 @@ const c = {
 
   // Card is a whisper above the shell — enough for the frosted drawer (card color
   // at 72%) to separate, not enough to read as a different material.
-  canvas: "#0f0f0f",
+  canvas: "#101010",
   surface1: "#0e0e0e",
 
   // surface2/3/4 derive as ink mixes off `surface1`, same as light.
@@ -23,7 +23,7 @@ const c = {
   inkBright: "#ffffff",
   ink: "#f5f5f5",
   inkSoft: "#a1a1a1",
-  inkMuted: "#8f8f8f",
+  inkMuted: "#818181",
   inkFaint: "#636363",
 
   // Hairlines — very low alpha. The seam ring derives from `border`, and on a

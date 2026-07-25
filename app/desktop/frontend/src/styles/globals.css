@@ -280,15 +280,16 @@
   --color-accent-border: #0060df;
   --color-accent-press: #0a53c4;
 
-  /* Surface ladder — canvas + surface are manual anchors; -2/-3/-4
-     derive via color-mix() so the direction flips automatically per
-     scheme (deeper = darker on light, deeper = lighter on dark).
-     Themes can pin surface-2/3/4 explicitly when their canonical
-     palette has a non-linear ladder.
-     Light-first (Vercel Geist): white reading column, gray chrome rails.
-     Regions separate by this brightness delta — never a grey rule. */
-  --color-bg: #ffffff; /* canvas — the centered white reading column */
-  --color-surface: #f2f2f2; /* lifted chrome — sidebar, dock, cards (gray-100) */
+  /* Surface ladder — `bg` and `surface` are manual anchors; -2/-3/-4 always
+     derive via color-mix() so the direction flips per scheme (deeper = darker on
+     light, lighter on dark) and they track --depth-step (the contrast preference).
+     A theme cannot pin them.
+     The two anchors sit HALF a step apart: the card floats over the drawer and the
+     seam ring divides them, so a full brightness step would read as glued-on
+     chrome. The -2/-3/-4 steps are recessed fills (wells, inputs, hover), not
+     regions. */
+  --color-bg: #ffffff; /* the content card + every popover */
+  --color-surface: #fcfcfc; /* the shell the drawer floats on — half a step, not a step */
   --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
@@ -306,22 +307,24 @@
     var(--color-surface)
   );
 
-  /* Ink — Geist gray ramp (gray-1000 / 900 / 700 / 600). See DESIGN.md §2. */
-  --color-text: #171717;
+  /* Ink — a neutral-800 anchor, not near-black: against an almost-white shell
+     #171717 body copy reads harsh and leaves no room above it. */
+  --color-text: #262626;
   --color-text-bright: #000000;
   --color-text-soft: #4d4d4d;
-  --color-text-muted: #8f8f8f;
-  --color-text-faint: #a8a8a8;
+  --color-text-muted: #686868;
+  --color-text-faint: #8f8f8f;
   --color-text-on-accent: #ffffff;
   /* Ink on a `bg-fg` fill — the canvas color (inverse of fg). Tracks
      --color-bg so a theme that overrides bg gets the right on-fg for free. */
   --color-text-on-fg: var(--color-bg);
 
-  /* Hairlines — Geist gray-alpha. These feed --color-field (form-control
-     edges); region separation is background delta, not these. */
-  --color-border: rgba(17, 17, 17, 0.08);
-  --color-border-soft: rgba(17, 17, 17, 0.14);
-  --color-divider: rgba(17, 17, 17, 0.05);
+  /* Hairlines ARE the separation mechanism: the seam ring and the chrome divider
+     both derive from --color-border, so anything heavier turns the UI into a
+     wireframe. Keep in step with `themes/lyra-light.ts`. */
+  --color-border: rgb(0 0 0 / 0.05);
+  --color-border-soft: rgb(0 0 0 / 0.1);
+  --color-divider: rgb(0 0 0 / 0.04);
 
   /* Semantic — used sparingly per DESIGN.md §9. Dark-tuned per §2: these are
      the lyra-dark first-paint defaults (the theme re-applies the same values at
@@ -683,14 +686,14 @@ html.theme-dark body {
   background: var(--color-bg);
 }
 html.theme-dark {
-  --color-bg: #0f0f0f;
+  --color-bg: #101010;
   --color-surface: #0e0e0e;
   --depth-step: 5%;
 
   --color-text: #f5f5f5;
   --color-text-bright: #ffffff;
   --color-text-soft: #a1a1a1;
-  --color-text-muted: #8f8f8f;
+  --color-text-muted: #818181;
   --color-text-faint: #636363;
   --color-text-on-accent: #ffffff;
 
