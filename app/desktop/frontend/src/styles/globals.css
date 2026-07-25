@@ -670,44 +670,42 @@ textarea:focus-visible {
  *  utilities can't reach.
  * ========================================================================= */
 html.theme-light,
-html.theme-light body,
-html.theme-light .agent-app {
+html.theme-light body {
   background: var(--color-bg);
 }
 
-/* Dark scheme — the light palette above is now the `:root` first-paint
-   default; this block restores the dark palette before JS runs when the
-   persisted theme is dark (runtime applyTheme re-emits these inline anyway).
-   Cool-slate near-black canvas, lifted gray chrome, softened ink. */
+/* Dark scheme — the light palette above is the `:root` first-paint default; this
+   block restores the dark one before JS runs when the persisted theme is dark
+   (runtime applyTheme re-emits these inline anyway). Keep it in step with
+   `themes/lyra-dark.ts` or a dark-persisted launch flashes the wrong palette. */
 html.theme-dark,
-html.theme-dark body,
-html.theme-dark .agent-app {
+html.theme-dark body {
   background: var(--color-bg);
 }
 html.theme-dark {
-  --color-bg: oklch(0.145 0.02 262);
-  --color-surface: oklch(0.205 0.02 262);
+  --color-bg: #0f0f0f;
+  --color-surface: #0e0e0e;
   --depth-step: 5%;
 
-  --color-text: #ececec;
+  --color-text: #f5f5f5;
   --color-text-bright: #ffffff;
-  --color-text-soft: #b8bcc4;
-  --color-text-muted: #8a8f98;
-  --color-text-faint: #5c6068;
-  --color-text-on-accent: #030408;
+  --color-text-soft: #a1a1a1;
+  --color-text-muted: #8f8f8f;
+  --color-text-faint: #636363;
+  --color-text-on-accent: #ffffff;
 
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-soft: rgba(255, 255, 255, 0.06);
-  --color-divider: rgba(255, 255, 255, 0.08);
+  --color-border: rgb(255 255 255 / 0.04);
+  --color-border-soft: rgb(255 255 255 / 0.1);
+  --color-divider: rgb(255 255 255 / 0.03);
 
-  --color-negative: #f85149;
-  --color-warning: #f0a936;
-  --color-info: #58a6ff;
-  --color-success: #3fb950;
+  --color-negative: #fc0035;
+  --color-warning: #ffc543;
+  --color-info: #006bff;
+  --color-success: #4ce15e;
 
-  --color-cta: #ececec;
+  --color-cta: #f5f5f5;
   --color-cta-hover: #ffffff;
-  --color-cta-text: #030408;
+  --color-cta-text: #171717;
 
   --shadow-border: 0 0 0 0.5px rgb(255 255 255 / 0.12);
   --shadow-control:
@@ -1119,6 +1117,20 @@ html.theme-dark {
   position: relative;
   display: flex;
   flex-direction: column;
+}
+
+/* Continuous-curvature corners where the engine has them. macOS draws its own
+   window and control corners this way, so a plain `border-radius` beside native
+   chrome reads slightly mechanical. Feature-gated rather than assumed: this is a
+   WKWebView and `corner-shape` support is version-dependent — where it is missing
+   the surfaces keep their plain radius and nothing else changes. Scoped to the two
+   surfaces whose radius is large enough for the difference to register; on a 10px
+   control it is imperceptible. */
+@supports (corner-shape: round) {
+  .agent-content-card,
+  [data-slot="composer-root"] {
+    corner-shape: squircle;
+  }
 }
 
 /* =========================================================================
