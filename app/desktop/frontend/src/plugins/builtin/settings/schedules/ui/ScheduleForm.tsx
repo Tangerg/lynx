@@ -83,7 +83,7 @@ export function ScheduleForm({ schedule, defaultCwd, onDone, onCancel }: Schedul
             onClick={() => updateDraft("cron", preset.cron)}
             className={cn(
               "rounded-pill px-2.5 py-1 text-ui-sm font-medium transition-colors",
-              draft.cron === preset.cron ? "bg-fg/[0.075] text-fg" : "text-fg hover:bg-fg/[0.04]",
+              draft.cron === preset.cron ? "bg-selected text-fg" : "text-fg hover:bg-hover",
             )}
           >
             {t(preset.key)}

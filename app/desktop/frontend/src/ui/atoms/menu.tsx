@@ -8,7 +8,7 @@ const MENU_CONTENT_CLASSES = `${FLOATING_PANEL} p-1`;
 
 const MENU_ITEM_CLASSES = [
   "relative grid min-h-[26px] items-center gap-2 rounded-sm px-2 py-px",
-  "text-ui-md text-fg outline-none data-[highlighted]:bg-fg/[0.04]",
+  "text-ui-md text-fg outline-none data-[highlighted]:bg-hover",
 ].join(" ");
 
 const MENU_SEPARATOR_CLASSES = "relative mx-1 my-1 h-px bg-fg/[0.06]";

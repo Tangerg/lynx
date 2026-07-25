@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, type IconName, Switch } from "@/ui";
+import { IconButton, Switch, type IconName } from "@/ui";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import {
   deleteSchedule,
@@ -34,21 +34,20 @@ function ScheduleActionButton({
   onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
+    <IconButton
+      icon={icon}
+      iconSize={13}
+      size="sm"
+      quiet
       aria-label={label}
       aria-expanded={active}
       title={title}
       onClick={onClick}
       className={cn(
-        "grid h-7 w-7 place-items-center rounded-md text-fg-faint transition-colors hover:bg-fg/[0.06]",
         tone === "accent" && "hover:text-accent",
         tone === "negative" && "hover:text-negative",
-        !tone && "hover:text-fg",
       )}
-    >
-      <Icon name={icon} size={13} />
-    </button>
+    />
   );
 }
 
@@ -72,7 +71,7 @@ export function ScheduleRow({
 
   return (
     <div className={cn(!schedule.enabled && "opacity-60")}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-hover">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate text-ui-lg font-medium text-fg">

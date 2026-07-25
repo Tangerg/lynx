@@ -1,5 +1,5 @@
 import type { IconName } from "@/ui";
-import { Icon, Kbd, Tooltip } from "@/ui";
+import { Button, Icon, Kbd, PillButton, Tooltip } from "@/ui";
 import { comboGlyph } from "@/lib/combo";
 import { useProviders } from "@/plugins/builtin/settings/providers/public/data";
 import { useT } from "@/lib/i18n";
@@ -27,10 +27,10 @@ export function WelcomeScreen() {
           <div className="flex flex-wrap justify-center gap-2">
             {WELCOME_SUGGESTIONS.map((suggestion) => (
               <Tooltip key={suggestion.labelKey} label={t(suggestion.promptKey)} side="bottom">
-                <button
-                  type="button"
+                <Button
+                  variant="soft"
+                  className="gap-2 bg-surface hover:bg-surface-2"
                   onClick={() => setValue(t(suggestion.promptKey))}
-                  className="inline-flex h-8 items-center gap-2 rounded-md border-0 bg-surface px-3 text-ui-md font-medium text-fg-soft transition-[background-color,color,transform] duration-[120ms] hover:bg-surface-2 hover:text-fg active:scale-[0.98]"
                 >
                   <Icon
                     name={suggestion.icon as IconName}
@@ -38,7 +38,7 @@ export function WelcomeScreen() {
                     className="shrink-0 text-fg-muted"
                   />
                   <span>{t(suggestion.labelKey)}</span>
-                </button>
+                </Button>
               </Tooltip>
             ))}
           </div>
@@ -75,14 +75,10 @@ function SetupCard() {
           <p className="m-0 text-pretty text-ui-lg leading-relaxed text-fg-soft">
             {t("welcome.setup.sub")}
           </p>
-          <button
-            type="button"
-            onClick={onConfigure}
-            className="mt-0.5 inline-flex items-center gap-2 rounded-full border-0 bg-fg px-3.5 py-2 font-sans text-ui-lg font-semibold text-on-fg transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.96]"
-          >
+          <PillButton variant="solid" onClick={onConfigure} className="mt-0.5 font-semibold">
             <Icon name="settings" size={13} />
             {t("welcome.setup.action")}
-          </button>
+          </PillButton>
         </div>
       </div>
     </div>

@@ -14,7 +14,7 @@ const styles = cva(
   {
     variants: {
       variant: {
-        outlined: "border-[0.5px] border-field text-fg-soft hover:bg-fg/[0.05] hover:text-fg",
+        outlined: "border-[0.5px] border-field text-fg-soft hover:bg-hover hover:text-fg",
         solid: "bg-cta text-cta-text hover:bg-cta-hover",
         accent: "bg-accent text-on-accent",
         danger: "bg-transparent text-negative border-[0.5px] border-negative hover:bg-negative/10",

@@ -4,15 +4,14 @@
 // concatenates the fenced code blocks for users who just want the snippets. The
 // Code variant hides when the message has none.
 
-import { DropdownMenu, Icon, Tooltip } from "@/ui";
+import { DropdownMenu, Tooltip } from "@/ui";
 import { writeToClipboard } from "@/lib/clipboard";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canCopyMessage } from "./application/messageActionAvailability";
 import { messageCopyActionSlot } from "./application/messageActionContributions";
 import { messageCopyPayloads } from "./presentation/copyPayloads";
-import { ACTION_BTN_BASE, roleShape } from "./_shared";
+import { MessageActionButton } from "./_shared";
 
 function CopyButton() {
   const t = useT();
@@ -24,11 +23,10 @@ function CopyButton() {
     <DropdownMenu.Root>
       <Tooltip label={t("msgActions.copy")}>
         <DropdownMenu.Trigger
-          aria-label={t("msgActions.copy")}
-          className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
-        >
-          <Icon name="copy" size={13} />
-        </DropdownMenu.Trigger>
+          render={
+            <MessageActionButton icon="copy" role={msg.role} aria-label={t("msgActions.copy")} />
+          }
+        />
       </Tooltip>
       <DropdownMenu.Content align="end" sideOffset={4} className="min-w-[160px]">
         <CopyItem

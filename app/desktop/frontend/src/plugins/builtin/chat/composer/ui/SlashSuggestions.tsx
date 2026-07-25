@@ -41,7 +41,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
           key={cmd}
           type="button"
           onClick={() => onPick(`${cmd} `)}
-          className="grid h-8 w-full grid-cols-[auto_1fr] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left text-ui-lg text-fg-soft transition-colors hover:bg-fg/[0.06] hover:text-fg"
+          className="grid h-8 w-full grid-cols-[auto_1fr] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left text-ui-lg text-fg-soft transition-colors hover:bg-hover hover:text-fg"
         >
           <code className="border-0 bg-transparent p-0 font-mono text-ui-md font-semibold text-accent">
             {cmd}

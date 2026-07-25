@@ -150,7 +150,7 @@ function StartGoal({ sessionId }: { sessionId: string }) {
           onClick={() => setOpen(true)}
           className={cn(
             "flex items-center gap-1.5 rounded-md border-0 bg-transparent px-2 py-1",
-            "text-ui-md text-fg-faint transition-colors hover:bg-surface hover:text-fg-soft",
+            "text-ui-md text-fg-faint transition-colors hover:bg-hover hover:text-fg-soft",
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
           )}
         >

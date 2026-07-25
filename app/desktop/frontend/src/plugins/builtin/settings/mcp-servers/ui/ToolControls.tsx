@@ -74,7 +74,7 @@ export function ToolControls({ server, disabledTools, autoApproveTools, onChange
               return (
                 <div
                   key={tool.name}
-                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 rounded-md px-1.5 py-1.5 transition-colors hover:bg-fg/[0.04]"
+                  className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-4 rounded-md px-1.5 py-1.5 transition-colors hover:bg-hover"
                 >
                   <code
                     className="truncate font-mono text-ui-lg text-fg"

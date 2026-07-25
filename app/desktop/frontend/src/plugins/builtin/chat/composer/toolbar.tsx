@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { DropdownMenu, Icon, IconButton, ProviderIcon, StatusDot, Tooltip } from "@/ui";
+import { Button, DropdownMenu, Icon, IconButton, ProviderIcon, StatusDot, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import {
@@ -55,16 +55,16 @@ function ModelPicker() {
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
         render={
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             aria-label={t("composer.switchModel")}
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium text-fg-soft transition-colors hover:bg-fg/[0.05] hover:text-fg data-[popup-open]:bg-fg/[0.05] data-[popup-open]:text-fg"
+            className="gap-1.5 whitespace-nowrap text-ui-lg text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
             data-slot="composer-model"
           >
             <StatusDot tone="idle" />
             <span className="max-w-[168px] truncate">{selected.label}</span>
             <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
-          </button>
+          </Button>
         }
       />
       <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[200px]">
@@ -147,10 +147,10 @@ function ApprovalModePill() {
             type="button"
             aria-label={t("approvals.mode.aria")}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-fg/[0.05]",
+              "inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 font-sans text-ui-lg font-medium transition-colors data-[popup-open]:bg-selected",
               full
                 ? "text-warning hover:bg-warning/10"
-                : "text-fg-soft hover:bg-fg/[0.05] hover:text-fg",
+                : "text-fg-soft hover:bg-hover hover:text-fg",
             )}
             data-slot="composer-approval"
           >
@@ -165,7 +165,7 @@ function ApprovalModePill() {
           <DropdownMenu.Item
             key={m.value}
             onClick={() => void onSelect(m.value)}
-            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-fg/[0.06]"
+            className="grid grid-cols-[minmax(0,1fr)_14px] items-start gap-2 rounded-md px-2 py-1.5 outline-none data-[highlighted]:bg-hover"
           >
             <span className="min-w-0">
               <span className="block text-ui-md font-semibold text-fg">{t(m.labelKey)}</span>

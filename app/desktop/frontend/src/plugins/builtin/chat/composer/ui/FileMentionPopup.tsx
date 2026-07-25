@@ -37,7 +37,7 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
             }}
             className={cn(
               "grid h-8 w-full grid-cols-[auto_1fr] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left text-ui-lg transition-colors",
-              i === index ? "bg-fg/[0.06]" : "hover:bg-fg/[0.06]",
+              i === index ? "bg-selected" : "hover:bg-hover",
             )}
           >
             <Icon name="filetext" size={13} className="shrink-0 text-fg-muted" />

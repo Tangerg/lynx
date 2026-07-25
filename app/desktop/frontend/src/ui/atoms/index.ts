@@ -29,6 +29,8 @@ export { SkeletonList } from "./skeleton";
 export { SystemMessage } from "./system-message";
 export type { SystemMessageProps } from "./system-message";
 export { TextArea, TextField } from "./text-field";
+export { TextButton } from "./text-button";
+export type { TextButtonProps } from "./text-button";
 export type { TextAreaProps, TextFieldProps } from "./text-field";
 export { Slider } from "./slider";
 export { StatusDot } from "./status-dot";

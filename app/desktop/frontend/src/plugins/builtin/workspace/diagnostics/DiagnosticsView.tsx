@@ -11,7 +11,7 @@
 import type { MetricRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
 import { useMemo, useState } from "react";
-import { Segmented } from "@/ui";
+import { Button, Segmented } from "@/ui";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 import { TracesPanel } from "./TracesPanel";
 
@@ -44,13 +44,9 @@ export function DiagnosticsView() {
             onChange={setSignal}
             ariaLabel="Telemetry signal"
           />
-          <button
-            type="button"
-            onClick={clear}
-            className="rounded-md border-[0.5px] border-field bg-transparent px-2.5 py-1 text-ui-md text-fg-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
-          >
+          <Button variant="outline" size="sm" onClick={clear}>
             Clear
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -185,7 +181,7 @@ function InstrumentSection({ group }: { group: NameGroup }) {
         </thead>
         <tbody className="font-mono">
           {group.rows.map((r) => (
-            <tr key={r.id} className="hover:bg-fg/[0.04]">
+            <tr key={r.id} className="hover:bg-hover">
               <td className="py-0.5 pr-3 text-fg-muted">{formatAttrs(r.attrs)}</td>
               <td className="py-0.5 pr-3 text-right tabular-nums text-fg">{r.count}</td>
               {group.kind === "histogram" && (

@@ -3,7 +3,7 @@ import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { PlanCheck } from "@/plugins/builtin/agent/public/planPresentation";
-import { Icon, Tooltip } from "@/ui";
+import { Icon, IconButton } from "@/ui";
 import { swift } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -53,7 +53,7 @@ export function PlanProgressBanner() {
               }
               className={cn(
                 "flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5",
-                "border-0 bg-transparent text-left transition-colors hover:bg-surface-2",
+                "border-0 bg-transparent text-left transition-colors hover:bg-hover",
                 "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent",
               )}
             >
@@ -81,21 +81,16 @@ export function PlanProgressBanner() {
                 className="shrink-0 text-fg-faint"
               />
             </button>
-            <Tooltip label={t("plan.dismiss")}>
-              <button
-                type="button"
-                onClick={dismiss}
-                aria-label={t("plan.dismissAria")}
-                className={cn(
-                  "mr-1.5 grid h-7 w-7 shrink-0 place-items-center rounded-md border-0 bg-transparent",
-                  "text-fg-faint transition-colors",
-                  "hover:bg-surface-2 hover:text-fg",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent",
-                )}
-              >
-                <Icon name="x" size={12} />
-              </button>
-            </Tooltip>
+            <IconButton
+              icon="x"
+              iconSize={12}
+              size="sm"
+              quiet
+              title={t("plan.dismiss")}
+              aria-label={t("plan.dismissAria")}
+              onClick={dismiss}
+              className="mr-1.5 shrink-0"
+            />
           </div>
 
           <div

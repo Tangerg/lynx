@@ -22,7 +22,7 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
         {(lines ?? []).map((l) => (
           <div
             key={l.lineNumber}
-            className="grid grid-cols-[28px_1fr] gap-2.5 rounded-2xs px-1 hover:bg-fg/[0.04] transition-colors"
+            className="grid grid-cols-[28px_1fr] gap-2.5 rounded-2xs px-1 hover:bg-hover transition-colors"
           >
             <span className="text-right text-ui-sm text-fg-faint tabular-nums select-none">
               {l.lineNumber}

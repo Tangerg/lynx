@@ -4,7 +4,6 @@
 // decisions. Re-rating re-submits; the runtime treats each as a new event.
 
 import { useEffect, useState } from "react";
-import { Icon, Tooltip } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
@@ -12,7 +11,7 @@ import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
 import { installRuntimeFeedbackPort } from "./adapters/runtimeFeedback";
-import { ACTION_BTN_BASE, roleShape } from "./_shared";
+import { MessageActionButton } from "./_shared";
 
 function FeedbackButtons() {
   const t = useT();
@@ -31,36 +30,22 @@ function FeedbackButtons() {
 
   return (
     <>
-      <Tooltip label={t("msgActions.good")}>
-        <button
-          type="button"
-          onClick={() => rate("positive")}
-          aria-label={t("msgActions.good")}
-          aria-pressed={rated === "positive"}
-          className={cn(
-            ACTION_BTN_BASE,
-            roleShape(msg.role),
-            rated === "positive" && "text-success",
-          )}
-        >
-          <Icon name="thumbs-up" size={13} />
-        </button>
-      </Tooltip>
-      <Tooltip label={t("msgActions.poor")}>
-        <button
-          type="button"
-          onClick={() => rate("negative")}
-          aria-label={t("msgActions.poor")}
-          aria-pressed={rated === "negative"}
-          className={cn(
-            ACTION_BTN_BASE,
-            roleShape(msg.role),
-            rated === "negative" && "text-negative",
-          )}
-        >
-          <Icon name="thumbs-down" size={13} />
-        </button>
-      </Tooltip>
+      <MessageActionButton
+        icon="thumbs-up"
+        title={t("msgActions.good")}
+        role={msg.role}
+        aria-pressed={rated === "positive"}
+        onClick={() => rate("positive")}
+        className={cn(rated === "positive" && "text-success")}
+      />
+      <MessageActionButton
+        icon="thumbs-down"
+        title={t("msgActions.poor")}
+        role={msg.role}
+        aria-pressed={rated === "negative"}
+        onClick={() => rate("negative")}
+        className={cn(rated === "negative" && "text-negative")}
+      />
     </>
   );
 }

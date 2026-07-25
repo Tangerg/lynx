@@ -1,4 +1,4 @@
-import { Icon, Popover, ProgressBar } from "@/ui";
+import { Icon, IconButton, Popover, ProgressBar } from "@/ui";
 import { cn } from "@/lib/utils";
 import type { TaskReadoutStatus, TaskReadoutTask } from "../application/ports/taskReadoutPort";
 import { taskProgressPercent, useTaskReadout } from "../application/taskReadout";
@@ -19,23 +19,14 @@ export function TasksPill() {
     <Popover.Root>
       <Popover.Trigger
         render={
-          <button
-            type="button"
+          <IconButton
+            icon={name}
+            size="sm"
+            quiet
+            badge={readout.runningCount}
             aria-label={readout.label}
-            title={readout.title}
-            className="relative grid h-6.5 w-6.5 place-items-center rounded-md border-0 bg-transparent text-fg-faint transition-[background,color] hover:bg-fg/[0.08] hover:text-fg active:scale-[0.96]"
-          >
-            <Icon
-              name={name}
-              size={14}
-              className={cn(tone, readout.head.status === "running" && "animate-pulse-dot")}
-            />
-            {readout.runningCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-ui-2xs font-semibold text-on-accent">
-                {readout.runningCount}
-              </span>
-            )}
-          </button>
+            className={cn(tone, readout.head.status === "running" && "[&_svg]:animate-pulse-dot")}
+          />
         }
       />
       <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-xl">

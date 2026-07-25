@@ -70,7 +70,7 @@ export function CommandPalette() {
                 ...(command.keywords ?? []),
               ].join(" ")}
               onSelect={() => runPaletteCommand(command, close)}
-              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06] transition-colors"
+              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
             >
               {command.icon && (
                 <Icon name={command.icon as IconName} size={14} className="shrink-0 text-fg" />
@@ -98,7 +98,7 @@ export function CommandPalette() {
                     selectAgentSession(session.id);
                     close();
                   }}
-                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-fg/[0.06] aria-selected:bg-fg/[0.06] transition-colors"
+                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
                 >
                   <Icon name="history" size={14} className="shrink-0 text-fg-faint" />
                   <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>

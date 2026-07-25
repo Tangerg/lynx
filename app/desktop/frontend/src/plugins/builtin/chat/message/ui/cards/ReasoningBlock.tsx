@@ -132,7 +132,7 @@ export function ReasoningBlock({ text, status }: Props) {
           type="button"
           onClick={toggle}
           data-slot="reasoning-trigger"
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-fg/[0.02]"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border-0 bg-transparent px-3.5 py-3 text-left transition-colors duration-150 hover:bg-hover"
         >
           <Icon name="sparkle" size={14} className="shrink-0 text-fg-muted" />
           <span className="shrink-0 text-ui-lg font-medium text-fg [font-feature-settings:'tnum']">

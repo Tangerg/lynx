@@ -94,20 +94,15 @@
      pasted on), while a fixed wash stays a whisper and inherits the ink's hue. */
   --color-control: var(--color-control);
 
-  /* Fine foreground ramp — mapped into Tailwind utilities */
-  --color-text-2: var(--color-text-2);
-  --color-text-3: var(--color-text-3);
-  --color-text-5: var(--color-text-5);
-  --color-text-10: var(--color-text-10);
-  --color-text-20: var(--color-text-20);
-  --color-text-30: var(--color-text-30);
-  --color-text-40: var(--color-text-40);
-  --color-text-50: var(--color-text-50);
-  --color-text-60: var(--color-text-60);
-  --color-text-70: var(--color-text-70);
-  --color-text-80: var(--color-text-80);
-  --color-text-90: var(--color-text-90);
-  --color-text-95: var(--color-text-95);
+  /* Interaction fill — the pointer is over this, or this is the chosen one.
+     Two values for the whole app, because before them every callsite picked its
+     own: eleven different spellings of "neutral hover" (`fg/2%` through `fg/8%`
+     plus three surface swaps) meant the same gesture answered at four times the
+     strength depending on which panel you were in. An ink wash rather than a
+     surface step, so a row lights up the same over a card, a menu or the drawer.
+     Reach for these, never for a bare `hover:bg-fg/[…]`. */
+  --color-hover: color-mix(in srgb, var(--color-text) 4%, transparent);
+  --color-selected: color-mix(in srgb, var(--color-text) 6%, transparent);
 
   /* UI type ladder — `text-ui-2xs … text-ui-lg`. Every step is derived from a
      single base size at runtime (lib/typography.ts writes the --fs-* vars), so
@@ -512,22 +507,6 @@
 
   /* Content max-width — the centered reading island. */
   --content-max: 736px;
-
-  /* Fine foreground ramp (color-mix toward bg) — 20-step for subtle
-     surface tints, hover states, and depth layering. */
-  --color-text-2: color-mix(in oklch, var(--color-text) 2%, var(--color-bg));
-  --color-text-3: color-mix(in oklch, var(--color-text) 3%, var(--color-bg));
-  --color-text-5: color-mix(in oklch, var(--color-text) 5%, var(--color-bg));
-  --color-text-10: color-mix(in oklch, var(--color-text) 10%, var(--color-bg));
-  --color-text-20: color-mix(in oklch, var(--color-text) 20%, var(--color-bg));
-  --color-text-30: color-mix(in oklch, var(--color-text) 30%, var(--color-bg));
-  --color-text-40: color-mix(in oklch, var(--color-text) 40%, var(--color-bg));
-  --color-text-50: color-mix(in oklch, var(--color-text) 50%, var(--color-bg));
-  --color-text-60: color-mix(in oklch, var(--color-text) 60%, var(--color-bg));
-  --color-text-70: color-mix(in oklch, var(--color-text) 70%, var(--color-bg));
-  --color-text-80: color-mix(in oklch, var(--color-text) 80%, var(--color-bg));
-  --color-text-90: color-mix(in oklch, var(--color-text) 90%, var(--color-bg));
-  --color-text-95: color-mix(in oklch, var(--color-text) 95%, var(--color-bg));
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for

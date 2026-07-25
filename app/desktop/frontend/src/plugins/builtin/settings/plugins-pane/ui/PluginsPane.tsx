@@ -10,7 +10,7 @@
 
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
-import { Icon, IconButton, PillButton } from "@/ui";
+import { Icon, IconButton, PillButton, TextButton } from "@/ui";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
@@ -74,7 +74,7 @@ export function PluginsPane() {
             <div
               key={spec.name}
               className={cn(
-                "rounded-md transition-colors hover:bg-fg/[0.04]",
+                "rounded-md transition-colors hover:bg-hover",
                 errCount > 0 && "bg-negative/5",
               )}
             >
@@ -86,16 +86,16 @@ export function PluginsPane() {
                   </div>
                   <div className="font-mono text-ui-md text-fg-muted">v{spec.version}</div>
                   {errCount > 0 && (
-                    <button
-                      type="button"
+                    <TextButton
+                      tone="negative"
                       onClick={() => toggle(spec.name)}
                       title={open ? t("plugins.errorDetail.hide") : t("plugins.errorDetail.show")}
-                      className="mt-1.5 inline-flex items-center gap-1.5 text-ui-md text-negative hover:opacity-80"
+                      className="mt-1.5"
                     >
                       <Icon name="bug" size={12} />
                       {t("plugins.errors", { count: errCount })}
                       <Icon name={open ? "chevron-up" : "chevron-down"} size={12} />
-                    </button>
+                    </TextButton>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">

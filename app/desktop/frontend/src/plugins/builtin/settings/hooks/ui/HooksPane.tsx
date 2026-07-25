@@ -24,7 +24,7 @@ function HookRow({ h }: { h: HookConfig }) {
   return (
     <div
       className={cn(
-        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]",
+        "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-hover",
         !h.active && "opacity-55",
       )}
     >

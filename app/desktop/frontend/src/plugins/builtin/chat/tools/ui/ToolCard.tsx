@@ -56,7 +56,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
     "grid h-6 w-6 shrink-0 place-items-center rounded-md border-0 transition-[opacity,color,background-color]",
     model.isError
       ? "bg-canvas text-fg-muted opacity-100 shadow-[var(--shadow-control)] hover:text-fg"
-      : "bg-transparent text-fg-faint opacity-0 group-hover:opacity-100 hover:bg-fg/[0.06] hover:text-fg",
+      : "bg-transparent text-fg-faint opacity-0 group-hover:opacity-100 hover:bg-hover hover:text-fg",
   );
 
   return (
@@ -79,7 +79,7 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
               ? "hover:bg-negative/[0.06]"
               : model.needsAction
                 ? "hover:bg-warning/[0.06]"
-                : "hover:bg-fg/[0.03]",
+                : "hover:bg-hover",
             "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
           )}
         >

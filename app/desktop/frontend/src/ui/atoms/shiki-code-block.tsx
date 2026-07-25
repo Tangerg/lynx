@@ -136,7 +136,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
             "grid h-6 w-6 place-items-center rounded-md border-0 bg-transparent transition-[opacity,color,background] duration-150",
             copied
               ? "text-success opacity-100"
-              : "text-fg-muted opacity-0 group-hover/code:opacity-100 hover:text-fg hover:bg-fg/[0.08]",
+              : "text-fg-muted opacity-0 group-hover/code:opacity-100 hover:text-fg hover:bg-hover",
           )}
         >
           <Icon name={copied ? "check" : "copy"} size={13} />
@@ -179,4 +179,4 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
 }
 
 const FOLD_TOGGLE =
-  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-ui-sm font-medium text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-fg/[0.05] hover:text-fg";
+  "flex w-full items-center justify-center gap-1.5 border-0 bg-transparent px-4 py-2 font-sans text-ui-sm font-medium text-fg-muted tracking-normal transition-[background,color] duration-150 hover:bg-hover hover:text-fg";

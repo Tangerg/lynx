@@ -25,9 +25,9 @@ const buttonStyles = cva(
   {
     variants: {
       variant: {
-        ghost: "bg-transparent text-fg-muted hover:bg-fg/[0.04] hover:text-fg",
+        ghost: "bg-transparent text-fg-muted hover:bg-hover hover:text-fg",
         soft: "bg-surface-2 text-fg-soft hover:bg-surface-3 hover:text-fg",
-        outline: "border-field bg-transparent text-fg-soft hover:bg-fg/[0.04] hover:text-fg",
+        outline: "border-field bg-transparent text-fg-soft hover:bg-hover hover:text-fg",
         primary: "bg-cta text-cta-text hover:bg-cta-hover",
         danger: "bg-transparent text-negative hover:bg-negative/10",
       },
@@ -35,6 +35,7 @@ const buttonStyles = cva(
         xs: "h-6 rounded-sm px-[7px] text-ui-sm",
         sm: "h-7 rounded-md px-[9px] text-ui-md",
         md: "h-8 rounded-md px-[11px] text-ui-md",
+        "icon-xs": "h-6 w-6 rounded-sm p-0",
         "icon-sm": "h-7 w-7 rounded-md p-0",
         "icon-md": "h-8 w-8 rounded-md p-0",
         "icon-lg": "h-10 w-10 rounded-md p-0",

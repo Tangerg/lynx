@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DataView, Icon } from "@/ui";
+import { DataView, Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
 import { isUnsupportedMethod } from "@/lib/rpcErrors";
@@ -21,14 +21,10 @@ function FileViewer({ path, cwd, onBack }: { path: string; cwd?: string; onBack:
   const { data, isLoading, isError } = useWorkspaceReadFile({ path, cwd });
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 px-3 py-2 text-left font-mono text-ui-md text-fg-muted hover:text-fg transition-colors"
-      >
+      <TextButton onClick={onBack} className="px-3 py-2 font-mono">
         <Icon name="chevron-down" size={12} className="shrink-0 -rotate-90" />
         <span className="truncate">{path}</span>
-      </button>
+      </TextButton>
       {isLoading ? (
         <div className="px-3 text-ui-md text-fg-faint">{t("filetree.loading")}</div>
       ) : isError || !data ? (

@@ -142,7 +142,7 @@ function ShowcaseCard({ id }: { id: string }) {
   return (
     <div
       title={`${title} — ${id}`}
-      className="flex cursor-default flex-col items-center gap-1.5 rounded-md bg-surface px-2 pb-2 pt-2.5 transition-colors duration-150 hover:bg-fg/[0.04]"
+      className="flex cursor-default flex-col items-center gap-1.5 rounded-md bg-surface px-2 pb-2 pt-2.5 transition-colors duration-150 hover:bg-hover"
     >
       <div className="grid h-8.5 w-8.5 place-items-center rounded-sm bg-surface-2 text-fg">
         {Glyph ? <Glyph size={22} /> : <span className="font-mono text-fg-faint">?</span>}

@@ -58,7 +58,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
         type="button"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 border-0 bg-transparent px-4 py-2 text-left hover:bg-fg/[0.04]"
+        className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 border-0 bg-transparent px-4 py-2 text-left hover:bg-hover"
       >
         <Icon
           name="chevron-down"

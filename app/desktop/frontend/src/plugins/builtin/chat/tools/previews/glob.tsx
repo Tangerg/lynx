@@ -21,7 +21,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
       {paths.slice(0, MAX_ROWS).map((p) => (
         <div
           key={p}
-          className="truncate rounded-2xs px-1 py-0.5 text-fg-muted hover:bg-fg/[0.04] transition-colors"
+          className="truncate rounded-2xs px-1 py-0.5 text-fg-muted hover:bg-hover transition-colors"
         >
           {p}
         </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Icon, PillButton, TextArea } from "@/ui";
+import { Icon, PillButton, TextArea, TextButton } from "@/ui";
 import { useConfigureMCPServer } from "../application/mcpServerConfig";
 import { notifyInfo } from "@/lib/notify";
 import { useT } from "@/lib/i18n";
@@ -31,14 +31,10 @@ export function JsonImport() {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg transition-colors"
-      >
+      <TextButton onClick={() => setOpen(true)}>
         <Icon name="download" size={13} />
         {t("mcp.import")}
-      </button>
+      </TextButton>
     );
   }
   return (

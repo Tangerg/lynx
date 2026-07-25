@@ -1,4 +1,4 @@
-import { DataView, Icon } from "@/ui";
+import { DataView, IconButton, TextButton } from "@/ui";
 import {
   forgetApprovalRule,
   forgetApprovalRules,
@@ -63,18 +63,14 @@ export function RulesRow() {
           {(rows) => (
             <div className="flex flex-col gap-0.5">
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-ui-md text-fg-muted transition-colors hover:text-fg"
-                  onClick={() => void forgetAll(rows)}
-                >
+                <TextButton onClick={() => void forgetAll(rows)}>
                   {t("approvals.clearAll")}
-                </button>
+                </TextButton>
               </div>
               {rows.map((r) => (
                 <div
                   key={r.id}
-                  className="flex items-center gap-2 rounded-md px-2.5 py-2 transition-colors hover:bg-fg/[0.04]"
+                  className="flex items-center gap-2 rounded-md px-2.5 py-2 transition-colors hover:bg-hover"
                 >
                   <span
                     className={cn(
@@ -97,14 +93,15 @@ export function RulesRow() {
                     {r.subject ? <span className="text-fg-muted"> · {r.subject}</span> : null}
                     {r.dir ? <span className="text-fg-faint"> — {r.dir}</span> : null}
                   </span>
-                  <button
-                    type="button"
+                  <IconButton
+                    icon="x"
+                    iconSize={13}
+                    size="xs"
+                    quiet
+                    className="shrink-0"
                     aria-label={t("approvals.forget", { tool: r.tool })}
-                    className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-fg-faint transition-colors hover:bg-fg/[0.06] hover:text-fg"
                     onClick={() => void forget(r.id)}
-                  >
-                    <Icon name="x" size={13} />
-                  </button>
+                  />
                 </div>
               ))}
             </div>

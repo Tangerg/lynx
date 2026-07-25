@@ -45,8 +45,8 @@ export function AgentDockTabs({ tabs }: { tabs: AgentDockTab[] }) {
           className={cn(
             "inline-flex h-7 min-w-0 max-w-40 shrink-0 items-center gap-1.5 rounded-md border-0 bg-transparent px-1.5",
             "text-ui-sm font-normal text-fg-muted transition-colors duration-[120ms] ease-out",
-            "hover:bg-fg/[0.04] hover:text-fg",
-            "data-[active]:bg-fg/[0.04] data-[active]:text-fg",
+            "hover:bg-hover hover:text-fg",
+            "data-[active]:bg-selected data-[active]:text-fg",
           )}
         >
           {tab.icon && (

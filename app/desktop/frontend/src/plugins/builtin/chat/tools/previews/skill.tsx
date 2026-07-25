@@ -30,7 +30,7 @@ function SkillPreview({ tool, onOpenView }: ToolPreviewProps) {
       {entries.slice(0, MAX_ROWS).map((s) => (
         <div
           key={s.name}
-          className="flex items-baseline gap-2 rounded-2xs px-1 py-0.5 hover:bg-fg/[0.04] transition-colors"
+          className="flex items-baseline gap-2 rounded-2xs px-1 py-0.5 hover:bg-hover transition-colors"
         >
           <code className="shrink-0 rounded-xs bg-surface-2 px-1.5 py-0.5 text-ui-sm text-fg-soft">
             {s.name}

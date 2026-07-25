@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon, TextField, Tooltip } from "@/ui";
+import { IconButton, TextField } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
@@ -94,38 +94,29 @@ export function ChatSearchOverlay() {
       <span className="px-1.5 font-mono text-ui-sm text-fg-faint">
         {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
-      <Tooltip label={`${t("chatSearch.prev")} (⇧⏎)`}>
-        <button
-          type="button"
-          onClick={prev}
-          disabled={total === 0}
-          aria-label={t("chatSearch.prev")}
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Icon name="chevron-up" size={12} />
-        </button>
-      </Tooltip>
-      <Tooltip label={`${t("chatSearch.next")} (⏎)`}>
-        <button
-          type="button"
-          onClick={next}
-          disabled={total === 0}
-          aria-label={t("chatSearch.next")}
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Icon name="chevron-down" size={12} />
-        </button>
-      </Tooltip>
-      <Tooltip label={`${t("common.close")} (Esc)`}>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          aria-label={t("common.close")}
-          className="grid h-6 w-6 place-items-center rounded border-0 bg-transparent text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
-        >
-          <Icon name="x" size={12} />
-        </button>
-      </Tooltip>
+      <IconButton
+        icon="chevron-up"
+        size="xs"
+        title={`${t("chatSearch.prev")} (⇧⏎)`}
+        aria-label={t("chatSearch.prev")}
+        disabled={total === 0}
+        onClick={prev}
+      />
+      <IconButton
+        icon="chevron-down"
+        size="xs"
+        title={`${t("chatSearch.next")} (⏎)`}
+        aria-label={t("chatSearch.next")}
+        disabled={total === 0}
+        onClick={next}
+      />
+      <IconButton
+        icon="x"
+        size="xs"
+        title={`${t("common.close")} (Esc)`}
+        aria-label={t("common.close")}
+        onClick={() => setOpen(false)}
+      />
     </search>
   );
 }

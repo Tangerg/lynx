@@ -36,7 +36,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
                 onClick={() => void onChange(o.value)}
                 className={cn(
                   "flex items-center gap-3 rounded-md px-3 py-3 text-left transition-colors",
-                  selected ? "bg-accent/10" : "hover:bg-fg/[0.04]",
+                  selected ? "bg-accent/10" : "hover:bg-hover",
                 )}
               >
                 <div className="min-w-0 flex-1">

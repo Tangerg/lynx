@@ -43,7 +43,7 @@ export function ProviderRow({ p }: { p: ProviderConfig }) {
   const onTest = () => run(() => test(p.id), t("providers.error.test"));
 
   return (
-    <div className="rounded-md px-3 py-3 transition-colors hover:bg-fg/[0.04]">
+    <div className="rounded-md px-3 py-3 transition-colors hover:bg-hover">
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
         <ProviderIcon provider={p.id} size={20} />
         <div className="min-w-0">

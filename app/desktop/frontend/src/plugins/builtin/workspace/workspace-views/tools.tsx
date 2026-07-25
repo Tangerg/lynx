@@ -3,7 +3,7 @@
 // tools (tools.list — static per runtime build) and the connected MCP
 // servers (mcp.* — live 5-state lifecycle, expandable rows).
 
-import { DataView, Icon } from "@/ui";
+import { DataView, Icon, TextButton } from "@/ui";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -92,14 +92,14 @@ function ToolsTab() {
             {rows.map((s) => (
               <McpRow key={s.id} server={s} />
             ))}
-            <button
-              type="button"
+            <TextButton
+              size="sm"
               onClick={openMcpSettings}
-              className="m-0 flex items-center gap-1.5 px-4 pt-3.5 pb-4.5 text-ui-sm leading-body text-fg-muted hover:text-fg transition-colors"
+              className="px-4 pt-3.5 pb-4.5 leading-body"
             >
               <Icon name="settings" size={12} />
               {t("tools.footer")}
-            </button>
+            </TextButton>
           </>
         )}
       </DataView>

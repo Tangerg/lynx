@@ -32,7 +32,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         aria-expanded={model.expanded}
         className={cn(
           "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left",
-          "transition-colors duration-100 hover:bg-fg/[0.03]",
+          "transition-colors duration-100 hover:bg-hover",
           "focus-visible:outline-none focus-visible:shadow-[var(--shadow-focus)]",
         )}
       >

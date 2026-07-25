@@ -4,7 +4,7 @@
 // model configured in Settings → Providers (else it points the user there).
 
 import { useState } from "react";
-import { EmptyState, Icon, PillButton, SearchField } from "@/ui";
+import { EmptyState, IconButton, PillButton, SearchField } from "@/ui";
 import {
   type CodebaseSearchHit,
   reindexCodebase,
@@ -121,15 +121,15 @@ function CodebaseTab() {
           >
             {busy ? t("codebase.searching") : t("codebase.search.go")}
           </PillButton>
-          <button
-            type="button"
-            aria-label={t("codebase.reindex")}
+          <IconButton
+            icon="spark"
+            iconSize={13}
+            size="sm"
+            quiet
             title={t("codebase.reindex")}
             onClick={() => void reindex()}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-fg-faint transition-colors hover:bg-fg/[0.08] hover:text-fg"
-          >
-            <Icon name="spark" size={13} />
-          </button>
+            className="shrink-0"
+          />
         </div>
 
         {error && <p className="text-ui-md leading-snug text-negative">{error}</p>}

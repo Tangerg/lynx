@@ -2,14 +2,12 @@
 // the user can tweak and re-send. Doesn't mutate the original message; sending
 // creates a new user turn.
 
-import { Icon, Tooltip } from "@/ui";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
 import { canEditMessage } from "./application/messageActionAvailability";
 import { messageEditActionSlot } from "./application/messageActionContributions";
 import { editMessageInComposer } from "./public/messageActions";
-import { ACTION_BTN_BASE, roleShape } from "./_shared";
+import { MessageActionButton } from "./_shared";
 
 function EditButton() {
   const t = useT();
@@ -17,16 +15,12 @@ function EditButton() {
   if (!canEditMessage(msg)) return null;
 
   return (
-    <Tooltip label={t("msgActions.edit")}>
-      <button
-        type="button"
-        onClick={() => editMessageInComposer(msg)}
-        aria-label={t("msgActions.edit")}
-        className={cn(ACTION_BTN_BASE, roleShape(msg.role))}
-      >
-        <Icon name="edit" size={13} />
-      </button>
-    </Tooltip>
+    <MessageActionButton
+      icon="edit"
+      title={t("msgActions.edit")}
+      role={msg.role}
+      onClick={() => editMessageInComposer(msg)}
+    />
   );
 }
 

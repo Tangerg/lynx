@@ -1,6 +1,6 @@
 import type { IconName } from "@/ui";
 import { useState } from "react";
-import { Icon, IconButton } from "@/ui";
+import { Icon, IconButton, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
@@ -64,14 +64,10 @@ function McpAuthGuide({ server }: { server: string }) {
   };
   return (
     <div className="flex items-center gap-2 px-4 pb-3 pl-[68px]">
-      <button
-        type="button"
-        onClick={openConfig}
-        className="inline-flex items-center gap-1.5 text-ui-md text-fg-muted hover:text-fg transition-colors"
-      >
+      <TextButton onClick={openConfig}>
         <Icon name="settings" size={13} />
         {t("tools.auth.configure", { server })}
-      </button>
+      </TextButton>
     </div>
   );
 }
@@ -85,7 +81,7 @@ export function McpRow({ server }: { server: MCPServerConfig }) {
   const [open, setOpen] = useState(false);
   return (
     <div>
-      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-fg/[0.04] transition-colors">
+      <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-hover transition-colors">
         <div
           className={cn(
             "grid h-10 w-10 place-items-center rounded-lg bg-surface-2 text-fg-muted group-hover:bg-surface-3 group-hover:text-fg transition-colors",

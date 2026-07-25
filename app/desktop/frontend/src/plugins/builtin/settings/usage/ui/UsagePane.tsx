@@ -34,7 +34,7 @@ function BreakdownSection({
         {buckets.map((b) => (
           <div
             key={b.key}
-            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-fg/[0.04]"
+            className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-hover"
           >
             <div className="flex min-w-0 items-center gap-2">
               {icon?.(b.key)}

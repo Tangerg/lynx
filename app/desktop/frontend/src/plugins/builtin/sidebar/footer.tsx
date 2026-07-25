@@ -2,7 +2,7 @@
 // status and settings stay reachable regardless of list length.
 import { AnimatePresence, motion } from "motion/react";
 import { AgentRow } from "@/ui/agent";
-import { Icon, noDragClasses } from "@/ui";
+import { Button, Icon, noDragClasses } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
@@ -16,13 +16,13 @@ function ThemeToggle() {
   const theme = useUiStore((s) => s.theme);
   const isLight = isLightTheme(theme);
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="icon-sm"
       onClick={() => useUiStore.getState().toggleTheme()}
       data-chrome-focus=""
       title={isLight ? "Switch to dark" : "Switch to light"}
       aria-label={isLight ? "Switch to dark" : "Switch to light"}
-      className="h-7 w-7"
     >
       {/* §7 contextual icon swap — cross-fade the sun/moon instead of a hard
           cut (scale/opacity/blur, spring bounce:0); initial={false} so it
@@ -39,7 +39,7 @@ function ThemeToggle() {
           <Icon name={isLight ? "moon" : "sun"} size={14} />
         </motion.span>
       </AnimatePresence>
-    </button>
+    </Button>
   );
 }
 

@@ -5,7 +5,7 @@
 // persists in the timeline regardless.
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Icon } from "@/ui";
+import { Icon, IconButton } from "@/ui";
 import { BannerAction } from "./BannerAction";
 import { flattenText } from "@/plugins/builtin/agent/public/messageContent";
 import { getActiveConversationSnapshot } from "@/plugins/builtin/agent/public/conversation";
@@ -128,15 +128,14 @@ export function RunErrorBanner() {
               />
             </div>
           </div>
-          <button
-            type="button"
-            onClick={clearActiveRunError}
+          <IconButton
+            icon="x"
+            iconSize={12}
+            size="xs"
+            quiet
             title={t("runError.action.dismiss")}
-            aria-label={t("runError.action.dismiss")}
-            className="grid h-5.5 w-5.5 place-items-center rounded text-fg-faint bg-transparent border-0 transition-[background-color,color,transform] duration-150 hover:bg-fg/[0.05] hover:text-fg active:scale-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            <Icon name="x" size={12} />
-          </button>
+            onClick={clearActiveRunError}
+          />
         </motion.div>
       )}
     </AnimatePresence>

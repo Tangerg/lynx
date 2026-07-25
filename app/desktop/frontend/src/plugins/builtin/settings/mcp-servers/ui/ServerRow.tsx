@@ -55,7 +55,7 @@ export function ServerRow({ server }: { server: MCPServerConfig }) {
   const active = server.status === "connected";
 
   return (
-    <div className="rounded-md px-3 py-2.5 transition-colors hover:bg-fg/[0.04]">
+    <div className="rounded-md px-3 py-2.5 transition-colors hover:bg-hover">
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <StatusDot tone={tone} />
         <div className="flex min-w-0 items-center gap-2">
