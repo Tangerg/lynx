@@ -13,14 +13,7 @@
 import type { MemoryTransport } from "./memory";
 import type { RunOutcome, StreamEvent } from "../shapes";
 import { RUN_EVENT_METHOD } from "../stream";
-import {
-  JSONRPC_VERSION,
-  isRequest,
-  type RpcErrorPayload,
-  type RpcId,
-  type RpcMessage,
-  type RpcRequest,
-} from "../types";
+import { JSONRPC_VERSION, isRequest, type RpcId, type RpcMessage, type RpcRequest } from "../types";
 
 // Outbound (client → server) — synchronisation helpers
 
@@ -47,11 +40,6 @@ export async function waitForRequest(t: MemoryTransport, method: string): Promis
 /** Inject a JSON-RPC success Response matching a prior Request id. */
 export function respondSuccess(t: MemoryTransport, id: RpcId, result: unknown): void {
   t.inject({ jsonrpc: JSONRPC_VERSION, id, result } as RpcMessage);
-}
-
-/** Inject a JSON-RPC error Response matching a prior Request id. */
-export function respondError(t: MemoryTransport, id: RpcId, error: RpcErrorPayload): void {
-  t.inject({ jsonrpc: JSONRPC_VERSION, id, error } as RpcMessage);
 }
 
 /** Inject a server-side Notification with arbitrary method + params. */

@@ -1,0 +1,6 @@
+
+
+# Wails regenerates its JS runtime shim on every dev/build. Nothing in src
+# imports it (main.go binds no Go methods), so the tracked copy was template
+# scaffolding that drifts with the toolchain version.
+wailsjs/
