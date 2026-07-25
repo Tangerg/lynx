@@ -12,7 +12,7 @@ import type { ThemeCta, ThemePluginSpec, ThemeShadows } from "./types";
 // Floating surfaces use the desktop polish model: optical edge ring + contact
 // shadow + ambient shadow. The first layer is a 0.5px shadow ring, not a CSS
 // border, so it gives the crisp Raycast/Geist edge without adding grey layout
-// chrome. Tiled/docked regions still separate by background delta and structural
+// chrome. Tiled/docked regions separate by the chrome hairline and structural
 // hairlines; these shadows are reserved for composer and transient surfaces.
 export const DARK_SHADOWS: ThemeShadows = {
   composer: "0 0 0 1px var(--seam-line), 0 8px 40px -12px rgb(0 0 0 / 0.4)",

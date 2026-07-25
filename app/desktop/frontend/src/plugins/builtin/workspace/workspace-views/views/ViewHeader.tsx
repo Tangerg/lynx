@@ -62,10 +62,10 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
   }
 
   return (
-    // Goes through AgentSurfaceHeader so a view's header is the SAME bar as the
-    // chat and dock headers: one height (`--surface-header-height`), one inset, one
-    // bottom hairline. It used to be 52px with its own inset and no divider, which
-    // read as a different kind of bar the moment a view was promoted beside one.
+    // Every chrome bar in the app is this component: one height
+    // (`--surface-header-height`), one inset, one bottom hairline. A view can be
+    // promoted beside the chat, so its header sits directly next to that one and any
+    // divergence reads as two different kinds of bar.
     <AgentSurfaceHeader className="gap-2">
       <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">

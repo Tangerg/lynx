@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { PopoverPrimitive } from "@/ui/primitives";
+import { FLOATING_PANEL } from "./floating-surface";
 
 type PositionerProps = ComponentProps<typeof PopoverPrimitive.Positioner>;
 type PopupProps = ComponentProps<typeof PopoverPrimitive.Popup>;
@@ -37,17 +38,7 @@ function PopoverContent({
         alignOffset={alignOffset}
         className={positionerClassName}
       >
-        <PopoverPrimitive.Popup
-          {...popupProps}
-          className={cn(
-            // Same frosted shell as the menus — see MENU_CONTENT_CLASSES.
-            "relative z-50 overflow-hidden rounded-xl",
-            "bg-canvas/70 shadow-[var(--shadow-popover)] animate-rise-in",
-            "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
-            "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
-            className,
-          )}
-        >
+        <PopoverPrimitive.Popup {...popupProps} className={cn(FLOATING_PANEL, className)}>
           {children}
         </PopoverPrimitive.Popup>
       </PopoverPrimitive.Positioner>

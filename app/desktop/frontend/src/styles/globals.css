@@ -148,10 +148,10 @@
   --weight-medium: 500;
   --weight-semibold: 600;
 
-  /* Radius ladder — one continuous scale off a 10px base (×0.4/0.6/0.8/1/1.4/
-     1.8/2.2); `md` (10px) is the default control radius. `--composer` and
-     `--bubble` are structural one-offs that still ride the same user scale so the
-     app has ONE shape system.
+  /* Radius ladder — one continuous scale off a 10px base (×0.4/0.6/0.8/1/1.4/1.8);
+     `md` (10px) is the default control radius. `--composer` and `--bubble` are
+     structural one-offs that still ride the same user scale so the app has ONE
+     shape system.
      These MUST be `var()` references into the --shape-* source: `@theme inline`
      inlines whatever is written here, so a literal px value here would bake the
      number into every `rounded-*` utility and silently kill --radius-scale. */
@@ -161,11 +161,9 @@
   --radius-md: var(--shape-md);
   --radius-lg: var(--shape-lg);
   --radius-xl: var(--shape-xl);
-  --radius-2xl: var(--shape-2xl);
   --radius-composer: var(--shape-composer);
   --radius-bubble: var(--shape-bubble);
   --radius-pill: var(--shape-pill);
-  --radius-circle: var(--shape-circle);
 
   /* Fonts — Geist (bundled) leads; system stack backs it up for CJK
      (PingFang / Microsoft YaHei) + any glyph Geist lacks. Single source of
@@ -420,12 +418,10 @@
   --shape-md: calc(10px * var(--radius-scale)); /* default control radius */
   --shape-lg: calc(14px * var(--radius-scale)); /* cards */
   --shape-xl: calc(18px * var(--radius-scale)); /* menus, popovers, dock card */
-  --shape-2xl: calc(22px * var(--radius-scale));
   --shape-composer: calc(19.2px * var(--radius-scale));
   --shape-bubble: calc(12.8px * var(--radius-scale)); /* user message bubble */
-  /* Pill / circle are conceptual ("fully round") — not scaled. */
+  /* Conceptual ("fully round") — not scaled. */
   --shape-pill: 9999px;
-  --shape-circle: 50%;
 
   /* Density — first-paint defaults for `comfortable`. installUiStoreEffects
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights

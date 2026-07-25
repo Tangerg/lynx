@@ -19,9 +19,9 @@ interface AgentAppShellProps {
  * The window shell: drawer, content card, overlays.
  *
  * The drawer's width lives as a custom property on this element so the rail can
- * drag it without a React render, and so the spacer, the panel, the seam wedge
- * and the card's corner all read one number. Collapse is a single attribute
- * flip that every one of those transitions off.
+ * drag it without a React render, and so the spacer and the panel read one number.
+ * Collapse is a single attribute flip that both of them, plus the card's divider
+ * and depth, transition off.
  */
 export function AgentAppShell({
   sidebar,

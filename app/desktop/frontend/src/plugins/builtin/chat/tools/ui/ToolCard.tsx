@@ -5,7 +5,7 @@
 // fallback). Selected state drives the inspector pane via the workspace
 // navigation wiring.
 //
-// Separation is by background delta (bg-surface on the canvas reading column),
+// Separation is the card's own fill against the reading column,
 // not a drop-shadow or grey border — see chat DESIGN notes. Error / requires-
 // action tint the whole card so a failure reads at a glance even collapsed.
 import type { IconName } from "@/ui";

@@ -4,12 +4,11 @@ import { cn } from "@/lib/utils";
 /**
  * The opaque content surface that floats as a card over the drawer.
  *
- * The rounded seam corner, the 1px inset ring that divides it from the drawer,
- * and the depth shadow all live in globals.css and switch off together when the
- * drawer collapses — at that point the card reaches the window edge, and its
- * corner would double up with the OS window's own. `overflow: hidden` clips
- * children to the rounded edge, which is also why the corner wedge has to be
- * backed by the parent rather than filled from in here.
+ * The 1px line that divides it from the drawer and the depth shadow both live in
+ * globals.css, and both switch off when the drawer collapses — at that point the
+ * card reaches the window edge and there is no drawer left to divide from. The seam
+ * side is deliberately square: a corner arc there resolves over so few pixels of
+ * height that it reads as a kink in the divider rather than a curve.
  */
 export function AgentContentCard({
   className,

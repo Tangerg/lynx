@@ -105,7 +105,8 @@ describe("buildTokenMap", () => {
     expect(dark["shadow-popover"]).toBe(DARK_SHADOWS.popover);
     expect(light["shadow-composer"]).toBe(LIGHT_SHADOWS.composer);
     expect(light["shadow-popover"]).toBe(LIGHT_SHADOWS.popover);
-    // No card `surface` shadow — cards separate by background delta.
+    // No card `surface` shadow — a card's edge is its own fill plus, when it
+    // floats, the shadow's ring layer.
     expect(dark).not.toHaveProperty("shadow-surface");
     expect(light).not.toHaveProperty("shadow-surface");
   });
