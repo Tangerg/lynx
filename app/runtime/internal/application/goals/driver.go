@@ -15,7 +15,7 @@ package goals
 import (
 	"context"
 	"errors"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -91,37 +91,15 @@ type Driver struct {
 	prompt   PromptBuilder
 
 	mutations *SessionMutations
-	closed    bool // guarded by mutations.admission
+	closed    atomic.Bool
 }
 
 type loopHandle struct {
-	leaseID string
-	cancel  context.CancelFunc
-	owner   context.Context
-	done    chan struct{}
-	err     error
-
-	mu           sync.Mutex
-	stopping     bool
-	run          *ownedRun
-	stopResolved chan stopResolution
-	resolveOnce  sync.Once
+	leaseID  string
+	cancel   context.CancelFunc
+	released chan struct{}
+	err      error
 }
-
-type ownedRun struct {
-	owner  context.Context
-	cancel func(context.Context) error
-	once   sync.Once
-	done   chan struct{}
-	err    error
-}
-
-type stopResolution uint8
-
-const (
-	stopRestoreDrive stopResolution = iota
-	stopLeaveQuiesced
-)
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
@@ -152,7 +130,7 @@ func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions Sessi
 func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
 	release := d.mutations.acquire(sessionID)
 	defer release()
-	if d.closed {
+	if d.closed.Load() {
 		return goal.Goal{}, ErrClosed
 	}
 	exists, err := d.sessions.Exists(ctx, sessionID)
@@ -199,7 +177,9 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launchLocked(ctx, sessionID, g.LeaseID)
+	if !d.launchLocked(ctx, sessionID, g.LeaseID) {
+		panic("goals: command crossed the shutdown admission boundary")
+	}
 	return g, nil
 }
 
@@ -209,7 +189,7 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
 	release := d.mutations.acquire(sessionID)
 	defer release()
-	if d.closed {
+	if d.closed.Load() {
 		return goal.Goal{}, ErrClosed
 	}
 	g, ok, err := d.goals.Get(ctx, sessionID)
@@ -249,7 +229,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	if !applied {
 		return goal.Goal{}, ErrGoalConflict
 	}
-	d.launchLocked(ctx, sessionID, g.LeaseID)
+	if !d.launchLocked(ctx, sessionID, g.LeaseID) {
+		panic("goals: command crossed the shutdown admission boundary")
+	}
 	return g, nil
 }
 
@@ -259,7 +241,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
 	release := d.mutations.acquire(sessionID)
 	defer release()
-	if d.closed {
+	if d.closed.Load() {
 		return goal.Goal{}, ErrClosed
 	}
 	g, ok, err := d.goals.Get(ctx, sessionID)
@@ -273,10 +255,6 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return g, nil
 	}
 	handle := d.mutations.quiesce(sessionID)
-	resolution := stopRestoreDrive
-	if handle != nil {
-		defer func() { handle.resolveStop(resolution) }()
-	}
 	var quiesceErr error
 	if handle != nil {
 		quiesceErr = handle.wait(ctx)
@@ -289,7 +267,6 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		return goal.Goal{}, errors.Join(err, quiesceErr)
 	}
 	if !ok {
-		resolution = stopLeaveQuiesced
 		return goal.Goal{}, errors.Join(ErrNoGoal, quiesceErr)
 	}
 	expected := current.Version()
@@ -302,7 +279,6 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	if !applied {
 		return goal.Goal{}, errors.Join(ErrGoalConflict, quiesceErr)
 	}
-	resolution = stopLeaveQuiesced
 	return saved, quiesceErr
 }
 
@@ -320,7 +296,6 @@ func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
 	if handle == nil {
 		return nil
 	}
-	handle.resolveStop(stopLeaveQuiesced)
 	return handle.wait(ctx)
 }
 
@@ -370,7 +345,7 @@ func (d *Driver) BeginShutdown() {
 	}
 	release := d.mutations.acquireAll()
 	defer release()
-	d.closed = true
+	d.closed.Store(true)
 	d.tasks.Cancel()
 }
 
@@ -387,7 +362,7 @@ func (h *loopHandle) wait(ctx context.Context) error {
 		return nil
 	}
 	select {
-	case <-h.done:
+	case <-h.released:
 		return h.err
 	case <-ctx.Done():
 		return ctx.Err()
@@ -399,7 +374,7 @@ func (h *loopHandle) finished() bool {
 		return true
 	}
 	select {
-	case <-h.done:
+	case <-h.released:
 		return true
 	default:
 		return false

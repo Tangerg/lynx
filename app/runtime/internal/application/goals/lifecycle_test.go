@@ -90,10 +90,9 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	mutations := NewSessionMutations()
 	var canceled atomic.Bool
 	handle := &loopHandle{
-		leaseID:      "lease_1",
-		cancel:       func() { canceled.Store(true) },
-		done:         make(chan struct{}),
-		stopResolved: make(chan stopResolution, 1),
+		leaseID:  "lease_1",
+		cancel:   func() { canceled.Store(true) },
+		released: make(chan struct{}),
 	}
 	mutations.running["ses_1"] = handle
 	driver := &Driver{mutations: mutations}
@@ -111,46 +110,18 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	}
 
 	mutations.forget("ses_1", handle)
-	close(handle.done)
+	close(handle.released)
 	if got := mutations.driverLease("ses_1"); got != "" {
 		t.Fatalf("driver lease after owner exit = %q, want released", got)
 	}
 }
 
-func TestOwnedRunStartsCancellationOnce(t *testing.T) {
-	var calls atomic.Int32
-	started := make(chan struct{})
-	release := make(chan struct{})
-	run := newOwnedRun(t.Context(), func(context.Context) error {
-		if calls.Add(1) == 1 {
-			close(started)
-		}
-		<-release
-		return nil
-	})
-
-	run.stop()
-	run.stop()
-	<-started
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("cancel calls = %d, want one", got)
-	}
-	close(release)
-	if err := run.wait(t.Context()); err != nil {
-		t.Fatalf("wait: %v", err)
-	}
-	if got := calls.Load(); got != 1 {
-		t.Fatalf("cancel calls after wait = %d, want one", got)
-	}
-}
-
 func completedLoopHandle(err error) *loopHandle {
-	done := make(chan struct{})
-	close(done)
+	released := make(chan struct{})
+	close(released)
 	return &loopHandle{
-		done:         done,
-		err:          err,
-		cancel:       func() {},
-		stopResolved: make(chan stopResolution, 1),
+		released: released,
+		err:      err,
+		cancel:   func() {},
 	}
 }

@@ -30,13 +30,24 @@ func NewSessionMutations() *SessionMutations {
 }
 
 // acquire serializes lifecycle commands only for the sessions they mutate.
-// admission's read side lets unrelated sessions progress concurrently; shutdown
-// takes its write side to close task admission after every accepted command has
-// left its launch boundary.
+// Session locks are taken before admission so a command waiting behind internal
+// loop reconciliation does not prevent shutdown from closing task admission.
+// Once the read side is held, shutdown cannot cross the command's launch
+// boundary.
 func (m *SessionMutations) acquire(sessionIDs ...string) func() {
-	ids := normalizeSessionIDs(sessionIDs)
-
+	releaseSessions := m.acquireSessions(sessionIDs...)
 	m.admission.RLock()
+	return func() {
+		m.admission.RUnlock()
+		releaseSessions()
+	}
+}
+
+// acquireSessions is the internal half of acquire. Background reconciliation
+// participates in per-session ordering but not external command admission; its
+// task-group ownership is the shutdown join boundary.
+func (m *SessionMutations) acquireSessions(sessionIDs ...string) func() {
+	ids := normalizeSessionIDs(sessionIDs)
 	m.mu.Lock()
 	if m.commandLocks == nil {
 		m.commandLocks = make(map[string]*sessionCommandLock)
@@ -69,7 +80,6 @@ func (m *SessionMutations) acquire(sessionIDs ...string) func() {
 			}
 		}
 		m.mu.Unlock()
-		m.admission.RUnlock()
 	}
 }
 
@@ -103,7 +113,6 @@ func (m *SessionMutations) WithSessionMutation(
 	handles := make([]*loopHandle, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		if handle := m.quiesce(sessionID); handle != nil {
-			handle.resolveStop(stopLeaveQuiesced)
 			handles = append(handles, handle)
 		}
 	}

@@ -214,18 +214,20 @@ type turn struct {
 }
 
 type fakeRuns struct {
-	t        *testing.T
-	store    *memStore
-	script   []turn
-	hold     chan struct{} // when non-nil, a run holds its terminal until this closes
-	started  chan struct{}
-	startErr error
-	mu       sync.Mutex
-	calls    int
-	cancels  map[string]chan struct{}
-	runDone  map[string]chan struct{}
-	runGoals map[string]goal.TurnRecord
-	canceled int
+	t             *testing.T
+	store         *memStore
+	script        []turn
+	hold          chan struct{} // when non-nil, a run holds its terminal until this closes
+	started       chan struct{}
+	startErr      error
+	cancelStarted chan struct{}
+	cancelRelease <-chan struct{}
+	mu            sync.Mutex
+	calls         int
+	cancels       map[string]chan struct{}
+	runDone       map[string]chan struct{}
+	runGoals      map[string]goal.TurnRecord
+	canceled      int
 }
 
 // chanSeq preserves the fake's hold-then-yield-terminal timing and the
@@ -340,6 +342,15 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 }
 
 func (f *fakeRuns) Cancel(_ context.Context, cmd runs.CancelCommand) error {
+	if f.cancelStarted != nil {
+		select {
+		case f.cancelStarted <- struct{}{}:
+		default:
+		}
+	}
+	if f.cancelRelease != nil {
+		<-f.cancelRelease
+	}
 	f.mu.Lock()
 	cancel := f.cancels[cmd.RunID]
 	done := f.runDone[cmd.RunID]
@@ -776,6 +787,42 @@ func TestDriverRejectsCommandsAfterShutdown(t *testing.T) {
 	}
 	if _, ok, err := store.Get(t.Context(), "s1"); err != nil || ok {
 		t.Fatalf("shutdown start persisted goal: present=%v err=%v", ok, err)
+	}
+}
+
+func TestDriverShutdownJoinsRunCancellation(t *testing.T) {
+	store := newMemStore()
+	hold := make(chan struct{})
+	started := make(chan struct{}, 1)
+	cancelStarted := make(chan struct{}, 1)
+	cancelRelease := make(chan struct{})
+	fake := &fakeRuns{
+		t:             t,
+		store:         store,
+		script:        []turn{{outcome: execution.OutcomeCompleted}},
+		hold:          hold,
+		started:       started,
+		cancelStarted: cancelStarted,
+		cancelRelease: cancelRelease,
+	}
+	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+
+	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	<-started
+	d.BeginShutdown()
+	<-cancelStarted
+
+	waitCtx, cancelWait := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancelWait()
+	if err := d.AwaitShutdown(waitCtx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("AwaitShutdown before Run cancellation completed = %v, want deadline", err)
+	}
+
+	close(cancelRelease)
+	if err := d.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("AwaitShutdown after Run cancellation completed: %v", err)
 	}
 }
 

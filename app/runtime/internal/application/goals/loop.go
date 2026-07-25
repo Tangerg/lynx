@@ -18,34 +18,37 @@ import (
 
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
-const goalPersistenceTimeout = 5 * time.Second
+const (
+	goalPersistenceTimeout = 5 * time.Second
+	goalRunCleanupTimeout  = 5 * time.Second
+)
 
 // launchLocked attaches exactly one loop to an already-accepted active goal.
 // Callers hold this session's mutation lock; BeginShutdown holds the admission
 // write lock, which linearizes the durable active transition with task-group
 // admission.
-func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string) {
+func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string) bool {
 	owner, release, ok := d.tasks.Attach(parent)
 	if !ok {
-		panic("goals: accepted an active goal after driver shutdown")
+		return false
 	}
 	ctx, cancel := context.WithCancel(owner)
 	handle := &loopHandle{
-		leaseID: leaseID, cancel: cancel, owner: owner, done: make(chan struct{}),
-		stopResolved: make(chan stopResolution, 1),
+		leaseID:  leaseID,
+		cancel:   cancel,
+		released: make(chan struct{}),
 	}
 
 	d.mutations.launch(sessionID, handle)
 
 	go func() {
 		defer release()
-		handle.err = d.drive(ctx, sessionID, leaseID, handle)
+		handle.err = d.drive(ctx, sessionID, leaseID)
 		d.forget(sessionID, handle)
-		close(handle.done)
-		if handle.shouldRestoreDrive() {
-			d.restoreDrive(handle.owner, sessionID, leaseID)
-		}
+		close(handle.released)
+		d.restoreDrive(owner, sessionID, leaseID)
 	}()
+	return true
 }
 
 func (d *Driver) forget(sessionID string, handle *loopHandle) {
@@ -56,10 +59,12 @@ func (d *Driver) forget(sessionID string, handle *loopHandle) {
 // goal after a command discovers an active row. The caller holds this session's
 // mutation lock.
 func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID string) {
-	if d.closed || d.mutations.driverLease(sessionID) == leaseID {
+	if d.closed.Load() || d.mutations.driverLease(sessionID) == leaseID {
 		return
 	}
-	d.launchLocked(ctx, sessionID, leaseID)
+	if !d.launchLocked(ctx, sessionID, leaseID) {
+		panic("goals: command crossed the shutdown admission boundary")
+	}
 }
 
 // restoreDrive closes the gap between a loop ending and a durable state change.
@@ -68,23 +73,25 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 // authoritative read and only attaches a replacement for the same lease. It is
 // not a retry policy: a durable non-active transition always wins immediately.
 func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string) {
-	// Persistence runs outside the command mutex. BeginShutdown must be able to
-	// close admission and cancel ctx even when a store is slow; lifecycle
-	// commands that win during this read are harmless because a replacement
-	// loop revalidates status and lease before starting any Run.
+	// Keep the potentially slow recovery read outside the session lock. An
+	// explicit Stop must be able to publish its durable decision while recovery
+	// is waiting on storage.
 	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 		return
 	}
-	release := d.mutations.acquire(sessionID)
+	release := d.mutations.acquireSessions(sessionID)
 	defer release()
-	if d.closed || d.mutations.driverLease(sessionID) != "" {
+	if d.closed.Load() || d.mutations.driverLease(sessionID) != "" {
 		return
 	}
-	// Unlike an explicit command, background recovery may only fill an empty
-	// slot. A newer Start can change the lease after the read above and install
-	// its driver before this lock is reacquired; recovery must never replace it
-	// with the stale lease it observed.
+	// Re-read under the same session lock that protects launch. A Stop or fresh
+	// Start may have won while the old loop was releasing its Run; recovery must
+	// never attach the stale lease observed by that loop.
+	g, ok, err = d.goals.Get(ctx, sessionID)
+	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
+		return
+	}
 	d.launchLocked(ctx, sessionID, leaseID)
 }
 
@@ -92,7 +99,7 @@ func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string) {
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
 // than resuming and burning budget.
-func (d *Driver) drive(ctx context.Context, sessionID, leaseID string, handle *loopHandle) error {
+func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -107,7 +114,7 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string, handle *l
 		if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 			return nil
 		}
-		disposition, err := d.runTurn(ctx, &g, handle)
+		disposition, err := d.runTurn(ctx, &g)
 		if err != nil {
 			return err
 		}
@@ -121,7 +128,7 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string, handle *l
 // in, and decides what to do next — all under a goal.turn span. The returned
 // disposition is empty when a cancellation or vanished goal means no turn
 // completed, so nothing is metered.
-func (d *Driver) runTurn(ctx context.Context, g *goal.Goal, handle *loopHandle) (disposition turnDisposition, err error) {
+func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDisposition, err error) {
 	ctx, span := driverTracer.Start(ctx, "goal.turn", trace.WithAttributes(
 		attribute.String("goal.session", g.SessionID),
 		attribute.Int("goal.turn", g.Used.Turns+1),
@@ -154,23 +161,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal, handle *loopHandle) 
 		return dispPaused, nil
 	}
 
-	owned := newOwnedRun(handle.owner, func(cancelCtx context.Context) error {
-		err := d.runs.Cancel(cancelCtx, runs.CancelCommand{
-			RunID:  result.RunID,
-			Reason: "autonomous goal stopped",
-		})
-		if errors.Is(err, runs.ErrRunNotFound) {
-			return nil
-		}
-		return err
-	})
-	if handle.bindRun(owned) {
-		return "", owned.wait(handle.owner)
-	}
 	finished := drainTerminal(result.Events)
-	handle.releaseRun(owned)
 	if ctx.Err() != nil {
-		return "", owned.wait(handle.owner)
+		if finished == nil {
+			return "", d.cancelRun(ctx, result.RunID)
+		}
+		return "", nil
 	}
 	if finished != nil {
 		if outcome, terminalErr := outcomeOf(finished); terminalErr == nil {
@@ -327,77 +323,19 @@ func goalPersistenceContext(ctx context.Context) (context.Context, context.Cance
 	return context.WithTimeout(context.WithoutCancel(ctx), goalPersistenceTimeout)
 }
 
-func (h *loopHandle) quiesce() {
-	h.mu.Lock()
-	h.stopping = true
-	run := h.run
-	h.mu.Unlock()
-
-	if run != nil {
-		run.stop()
-	}
-	h.cancel()
-}
-
-func (h *loopHandle) bindRun(run *ownedRun) bool {
-	h.mu.Lock()
-	stopping := h.stopping
-	if !stopping {
-		h.run = run
-	}
-	h.mu.Unlock()
-	if stopping {
-		run.stop()
-	}
-	return stopping
-}
-
-func (h *loopHandle) releaseRun(run *ownedRun) {
-	h.mu.Lock()
-	if h.run == run {
-		h.run = nil
-	}
-	h.mu.Unlock()
-}
-
-func (h *loopHandle) shouldRestoreDrive() bool {
-	h.mu.Lock()
-	stopping := h.stopping
-	resolved := h.stopResolved
-	h.mu.Unlock()
-	if !stopping {
-		return true
-	}
-	return <-resolved == stopRestoreDrive
-}
-
-func (h *loopHandle) resolveStop(resolution stopResolution) {
-	h.resolveOnce.Do(func() { h.stopResolved <- resolution })
-}
-
-func newOwnedRun(owner context.Context, cancel func(context.Context) error) *ownedRun {
-	return &ownedRun{
-		owner:  owner,
-		cancel: cancel,
-		done:   make(chan struct{}),
-	}
-}
-
-func (r *ownedRun) stop() {
-	r.once.Do(func() {
-		go func() {
-			r.err = r.cancel(r.owner)
-			close(r.done)
-		}()
+func (d *Driver) cancelRun(ctx context.Context, runID string) error {
+	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), goalRunCleanupTimeout)
+	defer cancel()
+	err := d.runs.Cancel(cancelCtx, runs.CancelCommand{
+		RunID:  runID,
+		Reason: "autonomous goal stopped",
 	})
+	if errors.Is(err, runs.ErrRunNotFound) {
+		return nil
+	}
+	return err
 }
 
-func (r *ownedRun) wait(ctx context.Context) error {
-	r.stop()
-	select {
-	case <-r.done:
-		return r.err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+func (h *loopHandle) quiesce() {
+	h.cancel()
 }
