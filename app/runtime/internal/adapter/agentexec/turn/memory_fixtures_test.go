@@ -2,10 +2,12 @@ package turn_test
 
 import (
 	"context"
+	"errors"
 	"iter"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
 	chatmodel "github.com/Tangerg/lynx/core/chat"
@@ -32,8 +34,32 @@ type turnDriver interface {
 	ProcessID(context.Context, turn.TurnHandle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
 	Cancel(context.Context, turn.TurnHandle) error
-	Close() error
+	BeginShutdown()
+	AwaitShutdown(context.Context) error
 	ForgetSession(string)
+}
+
+func shutdownDispatcher(t testing.TB, dispatcher interface {
+	BeginShutdown()
+	AwaitShutdown(context.Context) error
+}) {
+	t.Helper()
+	dispatcher.BeginShutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := dispatcher.AwaitShutdown(ctx); err != nil {
+		t.Fatalf("shutdown turn dispatcher: %v", err)
+	}
+}
+
+func joinTurnCleanup(t testing.TB, dispatcher interface {
+	Cancel(context.Context, turn.TurnHandle) error
+}, handle turn.TurnHandle) {
+	t.Helper()
+	err := dispatcher.Cancel(context.Background(), handle)
+	if err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
+		t.Fatalf("join terminal turn cleanup: %v", err)
+	}
 }
 
 func testModelSelection(t testing.TB, provider, model string) modelref.Selection {

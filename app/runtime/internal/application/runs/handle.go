@@ -13,14 +13,16 @@ const runCleanupTimeout = 5 * time.Second
 
 // handle holds the coordinator-owned resources for one in-flight run segment:
 // the run context's cancel, the detached owner context (survives request
-// cancellation, killed only by [Coordinator.Close]), the run's event [Journal],
-// and the cancel bookkeeping that linearizes cancellation against interrupt
-// publication. The reducer reads its late-bound cancellation reason.
+// cancellation, canceled by [Coordinator.BeginShutdown]), the run's event
+// [Journal], its terminal join point, and the cancel bookkeeping that linearizes
+// cancellation against interrupt publication. The reducer reads its late-bound
+// cancellation reason.
 type handle struct {
 	mu                sync.Mutex
 	cancel            context.CancelFunc
 	owner             context.Context
 	hub               *Journal
+	done              chan struct{}
 	cancelRequested   bool
 	cancelReason      string
 	inflightInterrupt *interruptCommit
@@ -116,6 +118,20 @@ func (h *handle) stop() {
 	h.mu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+}
+
+// wait joins the complete run boundary: terminal projection, registry removal,
+// synchronous maintenance, admission release, and Journal closure.
+func (h *handle) wait(ctx context.Context) error {
+	if h == nil || h.done == nil {
+		return nil
+	}
+	select {
+	case <-h.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

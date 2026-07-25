@@ -70,8 +70,8 @@ func startTurnSpan(ctx context.Context, sessionID, runID, model string) (context
 // finishTurnSpan records the terminal outcome on the turn span — the
 // run outcome, the rolled-up token usage (clean / budget-stopped turns
 // only), and an Error status when the turn aborted. It does NOT end the
-// span; endTurn owns the single End() so the span closes exactly once
-// regardless of which teardown path fired. No-op on a nil span.
+// span; terminal cleanup owns the single End() so the span closes exactly once
+// after process ownership is released. No-op on a nil span.
 func finishTurnSpan(span trace.Span, reason execution.Outcome, usage accounting.TokenUsage, withUsage bool, errMsg string) {
 	if span == nil {
 		return

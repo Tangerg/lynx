@@ -32,6 +32,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	abortTurn := false
 	commitCtx := ownerCtx
 
+	defer close(live.done)
 	fail := func(err error) {
 		abortTurn = true
 		if ctx.Err() == nil && ownerCtx.Err() == nil {
@@ -40,10 +41,10 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	}
 
 	defer func() {
-		// Coordinator.Close cancels ownerCtx before joining this pump. Terminal
-		// synthesis is a durable cleanup boundary, so it must outlive that signal
-		// while remaining bounded; otherwise a graceful shutdown itself leaves a
-		// Running transcript/admission row for boot recovery to repair.
+		// Shutdown cancels ownerCtx before joining this pump. Terminal synthesis is
+		// a durable cleanup boundary, so it must outlive that signal while remaining
+		// bounded; otherwise graceful shutdown itself leaves a Running
+		// transcript/admission row for boot recovery to repair.
 		if !finished {
 			// The stream ended without a segment.finished (canceled mid-flight /
 			// drained iterator, or a failed continuation activation) — synthesize the terminal
@@ -76,10 +77,11 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 			cancelTeardown()
 		}
 		releaseMaintenance, maintenanceHeld := c.admission.BeginMaintenance(spec.RunID)
-		entry, tracked := c.registry.Remove(spec.RunID)
+		entry, tracked := c.registry.Get(spec.RunID)
 		if tracked {
 			// A parked run keeps its live turn alive for resume — only cancel +
-			// forget on a true terminal.
+			// stop on a true terminal. The registry entry remains addressable until
+			// the complete join boundary so a repeated Cancel can still wait.
 			if !parked && entry.handle != nil {
 				entry.handle.stop()
 			}
@@ -109,6 +111,7 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 		// consumer that drains it may immediately admit the next segment, so the
 		// synchronous maintenance fence and its admission claim must be gone first.
 		hub.Close()
+		c.registry.Remove(spec.RunID)
 	}()
 
 	for ev := range inner {

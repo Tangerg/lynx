@@ -19,8 +19,8 @@ type Goals interface {
 	StartGoal(ctx context.Context, in StartGoalRequest) (*Goal, error)
 	// GetGoal returns the session's goal, or a nil result when it has none.
 	GetGoal(ctx context.Context, in GoalRequest) (*Goal, error)
-	// StopGoal pauses the session's goal and stops launching runs. The in-flight
-	// run (if any) finishes on its own.
+	// StopGoal cancels and joins the in-flight run, then pauses the goal without
+	// losing terminal accounting that completed during cancellation.
 	StopGoal(ctx context.Context, in GoalRequest) (*Goal, error)
 	// ResumeGoal returns a paused or blocked goal to active and drives it again.
 	ResumeGoal(ctx context.Context, in GoalRequest) (*Goal, error)

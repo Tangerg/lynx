@@ -284,8 +284,8 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("terminal maintenance did not start")
 	}
-	if _, ok := coordinator.registry.Get("run_1"); ok {
-		t.Fatal("terminal run remained in the live registry during maintenance")
+	if _, ok := coordinator.registry.Get("run_1"); !ok {
+		t.Fatal("terminal maintenance removed the run's cancellation join identity")
 	}
 	if !hasActiveSession(coordinator, "ses_1") {
 		t.Fatal("session admission was released before terminal maintenance completed")
@@ -305,7 +305,7 @@ func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T
 	case <-time.After(time.Second):
 		t.Fatal("stream did not close after terminal maintenance released admission")
 	}
-	coordinator.Close()
+	requireCoordinatorShutdown(t, coordinator)
 	if hasActiveSession(coordinator, "ses_1") {
 		t.Fatal("terminal-maintenance claim was not released")
 	}
@@ -548,7 +548,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		coordinator.Close()
+		_ = shutdownCoordinator(coordinator)
 		close(done)
 	}()
 	select {
@@ -566,7 +566,7 @@ func TestCoordinatorCloseCancelsAndJoins(t *testing.T) {
 func TestCoordinatorStartAfterClose(t *testing.T) {
 	executor := &fakeExecutor{}
 	coordinator := testCoordinator(executor, &fakeEffects{})
-	coordinator.Close()
+	requireCoordinatorShutdown(t, coordinator)
 
 	_, err := coordinator.openSegment(context.Background(), testSegment())
 	if !errors.Is(err, ErrClosed) {
@@ -581,7 +581,7 @@ func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 	cleanupErr := errors.New("executor cleanup failed")
 	executor := &fakeExecutor{cancelErr: cleanupErr}
 	coordinator := testCoordinator(executor, &fakeEffects{})
-	coordinator.Close()
+	requireCoordinatorShutdown(t, coordinator)
 
 	_, err := coordinator.openSegment(t.Context(), testSegment())
 	if !errors.Is(err, ErrClosed) || !errors.Is(err, cleanupErr) {
@@ -589,7 +589,7 @@ func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 	}
 }
 
-func TestCoordinatorBeginCancelSurvivesRequestContext(t *testing.T) {
+func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	coordinator := testCoordinator(executor, &fakeEffects{})
 	requestContext, cancelRequest := context.WithCancel(context.Background())
@@ -602,15 +602,16 @@ func TestCoordinatorBeginCancelSurvivesRequestContext(t *testing.T) {
 	next() // consume the opening event so the pump is live
 	cancelRequest()
 
-	binding, cleanupContext, cancelCleanup, ok := coordinator.BeginCancel(context.Background(), "run_1", "stop")
+	binding, live, ok := coordinator.beginCancel("run_1", "stop")
 	if !ok {
-		t.Fatal("BeginCancel did not find the live run")
+		t.Fatal("beginCancel did not find the live run")
 	}
+	cleanupContext, cancelCleanup := live.cleanupContext(context.Background())
 	defer cancelCleanup()
 	if cleanupContext.Err() != nil || binding.SessionID != "ses_1" || binding.TurnID != "turn_1" {
 		t.Fatalf("binding=%+v cleanup error=%v", binding, cleanupContext.Err())
 	}
-	coordinator.Close()
+	requireCoordinatorShutdown(t, coordinator)
 	for _, ok := next(); ok; _, ok = next() { // drain whatever remains
 	}
 }

@@ -7,13 +7,13 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // RoleSource is the read view a live specialized-model resolver needs. The
 // source's owner decides how role changes are synchronized.
 type RoleSource interface {
-	Role() modelrole.Role
+	Role() modelref.Selection
 }
 
 // UtilityClient returns the current specialized utility client, falling back to
@@ -27,7 +27,7 @@ func (r *ClientResolver) UtilityClient(main *chatclient.Client, roles RoleSource
 		if !role.Configured() {
 			return main
 		}
-		client, err := r.ResolveClient(ctx, role.Selection())
+		client, err := r.ResolveClient(ctx, role)
 		if err != nil || client == nil {
 			return main
 		}
@@ -55,7 +55,7 @@ func (r *RoleEmbedder) Resolve(ctx context.Context) (codebaseindex.Embedder, err
 	if !role.Configured() {
 		return nil, codebaseindex.ErrNoEmbeddingModel
 	}
-	return r.resolver.Resolve(ctx, role.Selection())
+	return r.resolver.Resolve(ctx, role)
 }
 
 // ResolveMemory adapts the same live embedder to agent-memory search.

@@ -61,6 +61,11 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		cwd:       state.cwd,
 		hooks:     state.hooks,
 	}
+	if !s.register(state) {
+		state.cancel()
+		state.span.End()
+		return TurnHandle{}, ErrDispatcherClosed
+	}
 
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
 		SessionID:     request.SessionID,
@@ -69,38 +74,22 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		ChatClient:    client,
 	})
 	if err != nil {
-		state.cancel()
-		state.span.End()
+		_ = s.finishFailedTurn(state, problemFromError(err), err)
+		return TurnHandle{}, err
+	}
+	if process == nil {
+		err := errors.New("turn: engine returned a nil restored process")
+		_ = s.finishFailedTurn(state, internalRunProblem(), err)
 		return TurnHandle{}, err
 	}
 	state.lifecycle.setRoot(process.ID())
-	state.setProcess(process)
-	if !state.parkIfLive() {
-		return TurnHandle{}, rejectRestoredTurn(
-			state,
-			process,
-			errors.New("turn: restored turn was canceled before registration"),
-		)
-	}
-
-	if !s.register(state) {
-		return TurnHandle{}, rejectRestoredTurn(state, process, ErrDispatcherClosed)
+	if !state.setRestoredProcess(process) || s.isClosed() {
+		cancelErr := s.Cancel(context.WithoutCancel(ctx), handle)
+		if errors.Is(cancelErr, ErrTurnNotFound) {
+			cancelErr = nil
+		}
+		return TurnHandle{}, errors.Join(ErrDispatcherClosed, cancelErr)
 	}
 
 	return handle, nil
-}
-
-// rejectRestoredTurn tears down a process restored during a dispatcher-close
-// race. The close error and process cancellation failure are both preserved;
-// snapshot discard remains terminal maintenance, but its failure is preserved
-// alongside cancellation because this caller still owns a synchronous error
-// boundary.
-func rejectRestoredTurn(state *turnState, process agentexec.TurnProcess, cause error) error {
-	cancelErr := cancelTurnProcess(state.ctx, process)
-	recordTurnCleanupError(state, cancelErr)
-	discardErr := discardProcess(state.ctx, process)
-	recordTurnCleanupError(state, discardErr)
-	state.cancel()
-	state.span.End()
-	return errors.Join(cause, cancelErr, discardErr)
 }

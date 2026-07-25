@@ -1,6 +1,7 @@
-// Package modelref defines the explicit provider/model selection used by one
-// execution. A selection is either unset (the runtime default) or names both
-// a provider and a model; provider inference is deliberately unsupported.
+// Package modelref defines an explicit provider/model selection. Executions and
+// specialized runtime roles share the same invariant: a selection is either
+// unset (use the surrounding default) or names both values; provider inference
+// is deliberately unsupported.
 package modelref
 
 import (
@@ -11,8 +12,8 @@ import (
 // ErrIncomplete reports a provider/model pair where only one value was set.
 var ErrIncomplete = errors.New("model selection: provider and model must be set together")
 
-// Selection is an immutable per-execution model choice. Its zero value is the
-// unset selection, which asks the runtime to use its configured default.
+// Selection is an immutable model choice. Its zero value asks the owning use
+// case to use its configured default.
 type Selection struct {
 	provider string
 	model    string

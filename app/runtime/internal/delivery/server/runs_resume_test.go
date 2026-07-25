@@ -53,12 +53,18 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	// Close the run coordinator so continuation admission fails before opening.
-	closer, ok := s.coordinator.(interface{ Close() })
+	// Stop the run coordinator so continuation admission fails before opening.
+	shutdown, ok := s.coordinator.(interface {
+		BeginShutdown()
+		AwaitShutdown(context.Context) error
+	})
 	if !ok {
-		t.Fatal("test run coordinator does not expose Close")
+		t.Fatal("test run coordinator does not expose shutdown lifecycle")
 	}
-	closer.Close()
+	shutdown.BeginShutdown()
+	if err := shutdown.AwaitShutdown(ctx); err != nil {
+		t.Fatalf("shutdown run coordinator: %v", err)
+	}
 
 	if _, _, err := s.ResumeRun(ctx, protocol.ResumeRunRequest{
 		RunID: "run_1",

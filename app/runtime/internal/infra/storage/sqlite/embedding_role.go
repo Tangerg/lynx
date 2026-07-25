@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // EmbeddingRoleStore persists the global embedding-model role — the (provider,
@@ -23,12 +23,12 @@ func NewEmbeddingRoleStore(db *sql.DB) *EmbeddingRoleStore {
 
 // LoadEmbeddingRole returns the stored role, or its zero value when unset (no
 // row yet) — the index feature is then off until one is configured.
-func (s *EmbeddingRoleStore) LoadEmbeddingRole(ctx context.Context) (modelrole.Role, error) {
+func (s *EmbeddingRoleStore) LoadEmbeddingRole(ctx context.Context) (modelref.Selection, error) {
 	return s.store.load(ctx)
 }
 
 // SaveEmbeddingRole upserts the single embedding-role row. A zero role clears
 // it (turns the index feature off).
-func (s *EmbeddingRoleStore) SaveEmbeddingRole(ctx context.Context, role modelrole.Role) error {
+func (s *EmbeddingRoleStore) SaveEmbeddingRole(ctx context.Context, role modelref.Selection) error {
 	return s.store.save(ctx, role)
 }

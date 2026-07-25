@@ -11,20 +11,23 @@ import (
 
 func TestNewValidates(t *testing.T) {
 	now := time.Unix(0, 0)
-	if _, err := New("", "obj", modelref.Selection{}, Budget{}, now); err == nil {
+	if _, err := New("", "obj", modelref.Selection{}, Budget{}, "lease", now); err == nil {
 		t.Fatal("empty session should error")
 	}
-	if _, err := New("s", "", modelref.Selection{}, Budget{}, now); err == nil {
+	if _, err := New("s", "", modelref.Selection{}, Budget{}, "lease", now); err == nil {
 		t.Fatal("empty objective should error")
 	}
-	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: -1}, now); err == nil {
+	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: -1}, "lease", now); err == nil {
 		t.Fatal("negative budget should error")
 	}
 	selection, err := modelref.New("p", "m")
 	if err != nil {
 		t.Fatal(err)
 	}
-	g, err := New("s", "obj", selection, Budget{MaxTurns: 3}, now)
+	if _, err := New("s", "obj", selection, Budget{}, "", now); err == nil {
+		t.Fatal("empty lease should error")
+	}
+	g, err := New("s", "obj", selection, Budget{MaxTurns: 3}, "lease", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -33,9 +36,32 @@ func TestNewValidates(t *testing.T) {
 	}
 }
 
+func TestValidateSnapshotRejectsMissingConcurrencyIdentity(t *testing.T) {
+	g, err := New("s", "obj", modelref.Selection{}, Budget{}, "lease", time.Unix(0, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []struct {
+		name   string
+		mutate func(*Goal)
+	}{
+		{"lease", func(g *Goal) { g.LeaseID = "" }},
+		{"revision", func(g *Goal) { g.Revision = 0 }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			corrupt := g
+			tt.mutate(&corrupt)
+			if err := corrupt.ValidateSnapshot(); err == nil {
+				t.Fatalf("ValidateSnapshot accepted missing %s", tt.name)
+			}
+		})
+	}
+}
+
 func TestResumeRejectsSpentBudget(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +101,7 @@ func TestBudgetExceeded(t *testing.T) {
 
 func TestRecordTurnPreservesPriorTerminalReport(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +120,7 @@ func TestRecordTurnPreservesPriorTerminalReport(t *testing.T) {
 
 func TestTransitions(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, now)
+	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, "lease", now)
 
 	g.AddTurn(0.5, 2, now)
 	g.AddTurn(0.25, 1, now)

@@ -71,7 +71,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{err: wantErr}
 	})))
-	t.Cleanup(func() { _ = dispatcher.Close() })
+	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
 
 	if _, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "sess-hook-error",
@@ -99,7 +99,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}
 	})))
-	t.Cleanup(func() { _ = dispatcher.Close() })
+	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
 
 	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
@@ -120,10 +120,10 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 }
 
 // TestDispatcher_DiscardsProcessOnTerminal verifies the turn discards its backing
-// process at terminal teardown (endTurn → TurnProcess.Discard) — the seam that
+// process at terminal teardown (cleanupTurn → TurnProcess.Discard) — the seam that
 // deletes the auto-snapshot. Without it every run leaks one process_snapshot
-// row. The events channel closes only after endTurn runs, so reading the flag
-// after the drain loop is race-free.
+// row. Terminal event delivery is deliberately independent from cleanup, so the
+// test explicitly joins that cleanup before inspecting its postcondition.
 func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
@@ -134,8 +134,9 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	events, _ := dispatcher.Events(ctx, handle)
-	for range events { //nolint:revive // drain to terminal (channel closes after endTurn)
+	for range events { //nolint:revive // drain to terminal (channel closes at terminalization)
 	}
+	joinTurnCleanup(t, dispatcher, handle)
 	process := stub.lastProcess.Load()
 	if process == nil {
 		t.Fatal("stub engine never produced a process")

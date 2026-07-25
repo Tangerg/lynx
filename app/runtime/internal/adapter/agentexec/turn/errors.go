@@ -14,9 +14,9 @@ var ErrDispatcherClosed = errors.New("turn: dispatcher closed")
 // turn. Activation is an ownership transfer and may happen exactly once.
 var ErrTurnAlreadyActivated = errors.New("turn: turn already activated")
 
-// ErrCloseTimeout reports that dispatcher shutdown canceled every turn but at
-// least one turn did not finish its terminal teardown within the close budget.
-var ErrCloseTimeout = errors.New("turn: close timeout")
+// ErrShutdownTimeout reports that dispatcher shutdown canceled every turn but
+// at least one turn did not finish its terminal teardown within the deadline.
+var ErrShutdownTimeout = errors.New("turn: shutdown timeout")
 
 // ErrPromptBlocked surfaces when a UserPromptSubmit / SessionStart hook blocks a
 // turn before it starts. The delivery layer maps it to a run-channel error so

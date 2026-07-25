@@ -68,8 +68,8 @@ type Coordinator struct {
 	mcpDials              map[string]*mcpDial
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
-	// mutations outlive the request but are canceled + joined by Close (§10.2
-	// component context, §10.3).
+	// mutations outlive the request but are canceled and joined by the
+	// BeginShutdown/AwaitShutdown lifecycle (§10.2 component context, §10.3).
 	tasks taskgroup.Group
 
 	// mcpStatus publishes fully resolved, safe MCP status read models so a
@@ -127,11 +127,4 @@ func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
 		return nil
 	}
 	return c.tasks.Wait(ctx)
-}
-
-// Close cancels and joins post-commit reconcile work. Host shutdown uses the
-// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
-func (c *Coordinator) Close() {
-	c.BeginShutdown()
-	_ = c.AwaitShutdown(context.Background())
 }

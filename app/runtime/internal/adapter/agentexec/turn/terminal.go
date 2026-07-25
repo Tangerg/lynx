@@ -16,52 +16,74 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// endTurn closes the turn's event channel and removes it from the live
-// registry. The first Events call can still drain the handle-owned buffered
-// stream; subsequent Events and all Cancel / Resume calls return ErrTurnNotFound.
-// It also ends the turn span: the single teardown point, so the span
-// closes exactly once no matter which terminal path (drive / finishTurn)
-// reached it. finishTurnSpan has already stamped the outcome.
-func (s *memoryDispatcher) endTurn(st *turnState) {
-	// Release the backing process now that the turn is terminal: free its
-	// in-memory registry entry and delete its persisted auto-snapshot, which
-	// only matters while a process is PARKED for HITL resume (endTurn never runs
-	// on a parked turn — handleWaiting leaves it registered). Without this every
-	// run leaks one process_snapshot row. Off a cancel-decoupled ctx so the
-	// delete gets a short independent deadline even when the turn ctx was
-	// canceled, keeping the trace span without letting best-effort cleanup wedge
-	// terminal delivery or component shutdown.
+// terminalizeTurn closes the observable turn while retaining its registry
+// identity until process discard succeeds. That separation lets clients observe
+// the terminal promptly without making failed cleanup impossible to retry.
+func (s *memoryDispatcher) terminalizeTurn(st *turnState) {
+	st.cleanupMu.Lock()
+	st.terminal = true
+	st.closeEvents()
+	st.cleanupMu.Unlock()
+}
+
+// cleanupTurn releases the terminal process and only then removes the turn from
+// the registry and closes done. A failure leaves the same state addressable for
+// a later Cancel or shutdown retry.
+func (s *memoryDispatcher) cleanupTurn(st *turnState) error {
+	st.cleanupMu.Lock()
+	defer st.cleanupMu.Unlock()
+	if st.released {
+		return nil
+	}
+	if !st.terminal {
+		return errors.New("turn: cleanup requested before terminal")
+	}
+	var cleanupErr error
 	if p := st.process(); p != nil {
-		recordTurnCleanupError(st, discardProcess(st.ctx, p))
+		released, err := discardProcess(st.ctx, p)
+		if err != nil {
+			recordTurnCleanupError(st, err)
+			cleanupErr = err
+		}
+		if !released {
+			return cleanupErr
+		}
 	}
 	if st.span != nil {
 		st.span.End()
 	}
-	st.closeEvents()
 	s.mu.Lock()
-	delete(s.turns, st.handle.TurnID)
+	if s.turns[st.handle.TurnID] == st {
+		delete(s.turns, st.handle.TurnID)
+	}
 	s.mu.Unlock()
-	close(st.done)
+	st.released = true
+	st.doneOnce.Do(func() { close(st.done) })
+	return cleanupErr
 }
 
 const processDiscardTimeout = 2 * time.Second
 
-func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
+func discardProcess(ctx context.Context, process agentexec.TurnProcess) (bool, error) {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
 	defer cancel()
-	if err := process.Discard(cleanupCtx); err != nil {
-		return fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
+	released, err := process.Discard(cleanupCtx)
+	if err != nil {
+		err = fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
 	}
-	return nil
+	if !released && err == nil {
+		err = fmt.Errorf("turn: discard process %q retained without an error", process.ID())
+	}
+	return released, err
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)
 // and tears the turn down. It serves the emergency-teardown paths —
 // Cancel and a failed Resume — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
-// emitTurnEnd (which carries usage) followed by endTurn in [drive].
-func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {
-	s.completeTurn(st, func() {
+// emitTurnEnd (which carries usage) followed by terminal cleanup in [drive].
+func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) error {
+	return s.completeTurn(st, func() {
 		dur := time.Since(st.startedAt)
 		finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 		recordTurnDuration(st.ctx, reason, st.model, dur)
@@ -72,8 +94,8 @@ func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) {
 // finishFailedTurn closes an emergency error path with one self-contained
 // terminal event. The raw error stays local to tracing and stop hooks; the
 // EngineEvent contract carries only the stable application problem.
-func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Problem, err error) {
-	s.completeTurn(st, func() {
+func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Problem, err error) error {
+	return s.completeTurn(st, func() {
 		dur := time.Since(st.startedAt)
 		errMsg := "turn failed"
 		if err != nil {
@@ -86,11 +108,12 @@ func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Pr
 	})
 }
 
-func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) {
+func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) error {
 	st.terminalOnce.Do(func() {
 		emitTerminal()
-		s.endTurn(st)
+		s.terminalizeTurn(st)
 	})
+	return s.cleanupTurn(st)
 }
 
 // emitTurnEnd maps the captured agent runtime terminal event onto a

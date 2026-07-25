@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
@@ -46,9 +46,9 @@ type utilitySaverRecorder struct {
 	calls    int
 }
 
-func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, role modelrole.Role) error {
+func (s *utilitySaverRecorder) SaveUtilityRole(_ context.Context, role modelref.Selection) error {
 	s.calls++
-	s.provider = role.ProviderID()
+	s.provider = role.Provider()
 	s.model = role.Model()
 	return nil
 }
@@ -58,7 +58,7 @@ func modelRoleServer(entries map[string]provider.Provider, saver *utilitySaverRe
 	return serverWithModels(models.Config{
 		Providers:        fake,
 		Catalog:          fake,
-		UtilityRoleState: models.NewRoleState(modelrole.Role{}),
+		UtilityRoleState: models.NewRoleState(modelref.Selection{}),
 		UtilityValidator: okChatModelValidator{},
 		UtilityStore:     saver,
 	})

@@ -25,7 +25,7 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}
 	})))
-	t.Cleanup(func() { _ = dispatcher.Close() })
+	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
 
 	handle, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess", TurnID: "turn", ProcessID: "process", Cwd: cwd,
@@ -55,7 +55,7 @@ func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
 	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{err: wantErr}
 	})))
-	t.Cleanup(func() { _ = dispatcher.Close() })
+	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
 
 	if _, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess",

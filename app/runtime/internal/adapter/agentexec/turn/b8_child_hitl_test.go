@@ -341,6 +341,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if got := restoredHooks.count(hooks.PostToolUse, "shell"); got != 1 {
 		t.Fatalf("restored PostToolUse(shell) = %d, want 1", got)
 	}
+	joinTurnCleanup(t, restored, restoredHandle)
 	ids, err := store.List(t.Context())
 	if err != nil {
 		t.Fatalf("list process snapshots: %v", err)
@@ -582,7 +583,7 @@ func buildB8Dispatcher(
 	if err != nil {
 		t.Fatalf("turn.New: %v", err)
 	}
-	t.Cleanup(func() { _ = dispatcher.Close() })
+	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
 	return dispatcher
 }
 
@@ -629,7 +630,7 @@ func buildB8PersistentDispatcher(
 		t.Fatalf("turn.New: %v", err)
 	}
 	t.Cleanup(func() {
-		_ = dispatcher.Close()
+		shutdownDispatcher(t, dispatcher)
 	})
 	return dispatcher
 }

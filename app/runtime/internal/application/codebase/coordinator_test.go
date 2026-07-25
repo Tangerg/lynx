@@ -186,7 +186,7 @@ func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
 	}
 
 	close(finish)
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 	status, statusErr = c.Status(context.Background(), "/repo")
 	if statusErr != nil || status.OperationID != "" {
 		t.Fatalf("status after completion = %+v, err=%v, want no active operation", status, statusErr)
@@ -195,7 +195,7 @@ func TestStartReindexCoalescesOperationsByRoot(t *testing.T) {
 
 func TestStartReindexRejectsClosedComponent(t *testing.T) {
 	c := newCoordinator(&codebaseIndex{available: true})
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, errClosed) {
 		t.Fatalf("StartReindex error = %v, want %v", err, errClosed)
 	}
@@ -216,7 +216,7 @@ func TestCloseCancelsAndJoinsReindexAvailabilityCheck(t *testing.T) {
 	}()
 	<-started
 
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 	if err := <-result; !errors.Is(err, errClosed) {
 		t.Fatalf("StartReindex error = %v, want %v", err, errClosed)
 	}

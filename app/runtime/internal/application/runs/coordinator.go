@@ -17,9 +17,10 @@ import (
 // it accepts no new run segments.
 var ErrClosed = errors.New("runs: coordinator closed")
 
-// Coordinator owns the live run segments, the per-run event [Journal], the segment pump that
-// drives a run from Start to terminal, and the request-detached task group that
-// keeps runs alive across client disconnects and cancels + joins them on Close.
+// Coordinator owns the live run segments, the per-run event [Journal], the
+// segment pump that drives a run from Start to terminal, and the
+// request-detached task group that keeps runs alive across client disconnects
+// and cancels + joins them during shutdown.
 //
 // It is the transport-neutral home of the run lifecycle: reading Start and the
 // pump explains a run end to end; delivery only presents its canonical events.
@@ -117,7 +118,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		return nil, err
 	}
 	hub := NewJournal()
-	live := &handle{cancel: cancel, owner: taskCtx, hub: hub}
+	live := &handle{cancel: cancel, owner: taskCtx, hub: hub, done: make(chan struct{})}
 	reducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
 		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
@@ -240,24 +241,20 @@ type CancelBinding struct {
 	TurnID    string
 }
 
-// BeginCancel marks a live run for cancellation and returns the binding + a
-// bounded cleanup context the caller uses to drive the durable cancel. It
-// records the reason on both the live handle (read by a pump that may synthesize
-// the canceled terminal before the registry update lands) and the registry
-// snapshot, in that order, so a cancel can't delete an interrupt the pump is
-// about to recreate. ok=false when the run isn't live (caller falls back to the
-// parked-cancel path). The returned cancel func must be called when done.
-func (c *Coordinator) BeginCancel(ctx context.Context, runID, reason string) (CancelBinding, context.Context, context.CancelFunc, bool) {
+// beginCancel marks a live run for cancellation and returns its durable binding
+// plus terminal join handle. It records the reason on the handle before the
+// registry snapshot so a cancel cannot delete an interrupt the pump is about to
+// recreate. ok=false sends the caller through the parked-run path.
+func (c *Coordinator) beginCancel(runID, reason string) (CancelBinding, *handle, bool) {
 	e, ok := c.registry.Get(runID)
 	if !ok {
-		return CancelBinding{}, nil, nil, false
+		return CancelBinding{}, nil, false
 	}
 	if e.handle != nil {
 		e.handle.requestCancel(reason)
 	}
 	c.registry.MarkCancel(runID, reason)
-	cleanupCtx, cancel := e.handle.cleanupContext(ctx)
-	return CancelBinding{SessionID: e.record.SessionID, TurnID: e.record.TurnID}, cleanupCtx, cancel, true
+	return CancelBinding{SessionID: e.record.SessionID, TurnID: e.record.TurnID}, e.handle, true
 }
 
 // SubscribeLive opens a coherent subscription to a live run. The record and
@@ -288,10 +285,3 @@ func (c *Coordinator) BeginShutdown() { c.tasks.Cancel() }
 
 // AwaitShutdown joins every in-flight pump after [BeginShutdown].
 func (c *Coordinator) AwaitShutdown(ctx context.Context) error { return c.tasks.Wait(ctx) }
-
-// Close cancels and joins the in-flight pumps. Host shutdown uses the
-// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
-func (c *Coordinator) Close() {
-	c.BeginShutdown()
-	_ = c.AwaitShutdown(context.Background())
-}

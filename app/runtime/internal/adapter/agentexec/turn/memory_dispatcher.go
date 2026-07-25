@@ -152,11 +152,11 @@ type memoryDispatcher struct {
 
 	// mu guards the live-turn registry + seenSessions; each turn owns the
 	// synchronization of its own cross-goroutine state (see turnState.mu).
-	mu        sync.Mutex
-	turns     map[string]*turnState // turn_id → state
-	closed    bool
-	closeOnce sync.Once
-	closing   []*closeTarget
+	mu              sync.Mutex
+	turns           map[string]*turnState // turn_id → state
+	closed          bool
+	shutdownOnce    sync.Once
+	shutdownTargets []*shutdownTarget
 
 	// seenSessions tracks which sessions this process has already opened a turn
 	// for, so the SessionStart hook fires once per session per process (not on
@@ -164,11 +164,12 @@ type memoryDispatcher struct {
 	seenSessions map[string]struct{}
 }
 
-// closeTarget owns one shutdown cancellation result. Publishing err before
-// closing cancelDone gives every Close caller a stable, race-free result even
-// when an earlier Close timed out and a later call finishes the join.
-type closeTarget struct {
+// shutdownTarget owns one turn's shutdown result. Publishing err before
+// cancelDone closes gives every waiter a stable, race-free result, including a
+// later waiter joining work that outlived an earlier deadline.
+type shutdownTarget struct {
 	state      *turnState
+	mu         sync.Mutex
 	cancelDone chan struct{}
 	err        error
 }
@@ -193,79 +194,108 @@ func (s *memoryDispatcher) isClosed() bool {
 // live-turn set. The dispatcher, not the delivery run registry, is authoritative
 // because parked turns remain live after their streaming segment has ended.
 func (s *memoryDispatcher) BeginShutdown() {
-	s.closeOnce.Do(func() {
+	s.shutdownOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
 		states := slices.Collect(maps.Values(s.turns))
 		slices.SortFunc(states, func(left, right *turnState) int {
 			return cmp.Compare(left.handle.TurnID, right.handle.TurnID)
 		})
-		s.closing = make([]*closeTarget, 0, len(states))
+		s.shutdownTargets = make([]*shutdownTarget, 0, len(states))
 		for _, st := range states {
-			s.closing = append(s.closing, &closeTarget{state: st, cancelDone: make(chan struct{})})
+			s.shutdownTargets = append(s.shutdownTargets, &shutdownTarget{state: st})
 		}
-		targets := slices.Clone(s.closing)
+		targets := slices.Clone(s.shutdownTargets)
 		s.mu.Unlock()
 
 		for _, target := range targets {
-			go func() {
-				target.err = s.Cancel(context.WithoutCancel(target.state.ctx), target.state.handle)
-				close(target.cancelDone)
-			}()
+			target.attempt(s)
 		}
 	})
 }
 
 // AwaitShutdown joins the turns cancelled by [BeginShutdown]. Its caller owns
 // the deadline, so a timeout remains visible and a later await can finish the
-// same shutdown rather than burying work behind a one-shot close result.
+// same shutdown rather than burying work behind a one-shot result.
 func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("turn: shutdown context is required")
 	}
 	s.BeginShutdown()
-	for _, target := range s.closing {
+	for _, target := range s.shutdownTargets {
+		cancelDone := target.attempt(s)
 		select {
-		case <-target.cancelDone:
+		case <-cancelDone:
 		case <-ctx.Done():
-			return errors.Join(closeTimeoutError(s.closing), closeCancellationErrors(s.closing))
+			return errors.Join(shutdownTimeoutError(s.shutdownTargets), shutdownCancellationErrors(s.shutdownTargets))
 		}
 	}
-	cancelErr := closeCancellationErrors(s.closing)
-	for _, target := range s.closing {
+	cancelErr := shutdownCancellationErrors(s.shutdownTargets)
+	if cancelErr != nil {
+		return cancelErr
+	}
+	for _, target := range s.shutdownTargets {
 		select {
 		case <-target.state.done:
 		case <-ctx.Done():
-			return errors.Join(closeTimeoutError(s.closing), cancelErr)
+			return errors.Join(shutdownTimeoutError(s.shutdownTargets), cancelErr)
 		}
 	}
 	return cancelErr
 }
 
-// Close is retained for isolated adapter ownership sites. Process-level
-// shutdown must use BeginShutdown/AwaitShutdown so the Host owns the deadline.
-func (s *memoryDispatcher) Close() error {
-	s.BeginShutdown()
-	return s.AwaitShutdown(context.Background())
+// attempt joins an in-flight cancellation or starts one. A completed failure is
+// retried by a later AwaitShutdown call while the turn remains unreleased.
+func (t *shutdownTarget) attempt(dispatcher *memoryDispatcher) <-chan struct{} {
+	t.mu.Lock()
+	if t.cancelDone != nil && (!channelClosed(t.cancelDone) || t.err == nil || channelClosed(t.state.done)) {
+		done := t.cancelDone
+		t.mu.Unlock()
+		return done
+	}
+	done := make(chan struct{})
+	t.cancelDone = done
+	t.err = nil
+	t.mu.Unlock()
+
+	go func() {
+		err := dispatcher.Cancel(context.WithoutCancel(t.state.ctx), t.state.handle)
+		t.mu.Lock()
+		t.err = err
+		close(done)
+		t.mu.Unlock()
+	}()
+	return done
 }
 
-func closeTimeoutError(targets []*closeTarget) error {
+func (t *shutdownTarget) cancellation() (done bool, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.cancelDone == nil || !channelClosed(t.cancelDone) {
+		return false, nil
+	}
+	return true, t.err
+}
+
+func shutdownTimeoutError(targets []*shutdownTarget) error {
 	remaining := 0
 	for _, target := range targets {
-		if !channelClosed(target.cancelDone) || !channelClosed(target.state.done) {
+		cancelDone, _ := target.cancellation()
+		if !cancelDone || !channelClosed(target.state.done) {
 			remaining++
 		}
 	}
-	return fmt.Errorf("%w: %d turn(s) still shutting down", ErrCloseTimeout, remaining)
+	return fmt.Errorf("%w: %d turn(s) still shutting down", ErrShutdownTimeout, remaining)
 }
 
-func closeCancellationErrors(targets []*closeTarget) error {
+func shutdownCancellationErrors(targets []*shutdownTarget) error {
 	var errs []error
 	for _, target := range targets {
-		if !channelClosed(target.cancelDone) || target.err == nil || errors.Is(target.err, ErrTurnNotFound) {
+		done, err := target.cancellation()
+		if !done || err == nil || errors.Is(err, ErrTurnNotFound) {
 			continue
 		}
-		errs = append(errs, fmt.Errorf("turn: close turn %q: %w", target.state.handle.TurnID, target.err))
+		errs = append(errs, fmt.Errorf("turn: shut down turn %q: %w", target.state.handle.TurnID, err))
 	}
 	return errors.Join(errs...)
 }

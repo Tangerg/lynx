@@ -108,7 +108,7 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 
-	dispatcher.Close()
+	shutdownDispatcher(t, dispatcher)
 	var endReason execution.Outcome
 	for ev := range events {
 		if end, ok := ev.(runs.TurnEnd); ok {
@@ -124,7 +124,7 @@ func TestDispatcherCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	if _, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrDispatcherClosed) {
 		t.Fatalf("StartTurn after Close = %v, want ErrDispatcherClosed", err)
 	}
-	dispatcher.Close()
+	shutdownDispatcher(t, dispatcher)
 }
 
 // TestDispatcher_InjectSteering_LandsInNextTurn verifies the "next-turn"

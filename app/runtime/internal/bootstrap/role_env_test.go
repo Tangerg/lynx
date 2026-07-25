@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 func TestLoadUtilityRoleUsesLoaderPort(t *testing.T) {
@@ -15,7 +15,7 @@ func TestLoadUtilityRoleUsesLoaderPort(t *testing.T) {
 		t.Fatalf("loadUtilityRole err = %v", err)
 	}
 
-	if loader.calls != 1 || role.ProviderID() != "anthropic" || role.Model() != "claude-haiku" {
+	if loader.calls != 1 || role.Provider() != "anthropic" || role.Model() != "claude-haiku" {
 		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
 	}
 }
@@ -28,34 +28,34 @@ func TestLoadEmbeddingRoleUsesLoaderPort(t *testing.T) {
 		t.Fatalf("loadEmbeddingRole err = %v", err)
 	}
 
-	if loader.calls != 1 || role.ProviderID() != "openai" || role.Model() != "text-embedding-3-small" {
+	if loader.calls != 1 || role.Provider() != "openai" || role.Model() != "text-embedding-3-small" {
 		t.Fatalf("loaded calls=%d role=%+v", loader.calls, role)
 	}
 }
 
 type fakeUtilityRoleLoader struct {
-	role  modelrole.Role
+	role  modelref.Selection
 	calls int
 }
 
-func (s *fakeUtilityRoleLoader) LoadUtilityRole(context.Context) (modelrole.Role, error) {
+func (s *fakeUtilityRoleLoader) LoadUtilityRole(context.Context) (modelref.Selection, error) {
 	s.calls++
 	return s.role, nil
 }
 
 type fakeEmbeddingRoleLoader struct {
-	role  modelrole.Role
+	role  modelref.Selection
 	calls int
 }
 
-func (s *fakeEmbeddingRoleLoader) LoadEmbeddingRole(context.Context) (modelrole.Role, error) {
+func (s *fakeEmbeddingRoleLoader) LoadEmbeddingRole(context.Context) (modelref.Selection, error) {
 	s.calls++
 	return s.role, nil
 }
 
-func mustBootstrapRole(t testing.TB, provider, model string) modelrole.Role {
+func mustBootstrapRole(t testing.TB, provider, model string) modelref.Selection {
 	t.Helper()
-	role, err := modelrole.New(provider, model)
+	role, err := modelref.New(provider, model)
 	if err != nil {
 		t.Fatal(err)
 	}

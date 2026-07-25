@@ -20,19 +20,16 @@ func (*closeOnRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (
 
 func (e *closeOnRestoreEngine) RestoreTurn(context.Context, string, agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
 	e.dispatcher.BeginShutdown()
-	if err := e.dispatcher.AwaitShutdown(context.Background()); err != nil {
-		return nil, err
-	}
 	return e.process, nil
 }
 
-func TestRehydratePreservesCloseRaceCleanupFailure(t *testing.T) {
-	cancelErr := errors.New("restored process cleanup failed")
+func TestRehydrateCloseRaceRetainsFailedCleanupForShutdownRetry(t *testing.T) {
 	discardErr := errors.New("restored process discard failed")
 	release := make(chan struct{})
 	close(release)
+	process := &blockingCancelProcess{release: release, discardErr: discardErr}
 	engine := &closeOnRestoreEngine{
-		process: &blockingCancelProcess{release: release, err: cancelErr, discardErr: discardErr},
+		process: process,
 	}
 	dispatcher := &memoryDispatcher{
 		engine:       engine,
@@ -46,7 +43,21 @@ func TestRehydratePreservesCloseRaceCleanupFailure(t *testing.T) {
 		TurnID:    "turn_1",
 		ProcessID: "proc_1",
 	})
-	if !errors.Is(err, ErrDispatcherClosed) || !errors.Is(err, cancelErr) || !errors.Is(err, discardErr) {
-		t.Fatalf("Rehydrate error = %v, want dispatcher-close, cancel, and discard failures", err)
+	if !errors.Is(err, ErrDispatcherClosed) || !errors.Is(err, discardErr) {
+		t.Fatalf("Rehydrate error = %v, want dispatcher-close and discard failure", err)
+	}
+	if err := dispatcher.AwaitShutdown(t.Context()); !errors.Is(err, discardErr) {
+		t.Fatalf("join failed shutdown cleanup = %v, want discard failure", err)
+	}
+	if _, err := dispatcher.findTurn("turn_1"); err != nil {
+		t.Fatalf("failed restored-process cleanup lost ownership: %v", err)
+	}
+
+	process.discardErr = nil
+	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
+		t.Fatalf("retry shutdown cleanup: %v", err)
+	}
+	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("successful retry retained turn: %v", err)
 	}
 }

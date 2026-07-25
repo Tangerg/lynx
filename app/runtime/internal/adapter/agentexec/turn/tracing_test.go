@@ -41,6 +41,16 @@ func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
 	}
 	for range events {
 	}
+	if spans := exporter.GetSpans(); len(spans) != 0 {
+		t.Fatalf("discard failure ended %d turn span(s) before cleanup succeeded", len(spans))
+	}
+	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, discardErr) {
+		t.Fatalf("join failed terminal cleanup: %v", err)
+	}
+	stub.lastProcess.Load().discardErr = nil
+	if err := dispatcher.Cancel(t.Context(), handle); err != nil {
+		t.Fatalf("retry terminal cleanup: %v", err)
+	}
 
 	spans := exporter.GetSpans()
 	if len(spans) != 1 {

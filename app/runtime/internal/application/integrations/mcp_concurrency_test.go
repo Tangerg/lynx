@@ -180,7 +180,7 @@ func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 		MCPRegistryCommands:   live,
 		MCPPolicy:             NewToolPolicyState(policy),
 	})
-	defer c.Close()
+	defer requireCoordinatorShutdown(t, c)
 
 	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
 		t.Fatalf("ReconnectMCPServer: %v", err)
@@ -200,7 +200,7 @@ func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 		t.Fatal("remove waited for the interactive connection")
 	}
 	close(live.releaseReconnect)
-	c.Close() // joins the detached reconnect and its stale-projection cleanup
+	requireCoordinatorShutdown(t, c) // joins the detached reconnect and its stale-projection cleanup
 
 	if _, ok, err := registry.Get(context.Background(), name); err != nil || ok {
 		t.Fatalf("registry final state: present=%v err=%v", ok, err)
@@ -242,7 +242,7 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
 		close(registry.releaseRemove)
 		close(live.releaseReconnect)
-		c.Close()
+		requireCoordinatorShutdown(t, c)
 		t.Fatalf("ReconnectMCPServer: %v", err)
 	}
 
@@ -255,11 +255,11 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 	close(registry.releaseRemove)
 	if err := <-removed; err != nil {
 		close(live.releaseReconnect)
-		c.Close()
+		requireCoordinatorShutdown(t, c)
 		t.Fatalf("RemoveMCPServer: %v", err)
 	}
 	close(live.releaseReconnect)
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 
 	if reconnectStarted {
 		t.Fatal("reconnect crossed a committed removal instead of revalidating the registry")

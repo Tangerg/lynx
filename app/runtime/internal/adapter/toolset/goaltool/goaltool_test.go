@@ -26,20 +26,22 @@ func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
 // put seeds a goal directly (test setup), bypassing the CAS.
 func (s *memStore) put(g goal.Goal) { s.goals[g.SessionID] = g }
 
-func (s *memStore) Save(_ context.Context, g goal.Goal, expected goal.Version) (bool, error) {
+func (s *memStore) Save(_ context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
 	cur, ok := s.goals[g.SessionID]
 	if expected == (goal.Version{}) {
 		if ok {
-			return false, nil
+			return goal.Goal{}, false, nil
 		}
+		g.Revision = 1
 		s.goals[g.SessionID] = g
-		return true, nil
+		return g, true, nil
 	}
 	if !ok || cur.Version() != expected {
-		return false, nil
+		return goal.Goal{}, false, nil
 	}
+	g.Revision = expected.Revision + 1
 	s.goals[g.SessionID] = g
-	return true, nil
+	return g, true, nil
 }
 func (s *memStore) Clear(_ context.Context, id string) error { delete(s.goals, id); return nil }
 func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) (bool, error) {
@@ -54,8 +56,7 @@ func (s *memStore) List(context.Context) ([]goal.Goal, error) { return nil, nil 
 
 // activeGoal builds a stored active goal with an opaque current lease.
 func activeGoal(session string) goal.Goal {
-	g, _ := goal.New(session, "obj", modelref.Selection{}, goal.Budget{}, time.Unix(0, 0))
-	g.RenewLease("lease-active")
+	g, _ := goal.New(session, "obj", modelref.Selection{}, goal.Budget{}, "lease-active", time.Unix(0, 0))
 	return g
 }
 

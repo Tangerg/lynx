@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -30,18 +30,18 @@ func TestEmbeddingRoleStore_RoundTrip(t *testing.T) {
 	if err := s.SaveEmbeddingRole(ctx, mustStoredRole(t, "openai", "text-embedding-3-small")); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if role, err := s.LoadEmbeddingRole(ctx); err != nil || role.ProviderID() != "openai" || role.Model() != "text-embedding-3-small" {
+	if role, err := s.LoadEmbeddingRole(ctx); err != nil || role.Provider() != "openai" || role.Model() != "text-embedding-3-small" {
 		t.Fatalf("load = (%+v, %v); want (openai, text-embedding-3-small, nil)", role, err)
 	}
 
 	if err := s.SaveEmbeddingRole(ctx, mustStoredRole(t, "anthropic", "voyage-3-large")); err != nil {
 		t.Fatalf("re-save: %v", err)
 	}
-	if role, err := s.LoadEmbeddingRole(ctx); err != nil || role.ProviderID() != "anthropic" || role.Model() != "voyage-3-large" {
+	if role, err := s.LoadEmbeddingRole(ctx); err != nil || role.Provider() != "anthropic" || role.Model() != "voyage-3-large" {
 		t.Fatalf("load after re-save = (%+v, %v); want (anthropic, voyage-3-large, nil)", role, err)
 	}
 
-	if err := s.SaveEmbeddingRole(ctx, modelrole.Role{}); err != nil {
+	if err := s.SaveEmbeddingRole(ctx, modelref.Selection{}); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 	if role, err := s.LoadEmbeddingRole(ctx); err != nil || role.Configured() {

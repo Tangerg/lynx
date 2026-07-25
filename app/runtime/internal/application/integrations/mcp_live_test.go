@@ -45,7 +45,7 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 		}
 	}
 	c := New(cfg)
-	defer c.Close()
+	defer requireCoordinatorShutdown(t, c)
 
 	if err := c.ReconnectMCPServer(context.Background(), "fs"); err != nil {
 		t.Fatalf("ReconnectMCPServer err = %v", err)
@@ -106,7 +106,7 @@ func TestReconnectMCPServerDetachedButComponentOwned(t *testing.T) {
 		t.Fatal("dial context did not detach request cancellation or preserve values")
 	}
 
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 	select {
 	case <-ports.stopped:
 	case <-time.After(time.Second):

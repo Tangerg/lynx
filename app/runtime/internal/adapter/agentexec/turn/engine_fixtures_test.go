@@ -70,9 +70,12 @@ type stubTurnProcess struct {
 	output     agentexec.TurnOutput
 	done       chan error
 	onCancel   func()
-	resumeErr  error       // when set, Resume fails with it
-	discardErr error       // returned by Discard to verify teardown observability
-	discarded  atomic.Bool // set by Discard to assert terminal snapshot cleanup
+	resumeErr  error // when set, Resume fails with it
+	discardErr error // returned by Discard to verify teardown observability
+	// discardReleased models a completed discard that still reports a
+	// termination diagnostic.
+	discardReleased bool
+	discarded       atomic.Bool // set by Discard to assert terminal snapshot cleanup
 }
 
 func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess {
@@ -116,9 +119,9 @@ func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) (<
 
 func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
 
-func (cp *stubTurnProcess) Discard(_ context.Context) error {
+func (cp *stubTurnProcess) Discard(_ context.Context) (bool, error) {
 	cp.discarded.Store(true)
-	return cp.discardErr
+	return cp.discardErr == nil || cp.discardReleased, cp.discardErr
 }
 
 // stubEngine satisfies the turn dispatcher's engine dependency without touching

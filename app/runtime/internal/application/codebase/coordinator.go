@@ -2,7 +2,8 @@
 // and background reindex. A nil index
 // means @codebase is disabled (no embedding store wired); the methods degrade to
 // "unavailable" rather than erroring construction. The component task group owns
-// the request-detached reindex, canceled + joined by [Coordinator.Close].
+// the request-detached reindex, canceled by [Coordinator.BeginShutdown] and
+// joined by [Coordinator.AwaitShutdown].
 package codebase
 
 import (
@@ -81,13 +82,6 @@ func (c *Coordinator) AwaitShutdown(ctx context.Context) error {
 	return c.tasks.Wait(ctx)
 }
 
-// Close cancels and joins background reindex work. Host shutdown uses the
-// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
-func (c *Coordinator) Close() {
-	c.BeginShutdown()
-	_ = c.AwaitShutdown(context.Background())
-}
-
 // Available reports whether semantic-index use cases are wired in this runtime.
 func (c *Coordinator) Available() bool { return c != nil && c.index != nil }
 
@@ -119,8 +113,8 @@ func (c *Coordinator) Status(ctx context.Context, cwd string) (Status, error) {
 	return Status{Index: status, OperationID: c.activeOperation(root)}, nil
 }
 
-// StartReindex starts a full rebuild for cwd that outlives the request context, owned by
-// this component's task group (canceled + joined by Close).
+// StartReindex starts a full rebuild for cwd that outlives the request context,
+// owned by this component's task group and canceled and joined during shutdown.
 func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, error) {
 	if c.index == nil {
 		return "", codebaseindex.ErrNoEmbeddingModel

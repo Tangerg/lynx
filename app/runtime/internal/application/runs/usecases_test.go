@@ -293,7 +293,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	close(releaseFinish)
 	for range outcome.result.Events {
 	}
-	c.Close()
+	requireCoordinatorShutdown(t, c)
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("terminal maintenance did not release its claim")
 	}
@@ -511,6 +511,48 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("turn cleanup failure prevented live run terminalization")
+	}
+}
+
+func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
+	finishStarted := make(chan struct{}, 1)
+	releaseFinish := make(chan struct{})
+	executor := &fakeExecutor{block: true}
+	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
+	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
+	c := newUseCaseCoordinator(executor, turns, sessions, effects)
+	result, err := c.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	cancelResult := make(chan error, 1)
+	go func() {
+		cancelResult <- c.Cancel(t.Context(), CancelCommand{RunID: result.RunID, Reason: "stop"})
+	}()
+	select {
+	case <-finishStarted:
+	case <-time.After(time.Second):
+		t.Fatal("canceled run did not reach terminal maintenance")
+	}
+	select {
+	case err := <-cancelResult:
+		t.Fatalf("Cancel returned before terminal maintenance: %v", err)
+	default:
+	}
+
+	close(releaseFinish)
+	if err := <-cancelResult; err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	if hasActiveSession(c, "ses_1") {
+		t.Fatal("Cancel returned before releasing session admission")
+	}
+	for range result.Events {
 	}
 }
 

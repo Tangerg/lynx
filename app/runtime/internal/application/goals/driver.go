@@ -15,6 +15,7 @@ package goals
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,8 @@ var (
 // handler.
 type RunUseCases interface {
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
+	// Cancel returns after the Run has reached its complete terminal boundary.
+	Cancel(ctx context.Context, cmd runs.CancelCommand) error
 }
 
 // SessionExists reports whether a session id refers to a live session. The
@@ -93,6 +96,22 @@ type Driver struct {
 type loopHandle struct {
 	leaseID string
 	cancel  context.CancelFunc
+	owner   context.Context
+	done    chan struct{}
+	err     error
+
+	mu            sync.Mutex
+	stopping      bool
+	stopCtx       context.Context
+	loopReconcile bool
+	run           *ownedRun
+}
+
+type ownedRun struct {
+	mu      sync.Mutex
+	cancel  func(context.Context) error
+	err     error
+	stopped bool
 }
 
 // NewDriverWithMutations builds a Driver sharing one session lifecycle
@@ -146,12 +165,11 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 	if ok {
 		expected = existing.Version()
 	}
-	g, err := goal.New(sessionID, objective, selection, budget, d.now())
+	g, err := goal.New(sessionID, objective, selection, budget, d.newLease(), d.now())
 	if err != nil {
 		return goal.Goal{}, err
 	}
-	g.RenewLease(d.newLease())
-	applied, err := d.goals.Save(ctx, g, expected)
+	g, applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -187,7 +205,7 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, err
 	}
 	g.RenewLease(d.newLease())
-	applied, err := d.goals.Save(ctx, g, expected)
+	g, applied, err := d.goals.Save(ctx, g, expected)
 	if err != nil {
 		return goal.Goal{}, err
 	}
@@ -198,9 +216,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 	return g, nil
 }
 
-// Stop pauses the session's goal and cancels its loop. If the durable pause does
-// not commit, it restores a driver for the still-authoritative lease before
-// returning the error, so an active Goal never remains without a loop.
+// Stop first quiesces the Goal's owned Run, then pauses the authoritative
+// post-terminal snapshot. This ordering preserves terminal accounting and makes
+// the user stop the final lifecycle transition rather than racing it.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
 	d.mutations.lock()
 	defer d.mutations.unlock()
@@ -217,30 +235,44 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	if g.Status != goal.StatusActive {
 		return g, nil
 	}
-	expected := g.Version()
-	d.mutations.quiesce(sessionID)
-	g.Pause(goal.ReasonStoppedByUser, "", d.now())
-	g.RenewLease(d.newLease())
-	applied, err := d.goals.Save(ctx, g, expected)
-	if err != nil {
-		d.recoverDrive(ctx, sessionID, expected.LeaseID)
-		return goal.Goal{}, err
+	handle := d.mutations.quiesce(ctx, sessionID)
+	var quiesceErr error
+	if handle != nil {
+		quiesceErr = handle.wait(ctx)
+		if !handle.finished() {
+			handle.returnReconcile()
+			return goal.Goal{}, quiesceErr
+		}
 	}
-	if applied {
-		return g, nil
-	}
-	// The loop or update_goal changed the revision while Stop was quiescing. A
-	// restored driver observes the authoritative row and exits unless it remains
-	// active under the prior lease.
-	d.recoverDrive(ctx, sessionID, expected.LeaseID)
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
-		return goal.Goal{}, err
+		if handle != nil {
+			handle.returnReconcile()
+		}
+		return goal.Goal{}, errors.Join(err, quiesceErr)
 	}
-	if ok {
-		return current, nil
+	if !ok {
+		return goal.Goal{}, errors.Join(ErrNoGoal, quiesceErr)
 	}
-	return g, nil
+	authoritative := current
+	expected := current.Version()
+	current.Pause(goal.ReasonStoppedByUser, "", d.now())
+	current.RenewLease(d.newLease())
+	saved, applied, err := d.goals.Save(ctx, current, expected)
+	if err != nil {
+		if authoritative.Status == goal.StatusActive {
+			d.ensureDriveLocked(ctx, sessionID, authoritative.LeaseID)
+		}
+		return goal.Goal{}, errors.Join(err, quiesceErr)
+	}
+	if !applied {
+		authoritative, found, loadErr := d.goals.Get(ctx, sessionID)
+		if loadErr == nil && found && authoritative.Status == goal.StatusActive {
+			d.ensureDriveLocked(ctx, sessionID, authoritative.LeaseID)
+		}
+		return goal.Goal{}, errors.Join(ErrGoalConflict, loadErr, quiesceErr)
+	}
+	return saved, quiesceErr
 }
 
 // Get returns the session's goal, or (zero, false, nil) when it has none.
@@ -275,7 +307,7 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 			expected := g.Version()
 			g.Pause(goal.ReasonRuntimeRestarted, "", d.now())
 			g.RenewLease(d.newLease())
-			if _, err := d.goals.Save(ctx, g, expected); err != nil {
+			if _, _, err := d.goals.Save(ctx, g, expected); err != nil {
 				return err
 			}
 		case goal.StatusComplete:
@@ -306,13 +338,26 @@ func (d *Driver) AwaitShutdown(ctx context.Context) error {
 	return d.tasks.Wait(ctx)
 }
 
-// Close cancels and joins every running goal loop. Host shutdown uses the
-// context-aware BeginShutdown/AwaitShutdown pair to share one deadline.
-func (d *Driver) Close() error {
-	d.BeginShutdown()
-	return d.AwaitShutdown(context.Background())
+func (h *loopHandle) wait(ctx context.Context) error {
+	if h == nil {
+		return nil
+	}
+	select {
+	case <-h.done:
+		return h.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-func (d *Driver) recoverDrive(ctx context.Context, sessionID, leaseID string) {
-	d.ensureDriveLocked(ctx, sessionID, leaseID)
+func (h *loopHandle) finished() bool {
+	if h == nil {
+		return true
+	}
+	select {
+	case <-h.done:
+		return true
+	default:
+		return false
+	}
 }

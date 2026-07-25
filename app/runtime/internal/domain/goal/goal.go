@@ -69,8 +69,9 @@ type Usage struct {
 
 // Version identifies one durable revision of a Goal. LeaseID is an opaque,
 // non-reusable ownership token for a driving loop; Revision advances on every
-// persisted mutation within that lease. Together they make a stale loop unable
-// to write a freshly-created Goal after the old row was cleared.
+// persisted mutation, including lifecycle transitions that renew the lease.
+// Together they make a stale loop unable to write a freshly-created Goal after
+// the old row was cleared.
 type Version struct {
 	LeaseID  string
 	Revision int64
@@ -146,8 +147,8 @@ type Goal struct {
 	// LeaseID names the currently valid driving-loop incarnation. It is generated
 	// afresh at every lifecycle transition, never inferred from row existence.
 	LeaseID string
-	// Revision is the durable optimistic-concurrency version for mutations made
-	// within a single lease.
+	// Revision is the durable optimistic-concurrency version of this session's
+	// goal row. Persistence, not callers, assigns and advances it.
 	Revision  int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -166,14 +167,18 @@ var (
 	ErrNotResumable = errors.New("goal: status is not resumable")
 )
 
-// New builds an active goal for sessionID. now is passed in (not read from the
-// clock) so callers stay testable and the runtime keeps a single time source.
-func New(sessionID, objective string, selection modelref.Selection, budget Budget, now time.Time) (Goal, error) {
+// New builds a new active goal for sessionID. A lease is part of the aggregate
+// rather than a follow-up mutation: an active goal without an owner is not a
+// valid intermediate state. Persistence assigns the first durable revision.
+func New(sessionID, objective string, selection modelref.Selection, budget Budget, leaseID string, now time.Time) (Goal, error) {
 	if sessionID == "" {
 		return Goal{}, errSessionRequired
 	}
 	if objective == "" {
 		return Goal{}, errObjectiveRequired
+	}
+	if leaseID == "" {
+		return Goal{}, fmt.Errorf("%w: lease ID is required", errInvalidSnapshot)
 	}
 	if err := budget.Validate(); err != nil {
 		return Goal{}, err
@@ -184,6 +189,7 @@ func New(sessionID, objective string, selection modelref.Selection, budget Budge
 		Status:         StatusActive,
 		ModelSelection: selection,
 		Budget:         budget,
+		LeaseID:        leaseID,
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}, nil
@@ -198,6 +204,12 @@ func (g Goal) ValidateSnapshot() error {
 	}
 	if g.Objective == "" {
 		return errObjectiveRequired
+	}
+	if g.LeaseID == "" {
+		return fmt.Errorf("%w: lease ID is required", errInvalidSnapshot)
+	}
+	if g.Revision <= 0 {
+		return fmt.Errorf("%w: revision must be positive", errInvalidSnapshot)
 	}
 	if !g.Status.Valid() {
 		return fmt.Errorf("%w: unknown status %q", errInvalidSnapshot, g.Status)
@@ -330,12 +342,9 @@ func (g Goal) Version() Version {
 	return Version{LeaseID: g.LeaseID, Revision: g.Revision}
 }
 
-// RenewLease revokes every prior loop ownership token and advances the durable
-// revision. Lifecycle transitions call it before persisting their new state.
+// RenewLease revokes every prior loop ownership token. Persistence owns revision
+// advancement, so lifecycle code cannot accidentally publish an unversioned
+// mutation or advance a version twice.
 func (g *Goal) RenewLease(leaseID string) {
 	g.LeaseID = leaseID
-	g.Revision++
 }
-
-// AdvanceRevision records a mutation within the current lease.
-func (g *Goal) AdvanceRevision() { g.Revision++ }

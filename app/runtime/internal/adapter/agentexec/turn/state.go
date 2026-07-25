@@ -32,11 +32,23 @@ type turnState struct {
 
 	// eventMu is the single serialization point for sequence assignment,
 	// event delivery, and channel closure. No sender may touch events without
-	// it, so endTurn can close the stream without racing a late observer or a
-	// park/cancel hand-off.
+	// it, so terminalization can close the stream without racing a late observer
+	// or a park/cancel hand-off.
 	eventMu      sync.Mutex
 	eventsClosed bool
 	terminalOnce sync.Once
+	doneOnce     sync.Once
+
+	// cancelMu serializes process cancellation attempts. A failed attempt keeps
+	// the turn addressable so a later Cancel or shutdown await can retry it.
+	cancelMu sync.Mutex
+
+	// cleanupMu serializes terminal process discard and registry release. Event
+	// delivery can finish before cleanup, but done closes only after both the
+	// process and its persisted snapshot have been released.
+	cleanupMu sync.Mutex
+	terminal  bool
+	released  bool
 
 	// cwd is the session working directory the turn ran in — threaded to
 	// post-turn maintenance so extracted facts land in that project's ledger.
@@ -58,8 +70,9 @@ type turnState struct {
 	// Set once at the entry point (StartTurn / Rehydrate).
 	ctx context.Context
 
-	// span is the business-level turn span (started at the entry point,
-	// ended once in endTurn). Carried on ctx so child spans attach to it.
+	// span is the business-level turn span (started at the entry point and ended
+	// once terminal process ownership is released). Carried on ctx so child
+	// spans attach to it.
 	span trace.Span
 
 	// model is the resolved model name this turn runs against — stamped on
@@ -110,6 +123,10 @@ type turnState struct {
 	// registered (events channel open) until claimPark drives it to a
 	// terminal state.
 	parked bool
+	// canceling retains ownership after Cancel claims a parked turn. It remains
+	// true across a failed process cancellation, preventing Resume while allowing
+	// a later Cancel attempt to finish the same turn.
+	canceling bool
 
 	// steering is the queue of mid-turn user messages injected via
 	// InjectSteering. The runtime flushes it to the chat history
@@ -285,13 +302,24 @@ func hashOutput(output string) uint64 {
 	return h.Sum64()
 }
 
-// setProcess records the agent process backing this turn. runTurn / Rehydrate
-// write it once they have dispatched one; process() then hands it to the
-// caller goroutines.
+// setProcess records the agent process backing this turn. runTurn writes it
+// once the engine dispatch succeeds; process() then hands it to caller
+// goroutines.
 func (st *turnState) setProcess(process agentexec.TurnProcess) {
+	st.mu.Lock()
+	st.agentProcess = process
+	st.mu.Unlock()
+}
+
+// setRestoredProcess publishes a restored process and its parked ownership
+// atomically. A concurrent Cancel either claims that parked process, or cancels
+// ctx first and makes live false; the restoring goroutine then owns teardown.
+func (st *turnState) setRestoredProcess(process agentexec.TurnProcess) (live bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	st.agentProcess = process
+	st.parked = true
+	return st.ctx.Err() == nil
 }
 
 // process returns the backing agent process, or nil before the turn has
@@ -336,6 +364,28 @@ func (st *turnState) claimPark() bool {
 	}
 	st.parked = false
 	return true
+}
+
+func (st *turnState) claimCancellation() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.parked {
+		st.parked = false
+		st.canceling = true
+	}
+	return st.canceling
+}
+
+func (st *turnState) finishCancellation() {
+	st.mu.Lock()
+	st.canceling = false
+	st.mu.Unlock()
+}
+
+func (st *turnState) terminalized() bool {
+	st.cleanupMu.Lock()
+	defer st.cleanupMu.Unlock()
+	return st.terminal
 }
 
 // appendSteering pushes one user message onto the pending-steering queue, or

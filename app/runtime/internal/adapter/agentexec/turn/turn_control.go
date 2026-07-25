@@ -25,15 +25,20 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 	if err != nil {
 		return err
 	}
+	state.cancelMu.Lock()
+	defer state.cancelMu.Unlock()
+	if state.terminalized() {
+		return s.cleanupTurn(state)
+	}
 	state.cancel()
 	if state.cancelPrepared() {
-		s.finishTurn(state, execution.OutcomeCanceled)
-		return nil
+		return s.finishTurn(state, execution.OutcomeCanceled)
 	}
-	// Claim the parked flag so a racing Resume can't also act on the same
-	// suspended turn (whoever flips it false wins).
+	if state.terminalized() {
+		return s.cleanupTurn(state)
+	}
 	process := state.process()
-	claimed := state.claimPark()
+	claimed := state.claimCancellation()
 	if process != nil {
 		status := process.Status()
 		switch {
@@ -50,12 +55,16 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 			err = cancelTurnProcess(ctx, process)
 		}
 	}
+	if err != nil {
+		return err
+	}
 	if claimed {
 		// The turn was parked on an interrupt — no drive goroutine is waiting on
 		// it, so emit the terminal + tear down here.
-		s.finishTurn(state, execution.OutcomeCanceled)
+		state.finishCancellation()
+		return s.finishTurn(state, execution.OutcomeCanceled)
 	}
-	return err
+	return nil
 }
 
 func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error {

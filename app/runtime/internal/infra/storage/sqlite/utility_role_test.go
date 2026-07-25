@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -34,7 +33,7 @@ func TestUtilityRoleStore_RoundTrip(t *testing.T) {
 	if err := s.SaveUtilityRole(ctx, mustStoredRole(t, "anthropic", "claude-haiku-4-5")); err != nil {
 		t.Fatalf("save: %v", err)
 	}
-	if role, err := s.LoadUtilityRole(ctx); err != nil || role.ProviderID() != "anthropic" || role.Model() != "claude-haiku-4-5" {
+	if role, err := s.LoadUtilityRole(ctx); err != nil || role.Provider() != "anthropic" || role.Model() != "claude-haiku-4-5" {
 		t.Fatalf("load = (%+v, %v); want (anthropic, claude-haiku-4-5, nil)", role, err)
 	}
 
@@ -42,12 +41,12 @@ func TestUtilityRoleStore_RoundTrip(t *testing.T) {
 	if err := s.SaveUtilityRole(ctx, mustStoredRole(t, "openai", "gpt-5-mini")); err != nil {
 		t.Fatalf("re-save: %v", err)
 	}
-	if role, _ := s.LoadUtilityRole(ctx); role.ProviderID() != "openai" || role.Model() != "gpt-5-mini" {
+	if role, _ := s.LoadUtilityRole(ctx); role.Provider() != "openai" || role.Model() != "gpt-5-mini" {
 		t.Fatalf("load after re-save = %+v; want (openai, gpt-5-mini)", role)
 	}
 
 	// Clearing (zero role) round-trips as unset.
-	if err := s.SaveUtilityRole(ctx, modelrole.Role{}); err != nil {
+	if err := s.SaveUtilityRole(ctx, modelref.Selection{}); err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 	if role, _ := s.LoadUtilityRole(ctx); role.Configured() {
@@ -70,9 +69,9 @@ func TestUtilityRoleStoreRejectsPartialPersistedSelection(t *testing.T) {
 	}
 }
 
-func mustStoredRole(t testing.TB, provider, model string) modelrole.Role {
+func mustStoredRole(t testing.TB, provider, model string) modelref.Selection {
 	t.Helper()
-	role, err := modelrole.New(provider, model)
+	role, err := modelref.New(provider, model)
 	if err != nil {
 		t.Fatal(err)
 	}

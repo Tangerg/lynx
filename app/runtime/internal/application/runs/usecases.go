@@ -185,20 +185,23 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 	if err := c.requireControlDependencies(); err != nil {
 		return err
 	}
-	binding, cleanupCtx, cancel, live := c.BeginCancel(ctx, cmd.RunID, cmd.Reason)
+	binding, liveHandle, live := c.beginCancel(cmd.RunID, cmd.Reason)
+	cleanupCtx, cancel := liveHandle.cleanupContext(ctx)
+	defer cancel()
 	if live {
-		defer cancel()
+		var cancelErr error
 		if err := c.turns.CancelTurn(cleanupCtx, execution.TurnRef(binding)); err != nil && !errors.Is(err, ErrTurnNotLive) {
-			return fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
+			cancelErr = fmt.Errorf("runs: cancel live run %q turn: %w", cmd.RunID, err)
 		}
-		// A park can commit durably in the window between BeginCancel observing the
+		// A park can commit durably in the window between cancellation observing the
 		// run as live and turns.Cancel tearing it down (the interrupt commit is a DB
 		// transaction). Tearing the turn down then leaves the run durably Interrupted
 		// — surfaced as resumable — while the caller was told cancel succeeded. If an
 		// open interrupt now exists, reconcile it through the durable cancel write-set.
-		return c.cancelParkedRun(ctx, cmd, false)
+		reconcileErr := c.cancelParkedRun(cleanupCtx, cmd, false)
+		return errors.Join(cancelErr, reconcileErr, liveHandle.wait(ctx))
 	}
-	return c.cancelParkedRun(ctx, cmd, true)
+	return c.cancelParkedRun(cleanupCtx, cmd, true)
 }
 
 // cancelParkedRun applies the durable cancel write-set to a run parked on an open
@@ -223,15 +226,10 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, re
 		return ErrSessionBusy
 	}
 	defer releaseSession()
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-	if err := c.sessions.ApplyRunCancel(cleanupCtx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
-		cancel()
+	if err := c.sessions.ApplyRunCancel(ctx, pending.SessionID, cmd.RunID, cmd.Reason, c.now().UTC()); err != nil {
 		return err
 	}
-	cancel()
-	turnCtx, cancelTurn := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-	defer cancelTurn()
-	if err := c.turns.CancelTurn(turnCtx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
+	if err := c.turns.CancelTurn(ctx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}); err != nil && !errors.Is(err, ErrTurnNotLive) {
 		return fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
 	}
 	return nil

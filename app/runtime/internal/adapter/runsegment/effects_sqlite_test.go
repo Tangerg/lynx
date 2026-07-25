@@ -185,12 +185,11 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal session: %v", err)
 	}
 	selection := mustEffectSelection(t, "provider", "model")
-	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxTurns: 1}, created)
+	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxTurns: 1}, "lease_goal", created)
 	if err != nil {
 		t.Fatalf("new goal: %v", err)
 	}
-	g.RenewLease("lease_goal")
-	if saved, err := goals.Save(ctx, g, goal.Version{}); err != nil || !saved {
+	if _, saved, err := goals.Save(ctx, g, goal.Version{}); err != nil || !saved {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
 	state := sqlite.NewRunStateStore(db)

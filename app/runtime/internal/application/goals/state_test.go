@@ -18,12 +18,13 @@ type stateStore struct {
 func (s *stateStore) Get(context.Context, string) (goal.Goal, bool, error) {
 	return s.goal, s.present, nil
 }
-func (s *stateStore) Save(_ context.Context, next goal.Goal, expected goal.Version) (bool, error) {
+func (s *stateStore) Save(_ context.Context, next goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
 	if s.conflict || !s.present || s.goal.Version() != expected {
-		return false, nil
+		return goal.Goal{}, false, nil
 	}
+	next.Revision++
 	s.goal = next
-	return true, nil
+	return next, true, nil
 }
 func (s *stateStore) Clear(context.Context, string) error { s.present = false; return nil }
 func (s *stateStore) ClearIf(context.Context, string, goal.Version) (bool, error) {
@@ -33,11 +34,10 @@ func (s *stateStore) List(context.Context) ([]goal.Goal, error) { return nil, ni
 
 func TestStateReportOwnsTerminalGoalTransition(t *testing.T) {
 	now := time.Date(2026, time.July, 23, 9, 0, 0, 0, time.UTC)
-	g, err := goal.New("ses_1", "finish", modelref.Selection{}, goal.Budget{}, now.Add(-time.Hour))
+	g, err := goal.New("ses_1", "finish", modelref.Selection{}, goal.Budget{}, "lease-current", now.Add(-time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.RenewLease("lease-current")
 	store := &stateStore{goal: g, present: true}
 	state := NewState(store)
 	state.now = func() time.Time { return now }

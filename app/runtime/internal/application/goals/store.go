@@ -13,7 +13,10 @@ import (
 // reconciled.
 type Store interface {
 	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
-	Save(ctx context.Context, g goal.Goal, expected goal.Version) (applied bool, err error)
+	// Save atomically assigns the next durable revision and returns the saved
+	// snapshot. Revision on g is ignored: expected is the sole CAS authority.
+	// A lost compare-and-swap returns the zero Goal with applied=false.
+	Save(ctx context.Context, g goal.Goal, expected goal.Version) (saved goal.Goal, applied bool, err error)
 	Clear(ctx context.Context, sessionID string) error
 	ClearIf(ctx context.Context, sessionID string, expected goal.Version) (applied bool, err error)
 	List(ctx context.Context) ([]goal.Goal, error)
@@ -115,8 +118,7 @@ func (s *State) Report(ctx context.Context, cmd ReportCommand) (ReportResult, er
 	default:
 		return ReportInvalidStatus, nil
 	}
-	g.AdvanceRevision()
-	applied, err := s.goals.Save(ctx, g, expected)
+	_, applied, err := s.goals.Save(ctx, g, expected)
 	if err != nil {
 		return 0, err
 	}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -52,20 +53,31 @@ func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool,
 	return g, true, nil
 }
 
-// Save is the goal CAS. INSERT-if-absent
-// (not INSERT OR REPLACE) is deliberate — a stale writer whose row was cleared
-// must not resurrect it.
-func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (bool, error) {
+// Save is the goal CAS and the sole authority that advances revisions.
+// INSERT-if-absent (not INSERT OR REPLACE) is deliberate — a stale writer whose
+// row was cleared must not resurrect it.
+func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
+	if expected == (goal.Version{}) {
+		g.Revision = 1
+	} else {
+		if expected.LeaseID == "" || expected.Revision <= 0 {
+			return goal.Goal{}, false, errors.New("sqlite: expected goal version is invalid")
+		}
+		if expected.Revision == math.MaxInt64 {
+			return goal.Goal{}, false, errors.New("sqlite: goal revision exhausted")
+		}
+		g.Revision = expected.Revision + 1
+	}
 	if err := g.ValidateSnapshot(); err != nil {
-		return false, fmt.Errorf("sqlite: validate goal: %w", err)
+		return goal.Goal{}, false, fmt.Errorf("sqlite: validate goal: %w", err)
 	}
 	budget, err := json.Marshal(goalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
 	if err != nil {
-		return false, fmt.Errorf("sqlite: encode goal budget: %w", err)
+		return goal.Goal{}, false, fmt.Errorf("sqlite: encode goal budget: %w", err)
 	}
 	used, err := json.Marshal(goalUsed{Turns: g.Used.Turns, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps})
 	if err != nil {
-		return false, fmt.Errorf("sqlite: encode goal used: %w", err)
+		return goal.Goal{}, false, fmt.Errorf("sqlite: encode goal used: %w", err)
 	}
 	if expected == (goal.Version{}) {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
@@ -75,9 +87,13 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 			g.SessionID, g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
 			string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
 		if err != nil {
-			return false, fmt.Errorf("sqlite: insert goal: %w", err)
+			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", err)
 		}
-		return rowsAffected(res)
+		applied, err := rowsAffected(res)
+		if err != nil || !applied {
+			return goal.Goal{}, applied, err
+		}
+		return g, true, nil
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE goals SET objective = ?, status = ?, reason_cause = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
@@ -86,9 +102,13 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 		string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
 		g.SessionID, expected.LeaseID, expected.Revision)
 	if err != nil {
-		return false, fmt.Errorf("sqlite: save goal: %w", err)
+		return goal.Goal{}, false, fmt.Errorf("sqlite: save goal: %w", err)
 	}
-	return rowsAffected(res)
+	applied, err := rowsAffected(res)
+	if err != nil || !applied {
+		return goal.Goal{}, applied, err
+	}
+	return g, true, nil
 }
 
 // RecordTurn records a terminal goal-owned Run and applies its aggregate
@@ -128,8 +148,7 @@ func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) erro
 		}
 		expected := g.Version()
 		g.RecordTurn(record)
-		g.AdvanceRevision()
-		applied, err := s.Save(ctx, g, expected)
+		_, applied, err := s.Save(ctx, g, expected)
 		if err != nil {
 			return err
 		}

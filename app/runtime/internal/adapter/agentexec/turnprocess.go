@@ -65,11 +65,13 @@ type TurnProcess interface {
 	// completion — but that snapshot only matters while the process is PARKED
 	// awaiting HITL resume; once the turn reaches a terminal state it is dead
 	// weight, and left behind it accumulates one orphaned snapshot row per run.
-	// Cleanup failures don't rewrite the already-finished turn outcome, but are
-	// returned so the owning turn span can retain them. Call exactly once at
-	// terminal teardown — NEVER on a parked process, whose snapshot must survive
-	// for resume.
-	Discard(ctx context.Context) error
+	// Cleanup diagnostics don't rewrite the already-finished turn outcome.
+	// released reports the authoritative postcondition: true means the live
+	// process and its durable snapshot are gone, even when err retains a
+	// non-fatal termination diagnostic; false means the caller still owns the
+	// process and must retry. NEVER call on a parked process, whose snapshot must
+	// survive for resume.
+	Discard(ctx context.Context) (released bool, err error)
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -105,11 +107,14 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
-func (p *turnProcess) Discard(ctx context.Context) error {
+func (p *turnProcess) Discard(ctx context.Context) (bool, error) {
 	if p == nil || p.process == nil || p.engine == nil {
-		return errors.New("agentexec: discard process: incomplete turn process")
+		return false, errors.New("agentexec: discard process: incomplete turn process")
 	}
-	return p.engine.Discard(ctx, p.process.ID())
+	processID := p.process.ID()
+	err := p.engine.Discard(ctx, processID)
+	_, retained := p.engine.Process(processID)
+	return !retained, err
 }
 
 func (p *turnProcess) Output() (TurnOutput, error) {

@@ -59,6 +59,11 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		s.finishFailedTurn(st, internalRunProblem(), err)
 		return
 	}
+	if process == nil {
+		err := errors.New("turn: engine returned a nil process")
+		s.finishFailedTurn(st, internalRunProblem(), err)
+		return
+	}
 	// Record the root process id so the lifecycle gate keeps subtask
 	// terminals (which fire first) from being mistaken for the turn's end.
 	st.lifecycle.setRoot(process.ID())

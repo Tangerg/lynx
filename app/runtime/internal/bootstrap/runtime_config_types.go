@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -309,13 +309,13 @@ type Transactor func(ctx context.Context, fn func(context.Context) error) error
 // sqlite-backed implementation. A nil store disables persistence — the role
 // stays in-process only. Consumed by bootstrap + the capabilities coordinator.
 type UtilityRoleStore interface {
-	LoadUtilityRole(ctx context.Context) (modelrole.Role, error)
-	SaveUtilityRole(ctx context.Context, role modelrole.Role) error
+	LoadUtilityRole(ctx context.Context) (modelref.Selection, error)
+	SaveUtilityRole(ctx context.Context, role modelref.Selection) error
 }
 
 // EmbeddingRoleStore persists the embedding-model role across restarts. nil
 // disables persistence — the role stays whatever was last set in-process.
 type EmbeddingRoleStore interface {
-	LoadEmbeddingRole(ctx context.Context) (modelrole.Role, error)
-	SaveEmbeddingRole(ctx context.Context, role modelrole.Role) error
+	LoadEmbeddingRole(ctx context.Context) (modelref.Selection, error)
+	SaveEmbeddingRole(ctx context.Context, role modelref.Selection) error
 }

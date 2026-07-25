@@ -26,7 +26,8 @@ func (m *SessionMutations) lock() { m.commands.Lock() }
 func (m *SessionMutations) unlock() { m.commands.Unlock() }
 
 // WithSessionMutation commits apply before quiescing affected Goal loops. A
-// failed write leaves the authoritative loop intact.
+// failed write leaves the authoritative loop intact; a successful mutation does
+// not return until the affected loops have relinquished their owned Runs.
 func (m *SessionMutations) WithSessionMutation(ctx context.Context, sessionIDs []string, apply func(context.Context) error) error {
 	m.lock()
 	defer m.unlock()
@@ -34,7 +35,11 @@ func (m *SessionMutations) WithSessionMutation(ctx context.Context, sessionIDs [
 		return err
 	}
 	for _, sessionID := range sessionIDs {
-		m.quiesce(sessionID)
+		if handle := m.quiesce(ctx, sessionID); handle != nil {
+			if err := handle.wait(ctx); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -59,18 +64,25 @@ func (m *SessionMutations) forget(sessionID string, handle *loopHandle) {
 	m.mu.Unlock()
 }
 
-func (m *SessionMutations) quiesce(sessionID string) {
+func (m *SessionMutations) quiesce(ctx context.Context, sessionID string) *loopHandle {
 	m.mu.Lock()
-	if handle := m.running[sessionID]; handle != nil {
-		handle.cancel()
+	handle := m.running[sessionID]
+	if handle != nil {
 		delete(m.running, sessionID)
 	}
 	m.mu.Unlock()
+	if handle != nil {
+		handle.quiesce(ctx)
+	}
+	return handle
 }
 
-func (m *SessionMutations) driving(sessionID, leaseID string) bool {
+func (m *SessionMutations) driverLease(sessionID string) string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	handle := m.running[sessionID]
-	return handle != nil && handle.leaseID == leaseID
+	if handle == nil {
+		return ""
+	}
+	return handle.leaseID
 }

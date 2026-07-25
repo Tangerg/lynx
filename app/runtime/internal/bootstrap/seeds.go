@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelrole"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
@@ -42,7 +42,7 @@ func SeedUtilityRole(ctx context.Context, store UtilityRoleStore, cfg config.Con
 	if cfg.UtilityModel == "" || cfg.UtilityModel == cfg.Model {
 		return nil
 	}
-	role, err = modelrole.New(cfg.Provider, cfg.UtilityModel)
+	role, err = modelref.New(cfg.Provider, cfg.UtilityModel)
 	if err != nil {
 		return err
 	}

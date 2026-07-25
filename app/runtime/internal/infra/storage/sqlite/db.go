@@ -256,9 +256,9 @@ func installCurrentSchema(db *sql.DB) error {
 		// Goal.Used: it is the idempotency identity that lets terminal Run state
 		// and cross-turn budget accounting commit as one fact.
 		`CREATE TABLE IF NOT EXISTS goal_turns (
-			run_id       TEXT    PRIMARY KEY,
-			session_id   TEXT    NOT NULL,
-			lease_id     TEXT    NOT NULL,
+				run_id       TEXT    PRIMARY KEY,
+				session_id   TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+				lease_id     TEXT    NOT NULL,
 			outcome      TEXT    NOT NULL,
 			cost_usd     REAL    NOT NULL,
 			steps        INTEGER NOT NULL,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,24 +18,30 @@ import (
 
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
+const goalPersistenceTimeout = 5 * time.Second
+
 // launchLocked attaches exactly one loop to an already-accepted active goal.
 // Callers hold mutations.commands, which is also held by BeginShutdown; that
 // linearizes the durable active transition with task-group admission.
 func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string) {
-	ctx, release, ok := d.tasks.Attach(parent)
+	owner, release, ok := d.tasks.Attach(parent)
 	if !ok {
 		panic("goals: accepted an active goal after driver shutdown")
 	}
-	ctx, cancel := context.WithCancel(ctx)
-	handle := &loopHandle{leaseID: leaseID, cancel: cancel}
+	ctx, cancel := context.WithCancel(owner)
+	handle := &loopHandle{
+		leaseID: leaseID, cancel: cancel, owner: owner, done: make(chan struct{}),
+		loopReconcile: true,
+	}
 
 	d.mutations.launch(sessionID, handle)
 
 	go func() {
-		d.drive(ctx, sessionID, leaseID)
+		defer release()
+		handle.err = d.drive(ctx, sessionID, leaseID, handle)
 		d.forget(sessionID, handle)
-		release()
-		d.restoreDrive(ctx, sessionID, leaseID)
+		close(handle.done)
+		d.restoreDrive(handle.owner, sessionID, leaseID, handle)
 	}()
 }
 
@@ -46,7 +53,7 @@ func (d *Driver) forget(sessionID string, handle *loopHandle) {
 // goal. It is used after a command discovers an active row and by Stop's
 // failed-write recovery. The caller holds mutations.commands.
 func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID string) {
-	if d.closed || d.mutations.driving(sessionID, leaseID) {
+	if d.closed || d.mutations.driverLease(sessionID) == leaseID {
 		return
 	}
 	d.launchLocked(ctx, sessionID, leaseID)
@@ -57,27 +64,38 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 // turn the still-active durable intent into an orphan. This performs one fresh
 // authoritative read and only attaches a replacement for the same lease. It is
 // not a retry policy: a durable non-active transition always wins immediately.
-func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string) {
-	d.mutations.lock()
-	defer d.mutations.unlock()
-	if d.closed {
+func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string, handle *loopHandle) {
+	if !handle.mayReconcile() {
 		return
 	}
-	g, ok, err := d.goals.Get(detached(ctx), sessionID)
+	// Persistence runs outside the command mutex. BeginShutdown must be able to
+	// close admission and cancel ctx even when a store is slow; lifecycle
+	// commands that win during this read are harmless because a replacement
+	// loop revalidates status and lease before starting any Run.
+	g, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 		return
 	}
-	d.ensureDriveLocked(detached(ctx), sessionID, leaseID)
+	d.mutations.lock()
+	defer d.mutations.unlock()
+	if d.closed || !handle.mayReconcile() || d.mutations.driverLease(sessionID) != "" {
+		return
+	}
+	// Unlike an explicit command, background recovery may only fill an empty
+	// slot. A newer Start can change the lease after the read above and install
+	// its driver before this lock is reacquired; recovery must never replace it
+	// with the stale lease it observed.
+	d.launchLocked(ctx, sessionID, leaseID)
 }
 
 // drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
 // than resuming and burning budget.
-func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) {
+func (d *Driver) drive(ctx context.Context, sessionID, leaseID string, handle *loopHandle) error {
 	for {
 		if ctx.Err() != nil {
-			return
+			return nil
 		}
 		g, ok, err := d.goals.Get(ctx, sessionID)
 		// Stop when the goal is gone or no longer active. The lease check is a
@@ -87,10 +105,14 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) {
 		// lease guard is the re-read in runTurn: it prevents adopting and
 		// clobbering a foreign incarnation mid-turn.
 		if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
-			return
+			return nil
 		}
-		if d.runTurn(ctx, &g) != dispContinue {
-			return
+		disposition, err := d.runTurn(ctx, &g, handle)
+		if err != nil {
+			return err
+		}
+		if disposition != dispContinue {
+			return nil
 		}
 	}
 }
@@ -99,7 +121,7 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) {
 // in, and decides what to do next — all under a goal.turn span. The returned
 // disposition is empty when a cancellation or vanished goal means no turn
 // completed, so nothing is metered.
-func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDisposition) {
+func (d *Driver) runTurn(ctx context.Context, g *goal.Goal, handle *loopHandle) (disposition turnDisposition, err error) {
 	ctx, span := driverTracer.Start(ctx, "goal.turn", trace.WithAttributes(
 		attribute.String("goal.session", g.SessionID),
 		attribute.Int("goal.turn", g.Used.Turns+1),
@@ -115,12 +137,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	}()
 
 	if err := ctx.Err(); err != nil {
-		return ""
+		return "", nil
 	}
 	result, err := d.runs.Start(ctx, d.command(*g))
 	if err != nil {
 		if ctx.Err() != nil {
-			return "" // Stop/shutdown — the state is handled by Stop / reconcile
+			return "", nil // Stop/shutdown — the state is handled by Stop / reconcile
 		}
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
@@ -129,10 +151,29 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		// for adapter diagnostics.
 		g.Pause(goal.ReasonRunStartFailed, "", d.now())
 		d.save(ctx, *g)
-		return dispPaused
+		return dispPaused, nil
 	}
 
+	owned := &ownedRun{
+		cancel: func(cancelCtx context.Context) error {
+			err := d.runs.Cancel(cancelCtx, runs.CancelCommand{
+				RunID:  result.RunID,
+				Reason: "autonomous goal stopped",
+			})
+			if errors.Is(err, runs.ErrRunNotFound) {
+				return nil
+			}
+			return err
+		},
+	}
+	if stopped, cancelErr := handle.bindRun(owned); stopped {
+		return "", cancelErr
+	}
 	finished := drainTerminal(result.Events)
+	handle.releaseRun(owned)
+	if ctx.Err() != nil {
+		return "", owned.stop(handle.owner)
+	}
 	if finished != nil {
 		if outcome, terminalErr := outcomeOf(finished); terminalErr == nil {
 			span.SetAttributes(
@@ -147,10 +188,10 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	reread, ok, err := d.goals.Get(ctx, g.SessionID)
 	if err != nil {
 		span.RecordError(err)
-		return ""
+		return "", nil
 	}
 	if !ok {
-		return ""
+		return "", nil
 	}
 	// If the lease changed, a Stop/Start/Resume superseded this loop's goal
 	// while the run was in flight. Adopting the re-read (a different incarnation,
@@ -158,17 +199,17 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	// loop no longer owns; stop instead. This keeps g at the launch lease, so the
 	// terminal saves below CAS on the incarnation the loop actually drove.
 	if reread.LeaseID != g.LeaseID {
-		return ""
+		return "", nil
 	}
 	*g = reread
 	switch g.Status {
 	case goal.StatusComplete:
 		d.clear(ctx, *g) // transient — announce (the model's reply) then clear
-		return dispComplete
+		return dispComplete, nil
 	case goal.StatusBlocked:
-		return dispBlocked // the model declared blocked
+		return dispBlocked, nil // the model declared blocked
 	case goal.StatusPaused:
-		return "" // a concurrent Stop already recorded its intent
+		return "", nil // a concurrent Stop already recorded its intent
 	}
 
 	if finished == nil {
@@ -177,7 +218,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		// parking). Wait for the user, who resolves it and can resume the goal.
 		g.Pause(goal.ReasonAwaitingInput, "", d.now())
 		d.save(ctx, *g)
-		return dispPaused
+		return dispPaused, nil
 	}
 
 	outcome, err := outcomeOf(finished)
@@ -186,7 +227,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		span.SetStatus(codes.Error, "malformed terminal run")
 		g.Pause(goal.ReasonTerminalOutcomeMissing, "", d.now())
 		d.save(ctx, *g)
-		return dispPaused
+		return dispPaused, nil
 	}
 	span.SetAttributes(
 		attribute.String("run.outcome", outcome.String()),
@@ -197,7 +238,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	// derived any pause/block) under the goal lease. Do not reconstruct that
 	// durable fact from the stream: a failed post-hoc checkpoint can otherwise
 	// start an extra run against an undercounted budget.
-	return dispContinue
+	return dispContinue, nil
 }
 
 // command builds the next autonomous run. It is headless: no InterruptKinds, so a
@@ -255,23 +296,26 @@ func turnCost(run *transcript.Run) float64 {
 	return 0
 }
 
-// save / clear persist the loop's TERMINAL state even when ctx was canceled by
-// Stop/shutdown (detached drops cancellation but keeps trace values). Both are
-// compare-and-swap on the loop's version: a straggler whose goal was
+// save / clear get one bounded persistence window even when ctx was canceled by
+// Stop/shutdown. Both are compare-and-swap on the loop's version: a straggler
+// whose goal was
 // superseded (Stop/Start) or cleared (delete/rollback) simply does not apply —
 // it can neither clobber a newer goal nor resurrect a deleted one. A store error
 // (not a lost CAS) is recorded on the turn span; the boot reconcile is the
 // backstop.
 func (d *Driver) save(ctx context.Context, g goal.Goal) {
 	expected := g.Version()
-	g.AdvanceRevision()
-	_, err := d.goals.Save(detached(ctx), g, expected)
-	recordSaveError(ctx, err)
+	saveCtx, cancel := goalPersistenceContext(ctx)
+	_, _, err := d.goals.Save(saveCtx, g, expected)
+	recordSaveError(saveCtx, err)
+	cancel()
 }
 
 func (d *Driver) clear(ctx context.Context, g goal.Goal) {
-	_, err := d.goals.ClearIf(detached(ctx), g.SessionID, g.Version())
-	recordSaveError(ctx, err)
+	clearCtx, cancel := goalPersistenceContext(ctx)
+	_, err := d.goals.ClearIf(clearCtx, g.SessionID, g.Version())
+	recordSaveError(clearCtx, err)
+	cancel()
 }
 
 func turnSteps(run *transcript.Run) int {
@@ -281,4 +325,75 @@ func turnSteps(run *transcript.Run) int {
 	return run.Result.Steps
 }
 
-func detached(ctx context.Context) context.Context { return context.WithoutCancel(ctx) }
+func goalPersistenceContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), goalPersistenceTimeout)
+}
+
+func (h *loopHandle) quiesce(ctx context.Context) {
+	h.mu.Lock()
+	h.stopping = true
+	h.stopCtx = ctx
+	h.loopReconcile = false
+	run := h.run
+	h.mu.Unlock()
+
+	if run != nil {
+		_ = run.stop(ctx)
+	}
+	h.cancel()
+}
+
+func (h *loopHandle) bindRun(run *ownedRun) (bool, error) {
+	h.mu.Lock()
+	h.run = run
+	stopping := h.stopping
+	stopCtx := h.stopCtx
+	owner := h.owner
+	h.mu.Unlock()
+	if !stopping {
+		return false, nil
+	}
+	err := run.stop(stopCtx)
+	if err != nil {
+		// The component owner performs the durable retry when the command
+		// deadline expired. ownedRun retains earlier diagnostics, so this return
+		// already contains both attempts without duplicating the first error.
+		err = run.stop(owner)
+	}
+	return true, err
+}
+
+func (h *loopHandle) releaseRun(run *ownedRun) {
+	h.mu.Lock()
+	if h.run == run {
+		h.run = nil
+	}
+	h.mu.Unlock()
+}
+
+func (h *loopHandle) mayReconcile() bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.loopReconcile
+}
+
+func (h *loopHandle) returnReconcile() {
+	h.mu.Lock()
+	h.loopReconcile = true
+	h.mu.Unlock()
+}
+
+func (r *ownedRun) stop(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.stopped {
+		return r.err
+	}
+	err := r.cancel(ctx)
+	if err == nil || errors.Is(err, runs.ErrRunNotFound) {
+		r.stopped = true
+		return r.err
+	}
+	r.err = errors.Join(r.err, err)
+	return r.err
+}
