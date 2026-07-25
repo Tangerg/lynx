@@ -2,8 +2,6 @@
 // to plugins: key bindings, attachment chips, placeholders, status chips,
 // slash commands.
 
-import type { ComponentType } from "react";
-
 /**
  * Context passed to a composer key binding handler. The handler can read
  * the current value, replace it, or invoke `submit` to send the pending
@@ -80,19 +78,6 @@ export interface ComposerPlaceholderSpec {
  * icon + label. The host provides no props; chips read state from stores
  * directly.
  */
-export interface ComposerStatusSpec {
-  id: string;
-  /** Sort hint — lower comes first. Built-ins use 0..99. */
-  order?: number;
-  /**
-   * Which side of the footer the chip sits on. "start" (default) =
-   * left context chips (project / mode / branch); "end" = right-aligned
-   * run telemetry (tokens / cost / run state).
-   */
-  align?: "start" | "end";
-  /** The chip body. Receives no props. */
-  component: ComponentType;
-}
 
 /**
  * Context passed to a slash command's `run` function.

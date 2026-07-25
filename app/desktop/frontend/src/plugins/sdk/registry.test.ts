@@ -13,7 +13,6 @@ import {
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
   COMPOSER_PLACEHOLDER,
-  COMPOSER_STATUS,
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LAYOUT_SLOT,
@@ -299,15 +298,6 @@ describe("plugin registry", () => {
     expect(lookupExtensionByKey(SHORTCUT, "escape")).toBeDefined();
     d.dispose();
     expect(lookupExtensionByKey(SHORTCUT, "escape")).toBeUndefined();
-  });
-
-  it("composer.registerStatus stores a chip", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    host.extensions.contribute(COMPOSER_STATUS, { id: "branch", order: 5, component: () => null });
-
-    expect(lookupExtensionPoint(COMPOSER_STATUS).length).toBe(1);
-    expect(lookupExtensionByKey(COMPOSER_STATUS, "branch")?.order).toBe(5);
   });
 
   it("workIndex.registerItem stores an expanded item", () => {

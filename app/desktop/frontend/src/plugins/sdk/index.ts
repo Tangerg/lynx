@@ -106,7 +106,6 @@ export type {
   ComposerKeyBindingSpec,
   ComposerKeyContext,
   ComposerPlaceholderSpec,
-  ComposerStatusSpec,
   ContextDockDestinationScope,
   ContextDockDestinationSpec,
   Citation,
