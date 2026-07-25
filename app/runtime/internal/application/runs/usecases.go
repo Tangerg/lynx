@@ -193,12 +193,12 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) error {
 			SessionID: entry.record.SessionID,
 			TurnID:    entry.record.TurnID,
 		}
-		interrupt, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
+		interruptCommitted, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
 		c.registry.MarkCancel(cmd.RunID, cmd.Reason)
 		if requestErr != nil {
 			return errors.Join(requestErr, entry.handle.wait(cleanupCtx))
 		}
-		if interrupt == interruptCommitted {
+		if interruptCommitted {
 			// The interrupt transaction won before cancellation. Its pump owns the
 			// live admission until it has published and closed the parked segment;
 			// join that boundary, then apply the known durable cancel directly.

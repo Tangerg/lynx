@@ -18,25 +18,24 @@ const runCleanupTimeout = 5 * time.Second
 // cancellation against interrupt publication. The reducer reads its late-bound
 // cancellation reason.
 type handle struct {
-	mu                sync.Mutex
-	cancel            context.CancelFunc
-	owner             context.Context
-	hub               *Journal
-	done              chan struct{}
-	completionErr     error
-	cancelRequested   bool
-	cancelReason      string
-	interrupt         interruptDisposition
-	inflightInterrupt *interruptCommit
+	mu              sync.Mutex
+	cancel          context.CancelFunc
+	owner           context.Context
+	hub             *Journal
+	done            chan struct{}
+	completionErr   error
+	cancelRequested bool
+	cancelReason    string
+	interrupt       interruptBoundary
 }
 
-type interruptDisposition uint8
-
-const (
-	interruptAbsent interruptDisposition = iota
-	interruptCommitting
-	interruptCommitted
-)
+// interruptBoundary records the only two durable facts cancellation needs:
+// whether publication committed, and whether one publication is currently
+// owned. Both fields are guarded by handle.mu.
+type interruptBoundary struct {
+	committed bool
+	active    *interruptCommit
+}
 
 // interruptCommit is the one cancellable interrupt publication a run may own.
 // A nil pointer means there is no commit to interrupt or join.
@@ -49,15 +48,15 @@ type interruptCommit struct {
 // returns, no new interrupt can be committed for this run; a commit already in
 // progress has observed cancellation and completed before cancellation proceeds.
 // External I/O never runs under mu: the in-flight channel is the join point.
-func (h *handle) requestCancel(ctx context.Context, reason string) (interruptDisposition, error) {
+func (h *handle) requestCancel(ctx context.Context, reason string) (interruptCommitted bool, err error) {
 	if h == nil {
-		return interruptAbsent, nil
+		return false, nil
 	}
 	h.mu.Lock()
 	h.cancelRequested = true
 	h.cancelReason = reason
 	cancelRun := h.cancel
-	inflight := h.inflightInterrupt
+	inflight := h.interrupt.active
 	h.mu.Unlock()
 	if cancelRun != nil {
 		cancelRun()
@@ -69,13 +68,13 @@ func (h *handle) requestCancel(ctx context.Context, reason string) (interruptDis
 		select {
 		case <-inflight.done:
 		case <-ctx.Done():
-			return interruptAbsent, ctx.Err()
+			return false, ctx.Err()
 		}
 	}
 	h.mu.Lock()
-	disposition := h.interrupt
+	committed := h.interrupt.committed
 	h.mu.Unlock()
-	return disposition, nil
+	return committed, nil
 }
 
 // commitInterrupt reserves the interrupt boundary, runs its context-bounded
@@ -93,26 +92,23 @@ func (h *handle) commitInterrupt(ctx context.Context, commit func(context.Contex
 		cancelCommit()
 		return false, nil
 	}
-	if h.interrupt != interruptAbsent || h.inflightInterrupt != nil {
+	if h.interrupt.committed || h.interrupt.active != nil {
 		h.mu.Unlock()
 		cancelCommit()
 		return false, errors.New("runs: interrupt boundary already resolved")
 	}
 	inflight := &interruptCommit{done: make(chan struct{}), cancel: cancelCommit}
-	h.interrupt = interruptCommitting
-	h.inflightInterrupt = inflight
+	h.interrupt.active = inflight
 	h.mu.Unlock()
 
 	err = commit(commitCtx)
 	cancelCommit()
 	h.mu.Lock()
 	if err == nil {
-		h.interrupt = interruptCommitted
-	} else {
-		h.interrupt = interruptAbsent
+		h.interrupt.committed = true
 	}
 	close(inflight.done)
-	h.inflightInterrupt = nil
+	h.interrupt.active = nil
 	h.mu.Unlock()
 	if err != nil {
 		return false, err

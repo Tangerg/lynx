@@ -33,9 +33,9 @@ func TestHandleCancelLinearizesAfterInterruptCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		disposition, err := h.requestCancel(t.Context(), "user canceled")
-		if err != nil || disposition != interruptCommitted {
-			t.Errorf("requestCancel = (%v, %v), want committed", disposition, err)
+		committed, err := h.requestCancel(t.Context(), "user canceled")
+		if err != nil || !committed {
+			t.Errorf("requestCancel = (%v, %v), want committed", committed, err)
 		}
 		close(cancelDone)
 	}()
@@ -95,9 +95,9 @@ func TestHandleCancelInterruptsBlockedCommit(t *testing.T) {
 
 	cancelDone := make(chan struct{})
 	go func() {
-		disposition, err := h.requestCancel(t.Context(), "user canceled")
-		if err != nil || disposition != interruptAbsent {
-			t.Errorf("requestCancel = (%v, %v), want no committed interrupt", disposition, err)
+		committed, err := h.requestCancel(t.Context(), "user canceled")
+		if err != nil || committed {
+			t.Errorf("requestCancel = (%v, %v), want no committed interrupt", committed, err)
 		}
 		close(cancelDone)
 	}()
@@ -121,9 +121,9 @@ func TestHandleRetainsCommittedInterruptOutcomeAfterCommitReturns(t *testing.T) 
 		t.Fatalf("commitInterrupt = (%v, %v), want committed", committed, err)
 	}
 
-	disposition, err := h.requestCancel(t.Context(), "user canceled")
-	if err != nil || disposition != interruptCommitted {
-		t.Fatalf("requestCancel = (%v, %v), want retained committed outcome", disposition, err)
+	interruptCommitted, err := h.requestCancel(t.Context(), "user canceled")
+	if err != nil || !interruptCommitted {
+		t.Fatalf("requestCancel = (%v, %v), want retained committed outcome", interruptCommitted, err)
 	}
 }
 
