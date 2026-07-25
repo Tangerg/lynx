@@ -1,6 +1,6 @@
 import type { Highlighter } from "shiki";
 import { useEffect, useMemo, useRef } from "react";
-import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
+import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/utils";
 
 // Whole-file viewer (workspace.readFile) — the target of a clickable file:line

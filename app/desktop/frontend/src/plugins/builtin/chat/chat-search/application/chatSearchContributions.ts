@@ -1,6 +1,5 @@
 import type { LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
-
-export type Translate = (key: string) => string;
+import type { Translate } from "@/lib/i18n";
 
 export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
   return {

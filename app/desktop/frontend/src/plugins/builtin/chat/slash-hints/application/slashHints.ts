@@ -1,6 +1,5 @@
 import type { SlashCommandSpec } from "@/plugins/sdk";
-
-export type Translate = (key: string) => string;
+import type { Translate } from "@/lib/i18n";
 
 export interface SlashHintDefinition {
   cmd: string;

@@ -3,9 +3,9 @@ import { useDebounce } from "use-debounce";
 import { Icon } from "@/ui/icons";
 import { copyText } from "@/lib/clipboard";
 import { measureShikiHighlight } from "@/lib/metrics";
-import { getHighlighter, resolveLang } from "@/lib/markdown/shiki";
-import { getCachedHighlight, setCachedHighlight } from "@/lib/markdown/shikiCache";
-import { useShikiTheme } from "@/lib/markdown/useCodeHighlight";
+import { getHighlighter, resolveLang } from "@/lib/highlight/shiki";
+import { getCachedHighlight, setCachedHighlight } from "@/lib/highlight/shikiCache";
+import { useShikiTheme } from "@/lib/highlight/useCodeHighlight";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 

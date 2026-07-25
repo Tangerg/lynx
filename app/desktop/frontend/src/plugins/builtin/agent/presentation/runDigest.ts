@@ -7,7 +7,7 @@
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
 import type { AgentViewState, TimelineEntry } from "@/plugins/sdk/types/agentView";
-import { toolCategory } from "@/plugins/sdk/types/agentView";
+import { toolCategory } from "../domain/toolCategory";
 
 export interface ApprovalDigest {
   command: string;

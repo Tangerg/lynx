@@ -1,6 +1,6 @@
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { ToolCall } from "@/plugins/sdk/types/agentView";
-import { isQuestionTool } from "@/plugins/sdk/types/agentView";
+import { isQuestionTool } from "../domain/toolCategory";
 import { isReadOnlyTool } from "./toolPresentation";
 
 export type MessageRenderUnit =

@@ -1,6 +1,5 @@
 import type { CommandSpec, ShortcutSpec } from "@/plugins/sdk";
-
-export type Translate = (key: string) => string;
+import type { Translate } from "@/lib/i18n";
 
 export const GLOBAL_COMMAND_IDS = [
   "chat.new",

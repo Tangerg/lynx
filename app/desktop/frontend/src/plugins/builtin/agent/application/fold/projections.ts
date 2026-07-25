@@ -11,7 +11,7 @@ import type {
   ToolCallStatus,
   ToolDiffRow,
 } from "@/plugins/sdk/types/agentView";
-import { toolCategory } from "@/plugins/sdk/types/agentView";
+import { toolCategory } from "../../domain/toolCategory";
 
 export function blockStatus(status: ItemStatus): BlockStatus {
   if (status === "running") return "running";

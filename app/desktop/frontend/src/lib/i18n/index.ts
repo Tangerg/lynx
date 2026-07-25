@@ -92,6 +92,17 @@ export function t(key: string, params?: Record<string, string | number>): string
   return i18next.t(key, params) as string;
 }
 
+/**
+ * A translator, as the contribution factories take one.
+ *
+ * Nine modules had each declared this locally — and they had already drifted:
+ * eight spelled `(key) => string` while one carried interpolation params, so the
+ * same contract existed in two shapes. It is `typeof t` because that is what it
+ * always was: the function these factories are handed. A caller that only reads
+ * keys still satisfies it — fewer parameters is assignable.
+ */
+export type Translate = typeof t;
+
 /** Reactive locale hook — components using this re-render on change. */
 export function useLocale(): Locale {
   const { i18n } = useTranslation();

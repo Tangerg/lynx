@@ -1,6 +1,6 @@
 import type { CommandSpec, LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
+import type { Translate } from "@/lib/i18n";
 
-export type Translate = (key: string) => string;
 export type CommandRun = CommandSpec["run"];
 
 export function commandPaletteOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {

@@ -19,7 +19,6 @@ export type {
   TimelineEntryKind,
   ToolCall,
   ToolCallStatus,
-  ToolCategory,
   ToolDiffRow,
 } from "@/plugins/sdk/types/agentView";
 export {
@@ -28,7 +27,6 @@ export {
   LOCAL_STEER_PREFIX,
   isLocalMessageId,
   isLocalSteerMessageId,
-  isQuestionTool,
-  toolCategory,
 } from "@/plugins/sdk/types/agentView";
+export { isQuestionTool, toolCategory, type ToolCategory } from "../domain/toolCategory";
 export { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";

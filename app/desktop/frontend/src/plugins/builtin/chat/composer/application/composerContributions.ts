@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type {
   AgentRunOptionsProviderSpec,
   ComposerKeyBindingSpec,
@@ -5,7 +6,6 @@ import type {
   LayoutSlotSpec,
 } from "@/plugins/sdk";
 
-export type Translate = (key: string) => string;
 export type ComposerKeyHandler = ComposerKeyBindingSpec["handler"];
 export type RunOptionsResolver = AgentRunOptionsProviderSpec["resolve"];
 

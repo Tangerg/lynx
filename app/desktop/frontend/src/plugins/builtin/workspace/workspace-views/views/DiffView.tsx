@@ -2,8 +2,8 @@ import type { Highlighter } from "shiki";
 import type { WorkspaceDiffRow } from "@/plugins/builtin/workspace/application/workspaceData";
 import { useMemo } from "react";
 import { intraLineDiff } from "../intraLineDiff";
-import { stripCodeWrapper, useCodeHighlighter } from "@/lib/markdown/useCodeHighlight";
-import { langFromPath, resolveLang } from "@/lib/markdown/shiki";
+import { stripCodeWrapper, useCodeHighlighter } from "@/lib/highlight/useCodeHighlight";
+import { langFromPath, resolveLang } from "@/lib/highlight/shiki";
 import { cn } from "@/lib/utils";
 
 /** Unified (one column, +/− interleaved) vs split (old left, new right). */

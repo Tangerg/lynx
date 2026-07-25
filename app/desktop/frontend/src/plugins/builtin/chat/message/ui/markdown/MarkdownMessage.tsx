@@ -11,13 +11,13 @@ import remarkMath from "remark-math";
 import remend from "remend";
 import { parseMarkdownIntoBlocks } from "streamdown";
 import { markdownComponents } from "./markdownComponents";
-import { ensureKatexCss } from "@/lib/markdown/katexCss";
+import { ensureKatexCss } from "./katexCss";
 import { measureMarkdownRepair } from "@/lib/metrics";
-import { rehypeCitations } from "@/lib/markdown/rehypeCitations";
-import { rehypeFadeIn } from "@/lib/markdown/rehypeFadeIn";
+import { rehypeCitations } from "./rehypeCitations";
+import { rehypeFadeIn } from "./rehypeFadeIn";
 import { rehypeFileRefs } from "./rehypeFileRefs";
-import { rehypeStreamCaret } from "@/lib/markdown/rehypeStreamCaret";
-import { normalizeMarkdownMath } from "@/lib/markdown/preprocess";
+import { rehypeStreamCaret } from "./rehypeStreamCaret";
+import { normalizeMarkdownMath } from "./preprocess";
 import { useCommitThrottle, useStreamReveal } from "./streamReveal";
 import "remark-github-blockquote-alert/alert.css";
 

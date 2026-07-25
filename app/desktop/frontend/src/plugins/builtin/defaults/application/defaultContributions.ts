@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type {
   CommandSpec,
   MessageRoleSpec,
@@ -5,7 +6,6 @@ import type {
   WorkspaceViewSpec,
 } from "@/plugins/sdk";
 
-export type Translate = (key: string, values?: Record<string, string>) => string;
 export type CommandRun = CommandSpec["run"];
 
 export interface DefaultCommandRuns {

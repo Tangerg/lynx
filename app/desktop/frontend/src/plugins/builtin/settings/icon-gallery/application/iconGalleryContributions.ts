@@ -1,6 +1,5 @@
 import type { SettingsPaneSpec, WorkspaceViewSpec } from "@/plugins/sdk";
-
-export type Translate = (key: string) => string;
+import type { Translate } from "@/lib/i18n";
 
 export function iconGalleryWorkspaceView(
   component: WorkspaceViewSpec["component"],

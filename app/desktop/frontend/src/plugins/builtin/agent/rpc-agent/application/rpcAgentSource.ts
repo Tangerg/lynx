@@ -1,7 +1,7 @@
 import type { AgentSourceSpec } from "@/plugins/sdk";
 import { activeRpcSessionId, createRpcAgentDriver, type RpcRunsGateway } from "./rpcAgentDriver";
+import type { Translate } from "@/lib/i18n";
 
-export type Translate = (key: string) => string;
 export type ActiveSessionId = () => string | null | undefined;
 
 export function rpcAgentSource(

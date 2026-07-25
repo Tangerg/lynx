@@ -1,6 +1,6 @@
 import type { CommandSpec } from "@/plugins/sdk";
+import type { Translate } from "@/lib/i18n";
 
-export type Translate = (key: string) => string;
 export type CommandRun = CommandSpec["run"];
 
 export interface ConversationExportCommandHandlers {
