@@ -57,21 +57,6 @@ export interface ComposerAttachmentSourceSpec {
 }
 
 /**
- * One placeholder string for the composer textarea. Composer picks one at
- * mount via weighted random — `weight` defaults to 1, so a plugin can
- * register multiple to bias toward (or against) certain prompts.
- *
- * Useful for branding ("Ask Acme…") or seasonal nudges ("Try /lint on a
- * test file").
- */
-export interface ComposerPlaceholderSpec {
-  id: string;
-  text: string;
-  /** Selection weight — defaults to 1. Set to 0 to register but skip selection. */
-  weight?: number;
-}
-
-/**
  * Plugin-contributed chip in the composer footer ("project · branch · mode").
  *
  * The component renders the chip body — typically a small `<button>` with

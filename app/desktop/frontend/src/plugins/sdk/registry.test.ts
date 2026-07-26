@@ -12,7 +12,6 @@ import {
   COMMAND,
   COMPOSER_ATTACHMENT_SOURCE,
   COMPOSER_KEY_BINDING,
-  COMPOSER_PLACEHOLDER,
   DATA_PROVIDER,
   ERROR_FALLBACK,
   LAYOUT_SLOT,
@@ -34,7 +33,6 @@ import {
   lookupDataProvider,
   lookupExtensionPoint,
   pickAgentSource,
-  pickComposerPlaceholder,
   pickPluginErrorFallback,
 } from "./selectors";
 import {
@@ -668,19 +666,6 @@ describe("plugin registry", () => {
     } finally {
       info.mockRestore();
     }
-  });
-
-  it("composer.registerPlaceholder pool picks one entry", () => {
-    const sink: Disposable[] = [];
-    const host = createHost("alpha", sink);
-    host.extensions.contribute(COMPOSER_PLACEHOLDER, { id: "only", text: "Hi" });
-
-    const pick = pickComposerPlaceholder();
-    expect(pick?.text).toBe("Hi");
-  });
-
-  it("pickComposerPlaceholder returns undefined when nothing registered", () => {
-    expect(pickComposerPlaceholder()).toBeUndefined();
   });
 
   it("log subscriber that throws does not break the logger", () => {

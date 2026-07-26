@@ -34,7 +34,7 @@ export const en: Record<string, string> = {
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
-  "composer.placeholder.fallback": "Type freely",
+  "composer.placeholder": "Type freely",
   "composer.placeholder.steer": "Send a message to steer the running turn…",
   "composer.switchModel": "Switch model",
   "composer.attachImage": "Attach image",
@@ -48,9 +48,6 @@ export const en: Record<string, string> = {
   "composer.mention.heading": "Files",
   "composer.drop.images": "Drop images to attach",
   "composer.slash.heading": "Commands",
-  "composer.placeholder.debug": "Paste a failing test output and I'll walk you through it.",
-  "composer.placeholder.implement": "Implement what? Describe the change and I'll plan + execute.",
-  "composer.placeholder.refactor": "Point at code that smells; I'll suggest a refactor.",
 
   "chat.error.title": "Render error",
   "chat.error.retry": "Retry",

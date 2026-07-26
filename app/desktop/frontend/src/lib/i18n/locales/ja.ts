@@ -32,18 +32,13 @@ export const ja: Record<string, string> = {
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "メッセージ入力欄",
-  "composer.placeholder.fallback":
-    "質問、計画、またはスタックトレースを貼り付け…  / でコマンド実行",
+  "composer.placeholder": "質問、計画、またはスタックトレースを貼り付け…  / でコマンド実行",
   "composer.switchModel": "モデルを切替",
   "composer.attachImage": "画像を添付",
   "composer.attachImage.unsupported": "このモデルは画像に対応していません",
   "composer.action.send": "送信 (⌘↵)",
   "composer.action.stop": "停止 (Esc)",
   "composer.slash.heading": "コマンド",
-  "composer.placeholder.debug": "失敗したテスト出力を貼り付けてください。一緒に原因を追います。",
-  "composer.placeholder.implement":
-    "何を実装しますか？変更内容を説明してくれれば、計画して実行します。",
-  "composer.placeholder.refactor": "気になるコードを指してください。リファクタリングを提案します。",
 
   "chat.error.title": "レンダリングエラー",
   "chat.error.retry": "再試行",

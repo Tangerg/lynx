@@ -32,16 +32,13 @@ export const ko: Record<string, string> = {
   "sidebar.action.settings": "설정",
 
   "composer.input.label": "메시지 입력란",
-  "composer.placeholder.fallback": "질문, 계획, 스택 트레이스 붙여넣기…  / 로 명령 실행",
+  "composer.placeholder": "질문, 계획, 스택 트레이스 붙여넣기…  / 로 명령 실행",
   "composer.switchModel": "모델 변경",
   "composer.attachImage": "이미지 첨부",
   "composer.attachImage.unsupported": "이 모델은 이미지를 지원하지 않습니다",
   "composer.action.send": "전송 (⌘↵)",
   "composer.action.stop": "중지 (Esc)",
   "composer.slash.heading": "명령",
-  "composer.placeholder.debug": "실패한 테스트 출력을 붙여넣으면 단계별로 안내해 드릴게요.",
-  "composer.placeholder.implement": "무엇을 구현할까요? 변경 사항을 설명하면 계획하고 실행할게요.",
-  "composer.placeholder.refactor": "냄새 나는 코드를 가리키면 리팩토링을 제안할게요.",
 
   "chat.error.title": "렌더링 오류",
   "chat.error.retry": "재시도",

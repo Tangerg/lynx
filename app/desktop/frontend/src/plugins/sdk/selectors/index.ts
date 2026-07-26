@@ -24,7 +24,6 @@ export {
 } from "./commands";
 
 // Composer placeholder weighted-random pick.
-export { pickComposerPlaceholder } from "./composer";
 
 // StreamEvent handler fan-out (cached sub-index, hit per event).
 export { lookupStreamHandlers, lookupCustomHandlers } from "./events";

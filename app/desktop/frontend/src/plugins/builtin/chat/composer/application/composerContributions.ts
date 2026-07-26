@@ -1,7 +1,6 @@
 import type {
   AgentRunOptionsProviderSpec,
   ComposerKeyBindingSpec,
-  ComposerPlaceholderSpec,
   LayoutSlotSpec,
 } from "@/plugins/sdk";
 
@@ -81,15 +80,6 @@ export function composerKeyBindings(handlers: ComposerKeyHandlers): ComposerKeyB
       description: "composer.key.historyNextDesc",
       handler: handlers.historyNext,
     },
-  ];
-}
-
-export function composerPlaceholderSpecs(): ComposerPlaceholderSpec[] {
-  return [
-    { id: "ask", text: "composer.placeholder.fallback" },
-    { id: "debug", text: "composer.placeholder.debug" },
-    { id: "implement", text: "composer.placeholder.implement" },
-    { id: "refactor", text: "composer.placeholder.refactor" },
   ];
 }
 

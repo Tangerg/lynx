@@ -31,7 +31,7 @@ export const zh: Record<string, string> = {
   "sidebar.action.settings": "设置",
 
   "composer.input.label": "消息输入框",
-  "composer.placeholder.fallback": "随心输入",
+  "composer.placeholder": "随心输入",
   "composer.placeholder.steer": "发送消息以引导正在运行的回合…",
   "composer.switchModel": "切换模型",
   "composer.attachImage": "添加图片",
@@ -44,9 +44,6 @@ export const zh: Record<string, string> = {
   "composer.paste.remove": "移除粘贴的文本",
   "composer.mention.heading": "文件",
   "composer.slash.heading": "命令",
-  "composer.placeholder.debug": "粘贴一段失败的测试输出，我带你逐步排查。",
-  "composer.placeholder.implement": "要实现什么？描述改动，我来规划并执行。",
-  "composer.placeholder.refactor": "指出有坏味道的代码，我来给重构建议。",
 
   "chat.error.title": "渲染出错",
   "chat.error.retry": "重试",

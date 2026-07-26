@@ -103,7 +103,7 @@ describe("composer", () => {
   it("refreshes the placeholder when the locale changes", async () => {
     addLocaleBundle("placeholder-test", {
       "composer.input.label": "Prompt",
-      "composer.placeholder.fallback": "Localized placeholder",
+      "composer.placeholder": "Localized placeholder",
     });
     wrap(<Composer {...baseProps} value="" onChange={() => {}} onSend={() => {}} />);
 

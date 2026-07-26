@@ -31,7 +31,7 @@ export const zhTW: Record<string, string> = {
   "sidebar.action.settings": "設定",
 
   "composer.input.label": "訊息輸入框",
-  "composer.placeholder.fallback": "提問、規劃，或貼上一段錯誤堆疊…  斜線 / 執行命令",
+  "composer.placeholder": "提問、規劃，或貼上一段錯誤堆疊…  斜線 / 執行命令",
   "composer.switchModel": "切換模型",
   "composer.attachImage": "新增圖片",
   "composer.attachImage.unsupported": "此模型不支援圖片",
@@ -42,9 +42,6 @@ export const zhTW: Record<string, string> = {
   "composer.paste.remove": "移除貼上的文字",
   "composer.mention.heading": "檔案",
   "composer.slash.heading": "命令",
-  "composer.placeholder.debug": "貼上一段失敗的測試輸出，我帶你逐步排查。",
-  "composer.placeholder.implement": "要實作什麼？描述改動，我來規劃並執行。",
-  "composer.placeholder.refactor": "指出有壞味道的程式碼，我給重構建議。",
 
   "chat.error.title": "顯示錯誤",
   "chat.error.retry": "重試",

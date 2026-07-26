@@ -33,18 +33,13 @@ export const es: Record<string, string> = {
   "sidebar.action.settings": "Ajustes",
 
   "composer.input.label": "Compositor de mensajes",
-  "composer.placeholder.fallback":
-    "Pregunta, planifica o pega un stack trace…  /  para ejecutar un comando",
+  "composer.placeholder": "Pregunta, planifica o pega un stack trace…  /  para ejecutar un comando",
   "composer.switchModel": "Cambiar modelo",
   "composer.attachImage": "Adjuntar imagen",
   "composer.attachImage.unsupported": "Este modelo no acepta imágenes",
   "composer.action.send": "Enviar (⌘↵)",
   "composer.action.stop": "Detener (Esc)",
   "composer.slash.heading": "Comandos",
-  "composer.placeholder.debug": "Pega la salida de un test que falla y te guío paso a paso.",
-  "composer.placeholder.implement":
-    "¿Qué implementamos? Describe el cambio y lo planifico y ejecuto.",
-  "composer.placeholder.refactor": "Señala código con mal olor; te sugiero una refactorización.",
 
   "chat.error.title": "Error de renderizado",
   "chat.error.retry": "Reintentar",

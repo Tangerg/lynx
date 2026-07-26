@@ -14,7 +14,6 @@ import type {
   CommandSpec,
   ComposerAttachmentSourceSpec,
   ComposerKeyBindingSpec,
-  ComposerPlaceholderSpec,
   ContentBlockRenderer,
   ContextDockDestinationSpec,
   StreamEventHandler,
@@ -89,11 +88,6 @@ export const ERROR_FALLBACK = defineExtensionPoint<PluginErrorFallbackSpec>({
   keying: "single",
 });
 
-export const COMPOSER_PLACEHOLDER = defineExtensionPoint<ComposerPlaceholderSpec>({
-  id: "lyra.composer.placeholder",
-  capability: "composer",
-  keying: "single",
-});
 export const COMPOSER_ATTACHMENT_SOURCE = defineExtensionPoint<ComposerAttachmentSourceSpec>({
   id: "lyra.composer.attachmentSource",
   capability: "composer",

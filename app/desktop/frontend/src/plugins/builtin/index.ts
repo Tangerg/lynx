@@ -19,7 +19,6 @@ import commandPalette from "./command/command-palette";
 import {
   composerBootstrap,
   composerKeymap,
-  composerPlaceholders,
   composerRunOptions,
   composerSend,
   composerToolbar,
@@ -180,7 +179,6 @@ const composer: PluginSpec[] = [
   // shared slash key (it carries a real run handler; the hint is display-only).
   recipesSlash,
   composerToolbar,
-  composerPlaceholders,
   composerRunOptions,
   composerKeymap,
   composerSend,

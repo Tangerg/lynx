@@ -5,7 +5,6 @@ import {
   composerKeyBindings,
   composerModelSlot,
   composerModelRunOptions,
-  composerPlaceholderSpecs,
   composerSendSlot,
 } from "./composerContributions";
 
@@ -63,15 +62,6 @@ describe("composer contributions", () => {
       "composer.key.stopDesc",
       "composer.key.historyPrevDesc",
       "composer.key.historyNextDesc",
-    ]);
-  });
-
-  it("projects built-in placeholder prompts into stable placeholder specs", () => {
-    expect(composerPlaceholderSpecs()).toEqual([
-      { id: "ask", text: "composer.placeholder.fallback" },
-      { id: "debug", text: "composer.placeholder.debug" },
-      { id: "implement", text: "composer.placeholder.implement" },
-      { id: "refactor", text: "composer.placeholder.refactor" },
     ]);
   });
 
