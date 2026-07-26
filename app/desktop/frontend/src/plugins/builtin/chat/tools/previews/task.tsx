@@ -4,6 +4,7 @@
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
+import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
@@ -12,12 +13,18 @@ import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
   const lines = resultLines(tool.result);
+  const reply = lines.slice(0, MAX_ROWS).join("\n");
   return (
     <div className={PREVIEW_WRAP}>
-      <div className="whitespace-pre-wrap break-words text-fg-soft">
-        {lines.slice(0, MAX_ROWS).join("\n") ||
-          (tool.status === "running" ? "Sub-agent working…" : "(no reply)")}
-      </div>
+      {reply ? (
+        <div className="whitespace-pre-wrap break-words text-fg-soft">{reply}</div>
+      ) : (
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.delegating"
+          idle="tools.preview.idle.noReply"
+        />
+      )}
       <Overflow count={lines.length - MAX_ROWS} />
       <PreviewFoot label="tools.preview.viewReply" onClick={onOpenView} />
     </div>

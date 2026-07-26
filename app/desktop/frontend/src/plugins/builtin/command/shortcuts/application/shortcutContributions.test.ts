@@ -19,9 +19,10 @@ describe("shortcutsSettingsPane", () => {
   it("projects the pane component into the settings pane spec", () => {
     expect(shortcutsSettingsPane(Component)).toEqual({
       id: "shortcuts",
-      label: "Shortcuts",
+      label: "settings.pane.shortcuts",
+      group: "general",
       icon: "command",
-      order: 50,
+      order: 10,
       component: Component,
     });
   });

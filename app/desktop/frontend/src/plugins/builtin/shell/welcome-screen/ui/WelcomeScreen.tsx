@@ -48,7 +48,7 @@ export function WelcomeScreen() {
               {hints.map((command) => (
                 <span key={command.id} className="inline-flex items-center gap-1.5">
                   <Kbd>{comboGlyph(command.combo!)}</Kbd>
-                  <span>{command.label}</span>
+                  <span>{t(command.label)}</span>
                 </span>
               ))}
             </div>

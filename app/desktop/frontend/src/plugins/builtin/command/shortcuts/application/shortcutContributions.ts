@@ -13,9 +13,10 @@ export function shortcutsProviderSlot(component: LayoutSlotSpec["component"]): L
 export function shortcutsSettingsPane(component: SettingsPaneSpec["component"]): SettingsPaneSpec {
   return {
     id: "shortcuts",
-    label: "Shortcuts",
+    label: "settings.pane.shortcuts",
+    group: "general",
     icon: "command",
-    order: 50,
+    order: 10,
     component,
   };
 }

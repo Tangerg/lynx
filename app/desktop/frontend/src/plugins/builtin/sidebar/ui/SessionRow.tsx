@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AgentRow } from "@/ui/agent";
-import { ContextMenu, TextField } from "@/ui";
+import { ConfirmDialog, ContextMenu, TextField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { formatRelative } from "@/lib/i18n/relativeTime";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,7 @@ export function SessionRow({
   // Inline rename: the context menu flips this on; the title swaps for an
   // input until Enter (commit) or Escape/blur-without-change (cancel).
   const [renaming, setRenaming] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   // `useT()` subscribes to i18next language changes, so the relative
   // time + status labels refresh on locale toggle automatically.
   // formatRelative reads `i18next.t` and `i18next.language` directly
@@ -129,33 +130,53 @@ export function SessionRow({
 
   if (!onDelete && !onFork && !onRename && !onToggleFavorite) return row;
   return (
-    <ContextMenu.Root>
-      <ContextMenu.Trigger render={row} />
-      <ContextMenu.Content className="min-w-[160px]">
-        {onToggleFavorite && (
-          <ContextMenu.IconItem
-            icon="star"
-            onSelect={() => onToggleFavorite(session.id, session.revision, !session.favorite)}
-          >
-            {session.favorite ? "Unpin" : "Pin to top"}
-          </ContextMenu.IconItem>
-        )}
-        {onRename && (
-          <ContextMenu.IconItem icon="edit" onSelect={() => setRenaming(true)}>
-            Rename
-          </ContextMenu.IconItem>
-        )}
-        {onFork && (
-          <ContextMenu.IconItem icon="branch" onSelect={() => onFork(session.id)}>
-            Fork
-          </ContextMenu.IconItem>
-        )}
-        {onDelete && (
-          <ContextMenu.IconItem icon="trash" destructive onSelect={() => onDelete(session.id)}>
-            Delete
-          </ContextMenu.IconItem>
-        )}
-      </ContextMenu.Content>
-    </ContextMenu.Root>
+    <>
+      <ContextMenu.Root>
+        <ContextMenu.Trigger render={row} />
+        <ContextMenu.Content className="min-w-[160px]">
+          {onToggleFavorite && (
+            <ContextMenu.IconItem
+              icon="star"
+              onSelect={() => onToggleFavorite(session.id, session.revision, !session.favorite)}
+            >
+              {session.favorite ? t("session.action.unpin") : t("session.action.pin")}
+            </ContextMenu.IconItem>
+          )}
+          {onRename && (
+            <ContextMenu.IconItem icon="edit" onSelect={() => setRenaming(true)}>
+              {t("session.action.rename")}
+            </ContextMenu.IconItem>
+          )}
+          {onFork && (
+            <ContextMenu.IconItem icon="branch" onSelect={() => onFork(session.id)}>
+              {t("session.action.fork")}
+            </ContextMenu.IconItem>
+          )}
+          {onDelete && (
+            <ContextMenu.IconItem
+              icon="trash"
+              destructive
+              onSelect={() => setConfirmingDelete(true)}
+            >
+              {t("session.action.delete")}
+            </ContextMenu.IconItem>
+          )}
+        </ContextMenu.Content>
+      </ContextMenu.Root>
+      {/* Deleting a session is final — the runtime has no restore — so it asks
+          first. The menu item used to delete on the way out of the menu. */}
+      {onDelete && (
+        <ConfirmDialog
+          open={confirmingDelete}
+          onOpenChange={setConfirmingDelete}
+          title={t("session.delete.title")}
+          body={t("session.delete.body", { title: session.title })}
+          confirmLabel={t("session.action.delete")}
+          cancelLabel={t("common.cancel")}
+          destructive
+          onConfirm={() => onDelete(session.id)}
+        />
+      )}
+    </>
   );
 }

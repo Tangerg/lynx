@@ -5,6 +5,7 @@ export type { ButtonProps } from "./button";
 export { Checkbox } from "./checkbox";
 export { Chip } from "./chip";
 export { Collapsible } from "./collapsible";
+export { ConfirmDialog } from "./confirm-dialog";
 export { DataView } from "./data-view";
 export { Divider } from "./divider";
 export { EmptyState } from "./empty-state";

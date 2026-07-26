@@ -123,6 +123,21 @@ const INTERPOLATION = /\$\{(?:[^{}]|\{[^{}]*\})*\}/g;
 // a tag, so it may not be preceded by a space — `count > 0 ? … : …` inside an
 // expression is a comparison, not the end of `<div>`.
 const JSX_TEXT = /[^\s]>([^<>{}]{4,}?)<\//g;
+// Sentence-case words on their own: "Rename", "Pin to top". A menu item's verb is
+// one token, which the two-word test below waves through — that is how five
+// English labels sat in a session's context menu in an otherwise localised app.
+// Identifiers escape it: they are lowercase, ALL-CAPS, or carry punctuation.
+const TITLE_CASE_COPY = /^[A-Z][a-z]{2,}(?: [A-Za-z]+){0,4}$/;
+// A JSX child expression that holds a quoted string: `>{fav ? "Unpin" : "Pin"}<`.
+// Children hold variables, so a quoted word here is copy the component authored.
+// The inner text may hold no braces (a nested expression) and no angle brackets —
+// either would mean the match ran past this node into another element. An
+// attribute cannot match: its `{` follows `=`, and this one follows `>`. Unlike the
+// text rule above, the `>` may be preceded by a newline, because prettier puts a
+// multi-line tag's `>` on its own line — which is exactly where the five English
+// labels in a session's context menu were hiding.
+const JSX_CHILD_EXPRESSION = />\s*\{([^{}<>]*(?:"[^"\n]*"|'[^'\n]*')[^{}<>]*)\}\s*<\//g;
+const QUOTED_WORDS = /"([^"\n]+)"|'([^'\n]+)'/g;
 // A JSX text node that mixes expressions with literal text: `>… {count} more</`.
 const JSX_MIXED = /[^\s]>([^<>]*\{[^<>]*\}[^<>]*)<\//g;
 // `&nbsp;` and friends are typesetting, not words.
@@ -158,6 +173,13 @@ function textOutsideExpressions(node) {
   }
   return out;
 }
+
+// A spec whose label the shell resolves with t(): the factory's return type says
+// so. Its label/title must therefore BE a key — `label: "Shortcuts"` renders as
+// itself, which reads as English hardcoded into a localised rail.
+const KEYED_SPEC_FACTORY = /\)\s*:\s*(?:SettingsPaneSpec|WorkspaceViewSpec|CommandSpec)\s*\{/g;
+const SPEC_COPY_FIELD = /\b(label|title|description):\s*"([^"]+)"/g;
+const CATALOG_KEY = /^[a-z][\w-]*(?:\.[\w-]+)+$/;
 
 // A registration call — its argument is a spec that outlives this moment.
 const CONTRIBUTION_CALL =
@@ -334,8 +356,18 @@ for (const path of sourceFiles(SRC_DIR)) {
   if (relative.endsWith(".tsx")) {
     for (const match of code.matchAll(JSX_TEXT)) {
       const text = match[1].replace(/\s+/g, " ").trim();
-      if (TWO_WORDS.test(text)) {
+      if (TWO_WORDS.test(text) || TITLE_CASE_COPY.test(text)) {
         failures.push(`${relative}: literal copy in a component — "${text}" belongs in a catalog`);
+      }
+    }
+    for (const match of code.matchAll(JSX_CHILD_EXPRESSION)) {
+      for (const quoted of match[1].matchAll(QUOTED_WORDS)) {
+        const text = (quoted[1] ?? quoted[2] ?? "").trim();
+        if (TWO_WORDS.test(text) || TITLE_CASE_COPY.test(text)) {
+          failures.push(
+            `${relative}: literal copy in a rendered expression — "${text}" belongs in a catalog`,
+          );
+        }
       }
     }
     for (const match of code.matchAll(JSX_MIXED)) {
@@ -354,6 +386,25 @@ for (const path of sourceFiles(SRC_DIR)) {
       if (MECHANISM_PROP.test(prop)) continue;
       if (looksLikeSentence(value)) {
         failures.push(`${relative}: ${prop}="${value}" is copy — pass a catalog key or a t() call`);
+      }
+    }
+  }
+}
+
+// Rule 12 — a spec the shell resolves with t() carries keys, not words.
+{
+  for (const path of sourceFiles(SRC_DIR)) {
+    const relative = path.slice(SRC_DIR.length);
+    if (relative.endsWith(".test.ts") || relative.endsWith(".test.tsx")) continue;
+    const code = withoutComments(readFileSync(path, "utf8"));
+    for (const factory of code.matchAll(KEYED_SPEC_FACTORY)) {
+      const body = code.slice(factory.index, code.indexOf("\n}", factory.index));
+      for (const field of body.matchAll(SPEC_COPY_FIELD)) {
+        const [, name, value] = field;
+        if (CATALOG_KEY.test(value)) continue;
+        failures.push(
+          `${relative}: ${name}: "${value}" is copy in a spec the shell resolves — use a catalog key`,
+        );
       }
     }
   }
