@@ -32,30 +32,48 @@ type memStore struct {
 	afterContextCheck func() // test hook: called before the context-aware lock
 }
 
-type storeRetryRaceStore struct {
+type faultingGoalStore struct {
 	*memStore
-	gets     atomic.Int32
-	captured chan struct{}
-	release  chan struct{}
+	gets   atomic.Int32
+	failAt int32
+	err    error
+	failed chan struct{}
 }
 
-func (s *storeRetryRaceStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
-	call := s.gets.Add(1)
-	if call == 3 {
-		// Force the owning supervisor to retry without releasing its loop handle.
-		return goal.Goal{}, false, errors.New("transient goal read failure")
+func (s *faultingGoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+	if s.gets.Add(1) == s.failAt {
+		close(s.failed)
+		return goal.Goal{}, false, s.err
 	}
-	g, ok, err := s.memStore.Get(ctx, sessionID)
-	if call != 4 || err != nil {
-		return g, ok, err
+	return s.memStore.Get(ctx, sessionID)
+}
+
+type pauseCompletionRaceStore struct {
+	*memStore
+	won atomic.Bool
+}
+
+func (s *pauseCompletionRaceStore) Save(
+	ctx context.Context,
+	candidate goal.Goal,
+	expected goal.Version,
+) (goal.Goal, bool, error) {
+	if candidate.Reason.Cause != goal.ReasonRunStartFailed || !s.won.CompareAndSwap(false, true) {
+		return s.memStore.Save(ctx, candidate, expected)
 	}
-	close(s.captured)
-	select {
-	case <-s.release:
-		return g, ok, nil
-	case <-ctx.Done():
-		return goal.Goal{}, false, ctx.Err()
+	if err := s.lock(ctx); err != nil {
+		return goal.Goal{}, false, err
 	}
+	defer s.mu.Unlock()
+	current, ok := s.goals[candidate.SessionID]
+	if !ok || current.Version() != expected {
+		return goal.Goal{}, false, nil
+	}
+	current.Complete(time.Now())
+	current.Revision++
+	s.goals[current.SessionID] = current
+	s.notifyLocked()
+	return goal.Goal{}, false, nil
 }
 
 func newMemStore() *memStore {
@@ -523,28 +541,21 @@ func TestDriverPausesOnMalformedTerminal(t *testing.T) {
 	}
 }
 
-func TestDriverRetriesPausePersistenceWithoutRetryingRunStart(t *testing.T) {
-	store := newMemStore()
-	store.failSave = func(g goal.Goal) error {
-		if g.Reason.Cause == goal.ReasonRunStartFailed {
-			return errors.New("transient goal store failure")
-		}
-		return nil
-	}
-	fake := &fakeRuns{t: t, store: store, startErr: runs.ErrSessionBusy}
+func TestPauseCASUsesAuthoritativeCompleteOutcome(t *testing.T) {
+	base := newMemStore()
+	store := &pauseCompletionRaceStore{memStore: base}
+	fake := &fakeRuns{t: t, store: base, startErr: runs.ErrSessionBusy}
 	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	waitGoal(t, store, "s1", func(g goal.Goal, ok bool) bool {
-		return ok && g.Status == goal.StatusPaused
-	})
+	waitGoal(t, base, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 	fake.mu.Lock()
 	calls := fake.calls
 	fake.mu.Unlock()
 	if calls != 1 {
-		t.Fatalf("run start calls = %d, want one attempt while pause persistence retries", calls)
+		t.Fatalf("run start calls = %d, want one", calls)
 	}
 }
 
@@ -673,12 +684,14 @@ func TestDriverFreshStartReplacesStoppedGoal(t *testing.T) {
 	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 }
 
-func TestStoreRetryNeverOutlivesNewerLeaseDriver(t *testing.T) {
+func TestDriverStoreFailureRemainsAddressableUntilStop(t *testing.T) {
 	base := newMemStore()
-	store := &storeRetryRaceStore{
+	storeErr := errors.New("goal store read failed")
+	store := &faultingGoalStore{
 		memStore: base,
-		captured: make(chan struct{}),
-		release:  make(chan struct{}),
+		failAt:   4,
+		err:      storeErr,
+		failed:   make(chan struct{}),
 	}
 	fake := &fakeRuns{t: t, store: base, script: []turn{
 		{outcome: execution.OutcomeCompleted},
@@ -691,25 +704,30 @@ func TestStoreRetryNeverOutlivesNewerLeaseDriver(t *testing.T) {
 		t.Fatalf("start old goal: %v", err)
 	}
 	select {
-	case <-store.captured:
+	case <-store.failed:
 	case <-time.After(2 * time.Second):
-		t.Fatal("goal supervisor did not enter its retrying read")
+		t.Fatal("goal supervisor did not encounter the store failure")
 	}
 
-	if _, err := d.Stop(t.Context(), "s1"); err != nil {
-		t.Fatalf("stop old goal: %v", err)
+	if _, err := d.Start(t.Context(), "s1", "replacement", testSelection("p", "m"), goal.Budget{}); !errors.Is(err, storeErr) {
+		t.Fatalf("Start while supervisor is faulted = %v, want store error", err)
 	}
-	if _, err := d.Start(t.Context(), "s1", "new objective", testSelection("p", "m"), goal.Budget{}); err != nil {
-		t.Fatalf("start new goal: %v", err)
+	stopped, err := d.Stop(t.Context(), "s1")
+	if !errors.Is(err, storeErr) {
+		t.Fatalf("Stop faulted supervisor = %v, want store error", err)
 	}
-	close(store.release)
-
+	if stopped.Status != goal.StatusPaused {
+		t.Fatalf("stopped status = %s, want paused", stopped.Status)
+	}
+	if _, err := d.Resume(t.Context(), "s1"); err != nil {
+		t.Fatalf("Resume after observing supervisor fault: %v", err)
+	}
 	waitGoal(t, base, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 	fake.mu.Lock()
 	calls := fake.calls
 	fake.mu.Unlock()
 	if calls != 2 {
-		t.Fatalf("run starts = %d, want only the new driver's two turns", calls)
+		t.Fatalf("run starts = %d, want one before and one after recovery", calls)
 	}
 }
 

@@ -17,7 +17,6 @@ import (
 // spawned during the run (each tagged with the child's own id).
 type pidCapture struct {
 	mu        sync.Mutex
-	engine    *runtime.Engine
 	ids       map[string]int
 	parents   map[string]string
 	created   []event.ProcessCreated
@@ -37,14 +36,10 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 	switch ev := e.(type) {
 	case event.ProcessCreated:
 		c.created = append(c.created, ev)
-		if c.engine != nil {
-			if process, ok := c.engine.Process(ev.ProcessID()); ok {
-				if c.parents == nil {
-					c.parents = map[string]string{}
-				}
-				c.parents[ev.ProcessID()] = process.ParentID()
-			}
+		if c.parents == nil {
+			c.parents = map[string]string{}
 		}
+		c.parents[ev.ProcessID()] = ev.ParentID
 	case event.ProcessCompleted:
 		c.completed = append(c.completed, ev)
 	}
@@ -80,7 +75,7 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		t.Fatalf("deploy parent: %v", err)
 	}
 
-	capture := &pidCapture{engine: engine}
+	capture := &pidCapture{}
 	localIDs := make(map[string]int)
 	local := event.NewNamedListener("local-capture", func(_ context.Context, published event.Event) {
 		localIDs[published.ProcessID()]++

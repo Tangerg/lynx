@@ -27,6 +27,13 @@ type failNextProcessStore struct {
 	err   error
 }
 
+type blockingFinalProcessStore struct {
+	inner    *storetest.MemoryProcessStore
+	blocked  atomic.Bool
+	captured chan struct{}
+	release  chan struct{}
+}
+
 func newFlakyProcessStore(err error) *flakyProcessStore {
 	store := &flakyProcessStore{inner: storetest.NewMemoryProcessStore(), err: err}
 	store.fail.Store(true)
@@ -60,6 +67,35 @@ func (s *failNextProcessStore) Load(ctx context.Context, id string) (core.Proces
 }
 
 func (s *failNextProcessStore) List(ctx context.Context) ([]string, error) {
+	return s.inner.List(ctx)
+}
+
+func (s *blockingFinalProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
+	if change.Tree != nil {
+		for _, snapshot := range change.Tree.Snapshots {
+			if snapshot.Status != core.StatusWaiting || !s.blocked.CompareAndSwap(false, true) {
+				continue
+			}
+			if err := s.inner.Apply(ctx, change); err != nil {
+				return err
+			}
+			close(s.captured)
+			select {
+			case <-s.release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+	}
+	return s.inner.Apply(ctx, change)
+}
+
+func (s *blockingFinalProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
+	return s.inner.Load(ctx, id)
+}
+
+func (s *blockingFinalProcessStore) List(ctx context.Context) ([]string, error) {
 	return s.inner.List(ctx)
 }
 
@@ -170,6 +206,53 @@ func TestAutoSnapshotPersistsCancellationWithDetachedContext(t *testing.T) {
 	}
 	if snapshot.Status != core.StatusKilled {
 		t.Fatalf("snapshot status = %s, want killed", snapshot.Status)
+	}
+}
+
+func TestKillDuringFinalSnapshotPersistsKilledState(t *testing.T) {
+	store := &blockingFinalProcessStore{
+		inner:    storetest.NewMemoryProcessStore(),
+		captured: make(chan struct{}),
+		release:  make(chan struct{}),
+	}
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:                 "kill-final-snapshot",
+		ProcessStore:            store,
+		AutoSnapshot:            true,
+		SnapshotFinalizeTimeout: time.Second,
+	})
+	definition := autoSnapshotWaitingAgent()
+	mustDeploy(t, engine, definition)
+
+	segment, err := engine.Start(
+		t.Context(),
+		definition,
+		core.Input(word{Text: "lynx"}),
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	select {
+	case <-store.captured:
+	case <-time.After(time.Second):
+		t.Fatal("final waiting snapshot did not reach the store")
+	}
+
+	if err := engine.Kill(t.Context(), segment.Process().ID()); err != nil {
+		t.Fatalf("Kill: %v", err)
+	}
+	close(store.release)
+	completion := awaitSegment(t, segment)
+	if completion.Status != core.StatusKilled {
+		t.Fatalf("completion status = %s, want killed", completion.Status)
+	}
+	snapshot, err := store.Load(t.Context(), segment.Process().ID())
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if snapshot.Status != core.StatusKilled {
+		t.Fatalf("durable status = %s, want killed", snapshot.Status)
 	}
 }
 

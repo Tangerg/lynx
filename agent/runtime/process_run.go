@@ -36,26 +36,45 @@ func (p *Process) beginRun() (bool, error) {
 }
 
 func (p *Process) runOwned(ctx context.Context) error {
-	defer p.state.endRun()
-	return p.driveOwned(ctx)
+	runErr := p.driveOwned(ctx)
+	runErr = p.finalizeOwnedRun(ctx, runErr)
+	p.state.endRun()
+	return runErr
 }
 
-// runOwnedSegment freezes a Segment while this invocation still owns the run
-// state, then releases ownership before publishing completion. That ordering
-// prevents a concurrent continuation from changing the status or blackboard
-// represented by the completed segment, while guaranteeing Await never returns
-// until another continuation can be admitted.
-func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, finish func(error)) {
-	var runErr error
-	func() {
-		defer p.state.endRun()
-		runErr = p.driveOwned(ctx)
-		if finish != nil {
-			finish(runErr)
+// runOwnedSegment publishes exactly one immutable completion after final
+// durability and observability work has crossed into the publishing phase.
+func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeCompletion func(error)) {
+	runErr := p.driveOwned(ctx)
+	runErr = p.finalizeOwnedRun(ctx, runErr)
+	if beforeCompletion != nil {
+		beforeCompletion(runErr)
+	}
+	results := p.Blackboard().Objects()
+	status, failure := p.state.endRun()
+	segment.complete(RunCompletion{
+		Status:  status,
+		Failure: failure,
+		Err:     runErr,
+		results: results,
+	})
+}
+
+// finalizeOwnedRun persists the final state and atomically closes the driver's
+// snapshot-responsibility window. A kill that lands while the snapshot is in
+// flight changes killRevision, forcing one new capture of the killed state.
+// Once the transition succeeds, a later Kill snapshots itself.
+func (p *Process) finalizeOwnedRun(ctx context.Context, runErr error) error {
+	var snapshotErr error
+	for {
+		revision := p.state.observedKillRevision()
+		snapshotErr = errors.Join(snapshotErr, p.maybeAutoSnapshot(ctx))
+		if p.state.beginPublishing(revision) {
+			break
 		}
-		segment.capture(runErr)
-	}()
-	segment.publish()
+	}
+	p.finishRunLoop(ctx)
+	return errors.Join(runErr, snapshotErr)
 }
 
 func (p *Process) driveOwned(ctx context.Context) error {
@@ -79,9 +98,7 @@ func (p *Process) driveOwned(ctx context.Context) error {
 	for {
 		if err := ctx.Err(); err != nil {
 			p.markCancelled(ctx, err)
-			snapshotErr := p.maybeAutoSnapshot(ctx)
-			p.finishRunLoop(ctx)
-			return errors.Join(err, snapshotErr)
+			return err
 		}
 
 		stopped, stopErr := p.checkStopPolicies(ctx)
@@ -90,30 +107,22 @@ func (p *Process) driveOwned(ctx context.Context) error {
 			stopped = true
 		}
 		if stopped {
-			if err := p.maybeAutoSnapshot(ctx); err != nil {
-				p.finishRunLoop(ctx)
-				return err
-			}
-			p.finishRunLoop(ctx)
 			return nil
 		}
 
 		p.tick(ctx)
 
-		// Persist the post-tick state when auto-snapshot is on. Placed
-		// after Tick so it captures whatever status the tick produced —
-		// including the terminal / waiting one on the loop's last pass.
-		if err := p.maybeAutoSnapshot(ctx); err != nil {
-			p.finishRunLoop(ctx)
-			return err
-		}
-
 		// Keep ticking only while Running. Waiting / Paused / Stuck /
 		// terminal all release the loop so the host (HITL resume,
 		// stuck-handler, terminal cleanup) can drive next.
 		if p.Status() != core.StatusRunning {
-			p.finishRunLoop(ctx)
 			return nil
+		}
+
+		// Persist progress between running ticks. The last tick is captured by
+		// finalizeOwnedRun, which also closes Kill's snapshot-ownership race.
+		if err := p.maybeAutoSnapshot(ctx); err != nil {
+			return err
 		}
 	}
 }

@@ -149,7 +149,7 @@ func TestProcessStateWaitRunPrefersObservableCompletion(t *testing.T) {
 
 	done := make(chan struct{})
 	close(done)
-	state := &processState{runOwned: true, runDone: done}
+	state := &processState{runPhase: runDriving, runDone: done}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -163,10 +163,7 @@ func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
 		engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 		parentDef := deploymentFixture("atomic-parent", core.ConditionSet{"finish": core.True}, nil)
 		childDef := deploymentFixture("atomic-child", core.ConditionSet{"finish": core.True}, nil)
-		parent, err := engine.createProcess(t.Context(), parentDef, core.Bindings{}, core.ProcessOptions{})
-		if err != nil {
-			t.Fatal(err)
-		}
+		parent := createProcessForTest(t, engine, parentDef, core.Bindings{}, core.ProcessOptions{})
 		if started, err := parent.beginRun(); err != nil || !started {
 			t.Fatalf("begin parent run = (%v, %v)", started, err)
 		}
@@ -177,6 +174,9 @@ func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
 		child, _, err := engine.buildProcessFromDeployment(childDeployment, core.Bindings{}, core.ProcessOptions{})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if started, err := child.beginRun(); err != nil || !started {
+			t.Fatalf("begin child run = (%v, %v)", started, err)
 		}
 
 		start := make(chan struct{})
@@ -199,6 +199,7 @@ func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
 		close(start)
 		wait.Wait()
 		parent.state.endRun()
+		child.state.endRun()
 
 		if killErr != nil {
 			t.Fatal(killErr)

@@ -53,6 +53,7 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	bindings.Set("input", func() {})
 	raw, err := json.Marshal(ProcessCreated{
 		Header:   NewHeader("proc"),
+		ParentID: "parent",
 		Bindings: bindings,
 	})
 	if err != nil {
@@ -60,6 +61,7 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	}
 	var got struct {
 		Payload struct {
+			ParentID string            `json:"parent_id"`
 			Bindings map[string]string `json:"bindings"`
 		} `json:"payload"`
 	}
@@ -68,6 +70,9 @@ func TestProcessCreatedMarshal_SummarizesOpaqueBindings(t *testing.T) {
 	}
 	if got.Payload.Bindings["input"] == "" {
 		t.Fatalf("bindings = %+v, want fallback string", got.Payload.Bindings)
+	}
+	if got.Payload.ParentID != "parent" {
+		t.Fatalf("parent_id = %q, want parent", got.Payload.ParentID)
 	}
 }
 

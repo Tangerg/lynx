@@ -43,13 +43,17 @@ func (e AgentUndeployed) MarshalJSON() ([]byte, error) {
 // ------------------------------------------------------------------
 
 type processCreatedPayload struct {
+	ParentID string         `json:"parent_id,omitempty"`
 	Bindings bindingSummary `json:"bindings"`
 }
 
 type bindingSummary map[string]json.RawMessage
 
 func (e ProcessCreated) MarshalJSON() ([]byte, error) {
-	return emit(e, processCreatedPayload{Bindings: summarizeBindings(e.Bindings)})
+	return emit(e, processCreatedPayload{
+		ParentID: e.ParentID,
+		Bindings: summarizeBindings(e.Bindings),
+	})
 }
 
 type processCompletedPayload struct {

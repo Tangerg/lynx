@@ -81,7 +81,7 @@ func TestSessionMutationQuiescesEveryGoalBeforeJoining(t *testing.T) {
 	if !firstCanceled.Load() || !secondCanceled.Load() {
 		t.Fatalf("quiesced goals = first:%v second:%v, want both", firstCanceled.Load(), secondCanceled.Load())
 	}
-	if mutations.driverLease("ses_1") != "" || mutations.driverLease("ses_2") != "" {
+	if mutations.driver("ses_1") != nil || mutations.driver("ses_2") != nil {
 		t.Fatal("successful session mutation retained a goal driver")
 	}
 }
@@ -105,14 +105,14 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	if !canceled.Load() {
 		t.Fatal("quiesce did not cancel the driver")
 	}
-	if got := mutations.driverLease("ses_1"); got != "lease_1" {
-		t.Fatalf("driver lease after timed-out join = %q, want retained ownership", got)
+	if got := mutations.driver("ses_1"); got != handle {
+		t.Fatalf("driver after timed-out join = %p, want retained handle %p", got, handle)
 	}
 
 	mutations.forget("ses_1", handle)
 	close(handle.released)
-	if got := mutations.driverLease("ses_1"); got != "" {
-		t.Fatalf("driver lease after owner exit = %q, want released", got)
+	if got := mutations.driver("ses_1"); got != nil {
+		t.Fatalf("driver after owner exit = %p, want released", got)
 	}
 }
 

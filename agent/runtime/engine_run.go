@@ -76,14 +76,15 @@ func (e *Engine) runDeployment(
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
 	defer span.End()
 
-	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
+	process, eventBindings, err := e.admitProcessRun(deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		return nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
+	process.publishCreated(ctx, eventBindings)
 
-	if err := process.run(ctx); err != nil {
+	if err := process.runOwned(ctx); err != nil {
 		finishAgentRunSpan(span, process, err)
 		return process, err
 	}
@@ -236,30 +237,15 @@ func (e *Engine) Start(
 		return nil, fmt.Errorf("runtime.Engine.Start: %w", err)
 	}
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
-	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
+	process, eventBindings, err := e.admitProcessRun(deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		span.End()
 		return nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
+	process.publishCreated(ctx, eventBindings)
 	segment := newSegment(process)
-	started, err := process.beginRun()
-	if err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.snapshotFinalizeTimeout)
-		discardErr := e.Discard(cleanupCtx, process.ID())
-		cancel()
-		err = errors.Join(err, discardErr)
-		finishAgentRunSpan(span, process, err)
-		span.End()
-		return nil, err
-	}
-	if !started {
-		finishAgentRunSpan(span, process, nil)
-		span.End()
-		segment.complete(nil)
-		return segment, nil
-	}
 	go process.runOwnedSegment(ctx, segment, func(runErr error) {
 		finishAgentRunSpan(span, process, runErr)
 		span.End()
@@ -303,7 +289,7 @@ func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error)
 	}
 	segment := newSegment(process)
 	if !started {
-		segment.complete(nil)
+		segment.complete(process.captureCompletion(nil))
 		return segment, nil
 	}
 	go process.runOwnedSegment(ctx, segment, nil)
@@ -391,8 +377,9 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 // Kill terminates a process and its live descendants. It transitions the
 // target to [core.StatusKilled], cancels its active Run / Continue context and
 // current tool call, publishes [event.ProcessKilled], then recursively kills
-// children. When automatic snapshots are enabled, Kill persists idle targets
-// itself; an active run remains responsible for its final snapshot. Kill
+// children. When automatic snapshots are enabled, Kill persists idle or
+// completion-publishing targets itself; only the driving phase owns the final
+// snapshot. Kill
 // returns any descendant or snapshot failures. It is idempotent and safe on
 // any process: an already-terminal one is left untouched, so a kill racing
 // natural completion cannot clobber a clean terminal state or publish a
@@ -402,7 +389,7 @@ func (e *Engine) Kill(ctx context.Context, id string) error {
 	if !ok {
 		return processNotFoundError("kill process", id)
 	}
-	won, runOwned := process.state.markKilled(nil)
+	won, driverWillSnapshot := process.state.markKilled(nil)
 	if won {
 		process.signals.fireRunCancel()
 		process.signals.fireToolCallCancel()
@@ -416,7 +403,7 @@ func (e *Engine) Kill(ctx context.Context, id string) error {
 	// children started with StartChild.
 	_, childErr := e.killChildren(ctx, id)
 	var snapshotErr error
-	if won && !runOwned {
+	if won && !driverWillSnapshot {
 		snapshotErr = process.maybeAutoSnapshot(ctx)
 	}
 	return errors.Join(childErr, snapshotErr)

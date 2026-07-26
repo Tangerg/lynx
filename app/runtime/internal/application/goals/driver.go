@@ -146,7 +146,9 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		d.ensureDriveLocked(ctx, sessionID, existing.LeaseID)
+		if err := d.ensureDriveLocked(ctx, sessionID, existing.LeaseID); err != nil {
+			return goal.Goal{}, err
+		}
 		return goal.Goal{}, ErrGoalActive
 	}
 	if err := d.quiesceDrive(ctx, sessionID); err != nil {
@@ -160,7 +162,9 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 		return goal.Goal{}, err
 	}
 	if ok && existing.Status == goal.StatusActive {
-		d.ensureDriveLocked(ctx, sessionID, existing.LeaseID)
+		if err := d.ensureDriveLocked(ctx, sessionID, existing.LeaseID); err != nil {
+			return goal.Goal{}, err
+		}
 		return goal.Goal{}, ErrGoalActive
 	}
 	var expected goal.Version
@@ -201,7 +205,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, ErrNoGoal
 	}
 	if g.Status == goal.StatusActive {
-		d.ensureDriveLocked(ctx, sessionID, g.LeaseID)
+		if err := d.ensureDriveLocked(ctx, sessionID, g.LeaseID); err != nil {
+			return goal.Goal{}, err
+		}
 		return g, nil
 	}
 	if err := d.quiesceDrive(ctx, sessionID); err != nil {
@@ -215,7 +221,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 		return goal.Goal{}, ErrNoGoal
 	}
 	if g.Status == goal.StatusActive {
-		d.ensureDriveLocked(ctx, sessionID, g.LeaseID)
+		if err := d.ensureDriveLocked(ctx, sessionID, g.LeaseID); err != nil {
+			return goal.Goal{}, err
+		}
 		return g, nil
 	}
 	expected := g.Version()
@@ -245,16 +253,11 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	if d.closed.Load() {
 		return goal.Goal{}, ErrClosed
 	}
-	g, ok, err := d.goals.Get(ctx, sessionID)
+	initial, initiallyPresent, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
-	if !ok {
-		return goal.Goal{}, ErrNoGoal
-	}
-	if g.Status != goal.StatusActive {
-		return g, nil
-	}
+	wasActive := initiallyPresent && initial.Status == goal.StatusActive
 	handle := d.mutations.quiesce(sessionID)
 	var quiesceErr error
 	if handle != nil {
@@ -262,6 +265,7 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 		if !handle.finished() {
 			return goal.Goal{}, quiesceErr
 		}
+		d.mutations.forget(sessionID, handle)
 	}
 	current, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
@@ -269,6 +273,9 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	}
 	if !ok {
 		return goal.Goal{}, errors.Join(ErrNoGoal, quiesceErr)
+	}
+	if !wasActive && current.Status != goal.StatusActive {
+		return current, quiesceErr
 	}
 	expected := current.Version()
 	current.Pause(goal.ReasonStoppedByUser, "", d.now())
@@ -297,7 +304,11 @@ func (d *Driver) quiesceDrive(ctx context.Context, sessionID string) error {
 	if handle == nil {
 		return nil
 	}
-	return handle.wait(ctx)
+	err := handle.wait(ctx)
+	if handle.finished() {
+		d.mutations.forget(sessionID, handle)
+	}
+	return err
 }
 
 // Reconcile degrades goals left mid-flight by a previous process. A goal whose
@@ -378,4 +389,11 @@ func (h *loopHandle) finished() bool {
 	default:
 		return false
 	}
+}
+
+func (h *loopHandle) outcome() (error, bool) {
+	if !h.finished() {
+		return nil, false
+	}
+	return h.err, true
 }

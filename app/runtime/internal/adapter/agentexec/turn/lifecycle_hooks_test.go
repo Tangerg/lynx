@@ -27,7 +27,8 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 
 	listener.OnEvent(context.Background(), event.ProcessCreated{Header: event.NewHeader("root")})
 	listener.OnEvent(context.Background(), event.ProcessCreated{
-		Header: event.NewHeader("child"),
+		Header:   event.NewHeader("child"),
+		ParentID: "root",
 		Bindings: core.Input(testTaskInput{
 			Description: "inspect auth",
 			Prompt:      "Find where auth failures are handled.",
@@ -54,6 +55,39 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 	}
 	if stop.Status != "completed" || stop.Result != "auth failures are handled in middleware" || stop.Description != "inspect auth" {
 		t.Fatalf("stop subagent = %+v", stop)
+	}
+}
+
+func TestSubagentLifecyclePreservesNestedParentage(t *testing.T) {
+	rec := &recordHookCommands{}
+	bound := hooks.NewBound([]hooks.Hook{
+		{Event: hooks.SubagentStart, Command: "record", Source: "test"},
+	}, hooks.NewRunner(rec, nil))
+	lifecycle := &subagentLifecycle{
+		sessionID: "sess",
+		cwd:       "/work",
+		hooks:     bound,
+	}
+	listener := lifecycle.listener("nested-turn")
+
+	listener.OnEvent(t.Context(), event.ProcessCreated{Header: event.NewHeader("root")})
+	listener.OnEvent(t.Context(), event.ProcessCreated{
+		Header:   event.NewHeader("child"),
+		ParentID: "root",
+	})
+	listener.OnEvent(t.Context(), event.ProcessCreated{
+		Header:   event.NewHeader("grandchild"),
+		ParentID: "child",
+	})
+
+	if len(rec.inputs) != 2 {
+		t.Fatalf("hook inputs = %d, want child and grandchild", len(rec.inputs))
+	}
+	if got := rec.inputs[0].Subagent.ParentProcessID; got != "root" {
+		t.Fatalf("child parent = %q, want root", got)
+	}
+	if got := rec.inputs[1].Subagent.ParentProcessID; got != "child" {
+		t.Fatalf("grandchild parent = %q, want child", got)
 	}
 }
 

@@ -42,6 +42,7 @@ func (p *Process) eventHeader() event.Header {
 func (p *Process) publishCreated(ctx context.Context, bindings core.Bindings) {
 	p.publishEvent(normalizeContext(ctx), event.ProcessCreated{
 		Header:   p.eventHeader(),
+		ParentID: p.ParentID(),
 		Bindings: bindings,
 	})
 }

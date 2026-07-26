@@ -101,20 +101,16 @@ func (s *Segment) Await(ctx context.Context) (RunCompletion, error) {
 	}
 }
 
-func (s *Segment) capture(err error) {
-	s.completion = RunCompletion{
-		Status:  s.process.Status(),
-		Failure: s.process.Failure(),
+func (p *Process) captureCompletion(err error) RunCompletion {
+	return RunCompletion{
+		Status:  p.Status(),
+		Failure: p.Failure(),
 		Err:     err,
-		results: s.process.Blackboard().Objects(),
+		results: p.Blackboard().Objects(),
 	}
 }
 
-func (s *Segment) publish() {
+func (s *Segment) complete(completion RunCompletion) {
+	s.completion = completion
 	close(s.done)
-}
-
-func (s *Segment) complete(err error) {
-	s.capture(err)
-	s.publish()
 }

@@ -15,45 +15,11 @@ import (
 // identify a new process.
 var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 
-// createProcess assembles a Process and its dependencies
-// (blackboard, state reader, planner). The process is registered in
-// the engine's map before being returned so concurrent
-// Resume / Kill calls can find it.
-func (e *Engine) createProcess(
-	ctx context.Context,
-	agent *core.Agent,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (*Process, error) {
-	if agent == nil {
-		return nil, errors.New("runtime.Engine.createProcess: agent definition is nil")
-	}
-	deployment, err := e.deploymentForProcess(ctx, agent)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.createProcess: %w", err)
-	}
-	return e.createProcessFromDeployment(ctx, deployment, bindings, options)
-}
-
-// createProcessFromDeployment is the exact-identity construction path used by
-// advanced entry points such as child processes and agent tools. The caller
-// has already resolved and ownership-checked the immutable deployment handle,
-// so construction cannot drift to a newer active route.
-func (e *Engine) createProcessFromDeployment(
-	ctx context.Context,
-	deployment *Deployment,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (*Process, error) {
-	process, eventBindings, err := e.registerProcessFromDeployment(deployment, bindings, options)
-	if err != nil {
-		return nil, err
-	}
-	process.publishCreated(ctx, eventBindings)
-	return process, nil
-}
-
-func (e *Engine) registerProcessFromDeployment(
+// admitProcessRun builds a fresh process, claims its first run, then registers
+// it. ProcessCreated is deliberately published by the caller only after this
+// transaction: a synchronous event listener can observe or kill the process,
+// but can never steal its first run with Continue.
+func (e *Engine) admitProcessRun(
 	deployment *Deployment,
 	bindings core.Bindings,
 	options core.ProcessOptions,
@@ -62,8 +28,16 @@ func (e *Engine) registerProcessFromDeployment(
 	if err != nil {
 		return nil, core.Bindings{}, err
 	}
+	started, err := process.beginRun()
+	if err != nil {
+		return nil, core.Bindings{}, err
+	}
+	if !started {
+		return nil, core.Bindings{}, errors.New("runtime.Engine.admitProcessRun: fresh process rejected its first run")
+	}
 	if !e.processes.insert(process) {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createProcessFromDeployment: %w: duplicate ID %q", ErrProcessIdentity, process.id)
+		process.state.endRun()
+		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.admitProcessRun: %w: duplicate ID %q", ErrProcessIdentity, process.id)
 	}
 	return process, eventBindings, nil
 }
@@ -161,7 +135,15 @@ func (e *Engine) createChild(
 	if err != nil {
 		return nil, core.Bindings{}, err
 	}
+	started, err := child.beginRun()
+	if err != nil {
+		return nil, core.Bindings{}, err
+	}
+	if !started {
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: fresh child rejected its first run")
+	}
 	if err := e.attachChild(parent, child); err != nil {
+		child.state.endRun()
 		return nil, core.Bindings{}, err
 	}
 	return child, eventBindings, nil
@@ -170,7 +152,7 @@ func (e *Engine) createChild(
 func (e *Engine) attachChild(parent, child *Process) error {
 	parent.state.mu.Lock()
 	defer parent.state.mu.Unlock()
-	if parent.state.currentStatus != core.StatusRunning || !parent.state.runOwned {
+	if parent.state.currentStatus != core.StatusRunning || parent.state.runPhase != runDriving {
 		return fmt.Errorf("%w: parent process %q is %s", ErrChildParentInactive, parent.id, parent.state.currentStatus)
 	}
 	child.parentID = parent.id

@@ -52,8 +52,10 @@ func (l *subagentLifecycle) confirmRoot(id string) error {
 
 func (l *subagentLifecycle) listener(turnID string) *event.NamedSubtreeListener {
 	return event.NewNamedSubtreeListener("subagent-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
-		if _, created := e.(event.ProcessCreated); created && l.bindRoot(e.ProcessID()) {
-			return
+		if created, ok := e.(event.ProcessCreated); ok && created.ParentID == "" {
+			if l.bindRoot(e.ProcessID()) {
+				return
+			}
 		}
 		l.fireSubagentHook(ctx, e)
 	})
@@ -78,7 +80,7 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	}
 	switch ev := e.(type) {
 	case event.ProcessCreated:
-		in := hooks.SubagentInput{ProcessID: e.ProcessID(), ParentProcessID: rootID}
+		in := hooks.SubagentInput{ProcessID: e.ProcessID(), ParentProcessID: ev.ParentID}
 		in.Description, in.Prompt = subagentTaskInput(ev.Bindings)
 		l.mu.Lock()
 		if l.subagents == nil {

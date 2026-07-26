@@ -32,11 +32,20 @@ type processState struct {
 	stuckReplanKey     string
 	stuckReplanPending bool
 	pendingSuspension  *interaction.Suspension
-	runOwned           bool
+	runPhase           processRunPhase
 	runDone            chan struct{}
+	killRevision       uint64
 	checkpointOwned    bool
 	removalClaimed     bool
 }
+
+type processRunPhase uint8
+
+const (
+	runIdle processRunPhase = iota
+	runDriving
+	runPublishing
+)
 
 // newProcessState returns a fresh state block ready for the
 // NotStarted → Running transition.
@@ -297,7 +306,7 @@ func (s *processState) beginRun() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.runOwned {
+	if s.runPhase != runIdle {
 		return false, ErrProcessRunning
 	}
 	if s.checkpointOwned {
@@ -308,29 +317,57 @@ func (s *processState) beginRun() (bool, error) {
 		core.StatusKilled, core.StatusTerminated:
 		return false, nil
 	}
-	s.runOwned = true
+	s.runPhase = runDriving
 	s.runDone = make(chan struct{})
 	s.currentStatus = core.StatusRunning
 	return true, nil
 }
 
-func (s *processState) endRun() {
+// beginPublishing closes the final-snapshot ownership window. The caller
+// captures killRevision before its snapshot; if a kill wins before this
+// transition, the changed revision forces a new snapshot. Once publishing
+// begins, a later Kill owns its own snapshot.
+func (s *processState) beginPublishing(killRevision uint64) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runPhase != runDriving {
+		panic("runtime: run left driving phase before publication")
+	}
+	if s.killRevision != killRevision {
+		return false
+	}
+	s.runPhase = runPublishing
+	return true
+}
+
+func (s *processState) observedKillRevision() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.killRevision
+}
+
+// endRun releases the complete run boundary and returns one lock-consistent
+// status/failure pair for Segment publication.
+func (s *processState) endRun() (core.ProcessStatus, error) {
 	s.mu.Lock()
 	done := s.runDone
-	s.runOwned = false
+	status := s.currentStatus
+	failure := s.runErr
+	s.runPhase = runIdle
 	s.runDone = nil
 	s.mu.Unlock()
 	if done != nil {
 		close(done)
 	}
+	return status, failure
 }
 
 func (s *processState) waitRun(ctx context.Context) error {
 	s.mu.RLock()
 	done := s.runDone
-	runOwned := s.runOwned
+	active := s.runPhase != runIdle
 	s.mu.RUnlock()
-	if !runOwned || done == nil {
+	if !active || done == nil {
 		return nil
 	}
 	if ctx == nil {
@@ -357,7 +394,7 @@ func (s *processState) waitRun(ctx context.Context) error {
 func (s *processState) runActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.runOwned
+	return s.runPhase != runIdle
 }
 
 func (s *processState) claimCheckpoint(allowActiveRun bool) error {
@@ -366,7 +403,7 @@ func (s *processState) claimCheckpoint(allowActiveRun bool) error {
 	if s.checkpointOwned {
 		return ErrProcessCheckpointBusy
 	}
-	if s.runOwned && !allowActiveRun {
+	if s.runPhase != runIdle && !allowActiveRun {
 		return ErrProcessRunning
 	}
 	s.checkpointOwned = true
@@ -382,13 +419,13 @@ func (s *processState) releaseCheckpoint() {
 func (s *processState) removable() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentStatus.IsTerminal() && !s.runOwned && !s.removalClaimed
+	return s.currentStatus.IsTerminal() && s.runPhase == runIdle && !s.removalClaimed
 }
 
 func (s *processState) claimRemoval() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if !s.currentStatus.IsTerminal() || s.runOwned || s.removalClaimed {
+	if !s.currentStatus.IsTerminal() || s.runPhase != runIdle || s.removalClaimed {
 		return false
 	}
 	s.removalClaimed = true
@@ -406,17 +443,18 @@ func (s *processState) releaseRemoval() {
 // kill ([Engine.Kill]) side of the shared "first terminal wins" gate.
 // A kill racing a natural completion (or vice versa) cannot clobber the
 // existing terminal. The winning transition clears any continuation and
-// reports whether the run loop owns final snapshot responsibility.
-func (s *processState) markKilled(err error) (won, runOwned bool) {
+// reports whether the driving phase still owns final snapshot responsibility.
+func (s *processState) markKilled(err error) (won, driverWillSnapshot bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return false, s.runOwned
+		return false, s.runPhase == runDriving
 	}
 	s.currentStatus = core.StatusKilled
 	s.pendingSuspension = nil
+	s.killRevision++
 	if err != nil {
 		s.runErr = err
 	}
-	return true, s.runOwned
+	return true, s.runPhase == runDriving
 }

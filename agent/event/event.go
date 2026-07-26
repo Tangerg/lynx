@@ -79,6 +79,8 @@ func (AgentUndeployed) Kind() Kind { return KindAgentUndeployed }
 // ProcessCreated fires when a new Process is registered on the engine.
 type ProcessCreated struct {
 	Header
+	// ParentID is the immediate owning process. It is empty for a root process.
+	ParentID string        `json:"parent_id,omitempty"`
 	Bindings core.Bindings `json:"bindings,omitzero"`
 }
 

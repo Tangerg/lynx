@@ -7,7 +7,6 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // The autonomous loop is a request-detached background driver — without a span
@@ -41,12 +40,4 @@ var loadGoalTurns = sync.OnceValue(func() metric.Int64Counter {
 
 func recordGoalTurn(ctx context.Context, disposition turnDisposition) {
 	loadGoalTurns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", string(disposition))))
-}
-
-// recordGoalStoreRetry makes a transient persistence outage visible while the
-// owning supervisor remains attached and backs off before retrying.
-func recordGoalStoreRetry(ctx context.Context, err error) {
-	if err != nil {
-		trace.SpanFromContext(ctx).RecordError(err)
-	}
 }

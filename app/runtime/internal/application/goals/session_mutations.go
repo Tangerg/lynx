@@ -110,15 +110,22 @@ func (m *SessionMutations) WithSessionMutation(
 	if err := commit(ctx); err != nil {
 		return err
 	}
-	handles := make([]*loopHandle, 0, len(sessionIDs))
+	type ownedHandle struct {
+		sessionID string
+		handle    *loopHandle
+	}
+	handles := make([]ownedHandle, 0, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		if handle := m.quiesce(sessionID); handle != nil {
-			handles = append(handles, handle)
+			handles = append(handles, ownedHandle{sessionID: sessionID, handle: handle})
 		}
 	}
 	var errs []error
-	for _, handle := range handles {
-		errs = append(errs, handle.wait(ctx))
+	for _, owned := range handles {
+		errs = append(errs, owned.handle.wait(ctx))
+		if owned.handle.finished() {
+			m.forget(owned.sessionID, owned.handle)
+		}
 	}
 	errs = append(errs, afterCommit(ctx))
 	return errors.Join(errs...)
@@ -148,9 +155,6 @@ func (m *SessionMutations) forget(sessionID string, handle *loopHandle) {
 func (m *SessionMutations) quiesce(sessionID string) *loopHandle {
 	m.mu.Lock()
 	handle := m.running[sessionID]
-	if handle != nil && handle.finished() {
-		delete(m.running, sessionID)
-	}
 	m.mu.Unlock()
 	if handle != nil {
 		handle.quiesce()
@@ -158,12 +162,8 @@ func (m *SessionMutations) quiesce(sessionID string) *loopHandle {
 	return handle
 }
 
-func (m *SessionMutations) driverLease(sessionID string) string {
+func (m *SessionMutations) driver(sessionID string) *loopHandle {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	handle := m.running[sessionID]
-	if handle == nil {
-		return ""
-	}
-	return handle.leaseID
+	return m.running[sessionID]
 }

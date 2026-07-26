@@ -51,20 +51,12 @@ func startChildDeployment(
 		input:      input,
 		mode:       childCopiesAmbientState,
 	}
-	child, err := run.create()
+	child, err := run.admit()
 	if err != nil {
 		return nil, err
 	}
-	segment, err := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
-	if err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), engine.snapshotFinalizeTimeout)
-		discardErr := engine.Discard(cleanupCtx, child.ID())
-		cancel()
-		return nil, errors.Join(
-			fmt.Errorf("start child %q: %w", child.ID(), err),
-			discardErr,
-		)
-	}
+	segment := newSegment(child)
+	go child.runOwnedSegment(context.WithoutCancel(ctx), segment, nil)
 	return segment, nil
 }
 
@@ -152,17 +144,17 @@ type childRun struct {
 }
 
 func (r childRun) run() (*Process, error) {
-	child, err := r.create()
+	child, err := r.admit()
 	if err != nil {
 		return nil, err
 	}
-	if err := r.engine.Continue(r.ctx, child.ID()); err != nil {
+	if err := child.runOwned(r.ctx); err != nil {
 		return child, fmt.Errorf("run child %q (process %q): run: %w", child.agent().Name(), child.ID(), err)
 	}
 	return child, nil
 }
 
-func (r childRun) create() (*Process, error) {
+func (r childRun) admit() (*Process, error) {
 	parent, err := r.parentProcess()
 	if err != nil {
 		return nil, err
@@ -187,6 +179,7 @@ func (r childRun) create() (*Process, error) {
 	if err := r.linkSession(child, parent); err != nil {
 		r.engine.processes.unregister(child)
 		parent.budget.removeChild(child)
+		child.state.endRun()
 		return nil, fmt.Errorf("run child %q: link session: %w", agentName, err)
 	}
 	child.publishCreated(r.ctx, eventBindings)

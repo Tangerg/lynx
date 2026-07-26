@@ -3,6 +3,7 @@ package goals
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"time"
 
@@ -19,10 +20,7 @@ import (
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
 const (
-	goalStoreAttemptTimeout = 5 * time.Second
-	goalStoreRetryInitial   = 50 * time.Millisecond
-	goalStoreRetryMax       = time.Second
-	goalRunCleanupTimeout   = 5 * time.Second
+	goalRunCleanupTimeout = 5 * time.Second
 )
 
 // launchLocked attaches exactly one loop to an already-accepted active goal.
@@ -46,26 +44,39 @@ func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string)
 	go func() {
 		defer release()
 		handle.err = d.drive(ctx, sessionID, leaseID)
-		d.forget(sessionID, handle)
 		close(handle.released)
+		if handle.err == nil {
+			d.mutations.forget(sessionID, handle)
+		}
 	}()
 	return true
 }
 
-func (d *Driver) forget(sessionID string, handle *loopHandle) {
-	d.mutations.forget(sessionID, handle)
-}
-
 // ensureDriveLocked restores the in-process side of an authoritative active
-// goal after a command discovers an active row. The caller holds this session's
-// mutation lock.
-func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID string) {
-	if d.closed.Load() || d.mutations.driverLease(sessionID) == leaseID {
-		return
+// goal after a command discovers an active row. A failed owner remains
+// registered and its error is returned until an explicit lifecycle command
+// quiesces it. The caller holds this session's mutation lock.
+func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID string) error {
+	if d.closed.Load() {
+		return ErrClosed
+	}
+	if handle := d.mutations.driver(sessionID); handle != nil {
+		if handle.leaseID != leaseID {
+			return ErrGoalConflict
+		}
+		if err, finished := handle.outcome(); finished {
+			if err != nil {
+				return err
+			}
+			d.mutations.forget(sessionID, handle)
+		} else {
+			return nil
+		}
 	}
 	if !d.launchLocked(ctx, sessionID, leaseID) {
 		panic("goals: command crossed the shutdown admission boundary")
 	}
+	return nil
 }
 
 // drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
@@ -77,7 +88,7 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		g, ok, err := d.loadGoal(ctx, sessionID)
+		g, ok, err := d.goals.Get(ctx, sessionID)
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil
@@ -135,13 +146,14 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		// A start failure is an operational fact already recorded on the span.
 		// Persist only its stable cause so goal status cannot become a transport
 		// for adapter diagnostics.
-		if err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, ""); err != nil {
+		disposition, err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, "")
+		if err != nil {
 			if ctx.Err() != nil {
 				return "", nil
 			}
 			return "", err
 		}
-		return dispPaused, nil
+		return disposition, nil
 	}
 
 	finished := drainTerminal(result.Events)
@@ -162,7 +174,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	}
 
 	// Re-read: the model may have set complete/blocked mid-turn via update_goal.
-	reread, ok, err := d.loadGoal(ctx, g.SessionID)
+	reread, ok, err := d.goals.Get(ctx, g.SessionID)
 	if err != nil {
 		if ctx.Err() != nil {
 			return "", nil
@@ -182,45 +194,43 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		return "", nil
 	}
 	*g = reread
-	switch g.Status {
-	case goal.StatusComplete:
-		if err := d.clearOwned(ctx, g); err != nil {
-			if ctx.Err() != nil {
-				return "", nil
-			}
-			return "", err
+	disposition, err = d.settleOwned(ctx, g)
+	if err != nil {
+		if ctx.Err() != nil {
+			return "", nil
 		}
-		return dispComplete, nil
-	case goal.StatusBlocked:
-		return dispBlocked, nil // the model declared blocked
-	case goal.StatusPaused:
-		return "", nil // a concurrent Stop already recorded its intent
+		return "", err
+	}
+	if disposition != dispContinue {
+		return disposition, nil
 	}
 
 	if finished == nil {
 		// The run parked for HITL and produced no terminal (rare — autonomous runs
 		// are headless, so an unanswerable interrupt auto-denies rather than
 		// parking). Wait for the user, who resolves it and can resume the goal.
-		if err := d.pauseOwned(ctx, g, goal.ReasonAwaitingInput, ""); err != nil {
+		disposition, err := d.pauseOwned(ctx, g, goal.ReasonAwaitingInput, "")
+		if err != nil {
 			if ctx.Err() != nil {
 				return "", nil
 			}
 			return "", err
 		}
-		return dispPaused, nil
+		return disposition, nil
 	}
 
 	outcome, err := outcomeOf(finished)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "malformed terminal run")
-		if err := d.pauseOwned(ctx, g, goal.ReasonTerminalOutcomeMissing, ""); err != nil {
+		disposition, pauseErr := d.pauseOwned(ctx, g, goal.ReasonTerminalOutcomeMissing, "")
+		if pauseErr != nil {
 			if ctx.Err() != nil {
 				return "", nil
 			}
-			return "", err
+			return "", pauseErr
 		}
-		return dispPaused, nil
+		return disposition, nil
 	}
 	span.SetAttributes(
 		attribute.String("run.outcome", outcome.String()),
@@ -297,110 +307,73 @@ func turnSteps(run *transcript.Run) int {
 }
 
 // pauseOwned persists a loop-originated pause against the newest revision of
-// the lease it owns. Store failures retry in this same supervisor goroutine;
-// CAS misses re-read and reapply only while the same active incarnation remains
-// authoritative.
-func (d *Driver) pauseOwned(ctx context.Context, current *goal.Goal, cause goal.ReasonCause, detail string) error {
+// the lease it owns. A CAS miss is resolved from the authoritative row: a
+// concurrent complete/blocked transition determines the turn disposition
+// instead of being mislabeled as paused.
+func (d *Driver) pauseOwned(
+	ctx context.Context,
+	current *goal.Goal,
+	cause goal.ReasonCause,
+	detail string,
+) (turnDisposition, error) {
 	for current.Status == goal.StatusActive {
 		expected := current.Version()
 		candidate := *current
 		candidate.Pause(cause, detail, d.now())
-		saved, applied, err := d.saveGoal(ctx, candidate, expected)
+		saved, applied, err := d.goals.Save(ctx, candidate, expected)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if applied {
 			*current = saved
-			return nil
+			return dispPaused, nil
 		}
-		reread, ok, err := d.loadGoal(ctx, current.SessionID)
+		reread, ok, err := d.goals.Get(ctx, current.SessionID)
 		if err != nil {
-			return err
+			return "", err
 		}
 		if !ok || reread.LeaseID != current.LeaseID {
-			return nil
+			return "", nil
 		}
 		*current = reread
 	}
-	return nil
+	return d.settleOwned(ctx, current)
 }
 
-// clearOwned removes the transient complete state without abandoning the
-// driver on a store fault. A newer revision of the same completed lease is
-// retried; a changed lease or lifecycle state wins.
-func (d *Driver) clearOwned(ctx context.Context, current *goal.Goal) error {
-	for current.Status == goal.StatusComplete {
-		applied, err := d.clearGoal(ctx, current.SessionID, current.Version())
-		if err != nil {
-			return err
-		}
-		if applied {
-			return nil
-		}
-		reread, ok, err := d.loadGoal(ctx, current.SessionID)
-		if err != nil {
-			return err
-		}
-		if !ok || reread.LeaseID != current.LeaseID {
-			return nil
-		}
-		*current = reread
-	}
-	return nil
-}
-
-func (d *Driver) loadGoal(ctx context.Context, sessionID string) (loaded goal.Goal, ok bool, err error) {
-	err = retryGoalStore(ctx, func(attempt context.Context) error {
-		var loadErr error
-		loaded, ok, loadErr = d.goals.Get(attempt, sessionID)
-		return loadErr
-	})
-	return loaded, ok, err
-}
-
-func (d *Driver) saveGoal(ctx context.Context, candidate goal.Goal, expected goal.Version) (saved goal.Goal, applied bool, err error) {
-	err = retryGoalStore(ctx, func(attempt context.Context) error {
-		var saveErr error
-		saved, applied, saveErr = d.goals.Save(attempt, candidate, expected)
-		return saveErr
-	})
-	return saved, applied, err
-}
-
-func (d *Driver) clearGoal(ctx context.Context, sessionID string, expected goal.Version) (applied bool, err error) {
-	err = retryGoalStore(ctx, func(attempt context.Context) error {
-		var clearErr error
-		applied, clearErr = d.goals.ClearIf(attempt, sessionID, expected)
-		return clearErr
-	})
-	return applied, err
-}
-
-func retryGoalStore(ctx context.Context, operation func(context.Context) error) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	delay := goalStoreRetryInitial
+// settleOwned maps the authoritative state of the current lease to the loop
+// outcome. Complete is transient, so this method also owns its conditional
+// clear and resolves any CAS miss before returning.
+func (d *Driver) settleOwned(ctx context.Context, current *goal.Goal) (turnDisposition, error) {
 	for {
-		attempt, cancel := context.WithTimeout(ctx, goalStoreAttemptTimeout)
-		err := operation(attempt)
-		cancel()
-		if err == nil {
-			return nil
+		switch current.Status {
+		case goal.StatusActive:
+			return dispContinue, nil
+		case goal.StatusPaused:
+			return dispPaused, nil
+		case goal.StatusBlocked:
+			return dispBlocked, nil
+		case goal.StatusComplete:
+			applied, err := d.goals.ClearIf(ctx, current.SessionID, current.Version())
+			if err != nil {
+				return "", err
+			}
+			if applied {
+				return dispComplete, nil
+			}
+			reread, ok, err := d.goals.Get(ctx, current.SessionID)
+			if err != nil {
+				return "", err
+			}
+			if !ok {
+				return dispComplete, nil
+			}
+			if reread.LeaseID != current.LeaseID {
+				return "", nil
+			}
+			*current = reread
+		default:
+			return "", fmt.Errorf("goals: invalid authoritative status %q", current.Status)
 		}
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-		recordGoalStoreRetry(ctx, err)
-
-		timer := time.NewTimer(delay)
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return ctx.Err()
-		}
-		delay = min(delay*2, goalStoreRetryMax)
 	}
 }
 
