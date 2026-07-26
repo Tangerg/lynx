@@ -1,5 +1,5 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MarkdownMessage } from "../markdown/MarkdownMessage";
 import { Collapsible, Icon } from "@/ui";
 import { stopActiveAgentRun } from "@/plugins/builtin/agent/public/run";
@@ -74,9 +74,28 @@ export function ReasoningBlock({ text, status }: Props) {
   // ---- Bounded scroll + auto-follow + fades ----
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [scrollTop, setScrollTop] = useState(0);
-  const [scrollHeight, setScrollHeight] = useState(0);
-  const [clientHeight, setClientHeight] = useState(0);
+  // The three fades need three booleans, not three pixel counts. Measuring
+  // positions put a state write on every scroll tick of a box that auto-follows a
+  // stream — so it re-rendered the reasoning body continuously while tokens
+  // arrived. Reduced at the measure site and compared before it is stored, a scroll
+  // that doesn't cross a threshold re-renders nothing.
+  const [edges, setEdges] = useState({ scrolled: false, atBottom: true, overflowing: false });
+  const measure = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const next = {
+      scrolled: el.scrollTop > 0,
+      atBottom: el.scrollHeight - el.scrollTop - el.clientHeight < 4,
+      overflowing: el.scrollHeight > el.clientHeight,
+    };
+    setEdges((prev) =>
+      prev.scrolled === next.scrolled &&
+      prev.atBottom === next.atBottom &&
+      prev.overflowing === next.overflowing
+        ? prev
+        : next,
+    );
+  }, []);
 
   // ResizeObserver: pin to bottom while streaming so new tokens stay visible.
   useEffect(() => {
@@ -92,38 +111,22 @@ export function ReasoningBlock({ text, status }: Props) {
       if (distanceFromBottom < 4) {
         scrollEl.scrollTop = scrollEl.scrollHeight;
       }
-      // Eagerly update metrics so fade states stay in sync.
-      setScrollTop(scrollEl.scrollTop);
-      setScrollHeight(scrollEl.scrollHeight);
-      setClientHeight(scrollEl.clientHeight);
+      // Eagerly update the edges so fade states stay in sync.
+      measure();
     };
     pin();
     const ro = new ResizeObserver(pin);
     ro.observe(contentEl);
     return () => ro.disconnect();
-  }, [streaming]);
+  }, [streaming, measure]);
 
-  // Keep metrics in sync when content or open state changes.
+  // Keep the edges in sync when content or open state changes.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setScrollTop(el.scrollTop);
-    setScrollHeight(el.scrollHeight);
-    setClientHeight(el.clientHeight);
-  }, [text, isOpen]);
+    measure();
+  }, [text, isOpen, measure]);
 
-  const handleScroll = () => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setScrollTop(el.scrollTop);
-    setScrollHeight(el.scrollHeight);
-    setClientHeight(el.clientHeight);
-  };
-
-  const hasOverflow = scrollHeight > clientHeight;
-  const atBottom = scrollHeight - scrollTop - clientHeight < 4;
-  const showTopFade = isOpen && scrollTop > 0;
-  const showBottomFade = isOpen && streaming && hasOverflow && !atBottom;
+  const showTopFade = isOpen && edges.scrolled;
+  const showBottomFade = isOpen && streaming && edges.overflowing && !edges.atBottom;
 
   return (
     <div className="my-2 rounded-lg bg-surface">
@@ -175,7 +178,7 @@ export function ReasoningBlock({ text, status }: Props) {
       <Collapsible open={isOpen}>
         <div
           ref={scrollRef}
-          onScroll={handleScroll}
+          onScroll={measure}
           className={cn(
             "relative overflow-hidden px-3.5 pb-3",
             streaming && isOpen && "max-h-48 overflow-y-auto",

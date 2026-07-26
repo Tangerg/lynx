@@ -1,3 +1,4 @@
+import { CHAT_SPLIT_COLUMN, chatSplitRow } from "./chatSplit";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import type { IconName } from "@/ui";
@@ -126,12 +127,12 @@ export function ChatPanel({ onSend }: Props) {
           <WorkspaceViewBody viewId={activeMainView} />
         </ViewPlacementProvider>
       ) : (
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1" style={chatSplitRow(splitRatio)}>
           {/* Center reading column — its own header sits above the chat stream
               and spans only this column (the dock runs full-height beside it). */}
           <div
             className={cn("relative flex min-h-0 min-w-0 flex-col", !splitViewId && "flex-1")}
-            style={splitViewId ? { flexBasis: `${splitRatio * 100}%` } : undefined}
+            style={splitViewId ? CHAT_SPLIT_COLUMN : undefined}
           >
             {/* Height, inset, and the traffic-light gutter (when the drawer is
                 collapsed) are owned by `.agent-surface-header` in globals.css —

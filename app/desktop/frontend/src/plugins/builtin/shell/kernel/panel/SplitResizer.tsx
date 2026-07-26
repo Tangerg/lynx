@@ -4,11 +4,17 @@
 // col-resize cursor; the accent guide appears only on hover/drag). On drag it
 // computes the chat's fraction of the parent row's width and persists it
 // (clamped 0.25–0.75) to uiStore so the split holds across sessions/launches.
+//
+// During the drag the fraction goes straight onto the row as `--chat-split`, and
+// the store hears about it once, on release. State per pointer-move re-rendered
+// ChatPanel — the transcript, the composer and the workspace view with it — at
+// pointer frequency, which is the mistake AgentSeamRail already documents.
 
 import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useT } from "@/lib/i18n";
 import { useUiStore } from "@/state/uiStore";
+import { CHAT_SPLIT_PROPERTY } from "./chatSplit";
 
 export function SplitResizer() {
   const t = useT();
@@ -49,16 +55,20 @@ export function SplitResizer() {
         window.removeEventListener("pointerup", prev.up);
       }
 
+      let ratio = useUiStore.getState().splitRatio;
       const move = (ev: PointerEvent) => {
-        const rect = rowRef.current?.getBoundingClientRect();
-        if (!rect) return;
-        setSplitRatio(Math.max(0.25, Math.min(0.75, (ev.clientX - rect.left) / rect.width)));
+        const element = rowRef.current;
+        const rect = element?.getBoundingClientRect();
+        if (!element || !rect) return;
+        ratio = Math.max(0.25, Math.min(0.75, (ev.clientX - rect.left) / rect.width));
+        element.style.setProperty(CHAT_SPLIT_PROPERTY, `${ratio * 100}%`);
       };
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         listenersRef.current = null;
         rowRef.current = null;
+        setSplitRatio(ratio);
       };
       listenersRef.current = { move, up };
       window.addEventListener("pointermove", move);

@@ -1,32 +1,18 @@
-// ChatStream — the message stream + composer surface.
+// ChatStream — the transcript, its banners, and where the composer sits.
 //
-// Owns the agent / session / composer state slices it actually reads
-// (no fat shared interface), the auto-select-latest-tool effect, and
-// the streamControls bridge that lets the jump-to-bottom button know
-// when the user has scrolled away from the tail.
+// Owns the agent / session slices it actually reads (no fat shared interface) and
+// the auto-select-latest-tool effect. It deliberately holds NEITHER of the two
+// high-frequency states around it: the composer's draft lives in ComposerSurface
+// and the scroll follow state in streamFollow, because a component that renders the
+// message list must not re-render on every keystroke or every scroll event.
 
-import type { StreamControls } from "./MessageStream";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useActiveConversationMessages } from "@/plugins/builtin/agent/public/conversation";
 import { useActiveRunPlan, useActiveRunToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
-import { useSelectedModel } from "@/plugins/builtin/chat/composer/public/selectedModel";
 import { useT } from "@/lib/i18n";
 import { Slot } from "@/plugins/host/Slot";
-import {
-  useAddComposerImageFiles,
-  useAddComposerPaste,
-  useComposerImages,
-  useComposerPastes,
-  useRemoveComposerImage,
-  useRemoveComposerPaste,
-} from "@/plugins/builtin/chat/composer/public/attachments";
-import {
-  useClearComposerDraft,
-  useComposerText,
-  useSetComposerText,
-} from "@/plugins/builtin/chat/composer/public/draft";
 import {
   selectInitialWorkspaceTool,
   useExpandedWorkspaceToolIds,
@@ -34,8 +20,8 @@ import {
   useToggleWorkspaceTool,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { useUiStore } from "@/state/uiStore";
-import { Composer, SlashSuggestions } from "@/plugins/builtin/chat/composer/public/ui";
 import { ChatErrorBoundary } from "./ChatErrorBoundary";
+import { ComposerSurface } from "./ComposerSurface";
 import { CwdMissingBanner } from "./CwdMissingBanner";
 import { JumpToBottomButton } from "./JumpToBottomButton";
 import { MessageStream } from "./MessageStream";
@@ -56,29 +42,10 @@ export function ChatStream({ onSend }: Props) {
   const selectTool = useSelectWorkspaceTool();
   const toggleExpandedTool = useToggleWorkspaceTool();
 
-  const composerValue = useComposerText();
-  const images = useComposerImages();
-  const setComposerValue = useSetComposerText();
-  const removeImage = useRemoveComposerImage();
-  const clearComposer = useClearComposerDraft();
-  const addImageFiles = useAddComposerImageFiles();
-  const pastes = useComposerPastes();
-  const removePaste = useRemoveComposerPaste();
-  const addPaste = useAddComposerPaste();
-  // Gate image staging on the next run's model accepting images — keeps the
-  // paste/drop path consistent with the (disabled) toolbar attach button.
-  const acceptsImages = useSelectedModel()?.multimodal ?? false;
-
   // Global streaming-reveal preference. Read once here (stable string) and
   // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
   // store subscription on the hot streaming path.
   const typewriter = useUiStore((s) => s.streamReveal) === "typewriter";
-
-  // Sticky-bottom auto-scroll lives inside MessageStream via
-  // `use-stick-to-bottom`. This component only needs to know "is the
-  // user currently at bottom?" to toggle the jump-to-bottom button.
-  const [streamControls, setStreamControls] = useState<StreamControls | null>(null);
-  const handleControls = useCallback((c: StreamControls) => setStreamControls(c), []);
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -114,29 +81,7 @@ export function ChatStream({ onSend }: Props) {
     [plan, toolCalls, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
-  // The composer surface (status + slash hints + input) — shared by the
-  // empty-state centered layout and the normal bottom-anchored one. All
-  // controls live in the composer's own bottom toolbar (attach / approval /
-  // model / send) — no separate telemetry footer row.
-  const composer = (
-    <>
-      <Slot name="chat.status" />
-      <SlashSuggestions value={composerValue} onPick={setComposerValue} />
-      <Composer
-        value={composerValue}
-        onChange={setComposerValue}
-        onClear={clearComposer}
-        onSend={onSend}
-        images={images}
-        onRemoveImage={removeImage}
-        onAddImages={addImageFiles}
-        pastes={pastes}
-        onRemovePaste={removePaste}
-        onAddPaste={addPaste}
-        acceptsImages={acceptsImages}
-      />
-    </>
-  );
+  const composer = <ComposerSurface onSend={onSend} />;
 
   const t = useT();
 
@@ -189,17 +134,9 @@ export function ChatStream({ onSend }: Props) {
           number that silently went stale every time the composer grew a row. */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
-          <MessageStream
-            messages={messages}
-            ctx={ctx}
-            resetKey={resetKey}
-            onControlsChange={handleControls}
-          />
+          <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
         </ChatErrorBoundary>
-        <JumpToBottomButton
-          visible={streamControls ? !streamControls.isAtBottom : false}
-          onClick={() => streamControls?.scrollToBottom()}
-        />
+        <JumpToBottomButton />
       </div>
       <div className="relative z-10 -mt-5 w-full shrink-0 overflow-visible px-3 pb-3 sm:px-5 sm:pb-4">
         <div className="mx-auto w-full max-w-[var(--content-max)]">{composer}</div>

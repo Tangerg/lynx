@@ -1,11 +1,7 @@
+import { scrollStreamToBottom, useStreamAtBottom } from "./streamFollow";
 import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-
-interface Props {
-  visible: boolean;
-  onClick: () => void;
-}
 
 // Floating "scroll to bottom" affordance, anchored to the bottom of the
 // transcript column and out of the layout flow. It sits just above where the
@@ -14,14 +10,17 @@ interface Props {
 // Animates in/out via opacity + translateY rather than mount/unmount, so the
 // user gets a soft reveal instead of a pop-in. When `visible` is false it's still
 // in the DOM but pointer-events: none + opacity: 0.
-export function JumpToBottomButton({ visible, onClick }: Props) {
+export function JumpToBottomButton() {
   const t = useT();
+  // Reads the follow snapshot itself: a scroll that crosses the tail re-renders
+  // this button and nothing else.
+  const visible = !useStreamAtBottom();
   const label = t("chat.jumpToBottom");
   return (
     <button
       type="button"
       aria-label={label}
-      onClick={onClick}
+      onClick={scrollStreamToBottom}
       tabIndex={visible ? 0 : -1}
       className={cn(
         "absolute bottom-6 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
