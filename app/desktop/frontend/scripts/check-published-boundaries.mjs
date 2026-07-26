@@ -168,19 +168,28 @@ for (const file of files(SRC)) {
 
   if (
     !isTest &&
-    /plugins\/builtin\/.+\/adapters\/.+\.(ts|tsx)$/.test(rel) &&
-    /export\s+function\s+install\w+\(\)\s*:\s*void/.test(text)
+    /plugins\/(?:builtin\/.+\/adapters|host)\/.+\.(ts|tsx)$/.test(rel) &&
+    // `install*` names one thing in this tree: it installs a port and hands back the
+    // disposer. The parameterless form was the only one checked, so an installer that
+    // took the Host slipped through — and it wasn't installing a port at all, it was
+    // subscribing through a facade the Host already disposes. Two of those had drifted
+    // to the prefix (`installHostBridge`, `installEndpointMirror`); both are named for
+    // what they do now, which is what makes this a reliable signal to read.
+    /export\s+function\s+install\w+\([^)]*\)\s*:\s*void/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "port installers must return a disposer for plugin unload and HMR",
+      reason:
+        "an install* function installs a port and returns its disposer — rename it, or return one",
     });
   }
 
   if (
     !isTest &&
     /plugins\/builtin\/.+\/(?:index|bootstrap)\.(ts|tsx)$/.test(rel) &&
-    /^\s*install\w+(?:Port|Gateway)\(\);/m.test(text)
+    // Any argument list, any suffix: dropping the disposer leaks the same way whether
+    // the installer is called `installFooPort()` or `installFoo(host)`.
+    /^\s*install\w+\([^)]*\);/m.test(text)
   ) {
     violations.push({
       file: rel,
@@ -446,14 +455,20 @@ for (const file of files(SRC)) {
     });
   }
 
+  // Reaching the composition root is an adapter's job — every context keeps that
+  // pair (get the client, coerce to the wire's branded ids) in `adapters/`. This was
+  // written for `defaults/` only, so the same shape read as a local exception
+  // elsewhere: the rpc-agent's root held a runs gateway as an object literal inside
+  // `setup()`, and the runtime's root reached for `client().rpc` inline. A root
+  // assembles; it does not wire.
   if (
     !isTest &&
-    /plugins\/builtin\/defaults\/(?!adapters\/).+\.(ts|tsx)$/.test(rel) &&
+    /plugins\/builtin\/(?!.+\/adapters\/).+\.(ts|tsx)$/.test(rel) &&
     /from\s+["']@\/main\/container["']/.test(text)
   ) {
     violations.push({
       file: rel,
-      reason: "defaults root must stay an assembly entry point; runtime wiring belongs in adapters",
+      reason: "only an adapter may reach the composition root; a root assembles",
     });
   }
 
