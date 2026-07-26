@@ -18,10 +18,127 @@ function files(dir) {
 
 const violations = [];
 
+// One vocabulary, one name.
+//
+// A set of string literals that means something to this app — light/dark, the
+// approval stances, the notification levels — is a type, and a second spelling of
+// it is a second thing that must agree with the first forever, with nothing
+// checking that it does. `"dark" | "light"` had been written out eight times (the
+// SDK's theme contract, the theme kit, a port, two `Record` keys, a local
+// annotation) and the approval stances four; the workspace's doc scope had four
+// spellings, one of them an indexed-access alias of an inline union.
+//
+// Flagged when the two are one context's own business — same name, same bounded
+// context, or one of them in `lib/` (shared by every ring, so nothing may
+// re-spell it). A pair that straddles a real boundary is a translation and stays:
+// `src/rpc/` is exempt on both sides, because a context read model is REQUIRED to
+// publish its own language, not the wire's (see the Queries/Data rule below), and
+// a consumer-defined port names what it needs.
+const namedUnions = [];
+const inlineUnions = [];
+const UNION_DECL = /(?:export )?type (\w+) =\s*((?:\s*\|?\s*"[\w-]+")+)\s*;/g;
+const UNION_INLINE = /(?:"[\w-]+"\s*\|\s*)+"[\w-]+"/g;
+
+function memberKey(text) {
+  return [...text.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+}
+
+function collectVocabulary(rel, source) {
+  // Indices must line up with what the patterns matched, so strip comments first
+  // and match the stripped text throughout.
+  const text = source.replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  const declared = [];
+  for (const m of text.matchAll(UNION_DECL)) {
+    const members = memberKey(m[2]);
+    declared.push([m.index, m.index + m[0].length]);
+    if (members.length > 1) namedUnions.push({ name: m[1], key: members.join("|"), rel });
+  }
+  for (const m of text.matchAll(UNION_INLINE)) {
+    // A multi-line declaration matches its own right-hand side.
+    if (declared.some(([from, to]) => m.index >= from && m.index < to)) continue;
+    const members = memberKey(m[0]);
+    if (members.length > 1) inlineUnions.push({ key: members.join("|"), rel });
+  }
+}
+
+function boundedContext(rel) {
+  const builtin = /^plugins\/builtin\/([^/]+)\//.exec(rel);
+  if (builtin) return `builtin:${builtin[1]}`;
+  if (rel.startsWith("plugins/")) return "plugin-platform";
+  return rel.split("/")[0];
+}
+
+const isWire = (rel) => rel.startsWith("rpc/");
+const isShared = (rel) => rel.startsWith("lib/");
+
+function reportDuplicateVocabulary() {
+  const byKey = new Map();
+  for (const decl of namedUnions) {
+    if (!byKey.has(decl.key)) byKey.set(decl.key, []);
+    byKey.get(decl.key).push(decl);
+  }
+  const label = (key) => (key.length > 60 ? `${key.slice(0, 57)}…` : key);
+
+  for (const group of byKey.values()) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const [a, b] = [group[i], group[j]];
+        if (isWire(a.rel) || isWire(b.rel)) continue;
+        const oneOwner =
+          a.name === b.name ||
+          boundedContext(a.rel) === boundedContext(b.rel) ||
+          isShared(a.rel) ||
+          isShared(b.rel);
+        if (!oneOwner) continue;
+        violations.push({
+          file: a.rel,
+          reason: `${a.name} here and ${b.name} in ${b.rel} are two names for ${label(a.key)} — one vocabulary, one name`,
+        });
+      }
+    }
+  }
+
+  for (const use of inlineUnions) {
+    if (isWire(use.rel)) continue;
+    for (const owner of byKey.get(use.key) ?? []) {
+      if (isWire(owner.rel)) continue;
+      if (boundedContext(owner.rel) !== boundedContext(use.rel) && !isShared(owner.rel)) continue;
+      violations.push({
+        file: use.rel,
+        reason: `inline ${label(use.key)} restates ${owner.name} from ${owner.rel} — name the vocabulary, don't respell it`,
+      });
+    }
+  }
+}
+
 for (const file of files(SRC)) {
   const rel = relative(SRC, file);
   const text = readFileSync(file, "utf8");
   const isTest = /\.(test|spec)\.[tj]sx?$/.test(rel);
+
+  if (!isTest && /\.tsx?$/.test(rel)) {
+    collectVocabulary(rel, text);
+
+    // A type has one identity; a second name for it is a hop that hides where the
+    // concept lives. Seven modules published another module's type under a locally
+    // preferred noun (`ApprovalMode = ApprovalModeValue`, `HookConfig =
+    // HookReadModel`, and one that renamed on import only to rename back), so the
+    // same shape read as two things depending on which file you were standing in —
+    // and two contexts had independently minted `MCPServerConfig` for two
+    // different types. Re-exporting under the SAME name is fine: no new word.
+    const imported = new Set();
+    for (const stmt of text.matchAll(/import[^;]*?from\s+["'][^"']+["']/g)) {
+      for (const id of stmt[0].matchAll(/\b(\w+)\b(?=\s*(?:,|\}|\s+as\b))/g)) imported.add(id[1]);
+    }
+    for (const alias of text.matchAll(/^export type (\w+) = (\w+);$/gm)) {
+      if (imported.has(alias[2])) {
+        violations.push({
+          file: rel,
+          reason: `${alias[1]} is a second name for the imported ${alias[2]} — import the owner's name, or re-export it unrenamed`,
+        });
+      }
+    }
+  }
 
   if (/@\/lib\/data\/(?:queries|useUsage)/.test(text)) {
     violations.push({
@@ -364,6 +481,8 @@ for (const file of files(SRC)) {
     });
   }
 }
+
+reportDuplicateVocabulary();
 
 if (violations.length > 0) {
   console.error(`[check-published-boundaries] Found ${violations.length} violation(s):`);

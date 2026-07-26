@@ -8,7 +8,7 @@ import {
   DEFAULT_APPROVAL_MODE,
   setApprovalMode,
   useApprovalMode,
-  type ApprovalModeValue,
+  type ApprovalMode,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { useModels } from "@/plugins/builtin/settings/providers/public/data";
 import { rpcErrorText } from "@/lib/rpcErrors";
@@ -129,7 +129,7 @@ function ApprovalModePill() {
   if (isError || mode === undefined) return null;
   const current = APPROVAL_MODES.find((m) => m.value === mode) ?? DEFAULT_APPROVAL_MODE;
   const full = mode === "yolo";
-  const onSelect = async (next: ApprovalModeValue) => {
+  const onSelect = async (next: ApprovalMode) => {
     if (next === mode) return;
     try {
       await setApprovalMode(next);

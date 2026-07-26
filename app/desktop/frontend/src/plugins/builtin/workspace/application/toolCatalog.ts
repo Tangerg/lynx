@@ -7,8 +7,6 @@ import {
 import { toolCatalogGateway } from "./ports/toolCatalogGateway";
 import { useWorkspaceBuiltinTools, type BuiltinToolInfo } from "./workspaceData";
 
-export type MCPServerConfig = MCPServer;
-
 export interface BuiltinToolSafetyPill {
   label: string;
   tone: Tone;
@@ -27,7 +25,7 @@ export interface BuiltinToolCatalogViewModel {
 }
 
 export interface ToolCatalogViewModel {
-  mcpServers: MCPServerConfig[];
+  mcpServers: MCPServer[];
   activeMcpServerCount: number;
   configuredMcpServerCount: number;
 }
@@ -60,7 +58,7 @@ export function reconnectMCPServer(server: string): void {
     .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
 }
 
-export function toolCatalogViewModel(servers: readonly MCPServerConfig[]): ToolCatalogViewModel {
+export function toolCatalogViewModel(servers: readonly MCPServer[]): ToolCatalogViewModel {
   let activeMcpServerCount = 0;
   for (const server of servers) {
     if (server.status === "connected") {

@@ -5,6 +5,7 @@
 // preview swatch per row scales without the clutter.
 
 import type { ReactNode } from "react";
+import type { Scheme } from "@/lib/appearance";
 import type { ThemeSpec } from "@/plugins/sdk";
 import { DropdownMenu, Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
@@ -15,7 +16,7 @@ import { useThemePreference } from "../application/appearancePreferences";
 // Fallback hexes for previewing themes that didn't ship a `tokens` map, and
 // for the split "System" swatch. Match the built-in palette so a preview never
 // goes blank.
-const FALLBACK_TOKENS: Record<"dark" | "light", { bg: string; surface: string; accent: string }> = {
+const FALLBACK_TOKENS: Record<Scheme, { bg: string; surface: string; accent: string }> = {
   dark: { bg: "#0c0d0f", surface: "#16181b", accent: "#6c97ff" },
   light: { bg: "#ffffff", surface: "#f6f7f8", accent: "#2563eb" },
 };

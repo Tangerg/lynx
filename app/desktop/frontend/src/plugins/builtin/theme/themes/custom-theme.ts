@@ -13,6 +13,7 @@
 // live preview while dragging the pickers.
 
 import { colord } from "colord";
+import type { Scheme } from "@/lib/appearance";
 import { disposeOnHmr } from "@/lib/hmr";
 import { definePlugin } from "@/plugins/sdk";
 import { THEME } from "@/plugins/sdk/kernelPoints";
@@ -36,7 +37,7 @@ function deriveCustomSpec(ct: CustomTheme, accent: string, contrast: number): Th
   const k = Math.min(100, Math.max(0, contrast)) / 100; // 0..1 — global contrast
   // lerp a fg-toward-bg mix percentage by contrast, then round to an int.
   const p = (lo: number, hi: number) => Math.round(lo + (hi - lo) * k);
-  const scheme: "dark" | "light" = colord(bg).isDark() ? "dark" : "light";
+  const scheme: Scheme = colord(bg).isDark() ? "dark" : "light";
   const extreme = scheme === "dark" ? "#ffffff" : "#000000";
   return {
     id: CUSTOM_THEME_ID,

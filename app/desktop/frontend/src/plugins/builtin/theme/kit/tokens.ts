@@ -5,6 +5,7 @@
 // machinery.
 
 import { colord } from "colord";
+import type { Scheme } from "@/lib/appearance";
 import type { ThemeCta, ThemePluginSpec, ThemeShadows } from "./types";
 
 // Default shadow ladders.
@@ -27,7 +28,7 @@ export const LIGHT_SHADOWS: ThemeShadows = {
     "0 0 0 1px var(--seam-line), 0 10px 30px -10px color-mix(in srgb, var(--color-text) 14%, transparent)",
 };
 
-export const SCHEME_ICON: Record<"dark" | "light", string> = {
+export const SCHEME_ICON: Record<Scheme, string> = {
   dark: "moon",
   light: "sun",
 };

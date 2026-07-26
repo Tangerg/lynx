@@ -2,13 +2,11 @@ import type { Message } from "@/plugins/sdk/types/agentView";
 import { t } from "@/lib/i18n";
 import type { AgentInput } from "../../domain/input";
 import { notifyInfo } from "@/plugins/sdk";
-import { agentRuntime, type AgentRestoreType } from "../ports/runtimeGateway";
+import { agentRuntime, type RestoreType } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
 import { agentViewState } from "../ports/viewState";
 import { forkSessionAt } from "./forkSession";
 import { rehydrateSessionView } from "./rehydrateSession";
-
-export type RestoreType = AgentRestoreType;
 
 export interface ActiveAgentConversation {
   sessionId: string;

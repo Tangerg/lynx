@@ -3,6 +3,7 @@
 // conflict warnings can be attributed back when it unloads.
 
 import type { ConfigValue } from "./config";
+import type { NotificationLevel } from "./types/infra";
 import type {
   BeforeUnloadHandler,
   CommandSpec,
@@ -177,7 +178,7 @@ export function createHost(
 
     storage: createStorage(pluginName),
 
-    notify(message: string, level: "info" | "warn" | "error" = "info"): void {
+    notify(message: string, level: NotificationLevel = "info"): void {
       logToConsole(pluginName, level, [message]);
       // Push to the persistent feed BEFORE dispatching the visual toast so
       // any listener that reacts to the toast can already cross-reference

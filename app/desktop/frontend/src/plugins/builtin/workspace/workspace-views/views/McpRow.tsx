@@ -5,9 +5,9 @@ import { Icon, IconButton, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
 import { cn } from "@/lib/utils";
+import type { MCPServer } from "@/plugins/builtin/settings/mcp-servers/public/data";
 import {
   reconnectMCPServer,
-  type MCPServerConfig,
   useMCPServerToolConfigs,
 } from "@/plugins/builtin/workspace/application/toolCatalog";
 
@@ -16,7 +16,7 @@ import {
 // `status === "connecting"` — pushed via mcp.serverChanged, never invented
 // locally (reconnect guarantees connecting → terminal ordering, §5.2).
 // i18n key → pill classes. Labels are resolved at render via t().
-const STATUS_CLASSES: Record<MCPServerConfig["status"], { key: string; classes: string }> = {
+const STATUS_CLASSES: Record<MCPServer["status"], { key: string; classes: string }> = {
   connecting: {
     key: "tools.status.connecting",
     classes: "bg-surface-2 text-fg-muted animate-pulse",
@@ -73,7 +73,7 @@ function McpAuthGuide({ server }: { server: string }) {
   );
 }
 
-export function McpRow({ server }: { server: MCPServerConfig }) {
+export function McpRow({ server }: { server: MCPServer }) {
   const t = useT();
   const pill = STATUS_CLASSES[server.status];
   const connecting = server.status === "connecting";

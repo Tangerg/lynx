@@ -1,9 +1,10 @@
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
+import type { ApprovalDecision } from "../../domain/hitl";
 import type { AgentViewState, RunError } from "@/plugins/sdk/types/agentView";
 import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
 
 export interface SettledInterrupt {
-  decision?: "approved" | "declined";
+  decision?: ApprovalDecision;
   answered?: boolean;
   answers?: Record<string, string[]>;
 }

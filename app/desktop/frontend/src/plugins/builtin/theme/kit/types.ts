@@ -4,6 +4,8 @@
 // `defineThemePlugin.ts` (which also imports token defaults from
 // `tokens.ts`).
 
+import type { Scheme } from "@/lib/appearance";
+
 /** Single accent color + the ink that reads on top of it. The two
  *  derived shades (accentBorder for hover, accentPress for :active) are
  *  computed from `accent` via colord unless a theme passes explicit
@@ -112,7 +114,7 @@ export interface ThemePluginSpec {
   /** User-facing label. */
   label: string;
   /** Drives shadow ladder choice + structural `theme-{scheme}` class. */
-  scheme: "dark" | "light";
+  scheme: Scheme;
   /** Icon for the picker row. Defaults to moon/sun based on scheme. */
   icon?: string;
   /** Sort hint — lower comes first. */

@@ -1,6 +1,5 @@
 import { createDataQuery, createParameterizedDataQuery } from "@/plugins/sdk";
-
-export type ApprovalModeValue = "plan" | "safe" | "balanced" | "yolo";
+import type { ApprovalMode, RememberScope } from "../domain/hitl";
 
 export interface ApprovalRulesQuery {
   sessionId: string;
@@ -8,7 +7,7 @@ export interface ApprovalRulesQuery {
 
 export interface ApprovalRuleInfo {
   id: string;
-  scope: "session" | "project" | "global";
+  scope: RememberScope;
   tool: string;
   subject?: string;
   dir?: string;
@@ -18,7 +17,7 @@ export interface ApprovalRuleInfo {
 export const APPROVAL_MODE_KEY = "approval-mode";
 export const APPROVAL_RULES_KEY = "approval-rules";
 
-export const useApprovalMode = createDataQuery<ApprovalModeValue>(APPROVAL_MODE_KEY);
+export const useApprovalMode = createDataQuery<ApprovalMode>(APPROVAL_MODE_KEY);
 export const useApprovalRules = createParameterizedDataQuery<
   ApprovalRulesQuery,
   ApprovalRuleInfo[]

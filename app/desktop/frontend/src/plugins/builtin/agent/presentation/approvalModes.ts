@@ -1,10 +1,10 @@
 // The runtime's approval stances in backend order. Labels/descriptions are i18n
 // keys resolved by consumers.
 
-import type { ApprovalModeValue } from "../application/approvalPolicyQueries";
+import type { ApprovalMode } from "../domain/hitl";
 
 export interface ApprovalModeOption {
-  value: ApprovalModeValue;
+  value: ApprovalMode;
   /** i18n key for the short label (e.g. "Plan"). */
   labelKey: string;
   /** i18n key for the one-line description shown in the quick-switch menu. */

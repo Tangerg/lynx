@@ -73,10 +73,14 @@ export interface AgentMemoryItemInfo {
   updatedAt: string;
 }
 
+/** Where a project-level agent doc lives: the session cwd, the project root, or
+ *  the user's home. Shared by the memory files and the AGENTS.md docs. */
+export type WorkspaceMemoryScope = "cwd" | "projectRoot" | "home";
+
 export interface WorkspaceAgentDoc {
   path: string;
   title: string;
-  scope: "cwd" | "projectRoot" | "home";
+  scope: WorkspaceMemoryScope;
 }
 
 export interface WorkspaceDiffQuery {
@@ -134,13 +138,11 @@ export interface WorkspaceMemoryQuery {
 }
 
 export interface WorkspaceMemoryEntry {
-  scope: "cwd" | "projectRoot" | "home";
+  scope: WorkspaceMemoryScope;
   path: string;
   content: string;
   updatedAt?: string;
 }
-
-export type WorkspaceScope = WorkspaceMemoryEntry["scope"];
 
 export interface WorkspaceFileHeadQuery {
   path: string;

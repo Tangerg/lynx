@@ -1,15 +1,12 @@
 // Approval policy mutations. Reads live in this context's query module; these
 // commands invalidate the matching keys after the runtime accepts the write.
 
-import {
-  APPROVAL_MODE_KEY,
-  APPROVAL_RULES_KEY,
-  type ApprovalModeValue,
-} from "./approvalPolicyQueries";
+import { APPROVAL_MODE_KEY, APPROVAL_RULES_KEY } from "./approvalPolicyQueries";
+import type { ApprovalMode } from "../domain/hitl";
 import { queryClient } from "@/lib/queryClient";
 import { agentRuntime } from "./ports/runtimeGateway";
 
-export async function setApprovalMode(mode: ApprovalModeValue): Promise<void> {
+export async function setApprovalMode(mode: ApprovalMode): Promise<void> {
   await agentRuntime().setApprovalMode(mode);
   await queryClient.invalidateQueries({ queryKey: [APPROVAL_MODE_KEY] });
 }

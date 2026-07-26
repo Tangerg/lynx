@@ -3,6 +3,7 @@
 // component contribution.
 
 import type { ComponentType } from "react";
+import type { LogLevel } from "@/lib/observability/logBridge";
 import type {
   ContentBlock,
   InterruptResponse,
@@ -33,7 +34,7 @@ export interface NotificationEntry {
   dismissed?: boolean;
 }
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
+export type { LogLevel };
 
 /**
  * One log event. `plugin` records who emitted it, so a UI that consumes

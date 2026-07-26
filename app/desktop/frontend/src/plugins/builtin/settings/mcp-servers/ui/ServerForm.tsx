@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Icon, PillButton, Segmented, Surface, TextField } from "@/ui";
 import {
-  type MCPServerConfig,
-  type MCPServerTransport,
+  type MCPServerConfigInfo,
+  type MCPTransport,
   useConfigureMCPServer,
   useRemoveMCPServer,
   useTestMCPServer,
@@ -19,7 +19,7 @@ import { ToolControls } from "./ToolControls";
 import { useProbe } from "../../public";
 
 interface Props {
-  server?: MCPServerConfig;
+  server?: MCPServerConfigInfo;
   onDone: () => void;
   onCancel: () => void;
 }
@@ -84,7 +84,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
           onChange={(e) => updateDraft("name", e.target.value)}
           placeholder={t("mcp.form.name.placeholder")}
         />
-        <Segmented<MCPServerTransport>
+        <Segmented<MCPTransport>
           value={draft.transport}
           options={[
             { value: "stdio", label: t("mcp.transport.stdio") },

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { definePlugin, useCurrentMessage } from "@/plugins/sdk";
+import type { MessageFeedbackRating } from "./domain/feedback";
 import { canRateMessage } from "./application/messageActionAvailability";
 import { messageFeedbackActionSlot } from "./application/messageActionContributions";
 import { messageFeedbackRating, submitMessageFeedback } from "./public/feedback";
@@ -22,7 +23,7 @@ function FeedbackButtons() {
   }, [msg.id]);
   if (!canRateMessage(msg)) return null;
 
-  const rate = (rating: "positive" | "negative"): void => {
+  const rate = (rating: MessageFeedbackRating): void => {
     if (rated === rating) return;
     setRated(rating);
     void submitMessageFeedback(msg, rating).catch(() => setRated(messageFeedbackRating(msg.id)));

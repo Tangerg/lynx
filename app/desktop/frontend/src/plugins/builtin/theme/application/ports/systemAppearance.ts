@@ -1,3 +1,4 @@
+import type { Scheme } from "@/lib/appearance";
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 
 /**
@@ -9,7 +10,7 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
  * all. The adapter owns the media query.
  */
 export interface SystemAppearancePort {
-  scheme(): "dark" | "light";
+  scheme(): Scheme;
 }
 
 const port = createSingletonPort<SystemAppearancePort>("System appearance port is not configured");

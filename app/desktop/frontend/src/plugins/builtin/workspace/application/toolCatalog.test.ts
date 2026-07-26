@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { MCPServerConfig } from "./toolCatalog";
+import type { MCPServer } from "@/plugins/builtin/settings/mcp-servers/public/data";
 import {
   builtinToolCatalogViewModel,
   builtinToolSafetyTone,
@@ -7,7 +7,7 @@ import {
   toolCatalogViewModel,
 } from "./toolCatalog";
 
-const server = (over: Partial<MCPServerConfig>): MCPServerConfig => ({
+const server = (over: Partial<MCPServer>): MCPServer => ({
   id: "server-1",
   name: "Server",
   desc: "Server description",

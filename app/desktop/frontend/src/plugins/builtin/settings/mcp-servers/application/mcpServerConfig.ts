@@ -9,14 +9,15 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import type { MCPServerConfigInput } from "./mcpServerInput";
 import { mcpServerGateway, type MCPServerTestOutcome } from "./ports/mcpServerGateway";
-export type { MCPServerConfigInput, MCPServerTransport } from "./mcpServerInput";
+export type { MCPServerConfigInput } from "./mcpServerInput";
+export type { MCPTransport } from "./mcpServerQueries";
 export type { MCPServerTestOutcome } from "./ports/mcpServerGateway";
 
 // MCP server-configuration mutations. Counterpart to the read-side
 // useMCPConfigs() query: mutators invalidate the configs + status views so the
 // pane and the Tools workspace view both re-read the new registry state.
 
-export type MCPServerConfig = MCPServerConfigInfo;
+export type { MCPServerConfigInfo };
 
 export function useMCPServerConfigs() {
   return useMCPConfigs();

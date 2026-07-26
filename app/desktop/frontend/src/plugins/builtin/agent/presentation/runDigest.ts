@@ -7,12 +7,13 @@
 // future surfaces — telemetry export, end-of-run toasts — can reuse it).
 
 import type { Translate } from "@/lib/i18n";
+import type { ApprovalDecision } from "../domain/hitl";
 import type { AgentViewState, TimelineEntry } from "@/plugins/sdk/types/agentView";
 import { toolCategory } from "../domain/toolCategory";
 
 export interface ApprovalDigest {
   command: string;
-  decision?: "approved" | "declined";
+  decision?: ApprovalDecision;
 }
 
 export interface ChangedFile {

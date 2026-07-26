@@ -33,8 +33,8 @@ export {
   forkAgentSessionAtRun,
   rollbackSessionToBeforeRun,
   sendToAgentSession,
-  type RestoreType,
 } from "../application/session/historyActions";
+export type { RestoreType } from "../application/ports/runtimeGateway";
 export { rehydrateSessionView } from "../application/session/rehydrateSession";
 export { useRelocateSession } from "../application/session/relocateSession";
 export { useRenameSession } from "../application/session/renameSession";

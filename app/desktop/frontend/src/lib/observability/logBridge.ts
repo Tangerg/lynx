@@ -13,7 +13,17 @@
 
 import { logs, SeverityNumber } from "@opentelemetry/api-logs";
 
-type LogLevel = "debug" | "info" | "warn" | "error";
+/**
+ * The severities a log call can carry — the SDK's `LogEvent.level` is this type.
+ *
+ * Declared here, not in the plugin SDK, because these four exist for exactly one
+ * reason: they are the OTel severities this bridge maps onto, and `SEVERITY`
+ * below is only exhaustive by construction if both come from one declaration.
+ * The SDK cannot own it and be imported here — `lib` may not depend on the
+ * plugin layer — so the vocabulary lives at the bottom and the contract above
+ * re-exports the name.
+ */
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 const SEVERITY: Record<LogLevel, { number: SeverityNumber; text: string }> = {
   debug: { number: SeverityNumber.DEBUG, text: "DEBUG" },

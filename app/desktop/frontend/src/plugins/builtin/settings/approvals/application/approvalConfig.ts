@@ -3,15 +3,14 @@ import {
   APPROVAL_RULES_KEY,
   forgetRule,
   setApprovalMode,
-  type ApprovalModeValue,
+  type ApprovalMode,
   type ApprovalRuleInfo,
   useApprovalMode,
   useApprovalRules,
 } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { queryClient } from "@/lib/queryClient";
 
-export type ApprovalMode = ApprovalModeValue;
-export type ApprovalRuleConfig = ApprovalRuleInfo;
+export type { ApprovalMode, ApprovalRuleInfo };
 export { APPROVAL_MODES };
 
 export function useApprovalModeConfig() {
@@ -30,7 +29,7 @@ export async function forgetApprovalRule(id: string): Promise<void> {
   await forgetRule(id);
 }
 
-export async function forgetApprovalRules(rules: ApprovalRuleConfig[]): Promise<void> {
+export async function forgetApprovalRules(rules: ApprovalRuleInfo[]): Promise<void> {
   for (const rule of rules) await forgetRule(rule.id);
   await queryClient.invalidateQueries({ queryKey: [APPROVAL_RULES_KEY] });
 }

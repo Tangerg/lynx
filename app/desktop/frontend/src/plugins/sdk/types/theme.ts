@@ -1,5 +1,7 @@
 // Theme + accent surface — IDE/VS Code-style swappable palettes.
 
+import type { Scheme } from "@/lib/appearance";
+
 /**
  * A theme — IDE/VS Code-style swappable palette.
  *
@@ -25,7 +27,7 @@ export interface ThemeSpec {
   /** User-facing label. */
   label: string;
   /** Native scheme — drives `<html style="color-scheme">` + accent picker. */
-  scheme: "dark" | "light";
+  scheme: Scheme;
   /** Icon name for the segmented control. */
   icon?: string;
   /** Sort hint — lower comes first. */

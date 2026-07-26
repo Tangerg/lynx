@@ -2,7 +2,8 @@ import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import type { Item } from "@/rpc";
 import type { AgentInput } from "../../domain/input";
-import type { RememberScope } from "../../domain/hitl";
+import type { ApprovalDecision, RememberScope } from "../../domain/hitl";
+import type { WireDecision } from "../hitl/wireDecision";
 import type {
   AgentViewState,
   Message,
@@ -14,7 +15,7 @@ import type {
 } from "@/plugins/sdk/types/agentView";
 
 export type ResolvePatch = {
-  decision?: "approved" | "declined";
+  decision?: ApprovalDecision;
   answered?: boolean;
   answers?: Record<string, string[]>;
 };
@@ -24,7 +25,7 @@ export type SendFn = ((input: AgentInput, options?: AgentRunStartOptions) => voi
 export type InterruptResumePayload =
   | {
       type: "approval";
-      decision: "approve" | "deny";
+      decision: WireDecision;
       editedArgs?: Record<string, unknown>;
       remember?: { scope: RememberScope };
     }

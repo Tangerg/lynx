@@ -102,7 +102,10 @@ export interface NotifyOptions {
   source?: NotifySource;
 }
 
-type Level = "info" | "error";
+// The app's own notify helpers speak two of the feed's three levels — there is no
+// notifyWarn, so "warn" reaches the feed only from a plugin's host.notify. Stated
+// as a narrowing of the feed's vocabulary rather than a second list of words.
+type Level = Extract<NotificationLevel, "info" | "error">;
 
 const TOAST_BY_LEVEL: Record<Level, typeof toast.info> = {
   info: toast.info,

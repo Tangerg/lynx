@@ -1,9 +1,8 @@
+import type { Scheme } from "@/lib/appearance";
 import { THEME } from "@/plugins/sdk/kernelPoints";
 import { lookupExtensionByKey, lookupExtensionPoint } from "@/plugins/sdk/selectors/extensions";
 import { systemAppearance } from "./ports/systemAppearance";
 import { themePreference } from "./ports/themePreference";
-
-export type ThemeScheme = "dark" | "light";
 
 /**
  * Which scheme a theme id paints in.
@@ -18,7 +17,7 @@ export type ThemeScheme = "dark" | "light";
  * — the scheme of a contributed theme is this context's business, and it owns
  * both the THEME point the answer comes from and the meaning of `"system"`.
  */
-export function resolveThemeScheme(themeId: string): ThemeScheme {
+export function resolveThemeScheme(themeId: string): Scheme {
   if (themeId === "system") return systemAppearance().scheme();
   return lookupExtensionByKey(THEME, themeId)?.scheme ?? "dark";
 }

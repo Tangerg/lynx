@@ -19,6 +19,15 @@
 
 import { useSyncExternalStore } from "react";
 
+/**
+ * Light or dark, the app's whole vocabulary for it.
+ *
+ * Declared here because this is the one module every ring may import — the
+ * design system, the plugin SDK's theme contract, the theme context's rules and
+ * kit, and the panes that preview a swatch all need the same two words. Eight
+ * modules had spelled the union out inline instead, which is eight places that
+ * must agree forever with nothing checking that they do.
+ */
 export type Scheme = "dark" | "light";
 
 let scheme: Scheme = "dark";

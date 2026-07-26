@@ -1,8 +1,8 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { Item } from "@/rpc";
+import type { ApprovalMode } from "../../domain/hitl";
 
-export type AgentRestoreType = "history" | "files" | "both";
-export type AgentApprovalMode = "plan" | "safe" | "balanced" | "yolo";
+export type RestoreType = "history" | "files" | "both";
 
 export interface AgentRunHistoryRef {
   id: string;
@@ -39,11 +39,11 @@ export interface AgentRuntimeGateway {
   rollbackSession(input: {
     sessionId: string;
     toRunId?: string;
-    restoreType?: AgentRestoreType;
+    restoreType?: RestoreType;
   }): Promise<void>;
   steerRun(runId: string, text: string): Promise<void>;
   isRunNotFound(error: unknown): boolean;
-  setApprovalMode(mode: AgentApprovalMode): Promise<void>;
+  setApprovalMode(mode: ApprovalMode): Promise<void>;
   forgetApprovalRule(id: string): Promise<void>;
 }
 

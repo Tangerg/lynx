@@ -22,7 +22,7 @@ import {
 // Provider configuration mutations (providers.configure / providers.test).
 // Counterpart to the read-side useProviders() query.
 
-export type ProviderConfig = ProviderInfo;
+export type { ProviderInfo };
 
 export function useProviderConfigs() {
   return useProviders();

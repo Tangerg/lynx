@@ -1,6 +1,6 @@
-import type { WorkspaceMemoryEntry } from "./memoryConfig";
+import type { WorkspaceMemoryEntry } from "./workspaceData";
 import type { CodebaseSearchHit } from "./ports/codebaseGateway";
-import type { WorkspaceAgentDoc, WorkspaceScope, WorkspaceSkill } from "./workspaceData";
+import type { WorkspaceAgentDoc, WorkspaceMemoryScope, WorkspaceSkill } from "./workspaceData";
 
 export interface WorkspaceCatalogViewModel<Row> {
   rows: Row[];
@@ -11,7 +11,7 @@ export interface WorkspaceCatalogViewModel<Row> {
 
 export interface WorkspaceMemoryRowViewModel {
   id: string;
-  scope: WorkspaceMemoryEntry["scope"];
+  scope: WorkspaceMemoryScope;
   scopeLabel: string;
   path: string;
   content: string;
@@ -66,7 +66,7 @@ export interface CodebaseSearchViewModel {
   isEmpty: boolean;
 }
 
-const SCOPE_LABEL: Record<WorkspaceScope, string> = {
+const SCOPE_LABEL: Record<WorkspaceMemoryScope, string> = {
   cwd: "cwd",
   projectRoot: "project root",
   home: "home",

@@ -50,7 +50,7 @@ export {
   type WorkspaceMemoryQuery,
   type WorkspaceProjectSummary,
   type WorkspaceReadFileQuery,
-  type WorkspaceScope,
+  type WorkspaceMemoryScope,
   type WorkspaceSkill,
   type ManagedSkillInfo,
   type SkillDraftInfo,
