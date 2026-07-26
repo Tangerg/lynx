@@ -36,7 +36,7 @@ export interface LyraHostBridge {
 let bridgeInstalled = false;
 let beforeUnloadHandler: (() => void) | null = null;
 
-export function installHostBridge(): void {
+export function publishHostBridge(): void {
   if (typeof window === "undefined") return;
   window.__LYRA__ = {
     apiVersion: HOST_API_VERSION,

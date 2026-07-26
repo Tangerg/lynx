@@ -423,6 +423,7 @@ export const ko: Record<string, string> = {
   "tools.builtin": "내장 도구",
   "tools.mcp": "MCP 서버",
   "tools.reconnect": "재연결",
+  "tools.reconnectFailed": "{{server}}에 다시 연결하지 못했습니다",
   "tools.empty.title": "MCP 서버가 구성되지 않음",
   "tools.empty.sub": "MCP 설정에서 서버를 추가하여 agent에 도구를 노출하세요.",
   "tools.footer": "설정에서 MCP 서버 관리",

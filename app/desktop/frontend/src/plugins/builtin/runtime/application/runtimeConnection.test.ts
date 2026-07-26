@@ -13,7 +13,7 @@ import {
   currentRuntimeEndpoint,
   resetRuntimeEndpoint,
 } from "./runtimeConnection";
-import { installEndpointMirror } from "../adapters/endpointMirror";
+import { mirrorRuntimeEndpoint } from "../adapters/endpointMirror";
 
 function connectionHost(initial?: string): {
   host: Pick<Host, "config" | "storage">;
@@ -52,7 +52,7 @@ describe("runtime connection", () => {
   it("restores the persisted endpoint before Runtime discovery starts", () => {
     const { host } = connectionHost("http://127.0.0.1:27171");
 
-    installEndpointMirror(host);
+    mirrorRuntimeEndpoint(host);
 
     expect(currentRuntimeEndpoint()).toBe("http://127.0.0.1:27171");
   });
@@ -78,7 +78,7 @@ describe("runtime connection", () => {
 
   it("persists published changes through the Runtime-owned adapter", () => {
     const { host, stored } = connectionHost();
-    installEndpointMirror(host);
+    mirrorRuntimeEndpoint(host);
 
     setConfig(RUNTIME_ENDPOINT_CONFIG_KEY, "http://127.0.0.1:27171" as ConfigValue);
 

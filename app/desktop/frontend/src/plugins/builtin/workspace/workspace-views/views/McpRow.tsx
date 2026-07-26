@@ -120,7 +120,7 @@ export function McpRow({ server }: { server: MCPServer }) {
           iconSize={13}
           title={t("tools.reconnect")}
           disabled={connecting}
-          onClick={() => reconnectMCPServer(server.id)}
+          onClick={() => reconnectMCPServer(t, server.id)}
           className={cn(connecting && "animate-spin")}
         />
       </div>

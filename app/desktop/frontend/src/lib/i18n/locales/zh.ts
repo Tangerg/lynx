@@ -551,6 +551,7 @@ export const zh: Record<string, string> = {
   "tools.builtin": "内置工具",
   "tools.mcp": "MCP 服务器",
   "tools.reconnect": "重新连接",
+  "tools.reconnectFailed": "无法重新连接到 {{server}}",
   "tools.empty.title": "未配置 MCP 服务器",
   "tools.empty.sub": "在 MCP 设置中添加服务器以向 agent 暴露工具。",
   "tools.footer": "在设置中管理 MCP 服务器",

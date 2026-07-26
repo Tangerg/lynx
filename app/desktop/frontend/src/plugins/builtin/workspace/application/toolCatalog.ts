@@ -1,4 +1,5 @@
 import type { Translate } from "@/lib/i18n";
+import { notifyError } from "@/plugins/sdk";
 import type { Tone } from "@/lib/tone";
 import {
   useMCPServers,
@@ -53,10 +54,15 @@ export function useMCPServerToolConfigs(server: string) {
   return useMCPTools({ server });
 }
 
-export function reconnectMCPServer(server: string): void {
+export function reconnectMCPServer(t: Translate, server: string): void {
   toolCatalogGateway()
     .reconnectMCPServer(server)
-    .catch((err: unknown) => console.warn("[mcp] reconnect failed:", err));
+    .catch((err: unknown) => {
+      // A console line reads as "the button did nothing" — the same reason session
+      // mutations all report through one notifier.
+      console.warn("[mcp] reconnect failed:", err);
+      notifyError(t("tools.reconnectFailed", { server }));
+    });
 }
 
 export function toolCatalogViewModel(servers: readonly MCPServer[]): ToolCatalogViewModel {

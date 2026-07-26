@@ -434,6 +434,7 @@ export const de: Record<string, string> = {
   "tools.builtin": "Integrierte Werkzeuge",
   "tools.mcp": "MCP-Server",
   "tools.reconnect": "Neu verbinden",
+  "tools.reconnectFailed": "Verbindung zu {{server}} konnte nicht wiederhergestellt werden",
   "tools.empty.title": "Keine MCP-Server konfiguriert",
   "tools.empty.sub":
     "Füge einen Server in den MCP-Einstellungen hinzu, um dem Agenten Werkzeuge bereitzustellen.",

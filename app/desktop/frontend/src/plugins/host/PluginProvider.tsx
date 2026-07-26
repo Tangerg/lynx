@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { TooltipProvider } from "@/ui";
 import { builtinPlugins } from "../builtin";
-import { installHostBridge } from "./hostBridge";
+import { publishHostBridge } from "./hostBridge";
 import { loadPlugins, usePluginStore } from "../sdk";
 import { loadSideloadedPlugins, tagAllAsBuiltin } from "./sideload";
 
@@ -33,7 +33,7 @@ export function PluginProvider({ children }: Props) {
     // Bridge is sync (static imports). Install before anything else so
     // sideloaded plugins that touch window.__LYRA__ at module-evaluation
     // time can see it.
-    installHostBridge();
+    publishHostBridge();
 
     void (async () => {
       await loadPlugins(builtinPlugins);

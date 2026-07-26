@@ -427,6 +427,7 @@ export const zhTW: Record<string, string> = {
   "tools.builtin": "內建工具",
   "tools.mcp": "MCP 伺服器",
   "tools.reconnect": "重新連線",
+  "tools.reconnectFailed": "無法重新連線至 {{server}}",
   "tools.empty.title": "未設定 MCP 伺服器",
   "tools.empty.sub": "在 MCP 設定中新增伺服器以向 agent 暴露工具。",
   "tools.footer": "在設定中管理 MCP 伺服器",

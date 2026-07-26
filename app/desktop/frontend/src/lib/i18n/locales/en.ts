@@ -567,6 +567,7 @@ export const en: Record<string, string> = {
   "tools.builtin": "Built-in tools",
   "tools.mcp": "MCP servers",
   "tools.reconnect": "Reconnect",
+  "tools.reconnectFailed": "Couldn't reconnect {{server}}",
   "tools.empty.title": "No MCP servers configured",
   "tools.empty.sub": "Add a server in MCP settings to expose tools to the agent.",
   "tools.footer": "Manage MCP servers in settings",

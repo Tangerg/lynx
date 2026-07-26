@@ -428,6 +428,7 @@ export const ja: Record<string, string> = {
   "tools.builtin": "組み込みツール",
   "tools.mcp": "MCP サーバー",
   "tools.reconnect": "再接続",
+  "tools.reconnectFailed": "{{server}} に再接続できませんでした",
   "tools.empty.title": "MCP サーバーが設定されていません",
   "tools.empty.sub": "MCP 設定でサーバーを追加して agent にツールを公開します。",
   "tools.footer": "設定で MCP サーバーを管理",
