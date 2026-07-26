@@ -9,7 +9,8 @@
 > **结论分三级，正文逐条标注**：
 > - **【已核实】** 已在本仓库代码中确认的事实（附证据位置，符号级、不写行号）。
 > - **【设计判断】** 基于第一性与项目法则的取舍建议，未经确认不落地。
-> - **【待定】** 有两种合理解，需要决策而不是继续讨论。
+> - **【已裁决】** 已在 §19.2 落定（结论 / 理由 / 影响 / 被替代方案），可以照它动手。
+> - **【待定】** 有两种合理解，需要决策而不是继续讨论（§19.3 剩三项，均为实现期数值）。
 >
 > **裁决立场**：对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md)（薄核 / 窄腰 / 一个扩展机制）与 [`../../CLAUDE.md`](../../CLAUDE.md)（第一法则不留债、第二法则治本、YAGNI）判"该不该学"，而非见特性就抄。引擎能力对比见 [`RUNTIME_COMPARISON.md`](RUNTIME_COMPARISON.md)，GUI 形态见 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md)。
 >
@@ -23,13 +24,13 @@
 
 ## 0. TL;DR
 
-**守 6 条**（比三家更有原则，动它即回归）：领域中立工具信封 · durable 事件是投影而非存储 · HITL R 模型 · 一个判别字段 `type` · 无状态 per-request 能力协商 · 核心/旁路分离 + 三扩展缝。
+**守 7 条**（比三家更有原则，动它即回归）：领域中立工具信封 · durable 事件是投影而非存储 · HITL R 模型 · 一个判别字段 `type` · 无状态 per-request 能力协商 · **可推导的事实不上 wire** · 核心/旁路分离 + 三扩展缝。
 
 **吸收 4 条**：① 可执行契约注册表 → 机器可读制品（method 名现在写四遍）；② 精确状态 + 并发前置条件（`waiting` 一等、`expectedSegmentId`、subscribe 绑 segment）；③ 把 `durable` 拆成 **authoritative / replayable / ephemeral** 三级；④ 高层 SDK 流句柄（wire 保持窄，复杂度收在客户端库）。
 
 **修 9 类**（§15 逐条附证据）：wire 把 parked run 报成 `finished` · `RunOutcome` 混入 `interrupt` · steer 无执行实例前置 · subscribe 只绑 runId 且三种情况同一个错 · replay cursor 无归属校验（重启后会静默跳过 replay）· **跨 Segment 计量无闭合语义（interrupt 边界不带计量）** · MCP 工具 identity 文档与代码不同 · **前端存在第二份手写错误码表且已错值** · 一批文档与类型漂移。
 
-**待裁决 7 项**：见 §19 决策簿——计量 shape · duration 口径 · cursor 编码与 retention · interrupt 查询命名 · `ProblemData` 字段 · 注册表实现方式 · 控制面推送的触发条件。
+**七项已裁决**（§19.2，breaking 已授权）：计量走 Run 累计快照 · duration 只留 `activeDurationMs` · cursor 自带 epoch 且 subscribe 绑 segment · `interrupts.list` 取代 `runs.listOpenInterrupts` · 删 `ProblemData.channel` 与 `retryable` · Registry 用显式 descriptor + 字段 reflection · `runtime.subscribe` 完整替换 `workspace.subscribe`。
 
 **拒 8 条**：REST 影子面 · 常开全局 SSE 总线 · 强制连接握手 · server→client request · per-tool Item 联合膨胀 · per-event 版本化与 V1/V2 并存 · 业务错误映 HTTP status · 把进程内 SDK 消息联合当 wire。
 
@@ -72,14 +73,15 @@ Agent：同一个 Run 跨若干 Segment 推进，产出一条权威 Item 时间�
 
 ---
 
-## 3. 必须守住（6 条）
+## 3. 必须守住（7 条）
 
 1. **领域中立 `ToolInvocation`**：核心只认 `{name, arguments, result}`，富渲染走客户端展示注册表，加工具零协议成本。**判据**：任何"给某类工具加 wire 一等类型"的提案一律拒。
 2. **durable 事件是投影，不是存储**：durability 是 `event.type` 的纯函数（不每帧冗余携带），权威落点在 Item + SQLite。**判据**：任何要给单个事件加 `version` 的提案都是事件源化第一步，拒。
 3. **HITL R 模型**：interrupt 收尾当前 segment、资源释放、待解项 durable、任意客户端可 resume。**判据**：不引入 server→client request；不让正确性依赖某个客户端在线。
 4. **一个判别字段 `type`**（`kind` 禁上 wire）：给人和 codegen 同时省事的硬规则，不是洁癖。
 5. **无状态 per-request 能力协商**：能力随 `params._meta` 走，server 不维护 client 连接注册表。**这是最适合我们"同一语义跑多 transport + 多客户端"目标的形态**（握手式协商必须回答"这条连接的能力是谁的能力"），不是断言它对所有系统都唯一自洽——单宿主长连接系统里握手更合适。
-6. **核心/旁路分离 + 三扩展缝**：核心只 sessions/runs/items；新增旁路能力先选它**真实的**协议根（`workspace.*` 只放工作树视图，skills / recipes / agentDocs / mcp / hooks / codebase 各自顶层根）；"额外的东西"先过 Item / state / custom 选择表，并统一走 `plugin:<name>/` 命名空间。
+6. **可推导的事实不上 wire**（本轮命名的既有原则）：字段只承载**无法从上下文或其它字段推导**的量。已按它做出的五个决定互为印证——per-frame `durable`（可由 `event.type` 推导）· `ProblemData.channel`（可由落点推导）· `retryable`（可由 `type` 推导）· 墙钟 duration（可由 `createdAt`/`finishedAt` 推导）· `object`/`resourceType` 字段（可由 id 前缀推导）。**判据**：新字段先问"客户端能不能自己算出来"——能，就别加；不能，才加。冗余字段的代价不是几个字节，是它**必然与推导源漂移**。
+7. **核心/旁路分离 + 三扩展缝**：核心只 sessions/runs/items；新增旁路能力先选它**真实的**协议根（`workspace.*` 只放工作树视图，skills / recipes / agentDocs / mcp / hooks / codebase 各自顶层根）；"额外的东西"先过 Item / state / custom 选择表，并统一走 `plugin:<name>/` 命名空间。
 
 ---
 
@@ -151,19 +153,17 @@ type SegmentOutcome = { type: "interrupt"; interrupts: Interrupt[] } | RunOutcom
 
 `segment.finished` 携带 `SegmentOutcome`；`RunRef.outcome` 只携带 `RunOutcome`。这一改同时消灭"已完成但还能继续"的非法心智，和"哪个 outcome 属于哪一层"的模糊。**破坏性**：见 §16 P1。
 
-### 5.3 跨 Segment 计量必须闭环【已核实 + 待定】
+### 5.3 跨 Segment 计量必须闭环【已核实 + 已裁决】
 
 Run 跨 resume 保持身份，计量就不能在每段悄悄归零。**已核实的缺口**：`delivery/server/presenter_run.go` 在 `Interrupted` 分支返回的是 `RunOutcome{Type: OutcomeInterrupt, Interrupts: …}`——**不带 `Result`**。也就是说停车边界上客户端拿不到任何 authoritative 的 usage / steps 快照；要显示"这次运行已花了多少"，只能另查 `usage.session` 或丢掉这段的部分值。
 
-目标语义（**落地前需裁决**，见 §19）：
+**已裁决（§19.2 第 1、2 项）**：
 
-- `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**的限制；若契约定义为含 subagent 树，resume 后仍按同一棵树累计；
-- **每次 `segment.finished` 都带停止边界上的 authoritative 计量快照，`interrupt` 不例外**；
-- 最终 `RunResult` 是各段的累计终值，不能只反映最后一段；
-- subagent 自身用量与 root 聚合用量各有唯一口径，不让客户端自己求和后再猜有没有重复计；
-- `segment.progress` 可以近似/节流/丢帧，但**不得**成为计费与预算判断的唯一来源。
-
-**duration 是独立待决项**：`elapsedDurationMs`（创建→Finished，含等人）/ `activeDurationMs`（各执行段之和，不含 Waiting）/ `segmentDurationMs`（单段）回答三个不同问题。当前只有一个 `durationMs` 且文档定义为"跨 interrupt/resume 的墙钟耗时"——它同时被当性能指标和用户端总耗时用，必须先定它是哪一个，再决定是否需要第二个字段。
+- **每次 `segment.finished`（含 `interrupt`）携带 Run 的累计快照**，terminal `RunResult` 用同一口径。**理由是幂等**：累计快照重放/重复 fold 都不会多算；per-segment 增量值一旦被 replay 就会双计——而"想看单段花了多少"可以两次快照相减得到（可推导，见 §3.6）。
+- **累计口径含 subagent 子树**（与 `maxBudgetUsd` 已定义为含子树一致）；每个 subagent 的 `RunRef` 另带它自己的用量。**客户端永不需要自己求和，也就不必猜有没有重复计。**
+- `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**限制，跨 resume 按同一棵树继续累计。
+- `segment.progress` 可近似 / 节流 / 丢帧，**不得**成为计费与预算判断的唯一来源。
+- **duration 只留一个不可推导的量**：`activeDurationMs`（各执行段之和，**不含 Waiting**，累计）。墙钟耗时由 `createdAt` / `finishedAt` **推导**，不再存字段；单段时长归 observability，不进 wire。现有 `durationMs`（"跨 interrupt/resume 的墙钟"）同时被当性能指标和用户总耗时用，**删除**。
 
 ### 5.4 所有权
 
@@ -244,7 +244,14 @@ workspace、mcp、providers、models、memory、schedules、goals 等继续是 c
 - replay 保留窗口（时长 / 事件数 / 仅当前进程）由 capability `limits` 明示；
 - 服务端**可以**把 segment/epoch/position 编进 opaque id，但那不是客户端契约。
 
-**归属校验的两种形态（决策输入）**：opencode v2 把流身份放进**地址**（`GET /api/session/:id/event?after=<seq>`，cursor 是该 aggregate 的显式 seq），归属由资源路径**结构性**保证——最干净，但要求"一条流一个 URL"。我们的 cursor 按既有元数据划分是**带外**（`Last-Event-Id`），所以归属必须靠 **P1 让 `runs.subscribe` 绑 `segmentId` 到 params** 来补：params 里的 segment 身份 + 头部的 cursor 合起来，server 才有足够信息判定 ownership。**结论**：不必把 cursor 挪进 params（那会破坏元数据划分规则），但没有 segmentId 参数的 subscribe 就永远无法校验 cursor。
+**已裁决（§19.2 第 3 项）**：
+
+- **寻址用 params 的 `{runId, segmentId}`**，cursor 仍走带外 `Last-Event-Id`（符合既有元数据划分）；
+- **opaque cursor 内部编码 `version + epoch + segment + sequence`**——这是让带外 cursor 可被校验的关键：server 无需查任何状态就能判定它是否属于本流、是否来自上一个进程 epoch；
+- 归属不符 → `replay_cursor_invalid`；窗口已淘汰 / epoch 已换 → `replay_unavailable`（两者分开报，客户端一个重订阅、一个转冷恢复）；
+- replay 只保证**当前进程**、有限窗口，retention 在 capability `limits` 里明示。
+
+**对照**：opencode v2 把流身份放进**地址**（`GET /api/session/:id/event?after=<seq>`），归属由资源路径结构性保证——最干净，但要求"一条流一个 URL"。我们选"params 带 segment + cursor 自带 epoch"，代价是编码约定，收益是不破坏元数据划分规则。**无论哪条路，没有 segmentId 参数的 subscribe 都永远无法校验 cursor**——这让 P1 里"subscribe 绑 segment"从"更清晰"变成"否则做不到"。
 
 ### 7.4 慢消费者
 
@@ -342,14 +349,14 @@ clientTools                → 继续显式协商（它要求客户端干活）
 
 不把所有错误塞进 RPC error，也不把 admission 错误伪装成一个已经开始的 Run。**HTTP status 只表示 transport**：业务错误一律 HTTP 200 + JSON-RPC error；malformed HTTP / 门禁 / content-type / body size 才用 status；开流后的业务失败在 SSE 内收尾；sidecar health/info 不进 JSON-RPC。
 
-### 11.2 `ProblemData` 字段重评【待定 —— 需决策】
+### 11.2 `ProblemData` 字段【已裁决（§19.2 第 5 项）】
 
-保留：`type`（稳定符号，唯一判别键）、`detail`、`docUrl`、`errors[].field`、`retryAfterSeconds`。
+**保留**：`type`（稳定符号，唯一判别键）、`detail`、`docUrl`、`errors[].field`、`retryAfterSeconds`（backoff hint）。
 
-两个字段建议重评，理由与我们删掉 per-frame `durable` **同构**（可从上下文推导的冗余字段必然漂移）：
+**删除两个**，依据 §3.6"可推导的事实不上 wire"：
 
-- **`channel`**：错误的物理落点已经决定了 channel（RPC 响应 / `segment.finished` / `toolCall.error`），字段是冗余的。**但**当前文档用它区分"同名不同物"的 `provider_rejected`（run 级）与 `invalid_request`（RPC 级）——**治本是让这两个不同的东西不同名，而不是留一个字段去区分它们**。决策项：先改名再删 `channel`；或保留 `channel` 作为脱离上下文（日志 / 存档）时的自描述。
-- **`retryable`**：语义是"暂时性"，但客户端容易读成"可以安全自动重试这次 mutation"——后者取决于 method + Idempotency-Key。决策项：改名 `transient`，或保留并在文档里把两件事说开。
+- **`channel`**：物理落点已经决定了它（RPC 响应 / `segment.finished` / `toolCall.error`）。**前置顾虑已核实排除**：`errors.go` 里没有任何两个不同含义共用一个 symbolic type；唯一跨通道复用的 `provider_error` 在两个通道里**是同一件事**（provider 请求失败的兜底），所以删掉 `channel` 不产生歧义。文档里那句"同名不同物靠 channel 区分"是过时表述，随字段一起删。
+- **`retryable`**：它想说"暂时性"，客户端却会读成"这次 mutation 可以安全自动重试"——后者只由 method + Idempotency-Key 决定。而暂时性本身是 `type` 的属性（`rate_limited` / `timeout` / `provider_unavailable` 暂时，`invalid_api_key` / `provider_rejected` 不暂时），**在错误码表里逐 type 写明即可**。**不改名 `transient`**——改名只是把一个可推导字段换个说法。
 
 ### 11.3 错误必须可行动
 
@@ -375,6 +382,8 @@ Go DTO / union metadata  +  Method Registry
 **method 名不能在 dispatcher、前端、Markdown、测试里手写四遍。**
 
 **样本必须保持独立【重要陷阱】**：canonical sample **不能**由 Registry 生成后再拿去验证 Registry——那是同源自证，闸会永远绿。Registry 只负责生成**样本索引 + 缺口检查**（哪个变体没有样本），真实 wire fixture 仍是**人工审阅**的，并由 Go / TS / schema **三方各自独立**验证。这也是 golden sample 与 schema 互为补充、彼此不可替代的原因。
+
+**实现方式已裁决（§19.2 第 6 项）**：**显式 typed Go descriptor + 显式 union metadata，字段 schema 用 reflection**。理由——纯 reflection 拿不到方法表、错误集、stability、幂等性这些无法从类型推导的事实；AST 注解则不可编译检查、review 时看不出效果。显式 descriptor 是**可编译、可 review、可被 dispatcher 与生成器共同消费**的那一份，reflection 只干"结构体字段 → schema"这件机械活。
 
 ### 12.2 为什么不引入 TypeSpec / CUE 作新 SSOT
 
@@ -481,7 +490,7 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 
 ### P1 · 核心生命周期治本（**破坏性，已授权**）
 
-> **先冻结语义、再冻结 shape**：这一批动手前，§19 的 1–4 项（计量 shape / duration 口径 / cursor 编码与 retention / interrupt 查询命名）必须先有结论——否则会在实现过程里被悄悄决定。
+> **语义已冻结（§19.2 七项全部落定），可以动 shape 了。** §19.3 剩下的三项是实现期填的数值与表达形态，不阻塞本批。
 
 - `RunStatus` 加 `waiting`；`RunOutcome` 移出 `interrupt`；`SegmentOutcome` 承载它；
 - 每次 `segment.finished`（含 `interrupt`）带 authoritative 计量边界，`RunResult` 可从各段确定性聚合（§5.3）；
@@ -489,7 +498,8 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 - `runs.steer` 加 `expectedSegmentId`、输入改 `ContentBlock[]`；
 - `runs.subscribe` 绑 `segmentId`；
 - 新增可行动错误：`run_waiting` / `run_finished` / `replay_cursor_invalid` / `replay_unavailable`；
-- 待处理面统一（若采纳 `interrupts.list` 命名，**只在本批一起改**，不单独为改名做一次破坏性变更）。
+- `interrupts.list` 取代 `runs.listOpenInterrupts`（§19.2 第 4 项）；
+- 删 `durationMs`、改 `activeDurationMs`；删 `ProblemData.channel` 与 `retryable`（§19.2 第 2、5 项）。
 
 **影响面**：wire + 前端 reducer + golden samples + `protocolVersion` bump。**验收**：domain / application / wire / 前端使用同一状态机；running↔waiting↔finished 全部 transition 有测试；Waiting 可 cancel；Finished 永不可 resume；stale steer 确定性拒绝。
 
@@ -497,20 +507,24 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 
 Registry → OpenRPC + JSON Schema + canonical samples 补全 + §12.4 的 drift gate。**先只做这一圈**；TS validator 只覆盖 authoritative/terminal 帧，typed client 与 compatibility diff 等有真实第三方客户端再说（YAGNI）。
 
-### P2 · 控制面推送（**先测量，再决定是否 additive**）
+### P2 · 控制面收敛（**破坏性，与 P1 同版本；"先测量"已撤销**）
 
-**根因【已核实】**：非当前流的 run / 会话 / goal 状态没有推送落点——goal 模式在前端定时轮询 `goals.get`，schedules 触发的 headless run 只能靠 `schedules.fired` 提示去重拉列表。
+**根因【已核实】**：非当前流的 run / 会话 / goal 状态没有推送落点——goal 模式在前端定时轮询 `goals.get`，schedules 触发的 headless run 只能靠 `schedules.fired` 提示去重拉列表。同时 `workspace.subscribe` 今天就已经承载 `mcp.serverChanged` / `skills.changed` / `schedules.fired`——**五种事件里只有 `files.changed` 和工作树 resync 真属于 workspace**。
 
-**本篇上一版推荐"塞进 `workspace.subscribe`"，撤回**——那违反本篇 §3.6 自己写的领域根规则（`workspace.*` 只表示工作树），是拿"已经有一条流"当理由寄生到错误的根上。而"新开 `sessions.subscribe`"也不对：它容不下 goal / schedule / MCP 这些非会话的 runtime 级失效事件。
+**已裁决（§19.2 第 7 项）**：**用一条带非空 `topics` 的 `runtime.subscribe` 完整替换 `workspace.subscribe`**，同版本一次迁移、**不双发**。
 
-**目标顺序**：
+**两次撤回，理由要留着**：
+- 撤回本篇最初的"塞进 `workspace.subscribe`"——那违反 §3.7 自己写的领域根规则，是拿"已经有一条流"当理由寄生到错误的根上；
+- 撤回上一版的"先测量再决定"——**决定性论据不是轮询成本，是连接预算**：`TRANSPORT.md §6.5` 已确认，明文 loopback 上浏览器 / WebView **只走 HTTP/1.1、每 origin 约 6 条并发连接**（不支持 h2c），而**每条活跃流占一条且整段不释放**。所以"常驻长流"是一个**只有 6 格的预算**：留两条常驻（workspace + runtime）就吃掉两格，还要和活跃 run 抢。**一条可过滤的流不是审美选择，是预算算术。**
 
-1. **先测量**：轮询频率、后台 run 数量、状态陈旧对 UX 的真实影响。成本可接受就继续轮询——**不为架构对称性加一条长流**。
-2. 触发条件（任一）达到后，新增职责真实、**可过滤**的 `runtime.subscribe`：per-call 流、符合 Streamable HTTP、不是 server→client request、不维护客户端连接身份。
-3. 事件**只做 invalidation**，权威事实仍由 sessions / runs / goals / interrupts 查询面提供；支持 `resync` 让客户端在丢帧或重连后统一 refetch。
-4. **归位是一次 breaking migration，不是顺手搬家**：`workspace.subscribe` 今天已经承载 `mcp.serverChanged` / `skills.changed` / `schedules.fired`——只有 `files.changed` 与工作树 watch/resync 真属于 workspace。若 `runtime.subscribe` 落地，这三个应迁入它；但旧客户端仍在 `workspace.subscribe` 上等这些事件，**两条流短期双发会造出两个真相源**。所以：迁移与 `protocolVersion` + capability + 生成 SDK **同批一次完成**，dev 阶段**不留长期双发兼容层**。
+**形状**：
 
-**不回退到常开、无过滤的全局 SSE 总线。**
+1. `runtime.subscribe{ topics, watches? }`——per-call 流、符合 Streamable HTTP、不是 server→client request、不维护客户端连接身份；`topics` **必须非空**（不给"什么都订"的懒惰入口，也就不会退化成全局广播）。
+2. 事件**只做 invalidation**，权威事实一律由 sessions / runs / goals / interrupts / workspace 查询面提供；`resync` 让客户端在丢帧或重连后统一 refetch。
+3. **`files.changed{watchId, paths}` 不违反"只做 invalidation"**：paths 正是"该重取哪些"的作用域，权威内容仍来自 `workspace.readFile`。watch 注册留在 subscribe 参数里（`watches`），是订阅参数、不是事件形状问题。
+4. 迁移与 `protocolVersion` + capability + 生成 SDK **同批一次完成**；dev 阶段**不留双发兼容层**（双发 = 两个真相源）。落地后删掉 goal 轮询。
+
+**不回退到常开、无过滤的全局 SSE 总线**——`topics` 非空 + per-call 正是与它的分界。
 
 ### P3 · 加固与便利
 
@@ -578,17 +592,25 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 - 控制面归位是**与版本同批的一次迁移**，dev 阶段不留双发兼容层（§16 P2）；
 - 对照描述要分级：opencode 的 volatile 全局流与 per-session durable 流是**两层**，不能混写（§2）；Codex 强类型 item 的代价限定为"每类新**执行类别**动三处"，不是"每个新工具"（§2）。
 
-### 19.2 下一轮需要逐项裁决
+### 19.2 本轮裁决结果（2026-07-27，breaking 已授权）
 
-| # | 决策项 | 两种（或多种）解 | 前置材料 |
-|---|---|---|---|
-| 1 | **计量 shape** | `interrupt` 边界带**本段值**，还是带 **Run 累计快照**；最终 `RunResult` 怎么表达 subagent 聚合 | 现有 usage 消费者清单（UI / 预算 / `usage.summary` 归因） |
-| 2 | **duration 口径** | 只保留一个明确含义，还是同时给 `active` / `elapsed` | 现有 UI、预算、调度三处的实际读法 |
-| 3 | **cursor 编码与 retention** | opaque id 是否显式含 epoch/segment；归属如何校验；重启后何时返回 `replay_unavailable` | §7.3 的三个漏洞 + 重连实测；对照 opencode 的"流身份进地址 + 显式 seq"形态 |
-| 4 | **Interrupt 查询命名** | 保留 `runs.listOpenInterrupts`，还是在同批 breaking 里收敛为 `interrupts.list` | 只在 P1 一起改，不单独为改名做破坏性变更 |
-| 5 | **`ProblemData`** | `channel` 删除还是留作脱上下文自描述；`retryable` 删除 / 改名 `transient` / 补清与幂等重试的区别 | 先解决 `provider_rejected` vs `invalid_request` 同名不同物（§11.2） |
-| 6 | **注册表实现方式** | Go reflection / AST 注解 codegen / 显式 registry metadata | 以"能否可靠生成 union discriminator + 方法表"实测裁决 |
-| 7 | **控制面触发条件** | 继续轮询，还是新增可过滤 `runtime.subscribe`（并把三个寄生事件归位） | goal 轮询与后台 run 的实测成本；多客户端 interrupt 失效是否真需求 |
+> 七项全部落定。每条格式：**结论 / 理由 / 影响 / 被替代方案**。落地批次见 §16。
+
+| # | 结论 | 理由 | 影响 | 被替代方案 |
+|---|---|---|---|---|
+| 1 | **计量 = Run 累计快照**：每次 `segment.finished`（含 `interrupt`）与 terminal `RunResult` 同口径，含 subagent 子树；subagent `RunRef` 另带自身用量 | **幂等**：累计快照重放不多算，per-segment 增量一被 replay 就双计；单段值可两快照相减推导 | wire + presenter；`protocolVersion` bump | per-segment 增量值 |
+| 2 | **duration 只留 `activeDurationMs`**（不含 Waiting，累计）；删 `durationMs`；墙钟由 `createdAt`/`finishedAt` 推导；单段时长归 observability | §3.6：可推导的不上 wire；一个字段一个含义 | wire + 前端读法；bump | 保留 `durationMs` / 同时给 `elapsed` + `active` |
+| 3 | **cursor**：params 带 `{runId, segmentId}` 寻址；opaque cursor 内含 `version+epoch+segment+sequence`；仅当前进程有限窗口，retention 进 `limits`；`replay_cursor_invalid` 与 `replay_unavailable` 分开 | 一次解决跨段误用、重启 epoch、窗口淘汰、冷恢复分支四件事；cursor 自带 epoch 才能在带外校验 | `runs.subscribe` 签名 + journal + SDK；bump | 流身份进地址（opencode 形态）——更干净但要求"一条流一个 URL" |
+| 4 | **`interrupts.list` 取代 `runs.listOpenInterrupts`**，P1 同批 | durable 待处理项是独立资源，"收件箱"心智；breaking 已授权且同批无额外成本 | 方法名 + 前端；bump | 保留旧名（本篇上一版立场） |
+| 5 | **删 `channel` 与 `retryable`**；不改名 `transient`；留 `retryAfterSeconds` | §3.6：落点已表达 channel、`type` 已表达暂时性；已核实无跨通道同名歧义 | `ProblemData` + 错误码表逐 type 标注暂时性；bump | 保留 `channel` 作脱上下文自描述 / `retryable`→`transient` |
+| 6 | **Registry = 显式 typed Go descriptor + 显式 union metadata + 字段 reflection**；dispatcher 与生成器消费同一份 | 方法表/错误集/stability/幂等性无法从类型推导，必须显式；AST 注解不可编译检查 | 新增构建产物 + CI gate；无 wire 改动 | 纯 reflection / AST 注解 codegen / schema-first DSL |
+| 7 | **`runtime.subscribe{topics, watches?}` 完整替换 `workspace.subscribe`**，同版本一次迁移、不双发；`topics` 必须非空 | **连接预算**：loopback HTTP/1.1 每 origin ~6 条、每条活跃流占一条不释放，常驻两条流是预算算术问题不是审美；且现有流已混了三类非工作树事件 | 事件集 + 前端订阅 + SDK；bump | 继续轮询（先测量）/ 只加不换 / `sessions.subscribe` |
+
+### 19.3 仍开放（实现期定，不阻塞 P1）
+
+- replay retention 的**具体数值**（窗口时长 / 事件数上限）——按实测填进 `limits`；
+- `runtime.subscribe` 的 **topics 枚举最终集**（至少覆盖 session 状态 / goal / interrupt 失效 / mcp / skills / schedules / workspace 文件）；
+- Registry 的 union metadata 表达形态（能否可靠生成 `oneOf + discriminator`）——以实测裁决，失败则退回"只生成方法表 + 字段 schema"。
 
 ---
 
