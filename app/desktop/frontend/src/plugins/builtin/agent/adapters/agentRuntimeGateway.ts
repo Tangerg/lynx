@@ -1,7 +1,8 @@
 import { getContainer } from "@/main/container";
-import { asRunId, asSessionId, isErrorType } from "@/rpc";
+import { asRunId, asSessionId, eachPage, isErrorType } from "@/rpc";
+import type { Item } from "@/rpc";
 import { configureAgentRuntimeGateway } from "../application/ports/runtimeGateway";
-import type { AgentRuntimeGateway } from "../application/ports/runtimeGateway";
+import type { AgentRunHistoryRef, AgentRuntimeGateway } from "../application/ports/runtimeGateway";
 
 const gateway: AgentRuntimeGateway = {
   async createSession(input, signal) {
@@ -30,10 +31,20 @@ const gateway: AgentRuntimeGateway = {
     return { id: fork.id };
   },
   async loadSessionHistory(sessionId) {
-    const { data, runs } = await getContainer()
-      .client()
-      .items.list({ sessionId: asSessionId(sessionId) });
-    return { items: data, runs };
+    const items: Item[] = [];
+    const runs = new Map<string, AgentRunHistoryRef>();
+    await eachPage(
+      (cursor) =>
+        getContainer()
+          .client()
+          .items.list({ sessionId: asSessionId(sessionId), cursor }),
+      (page) => {
+        items.push(...page.data);
+        // The run refs ride along with every page; keep one of each.
+        for (const run of page.runs) runs.set(run.id, run);
+      },
+    );
+    return { items, runs: [...runs.values()] };
   },
   loadSessionUsage(sessionId) {
     return getContainer().client().usage.session(asSessionId(sessionId));

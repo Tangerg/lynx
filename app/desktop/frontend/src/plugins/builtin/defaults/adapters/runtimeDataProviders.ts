@@ -53,7 +53,7 @@ import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
 import type { McpServer as RpcMCPServer } from "@/rpc";
 import { getContainer } from "@/main/container";
 import { DATA_PROVIDER } from "@/plugins/sdk/kernelPoints";
-import { asSessionId } from "@/rpc";
+import { collectPages, asSessionId } from "@/rpc";
 import { runtimeCapability } from "@/plugins/builtin/runtime/public/capabilities";
 import {
   emptyPageIfUngated,
@@ -85,7 +85,10 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
 
   contribute({
     key: AGENT_SESSIONS_KEY,
-    fetcher: async () => (await client().sessions.list()).data.map(toAgentSessionSummary),
+    fetcher: async () =>
+      (await collectPages((cursor) => client().sessions.list({ cursor }))).map(
+        toAgentSessionSummary,
+      ),
   });
   contribute({
     key: WORKSPACE_PROJECTS_KEY,
@@ -334,7 +337,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
     key: SCHEDULES_KEY,
     fetcher: async () => {
       if (!runtimeCapability("schedules")) return [];
-      return (await client().schedules.list()).data;
+      return await collectPages((cursor) => client().schedules.list({ cursor }));
     },
   });
   contribute({

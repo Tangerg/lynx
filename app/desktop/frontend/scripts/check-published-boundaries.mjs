@@ -68,6 +68,11 @@ function boundedContext(rel) {
   return rel.split("/")[0];
 }
 
+/** Source with comments removed — a rule about calls must not read prose. */
+function code(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+}
+
 const isWire = (rel) => rel.startsWith("rpc/");
 const isShared = (rel) => rel.startsWith("lib/");
 
@@ -138,6 +143,38 @@ for (const file of files(SRC)) {
         });
       }
     }
+  }
+
+  // A Page is a page. The runtime clamps sessions.list to 100, items.list to 200,
+  // runs.list / runs.listOpenInterrupts / schedules.list to 100, and it documents
+  // that a non-empty nextCursor is the "there is more" signal because it refuses to
+  // truncate silently — which puts the burden on the reader. Every callsite here
+  // read `data` and dropped the cursor (`nextCursor` appeared in the wire types and
+  // nowhere else), so a 250-item conversation displayed its oldest 200 and a 100+
+  // session list hid the rest — then told reconcileSessions those sessions were
+  // gone, which closes them.
+  //
+  // Two shapes: reading `.data` straight off one of these calls, and a module that
+  // calls one while mentioning no paging anywhere. The second is file-granular on
+  // purpose — a regex cannot tell which expression a cursor belongs to, and the
+  // mistake was whole modules that never mentioned paging at all. Naming
+  // `nextCursor` counts as paging, for a caller that walks it by hand.
+  if (
+    !isTest &&
+    !rel.startsWith("rpc/") &&
+    (/\b(?:sessions\.list|items\.list|runs\.list|listOpenInterrupts|schedules\.list)\([^)]*\)\s*\)?\s*\.data\b/.test(
+      code(text),
+    ) ||
+      (/\b(?:sessions\.list|items\.list|runs\.list|listOpenInterrupts|schedules\.list)\(/.test(
+        code(text),
+      ) &&
+        !/\b(?:collectPages|eachPage|nextCursor)\b/.test(code(text))))
+  ) {
+    violations.push({
+      file: rel,
+      reason:
+        "reads a paged method without following nextCursor — the runtime caps the page, so drain it (collectPages)",
+    });
   }
 
   if (/@\/lib\/data\/(?:queries|useUsage)/.test(text)) {

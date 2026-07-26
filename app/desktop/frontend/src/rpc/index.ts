@@ -20,6 +20,7 @@ export type { NotificationHandler, RpcClient } from "./client";
 export { isErrorType, RpcError, RpcTransportError } from "./errors";
 export { asEventId, asItemId, asRunId, asSegmentId, asSessionId } from "./ids";
 export type { EventId, ItemId, RunId, SegmentId, SessionId } from "./ids";
+export { collectPages, eachPage } from "./pagination";
 export { createMethods } from "./methods";
 export type { Methods, StreamingResult } from "./methods";
 export { createLyraClient } from "./sdk";

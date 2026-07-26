@@ -1,5 +1,5 @@
 import type { LyraClient, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
-import { asSessionId } from "@/rpc";
+import { asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
@@ -28,9 +28,11 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
   await replayHistory(options);
   if (stale(options)) return;
 
-  const open = await options.client.runs.listOpenInterrupts({ sessionId: sid });
+  const open = await collectPages((cursor) =>
+    options.client.runs.listOpenInterrupts({ sessionId: sid, cursor }),
+  );
   if (stale(options)) return;
-  for (const oi of open.data) {
+  for (const oi of open) {
     options.applyEvents([
       {
         event: {
@@ -47,17 +49,21 @@ async function recover(options: AgentSessionRecoveryOptions): Promise<void> {
     ]);
   }
 
-  const running = await options.client.runs.list({ sessionId: sid });
+  const running = await collectPages((cursor) =>
+    options.client.runs.list({ sessionId: sid, cursor }),
+  );
   if (stale(options)) return;
-  const root = running.data.find((run) => !run.spawnedByItemId);
+  const root = running.find((run) => !run.spawnedByItemId);
   if (root) await attachRootRun(options, root);
 }
 
 async function replayHistory(options: AgentSessionRecoveryOptions): Promise<void> {
-  const resp = await options.client.items.list({ sessionId: asSessionId(options.sessionId) });
-  if (stale(options) || resp.data.length === 0) return;
+  const items = await collectPages((cursor) =>
+    options.client.items.list({ sessionId: asSessionId(options.sessionId), cursor }),
+  );
+  if (stale(options) || items.length === 0) return;
   options.applyEvents(
-    resp.data.map((item): FoldEvent => ({ event: { type: "item.completed", item } })),
+    items.map((item): FoldEvent => ({ event: { type: "item.completed", item } })),
   );
 }
 
