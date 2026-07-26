@@ -37,12 +37,16 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	proc, done, err := engine.Start(ctx, gate,
+	segment, err := engine.Start(ctx, gate,
 		core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	<-done
+	completion := awaitSegment(t, segment)
+	if err := completion.Error(); err != nil {
+		t.Fatalf("start segment: %v", err)
+	}
+	proc := segment.Process()
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("after start: status = %v, want waiting", proc.Status())
 	}

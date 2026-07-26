@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
 )
 
 // runCleanupTimeout bounds the request-detached work that tears a run down /
@@ -147,12 +149,10 @@ func (h *handle) wait(ctx context.Context) error {
 	if h == nil || h.done == nil {
 		return nil
 	}
-	select {
-	case <-h.done:
-		return h.completionErr
-	case <-ctx.Done():
-		return ctx.Err()
+	if err := completion.Wait(ctx, h.done); err != nil {
+		return err
 	}
+	return h.completionErr
 }
 
 // cleanupContext derives a bounded context for a run's durable cancel, rooted on

@@ -150,3 +150,14 @@ func TestGroupWaitReportsCallerDeadlineForUncooperativeTask(t *testing.T) {
 		t.Fatalf("Wait after task return = %v", err)
 	}
 }
+
+func TestGroupWaitPrefersCompletedBoundaryAfterCallerCancellation(t *testing.T) {
+	var tasks Group
+	tasks.Cancel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := tasks.Wait(ctx); err != nil {
+		t.Fatalf("Wait() = %v, want completed", err)
+	}
+}

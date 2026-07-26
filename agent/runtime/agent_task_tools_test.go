@@ -26,7 +26,7 @@ func blockingChild(name string, release <-chan struct{}) *core.Agent {
 }
 
 // TestStartChildContinuesAfterParent pins the core async
-// contract deterministically (via the done channel, no sleeps): a child
+// contract deterministically (via the Segment completion, no sleeps): a child
 // spawned with StartChild keeps running after the parent action
 // returns and the parent process completes; the result is collected
 // later once the child finishes; and the child's work still counts
@@ -42,13 +42,13 @@ func TestStartChildContinuesAfterParent(t *testing.T) {
 
 	// The parent action spawns the child and returns WITHOUT waiting.
 	var taskID string
-	var childDone <-chan error
+	var childSegment *runtime.Segment
 	parent := agent.New(agent.AgentConfig{Name: "bg-parent", Actions: []agent.Action{agent.NewAction("start", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		child, done, err := engine.StartChild(ctx, childDeployment, in)
+		segment, err := engine.StartChild(ctx, childDeployment, in)
 		if err != nil {
 			return parentOutput{}, err
 		}
-		taskID, childDone = child.ID(), done
+		taskID, childSegment = segment.Process().ID(), segment
 		return parentOutput{Final: 0}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})}})
 	if _, err := engine.Deploy(t.Context(), parent); err != nil {
@@ -76,11 +76,10 @@ func TestStartChildContinuesAfterParent(t *testing.T) {
 		t.Fatalf("child should still be running (blocked), got %s", bg.Status())
 	}
 
-	// Release it and wait — via the done channel — for the background
-	// loop to exit cleanly.
+	// Release it and join the background segment.
 	close(release)
-	if err := <-childDone; err != nil {
-		t.Fatalf("background child run error: %v", err)
+	if completion := awaitSegment(t, childSegment); completion.Error() != nil {
+		t.Fatalf("background child run error: %v", completion.Error())
 	}
 	if bg.Status() != core.StatusCompleted {
 		t.Fatalf("child status = %s; failure=%v", bg.Status(), bg.Failure())
@@ -238,11 +237,11 @@ func TestKillChildren_SweepsOutstandingBackgroundChildren(t *testing.T) {
 
 	var taskID string
 	parent := agent.New(agent.AgentConfig{Name: "kc-parent", Actions: []agent.Action{agent.NewAction("start", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		child, _, err := engine.StartChild(ctx, childDeployment, in)
+		segment, err := engine.StartChild(ctx, childDeployment, in)
 		if err != nil {
 			return parentOutput{}, err
 		}
-		taskID = child.ID()
+		taskID = segment.Process().ID()
 		return parentOutput{Final: 0}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})}})
 	if _, err := engine.Deploy(t.Context(), parent); err != nil {

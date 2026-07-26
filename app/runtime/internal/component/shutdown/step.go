@@ -5,6 +5,8 @@ package shutdown
 import (
 	"context"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
 )
 
 // Step serializes one teardown operation. If Action ignores cancellation, a
@@ -80,12 +82,10 @@ func (a *Attempt) Wait(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	select {
-	case <-a.state.done:
-		return a.state.err
-	case <-ctx.Done():
-		return ctx.Err()
+	if err := completion.Wait(ctx, a.state.done); err != nil {
+		return err
 	}
+	return a.state.err
 }
 
 // Result returns the attempt error once it has completed.

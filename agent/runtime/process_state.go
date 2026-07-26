@@ -333,11 +333,24 @@ func (s *processState) waitRun(ctx context.Context) error {
 	if !runOwned || done == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	select {
+	case <-done:
+		return nil
+	default:
+	}
 	select {
 	case <-done:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		select {
+		case <-done:
+			return nil
+		default:
+			return ctx.Err()
+		}
 	}
 }
 

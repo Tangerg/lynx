@@ -12,18 +12,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// turnLifecycle routes process events to subagent lifecycle hooks. The root
-// process identity prevents child events from being projected as root hooks.
-//
-// Sub-agent (subtask) processes now share this listener via runtime
-// SubtreeEventListener inheritance — their events arrive here too, tagged with
-// their own ProcessID. A subtask runs synchronously inside the root's
-// tool loop and therefore completes BEFORE the root, so its terminal
-// event would pre-empt the root's under earliest-wins. The listener binds the
-// root from the first ProcessCreated event, which the engine publishes
-// synchronously before it starts the root goroutine, so the capture gate is in
-// place before a child can emit anything.
-type turnLifecycle struct {
+// subagentLifecycle projects child process events into configured subagent
+// hooks. The root identity excludes the turn's own process from that projection.
+type subagentLifecycle struct {
 	mu        sync.Mutex
 	rootID    string // turn's root process id; empty until the first ProcessCreated
 	sessionID string
@@ -32,12 +23,19 @@ type turnLifecycle struct {
 	subagents map[string]hooks.SubagentInput
 }
 
+func newSubagentLifecycle(sessionID, cwd string, bound *hooks.Bound) *subagentLifecycle {
+	if !bound.Handles(hooks.SubagentStart, hooks.SubagentStop) {
+		return nil
+	}
+	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound}
+}
+
 // confirmRoot binds a restored process, or verifies that the synchronous
 // ProcessCreated event and the process returned by StartTurn identify the same
 // root.
-func (l *turnLifecycle) confirmRoot(id string) error {
+func (l *subagentLifecycle) confirmRoot(id string) error {
 	if id == "" {
-		return errors.New("turn lifecycle: root process id is empty")
+		return errors.New("subagent lifecycle: root process id is empty")
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -48,12 +46,12 @@ func (l *turnLifecycle) confirmRoot(id string) error {
 	case l.rootID == id:
 		return nil
 	default:
-		return fmt.Errorf("turn lifecycle: created root %q differs from returned process %q", l.rootID, id)
+		return fmt.Errorf("subagent lifecycle: created root %q differs from returned process %q", l.rootID, id)
 	}
 }
 
-func (l *turnLifecycle) listener(turnID string) *event.NamedSubtreeListener {
-	return event.NewNamedSubtreeListener("turn-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
+func (l *subagentLifecycle) listener(turnID string) *event.NamedSubtreeListener {
+	return event.NewNamedSubtreeListener("subagent-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
 		if _, created := e.(event.ProcessCreated); created && l.bindRoot(e.ProcessID()) {
 			return
 		}
@@ -61,7 +59,7 @@ func (l *turnLifecycle) listener(turnID string) *event.NamedSubtreeListener {
 	})
 }
 
-func (l *turnLifecycle) bindRoot(id string) bool {
+func (l *subagentLifecycle) bindRoot(id string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.rootID != "" {
@@ -71,10 +69,7 @@ func (l *turnLifecycle) bindRoot(id string) bool {
 	return true
 }
 
-func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
-	if l.hooks.Empty() {
-		return
-	}
+func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
 	l.mu.Lock()
 	rootID := l.rootID
 	l.mu.Unlock()
@@ -110,7 +105,7 @@ func (l *turnLifecycle) fireSubagentHook(ctx context.Context, e event.Event) {
 	}
 }
 
-func (l *turnLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, result, errText string) {
+func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, result, errText string) {
 	in := hooks.SubagentInput{ProcessID: e.ProcessID()}
 	l.mu.Lock()
 	if l.subagents != nil {

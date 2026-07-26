@@ -116,6 +116,17 @@ func TestQuiesceRetainsJoinIdentityUntilDriverExits(t *testing.T) {
 	}
 }
 
+func TestLoopHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+	want := errors.New("driver failed")
+	handle := completedLoopHandle(want)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := handle.wait(ctx); !errors.Is(err, want) {
+		t.Fatalf("wait() = %v, want completed outcome", err)
+	}
+}
+
 func completedLoopHandle(err error) *loopHandle {
 	released := make(chan struct{})
 	close(released)

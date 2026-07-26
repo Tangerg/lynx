@@ -266,12 +266,15 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	mustDeploy(t, engine, buildGate())
 
 	ctx := context.Background()
-	proc, done, err := engine.Start(ctx, buildGate(),
+	segment, err := engine.Start(ctx, buildGate(),
 		core.Input(ssWord{Text: "hi"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	<-done
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatalf("start segment: %v", completion.Error())
+	}
+	proc := segment.Process()
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("after start: status = %v, want waiting", proc.Status())
 	}
@@ -330,14 +333,15 @@ func TestEngineRestoreResumableClassifiesBuildMismatchAndMissingSnapshot(t *test
 	store := storetest.NewMemoryProcessStore()
 	first := agent.MustNewEngine(runtime.Config{BuildID: "build-a", ProcessStore: store})
 	mustDeploy(t, first, buildGate())
-	process, done, err := first.Start(t.Context(), buildGate(),
+	segment, err := first.Start(t.Context(), buildGate(),
 		core.Input(ssWord{Text: "hi"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start waiting process: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("start waiting process: %v", err)
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatalf("start waiting process: %v", completion.Error())
 	}
+	process := segment.Process()
 	if err := first.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save waiting process: %v", err)
 	}
@@ -694,9 +698,9 @@ func TestEngineContinueReportsOverlappingRun(t *testing.T) {
 	if err := engine.Continue(t.Context(), process.ID()); !errors.Is(err, runtime.ErrProcessRunning) {
 		t.Fatalf("overlapping Continue error = %v, want ErrProcessRunning", err)
 	}
-	asyncDone, err := engine.ContinueAsync(t.Context(), process.ID())
-	if asyncDone != nil || !errors.Is(err, runtime.ErrProcessRunning) {
-		t.Fatalf("overlapping ContinueAsync = %#v, %v; want nil and ErrProcessRunning", asyncDone, err)
+	asyncSegment, err := engine.ContinueAsync(t.Context(), process.ID())
+	if asyncSegment != nil || !errors.Is(err, runtime.ErrProcessRunning) {
+		t.Fatalf("overlapping ContinueAsync = %#v, %v; want nil and ErrProcessRunning", asyncSegment, err)
 	}
 	close(action.release)
 	if err := <-done; err != nil {

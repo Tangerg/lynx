@@ -218,41 +218,53 @@ func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session)
 	return e.sessionStore.Save(ctx, *session)
 }
 
-// Start deploys/resolves the Agent definition and runs it in the background,
-// returning the process and a channel that delivers the final run error (or nil
-// on success). Definition resolution and process construction errors are
-// returned synchronously with a nil process and channel. It has the same
-// catalog and conflict semantics as [Engine.Run].
+// Start deploys/resolves the Agent definition and starts one background
+// [Segment]. Definition resolution and process construction errors are returned
+// synchronously with a nil segment. It has the same catalog and conflict
+// semantics as [Engine.Run].
 func (e *Engine) Start(
 	ctx context.Context,
 	agent *core.Agent,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, <-chan error, error) {
+) (*Segment, error) {
 	if agent == nil {
-		return nil, nil, errors.New("runtime.Engine.Start: agent definition is nil")
+		return nil, errors.New("runtime.Engine.Start: agent definition is nil")
 	}
 	deployment, err := e.deploymentForProcess(ctx, agent)
 	if err != nil {
-		return nil, nil, fmt.Errorf("runtime.Engine.Start: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.Start: %w", err)
 	}
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
 	process, err := e.createProcessFromDeployment(ctx, deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		span.End()
-		return nil, nil, err
+		return nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
-	done := make(chan error, 1)
-	go func() {
-		err := process.run(ctx)
+	segment := newSegment(process)
+	started, err := process.beginRun()
+	if err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.snapshotFinalizeTimeout)
+		discardErr := e.Discard(cleanupCtx, process.ID())
+		cancel()
+		err = errors.Join(err, discardErr)
 		finishAgentRunSpan(span, process, err)
 		span.End()
-		done <- err
-		close(done)
-	}()
-	return process, done, nil
+		return nil, err
+	}
+	if !started {
+		finishAgentRunSpan(span, process, nil)
+		span.End()
+		segment.complete(nil)
+		return segment, nil
+	}
+	go process.runOwnedSegment(ctx, segment, func(runErr error) {
+		finishAgentRunSpan(span, process, runErr)
+		span.End()
+	})
+	return segment, nil
 }
 
 // Continue re-enters the run loop on an already-created
@@ -274,11 +286,10 @@ func (e *Engine) Continue(ctx context.Context, id string) error {
 	return process.run(normalizeContext(ctx))
 }
 
-// ContinueAsync is the background variant of
-// [Engine.Continue]. Admission errors are returned synchronously; after a run
-// starts, the returned buffered channel receives its final error (nil on clean
-// exit).
-func (e *Engine) ContinueAsync(ctx context.Context, id string) (<-chan error, error) {
+// ContinueAsync is the background variant of [Engine.Continue]. Admission
+// errors are returned synchronously; a successful call returns the one Segment
+// that owns this continuation.
+func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error) {
 	process, ok := e.Process(id)
 	if !ok {
 		return nil, processNotFoundError("continue process asynchronously", id)
@@ -290,17 +301,13 @@ func (e *Engine) ContinueAsync(ctx context.Context, id string) (<-chan error, er
 	if err != nil {
 		return nil, err
 	}
-	done := make(chan error, 1)
+	segment := newSegment(process)
 	if !started {
-		done <- nil
-		close(done)
-		return done, nil
+		segment.complete(nil)
+		return segment, nil
 	}
-	go func() {
-		done <- process.runOwned(ctx)
-		close(done)
-	}()
-	return done, nil
+	go process.runOwnedSegment(ctx, segment, nil)
+	return segment, nil
 }
 
 func (p *Process) ensureContinuable() error {

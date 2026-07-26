@@ -53,3 +53,14 @@ func TestFailedAttemptIsRetryable(t *testing.T) {
 		t.Fatalf("action calls = %d, want 2", got)
 	}
 }
+
+func TestAttemptWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+	want := errors.New("close failed")
+	attempt := completedAttempt(want)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := attempt.Wait(ctx); !errors.Is(err, want) {
+		t.Fatalf("Wait() = %v, want completed outcome", err)
+	}
+}

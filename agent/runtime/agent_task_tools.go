@@ -71,11 +71,11 @@ type taskToolset[In, Out any] struct {
 
 func (t *taskToolset[In, Out]) start(ctx context.Context, in In) (string, error) {
 	agent := t.deployment.agent
-	child, _, err := startChildDeployment(ctx, t.engine, t.deployment, in)
+	segment, err := startChildDeployment(ctx, t.engine, t.deployment, in)
 	if err != nil {
 		return "", fmt.Errorf("background start %q: %w", agent.Name(), err)
 	}
-	return (taskResult{TaskID: child.ID(), Status: taskStatusRunning}).encode()
+	return (taskResult{TaskID: segment.Process().ID(), Status: taskStatusRunning}).encode()
 }
 
 func (t *taskToolset[In, Out]) result(_ context.Context, input taskResultInput) (string, error) {

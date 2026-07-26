@@ -193,6 +193,20 @@ func (b *Bound) Run(ctx context.Context, in Input) Decision {
 // Empty reports whether the Bound has no hooks. Nil-safe.
 func (b *Bound) Empty() bool { return b == nil || len(b.hooks) == 0 }
 
+// Handles reports whether at least one bound hook listens for any event.
+// Consumers use it to avoid installing runtime machinery for unrelated hooks.
+func (b *Bound) Handles(events ...Event) bool {
+	if b == nil || len(events) == 0 {
+		return false
+	}
+	for _, hook := range b.hooks {
+		if slices.Contains(events, hook.Event) {
+			return true
+		}
+	}
+	return false
+}
+
 // Inspection is the read-only view of a cwd's hooks for a management surface
 // (hooks.list): every discovered hook (trusted or not), the project
 // root that gates the project-scope ones, and whether it's currently trusted.

@@ -596,13 +596,13 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		t.Fatalf("Resume: %v", err)
 	}
 	resumed := restored.Await()
-	if resumed.Err != nil {
-		t.Fatalf("resumed run: %v", resumed.Err)
+	if err := resumed.Error(); err != nil {
+		t.Fatalf("resumed run: %v", err)
 	}
-	if resumed.Output == nil {
+	if !resumed.HasOutput {
 		t.Fatal("resumed run completed without output")
 	}
-	out := *resumed.Output
+	out := resumed.Output
 	if out.Reply != "restored ok" {
 		t.Fatalf("reply = %q, want restored ok", out.Reply)
 	}
@@ -652,8 +652,8 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	if completion := process.Await(); completion.Err != nil {
-		t.Fatalf("initial turn: %v", completion.Err)
+	if completion := process.Await(); completion.Error() != nil {
+		t.Fatalf("initial turn: %v", completion.Error())
 	}
 	snapshot, err := store.Load(t.Context(), process.ID())
 	if err != nil {

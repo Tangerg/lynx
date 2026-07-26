@@ -35,7 +35,11 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	}
 
 	observer := &turnObserver{dispatcher: s, st: st}
-	st.lifecycle = &turnLifecycle{sessionID: st.handle.SessionID, cwd: st.cwd, hooks: st.hooks}
+	subagents := newSubagentLifecycle(st.handle.SessionID, st.cwd, st.hooks)
+	var eventListener core.Extension
+	if subagents != nil {
+		eventListener = subagents.listener(st.handle.TurnID)
+	}
 	process, err := s.engine.StartTurn(st.ctx, agentexec.TurnRequest{
 		SessionID:      request.SessionID,
 		Message:        request.Message,
@@ -50,7 +54,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		Options:        request.Options,
 		ChatClient:     client,
 		Observer:       observer,
-		EventListener:  st.lifecycle.listener(st.handle.TurnID),
+		EventListener:  eventListener,
 		// Mid-run steering: drained before each continuation round (with the
 		// next-turn flushSteering as the after-last-round fallback).
 		Steer: s.steerSource(st),
@@ -64,14 +68,14 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		s.finishExecutionError(st, internalRunProblem(), err)
 		return
 	}
-	// Record the root process id so the lifecycle gate keeps subtask
-	// terminals (which fire first) from being mistaken for the turn's end.
-	if err := st.lifecycle.confirmRoot(process.ID()); err != nil {
-		st.setProcess(process)
-		st.cancel()
-		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.finishExecutionError(st, internalRunProblem(), err)
-		return
+	if subagents != nil {
+		if err := subagents.confirmRoot(process.ID()); err != nil {
+			st.setProcess(process)
+			st.cancel()
+			recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+			s.finishExecutionError(st, internalRunProblem(), err)
+			return
+		}
 	}
 	st.setProcess(process)
 
@@ -96,7 +100,7 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	// Drain steering into history BEFORE maintenance so the compactor /
 	// extractor see it as part of the conversation they summarize.
 	s.flushSteering(st.ctx, st, st.handle.SessionID)
-	if completion.Status == core.StatusCompleted && completion.Err == nil && st.handle.SessionID != "" {
+	if completion.Status == core.StatusCompleted && completion.Error() == nil && st.handle.SessionID != "" {
 		s.postTurnMaintenance(st.ctx, st, st.handle.SessionID)
 	}
 	// MessageDelta events already streamed through the observer — no

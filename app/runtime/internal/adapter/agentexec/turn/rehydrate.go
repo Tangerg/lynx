@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/chatclient"
@@ -56,10 +57,10 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{dispatcher: s, st: state}
-	state.lifecycle = &turnLifecycle{
-		sessionID: state.handle.SessionID,
-		cwd:       state.cwd,
-		hooks:     state.hooks,
+	subagents := newSubagentLifecycle(state.handle.SessionID, state.cwd, state.hooks)
+	var eventListener core.Extension
+	if subagents != nil {
+		eventListener = subagents.listener(handle.TurnID)
 	}
 	if !s.register(state) {
 		state.cancel()
@@ -70,7 +71,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
 		SessionID:     request.SessionID,
 		Observer:      observer,
-		EventListener: state.lifecycle.listener(handle.TurnID),
+		EventListener: eventListener,
 		ChatClient:    client,
 	})
 	if err != nil {
@@ -86,14 +87,16 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 			s.finishExecutionError(state, internalRunProblem(), err),
 		)
 	}
-	if err := state.lifecycle.confirmRoot(process.ID()); err != nil {
-		state.setRestoredProcess(process)
-		state.cancel()
-		return TurnHandle{}, errors.Join(
-			err,
-			cancelTurnProcess(state.ctx, process),
-			s.finishExecutionError(state, internalRunProblem(), err),
-		)
+	if subagents != nil {
+		if err := subagents.confirmRoot(process.ID()); err != nil {
+			state.setRestoredProcess(process)
+			state.cancel()
+			return TurnHandle{}, errors.Join(
+				err,
+				cancelTurnProcess(state.ctx, process),
+				s.finishExecutionError(state, internalRunProblem(), err),
+			)
+		}
 	}
 	live := state.setRestoredProcess(process)
 	if s.isClosed() {

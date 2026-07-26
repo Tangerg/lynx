@@ -16,11 +16,10 @@ var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 // owning parent's active run loop.
 var ErrChildParentInactive = errors.New("run child: parent process is not running")
 
-// StartChild starts a child in the background and returns immediately. Like
-// [Engine.RunChild], it copies only the parent's protected ambient state. The
-// returned channel receives the terminal run error, if any. The parent must be
-// the active process attached to ctx; terminal, idle, and foreign processes are
-// rejected.
+// StartChild starts a child Segment in the background and returns immediately.
+// Like [Engine.RunChild], it copies only the parent's protected ambient state.
+// The parent must be the active process attached to ctx; terminal, idle, and
+// foreign processes are rejected.
 //
 // The child outlives cancellation of the calling action. Callers own its
 // lifecycle through [Engine.Process], [Engine.Kill], or [Engine.KillChildren].
@@ -28,13 +27,13 @@ func (e *Engine) StartChild(
 	ctx context.Context,
 	deployment *Deployment,
 	input any,
-) (*Process, <-chan error, error) {
+) (*Segment, error) {
 	if e == nil {
-		return nil, nil, errors.New("start child: engine is nil")
+		return nil, errors.New("start child: engine is nil")
 	}
 	deployment, err := e.ownedDeployment("start child", deployment)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	return startChildDeployment(ctx, e, deployment, input)
 }
@@ -44,7 +43,7 @@ func startChildDeployment(
 	engine *Engine,
 	deployment *Deployment,
 	input any,
-) (*Process, <-chan error, error) {
+) (*Segment, error) {
 	run := childRun{
 		ctx:        ctx,
 		engine:     engine,
@@ -54,13 +53,19 @@ func startChildDeployment(
 	}
 	child, err := run.create()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	done, err := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
+	segment, err := engine.ContinueAsync(context.WithoutCancel(ctx), child.ID())
 	if err != nil {
-		return child, nil, fmt.Errorf("start child %q: %w", child.ID(), err)
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), engine.snapshotFinalizeTimeout)
+		discardErr := engine.Discard(cleanupCtx, child.ID())
+		cancel()
+		return nil, errors.Join(
+			fmt.Errorf("start child %q: %w", child.ID(), err),
+			discardErr,
+		)
 	}
-	return child, done, nil
+	return segment, nil
 }
 
 // RunChildWithState runs a child with a copy of the parent's entire blackboard.

@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -141,6 +142,20 @@ func TestProcessState_RestoredRunningAcquiresFreshOwnership(t *testing.T) {
 		t.Fatalf("overlapping beginRun = (%v, %v), want ErrProcessRunning", started, err)
 	}
 	s.endRun()
+}
+
+func TestProcessStateWaitRunPrefersObservableCompletion(t *testing.T) {
+	t.Parallel()
+
+	done := make(chan struct{})
+	close(done)
+	state := &processState{runOwned: true, runDone: done}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := state.waitRun(ctx); err != nil {
+		t.Fatalf("waitRun() = %v, want completed", err)
+	}
 }
 
 func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {

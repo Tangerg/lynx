@@ -145,10 +145,11 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("deploy root: %v", err)
 	}
 
-	process, done, err := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
+	segment, err := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start root: %v", err)
 	}
+	process := segment.Process()
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -169,13 +170,9 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("Kill root: %v", err)
 	}
 
-	select {
-	case err := <-done:
-		if err != nil && !errors.Is(err, context.Canceled) {
-			t.Fatalf("root done error = %v, want nil or context cancellation", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("root did not stop after Kill")
+	completion := awaitSegment(t, segment)
+	if err := completion.Error(); err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatalf("root completion error = %v, want nil or context cancellation", err)
 	}
 	select {
 	case <-exited:

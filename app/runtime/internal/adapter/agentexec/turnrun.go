@@ -99,17 +99,13 @@ type TurnRequest struct {
 	// state remains the decision point. nil disables mid-run injection.
 	Steer SteerSource
 
-	// EventListener, when non-nil, is registered as a process-scope
-	// extension. Values that also implement [event.Listener] (i.e.
-	// have OnEvent) receive every agent runtime event for this turn
-	// — process lifecycle (Created / Completed / Failed / Killed /
-	// Stuck / Terminated), action execution, ready-to-plan, etc.
-	// The canonical wrapper is [event.NamedListener]; turn.Dispatcher
-	// uses one to map process terminal events onto TurnEnd reasons
-	// without re-deriving status from the run loop's error.
+	// EventListener, when non-nil, is registered as a process-scope extension.
+	// Values that also implement [event.Listener] receive Agent runtime events
+	// for this turn. The turn dispatcher installs one only when subagent
+	// lifecycle hooks need subtree events.
 	//
 	// Names must be unique across the process extension slice — process
-	// construction reports a collision through the run's error channel.
+	// construction reports a collision synchronously from StartTurn.
 	EventListener core.Extension
 }
 
@@ -152,14 +148,17 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
-	process, done, err := e.runtime.Start(ctx, e.agent,
+	segment, err := e.runtime.Start(ctx, e.agent,
 		core.Input(input),
 		processOptions,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
-	return &turnProcess{process: process, done: done, engine: e.runtime}, nil
+	if segment == nil || segment.Process() == nil {
+		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
+	}
+	return &turnProcess{process: segment.Process(), segment: segment, engine: e.runtime}, nil
 }
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
@@ -244,8 +243,8 @@ type RestoreTurnRequest struct {
 	// deltas, exactly as on a fresh turn. May be nil.
 	Observer toolObserver
 
-	// EventListener captures the restored process's terminal event so the
-	// resumed turn can map it onto a TurnEnd reason. May be nil.
+	// EventListener receives restored-process subtree events for subagent
+	// lifecycle hooks. May be nil.
 	EventListener core.Extension
 
 	// ChatClient, when non-nil, overrides the model the restored continuation

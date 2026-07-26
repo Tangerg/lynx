@@ -57,11 +57,14 @@ func TestKillTerminalParentStillKillsLiveDescendants(t *testing.T) {
 	}
 
 	var child *runtime.Process
-	var childDone <-chan error
+	var childSegment *runtime.Segment
 	parentAgent := agent.New(agent.AgentConfig{
 		Name: "terminal-parent",
 		Actions: []agent.Action{agent.NewAction("start", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-			child, childDone, err = engine.StartChild(ctx, childDeployment, in)
+			childSegment, err = engine.StartChild(ctx, childDeployment, in)
+			if childSegment != nil {
+				child = childSegment.Process()
+			}
 			return parentOutput{Final: 1}, err
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})},
@@ -84,7 +87,7 @@ func TestKillTerminalParentStillKillsLiveDescendants(t *testing.T) {
 	if child.Status() != core.StatusKilled {
 		t.Fatalf("child status = %s, want killed", child.Status())
 	}
-	<-childDone
+	awaitSegment(t, childSegment)
 	close(release)
 	if err := engine.Remove(parent.ID()); !errors.Is(err, runtime.ErrProcessHasChildren) {
 		t.Fatalf("Remove parent error = %v, want ErrProcessHasChildren", err)
@@ -105,11 +108,11 @@ func TestPrunePreservesTerminalParentWithActiveChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var childDone <-chan error
+	var childSegment *runtime.Segment
 	parentAgent := agent.New(agent.AgentConfig{
 		Name: "prune-parent",
 		Actions: []agent.Action{agent.NewAction("start", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
-			_, childDone, err = engine.StartChild(ctx, childDeployment, input)
+			childSegment, err = engine.StartChild(ctx, childDeployment, input)
 			return parentOutput{Final: 1}, err
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "spawned"})},
@@ -127,7 +130,7 @@ func TestPrunePreservesTerminalParentWithActiveChild(t *testing.T) {
 	if err := engine.Kill(t.Context(), parent.ID()); err != nil {
 		t.Fatal(err)
 	}
-	<-childDone
+	awaitSegment(t, childSegment)
 	close(release)
 	removed := engine.Prune()
 	if len(removed) != 2 {
@@ -141,10 +144,11 @@ func TestRemoveRejectsActiveProcess(t *testing.T) {
 	a := blockingChild("remove-active", release)
 	mustDeploy(t, engine, a)
 
-	proc, done, err := engine.Start(t.Context(), a, core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	segment, err := engine.Start(t.Context(), a, core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
+	proc := segment.Process()
 	if err := engine.Remove(proc.ID()); !errors.Is(err, runtime.ErrProcessActive) {
 		t.Fatalf("Remove active process error = %v, want ErrProcessActive", err)
 	}
@@ -154,7 +158,7 @@ func TestRemoveRejectsActiveProcess(t *testing.T) {
 	if err := engine.Kill(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Kill: %v", err)
 	}
-	<-done
+	awaitSegment(t, segment)
 	close(release)
 	if err := engine.Remove(proc.ID()); err != nil {
 		t.Fatalf("Remove terminal process: %v", err)

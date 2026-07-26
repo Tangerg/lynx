@@ -99,14 +99,12 @@ func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess
 func (cp *stubTurnProcess) ID() string { return cp.id }
 func (cp *stubTurnProcess) Await() agentexec.TurnCompletion {
 	runErr := <-cp.done
-	if cp.failure != nil {
-		runErr = cp.failure
-	}
-	output := cp.output
 	return agentexec.TurnCompletion{
-		Status: core.ProcessStatus(cp.status.Load()),
-		Output: &output,
-		Err:    runErr,
+		Status:    core.ProcessStatus(cp.status.Load()),
+		Output:    cp.output,
+		HasOutput: true,
+		Failure:   cp.failure,
+		Err:       runErr,
 	}
 }
 func (cp *stubTurnProcess) Cancel(context.Context) error {

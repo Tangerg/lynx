@@ -17,6 +17,7 @@ const (
 	agentTracerName   = "lynx/agent/runtime"
 	spanRun           = "agent.run"
 	spanAutoSnapshot  = "agent.auto_snapshot"
+	spanDiscard       = "agent.discard"
 	attrAgentName     = "gen_ai.agent.name"
 	attrProcessID     = "agent.process.id"
 	attrProcessStatus = "agent.process.status"

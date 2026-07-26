@@ -88,10 +88,24 @@ func (e *Engine) Save(ctx context.Context, processID string) error {
 // order. A nil error is the complete release postcondition; an error means the
 // tree remains owned by the engine and the caller may retry.
 func (e *Engine) Discard(ctx context.Context, processID string) error {
+	ctx, span := agentTracer.Start(
+		normalizeContext(ctx),
+		spanDiscard,
+		trace.WithAttributes(attribute.String(attrProcessID, processID)),
+	)
+	var discardErr error
+	defer func() {
+		finishSpanWithError(span, discardErr)
+		span.End()
+	}()
+	discardErr = e.discard(ctx, processID, span)
+	return discardErr
+}
+
+func (e *Engine) discard(ctx context.Context, processID string, span trace.Span) error {
 	if e == nil {
 		return errors.New("runtime.Engine.Discard: nil Engine")
 	}
-	ctx = normalizeContext(ctx)
 	sequenceKey := processID
 	if process, ok := e.Process(processID); ok {
 		sequenceKey = e.processTreeRootID(process)
@@ -134,14 +148,13 @@ func (e *Engine) Discard(ctx context.Context, processID string) error {
 		}
 	}
 	tree.release()
-	recordDiscardDiagnostics(ctx, processID, terminateErrs)
+	recordDiscardDiagnostics(span, terminateErrs)
 	return nil
 }
 
-func recordDiscardDiagnostics(ctx context.Context, processID string, diagnostics []error) {
-	span := trace.SpanFromContext(ctx)
+func recordDiscardDiagnostics(span trace.Span, diagnostics []error) {
 	for _, diagnostic := range diagnostics {
-		span.RecordError(diagnostic, trace.WithAttributes(attribute.String(attrProcessID, processID)))
+		span.RecordError(diagnostic)
 	}
 }
 

@@ -1,11 +1,14 @@
 package runtime
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning/goap"
 	"github.com/Tangerg/lynx/agent/storetest"
 )
 
@@ -36,13 +39,36 @@ func TestAsyncEntryPointsReturnAdmissionErrorsSynchronously(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	process, done, err := engine.Start(t.Context(), nil, core.Bindings{}, core.ProcessOptions{})
-	if process != nil || done != nil || err == nil {
-		t.Fatalf("Start = %#v, %#v, %v; want nil process, nil channel, error", process, done, err)
+	segment, err := engine.Start(t.Context(), nil, core.Bindings{}, core.ProcessOptions{})
+	if segment != nil || err == nil {
+		t.Fatalf("Start = %#v, %v; want nil segment and error", segment, err)
 	}
-	done, err = engine.ContinueAsync(t.Context(), "proc_missing")
-	if done != nil || !errors.Is(err, ErrProcessNotFound) {
-		t.Fatalf("ContinueAsync = %#v, %v; want nil channel and ErrProcessNotFound", done, err)
+	segment, err = engine.ContinueAsync(t.Context(), "proc_missing")
+	if segment != nil || !errors.Is(err, ErrProcessNotFound) {
+		t.Fatalf("ContinueAsync = %#v, %v; want nil segment and ErrProcessNotFound", segment, err)
+	}
+}
+
+func TestStartClaimsSegmentOwnershipBeforeReturning(t *testing.T) {
+	release := make(chan struct{})
+	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+	definition := deploymentFixture("start-ownership", core.ConditionSet{"finish": core.True}, func(*core.ProcessContext) core.ActionStatus {
+		<-release
+		return core.ActionSucceeded
+	})
+
+	segment, err := engine.Start(t.Context(), definition, core.Bindings{}, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if !segment.Process().state.runActive() {
+		t.Fatal("Start returned before the segment owned its process run")
+	}
+	close(release)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if _, err := segment.Await(ctx); err != nil {
+		t.Fatalf("Await: %v", err)
 	}
 }
 

@@ -80,11 +80,6 @@ type turnState struct {
 	// duration that spans any interrupt/resume cycles.
 	startedAt time.Time
 
-	// lifecycle captures the process's authoritative terminal event;
-	// retained across interrupt→resume so the eventual TurnEnd reads it.
-	// Written once before the turn goroutine reads it; not mu-guarded.
-	lifecycle *turnLifecycle
-
 	// interruptKinds is the set of HITL kinds the current client can answer
 	// for this turn. Nil / empty means no HITL kind may surface.
 	interruptKinds map[runs.InterruptKind]struct{}
@@ -365,11 +360,12 @@ func hashOutput(output string) uint64 {
 func (st *turnState) setProcess(process agentexec.TurnProcess) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	st.agentProcess = process
 	switch st.phase {
 	case turnStarting:
+		st.agentProcess = process
 		st.setPhaseLocked(turnRunning)
 	case turnCancelDriven:
+		st.agentProcess = process
 		st.signalLifecycleLocked()
 	default:
 		panic("turn: fresh process published outside starting phase")
@@ -383,17 +379,17 @@ func (st *turnState) setProcess(process agentexec.TurnProcess) {
 func (st *turnState) setRestoredProcess(process agentexec.TurnProcess) (live bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	st.agentProcess = process
 	switch st.phase {
 	case turnRestoring:
+		st.agentProcess = process
 		st.setPhaseLocked(turnParked)
 		return st.ctx.Err() == nil
 	case turnCancelIdle:
+		st.agentProcess = process
 		st.signalLifecycleLocked()
 		return false
 	default:
-		st.signalLifecycleLocked()
-		return false
+		panic("turn: restored process published outside restoring phase")
 	}
 }
 

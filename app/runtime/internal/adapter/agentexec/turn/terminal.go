@@ -126,10 +126,7 @@ func (s *memoryDispatcher) completeTurnOwned(st *turnState, emitTerminal func())
 // transport-shape TurnEnd.
 func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnCompletion, duration time.Duration) {
 	plan := planTurnEnd(completion)
-	var out agentexec.TurnOutput
-	if completion.Output != nil {
-		out = *completion.Output
-	}
+	out := completion.Output
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
@@ -171,19 +168,20 @@ type turnEndPlan struct {
 // Every status is handled explicitly; an internally inconsistent completion is
 // an error rather than an implicit success.
 func planTurnEnd(completion agentexec.TurnCompletion) turnEndPlan {
+	completionErr := completion.Error()
 	switch completion.Status {
 	case core.StatusCompleted:
-		if completion.Err != nil {
-			return failurePlan(completion.Err)
+		if completionErr != nil {
+			return failurePlan(completionErr)
 		}
-		if completion.Output == nil {
+		if !completion.HasOutput {
 			return failurePlan(errors.New("agent process completed without TurnOutput"))
 		}
-		return completedPlan(*completion.Output)
+		return completedPlan(completion.Output)
 	case core.StatusKilled, core.StatusTerminated:
 		return turnEndPlan{reason: execution.OutcomeCanceled}
 	case core.StatusFailed, core.StatusPaused:
-		return failurePlan(completion.Err)
+		return failurePlan(completionErr)
 	case core.StatusStuck:
 		problem := problemForFailure(execution.FailureAgentStuck, 0)
 		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", problem: &problem}

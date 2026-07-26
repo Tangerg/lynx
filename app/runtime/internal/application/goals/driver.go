@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -361,12 +362,10 @@ func (h *loopHandle) wait(ctx context.Context) error {
 	if h == nil {
 		return nil
 	}
-	select {
-	case <-h.released:
-		return h.err
-	case <-ctx.Done():
-		return ctx.Err()
+	if err := completion.Wait(ctx, h.released); err != nil {
+		return err
 	}
+	return h.err
 }
 
 func (h *loopHandle) finished() bool {

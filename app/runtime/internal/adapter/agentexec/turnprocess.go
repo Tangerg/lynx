@@ -12,13 +12,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-// TurnCompletion is the immutable result of one process segment. It is the
-// single source of truth for terminal mapping: status, typed output, and failure
-// are captured after the Agent runtime has joined the segment.
+// TurnCompletion is the typed application projection of one Agent runtime
+// segment completion.
 type TurnCompletion struct {
-	Status core.ProcessStatus
-	Output *TurnOutput
-	Err    error
+	Status    core.ProcessStatus
+	Output    TurnOutput
+	HasOutput bool
+	Failure   error
+	Err       error
+}
+
+func (c TurnCompletion) Error() error {
+	if c.Failure == nil {
+		return c.Err
+	}
+	if c.Err == nil {
+		return c.Failure
+	}
+	if errors.Is(c.Err, c.Failure) {
+		return c.Err
+	}
+	if errors.Is(c.Failure, c.Err) {
+		return c.Failure
+	}
+	return errors.Join(c.Failure, c.Err)
 }
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
@@ -36,9 +53,9 @@ type TurnProcess interface {
 	// Exactly one owner calls Await for each initial or resumed segment.
 	Await() TurnCompletion
 
-	// Cancel marks the process [core.StatusKilled] via the engine.
-	// The ongoing tick observes the status flip at its next checkpoint
-	// and the run loop exits, delivering its error on Done().
+	// Cancel marks the process [core.StatusKilled] via the engine. The ongoing
+	// tick observes the status flip at its next checkpoint and completes its
+	// active segment.
 	Cancel(ctx context.Context) error
 
 	// Resume answers a HITL interrupt the process is parked on
@@ -71,24 +88,29 @@ type TurnProcess interface {
 // runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
 	process *runtime.Process
-	done    <-chan error
+	segment *runtime.Segment
 	engine  *runtime.Engine
 }
 
 func (p *turnProcess) ID() string { return p.process.ID() }
 
 func (p *turnProcess) Await() TurnCompletion {
-	if p == nil || p.process == nil || p.done == nil {
+	if p == nil || p.process == nil || p.segment == nil {
 		return TurnCompletion{Err: errors.New("agentexec: await process: no active segment")}
 	}
-	runErr := <-p.done
-	p.done = nil
-	completion := TurnCompletion{Status: p.process.Status(), Err: runErr}
-	if output, ok := core.Result[TurnOutput](p.process); ok {
-		completion.Output = &output
+	segmentCompletion, err := p.segment.Await(context.Background())
+	if err != nil {
+		return TurnCompletion{Err: err}
 	}
-	if failure := p.process.Failure(); failure != nil {
-		completion.Err = failure
+	p.segment = nil
+	completion := TurnCompletion{
+		Status:  segmentCompletion.Status,
+		Failure: segmentCompletion.Failure,
+		Err:     segmentCompletion.Err,
+	}
+	if output, ok := runtime.CompletionResult[TurnOutput](segmentCompletion); ok {
+		completion.Output = output
+		completion.HasOutput = true
 	}
 	return completion
 }
@@ -109,14 +131,14 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 	if err := p.engine.Resume(p.process.ID(), parked.ID, response); err != nil {
 		return err
 	}
-	done, err := p.engine.ContinueAsync(ctx, p.process.ID())
+	segment, err := p.engine.ContinueAsync(ctx, p.process.ID())
 	if err != nil {
 		return err
 	}
-	if done == nil {
+	if segment == nil {
 		return errors.New("engine: continue process returned no completion boundary")
 	}
-	p.done = done
+	p.segment = segment
 	return nil
 }
 

@@ -43,11 +43,9 @@ func recordGoalTurn(ctx context.Context, disposition turnDisposition) {
 	loadGoalTurns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", string(disposition))))
 }
 
-// recordSaveError attaches a goal-state persistence failure to the current turn
-// span instead of dropping it. The save is best-effort (the boot reconcile is
-// the durable safety net), but a silent drop would hide a store fault; the span
-// keeps it visible without failing the loop.
-func recordSaveError(ctx context.Context, err error) {
+// recordGoalStoreRetry makes a transient persistence outage visible while the
+// owning supervisor remains attached and backs off before retrying.
+func recordGoalStoreRetry(ctx context.Context, err error) {
 	if err != nil {
 		trace.SpanFromContext(ctx).RecordError(err)
 	}

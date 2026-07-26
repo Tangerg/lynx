@@ -738,7 +738,7 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 			return err
 		}},
 		{"StartChild", func() error {
-			_, _, err := engine.StartChild(ctx, foreign, nil)
+			_, err := engine.StartChild(ctx, foreign, nil)
 			return err
 		}},
 		{"RunDeployment", func() error {

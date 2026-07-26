@@ -49,10 +49,12 @@ type (
 	InteractionLimits     = interaction.Limits
 	InteractionStopReason = interaction.StopReason
 
-	Engine       = runtime.Engine
-	EngineConfig = runtime.Config
-	Deployment   = runtime.Deployment
-	Process      = runtime.Process
+	Engine        = runtime.Engine
+	EngineConfig  = runtime.Config
+	Deployment    = runtime.Deployment
+	Process       = runtime.Process
+	Segment       = runtime.Segment
+	RunCompletion = runtime.RunCompletion
 )
 
 type FuncAction[In, Out any] = core.FuncAction[In, Out]
@@ -119,6 +121,11 @@ func NewOutputGoal[T any](config GoalConfig) *Goal { return core.NewOutputGoal[T
 // Result returns the most recent T produced by process.
 func Result[T any](process ProcessView) (T, bool) {
 	return core.Result[T](process)
+}
+
+// CompletionResult returns the most recent T captured by completion.
+func CompletionResult[T any](completion RunCompletion) (T, bool) {
+	return runtime.CompletionResult[T](completion)
 }
 
 // PromptJSON requests JSON matching T through the process model and tool loop.

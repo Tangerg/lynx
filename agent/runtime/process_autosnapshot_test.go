@@ -196,10 +196,11 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 		SnapshotFinalizeTimeout: time.Second,
 	})
 	mustDeploy(t, engine, a)
-	process, done, err := engine.Start(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
+	segment, err := engine.Start(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
+	process := segment.Process()
 	select {
 	case <-entered:
 	case <-time.After(time.Second):
@@ -210,11 +211,7 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	if err := engine.Discard(discardCtx, process.ID()); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("discard did not join active run")
-	}
+	awaitSegment(t, segment)
 	if _, live := engine.Process(process.ID()); live {
 		t.Fatal("discarded process remains live")
 	}

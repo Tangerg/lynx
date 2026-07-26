@@ -19,8 +19,10 @@ import (
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
 
 const (
-	goalPersistenceTimeout = 5 * time.Second
-	goalRunCleanupTimeout  = 5 * time.Second
+	goalStoreAttemptTimeout = 5 * time.Second
+	goalStoreRetryInitial   = 50 * time.Millisecond
+	goalStoreRetryMax       = time.Second
+	goalRunCleanupTimeout   = 5 * time.Second
 )
 
 // launchLocked attaches exactly one loop to an already-accepted active goal.
@@ -46,7 +48,6 @@ func (d *Driver) launchLocked(parent context.Context, sessionID, leaseID string)
 		handle.err = d.drive(ctx, sessionID, leaseID)
 		d.forget(sessionID, handle)
 		close(handle.released)
-		d.restoreDrive(owner, sessionID, leaseID)
 	}()
 	return true
 }
@@ -67,34 +68,6 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 	}
 }
 
-// restoreDrive closes the gap between a loop ending and a durable state change.
-// A loop may lose a CAS or a store write after a run has completed; it must not
-// turn the still-active durable intent into an orphan. This performs one fresh
-// authoritative read and only attaches a replacement for the same lease. It is
-// not a retry policy: a durable non-active transition always wins immediately.
-func (d *Driver) restoreDrive(ctx context.Context, sessionID, leaseID string) {
-	// Keep the potentially slow recovery read outside the session lock. An
-	// explicit Stop must be able to publish its durable decision while recovery
-	// is waiting on storage.
-	g, ok, err := d.goals.Get(ctx, sessionID)
-	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
-		return
-	}
-	release := d.mutations.acquireSessions(sessionID)
-	defer release()
-	if d.closed.Load() || d.mutations.driverLease(sessionID) != "" {
-		return
-	}
-	// Re-read under the same session lock that protects launch. A Stop or fresh
-	// Start may have won while the old loop was releasing its Run; recovery must
-	// never attach the stale lease observed by that loop.
-	g, ok, err = d.goals.Get(ctx, sessionID)
-	if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
-		return
-	}
-	d.launchLocked(ctx, sessionID, leaseID)
-}
-
 // drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
@@ -104,14 +77,20 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 		if ctx.Err() != nil {
 			return nil
 		}
-		g, ok, err := d.goals.Get(ctx, sessionID)
+		g, ok, err := d.loadGoal(ctx, sessionID)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return err
+		}
 		// Stop when the goal is gone or no longer active. The lease check is a
 		// cheap backstop — a supersession (Stop/Start/Resume) is already caught above
 		// by ctx cancellation or by the status leaving active — that guards a future
 		// regression where a transition stops canceling the loop. The load-bearing
 		// lease guard is the re-read in runTurn: it prevents adopting and
 		// clobbering a foreign incarnation mid-turn.
-		if err != nil || !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
+		if !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 			return nil
 		}
 		disposition, err := d.runTurn(ctx, &g)
@@ -156,8 +135,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		// A start failure is an operational fact already recorded on the span.
 		// Persist only its stable cause so goal status cannot become a transport
 		// for adapter diagnostics.
-		g.Pause(goal.ReasonRunStartFailed, "", d.now())
-		d.save(ctx, *g)
+		if err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, ""); err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
 		return dispPaused, nil
 	}
 
@@ -179,10 +162,13 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	}
 
 	// Re-read: the model may have set complete/blocked mid-turn via update_goal.
-	reread, ok, err := d.goals.Get(ctx, g.SessionID)
+	reread, ok, err := d.loadGoal(ctx, g.SessionID)
 	if err != nil {
+		if ctx.Err() != nil {
+			return "", nil
+		}
 		span.RecordError(err)
-		return "", nil
+		return "", err
 	}
 	if !ok {
 		return "", nil
@@ -198,7 +184,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	*g = reread
 	switch g.Status {
 	case goal.StatusComplete:
-		d.clear(ctx, *g) // transient — announce (the model's reply) then clear
+		if err := d.clearOwned(ctx, g); err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
 		return dispComplete, nil
 	case goal.StatusBlocked:
 		return dispBlocked, nil // the model declared blocked
@@ -210,8 +201,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		// The run parked for HITL and produced no terminal (rare — autonomous runs
 		// are headless, so an unanswerable interrupt auto-denies rather than
 		// parking). Wait for the user, who resolves it and can resume the goal.
-		g.Pause(goal.ReasonAwaitingInput, "", d.now())
-		d.save(ctx, *g)
+		if err := d.pauseOwned(ctx, g, goal.ReasonAwaitingInput, ""); err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
 		return dispPaused, nil
 	}
 
@@ -219,8 +214,12 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "malformed terminal run")
-		g.Pause(goal.ReasonTerminalOutcomeMissing, "", d.now())
-		d.save(ctx, *g)
+		if err := d.pauseOwned(ctx, g, goal.ReasonTerminalOutcomeMissing, ""); err != nil {
+			if ctx.Err() != nil {
+				return "", nil
+			}
+			return "", err
+		}
 		return dispPaused, nil
 	}
 	span.SetAttributes(
@@ -290,28 +289,6 @@ func turnCost(run *transcript.Run) float64 {
 	return 0
 }
 
-// save / clear get one bounded persistence window even when ctx was canceled by
-// Stop/shutdown. Both are compare-and-swap on the loop's version: a straggler
-// whose goal was
-// superseded (Stop/Start) or cleared (delete/rollback) simply does not apply —
-// it can neither clobber a newer goal nor resurrect a deleted one. A store error
-// (not a lost CAS) is recorded on the turn span; the boot reconcile is the
-// backstop.
-func (d *Driver) save(ctx context.Context, g goal.Goal) {
-	expected := g.Version()
-	saveCtx, cancel := goalPersistenceContext(ctx)
-	_, _, err := d.goals.Save(saveCtx, g, expected)
-	recordSaveError(saveCtx, err)
-	cancel()
-}
-
-func (d *Driver) clear(ctx context.Context, g goal.Goal) {
-	clearCtx, cancel := goalPersistenceContext(ctx)
-	_, err := d.goals.ClearIf(clearCtx, g.SessionID, g.Version())
-	recordSaveError(clearCtx, err)
-	cancel()
-}
-
 func turnSteps(run *transcript.Run) int {
 	if run.Result == nil {
 		return 0
@@ -319,8 +296,112 @@ func turnSteps(run *transcript.Run) int {
 	return run.Result.Steps
 }
 
-func goalPersistenceContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.WithoutCancel(ctx), goalPersistenceTimeout)
+// pauseOwned persists a loop-originated pause against the newest revision of
+// the lease it owns. Store failures retry in this same supervisor goroutine;
+// CAS misses re-read and reapply only while the same active incarnation remains
+// authoritative.
+func (d *Driver) pauseOwned(ctx context.Context, current *goal.Goal, cause goal.ReasonCause, detail string) error {
+	for current.Status == goal.StatusActive {
+		expected := current.Version()
+		candidate := *current
+		candidate.Pause(cause, detail, d.now())
+		saved, applied, err := d.saveGoal(ctx, candidate, expected)
+		if err != nil {
+			return err
+		}
+		if applied {
+			*current = saved
+			return nil
+		}
+		reread, ok, err := d.loadGoal(ctx, current.SessionID)
+		if err != nil {
+			return err
+		}
+		if !ok || reread.LeaseID != current.LeaseID {
+			return nil
+		}
+		*current = reread
+	}
+	return nil
+}
+
+// clearOwned removes the transient complete state without abandoning the
+// driver on a store fault. A newer revision of the same completed lease is
+// retried; a changed lease or lifecycle state wins.
+func (d *Driver) clearOwned(ctx context.Context, current *goal.Goal) error {
+	for current.Status == goal.StatusComplete {
+		applied, err := d.clearGoal(ctx, current.SessionID, current.Version())
+		if err != nil {
+			return err
+		}
+		if applied {
+			return nil
+		}
+		reread, ok, err := d.loadGoal(ctx, current.SessionID)
+		if err != nil {
+			return err
+		}
+		if !ok || reread.LeaseID != current.LeaseID {
+			return nil
+		}
+		*current = reread
+	}
+	return nil
+}
+
+func (d *Driver) loadGoal(ctx context.Context, sessionID string) (loaded goal.Goal, ok bool, err error) {
+	err = retryGoalStore(ctx, func(attempt context.Context) error {
+		var loadErr error
+		loaded, ok, loadErr = d.goals.Get(attempt, sessionID)
+		return loadErr
+	})
+	return loaded, ok, err
+}
+
+func (d *Driver) saveGoal(ctx context.Context, candidate goal.Goal, expected goal.Version) (saved goal.Goal, applied bool, err error) {
+	err = retryGoalStore(ctx, func(attempt context.Context) error {
+		var saveErr error
+		saved, applied, saveErr = d.goals.Save(attempt, candidate, expected)
+		return saveErr
+	})
+	return saved, applied, err
+}
+
+func (d *Driver) clearGoal(ctx context.Context, sessionID string, expected goal.Version) (applied bool, err error) {
+	err = retryGoalStore(ctx, func(attempt context.Context) error {
+		var clearErr error
+		applied, clearErr = d.goals.ClearIf(attempt, sessionID, expected)
+		return clearErr
+	})
+	return applied, err
+}
+
+func retryGoalStore(ctx context.Context, operation func(context.Context) error) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	delay := goalStoreRetryInitial
+	for {
+		attempt, cancel := context.WithTimeout(ctx, goalStoreAttemptTimeout)
+		err := operation(attempt)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		recordGoalStoreRetry(ctx, err)
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		}
+		delay = min(delay*2, goalStoreRetryMax)
+	}
 }
 
 func (d *Driver) cancelRun(ctx context.Context, runID string) error {

@@ -106,7 +106,7 @@ type Dependencies struct {
 //   - steering.go       — mid-run steering source + final history flush
 //   - event_stream.go   — event subscription + transient delta coalescing
 //   - prompt_hooks.go   — pre-turn lifecycle hooks
-//   - lifecycle.go      — terminal-event capture from the agent runtime
+//   - subagent_lifecycle.go — child-process lifecycle hook projection
 //   - observer.go       — engine tool-observer → application runs event translation
 //
 // Consumers define the narrow control ports they need; delivery never drives

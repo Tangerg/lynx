@@ -15,7 +15,7 @@ import (
 )
 
 // run drives the OODA loop until the process terminates. Internal — the
-// only caller is Engine.Run / Start, which Engine exposes.
+// synchronous Engine entry points own its callers.
 func (p *Process) run(ctx context.Context) error {
 	started, err := p.beginRun()
 	if err != nil {
@@ -36,8 +36,30 @@ func (p *Process) beginRun() (bool, error) {
 }
 
 func (p *Process) runOwned(ctx context.Context) error {
-	ctx = normalizeContext(ctx)
 	defer p.state.endRun()
+	return p.driveOwned(ctx)
+}
+
+// runOwnedSegment freezes a Segment while this invocation still owns the run
+// state, then releases ownership before publishing completion. That ordering
+// prevents a concurrent continuation from changing the status or blackboard
+// represented by the completed segment, while guaranteeing Await never returns
+// until another continuation can be admitted.
+func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, finish func(error)) {
+	var runErr error
+	func() {
+		defer p.state.endRun()
+		runErr = p.driveOwned(ctx)
+		if finish != nil {
+			finish(runErr)
+		}
+		segment.capture(runErr)
+	}()
+	segment.publish()
+}
+
+func (p *Process) driveOwned(ctx context.Context) error {
+	ctx = normalizeContext(ctx)
 	runCtx, cancelRun := context.WithCancel(ctx)
 	releaseRun := p.signals.registerRunCancel(cancelRun)
 	defer func() {

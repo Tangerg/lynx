@@ -11,13 +11,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-func TestTurnLifecycle_SubagentHooks(t *testing.T) {
+func TestSubagentLifecycleHooks(t *testing.T) {
 	rec := &recordHookCommands{}
 	bound := hooks.NewBound([]hooks.Hook{
 		{Event: hooks.SubagentStart, Command: "record", Source: "test"},
 		{Event: hooks.SubagentStop, Command: "record", Source: "test"},
 	}, hooks.NewRunner(rec, nil))
-	lifecycle := &turnLifecycle{
+	lifecycle := &subagentLifecycle{
 		rootID:    "root",
 		sessionID: "sess",
 		cwd:       "/work",
@@ -57,13 +57,24 @@ func TestTurnLifecycle_SubagentHooks(t *testing.T) {
 	}
 }
 
-func TestTurnLifecycleRejectsMismatchedReturnedRoot(t *testing.T) {
-	lifecycle := &turnLifecycle{}
+func TestSubagentLifecycleRejectsMismatchedReturnedRoot(t *testing.T) {
+	lifecycle := &subagentLifecycle{}
 	listener := lifecycle.listener("turn")
 
 	listener.OnEvent(t.Context(), event.ProcessCreated{Header: event.NewHeader("root")})
 	if err := lifecycle.confirmRoot("other"); err == nil {
 		t.Fatal("confirmRoot accepted a returned process that differs from ProcessCreated")
+	}
+}
+
+func TestSubagentLifecycleExistsOnlyForRelevantHooks(t *testing.T) {
+	stopOnly := hooks.NewBound([]hooks.Hook{{Event: hooks.Stop}}, nil)
+	if lifecycle := newSubagentLifecycle("session", "/work", stopOnly); lifecycle != nil {
+		t.Fatal("installed a subtree listener for unrelated hooks")
+	}
+	subagent := hooks.NewBound([]hooks.Hook{{Event: hooks.SubagentStart}}, nil)
+	if lifecycle := newSubagentLifecycle("session", "/work", subagent); lifecycle == nil {
+		t.Fatal("did not install a subtree listener for subagent hooks")
 	}
 }
 

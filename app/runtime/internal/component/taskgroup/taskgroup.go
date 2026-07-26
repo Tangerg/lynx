@@ -10,6 +10,8 @@ import (
 	"maps"
 	"slices"
 	"sync"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/component/completion"
 )
 
 // Group starts request-detached tasks and cancels and joins them at Close.
@@ -134,12 +136,7 @@ func (g *Group) Wait(ctx context.Context) error {
 	g.mu.Lock()
 	done := g.doneLocked()
 	g.mu.Unlock()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return completion.Wait(ctx, done)
 }
 
 // Close rejects new tasks, cancels active tasks, and waits for them to return.

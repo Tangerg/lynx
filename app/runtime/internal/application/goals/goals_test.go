@@ -32,18 +32,17 @@ type memStore struct {
 	afterContextCheck func() // test hook: called before the context-aware lock
 }
 
-type restoreRaceStore struct {
+type storeRetryRaceStore struct {
 	*memStore
 	gets     atomic.Int32
 	captured chan struct{}
 	release  chan struct{}
 }
 
-func (s *restoreRaceStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+func (s *storeRetryRaceStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	call := s.gets.Add(1)
 	if call == 3 {
-		// End the old loop without changing its authoritative active row, forcing
-		// restoreDrive to perform its recovery read.
+		// Force the owning supervisor to retry without releasing its loop handle.
 		return goal.Goal{}, false, errors.New("transient goal read failure")
 	}
 	g, ok, err := s.memStore.Get(ctx, sessionID)
@@ -524,8 +523,14 @@ func TestDriverPausesOnMalformedTerminal(t *testing.T) {
 	}
 }
 
-func TestDriverDoesNotRetryBusyRunStart(t *testing.T) {
+func TestDriverRetriesPausePersistenceWithoutRetryingRunStart(t *testing.T) {
 	store := newMemStore()
+	store.failSave = func(g goal.Goal) error {
+		if g.Reason.Cause == goal.ReasonRunStartFailed {
+			return errors.New("transient goal store failure")
+		}
+		return nil
+	}
 	fake := &fakeRuns{t: t, store: store, startErr: runs.ErrSessionBusy}
 	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
@@ -539,7 +544,7 @@ func TestDriverDoesNotRetryBusyRunStart(t *testing.T) {
 	calls := fake.calls
 	fake.mu.Unlock()
 	if calls != 1 {
-		t.Fatalf("busy run start calls = %d, want 1", calls)
+		t.Fatalf("run start calls = %d, want one attempt while pause persistence retries", calls)
 	}
 }
 
@@ -668,9 +673,9 @@ func TestDriverFreshStartReplacesStoppedGoal(t *testing.T) {
 	waitGoal(t, store, "s1", func(_ goal.Goal, ok bool) bool { return !ok })
 }
 
-func TestRestoreNeverReplacesNewerLeaseDriver(t *testing.T) {
+func TestStoreRetryNeverOutlivesNewerLeaseDriver(t *testing.T) {
 	base := newMemStore()
-	store := &restoreRaceStore{
+	store := &storeRetryRaceStore{
 		memStore: base,
 		captured: make(chan struct{}),
 		release:  make(chan struct{}),
@@ -688,7 +693,7 @@ func TestRestoreNeverReplacesNewerLeaseDriver(t *testing.T) {
 	select {
 	case <-store.captured:
 	case <-time.After(2 * time.Second):
-		t.Fatal("old loop did not enter recovery read")
+		t.Fatal("goal supervisor did not enter its retrying read")
 	}
 
 	if _, err := d.Stop(t.Context(), "s1"); err != nil {
@@ -704,7 +709,7 @@ func TestRestoreNeverReplacesNewerLeaseDriver(t *testing.T) {
 	calls := fake.calls
 	fake.mu.Unlock()
 	if calls != 2 {
-		t.Fatalf("run starts = %d, want old and new drivers only", calls)
+		t.Fatalf("run starts = %d, want only the new driver's two turns", calls)
 	}
 }
 
@@ -773,7 +778,7 @@ func TestDriverContinuesAfterTerminalAccounting(t *testing.T) {
 	calls := fake.calls
 	fake.mu.Unlock()
 	if calls != 2 {
-		t.Fatalf("run starts = %d, want replacement loop to start 2", calls)
+		t.Fatalf("run starts = %d, want one supervisor to start 2 turns", calls)
 	}
 }
 

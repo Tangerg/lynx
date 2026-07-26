@@ -169,3 +169,16 @@ func TestHandleCleanupContextDetachesFinishedOwner(t *testing.T) {
 		t.Fatal("cleanup context is not bounded")
 	}
 }
+
+func TestHandleWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
+	want := errors.New("run cleanup failed")
+	done := make(chan struct{})
+	close(done)
+	h := &handle{done: done, completionErr: want}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := h.wait(ctx); !errors.Is(err, want) {
+		t.Fatalf("wait() = %v, want completed outcome", err)
+	}
+}

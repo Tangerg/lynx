@@ -177,10 +177,11 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
-	proc, done, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
+	proc := segment.Process()
 	firstStarted := <-started
 	secondStarted := <-started
 	select {
@@ -193,8 +194,8 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 	thirdStarted := <-started
 	close(releases[secondStarted])
 	close(releases[thirdStarted])
-	if err := <-done; err != nil {
-		t.Fatal(err)
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatal(completion.Error())
 	}
 	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
 		t.Fatalf("process status=%s failure=%v", proc.Status(), proc.Failure())
@@ -250,13 +251,14 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
 	mustDeploy(t, engine, a)
 
-	proc, done, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatal(err)
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatal(completion.Error())
 	}
+	proc := segment.Process()
 	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil || proc.Suspension().Kind != interaction.SuspensionTool {
 		t.Fatalf("parked process = status %s suspension %#v", proc.Status(), proc.Suspension())
 	}
@@ -465,13 +467,14 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine1, a)
 
-	proc, done, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	segment, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatal(err)
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatal(completion.Error())
 	}
+	proc := segment.Process()
 	if proc.Status() != core.StatusWaiting || model.Calls() != 1 || completedCalls != 1 || approvalAttempts != 1 {
 		t.Fatalf("before crash status=%s model=%d completed=%d approval=%d", proc.Status(), model.Calls(), completedCalls, approvalAttempts)
 	}
@@ -528,13 +531,15 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
-	proc, done, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
+	segment, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if err := <-done; err != nil {
-		t.Fatalf("run control-flow error = %v", err)
+	completion := awaitSegment(t, segment)
+	if completion.Err != nil {
+		t.Fatalf("run control-flow error = %v", completion.Err)
 	}
+	proc := segment.Process()
 	if proc.Status() != core.StatusKilled || !errors.Is(proc.Failure(), context.Canceled) {
 		t.Fatalf("canceled process status=%s failure=%v", proc.Status(), proc.Failure())
 	}
