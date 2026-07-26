@@ -1,5 +1,8 @@
 import type { AgentRunStartOptions } from "@/plugins/sdk";
 import { useCallback } from "react";
+import { t } from "@/lib/i18n";
+import { describeRpcError } from "@/lib/rpcErrors";
+import { notifyError } from "@/plugins/sdk";
 import { resolveAgentRunStartOptions } from "@/plugins/sdk";
 import type { AgentInput } from "../../domain/input";
 import { agentInputText } from "../../domain/input";
@@ -81,11 +84,19 @@ function steerRunningTurn({
   if (!text) return false;
   const localId = mintSteerBubble(sessionId, input);
   const runtime = agentRuntime();
-  void runtime.steerRun(runId, text).catch((err) => {
+  void runtime.steerRun(runId, text).catch((err: unknown) => {
+    agentViewState().dropMessage(sessionId, localId);
     if (runtime.isRunNotFound(err)) {
-      agentViewState().dropMessage(sessionId, localId);
       send?.(input, runOptions);
+      return;
     }
+    // Any other failure means the steer may or may not have reached the loop, so
+    // the optimistic bubble goes either way: if it did land, the runtime streams
+    // the real userMessage Item back and the fold shows it. Leaving the bubble up
+    // was the one outcome that lies — the message sits there looking sent, with
+    // no reply and nothing said about why.
+    console.error("[session] steer failed:", err);
+    notifyError(describeRpcError(err) ?? t("session.error.steer"), { source: "session" });
   });
   return true;
 }

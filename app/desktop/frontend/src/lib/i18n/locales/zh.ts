@@ -877,6 +877,7 @@ export const zh: Record<string, string> = {
   "session.error.favorite": "无法更改会话的收藏状态。",
   "session.error.relocate": "无法迁移会话目录。",
   "session.error.rollback": "无法回退对话。",
+  "session.error.steer": "无法引导正在运行的回合",
   "composer.error.readImage": "无法读取该图片",
   "composer.error.readImages": "无法读取 {{count}} 张图片",
 

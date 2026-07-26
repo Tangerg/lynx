@@ -92,6 +92,12 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         (result) => {
           if (result.userItemId)
             store().relabelMessage(sessionId, optimistic.localId, result.userItemId);
+          // The run was accepted, so this session now holds a conversation: it
+          // graduates out of draft and into the session list. This used to fire
+          // the moment the attempt started, which promoted a session whose only
+          // message was then dropped by the failure path below — an empty row in
+          // the sidebar for a message the runtime never took.
+          useAgentSessionStore.getState().graduateDraft(sessionId);
         },
         // The run never opened (channel-a error, e.g. session_busy because the
         // session has a run in flight / an open interrupt) — drop the optimistic
@@ -99,8 +105,6 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         // wasn't accepted. The banner (set in begin's catch) carries the reason.
         () => store().dropMessage(sessionId, optimistic.localId),
       );
-      // First message graduates a draft session into the sidebar.
-      useAgentSessionStore.getState().graduateDraft(sessionId);
     };
 
     const resume = (

@@ -118,6 +118,32 @@ describe("useCreateSession", () => {
     expect(create).toHaveBeenCalledTimes(3);
   });
 
+  it("only joins an in-flight create that asked for the same thing", async () => {
+    // Joining any create in flight handed the caller someone else's session: a
+    // project "+" landed in the runtime's default directory, and a welcome-composer
+    // send got a session its typed message was never queued against — chatSend
+    // fires this and never inspects the id, so the text was simply gone.
+    let release: ((session: unknown) => void) | undefined;
+    const create = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise((resolve) => (release = resolve)))
+      .mockResolvedValue(fakeSession("second"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    const bare = result.current();
+    const withInput = result.current({ firstInput: agentTextInput("don't lose me") });
+    release?.(fakeSession("first"));
+
+    expect(await bare).toBe("first");
+    expect(await withInput).toBe("second");
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(useAgentSessionStore.getState().takePendingMessage("second")).toEqual({
+      input: agentTextInput("don't lose me"),
+      runOptions: {},
+    });
+  });
+
   it("returns null + doesn't throw when create fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));

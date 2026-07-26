@@ -914,6 +914,7 @@ export const fr: Record<string, string> = {
   "session.error.favorite": "Impossible de changer l'état favori de la session.",
   "session.error.relocate": "Impossible de déplacer la session.",
   "session.error.rollback": "Impossible de revenir en arrière dans la conversation.",
+  "session.error.steer": "Impossible d'orienter le tour en cours",
   "composer.error.readImage": "Impossible de lire l'image",
   "composer.error.readImages": "Impossible de lire {{count}} images",
 

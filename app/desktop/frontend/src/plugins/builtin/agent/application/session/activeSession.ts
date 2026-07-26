@@ -1,3 +1,4 @@
+import { discardAbandonedDraft } from "./discardAbandonedDraft";
 import type { AgentSessionSummary } from "./sessionQueries";
 import { useAgentSessions } from "./sessionQueries";
 import {
@@ -49,6 +50,10 @@ export function selectAgentSession(id: string): void {
 export function closeActiveAgentSession(): boolean {
   const id = getActiveSessionId();
   if (!id) return false;
+  // Before the close, not after: closing drops the session from openSessionIds,
+  // which prunes the draft mark this reads — the selection subscriber that covers
+  // every other way of leaving a draft would then see an ordinary session.
+  discardAbandonedDraft(id);
   agentSessionState().closeSession(id);
   return true;
 }

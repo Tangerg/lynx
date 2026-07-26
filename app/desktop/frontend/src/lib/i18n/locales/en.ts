@@ -942,6 +942,7 @@ export const en: Record<string, string> = {
   "session.error.favorite": "Couldn't change the session's favorite state.",
   "session.error.relocate": "Couldn't relocate the session.",
   "session.error.rollback": "Couldn't rewind the conversation.",
+  "session.error.steer": "Couldn't steer the running turn",
   "composer.error.readImage": "Couldn't read the image",
   "composer.error.readImages": "Couldn't read {{count}} images",
 

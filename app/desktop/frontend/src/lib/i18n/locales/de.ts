@@ -917,6 +917,7 @@ export const de: Record<string, string> = {
   "session.error.favorite": "Favoritenstatus der Sitzung konnte nicht geändert werden.",
   "session.error.relocate": "Sitzung konnte nicht verschoben werden.",
   "session.error.rollback": "Unterhaltung konnte nicht zurückgespult werden.",
+  "session.error.steer": "Der laufende Zug konnte nicht gesteuert werden",
   "composer.error.readImage": "Bild konnte nicht gelesen werden",
   "composer.error.readImages": "{{count}} Bilder konnten nicht gelesen werden",
 

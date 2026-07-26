@@ -64,11 +64,26 @@ async function createAndOpen({
   }
 }
 
-// In-flight latch: every "New" entry point (rail "+", ⌘N, palette command,
-// welcome composer) fires bare, and sessions.create is a full round-trip — a
-// double-click inside that window would otherwise create two backend sessions.
-// Re-entrant calls join the pending create instead.
+// In-flight latch: every "New" entry point (rail "+", ⌘N, palette command) fires
+// bare, and sessions.create is a full round-trip — a double-click inside that
+// window would otherwise create two backend sessions. Re-entrant calls join the
+// pending create instead.
+//
+// Keyed by the request, because "join the one in flight" is only right for the
+// SAME request. It used to join any of them, so a create that carried a cwd (the
+// project "+") could be handed a session in the runtime's default directory
+// instead of the project's — and worse, a welcome-composer send that landed in
+// the window got back someone else's session while its typed message was never
+// queued anywhere. `chatSend` fires that create and never inspects the id, so the
+// text simply vanished.
 let inflight: Promise<string | null> | null = null;
+let inflightKey: string | null = null;
+
+/** The requests that may share one create, or null for one that may not: a queued
+ *  first message belongs to exactly one session. */
+function joinKey(opts: CreateSessionOptions): string | null {
+  return opts.firstInput ? null : `cwd:${opts.cwd ?? ""}`;
+}
 
 /**
  * The fresh session the user is already looking at, if any.
@@ -94,13 +109,22 @@ function alreadyOnAFreshSession(opts: CreateSessionOptions): string | null {
 }
 
 function doCreate(opts: CreateSessionOptions): Promise<string | null> {
-  if (inflight) return inflight;
+  const key = joinKey(opts);
+  if (inflight && key !== null && key === inflightKey) return inflight;
   const fresh = alreadyOnAFreshSession(opts);
   if (fresh) return Promise.resolve(fresh);
-  inflight = createAndOpen(opts).finally(() => {
-    inflight = null;
+  const pending = createAndOpen(opts).finally(() => {
+    // A later create may already own the latch.
+    if (inflight === pending) {
+      inflight = null;
+      inflightKey = null;
+    }
   });
-  return inflight;
+  if (key !== null) {
+    inflight = pending;
+    inflightKey = key;
+  }
+  return pending;
 }
 
 /** Imperative create for non-React callers (palette commands, keymap).
