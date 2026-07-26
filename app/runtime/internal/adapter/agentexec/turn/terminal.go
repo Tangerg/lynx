@@ -15,10 +15,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// cleanupTurnOwned releases a terminal turn exactly once. Process persistence
-// failures remain observable, but cannot retain a completed turn in memory:
-// terminal cleanup has no later runtime owner that could safely retry it.
-func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
+// cleanupTurnOwned releases a terminal turn exactly once after the Agent
+// runtime confirms that it relinquished process ownership.
+func (s *memoryDispatcher) cleanupTurnOwned(ctx context.Context, st *turnState) error {
 	if st.released() {
 		return nil
 	}
@@ -27,9 +26,17 @@ func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 	}
 	var cleanupErr error
 	if p := st.process(); p != nil {
-		if err := discardProcess(st.ctx, p); err != nil {
+		result, err := discardProcess(ctx, p)
+		if err != nil {
 			recordTurnCleanupError(st, err)
 			cleanupErr = err
+		}
+		if !result.Released {
+			if cleanupErr == nil {
+				cleanupErr = fmt.Errorf("turn: discard process %q retained runtime ownership", p.ID())
+				recordTurnCleanupError(st, cleanupErr)
+			}
+			return cleanupErr
 		}
 	}
 	if st.span != nil {
@@ -45,16 +52,12 @@ func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 	return cleanupErr
 }
 
-const processDiscardTimeout = 2 * time.Second
-
-func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
-	defer cancel()
-	err := process.Discard(cleanupCtx)
+func discardProcess(ctx context.Context, process agentexec.TurnProcess) (agentexec.DiscardResult, error) {
+	result, err := process.Discard(ctx)
 	if err != nil {
-		return fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
+		return result, fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
 	}
-	return nil
+	return result, nil
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)
@@ -66,8 +69,8 @@ func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) e
 	return s.completeTurn(st, func() { s.emitFinishedTurn(st, reason) })
 }
 
-func (s *memoryDispatcher) finishTurnOwned(st *turnState, reason execution.Outcome) error {
-	return s.completeTurnOwned(st, func() { s.emitFinishedTurn(st, reason) })
+func (s *memoryDispatcher) finishTurnOwned(ctx context.Context, st *turnState, reason execution.Outcome) error {
+	return s.completeTurnOwned(ctx, st, func() { s.emitFinishedTurn(st, reason) })
 }
 
 func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outcome) {
@@ -110,15 +113,28 @@ func (s *memoryDispatcher) finishExecutionError(st *turnState, problem transcrip
 func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) error {
 	st.lifecycleMu.Lock()
 	defer st.lifecycleMu.Unlock()
-	return s.completeTurnOwned(st, emitTerminal)
+	return s.completeTurnOwned(st.ctx, st, emitTerminal)
 }
 
-func (s *memoryDispatcher) completeTurnOwned(st *turnState, emitTerminal func()) error {
+func (s *memoryDispatcher) completeTurnOwned(ctx context.Context, st *turnState, emitTerminal func()) error {
 	if st.beginTerminal() {
 		emitTerminal()
 		st.closeEvents()
+		if !s.cleanupTasks.Start(st.ctx, func(ctx context.Context) {
+			_ = s.cleanupTurn(ctx, st)
+		}) {
+			// Shutdown already owns the turn set and will perform cleanup through
+			// this lifecycle command using its caller-bounded context.
+			return s.cleanupTurnOwned(ctx, st)
+		}
 	}
-	return s.cleanupTurnOwned(st)
+	return nil
+}
+
+func (s *memoryDispatcher) cleanupTurn(ctx context.Context, st *turnState) error {
+	st.lifecycleMu.Lock()
+	defer st.lifecycleMu.Unlock()
+	return s.cleanupTurnOwned(ctx, st)
 }
 
 // emitTurnEnd maps the process segment's immutable completion onto the

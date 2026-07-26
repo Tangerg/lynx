@@ -53,20 +53,20 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 	if err := engine.Continue(ctx, proc.ID()); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("continue before response error = %v", err)
 	}
-	if err := engine.Resume(proc.ID(), "stale", true); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if err := engine.Resume(t.Context(), proc.ID(), "stale", true); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("stale resume error = %v", err)
 	}
-	if err := engine.Resume(proc.ID(), "approval", "yes"); err == nil {
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", "yes"); err == nil {
 		t.Fatal("schema-invalid response unexpectedly succeeded")
 	}
 
-	if err := engine.Resume(proc.ID(), "approval", true); err != nil {
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", true); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	if err := engine.Resume(proc.ID(), "approval", true); err != nil {
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", true); err != nil {
 		t.Fatalf("idempotent resume: %v", err)
 	}
-	if err := engine.Resume(proc.ID(), "approval", false); !errors.Is(err, interaction.ErrSuspensionConflict) {
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", false); !errors.Is(err, interaction.ErrSuspensionConflict) {
 		t.Fatalf("conflicting resume error = %v", err)
 	}
 	if err := engine.Continue(ctx, proc.ID()); err != nil {

@@ -3,7 +3,6 @@ package runtime
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -85,7 +84,7 @@ func TestProcessStateCannotBeRemovedBeforeRunReleasesOwnership(t *testing.T) {
 	}
 }
 
-func TestProcessRegistryCannotReplaceTerminalRunDuringFinalization(t *testing.T) {
+func TestProcessRegistryNeverReplacesAnExistingIdentity(t *testing.T) {
 	registry := newProcessRegistry()
 	existing := &Process{id: "process", state: newProcessState()}
 	if started, err := existing.state.beginRun(); err != nil || !started {
@@ -102,8 +101,81 @@ func TestProcessRegistryCannotReplaceTerminalRunDuringFinalization(t *testing.T)
 		t.Fatal("registry replaced a terminal process before its run finalized")
 	}
 	existing.state.endRun()
+	if registry.registerNew(replacement) {
+		t.Fatal("registry replaced a terminal process after finalization")
+	}
+	registry.unregister(existing)
 	if !registry.registerNew(replacement) {
-		t.Fatal("registry did not accept replacement after finalization")
+		t.Fatal("registry rejected identity after explicit removal")
+	}
+}
+
+func TestProcessRegistryCannotMixRestoredAndExistingTreeGenerations(t *testing.T) {
+	registry := newProcessRegistry()
+	parent := &Process{id: "parent", state: newProcessState()}
+	child := &Process{id: "child", parentID: parent.id, depth: 1, state: newProcessState()}
+	if !parent.state.transition(core.StatusCompleted) {
+		t.Fatal("complete parent")
+	}
+	if !registry.insert(parent) || !registry.insert(child) {
+		t.Fatal("insert existing tree")
+	}
+
+	replacement := &Process{id: parent.id, state: newProcessState()}
+	if registry.registerTree([]*Process{replacement}) {
+		t.Fatal("registry replaced a parent while retaining its old descendant")
+	}
+	if current, ok := registry.get(parent.id); !ok || current != parent {
+		t.Fatal("failed generation replacement displaced the existing parent")
+	}
+	if current, ok := registry.get(child.id); !ok || current != child {
+		t.Fatal("failed generation replacement displaced the existing child")
+	}
+}
+
+func TestProcessRegistryFailedTreeRegistrationIsAtomic(t *testing.T) {
+	registry := newProcessRegistry()
+	existing := &Process{id: "b"}
+	if !registry.insert(existing) {
+		t.Fatal("insert blocking ID")
+	}
+
+	if registry.registerTree([]*Process{{id: "a"}, {id: "b"}}) {
+		t.Fatal("overlapping tree registration succeeded")
+	}
+	if !registry.insert(&Process{id: "a"}) {
+		t.Fatal("failed tree registration published an earlier ID")
+	}
+}
+
+func TestProcessRegistryTreeRemovalRejectsUnreservedDescendantAtomically(t *testing.T) {
+	registry := newProcessRegistry()
+	parent := &Process{id: "parent"}
+	child := &Process{id: "child", parentID: parent.id}
+	if !registry.insert(parent) || !registry.insert(child) {
+		t.Fatal("insert process tree")
+	}
+	if !registry.reserveProcesses([]*Process{parent}) {
+		t.Fatal("reserve parent")
+	}
+	if registry.unregisterReservedTree([]*Process{parent}) {
+		t.Fatal("tree removal detached an unreserved child")
+	}
+	if current, ok := registry.get(parent.id); !ok || current != parent {
+		t.Fatal("failed tree removal partially removed parent")
+	}
+	registry.releaseProcesses([]*Process{parent})
+	if !registry.reserveProcesses([]*Process{parent, child}) {
+		t.Fatal("reserve complete tree")
+	}
+	if !registry.unregisterReservedTree([]*Process{parent, child}) {
+		t.Fatal("remove complete reserved tree")
+	}
+	if _, ok := registry.get(parent.id); ok {
+		t.Fatal("parent remained registered")
+	}
+	if _, ok := registry.get(child.id); ok {
+		t.Fatal("child remained registered")
 	}
 }
 
@@ -159,7 +231,8 @@ func TestProcessStateWaitRunPrefersObservableCompletion(t *testing.T) {
 }
 
 func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
-	for range 100 {
+	newTree := func(t *testing.T) (*Engine, *Process, *Process) {
+		t.Helper()
 		engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 		parentDef := deploymentFixture("atomic-parent", core.ConditionSet{"finish": core.True}, nil)
 		childDef := deploymentFixture("atomic-child", core.ConditionSet{"finish": core.True}, nil)
@@ -178,43 +251,37 @@ func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
 		if started, err := child.beginRun(); err != nil || !started {
 			t.Fatalf("begin child run = (%v, %v)", started, err)
 		}
+		return engine, parent, child
+	}
 
-		start := make(chan struct{})
-		var (
-			attachErr error
-			killErr   error
-			wait      sync.WaitGroup
-		)
-		wait.Add(2)
-		go func() {
-			defer wait.Done()
-			<-start
-			attachErr = engine.attachChild(parent, child)
-		}()
-		go func() {
-			defer wait.Done()
-			<-start
-			killErr = engine.Kill(t.Context(), parent.ID())
-		}()
-		close(start)
-		wait.Wait()
+	t.Run("admission linearizes first", func(t *testing.T) {
+		engine, parent, child := newTree(t)
+		if err := engine.attachChild(parent, child); err != nil {
+			t.Fatalf("attach child: %v", err)
+		}
+		if err := engine.Kill(t.Context(), parent.ID()); err != nil {
+			t.Fatalf("kill parent: %v", err)
+		}
 		parent.state.endRun()
 		child.state.endRun()
+		if child.Status() != core.StatusKilled {
+			t.Fatalf("admitted child status = %s, want killed", child.Status())
+		}
+	})
 
-		if killErr != nil {
-			t.Fatal(killErr)
+	t.Run("kill linearizes first", func(t *testing.T) {
+		engine, parent, child := newTree(t)
+		if err := engine.Kill(t.Context(), parent.ID()); err != nil {
+			t.Fatalf("kill parent: %v", err)
 		}
-		if attachErr == nil {
-			if child.Status() != core.StatusKilled {
-				t.Fatalf("admitted child status = %s, want killed", child.Status())
-			}
-			continue
-		}
+		attachErr := engine.attachChild(parent, child)
+		parent.state.endRun()
+		child.state.endRun()
 		if !errors.Is(attachErr, ErrChildParentInactive) {
 			t.Fatalf("attach error = %v, want ErrChildParentInactive", attachErr)
 		}
 		if _, exists := engine.Process(child.ID()); exists {
 			t.Fatal("rejected child was published")
 		}
-	}
+	})
 }

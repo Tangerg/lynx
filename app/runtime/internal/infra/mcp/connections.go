@@ -40,8 +40,14 @@ type shutdownAttempt struct {
 	err  error
 }
 
-type sessionCloser interface {
-	Close() error
+type sessionCloseAttempt struct {
+	done chan struct{}
+	err  error
+}
+
+type ownedSession struct {
+	closeFn func() error
+	close   *sessionCloseAttempt
 }
 
 // Connections owns the live MCP server sessions + reconnect. The optional tool
@@ -54,7 +60,7 @@ type Connections struct {
 	onTools  func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
 	closed   bool               // terminal admission state set by Shutdown
 	shutdown *shutdownAttempt
-	pending  []sessionCloser
+	sessions map[*sdkmcp.ClientSession]*ownedSession
 
 	// publishMu serializes snapshot+sink publication. Mutations themselves run
 	// concurrently per server; taking this lock before snapshotting guarantees a
@@ -90,6 +96,18 @@ func (c *Connections) find(name string) *server {
 		}
 	}
 	return nil
+}
+
+func (c *Connections) ownSessionLocked(session *sdkmcp.ClientSession) {
+	if session == nil {
+		return
+	}
+	if c.sessions == nil {
+		c.sessions = make(map[*sdkmcp.ClientSession]*ownedSession)
+	}
+	if c.sessions[session] == nil {
+		c.sessions[session] = &ownedSession{closeFn: session.Close}
+	}
 }
 
 func cloneServerConfig(cfg ServerConfig) ServerConfig {

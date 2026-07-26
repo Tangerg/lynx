@@ -138,13 +138,17 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 `Engine` 是 framework 级主对象，支持多实例，没有 package-global registry：
 
 - `Run`：同步驱动到终态或 Waiting；
-- `Start`：同步返回 Process、只发送一次运行结果的完成 channel 和 admission error；
+- `Start`：同步返回持有 Process 与不可变完成结果的 `Segment`，以及 admission error；
 - `Continue`：同步继续已存在的非终态 Process；
-- `ContinueAsync`：同步返回 admission error，成功后由完成 channel 承载后台运行结果；
+- `ContinueAsync`：同步返回 admission error，成功后由 `Segment` 承载后台运行结果；
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
+- `ResumeAsync`：在同一个树事务中记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
 - `Kill`、`Remove`、`Prune`：显式生命周期管理；
 - `Process`、`Processes`：读取当前 registry 快照；
 - `Save`、`Discard`、`Restore`、`Resumable`、`RestoreResumable`、`RestoreSnapshot`：durable process 协调。
+
+Restore 从不覆盖 registry 中已有的 Process ID。调用方必须先显式 `Remove` 或 `Discard`
+旧 generation，再恢复新 generation；framework 不提供隐式替换或兼容回退。
 
 `Continue`、`Resume`、`Kill` 或 `Remove` 指向已不存在的 Process 时，错误可通过
 `errors.Is(err, runtime.ErrProcessNotFound)` 稳定分类；调用方不得解析错误文本。
@@ -229,7 +233,7 @@ if !approved {
 `Process.Suspension()`，随后调用：
 
 ```go
-if err := engine.Resume(process.ID(), suspension.ID, response); err != nil {
+if err := engine.Resume(ctx, process.ID(), suspension.ID, response); err != nil {
     return err
 }
 if err := engine.Continue(ctx, process.ID()); err != nil {

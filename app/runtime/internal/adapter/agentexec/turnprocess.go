@@ -22,6 +22,12 @@ type TurnCompletion struct {
 	Err       error
 }
 
+// DiscardResult reports whether terminal process ownership left the Agent
+// runtime. Released may be true together with a durable deletion error.
+type DiscardResult struct {
+	Released bool
+}
+
 func (c TurnCompletion) Error() error {
 	if c.Failure == nil {
 		return c.Err
@@ -80,7 +86,7 @@ type TurnProcess interface {
 	// After the terminal tree reaches removal ownership, snapshot deletion
 	// failures are reported without retaining the dead runtime tree. NEVER call
 	// on a parked process, whose snapshot must survive for resume.
-	Discard(ctx context.Context) error
+	Discard(ctx context.Context) (DiscardResult, error)
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -90,6 +96,7 @@ type turnProcess struct {
 	process *runtime.Process
 	segment *runtime.Segment
 	engine  *runtime.Engine
+	runCtx  context.Context
 }
 
 func (p *turnProcess) ID() string { return p.process.ID() }
@@ -128,15 +135,9 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 	if err != nil {
 		return err
 	}
-	if err := p.engine.Resume(p.process.ID(), parked.ID, response); err != nil {
-		return err
-	}
-	segment, err := p.engine.ContinueAsync(ctx, p.process.ID())
+	segment, err := p.engine.ResumeAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
 	if err != nil {
 		return err
-	}
-	if segment == nil {
-		return errors.New("engine: continue process returned no completion boundary")
 	}
 	p.segment = segment
 	return nil
@@ -144,9 +145,10 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
-func (p *turnProcess) Discard(ctx context.Context) error {
+func (p *turnProcess) Discard(ctx context.Context) (DiscardResult, error) {
 	if p == nil || p.process == nil || p.engine == nil {
-		return errors.New("agentexec: discard process: incomplete turn process")
+		return DiscardResult{}, errors.New("agentexec: discard process: incomplete turn process")
 	}
-	return p.engine.Discard(ctx, p.process.ID())
+	result, err := p.engine.Discard(ctx, p.process.ID())
+	return DiscardResult{Released: result.Released}, err
 }

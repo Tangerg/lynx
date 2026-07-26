@@ -36,7 +36,6 @@ type processState struct {
 	runDone            chan struct{}
 	killRevision       uint64
 	checkpointOwned    bool
-	removalClaimed     bool
 }
 
 type processRunPhase uint8
@@ -419,23 +418,9 @@ func (s *processState) releaseCheckpoint() {
 func (s *processState) removable() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.currentStatus.IsTerminal() && s.runPhase == runIdle && !s.removalClaimed
-}
-
-func (s *processState) claimRemoval() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !s.currentStatus.IsTerminal() || s.runPhase != runIdle || s.removalClaimed {
-		return false
-	}
-	s.removalClaimed = true
-	return true
-}
-
-func (s *processState) releaseRemoval() {
-	s.mu.Lock()
-	s.removalClaimed = false
-	s.mu.Unlock()
+	return s.currentStatus.IsTerminal() &&
+		s.runPhase == runIdle &&
+		!s.checkpointOwned
 }
 
 // markKilled transitions to StatusKilled unless the process is already

@@ -22,8 +22,8 @@ func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
 		run  func() error
 	}{
 		{name: "kill", run: func() error { return engine.Kill(t.Context(), "proc_missing") }},
-		{name: "remove", run: func() error { return engine.Remove("proc_missing") }},
-		{name: "resume", run: func() error { return engine.Resume("proc_missing", "susp_1", true) }},
+		{name: "remove", run: func() error { return engine.Remove(t.Context(), "proc_missing") }},
+		{name: "resume", run: func() error { return engine.Resume(t.Context(), "proc_missing", "susp_1", true) }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -46,6 +46,88 @@ func TestAsyncEntryPointsReturnAdmissionErrorsSynchronously(t *testing.T) {
 	segment, err = engine.ContinueAsync(t.Context(), "proc_missing")
 	if segment != nil || !errors.Is(err, ErrProcessNotFound) {
 		t.Fatalf("ContinueAsync = %#v, %v; want nil segment and ErrProcessNotFound", segment, err)
+	}
+}
+
+func TestContinuationAdmissionCannotCrossRegistryReservation(t *testing.T) {
+	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+	process := createProcessForTest(
+		t,
+		engine,
+		deploymentFixture("reserved-continuation", core.ConditionSet{"finish": core.True}, nil),
+		core.Bindings{},
+		core.ProcessOptions{},
+	)
+	if !engine.processes.reserveProcesses([]*Process{process}) {
+		t.Fatal("reserve process")
+	}
+	if err := engine.Continue(t.Context(), process.ID()); !errors.Is(err, ErrProcessNotFound) {
+		t.Fatalf("Continue reserved process = %v, want ErrProcessNotFound", err)
+	}
+	if err := engine.Resume(t.Context(), process.ID(), "suspension", true); !errors.Is(err, ErrProcessNotFound) {
+		t.Fatalf("Resume reserved process = %v, want ErrProcessNotFound", err)
+	}
+	if got := process.Status(); got != core.StatusNotStarted {
+		t.Fatalf("reserved process status = %s, want %s", got, core.StatusNotStarted)
+	}
+
+	engine.processes.releaseProcesses([]*Process{process})
+	if err := engine.Continue(t.Context(), process.ID()); err != nil {
+		t.Fatalf("Continue released process: %v", err)
+	}
+}
+
+func TestResumeContextBoundsProcessTreeAdmission(t *testing.T) {
+	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+	process := createProcessForTest(
+		t,
+		engine,
+		deploymentFixture("bounded-resume", core.ConditionSet{"finish": core.True}, nil),
+		core.Bindings{},
+		core.ProcessOptions{},
+	)
+	release, err := engine.processMutations.acquire(t.Context(), process.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := engine.Resume(ctx, process.ID(), "suspension", true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Resume = %v, want context cancellation", err)
+	}
+}
+
+func TestKillChildrenUsesOrphanChildMutationBoundary(t *testing.T) {
+	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+	child := createProcessForTest(
+		t,
+		engine,
+		deploymentFixture("orphan-child", core.ConditionSet{"finish": core.True}, nil),
+		core.Bindings{},
+		core.ProcessOptions{},
+	)
+	child.parentID = "missing-parent"
+	child.depth = 1
+
+	release, err := engine.processMutations.acquire(t.Context(), child.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if killed, err := engine.KillChildren(ctx, child.ParentID()); len(killed) != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("KillChildren while child mutation is owned = (%v, %v), want cancellation", killed, err)
+	}
+	release()
+
+	killed, err := engine.KillChildren(t.Context(), child.ParentID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(killed) != 1 || killed[0] != child.ID() {
+		t.Fatalf("killed = %v, want [%s]", killed, child.ID())
 	}
 }
 

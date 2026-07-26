@@ -31,6 +31,28 @@ func TestMCPStatusAndToolsUsePorts(t *testing.T) {
 	}
 }
 
+func TestRemoveMCPServerCompletesProjectionAfterSessionCloseFailure(t *testing.T) {
+	closeErr := errors.New("session close failed")
+	ports := &fakeMCPPorts{
+		statuses:  []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
+		removeErr: closeErr,
+	}
+	notified := make(chan string, 1)
+	cfg := configWithMCPPorts(ports)
+	cfg.MCPStatus = func(status MCPServerStatus) { notified <- status.Name }
+	c := New(cfg)
+
+	if err := c.RemoveMCPServer(t.Context(), "fs"); !errors.Is(err, closeErr) {
+		t.Fatalf("RemoveMCPServer = %v, want close failure", err)
+	}
+	if ports.removeName != "fs" {
+		t.Fatalf("live removal = %q, want fs", ports.removeName)
+	}
+	if got := <-notified; got != "fs" {
+		t.Fatalf("status notification = %q, want fs", got)
+	}
+}
+
 // TestMCPConnectionCommandsUsePorts: reconnect/authorize are fire-and-forget —
 // they validate the name synchronously, then dial on the component task group and
 // publish the settled frame. The test waits on the settled notification (which
@@ -148,6 +170,7 @@ type fakeMCPPorts struct {
 	probe      mcpserver.Server
 	configure  mcpserver.Server
 	removeName string
+	removeErr  error
 }
 
 func (f *fakeMCPPorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
@@ -177,8 +200,9 @@ func (f *fakeMCPPorts) Configure(_ context.Context, cfg mcpserver.Server) error 
 	return nil
 }
 
-func (f *fakeMCPPorts) Remove(_ context.Context, name string) {
+func (f *fakeMCPPorts) Remove(_ context.Context, name string) error {
 	f.removeName = name
+	return f.removeErr
 }
 
 // blockingMCPPorts is a fakeMCPPorts whose dial blocks on its context until Close,

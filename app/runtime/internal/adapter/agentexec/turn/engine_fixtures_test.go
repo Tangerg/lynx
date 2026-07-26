@@ -81,6 +81,7 @@ type stubTurnProcess struct {
 	onCancel   func()
 	resumeErr  error       // when set, Resume fails with it
 	discardErr error       // returned by Discard to verify teardown observability
+	retain     bool        // leaves Agent runtime ownership attached on Discard
 	discarded  atomic.Bool // set by Discard to assert terminal snapshot cleanup
 }
 
@@ -128,9 +129,9 @@ func (cp *stubTurnProcess) Resume(_ context.Context, _ interrupts.Resolution) er
 
 func (cp *stubTurnProcess) Suspension() *agent.Suspension { return nil }
 
-func (cp *stubTurnProcess) Discard(_ context.Context) error {
+func (cp *stubTurnProcess) Discard(_ context.Context) (agentexec.DiscardResult, error) {
 	cp.discarded.Store(true)
-	return cp.discardErr
+	return agentexec.DiscardResult{Released: !cp.retain}, cp.discardErr
 }
 
 // stubEngine satisfies the turn dispatcher's engine dependency without touching
@@ -206,6 +207,7 @@ func (s *stubEngine) RestoreTurn(_ context.Context, processID string, request ag
 	}
 	cp := newStubTurnProcess(processID, agentexec.TurnOutput{Reply: s.runReply})
 	cp.resumeErr = s.restoreResumeErr
+	s.lastProcess.Store(cp)
 	return cp, nil
 }
 

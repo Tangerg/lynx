@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -45,6 +46,42 @@ func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 	if proc.Status() != core.StatusCompleted {
 		t.Errorf("after second Kill: status = %s, want completed", proc.Status())
 	}
+}
+
+func TestKillListenerMayReenterSameProcessTree(t *testing.T) {
+	var engine *runtime.Engine
+	reentered := make(chan error, 1)
+	listener := event.NewNamedListener("reentrant-kill", func(ctx context.Context, published event.Event) {
+		killed, ok := published.(event.ProcessKilled)
+		if !ok {
+			return
+		}
+		reentered <- engine.Kill(ctx, killed.ProcessID())
+	})
+	engine = agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
+	release := make(chan struct{})
+	definition := blockingChild("reentrant-kill", release)
+	mustDeploy(t, engine, definition)
+	segment, err := engine.Start(t.Context(), definition, core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	killDone := make(chan error, 1)
+	go func() { killDone <- engine.Kill(t.Context(), segment.Process().ID()) }()
+	select {
+	case err := <-reentered:
+		if err != nil {
+			t.Fatalf("reentrant Kill: %v", err)
+		}
+	case <-t.Context().Done():
+		t.Fatal("ProcessKilled listener deadlocked on the process-tree mutation")
+	}
+	if err := <-killDone; err != nil {
+		t.Fatalf("outer Kill: %v", err)
+	}
+	awaitSegment(t, segment)
+	close(release)
 }
 
 func TestKillTerminalParentStillKillsLiveDescendants(t *testing.T) {
@@ -89,13 +126,13 @@ func TestKillTerminalParentStillKillsLiveDescendants(t *testing.T) {
 	}
 	awaitSegment(t, childSegment)
 	close(release)
-	if err := engine.Remove(parent.ID()); !errors.Is(err, runtime.ErrProcessHasChildren) {
+	if err := engine.Remove(t.Context(), parent.ID()); !errors.Is(err, runtime.ErrProcessHasChildren) {
 		t.Fatalf("Remove parent error = %v, want ErrProcessHasChildren", err)
 	}
-	if err := engine.Remove(child.ID()); err != nil {
+	if err := engine.Remove(t.Context(), child.ID()); err != nil {
 		t.Fatalf("Remove child: %v", err)
 	}
-	if err := engine.Remove(parent.ID()); err != nil {
+	if err := engine.Remove(t.Context(), parent.ID()); err != nil {
 		t.Fatalf("Remove parent: %v", err)
 	}
 }
@@ -121,7 +158,7 @@ func TestPrunePreservesTerminalParentWithActiveChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if removed := engine.Prune(); len(removed) != 0 {
+	if removed, err := engine.Prune(t.Context()); err != nil || len(removed) != 0 {
 		t.Fatalf("Prune removed %v while child was active", removed)
 	}
 	if _, exists := engine.Process(parent.ID()); !exists {
@@ -132,7 +169,10 @@ func TestPrunePreservesTerminalParentWithActiveChild(t *testing.T) {
 	}
 	awaitSegment(t, childSegment)
 	close(release)
-	removed := engine.Prune()
+	removed, err := engine.Prune(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(removed) != 2 {
 		t.Fatalf("Prune removed %v, want child and parent", removed)
 	}
@@ -149,7 +189,7 @@ func TestRemoveRejectsActiveProcess(t *testing.T) {
 		t.Fatalf("Start: %v", err)
 	}
 	proc := segment.Process()
-	if err := engine.Remove(proc.ID()); !errors.Is(err, runtime.ErrProcessActive) {
+	if err := engine.Remove(t.Context(), proc.ID()); !errors.Is(err, runtime.ErrProcessActive) {
 		t.Fatalf("Remove active process error = %v, want ErrProcessActive", err)
 	}
 	if _, ok := engine.Process(proc.ID()); !ok {
@@ -160,7 +200,7 @@ func TestRemoveRejectsActiveProcess(t *testing.T) {
 	}
 	awaitSegment(t, segment)
 	close(release)
-	if err := engine.Remove(proc.ID()); err != nil {
+	if err := engine.Remove(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Remove terminal process: %v", err)
 	}
 	if _, ok := engine.Process(proc.ID()); ok {

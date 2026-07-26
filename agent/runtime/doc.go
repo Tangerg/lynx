@@ -19,14 +19,16 @@
 //	New → Deploy(agent) → immutable Deployment
 //	  → Run(ctx, agent, bindings, options)             // synchronous run
 //	  → Start / RunInSession                           // background / multi-turn variants
-//	  → Resume(id, suspensionID, response) + Continue // record reply, re-enter loop
+//	  → Resume(ctx, id, suspensionID, response) + Continue // record reply, re-enter loop
+//	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
 //	  → Kill / Remove / Prune
 //
 // HITL is a first-class state: when an action surfaces a suspension from
 // [hitl.Interrupt], the process waits in [core.StatusWaiting];
 // [Engine.Resume] records a response on the exact suspension while
 // the process remains waiting; [Engine.Continue] re-enters the action
-// at that suspension point. A synchronous AgentTool child that waits promotes
+// at that suspension point. [Engine.ResumeAsync] combines those two admission
+// transitions atomically for asynchronous hosts. A synchronous AgentTool child that waits promotes
 // the same suspension to its parent and retains the exact child/tool-loop
 // checkpoint, so Resume/Continue finishes the original tool call without
 // replaying completed siblings. [Engine.RunChildWithState], [Engine.RunChild], and

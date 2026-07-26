@@ -14,19 +14,6 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-// run drives the OODA loop until the process terminates. Internal — the
-// synchronous Engine entry points own its callers.
-func (p *Process) run(ctx context.Context) error {
-	started, err := p.beginRun()
-	if err != nil {
-		return err
-	}
-	if !started {
-		return nil
-	}
-	return p.runOwned(ctx)
-}
-
 func (p *Process) beginRun() (bool, error) {
 	started, err := p.state.beginRun()
 	if err != nil {

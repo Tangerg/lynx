@@ -550,7 +550,7 @@ runtime: func (e *Engine) Dependencies() *core.Dependencies
 runtime: func (e *Engine) Deploy(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool)
 runtime: func (e *Engine) Deployments() []*Deployment
-runtime: func (e *Engine) Discard(ctx context.Context, processID string) error
+runtime: func (e *Engine) Discard(ctx context.Context, processID string) (DiscardResult, error)
 runtime: func (e *Engine) GoalTools() ([]tools.Tool, error)
 runtime: func (e *Engine) GoalToolsFor(names ...string) ([]tools.Tool, error)
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
@@ -558,14 +558,15 @@ runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]
 runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) Processes() []*Process
-runtime: func (e *Engine) Prune() []string
-runtime: func (e *Engine) Remove(id string) error
+runtime: func (e *Engine) Prune(ctx context.Context) ([]string, error)
+runtime: func (e *Engine) Remove(ctx context.Context, id string) error
 runtime: func (e *Engine) Replace(ctx context.Context, agent *core.Agent) (*Deployment, error)
 runtime: func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
 runtime: func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error)
-runtime: func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error)
+runtime: func (e *Engine) RestoreSnapshot( ctx context.Context, snapshot core.ProcessSnapshot, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error)
-runtime: func (e *Engine) Resume(id, suspensionID string, response any) error
+runtime: func (e *Engine) Resume(ctx context.Context, id, suspensionID string, response any) error
+runtime: func (e *Engine) ResumeAsync( admissionCtx context.Context, runCtx context.Context, id, suspensionID string, response any, ) (*Segment, error)
 runtime: func (e *Engine) Run( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Process, error)
 runtime: func (e *Engine) RunChild( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
 runtime: func (e *Engine) RunChildIsolated( ctx context.Context, deployment *Deployment, input any, ) (*Process, error)
@@ -609,6 +610,7 @@ runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[str
 runtime: type Config struct { BuildID string Chat core.ChatCapability Guardrails *core.ChatGuardrails BindConversation func(context.Context, string) context.Context ProcessStore core.ProcessStore AutoSnapshot bool SnapshotFinalizeTimeout time.Duration SnapshotFailurePolicy SnapshotFailurePolicy SessionStore core.SessionStore SessionFinalizeTimeout time.Duration ChildSessionStore core.SessionStore MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
+runtime: type DiscardResult struct { Released bool }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
 runtime: type Process struct { }

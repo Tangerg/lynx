@@ -54,7 +54,7 @@ func TestFailedAttemptIsRetryable(t *testing.T) {
 	}
 }
 
-func TestCallerJoiningFailedAttemptGetsFreshAttempt(t *testing.T) {
+func TestCallerJoiningFailedAttemptObservesSameGeneration(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	want := errors.New("first close failed")
@@ -76,11 +76,17 @@ func TestCallerJoiningFailedAttemptGetsFreshAttempt(t *testing.T) {
 	if err := first.Wait(t.Context()); !errors.Is(err, want) {
 		t.Fatalf("first attempt = %v, want failure", err)
 	}
-	if err := second.Wait(t.Context()); err != nil {
-		t.Fatalf("joining caller's fresh attempt = %v", err)
+	if err := second.Wait(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("joining caller attempt = %v, want same failure", err)
+	}
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("action calls = %d, want 1", got)
+	}
+	if err := step.Begin(t.Context()).Wait(t.Context()); err != nil {
+		t.Fatalf("explicit retry = %v", err)
 	}
 	if got := calls.Load(); got != 2 {
-		t.Fatalf("action calls = %d, want 2", got)
+		t.Fatalf("action calls after explicit retry = %d, want 2", got)
 	}
 }
 

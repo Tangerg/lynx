@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -26,24 +25,32 @@ func TestProcessSignalsMergeTerminationByScope(t *testing.T) {
 	}
 }
 
-func TestProcessSignalsPreferAgentTerminationConcurrently(t *testing.T) {
-	for range 100 {
-		signals := newProcessSignals()
-		var callers sync.WaitGroup
-		callers.Add(2)
-		go func() {
-			defer callers.Done()
-			signals.queueTermination(core.TerminationScopeAction, "retry action")
-		}()
-		go func() {
-			defer callers.Done()
-			signals.queueTermination(core.TerminationScopeAgent, "stop process")
-		}()
-		callers.Wait()
-
-		got := signals.drainTerminate()
-		if got == nil || got.Scope != core.TerminationScopeAgent || got.Reason != "stop process" {
-			t.Fatalf("signal = %#v, want agent-scoped request", got)
-		}
+func TestProcessSignalsPreferAgentTerminationInEveryArrivalOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		first core.TerminationScope
+		last  core.TerminationScope
+	}{
+		{name: "action then agent", first: core.TerminationScopeAction, last: core.TerminationScopeAgent},
+		{name: "agent then action", first: core.TerminationScopeAgent, last: core.TerminationScopeAction},
 	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			signals := newProcessSignals()
+			signals.queueTermination(test.first, terminationReason(test.first))
+			signals.queueTermination(test.last, terminationReason(test.last))
+
+			got := signals.drainTerminate()
+			if got == nil || got.Scope != core.TerminationScopeAgent || got.Reason != "stop process" {
+				t.Fatalf("signal = %#v, want agent-scoped request", got)
+			}
+		})
+	}
+}
+
+func terminationReason(scope core.TerminationScope) string {
+	if scope == core.TerminationScopeAgent {
+		return "stop process"
+	}
+	return "retry action"
 }

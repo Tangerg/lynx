@@ -124,6 +124,9 @@ func TestRepeatUntilAcceptable_AutoSnapshotPreservesState(t *testing.T) {
 	if err != nil || process.Status() != core.StatusCompleted {
 		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
 	}
+	if _, err := engine.Prune(t.Context()); err != nil {
+		t.Fatalf("Prune before Restore: %v", err)
+	}
 	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)

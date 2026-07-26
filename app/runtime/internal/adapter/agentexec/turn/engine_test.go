@@ -333,6 +333,37 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	}
 }
 
+func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
+	stub := &stubEngine{runReply: "continuation reply", restoreResumeErr: context.Canceled}
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+		SessionID: "sess-restored",
+		TurnID:    "turn-original",
+		ProcessID: "process-99",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("first Resume = %v, want context cancellation", err)
+	}
+	process := stub.lastProcess.Load()
+	if process == nil {
+		t.Fatal("restored process was not retained")
+	}
+	process.resumeErr = nil
+	if err := dispatcher.Resume(t.Context(), handle, interrupts.Resolution{Approved: true}, nil); err != nil {
+		t.Fatalf("retry Resume: %v", err)
+	}
+	for range events {
+	}
+}
+
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
 // the resolver's client through to the engine's TurnRequest.ChatClient —
 // the turn-dispatcher half of per-run model selection.

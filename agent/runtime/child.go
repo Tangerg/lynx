@@ -291,13 +291,10 @@ func (r childRun) linkSession(child, parent *Process) error {
 	if child.options == nil || child.options.session != nil {
 		return nil
 	}
-	parentConvID := parent.conversationID()
-	if parentConvID == "" {
+	session, linked := bindChildSession(child, parent)
+	if !linked {
 		return nil
 	}
-	session := core.NewSession(child.ID(), parent.userID(), child.agent().Name())
-	session.ParentID = parentConvID
-	child.options.session = &session
 
 	if r.engine.childSessionStore != nil {
 		if err := r.engine.childSessionStore.Save(r.ctx, session); err != nil {
@@ -317,23 +314,28 @@ func (r childRun) restoreSession(child, parent *Process) error {
 		return nil
 	}
 	if r.engine == nil || r.engine.childSessionStore == nil {
-		return r.linkSession(child, parent)
+		bindChildSession(child, parent)
+		return nil
 	}
 	session, err := r.engine.childSessionStore.Load(r.ctx, child.ID())
 	if err != nil {
 		if errors.Is(err, core.ErrSessionNotFound) {
-			return r.linkSession(child, parent)
+			return &continuationStateError{
+				err: fmt.Errorf("load child session %q: %w", child.ID(), err),
+			}
 		}
 		return fmt.Errorf("load child session %q: %w", child.ID(), err)
 	}
 	if err := session.Validate(); err != nil {
-		return fmt.Errorf("stored child session %q: %w", child.ID(), err)
+		return &continuationStateError{
+			err: fmt.Errorf("stored child session %q: %w", child.ID(), err),
+		}
 	}
 	if session.ID != child.ID() ||
 		session.ParentID != parentConversationID ||
 		session.UserID != parent.userID() ||
 		session.AgentName != child.agent().Name() {
-		return fmt.Errorf(
+		return continuationStateErrorf(
 			"stored child session %q identity is parent=%q user=%q agent=%q; want parent=%q user=%q agent=%q",
 			session.ID,
 			session.ParentID,
@@ -346,4 +348,18 @@ func (r childRun) restoreSession(child, parent *Process) error {
 	}
 	child.options.session = &session
 	return nil
+}
+
+func bindChildSession(child, parent *Process) (core.Session, bool) {
+	if child == nil || parent == nil || child.options == nil || child.options.session != nil {
+		return core.Session{}, false
+	}
+	parentConversationID := parent.conversationID()
+	if parentConversationID == "" {
+		return core.Session{}, false
+	}
+	session := core.NewSession(child.ID(), parent.userID(), child.agent().Name())
+	session.ParentID = parentConversationID
+	child.options.session = &session
+	return session, true
 }

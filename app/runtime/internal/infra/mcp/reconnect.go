@@ -44,12 +44,8 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	// resolving wrappers backed by the session we are about to close.
 	c.publishTools()
 
-	// Close the old session outside the lock — Close may block on I/O.
-	if old != nil {
-		recordCleanupError(ctx, old.Close())
-	}
-
-	return c.dialAndSwap(attempt, cfg, false)
+	closeErr := c.closeSession(ctx, old)
+	return errors.Join(closeErr, c.dialAndSwap(attempt, cfg, false))
 }
 
 // Configure adds a new server or re-dials an existing one with the given
@@ -88,11 +84,8 @@ func (c *Connections) Configure(ctx context.Context, cfg ServerConfig) error {
 
 	c.publishTools()
 
-	if old != nil {
-		recordCleanupError(ctx, old.Close())
-	}
-
-	return c.dialAndSwap(attempt, cfg, false)
+	closeErr := c.closeSession(ctx, old)
+	return errors.Join(closeErr, c.dialAndSwap(attempt, cfg, false))
 }
 
 func reusableOAuth(current, candidate ServerConfig, handler auth.OAuthHandler) auth.OAuthHandler {
@@ -139,9 +132,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 
 	c.publishTools()
 
-	if old != nil {
-		recordCleanupError(ctx, old.Close())
-	}
+	closeErr := c.closeSession(ctx, old)
 
 	// Bound the human-in-the-loop flow here; clear the per-server handshake
 	// timeout so it can't abort the browser wait mid-sign-in.
@@ -152,18 +143,18 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	flow, err := newOAuthFlow()
 	if err != nil {
 		c.failAttempt(attempt, err)
-		return err
+		return errors.Join(closeErr, err)
 	}
 	defer flow.close(ctx)
 	handler, err := newOAuthHandler(flow)
 	if err != nil {
 		c.failAttempt(attempt, err)
-		return err
+		return errors.Join(closeErr, err)
 	}
 	cfg.OAuthHandler = handler
 
 	attempt.ctx = ctx
-	return c.dialAndSwap(attempt, cfg, true)
+	return errors.Join(closeErr, c.dialAndSwap(attempt, cfg, true))
 }
 
 // dialAndSwap dials cfg, proves the session with a tools/list, then publishes it
@@ -183,18 +174,17 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	}
 
 	c.mu.Lock()
+	c.ownSessionLocked(session)
 	current := c.currentAttempt(attempt)
-	if c.closed || !current {
+	closed := c.closed
+	if closed || !current {
 		// Shutdown ran while we were dialing outside the lock: it niled c.servers
 		// (so this ms is detached) and closed every session. Storing the fresh
 		// session here would strand it past Shutdown's sweep — a connection leak.
 		// Drop it instead. Mirrors lsp.Servers.clientFor's closed re-check.
 		c.mu.Unlock()
-		var closeErr error
-		if session != nil {
-			closeErr = session.Close()
-		}
-		if c.closed {
+		closeErr := c.closeSession(attempt.ctx, session)
+		if closed {
 			return errors.Join(ErrConnectionsClosed, err, closeErr)
 		}
 		return errors.Join(errConnectionSuperseded, err, closeErr)
@@ -228,7 +218,7 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	c.mu.Unlock()
 
 	if staleSession != nil {
-		err = errors.Join(err, staleSession.Close())
+		err = errors.Join(err, c.closeSession(attempt.ctx, staleSession))
 	}
 
 	// Publish only the snapshots proved above. Re-querying every other server

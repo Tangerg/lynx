@@ -91,7 +91,12 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 		// adapter owns per-server generation/cancellation, so no application-wide
 		// mutation lock is held while dialing. A configure/remove can supersede it
 		// immediately; stale adapter completion cannot swap itself back in.
-		_ = connect(ctx)
+		if err := connect(ctx); err != nil && ctx.Err() == nil {
+			recordMCPConnectionError(ctx, fmt.Errorf("integrations: connect MCP server %q: %w", name, err))
+		}
+		if ctx.Err() != nil {
+			return
+		}
 
 		c.mcpMutationMu.Lock()
 		defer c.mcpMutationMu.Unlock()
@@ -101,12 +106,6 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 			return
 		}
 		if !ok || !srv.Enabled {
-			// Defensive projection cleanup for adapters that cannot cancel a stale
-			// operation themselves. The production adapter rejects stale generations,
-			// so this is normally an idempotent no-op.
-			if c.mcpRegistryCommands != nil {
-				c.mcpRegistryCommands.Remove(ctx, name)
-			}
 			return
 		}
 		c.notifyMCPStatus(ctx, name, false)
@@ -121,9 +120,8 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 
 // replaceMCPDial gives each server exactly one current connection operation.
 // A registry mutation, reconnect, or authorize supersedes the previous dial by
-// canceling its context; adapters must honor ctx while dialing. The generation
-// check after a dial remains a defensive cleanup for adapters whose transport
-// cannot stop synchronously.
+// canceling its context; adapters must honor ctx while dialing and reject a
+// stale completion through their per-server generation check.
 func (c *Coordinator) replaceMCPDial(ctx context.Context, name string) (context.Context, *mcpDial) {
 	dialCtx, cancel := context.WithCancel(ctx)
 	dial := &mcpDial{cancel: cancel}

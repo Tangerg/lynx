@@ -158,7 +158,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if segment == nil || segment.Process() == nil {
 		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
 	}
-	return &turnProcess{process: segment.Process(), segment: segment, engine: e.runtime}, nil
+	return &turnProcess{process: segment.Process(), segment: segment, engine: e.runtime, runCtx: ctx}, nil
 }
 
 // turnProcessOptions assembles per-process wiring: the chat history Session
@@ -284,5 +284,5 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if process == nil {
 		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
-	return &turnProcess{process: process, engine: e.runtime}, nil
+	return &turnProcess{process: process, engine: e.runtime, runCtx: ctx}, nil
 }

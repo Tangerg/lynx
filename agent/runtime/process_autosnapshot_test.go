@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"errors"
+	goruntime "runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,6 +33,14 @@ type blockingFinalProcessStore struct {
 	blocked  atomic.Bool
 	captured chan struct{}
 	release  chan struct{}
+}
+
+type blockingApplyProcessStore struct {
+	inner   *storetest.MemoryProcessStore
+	blockAt int32
+	calls   atomic.Int32
+	entered chan struct{}
+	release chan struct{}
 }
 
 func newFlakyProcessStore(err error) *flakyProcessStore {
@@ -96,6 +105,30 @@ func (s *blockingFinalProcessStore) Load(ctx context.Context, id string) (core.P
 }
 
 func (s *blockingFinalProcessStore) List(ctx context.Context) ([]string, error) {
+	return s.inner.List(ctx)
+}
+
+func (s *blockingApplyProcessStore) Apply(ctx context.Context, change core.ProcessSnapshotChange) error {
+	if err := s.inner.Apply(ctx, change); err != nil {
+		return err
+	}
+	if s.calls.Add(1) != s.blockAt {
+		return nil
+	}
+	close(s.entered)
+	select {
+	case <-s.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *blockingApplyProcessStore) Load(ctx context.Context, id string) (core.ProcessSnapshot, error) {
+	return s.inner.Load(ctx, id)
+}
+
+func (s *blockingApplyProcessStore) List(ctx context.Context) ([]string, error) {
 	return s.inner.List(ctx)
 }
 
@@ -256,6 +289,62 @@ func TestKillDuringFinalSnapshotPersistsKilledState(t *testing.T) {
 	}
 }
 
+func TestKillDurableWriteQueuesBehindManualSave(t *testing.T) {
+	store := &blockingApplyProcessStore{
+		inner:   storetest.NewMemoryProcessStore(),
+		blockAt: 2,
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:                 "kill-manual-save",
+		ProcessStore:            store,
+		AutoSnapshot:            true,
+		SnapshotFinalizeTimeout: time.Second,
+	})
+	definition := autoSnapshotWaitingAgent()
+	mustDeploy(t, engine, definition)
+	process, err := engine.Run(
+		t.Context(),
+		definition,
+		core.Input(word{Text: "lynx"}),
+		core.ProcessOptions{},
+	)
+	if err != nil || process.Status() != core.StatusWaiting {
+		t.Fatalf("Run = status %s, err %v", process.Status(), err)
+	}
+
+	saveDone := make(chan error, 1)
+	go func() { saveDone <- engine.Save(t.Context(), process.ID()) }()
+	<-store.entered
+	killCtx, cancelKill := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancelKill()
+	killDone := make(chan error, 1)
+	go func() { killDone <- engine.Kill(killCtx, process.ID()) }()
+	for process.Status() != core.StatusKilled {
+		select {
+		case err := <-killDone:
+			t.Fatalf("Kill returned before transitioning the process: %v", err)
+		default:
+			goruntime.Gosched()
+		}
+	}
+	if err := <-killDone; !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("Kill durable write = %v, want queued acquisition deadline", err)
+	}
+	close(store.release)
+	if err := <-saveDone; err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := store.Load(t.Context(), process.ID())
+	if err != nil || snapshot.Status != core.StatusKilled {
+		t.Fatalf("durable snapshot = status %s, err %v; want killed", snapshot.Status, err)
+	}
+}
+
 // TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock pins the
 // teardown ordering between Discard and an active Run's final automatic
 // snapshot. Discard must first cancel and join the Run; otherwise the Run waits
@@ -291,7 +380,7 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	}
 	discardCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if err := engine.Discard(discardCtx, process.ID()); err != nil {
+	if _, err := engine.Discard(discardCtx, process.ID()); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	awaitSegment(t, segment)
@@ -300,6 +389,58 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	}
 	if _, err := store.Load(t.Context(), process.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("discarded snapshot load error = %v, want ErrSnapshotNotFound", err)
+	}
+}
+
+func TestDiscardTimeoutRetainsRuntimeOwnershipBehindSave(t *testing.T) {
+	store := &blockingApplyProcessStore{
+		inner:   storetest.NewMemoryProcessStore(),
+		blockAt: 2,
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:      "discard-save-timeout",
+		ProcessStore: store,
+	})
+	definition := autoSnapshotAgent()
+	mustDeploy(t, engine, definition)
+	process, err := engine.Run(
+		t.Context(),
+		definition,
+		core.Input(word{Text: "lynx"}),
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Save(t.Context(), process.ID()); err != nil {
+		t.Fatal(err)
+	}
+
+	saveDone := make(chan error, 1)
+	go func() { saveDone <- engine.Save(t.Context(), process.ID()) }()
+	<-store.entered
+	discardCtx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
+	result, discardErr := engine.Discard(discardCtx, process.ID())
+	cancel()
+	if !errors.Is(discardErr, context.DeadlineExceeded) || result.Released {
+		t.Fatalf("Discard = (%+v, %v), want retained ownership and deadline", result, discardErr)
+	}
+	if current, ok := engine.Process(process.ID()); !ok || current != process {
+		t.Fatal("timed-out Discard released the registered process")
+	}
+
+	close(store.release)
+	if err := <-saveDone; err != nil {
+		t.Fatal(err)
+	}
+	result, err = engine.Discard(t.Context(), process.ID())
+	if err != nil || !result.Released {
+		t.Fatalf("retry Discard = (%+v, %v), want released", result, err)
+	}
+	if _, err := store.Load(t.Context(), process.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
+		t.Fatalf("snapshot survived successful Discard: %v", err)
 	}
 }
 
@@ -461,7 +602,7 @@ func TestDiscardReleasesAfterNonFatalTerminationDiagnostic(t *testing.T) {
 	}
 
 	store.fail.Store(true)
-	if err := engine.Discard(t.Context(), proc.ID()); err != nil {
+	if _, err := engine.Discard(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Discard = %v, want released with diagnostic confined to observability", err)
 	}
 	if _, ok := engine.Process(proc.ID()); ok {

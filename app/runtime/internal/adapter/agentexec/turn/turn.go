@@ -136,7 +136,7 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 	// continuation (resumeAndDrive streams the terminal on a resume error
 	// and launches drive otherwise; the returned error is already surfaced
 	// on the channel, so it's safe to drop here).
-	_ = s.resumeAndDrive(st, interrupts.Resolution{Approved: false})
+	_ = s.resumeAndDrive(st.ctx, st, interrupts.Resolution{Approved: false})
 }
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL

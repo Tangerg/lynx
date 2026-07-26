@@ -6,8 +6,9 @@ import (
 )
 
 // localSequencer grants FIFO, single-owner access per opaque key within one
-// Engine. It backs both session-turn ordering and process-tree save ordering;
-// the key is a session id or a process-tree root id depending on the caller.
+// Engine. It backs session turns plus the separate process-tree mutation and
+// durable-commit queues; the key is a session id or process-tree root id
+// depending on the caller.
 type localSequencer struct {
 	mu    sync.Mutex
 	gates map[string]*sequenceGate
@@ -28,6 +29,9 @@ func newLocalSequencer() *localSequencer {
 func (s *localSequencer) acquire(ctx context.Context, key string) (func(), error) {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	gate, waiter := s.enqueue(key)
 	if waiter == nil {

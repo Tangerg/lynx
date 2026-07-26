@@ -440,6 +440,19 @@ func (st *turnState) resumeStarted() {
 	}
 }
 
+// resumeAdmissionFailed returns ownership to the parked state when the caller
+// canceled before the Agent runtime accepted the response. A concurrent turn
+// cancellation changes the phase first and therefore remains authoritative.
+func (st *turnState) resumeAdmissionFailed() bool {
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.phase != turnResuming {
+		return false
+	}
+	st.setPhaseLocked(turnParked)
+	return true
+}
+
 func (st *turnState) cancelRequested() bool {
 	st.mu.Lock()
 	defer st.mu.Unlock()

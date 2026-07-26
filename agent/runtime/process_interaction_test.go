@@ -278,11 +278,12 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	if model.Calls() != 1 || attempts != 1 {
 		t.Fatalf("before resume model=%d tool=%d", model.Calls(), attempts)
 	}
-	if err := engine.Resume(proc.ID(), "approval-1", true); err != nil {
+	resumed, err := engine.ResumeAsync(t.Context(), t.Context(), proc.ID(), "approval-1", true)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Continue(t.Context(), proc.ID()); err != nil {
-		t.Fatal(err)
+	if completion := awaitSegment(t, resumed); completion.Error() != nil {
+		t.Fatal(completion.Error())
 	}
 	if proc.Status() != core.StatusCompleted || model.Calls() != 2 || attempts != 2 {
 		t.Fatalf("after resume status=%s model=%d tool=%d failure=%v", proc.Status(), model.Calls(), attempts, proc.Failure())
@@ -493,11 +494,11 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	}
 	engine2 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine2, a)
-	restored, err := engine2.RestoreSnapshot(snapshot, core.ProcessOptions{})
+	restored, err := engine2.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore after crash: %v", err)
 	}
-	if err := engine2.Resume(restored.ID(), "approval-crash", true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), "approval-crash", true); err != nil {
 		t.Fatalf("resume after crash: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {

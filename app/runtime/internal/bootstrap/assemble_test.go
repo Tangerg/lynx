@@ -178,6 +178,41 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 	}
 }
 
+func TestAssembleBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	buildErr := errors.New("tool environment failed")
+	var closed atomic.Int32
+
+	host, err := assemble(t.Context(), cfg, func(
+		context.Context,
+		Config,
+		agentexec.Config,
+		*approval.RuntimePolicy,
+		mcpEnvironment,
+		toolset.CodebaseIndex,
+		*agentmemory.Searcher,
+		*scheduleapp.Coordinator,
+		*goals.State,
+		*skillauthoring.Store,
+	) (toolEnvironment, error) {
+		return toolEnvironment{
+			closers: []ShutdownResource{shutdown.New(func(context.Context) error {
+				closed.Add(1)
+				return nil
+			})},
+		}, buildErr
+	})
+	if !errors.Is(err, buildErr) {
+		t.Fatalf("assemble error = %v, want build failure", err)
+	}
+	if host != nil {
+		t.Fatal("successful rollback returned a Host owner")
+	}
+	if got := closed.Load(); got != 1 {
+		t.Fatalf("returned acquisition close calls = %d, want 1", got)
+	}
+}
+
 func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Fail after tools exist, then make the last tool closer fail once. The

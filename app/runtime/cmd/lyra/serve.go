@@ -24,7 +24,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
 	host, cfg, err := bootstrapRuntime(ctx)
-	if bootstrap.OwnsShutdown(host) {
+	if host != nil {
 		defer func() { err = errors.Join(err, host.Close()) }()
 	}
 	if err != nil {

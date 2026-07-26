@@ -262,28 +262,23 @@ func (e *Engine) Start(
 // Concurrent Continue calls on the same id are safe. Exactly one caller drives
 // the loop; overlapping callers receive [ErrProcessRunning].
 func (e *Engine) Continue(ctx context.Context, id string) error {
-	process, ok := e.Process(id)
-	if !ok {
-		return processNotFoundError("continue process", id)
-	}
-	if err := process.ensureContinuable(); err != nil {
+	ctx = normalizeContext(ctx)
+	process, started, err := e.admitContinuation(ctx, id, "runtime.Engine.Continue")
+	if err != nil {
 		return err
 	}
-	return process.run(normalizeContext(ctx))
+	if !started {
+		return nil
+	}
+	return process.runOwned(ctx)
 }
 
 // ContinueAsync is the background variant of [Engine.Continue]. Admission
 // errors are returned synchronously; a successful call returns the one Segment
 // that owns this continuation.
 func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error) {
-	process, ok := e.Process(id)
-	if !ok {
-		return nil, processNotFoundError("continue process asynchronously", id)
-	}
-	if err := process.ensureContinuable(); err != nil {
-		return nil, err
-	}
-	started, err := process.beginRun()
+	ctx = normalizeContext(ctx)
+	process, started, err := e.admitContinuation(ctx, id, "runtime.Engine.ContinueAsync")
 	if err != nil {
 		return nil, err
 	}
@@ -294,6 +289,30 @@ func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error)
 	}
 	go process.runOwnedSegment(ctx, segment, nil)
 	return segment, nil
+}
+
+func (e *Engine) admitContinuation(
+	ctx context.Context,
+	id string,
+	operation string,
+) (*Process, bool, error) {
+	process, ok := e.Process(id)
+	if !ok {
+		return nil, false, processNotFoundError(operation, id)
+	}
+	releaseMutation, err := e.processMutations.acquire(ctx, e.processTreeRootID(process))
+	if err != nil {
+		return nil, false, fmt.Errorf("%s: acquire process tree: %w", operation, err)
+	}
+	defer releaseMutation()
+	if !e.processes.available(process) {
+		return nil, false, processNotFoundError(operation, id)
+	}
+	if err := process.ensureContinuable(); err != nil {
+		return nil, false, err
+	}
+	started, err := process.beginRun()
+	return process, started, err
 }
 
 func (p *Process) ensureContinuable() error {
@@ -311,19 +330,67 @@ func (p *Process) ensureContinuable() error {
 // The process status stays [core.StatusWaiting] until Continue re-enters
 // the action and decodes the response at its original linear call site.
 //
-// Splitting "record response" from "drive the loop" keeps
-// Resume cheap, synchronous, and ctx-free, and lets the host
-// control the continuation (sync vs background, fresh ctx vs the
-// original).
-func (e *Engine) Resume(id, suspensionID string, response any) error {
+// Splitting "record response" from "drive the loop" lets the host control the
+// continuation (sync vs background) while ctx bounds admission behind another
+// mutation of the same process tree.
+func (e *Engine) Resume(ctx context.Context, id, suspensionID string, response any) error {
 	process, ok := e.Process(id)
 	if !ok {
+		return processNotFoundError("resume process", id)
+	}
+	releaseMutation, err := e.processMutations.acquire(normalizeContext(ctx), e.processTreeRootID(process))
+	if err != nil {
+		return fmt.Errorf("resume process %q: acquire process tree: %w", id, err)
+	}
+	defer releaseMutation()
+	if !e.processes.available(process) {
 		return processNotFoundError("resume process", id)
 	}
 	if err := e.resumeProcess(process, suspensionID, response, map[string]struct{}{}); err != nil {
 		return fmt.Errorf("resume process %q: %w", id, err)
 	}
 	return nil
+}
+
+// ResumeAsync atomically records a response and admits the continuation run.
+// admissionCtx bounds waiting for exclusive process-tree ownership; runCtx owns
+// the admitted segment's lifetime. A returned error means the response was not
+// recorded. A successful call always returns the unique Segment driving the
+// continuation, so callers never need to repair a half-resumed process.
+func (e *Engine) ResumeAsync(
+	admissionCtx context.Context,
+	runCtx context.Context,
+	id, suspensionID string,
+	response any,
+) (*Segment, error) {
+	process, ok := e.Process(id)
+	if !ok {
+		return nil, processNotFoundError("resume process asynchronously", id)
+	}
+	admissionCtx = normalizeContext(admissionCtx)
+	releaseMutation, err := e.processMutations.acquire(admissionCtx, e.processTreeRootID(process))
+	if err != nil {
+		return nil, fmt.Errorf("resume process %q asynchronously: acquire process tree: %w", id, err)
+	}
+	defer releaseMutation()
+	if !e.processes.available(process) {
+		return nil, processNotFoundError("resume process asynchronously", id)
+	}
+	if err := e.resumeProcess(process, suspensionID, response, map[string]struct{}{}); err != nil {
+		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
+	}
+	started, err := process.beginRun()
+	if err != nil || !started {
+		panic(fmt.Sprintf(
+			"runtime.Engine.ResumeAsync: accepted response for process %q without continuation ownership: started=%t err=%v",
+			id,
+			started,
+			err,
+		))
+	}
+	segment := newSegment(process)
+	go process.runOwnedSegment(normalizeContext(runCtx), segment, nil)
+	return segment, nil
 }
 
 // resumeProcess records one response along the active nested-child branch back
@@ -375,38 +442,86 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 }
 
 // Kill terminates a process and its live descendants. It transitions the
-// target to [core.StatusKilled], cancels its active Run / Continue context and
-// current tool call, publishes [event.ProcessKilled], then recursively kills
-// children. When automatic snapshots are enabled, Kill persists idle or
-// completion-publishing targets itself; only the driving phase owns the final
-// snapshot. Kill
-// returns any descendant or snapshot failures. It is idempotent and safe on
+// target and descendants to [core.StatusKilled], cancels their active Run /
+// Continue contexts and current tool calls, completes any Kill-owned automatic
+// snapshots, then publishes [event.ProcessKilled]. When automatic snapshots
+// are enabled, Kill persists idle or completion-publishing targets itself; only
+// the driving phase owns the final snapshot. Kill returns any descendant or
+// snapshot failures. It is idempotent and safe on
 // any process: an already-terminal one is left untouched, so a kill racing
 // natural completion cannot clobber a clean terminal state or publish a
 // duplicate event.
 func (e *Engine) Kill(ctx context.Context, id string) error {
+	_, err := e.killProcess(ctx, id)
+	return err
+}
+
+func (e *Engine) killProcess(ctx context.Context, id string) (bool, error) {
 	process, ok := e.Process(id)
 	if !ok {
-		return processNotFoundError("kill process", id)
+		return false, processNotFoundError("kill process", id)
 	}
+	ctx = normalizeContext(ctx)
+	releaseMutation, err := e.processMutations.acquire(ctx, e.processTreeRootID(process))
+	if err != nil {
+		return false, fmt.Errorf("runtime.Engine.Kill: acquire process tree: %w", err)
+	}
+	if !e.processes.available(process) {
+		releaseMutation()
+		return false, processNotFoundError("kill process", id)
+	}
+	won, killed, snapshots := e.killSubtreeOwned(process)
+	releaseMutation()
+	snapshotErr := snapshotKilledProcesses(ctx, snapshots)
+	publishKilledProcesses(ctx, killed)
+	return won, snapshotErr
+}
+
+// killSubtreeOwned performs only internal state transitions while the caller
+// owns the process-tree mutation. Event listeners and stores are caller code;
+// they run after this transaction releases ownership so they may safely reenter
+// the Engine.
+func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process, []*Process) {
 	won, driverWillSnapshot := process.state.markKilled(nil)
 	if won {
 		process.signals.fireRunCancel()
 		process.signals.fireToolCallCancel()
-		process.publishEvent(normalizeContext(ctx), event.ProcessKilled{
-			Header: event.NewHeader(id),
+	}
+
+	children := e.directChildren(process.ID())
+	var killed []*Process
+	var snapshots []*Process
+	if won {
+		killed = append(killed, process)
+	}
+	for _, child := range children {
+		_, childKilled, childSnapshots := e.killSubtreeOwned(child)
+		killed = append(killed, childKilled...)
+		snapshots = append(snapshots, childSnapshots...)
+	}
+	if won && !driverWillSnapshot {
+		snapshots = append(snapshots, process)
+	}
+	return won, killed, snapshots
+}
+
+func publishKilledProcesses(ctx context.Context, processes []*Process) {
+	for _, process := range processes {
+		process.publishEvent(ctx, event.ProcessKilled{
+			Header: event.NewHeader(process.ID()),
 			Reason: "kill requested",
 		})
 	}
-	// Descendants have independent run ownership. Sweep them even when the
-	// target was already terminal: a completed parent may still own background
-	// children started with StartChild.
-	_, childErr := e.killChildren(ctx, id)
-	var snapshotErr error
-	if won && !driverWillSnapshot {
-		snapshotErr = process.maybeAutoSnapshot(ctx)
+}
+
+func snapshotKilledProcesses(ctx context.Context, processes []*Process) error {
+	var errs []error
+	for _, process := range processes {
+		if err := process.maybeAutoSnapshot(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("snapshot killed process %q: %w", process.ID(), err))
+		}
 	}
-	return errors.Join(childErr, snapshotErr)
+	return errors.Join(errs...)
 }
 
 // KillChildren terminates every non-terminal direct child whose ParentID
@@ -415,58 +530,106 @@ func (e *Engine) Kill(ctx context.Context, id string) error {
 // every descendant or snapshot failure without abandoning the remaining
 // children.
 func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error) {
-	return e.killChildren(normalizeContext(ctx), parentID)
-}
+	ctx = normalizeContext(ctx)
+	if parent, ok := e.Process(parentID); ok {
+		releaseMutation, err := e.processMutations.acquire(ctx, e.processTreeRootID(parent))
+		if err != nil {
+			return nil, fmt.Errorf("runtime.Engine.KillChildren: acquire process tree: %w", err)
+		}
+		if !e.processes.available(parent) {
+			releaseMutation()
+			return nil, processNotFoundError("kill child processes", parentID)
+		}
+		killed, events, snapshots := e.killChildrenOwned(parentID)
+		releaseMutation()
+		snapshotErr := snapshotKilledProcesses(ctx, snapshots)
+		publishKilledProcesses(ctx, events)
+		return killed, snapshotErr
+	}
 
-func (e *Engine) killChildren(ctx context.Context, parentID string) ([]string, error) {
-	processes := e.processes.list()
-	slices.SortFunc(processes, func(left, right *Process) int {
-		return cmp.Compare(left.ID(), right.ID())
-	})
+	processes := e.directChildren(parentID)
 	var killed []string
 	var killErrs []error
 	for _, process := range processes {
-		if process.ParentID() != parentID {
-			continue
-		}
-		wasTerminal := process.Status().IsTerminal()
-		if err := e.Kill(ctx, process.ID()); err != nil {
+		won, err := e.killProcess(ctx, process.ID())
+		if err != nil {
 			killErrs = append(killErrs, fmt.Errorf("kill child process %q: %w", process.ID(), err))
 		}
-		if !wasTerminal && process.Status() == core.StatusKilled {
+		if won {
 			killed = append(killed, process.ID())
 		}
 	}
 	return killed, errors.Join(killErrs...)
 }
 
+func (e *Engine) killChildrenOwned(parentID string) ([]string, []*Process, []*Process) {
+	processes := e.directChildren(parentID)
+	var killed []string
+	var events []*Process
+	var snapshots []*Process
+	for _, process := range processes {
+		won, processEvents, processSnapshots := e.killSubtreeOwned(process)
+		events = append(events, processEvents...)
+		snapshots = append(snapshots, processSnapshots...)
+		if won {
+			killed = append(killed, process.ID())
+		}
+	}
+	return killed, events, snapshots
+}
+
+func (e *Engine) directChildren(parentID string) []*Process {
+	processes := e.processes.list()
+	processes = slices.DeleteFunc(processes, func(process *Process) bool {
+		return process.ParentID() != parentID
+	})
+	slices.SortFunc(processes, func(left, right *Process) int {
+		return cmp.Compare(left.ID(), right.ID())
+	})
+	return processes
+}
+
 // Remove deletes a terminal process from the registry so long-running hosts
 // can free work they have drained. Active processes must be killed and allowed
 // to finish first; rejecting their removal keeps cancellation, child ownership,
 // and durable cleanup reachable through the Engine.
-func (e *Engine) Remove(id string) error {
+func (e *Engine) Remove(ctx context.Context, id string) error {
 	process, found := e.processes.get(id)
 	if !found {
 		return processNotFoundError("remove process", id)
 	}
-	if !process.state.claimRemoval() {
+	releaseMutation, err := e.processMutations.acquire(normalizeContext(ctx), e.processTreeRootID(process))
+	if err != nil {
+		return fmt.Errorf("runtime.Engine.Remove: acquire process tree: %w", err)
+	}
+	defer releaseMutation()
+	if !e.processes.reserveProcesses([]*Process{process}) {
+		return processNotFoundError("remove process", id)
+	}
+	reserved := true
+	defer func() {
+		if reserved {
+			e.processes.releaseProcesses([]*Process{process})
+		}
+	}()
+	if !process.state.removable() {
 		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessActive)
 	}
-	defer process.state.releaseRemoval()
-	found, hasChildren := e.processes.unregisterClaimedLeaf(process)
+	found, hasChildren := e.processes.unregisterReservedLeaf(process)
 	if !found {
 		return processNotFoundError("remove process", id)
 	}
 	if hasChildren {
 		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessHasChildren)
 	}
+	reserved = false
 	return nil
 }
 
 // Prune removes every registered process whose
 // status satisfies [core.ProcessStatus.IsTerminal] and returns
 // the removed ids. Convenient cleanup for long-lived hosts.
-func (e *Engine) Prune() []string {
+func (e *Engine) Prune(ctx context.Context) ([]string, error) {
 	var removed []string
 	for {
 		processes := e.Processes()
@@ -478,18 +641,24 @@ func (e *Engine) Prune() []string {
 		})
 		pruned := 0
 		for _, process := range processes {
-			if !process.state.claimRemoval() {
+			if !process.Status().IsTerminal() {
 				continue
 			}
-			found, hasChildren := e.processes.unregisterClaimedLeaf(process)
-			process.state.releaseRemoval()
-			if found && !hasChildren {
+			err := e.Remove(ctx, process.ID())
+			switch {
+			case err == nil:
 				removed = append(removed, process.ID())
 				pruned++
+			case errors.Is(err, ErrProcessActive),
+				errors.Is(err, ErrProcessHasChildren),
+				errors.Is(err, ErrProcessNotFound):
+				continue
+			default:
+				return removed, err
 			}
 		}
 		if pruned == 0 {
-			return removed
+			return removed, nil
 		}
 	}
 }

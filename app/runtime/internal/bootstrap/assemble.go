@@ -110,13 +110,6 @@ type Host struct {
 	lifetime *hostLifetime
 }
 
-// OwnsShutdown reports whether host owns a process shutdown graph. It remains
-// true after a successful Close, which lets composition roots distinguish a
-// zero Host returned on an early construction error from a Host that has
-// already completed (or still needs) rollback without growing Host into a
-// runtime facade.
-func OwnsShutdown(host Host) bool { return host.lifetime != nil }
-
 // RecoverStartup completes durable work that must be reconciled before any
 // delivery adapter starts accepting requests. Keeping it as a composition-root
 // function, rather than a Host method, keeps Host's public surface limited to
@@ -132,7 +125,6 @@ type hostLifetime struct {
 	closeMu         sync.Mutex
 	stopping        bool
 	closed          bool
-	err             error
 	shutdownTimeout time.Duration
 
 	goals        shutdownComponent
@@ -158,15 +150,15 @@ const hostShutdownTimeout = 10 * time.Second
 // its stopping phase: a later Close gets a new caller-owned shutdown budget and
 // resumes the same in-flight teardown before closing dependent resources.
 // Idempotent across Host copies once the graph has fully closed.
-func (h Host) Close() error {
-	if h.lifetime == nil {
+func (h *Host) Close() error {
+	if h == nil || h.lifetime == nil {
 		return nil
 	}
 	lifetime := h.lifetime
 	lifetime.closeMu.Lock()
 	defer lifetime.closeMu.Unlock()
 	if lifetime.closed {
-		return lifetime.err
+		return nil
 	}
 	components := []shutdownComponent{
 		lifetime.goals,
@@ -218,7 +210,6 @@ func (h Host) Close() error {
 	if err != nil {
 		return err
 	}
-	lifetime.err = nil
 	lifetime.closed = true
 	return nil
 }
@@ -230,9 +221,9 @@ func (h Host) Close() error {
 // process resources to the Host for shutdown. Returns an error when a required
 // dependency is missing or any internal constructor fails — engine deployment,
 // MCP dial, etc. When rollback cannot finish within its shutdown budget, the
-// returned Host remains non-zero and owns the unfinished rollback; callers that
-// keep running after the error must call Close again before discarding it.
-func Assemble(ctx context.Context, cfg Config) (Host, error) {
+// returned Host remains non-nil and owns the unfinished rollback; callers must
+// close every non-nil Host, including one returned together with an error.
+func Assemble(ctx context.Context, cfg Config) (*Host, error) {
 	return assemble(ctx, cfg, buildToolEnvironment)
 }
 
@@ -249,9 +240,9 @@ type toolEnvironmentBuilder func(
 	*skillauthoring.Store,
 ) (toolEnvironment, error)
 
-func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (host Host, err error) {
+func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (host *Host, err error) {
 	if err := validateAssemblyConfig(cfg); err != nil {
-		return Host{}, err
+		return nil, err
 	}
 	// Offloads are staged before their ordered transcript event commits so a
 	// following model round can read them immediately. A process crash may leave
@@ -259,13 +250,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// calls, so reconcile it before constructing the engine.
 	if cfg.ToolResultStore != nil {
 		if _, err := cfg.ToolResultStore.PurgeUnbound(ctx); err != nil {
-			return Host{}, fmt.Errorf("runtime: reconcile staged tool results: %w", err)
+			return nil, fmt.Errorf("runtime: reconcile staged tool results: %w", err)
 		}
 	}
 
 	ecfg, messages, err := prepareEngineConfig(cfg)
 	if err != nil {
-		return Host{}, err
+		return nil, err
 	}
 
 	// Turn-boundary ports are owned by the dispatcher. The runtime supplies the
@@ -279,13 +270,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	utilityRole, err := loadUtilityRole(ctx, cfg.UtilityRoleStore)
 	if err != nil {
-		return Host{}, err
+		return nil, err
 	}
 	utilityRoleState := models.NewRoleState(utilityRole)
 	utilityClient := resolver.UtilityClient(cfg.Engine.ChatClient, utilityRoleState)
 	embeddingRole, err := loadEmbeddingRole(ctx, cfg.EmbeddingRoleStore)
 	if err != nil {
-		return Host{}, err
+		return nil, err
 	}
 	embeddingRoleState := models.NewRoleState(embeddingRole)
 	embeddingResolver := modelclient.NewEmbeddingResolver(providers)
@@ -314,7 +305,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// reads it per tool call.
 	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
 	if err != nil {
-		return Host{}, fmt.Errorf("runtime: approval policy: %w", err)
+		return nil, fmt.Errorf("runtime: approval policy: %w", err)
 	}
 	// Goal state crosses into the tool environment before the loop driver can be
 	// constructed. It is an application boundary, not a persistence proxy.
@@ -322,7 +313,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
-		return Host{}, err
+		return nil, err
 	}
 
 	scheduleCoord := schedules.New(schedules.Dependencies{
@@ -330,17 +321,13 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths: workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseToolIndex, memorySearcher, scheduleCoord, goalState, skillStore)
-	if err != nil {
-		return Host{}, err
-	}
 	transferred := false
-	rollback := &hostLifetime{toolClosers: slices.Clone(built.closers)}
+	rollback := &hostLifetime{}
 	defer func() {
 		if transferred {
 			return
 		}
-		cleanup := Host{lifetime: rollback}
+		cleanup := &Host{lifetime: rollback}
 		if cleanupErr := cleanup.Close(); cleanupErr != nil {
 			err = errors.Join(err, fmt.Errorf("runtime: rollback partial assembly: %w", cleanupErr))
 			// A partial rollback now owns every resource that would have moved to
@@ -353,6 +340,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			host = cleanup
 		}
 	}()
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseToolIndex, memorySearcher, scheduleCoord, goalState, skillStore)
+	rollback.toolClosers = slices.Clone(built.closers)
+	if err != nil {
+		return nil, err
+	}
 	attachToolEnvironment(&ecfg, built.tools)
 	// Per-turn memory recall reuses the same searcher the memory_search tool does.
 	if memorySearcher != nil {
@@ -366,10 +358,10 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
-		return Host{}, fmt.Errorf("runtime: engine: %w", err)
+		return nil, fmt.Errorf("runtime: engine: %w", err)
 	}
 	if _, err := cfg.RunStore.ReconcileOrphans(ctx, eng.ResumableProcess); err != nil {
-		return Host{}, fmt.Errorf("runtime: reconcile orphan runs: %w", err)
+		return nil, fmt.Errorf("runtime: reconcile orphan runs: %w", err)
 	}
 
 	turnDispatcher, err := turn.New(turn.Dependencies{
@@ -383,7 +375,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
-		return Host{}, fmt.Errorf("runtime: turn dispatcher: %w", err)
+		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
 	rollback.dispatcher = turnDispatcher
 	home, _ := os.UserHomeDir()
@@ -546,7 +538,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
 		rollback.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
-			return Host{}, fmt.Errorf("runtime: reconcile goals: %w", err)
+			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
 	}
 	toolClosers := slices.Clone(built.closers)
@@ -585,7 +577,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Store: cfg.AgentMemoryStore,
 		Roots: workspaceContext,
 	})
-	host = Host{
+	host = &Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
 			Integrations:     integrationsCoord,

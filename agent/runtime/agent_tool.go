@@ -179,7 +179,8 @@ func (t *agentTool) abortNestedChild(ctx context.Context, child *Process) error 
 	if t == nil || t.engine == nil || child == nil {
 		return nil
 	}
-	return t.engine.Discard(ctx, child.ID())
+	_, err := t.engine.Discard(ctx, child.ID())
+	return err
 }
 
 // discard releases a terminal child from memory and durable storage. Waiting
@@ -188,7 +189,8 @@ func (t *agentTool) discard(ctx context.Context, child *Process) error {
 	if t.engine == nil || child == nil || !child.Status().IsTerminal() {
 		return nil
 	}
-	return t.engine.Discard(ctx, child.ID())
+	_, err := t.engine.Discard(ctx, child.ID())
+	return err
 }
 
 // decodeToolArguments decodes a tool argument payload into T. Empty payloads

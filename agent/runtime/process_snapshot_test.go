@@ -140,7 +140,7 @@ func TestRestoreSnapshotExposesMessageOnlyProcessFailure(t *testing.T) {
 
 	restarted := agent.MustNewEngine(runtime.Config{BuildID: "failure-snapshot-test"})
 	mustDeploy(t, restarted, failingAgent)
-	restored, err := restarted.RestoreSnapshot(durable, core.ProcessOptions{})
+	restored, err := restarted.RestoreSnapshot(t.Context(), durable, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -301,7 +301,7 @@ func TestEngine_RestoreWaitingProcess_ResumesToCompletion(t *testing.T) {
 	}
 
 	// Resume with approval, then drive to completion.
-	if err := engine2.Resume(restored.ID(), "approval", true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), "approval", true); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if err := engine2.Continue(ctx, restored.ID()); err != nil {
@@ -420,7 +420,7 @@ func TestSnapshot_JSONRoundTrip_PreservesConcreteType(t *testing.T) {
 
 	engine2 := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine2, buildSnapshotAgent())
-	restored, err := engine2.RestoreSnapshot(snap, core.ProcessOptions{})
+	restored, err := engine2.RestoreSnapshot(t.Context(), snap, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore: %v", err)
 	}
@@ -608,7 +608,7 @@ func TestRestoreRejectsUnknownTaggedBlackboardType(t *testing.T) {
 
 	engine2 := agent.MustNewEngine(runtime.Config{BuildID: "unknown-tag"})
 	mustDeploy(t, engine2, a)
-	if _, err := engine2.RestoreSnapshot(snapshot, core.ProcessOptions{}); err == nil {
+	if _, err := engine2.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{}); err == nil {
 		t.Fatal("unknown durable type unexpectedly restored")
 	}
 }
@@ -638,7 +638,7 @@ func TestEngineRestorePausedProcessFromDurableBlackboardState(t *testing.T) {
 
 	engine2 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine2, a)
-	restored, err := engine2.RestoreSnapshot(durable, core.ProcessOptions{})
+	restored, err := engine2.RestoreSnapshot(t.Context(), durable, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -670,7 +670,7 @@ func TestEngineRestoreRunningProcessCanContinue(t *testing.T) {
 
 	engine2 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
 	mustDeploy(t, engine2, a)
-	restored, err := engine2.RestoreSnapshot(snapshot, core.ProcessOptions{})
+	restored, err := engine2.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -733,7 +733,7 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
-	if err := engine.Discard(t.Context(), "root"); err != nil {
+	if _, err := engine.Discard(t.Context(), "root"); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := store.List(t.Context())
@@ -767,14 +767,18 @@ func TestEngineDiscardStoreFailureReleasesRuntimeTree(t *testing.T) {
 	if err := store.inner.Apply(t.Context(), snapshotChange("root", writes...)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := engine.RestoreSnapshot(writes[0], core.ProcessOptions{}); err != nil {
+	if _, err := engine.RestoreSnapshot(t.Context(), writes[0], core.ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := engine.RestoreSnapshot(writes[1], core.ProcessOptions{}); err != nil {
+	if _, err := engine.RestoreSnapshot(t.Context(), writes[1], core.ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Discard(t.Context(), "root"); !errors.Is(err, storeErr) {
+	result, err := engine.Discard(t.Context(), "root")
+	if !errors.Is(err, storeErr) {
 		t.Fatalf("Discard = %v, want store failure", err)
+	}
+	if !result.Released {
+		t.Fatal("Discard store failure did not report released runtime ownership")
 	}
 	if _, ok := engine.Process("root"); ok {
 		t.Fatal("store failure retained root runtime ownership")

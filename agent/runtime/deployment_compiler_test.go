@@ -695,10 +695,10 @@ func TestRunCatalogsDefinitionForExactRestore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Remove(process.ID()); err != nil {
+	if err := engine.Remove(t.Context(), process.ID()); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := engine.RestoreSnapshot(snapshot, core.ProcessOptions{})
+	restored, err := engine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore run-created deployment: %v", err)
 	}
@@ -976,7 +976,7 @@ func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
 	}
 	started := time.Now().Add(-time.Second)
 
-	restored, err := engine.RestoreSnapshot(core.ProcessSnapshot{
+	restored, err := engine.RestoreSnapshot(t.Context(), core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "restored-deployment-process",
 		Deployment:    deployment.Ref(),
@@ -993,7 +993,7 @@ func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
 
 	tampered := deployment.Ref()
 	tampered.Digest = "different"
-	_, err = engine.RestoreSnapshot(core.ProcessSnapshot{
+	_, err = engine.RestoreSnapshot(t.Context(), core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "mismatched-deployment-process",
 		Deployment:    tampered,
@@ -1027,7 +1027,7 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 		t.Fatalf("active replacement = %#v, %v", active, ok)
 	}
 
-	if err := existing.run(t.Context()); err != nil {
+	if err := engine.Continue(t.Context(), existing.ID()); err != nil {
 		t.Fatal(err)
 	}
 	firstResult, ok := core.Result[deploymentRunOutput](existing)

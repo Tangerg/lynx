@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -160,6 +161,7 @@ type memoryDispatcher struct {
 	closed          bool
 	shutdownOnce    sync.Once
 	shutdownTargets []*shutdownTarget
+	cleanupTasks    taskgroup.Group
 
 	// seenSessions tracks which sessions this process has already opened a turn
 	// for, so the SessionStart hook fires once per session per process (not on
@@ -220,6 +222,9 @@ func (s *memoryDispatcher) BeginShutdown() {
 			// release attempts after every component has received its signal.
 			target.state.cancel()
 		}
+		// Terminal cleanup is request-detached during normal operation. Shutdown
+		// transfers that ownership to the bounded shutdown attempts below.
+		s.cleanupTasks.Cancel()
 	})
 }
 
@@ -246,7 +251,10 @@ func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
 			shutdownAttemptErrors(s.shutdownTargets, attempts),
 		)
 	}
-	return shutdownAttemptErrors(s.shutdownTargets, attempts)
+	return errors.Join(
+		shutdownAttemptErrors(s.shutdownTargets, attempts),
+		s.cleanupTasks.Wait(ctx),
+	)
 }
 
 // shutdownTurn keeps cancellation attached to lifecycle progress. In

@@ -30,17 +30,20 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 	state.cancel()
 	switch state.requestCancellation() {
 	case cancelFinish:
-		return s.finishTurnOwned(state, execution.OutcomeCanceled)
+		return s.finishTurnOwned(ctx, state, execution.OutcomeCanceled)
 	case cancelProcess:
 		if process := state.process(); process != nil {
 			if err := cancelTurnProcess(ctx, process); err != nil {
 				return err
 			}
-			return s.finishTurnOwned(state, execution.OutcomeCanceled)
+			return s.finishTurnOwned(ctx, state, execution.OutcomeCanceled)
 		}
 		return nil
 	case cancelComplete:
-		return ErrTurnNotFound
+		if state.released() {
+			return ErrTurnNotFound
+		}
+		return s.cleanupTurnOwned(ctx, state)
 	default:
 		// A start/run/resume goroutine owns the terminal, or Restore has not yet
 		// published its process. Shutdown waits on lifecycle changes and retries
@@ -64,7 +67,7 @@ func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
+func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, resolution interrupts.Resolution, interruptKinds []runs.InterruptKind) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -76,7 +79,7 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 		return ErrParkClaimed
 	}
 	state.setInterruptKinds(interruptKinds)
-	return s.resumeAndDrive(state, resolution)
+	return s.resumeAndDrive(ctx, state, resolution)
 }
 
 // resumeAndDrive delivers the decision to the turn's (write-once-stable) parked
@@ -85,12 +88,19 @@ func (s *memoryDispatcher) Resume(_ context.Context, handle TurnHandle, resoluti
 // drive and returns nil. Shared by [Resume] (same-process) and [Rehydrate]
 // (cross-restart) so the resume tail — deliver, on-error-finish, else-drive —
 // stays identical.
-func (s *memoryDispatcher) resumeAndDrive(state *turnState, resolution interrupts.Resolution) error {
-	if err := state.process().Resume(state.ctx, resolution); err != nil {
-		return errors.Join(
-			err,
-			s.finishExecutionError(state, problemFromError(err), err),
-		)
+func (s *memoryDispatcher) resumeAndDrive(
+	admissionCtx context.Context,
+	state *turnState,
+	resolution interrupts.Resolution,
+) error {
+	err := state.process().Resume(admissionCtx, resolution)
+	if err != nil {
+		if (errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) &&
+			state.resumeAdmissionFailed() {
+			return err
+		}
+		finishErr := s.finishExecutionError(state, problemFromError(err), err)
+		return errors.Join(err, finishErr)
 	}
 	state.resumeStarted()
 	go s.drive(state)

@@ -42,12 +42,10 @@ func buildToolEnvironment(
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}
-	mcpOpen := true
-	defer func() {
-		if mcpOpen {
-			_ = mcpConnections.Shutdown(ctx)
-		}
-	}()
+	environment := toolEnvironment{
+		mcp:     mcpConnections,
+		closers: []ShutdownResource{mcpConnections},
+	}
 	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		SkillsGlobalDir: cfg.SkillsGlobalDir,
@@ -97,15 +95,12 @@ func buildToolEnvironment(
 	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {
-		return toolEnvironment{}, fmt.Errorf("runtime: build tools: %w", err)
+		return environment, fmt.Errorf("runtime: build tools: %w", err)
 	}
 	mcpConnections.SetToolSink(built.Resolver.SetMCPTools)
-	mcpOpen = false
-	return toolEnvironment{
-		tools:   built,
-		mcp:     mcpConnections,
-		closers: append(shutdownClosers(built.Closers), mcpConnections),
-	}, nil
+	environment.tools = built
+	environment.closers = append(environment.closers, shutdownClosers(built.Closers)...)
+	return environment, nil
 }
 
 func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {

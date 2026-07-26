@@ -95,6 +95,50 @@ func (b *testBlackboard) Restore(state runtime.BlackboardState) error {
 	return b.Blackboard.(runtime.BlackboardRestorer).Restore(state)
 }
 
+func TestRestoreSnapshotBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	definition := buildSnapshotAgent()
+	parent, err := engine.Run(t.Context(), definition, core.Input(ssWord{Text: "parent"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot, err := parent.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot.ID = "restored-child"
+	snapshot.ParentID = parent.ID()
+	snapshot.Depth++
+	sibling := snapshot
+	sibling.ID = "restored-sibling"
+
+	base, err := engine.NewBlackboard()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reentered := false
+	blackboard := &testBlackboard{
+		Blackboard: base,
+		name:       "reentrant-restore",
+		restore: func(state runtime.BlackboardState) error {
+			if _, err := engine.RestoreSnapshot(t.Context(), sibling, core.ProcessOptions{}); err != nil {
+				return err
+			}
+			reentered = true
+			return base.(runtime.BlackboardRestorer).Restore(state)
+		},
+	}
+	if _, err := engine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{Blackboard: blackboard}); err != nil {
+		t.Fatalf("RestoreSnapshot: %v", err)
+	}
+	if !reentered {
+		t.Fatal("blackboard restore callback did not reenter the Engine")
+	}
+	if _, ok := engine.Process(sibling.ID); !ok {
+		t.Fatal("reentrant sibling restore was not registered")
+	}
+}
+
 func (m actionMiddlewareFunc) Name() string { return m.name }
 func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	return m.run(next)
@@ -373,7 +417,7 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	if _, err := restoreEngine.Deploy(t.Context(), definition); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	if _, err := restoreEngine.RestoreSnapshot(snapshot, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
+	if _, err := restoreEngine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
 		t.Fatalf("RestoreSnapshot error = %v, want attributed panic", err)
 	}
 }

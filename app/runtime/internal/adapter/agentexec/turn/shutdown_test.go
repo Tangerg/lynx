@@ -77,6 +77,8 @@ type blockingCancelProcess struct {
 	release    <-chan struct{}
 	err        error
 	discardErr error
+	retain     bool
+	discarded  chan struct{}
 }
 
 func (*blockingCancelProcess) ID() string { return "proc_1" }
@@ -87,12 +89,15 @@ func (p *blockingCancelProcess) Cancel(context.Context) error {
 	<-p.release
 	return p.err
 }
-func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) error {
-	return nil
-}
-func (*blockingCancelProcess) Suspension() *agent.Suspension { return nil }
-func (p *blockingCancelProcess) Discard(context.Context) error {
-	return p.discardErr
+func (*blockingCancelProcess) Resume(context.Context, interrupts.Resolution) error { return nil }
+func (*blockingCancelProcess) Suspension() *agent.Suspension                       { return nil }
+func (p *blockingCancelProcess) Discard(context.Context) (agentexec.DiscardResult, error) {
+	released := !p.retain
+	err := p.discardErr
+	if p.discarded != nil {
+		p.discarded <- struct{}{}
+	}
+	return agentexec.DiscardResult{Released: released}, err
 }
 
 func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
@@ -129,7 +134,7 @@ func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
 	}
 }
 
-func TestCancelReleasesTerminalTurnWhenDiscardFails(t *testing.T) {
+func TestCancelReleasesTerminalTurnAfterBackgroundDiscardFailure(t *testing.T) {
 	discardErr := errors.New("discard failed")
 	release := make(chan struct{})
 	close(release)
@@ -143,14 +148,59 @@ func TestCancelReleasesTerminalTurnWhenDiscardFails(t *testing.T) {
 		seenSessions: map[string]struct{}{},
 	}
 
-	if err := dispatcher.Cancel(t.Context(), st.handle); !errors.Is(err, discardErr) {
-		t.Fatalf("Cancel error = %v, want discard failure", err)
+	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	select {
+	case <-st.done:
+	case <-time.After(time.Second):
+		t.Fatal("background discard did not finish")
 	}
 	if !channelClosed(st.done) {
 		t.Fatal("discard failure retained the terminal turn")
 	}
 	if _, err := dispatcher.findTurn(st.handle.TurnID); !errors.Is(err, ErrTurnNotFound) {
 		t.Fatalf("discard failure retained registry ownership: %v", err)
+	}
+}
+
+func TestCancelRetainsTerminalTurnUntilProcessOwnershipReleases(t *testing.T) {
+	discardErr := errors.New("discard retained ownership")
+	release := make(chan struct{})
+	close(release)
+	process := &blockingCancelProcess{
+		release:    release,
+		discardErr: discardErr,
+		retain:     true,
+		discarded:  make(chan struct{}, 2),
+	}
+	st := newRunningTestState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}, process)
+	if !st.parkIfLive() {
+		t.Fatal("failed to park test turn")
+	}
+	dispatcher := &memoryDispatcher{
+		turns:        map[string]*turnState{st.handle.TurnID: st},
+		seenSessions: map[string]struct{}{},
+	}
+
+	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+		t.Fatalf("Cancel: %v", err)
+	}
+	<-process.discarded
+	if channelClosed(st.done) {
+		t.Fatal("retained Agent ownership released the turn")
+	}
+	if _, err := dispatcher.findTurn(st.handle.TurnID); err != nil {
+		t.Fatalf("retained Agent ownership removed the turn: %v", err)
+	}
+
+	process.retain = false
+	process.discardErr = nil
+	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+		t.Fatalf("explicit cleanup retry: %v", err)
+	}
+	if !channelClosed(st.done) {
+		t.Fatal("released Agent ownership did not release the turn")
 	}
 }
 

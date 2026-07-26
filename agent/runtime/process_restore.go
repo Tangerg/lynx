@@ -14,6 +14,21 @@ import (
 // compatible waiting continuation for this Engine.
 var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 
+type continuationStateError struct {
+	err error
+}
+
+func (e *continuationStateError) Error() string { return e.err.Error() }
+func (e *continuationStateError) Unwrap() error { return e.err }
+
+func continuationStateErrorf(format string, args ...any) error {
+	return &continuationStateError{err: fmt.Errorf(format, args...)}
+}
+
+func resumableSnapshotLost(operation string, err error) error {
+	return fmt.Errorf("%s: %w: %w", operation, ErrResumableSnapshotLost, err)
+}
+
 // Restore loads a snapshot from the configured store and
 // rebuilds an [Process] bound to a currently-deployed agent
 // definition. The restored process is registered in the engine's
@@ -29,14 +44,24 @@ var ErrResumableSnapshotLost = errors.New("resumable process snapshot lost")
 // continuation needs — see [Engine.RestoreSnapshot]. Pass the zero
 // value for a read-only restore.
 func (e *Engine) Restore(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.Restore: nil Engine")
+	}
 	if e.processStore == nil {
 		return nil, errors.New("runtime.Engine.Restore: no ProcessStore configured")
 	}
+	ctx = normalizeContext(ctx)
+	treeKey := e.processTreeKey(processID, "")
+	releaseWrite, err := e.processWrites.acquire(ctx, treeKey)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.Restore: order durable read: %w", err)
+	}
 	snapshot, err := e.processStore.Load(ctx, processID)
+	releaseWrite()
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.Restore: %w", err)
 	}
-	return e.RestoreSnapshot(snapshot, options)
+	return e.restoreSnapshot(ctx, "runtime.Engine.Restore", snapshot, options)
 }
 
 // ValidateResumableSnapshot verifies that a durable process snapshot contains
@@ -88,6 +113,15 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 // non-waiting, and deployment-incompatible snapshots return false, nil;
 // persistence access failures are returned as errors.
 func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) {
+	if e == nil {
+		return false, errors.New("runtime.Engine.Resumable: nil Engine")
+	}
+	ctx = normalizeContext(ctx)
+	releaseWrite, err := e.processWrites.acquire(ctx, e.processTreeKey(processID, ""))
+	if err != nil {
+		return false, fmt.Errorf("runtime.Engine.Resumable: order durable read: %w", err)
+	}
+	defer releaseWrite()
 	_, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
 	if err != nil {
 		return false, err
@@ -98,22 +132,44 @@ func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) 
 // RestoreResumable loads and rebuilds a waiting continuation. Every durable
 // state loss or incompatibility wraps ErrResumableSnapshotLost; persistence
 // access failures remain ordinary errors so hosts can distinguish an unusable
-// continuation from a temporarily unavailable store.
+// continuation from a store access failure.
 func (e *Engine) RestoreResumable(ctx context.Context, processID string, options core.ProcessOptions) (*Process, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.RestoreResumable: nil Engine")
+	}
+	ctx = normalizeContext(ctx)
+	treeKey := e.processTreeKey(processID, "")
+	releaseWrite, err := e.processWrites.acquire(ctx, treeKey)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: order durable read: %w", err)
+	}
 	tree, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
+	releaseWrite()
 	if err != nil {
 		return nil, err
 	}
 	if loss != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: %w", ErrResumableSnapshotLost, loss)
+		return nil, resumableSnapshotLost("runtime.Engine.RestoreResumable", loss)
 	}
 	var processes []*Process
 	process, err := e.restoreResumableTree(ctx, tree, options, nil, &processes)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: rebuild process %q: %w", ErrResumableSnapshotLost, processID, err)
+		var stateErr *continuationStateError
+		if errors.As(err, &stateErr) {
+			return nil, resumableSnapshotLost(
+				"runtime.Engine.RestoreResumable",
+				fmt.Errorf("rebuild process %q: %w", processID, err),
+			)
+		}
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: rebuild process %q: %w", processID, err)
 	}
+	releaseMutation, err := e.processMutations.acquire(ctx, treeKey)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: acquire process tree: %w", err)
+	}
+	defer releaseMutation()
 	if !e.processes.registerTree(processes) {
-		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: process tree %q conflicts with registered process state", processID)
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: process tree %q is already registered", processID)
 	}
 	return process, nil
 }
@@ -126,8 +182,8 @@ type resumableProcessTree struct {
 // loadResumableTree returns (tree, loss, err). loss reports a permanent reason
 // the continuation is unusable (missing/incompatible snapshot, cycle, unknown
 // deployment, non-resumable status) — an expected answer, mapped to
-// ErrResumableSnapshotLost by callers. err reports a transient failure (e.g. the
-// store was unreachable) to propagate. At most one of loss/err is non-nil.
+// ErrResumableSnapshotLost by callers. err reports an operational store access
+// failure to propagate. At most one of loss/err is non-nil.
 func (e *Engine) loadResumableTree(
 	ctx context.Context,
 	processID string,
@@ -174,7 +230,8 @@ func (e *Engine) loadResumableTree(
 
 // loadStoredSnapshot returns (snapshot, loss, err) with the same contract as
 // [Engine.loadResumableTree]: loss is a permanent "snapshot gone/invalid"
-// answer, err is a transient store failure. At most one of loss/err is non-nil.
+// answer; err is an operational store access failure. At most one of loss/err
+// is non-nil.
 func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
 	if e == nil {
 		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: nil engine")
@@ -213,7 +270,7 @@ func (e *Engine) restoreResumableTree(
 	snapshot := tree.snapshot
 	process, err := e.buildProcessSnapshot(snapshot, options)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 	*processes = append(*processes, process)
 	if parent != nil {
@@ -283,13 +340,37 @@ func restoredChildOptions(
 // observability + session context a fresh one gets from
 // [Engine.Start], so the continuation streams and keys chat history
 // correctly. Pass the zero value to restore read-only (audit / inspect).
-func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error) {
+func (e *Engine) RestoreSnapshot(
+	ctx context.Context,
+	snapshot core.ProcessSnapshot,
+	options core.ProcessOptions,
+) (*Process, error) {
+	if e == nil {
+		return nil, errors.New("runtime.Engine.RestoreSnapshot: nil Engine")
+	}
+	return e.restoreSnapshot(normalizeContext(ctx), "runtime.Engine.RestoreSnapshot", snapshot, options)
+}
+
+func (e *Engine) restoreSnapshot(
+	ctx context.Context,
+	operation string,
+	snapshot core.ProcessSnapshot,
+	options core.ProcessOptions,
+) (*Process, error) {
 	process, err := e.buildProcessSnapshot(snapshot, options)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
+	releaseMutation, err := e.processMutations.acquire(
+		ctx,
+		e.processTreeKey(snapshot.ID, snapshot.ParentID),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%s: acquire process tree: %w", operation, err)
+	}
+	defer releaseMutation()
 	if !e.processes.registerNew(process) {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: process %q conflicts with registered process state", process.id)
+		return nil, fmt.Errorf("%s: process %q is already registered", operation, process.id)
 	}
 	return process, nil
 }
@@ -299,12 +380,14 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 		return nil, errors.New("nil engine")
 	}
 	if err := snapshot.Validate(); err != nil {
-		return nil, err
+		return nil, &continuationStateError{err: err}
 	}
 
 	deployment, ok := e.catalog.lookup(snapshot.Deployment)
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment)
+		return nil, &continuationStateError{
+			err: fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment),
+		}
 	}
 	agent := deployment.agent
 
@@ -342,10 +425,10 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 	// Re-populate state.
 	process.state.transition(snapshot.Status)
 	if err := process.state.restoreSuspension(snapshot.Suspension); err != nil {
-		return nil, fmt.Errorf("suspension: %w", err)
+		return nil, &continuationStateError{err: fmt.Errorf("suspension: %w", err)}
 	}
 	if err := process.restoreNestedSuspension(snapshot.Suspension); err != nil {
-		return nil, fmt.Errorf("nested suspension: %w", err)
+		return nil, &continuationStateError{err: fmt.Errorf("nested suspension: %w", err)}
 	}
 	if snapshot.GoalName != "" {
 		for _, goal := range agent.Goals() {
@@ -382,7 +465,7 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 	// original struct, not the map JSON would otherwise yield.
 	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
 	if err != nil {
-		return nil, fmt.Errorf("decode blackboard: %w", err)
+		return nil, &continuationStateError{err: fmt.Errorf("decode blackboard: %w", err)}
 	}
 	if err := restoreBlackboard(blackboard, BlackboardState{
 		Bindings:   bindings,

@@ -36,7 +36,7 @@ type MCPConnectionCommands interface {
 type MCPRegistryCommands interface {
 	Probe(ctx context.Context, server mcpserver.Server) error
 	Configure(ctx context.Context, server mcpserver.Server) error
-	Remove(ctx context.Context, name string)
+	Remove(ctx context.Context, name string) error
 }
 
 // Registry is the durable MCP-server surface the integration use cases own.

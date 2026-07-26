@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -443,7 +444,7 @@ func TestAgentToolNestedSuspensionParksParentAndResumesOriginalToolCall(t *testi
 		t.Fatalf("before/model calls = %d/%d, want 1/1 before resume", beforeCalls.Load(), model.Calls())
 	}
 
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -490,7 +491,7 @@ func TestAgentToolConcurrentNestedSuspensionsCommitInToolCallOrder(t *testing.T)
 	if firstSuspension == nil {
 		t.Fatal("parent has no first suspension")
 	}
-	if err := engine.Resume(process.ID(), firstSuspension.ID, true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), firstSuspension.ID, true); err != nil {
 		t.Fatalf("Resume first nested call: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -511,7 +512,7 @@ func TestAgentToolConcurrentNestedSuspensionsCommitInToolCallOrder(t *testing.T)
 	if secondSuspension == nil {
 		t.Fatal("parent has no second suspension")
 	}
-	if err := engine.Resume(process.ID(), secondSuspension.ID, true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), secondSuspension.ID, true); err != nil {
 		t.Fatalf("Resume second nested call: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -554,7 +555,7 @@ func TestAgentToolDirectNestedSuspensionResumesOriginalChild(t *testing.T) {
 	}
 	child := nestedChildProcess(t, engine, process.ID())
 
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -580,7 +581,7 @@ func TestAgentToolNestedSuspensionReusesChildAcrossConsecutivePauses(t *testing.
 
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume first: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -596,7 +597,7 @@ func TestAgentToolNestedSuspensionReusesChildAcrossConsecutivePauses(t *testing.
 		t.Fatalf("before/model calls after first resume = %d/%d, want 1/1", beforeCalls.Load(), model.Calls())
 	}
 
-	if err := engine.Resume(process.ID(), "nested-second", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-second", true); err != nil {
 		t.Fatalf("Resume second: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -642,7 +643,7 @@ func TestAgentToolNestedSuspensionRestoresProcessTreeWithoutReplay(t *testing.T)
 		t.Fatalf("restored child usage = cost %.2f tokens %d calls %d, want 0.25/3/1", cost, tokens, len(restoredChild.ModelCalls()))
 	}
 
-	if err := engine2.Resume(restored.ID(), "nested-first", true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume restored parent: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -718,7 +719,7 @@ func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) 
 	if first == nil {
 		t.Fatal("restored parent has no first suspension")
 	}
-	if err := engine2.Resume(restored.ID(), first.ID, true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), first.ID, true); err != nil {
 		t.Fatalf("Resume first restored child: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -742,7 +743,7 @@ func TestAgentToolConcurrentNestedSuspensionsRestoreOrderedForest(t *testing.T) 
 	if second == nil {
 		t.Fatal("restored parent has no second suspension")
 	}
-	if err := engine2.Resume(restored.ID(), second.ID, true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), second.ID, true); err != nil {
 		t.Fatalf("Resume second restored child: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -807,10 +808,6 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	if err := sessionStore.Save(t.Context(), storedMiddleSession); err != nil {
 		t.Fatalf("save marked middle session: %v", err)
 	}
-	if err := sessionStore.Delete(t.Context(), leaf1.ID()); err != nil {
-		t.Fatalf("delete leaf session: %v", err)
-	}
-
 	model2 := &nestedParentModel{toolName: "nested-middle"}
 	engine2 := agent.MustNewEngine(runtime.Config{
 		BuildID:           "nested-multi-level",
@@ -855,7 +852,7 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 		t.Fatalf("restored multi-level usage = cost %.2f tokens %d calls %d, want 0.25/3/2", cost, tokens, len(restored.ModelCalls()))
 	}
 
-	if err := engine2.Resume(restored.ID(), "nested-first", true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume restored root: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -879,6 +876,78 @@ func TestAgentToolNestedSuspensionRestoresMultiLevelProcessTree(t *testing.T) {
 	}
 	if len(ids) != 1 || ids[0] != restored.ID() {
 		t.Fatalf("stored process ids = %v, want only root %q", ids, restored.ID())
+	}
+}
+
+func TestAgentToolNestedSuspensionMissingChildSessionIsLostWithoutRepair(t *testing.T) {
+	store := storetest.NewMemoryProcessStore()
+	sessionStore := storetest.NewMemorySessionStore()
+	var beforeCalls atomic.Int32
+	var leafCompletions atomic.Int32
+	engine1 := agent.MustNewEngine(runtime.Config{
+		BuildID:           "nested-session-loss",
+		ProcessStore:      store,
+		SessionStore:      sessionStore,
+		ChildSessionStore: sessionStore,
+		AutoSnapshot:      true,
+	})
+	parent1 := deployNestedTree(
+		t,
+		engine1,
+		&nestedParentModel{toolName: "nested-middle"},
+		&beforeCalls,
+		&leafCompletions,
+	)
+	rootSession := core.NewSession("nested-session-loss-root", "nested-user", parent1.Name())
+	root, err := engine1.RunInSession(
+		t.Context(),
+		parent1,
+		rootSession,
+		core.Input(struct{}{}),
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	middle := nestedChildProcess(t, engine1, root.ID())
+	leaf := nestedChildProcess(t, engine1, middle.ID())
+	if err := sessionStore.Delete(t.Context(), leaf.ID()); err != nil {
+		t.Fatal(err)
+	}
+
+	engine2 := agent.MustNewEngine(runtime.Config{
+		BuildID:           "nested-session-loss",
+		ProcessStore:      store,
+		SessionStore:      sessionStore,
+		ChildSessionStore: sessionStore,
+		AutoSnapshot:      true,
+	})
+	deployNestedTree(
+		t,
+		engine2,
+		&nestedParentModel{toolName: "nested-middle"},
+		&beforeCalls,
+		&leafCompletions,
+	)
+	if _, err := engine2.RestoreResumable(
+		t.Context(),
+		root.ID(),
+		core.ProcessOptions{Session: &rootSession},
+	); !errors.Is(err, runtime.ErrResumableSnapshotLost) ||
+		!strings.Contains(err.Error(), "child session") {
+		t.Fatalf("RestoreResumable error = %v, want missing child-session loss", err)
+	}
+	if _, err := sessionStore.Load(t.Context(), leaf.ID()); !errors.Is(err, core.ErrSessionNotFound) {
+		t.Fatalf("missing child session was repaired as a restore side effect: %v", err)
+	}
+	if _, ok := engine2.Process(root.ID()); ok {
+		t.Fatal("failed restore published its root process")
+	}
+	if _, ok := engine2.Process(middle.ID()); ok {
+		t.Fatal("failed restore published its middle process")
+	}
+	if _, ok := engine2.Process(leaf.ID()); ok {
+		t.Fatal("failed restore published its leaf process")
 	}
 }
 
@@ -923,11 +992,12 @@ func TestAgentToolNestedSuspensionRestorePublishesTreeAtomically(t *testing.T) {
 	}
 	terminalSnapshot.Status = core.StatusCompleted
 	terminalSnapshot.Suspension = nil
-	previous, err := engine2.RestoreSnapshot(terminalSnapshot, core.ProcessOptions{})
+	previous, err := engine2.RestoreSnapshot(t.Context(), terminalSnapshot, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("RestoreSnapshot terminal predecessor: %v", err)
 	}
 
+	childOptionsErr := errors.New("restore child options unavailable")
 	childOptionsStarted := make(chan struct{})
 	releaseChildOptions := make(chan struct{})
 	result := make(chan error, 1)
@@ -936,7 +1006,7 @@ func TestAgentToolNestedSuspensionRestorePublishesTreeAtomically(t *testing.T) {
 			ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
 				close(childOptionsStarted)
 				<-releaseChildOptions
-				return core.ProcessOptions{}, errors.New("restore child options unavailable")
+				return core.ProcessOptions{}, childOptionsErr
 			},
 		})
 		result <- restoreErr
@@ -948,8 +1018,8 @@ func TestAgentToolNestedSuspensionRestorePublishesTreeAtomically(t *testing.T) {
 	}
 	close(releaseChildOptions)
 	err = <-result
-	if !errors.Is(err, runtime.ErrResumableSnapshotLost) {
-		t.Fatalf("RestoreResumable error = %v, want ErrResumableSnapshotLost", err)
+	if !errors.Is(err, childOptionsErr) || errors.Is(err, runtime.ErrResumableSnapshotLost) {
+		t.Fatalf("RestoreResumable error = %v, want operational ChildOptions error", err)
 	}
 	current, ok = engine2.Process(process1.ID())
 	if !ok || current != previous || current.Status() != core.StatusCompleted {
@@ -967,7 +1037,7 @@ func TestAgentToolNestedSuspensionRestoresTerminalChildCrashWindow(t *testing.T)
 	process1 := runNestedParent(t, engine1, parent1)
 	child1 := nestedChildProcess(t, engine1, process1.ID())
 
-	if err := engine1.Resume(process1.ID(), "nested-first", true); err != nil {
+	if err := engine1.Resume(t.Context(), process1.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine1.Continue(t.Context(), child1.ID()); err != nil {
@@ -988,7 +1058,7 @@ func TestAgentToolNestedSuspensionRestoresTerminalChildCrashWindow(t *testing.T)
 	if !ok || restoredChild.Status() != core.StatusCompleted {
 		t.Fatalf("restored terminal child = %#v found=%v", restoredChild, ok)
 	}
-	if err := engine2.Resume(restored.ID(), "nested-first", true); err != nil {
+	if err := engine2.Resume(t.Context(), restored.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume restored parent: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -1013,7 +1083,7 @@ func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t
 		t.Fatalf("save waiting process tree: %v", err)
 	}
 
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -1022,7 +1092,7 @@ func TestAgentToolNestedSuspensionManualSaveCleansRemovedTerminalChildSnapshot(t
 	if process.Status() != core.StatusCompleted || child.Status() != core.StatusCompleted {
 		t.Fatalf("parent/child status = %s/%s, want completed/completed", process.Status(), child.Status())
 	}
-	if err := engine.Remove(child.ID()); err != nil {
+	if err := engine.Remove(t.Context(), child.ID()); err != nil {
 		t.Fatalf("Remove terminal child: %v", err)
 	}
 	if err := engine.Save(t.Context(), process.ID()); err != nil {
@@ -1049,7 +1119,7 @@ func TestAgentToolNestedCleanupRetriesAfterStoreFailure(t *testing.T) {
 	if err := engine.Save(t.Context(), process.ID()); err != nil {
 		t.Fatalf("save waiting process tree: %v", err)
 	}
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -1090,7 +1160,7 @@ func TestAgentToolNestedSuspensionCleansKilledChild(t *testing.T) {
 	if err := engine.Kill(t.Context(), child.ID()); err != nil {
 		t.Fatalf("Kill child: %v", err)
 	}
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {
@@ -1122,7 +1192,7 @@ func TestAgentToolNestedSuspensionCleansFailedChild(t *testing.T) {
 	process := runNestedParent(t, engine, parent)
 	child := nestedChildProcess(t, engine, process.ID())
 
-	if err := engine.Resume(process.ID(), "nested-first", true); err != nil {
+	if err := engine.Resume(t.Context(), process.ID(), "nested-first", true); err != nil {
 		t.Fatalf("Resume parent: %v", err)
 	}
 	if err := engine.Continue(t.Context(), process.ID()); err != nil {

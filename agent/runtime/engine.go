@@ -43,7 +43,7 @@ const (
 //   - engine.go         — struct + constructor + small accessors
 //   - engine_deploy.go  — Deploy / Undeploy + reachability check +
 //     extension-resolution fallbacks
-//   - engine_run.go     — Run / Start / Continue / Resume / Kill /
+//   - engine_run.go     — Run / Start / Continue / Resume / ResumeAsync / Kill /
 //     Remove / Prune
 //   - engine_process.go — process construction + dependency wiring
 //   - process_capture.go — snapshot serialization
@@ -64,7 +64,8 @@ type Engine struct {
 	sessionStore            core.SessionStore // optional root-session persistence
 	childSessionStore       core.SessionStore // optional delegated-session persistence
 	sessionTurns            *localSequencer   // sequences turns sharing a session ID
-	processSaves            *localSequencer   // sequences persistence for one live process tree
+	processMutations        *localSequencer   // linearizes state and registry changes per process tree
+	processWrites           *localSequencer   // preserves durable commit order per process tree
 	sessionFinalizeTimeout  time.Duration     // bounds the post-dispatch session write
 	autoSnapshot            bool              // snapshot every tick when a store is configured
 	snapshotFinalizeTimeout time.Duration     // bounds each request-independent automatic snapshot
@@ -121,8 +122,9 @@ type Config struct {
 
 	// SnapshotFinalizeTimeout bounds each automatic snapshot write. The write is
 	// detached from request cancellation so the final killed/terminal state can
-	// still be persisted. Zero uses [DefaultSnapshotFinalizeTimeout]; negative
-	// values are rejected. The value is only used when AutoSnapshot is true.
+	// still be persisted, but an earlier caller deadline remains authoritative.
+	// Zero uses [DefaultSnapshotFinalizeTimeout]; negative values are rejected.
+	// The value is only used when AutoSnapshot is true.
 	SnapshotFinalizeTimeout time.Duration
 
 	// SnapshotFailurePolicy decides what an automatic snapshot failure does.
@@ -240,7 +242,8 @@ func New(config Config) (*Engine, error) {
 		sessionStore:            config.SessionStore,
 		childSessionStore:       config.ChildSessionStore,
 		sessionTurns:            newLocalSequencer(),
-		processSaves:            newLocalSequencer(),
+		processMutations:        newLocalSequencer(),
+		processWrites:           newLocalSequencer(),
 		sessionFinalizeTimeout:  finalizeTimeout,
 		autoSnapshot:            config.AutoSnapshot,
 		snapshotFinalizeTimeout: snapshotFinalizeTimeout,

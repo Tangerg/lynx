@@ -29,10 +29,11 @@ func (s *mcpLiveSet) Configure(ctx context.Context, cfg mcpserver.Server) error 
 	return nil
 }
 
-func (s *mcpLiveSet) Remove(_ context.Context, name string) {
+func (s *mcpLiveSet) Remove(_ context.Context, name string) error {
 	s.mu.Lock()
 	delete(s.servers, name)
 	s.mu.Unlock()
+	return nil
 }
 
 // blockingMCPProjection deliberately has no adapter-local mutation lock. It
@@ -55,6 +56,9 @@ func (p *blockingMCPProjection) Reconnect(ctx context.Context, name string) erro
 	case <-p.releaseReconnect:
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	p.mu.Lock()
 	p.servers[name] = true
@@ -200,7 +204,7 @@ func TestMCPRemoveDoesNotWaitForInteractiveConnection(t *testing.T) {
 		t.Fatal("remove waited for the interactive connection")
 	}
 	close(live.releaseReconnect)
-	requireCoordinatorShutdown(t, c) // joins the detached reconnect and its stale-projection cleanup
+	requireCoordinatorShutdown(t, c) // joins the detached reconnect
 
 	if _, ok, err := registry.Get(context.Background(), name); err != nil || ok {
 		t.Fatalf("registry final state: present=%v err=%v", ok, err)

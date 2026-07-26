@@ -80,18 +80,21 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 	return out, nil
 }
 
-// Remove drops a server from the live set, closing its session, and refreshes
+// Remove drops a server from the live set, closes its session, and refreshes
 // the model-facing tool set. Removing an unknown name is a no-op (the registry
 // is the source of truth; the live set may legitimately lag it). Disabling a
 // server routes here too — it stays in the registry but leaves the live set.
-func (c *Connections) Remove(ctx context.Context, name string) {
+// Once Remove is invoked on a valid pool, the server is absent from the live
+// set before the method returns; a returned error reports session teardown, not
+// an unapplied projection.
+func (c *Connections) Remove(ctx context.Context, name string) error {
 	if c == nil {
-		return
+		return ErrConnectionsUnavailable
 	}
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		return
+		return ErrConnectionsClosed
 	}
 	var old *sdkmcp.ClientSession
 	if index := slices.IndexFunc(c.servers, func(ms *server) bool { return ms.name() == name }); index >= 0 {
@@ -112,15 +115,13 @@ func (c *Connections) Remove(ctx context.Context, name string) {
 	// close. The mutation lock keeps this publication ordered with every dial.
 	c.publishTools()
 
-	if old != nil {
-		recordCleanupError(ctx, old.Close())
-	}
+	return c.closeSession(ctx, old)
 }
 
 // publishTools rebuilds the model-facing catalog from each connected server's
 // last verified tool snapshot. Network I/O happens only while establishing that
 // server's session; publication itself is deterministic and cannot turn caller
-// cancellation or another server's transient failure into a false catalog.
+// cancellation or another server's independent failure into a false catalog.
 func (c *Connections) publishTools() {
 	c.publishMu.Lock()
 	defer c.publishMu.Unlock()
@@ -140,8 +141,9 @@ func (c *Connections) publishTools() {
 	}
 }
 
-// Shutdown serializes terminal close attempts and joins the active one until
-// ctx ends. Sessions whose close fails remain owned for the next attempt.
+// Shutdown rejects new operations, joins all admitted dials, and closes every
+// session still present in the ownership ledger. A failed close remains in the
+// ledger for a later explicit Shutdown call.
 func (c *Connections) Shutdown(ctx context.Context) error {
 	if c == nil {
 		return nil
@@ -156,9 +158,6 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 			if ms.cancel != nil {
 				ms.cancel()
 				ms.cancel = nil
-			}
-			if ms.session != nil {
-				c.pending = append(c.pending, ms.session)
 			}
 		}
 		c.servers = nil
@@ -177,10 +176,8 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 	}
 	if attempt == nil {
 		attempt = &shutdownAttempt{done: make(chan struct{})}
-		sessions := c.pending
-		c.pending = nil
 		c.shutdown = attempt
-		go c.close(attempt, sessions)
+		go c.closeAll(attempt)
 	}
 	c.mu.Unlock()
 
@@ -192,19 +189,76 @@ func (c *Connections) Shutdown(ctx context.Context) error {
 	}
 }
 
-func (c *Connections) close(attempt *shutdownAttempt, sessions []sessionCloser) {
+func (c *Connections) closeAll(attempt *shutdownAttempt) {
+	c.attempts.Wait()
+
+	c.mu.Lock()
+	sessions := make([]*sdkmcp.ClientSession, 0, len(c.sessions))
+	for session := range c.sessions {
+		sessions = append(sessions, session)
+	}
+	c.mu.Unlock()
+
 	var errs []error
-	var failed []sessionCloser
 	for _, session := range sessions {
-		if err := session.Close(); err != nil {
+		if err := c.closeSession(context.Background(), session); err != nil {
 			errs = append(errs, err)
-			failed = append(failed, session)
 		}
 	}
-	c.attempts.Wait()
+
 	c.mu.Lock()
-	c.pending = append(c.pending, failed...)
 	attempt.err = errors.Join(errs...)
+	close(attempt.done)
+	c.mu.Unlock()
+}
+
+func (c *Connections) closeSession(ctx context.Context, session *sdkmcp.ClientSession) error {
+	if session == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	c.mu.Lock()
+	owned := c.sessions[session]
+	if owned == nil {
+		c.mu.Unlock()
+		return nil
+	}
+	attempt := owned.close
+	if attempt == nil {
+		attempt = &sessionCloseAttempt{done: make(chan struct{})}
+		owned.close = attempt
+		go c.closeSessionAttempt(session, owned, attempt)
+	}
+	c.mu.Unlock()
+
+	select {
+	case <-attempt.done:
+		return attempt.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Connections) closeSessionAttempt(
+	session *sdkmcp.ClientSession,
+	owned *ownedSession,
+	attempt *sessionCloseAttempt,
+) {
+	err := owned.closeFn()
+	c.mu.Lock()
+	if current := c.sessions[session]; current == owned && current.close == attempt {
+		if err == nil {
+			delete(c.sessions, session)
+		} else {
+			// The failed attempt remains joinable through its local pointer, but
+			// ownership is ready for one later explicit close generation.
+			current.close = nil
+		}
+	}
+	attempt.err = err
 	close(attempt.done)
 	c.mu.Unlock()
 }

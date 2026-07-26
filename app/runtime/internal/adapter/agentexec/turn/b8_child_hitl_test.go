@@ -395,6 +395,9 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	if interruptsSeen != 1 || terminalCount != 1 || endReason != execution.OutcomeCanceled {
 		t.Fatalf("interrupts/terminals/reason = %d/%d/%q", interruptsSeen, terminalCount, endReason)
 	}
+	if err := dispatcher.Cancel(t.Context(), handle); err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
+		t.Fatalf("join terminal cleanup: %v", err)
+	}
 	ids, err := store.List(t.Context())
 	if err != nil {
 		t.Fatalf("list snapshots: %v", err)

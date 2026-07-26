@@ -25,18 +25,6 @@ type catalogTool string
 
 type oauthHandlerStub struct{}
 
-type flakySessionCloser struct {
-	calls atomic.Int32
-	err   error
-}
-
-func (c *flakySessionCloser) Close() error {
-	if c.calls.Add(1) == 1 {
-		return c.err
-	}
-	return nil
-}
-
 func (oauthHandlerStub) TokenSource(context.Context) (oauth2.TokenSource, error) { return nil, nil }
 func (oauthHandlerStub) Authorize(context.Context, *http.Request, *http.Response) error {
 	return nil
@@ -89,12 +77,21 @@ func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
 		})
 	}
 
-	c.Remove(context.Background(), cfg.Name)
+	if err := c.Remove(context.Background(), cfg.Name); !errors.Is(err, ErrConnectionsClosed) {
+		t.Fatalf("Remove after Shutdown = %v, want ErrConnectionsClosed", err)
+	}
 	if got := c.Statuses(); len(got) != 0 {
 		t.Fatalf("statuses after Shutdown + Remove = %v, want empty", got)
 	}
 	if err := c.Shutdown(t.Context()); err != nil {
 		t.Fatalf("second Shutdown: %v", err)
+	}
+}
+
+func TestNilConnectionsRejectRemoval(t *testing.T) {
+	var connections *Connections
+	if err := connections.Remove(t.Context(), "server"); !errors.Is(err, ErrConnectionsUnavailable) {
+		t.Fatalf("Remove on nil pool = %v, want ErrConnectionsUnavailable", err)
 	}
 }
 
@@ -123,10 +120,22 @@ func TestConnectionsShutdownCancelsAndJoinsAttempts(t *testing.T) {
 	}
 }
 
-func TestConnectionsShutdownRetriesOnlyFailedSessions(t *testing.T) {
+func TestConnectionsShutdownRetriesOnlyFailedSessionClosures(t *testing.T) {
 	closeErr := errors.New("session close failed")
-	session := &flakySessionCloser{err: closeErr}
-	c := &Connections{closed: true, pending: []sessionCloser{session}}
+	var calls atomic.Int32
+	session := new(sdkmcp.ClientSession)
+	owned := &ownedSession{
+		closeFn: func() error {
+			if calls.Add(1) == 1 {
+				return closeErr
+			}
+			return nil
+		},
+	}
+	c := &Connections{
+		closed:   true,
+		sessions: map[*sdkmcp.ClientSession]*ownedSession{session: owned},
+	}
 
 	if err := c.Shutdown(t.Context()); !errors.Is(err, closeErr) {
 		t.Fatalf("first Shutdown = %v, want close failure", err)
@@ -134,8 +143,11 @@ func TestConnectionsShutdownRetriesOnlyFailedSessions(t *testing.T) {
 	if err := c.Shutdown(t.Context()); err != nil {
 		t.Fatalf("second Shutdown: %v", err)
 	}
-	if got := session.calls.Load(); got != 2 {
+	if got := calls.Load(); got != 2 {
 		t.Fatalf("session close calls = %d, want 2", got)
+	}
+	if got := ownedSessionCount(c); got != 0 {
+		t.Fatalf("owned sessions after successful retry = %d, want 0", got)
 	}
 }
 
@@ -229,7 +241,9 @@ func TestRemovePublishesRemainingSnapshotWithCanceledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	c.Remove(ctx, "remove")
+	if err := c.Remove(ctx, "remove"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
 	if got := <-published; !slices.Equal(got, []string{"keep_read"}) {
 		t.Fatalf("published tools = %v, want [keep_read]", got)
 	}
@@ -272,6 +286,43 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 	if want := []string{"remote_first", "remote_second"}; !slices.Equal(settled, want) {
 		t.Fatalf("settled publication = %v, want %v", settled, want)
 	}
+}
+
+func TestSessionLedgerOwnsReplacementUntilClose(t *testing.T) {
+	remote := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v1"}, nil)
+	addRemoteTool(t, remote, "read")
+	httpServer := httptest.NewServer(sdkmcp.NewStreamableHTTPHandler(
+		func(*http.Request) *sdkmcp.Server { return remote },
+		nil,
+	))
+	t.Cleanup(httpServer.Close)
+
+	config := ServerConfig{Name: "ledger", Transport: TransportHTTP, Endpoint: httpServer.URL}
+	c, _, err := Dial(t.Context(), []ServerConfig{config})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := ownedSessionCount(c); got != 1 {
+		t.Fatalf("owned sessions after Dial = %d, want 1", got)
+	}
+	if err := c.Reconnect(t.Context(), config.Name); err != nil {
+		t.Fatal(err)
+	}
+	if got := ownedSessionCount(c); got != 1 {
+		t.Fatalf("owned sessions after replacement = %d, want 1", got)
+	}
+	if err := c.Remove(t.Context(), config.Name); err != nil {
+		t.Fatal(err)
+	}
+	if got := ownedSessionCount(c); got != 0 {
+		t.Fatalf("owned sessions after Remove = %d, want 0", got)
+	}
+}
+
+func ownedSessionCount(c *Connections) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.sessions)
 }
 
 func TestDialQuarantinesCrossServerPublicToolNameCollision(t *testing.T) {

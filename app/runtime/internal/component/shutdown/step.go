@@ -1,5 +1,5 @@
-// Package shutdown owns retry-safe, deadline-aware teardown steps for process
-// resources whose underlying Close operation may not accept a context.
+// Package shutdown owns deadline-aware teardown steps for process resources
+// whose underlying Close operation may not accept a context.
 package shutdown
 
 import (
@@ -27,7 +27,7 @@ type attempt struct {
 }
 
 // Attempt is one immutable Step execution. It lets an owner start several
-// teardown steps before joining them, while Step still serializes retries.
+// teardown steps before joining them.
 type Attempt struct {
 	state *attempt
 }
@@ -45,9 +45,9 @@ func (s *Step) Shutdown(ctx context.Context) error {
 	return s.Begin(ctx).Wait(ctx)
 }
 
-// Begin starts action once, joins the current execution, or returns an already
-// completed no-op attempt. A caller that joins a failing predecessor receives
-// one fresh serialized attempt under its own context.
+// Begin starts one execution, joins the current execution, or returns an
+// already completed no-op attempt. A completed failure is retried only by a
+// later explicit Begin call.
 func (s *Step) Begin(ctx context.Context) *Attempt {
 	if s == nil || s.action == nil {
 		return completedAttempt(nil)
@@ -64,35 +64,13 @@ func (s *Step) Begin(ctx context.Context) *Attempt {
 		return completedAttempt(nil)
 	}
 	running := s.active
-	joined := running != nil
 	if running == nil {
 		running = &attempt{done: make(chan struct{})}
 		s.active = running
 		go s.run(ctx, running)
 	}
 	s.mu.Unlock()
-	if joined {
-		result := &attempt{done: make(chan struct{})}
-		go s.continueAfter(ctx, running, result)
-		return &Attempt{state: result}
-	}
 	return &Attempt{state: running}
-}
-
-// continueAfter gives a caller that arrived during an older attempt its own
-// serialized attempt if the joined operation fails. The later caller therefore
-// never inherits an expired predecessor context as its final result.
-func (s *Step) continueAfter(ctx context.Context, joined, result *attempt) {
-	if err := completion.Wait(ctx, joined.done); err != nil {
-		completeAttempt(result, err)
-		return
-	}
-	if joined.err == nil {
-		completeAttempt(result, nil)
-		return
-	}
-	next := s.Begin(ctx)
-	completeAttempt(result, next.Wait(ctx))
 }
 
 // Wait joins this immutable attempt. The caller's deadline does not cancel or
@@ -127,11 +105,6 @@ func completedAttempt(err error) *Attempt {
 	state := &attempt{done: make(chan struct{}), err: err}
 	close(state.done)
 	return &Attempt{state: state}
-}
-
-func completeAttempt(state *attempt, err error) {
-	state.err = err
-	close(state.done)
 }
 
 func (s *Step) run(ctx context.Context, running *attempt) {

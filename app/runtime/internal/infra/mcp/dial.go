@@ -76,6 +76,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 			c.servers = append(c.servers, ms)
 			continue
 		}
+		c.ownSessionLocked(session)
 		srcTools, terr := sourceTools(ctx, lynxmcp.ToolSource{Name: srv.Name, Session: session})
 		if terr == nil {
 			terr = validateToolCatalog(c.servers, nil, srv.Name, srcTools)
@@ -85,7 +86,7 @@ func Dial(ctx context.Context, servers []ServerConfig) (*Connections, []tools.To
 			// Preserve a close failure in the trace as well as the primary cause;
 			// boot deliberately degrades this one server to failed rather than
 			// aborting every independent MCP connection.
-			failure := errors.Join(terr, session.Close())
+			failure := errors.Join(terr, c.closeSession(ctx, session))
 			span.RecordError(failure)
 			ms.state = mcpserver.ConnectionFailed
 			failures++

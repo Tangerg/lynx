@@ -98,6 +98,23 @@ func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
 	releaseSecond()
 }
 
+func TestLocalSequencerRejectsCanceledIdleAcquire(t *testing.T) {
+	sequencer := newLocalSequencer()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	release, err := sequencer.acquire(ctx, "idle")
+	if release != nil {
+		t.Fatal("canceled acquire returned a release function")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("acquire error = %v, want context cancellation", err)
+	}
+	if len(sequencer.gates) != 0 {
+		t.Fatalf("retained gates = %d, want no canceled acquisition state", len(sequencer.gates))
+	}
+}
+
 func TestNewRejectsNegativeSessionFinalizeTimeout(t *testing.T) {
 	if _, err := New(Config{SessionFinalizeTimeout: -time.Second}); err == nil {
 		t.Fatal("New succeeded, want validation error")

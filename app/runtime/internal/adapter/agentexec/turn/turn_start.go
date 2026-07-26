@@ -14,9 +14,7 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request runs.StartTurn
 		return TurnHandle{}, err
 	}
 	if err := s.ActivateTurn(ctx, handle); err != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
-		cleanupErr := s.Cancel(cleanupCtx, handle)
-		cancel()
+		cleanupErr := s.Cancel(ctx, handle)
 		if errors.Is(cleanupErr, ErrTurnNotFound) {
 			cleanupErr = nil
 		}

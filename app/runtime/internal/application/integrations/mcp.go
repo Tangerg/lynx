@@ -96,14 +96,15 @@ func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
 	// Shrink the live set before publishing the new policy: dropping tools can't
 	// expose a hidden one, but publishing first would leave the about-to-be-dropped
 	// tools briefly live under the wrong policy.
+	var projectionErr error
 	if c.mcpRegistryCommands != nil {
-		c.mcpRegistryCommands.Remove(reconcileCtx, name)
+		projectionErr = c.mcpRegistryCommands.Remove(reconcileCtx, name)
 	}
-	if err := c.refreshMCPToolPolicy(reconcileCtx); err != nil {
-		return err
+	policyErr := c.refreshMCPToolPolicy(reconcileCtx)
+	if policyErr == nil {
+		c.notifyMCPStatus(ownerCtx, name, false)
 	}
-	c.notifyMCPStatus(ownerCtx, name, false)
-	return nil
+	return errors.Join(projectionErr, policyErr)
 }
 
 // SetMCPServerEnabled flips a server's enablement in the registry and applies it
@@ -205,10 +206,11 @@ func (c *Coordinator) applyMCPRegistryChange(ctx context.Context, srv mcpserver.
 	if srv.Enabled {
 		return c.refreshMCPToolPolicy(ctx)
 	}
+	var projectionErr error
 	if c.mcpRegistryCommands != nil {
-		c.mcpRegistryCommands.Remove(ctx, srv.Name)
+		projectionErr = c.mcpRegistryCommands.Remove(ctx, srv.Name)
 	}
-	return c.refreshMCPToolPolicy(ctx)
+	return errors.Join(projectionErr, c.refreshMCPToolPolicy(ctx))
 }
 
 // redialMCPServer dispatches a detached live (re)dial for an enabled server whose

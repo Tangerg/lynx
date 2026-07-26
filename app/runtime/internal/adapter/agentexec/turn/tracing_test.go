@@ -54,8 +54,13 @@ func TestTerminalDiscardFailureIsRecordedWithoutRetainingTurn(t *testing.T) {
 	}
 	for range events {
 	}
+	if err := dispatcher.Cancel(t.Context(), handle); err != nil &&
+		!errors.Is(err, turn.ErrTurnNotFound) &&
+		!errors.Is(err, discardErr) {
+		t.Fatalf("join terminal cleanup: %v", err)
+	}
 	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
-		t.Fatalf("Cancel after terminal cleanup = %v, want ErrTurnNotFound", err)
+		t.Fatalf("Cancel after joined terminal cleanup = %v, want ErrTurnNotFound", err)
 	}
 
 	spans := exporter.GetSpans()

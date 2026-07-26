@@ -32,6 +32,7 @@ func installRuntimeMetricCapture() *sdkmetric.ManualReader {
 // exit instruments.
 func TestMetrics_RecordedDuringRun(t *testing.T) {
 	reader := installRuntimeMetricCapture()
+	before := collectRuntimeMetrics(t, reader)
 
 	a := agent.New(agent.AgentConfig{Name: "metered", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
@@ -46,30 +47,39 @@ func TestMetrics_RecordedDuringRun(t *testing.T) {
 		t.Fatalf("Run: %v", err)
 	}
 
-	var rm metricdata.ResourceMetrics
-	if err := reader.Collect(context.Background(), &rm); err != nil {
-		t.Fatalf("collect: %v", err)
-	}
-
-	seen := collectedMetricNames(rm)
+	after := collectRuntimeMetrics(t, reader)
 	for _, want := range []string{
 		"agent.ticks",
 		"agent.action.executions",
 		"agent.plan.duration",
 		"agent.process.exits",
 	} {
-		if !seen[want] {
-			t.Errorf("metric %q not recorded; saw %v", want, seen)
+		if after[want] <= before[want] {
+			t.Errorf("metric %q count did not increase: before=%d after=%d", want, before[want], after[want])
 		}
 	}
 }
 
-func collectedMetricNames(rm metricdata.ResourceMetrics) map[string]bool {
-	names := map[string]bool{}
+func collectRuntimeMetrics(t *testing.T, reader *sdkmetric.ManualReader) map[string]uint64 {
+	t.Helper()
+	var rm metricdata.ResourceMetrics
+	if err := reader.Collect(t.Context(), &rm); err != nil {
+		t.Fatalf("collect: %v", err)
+	}
+	counts := map[string]uint64{}
 	for _, sm := range rm.ScopeMetrics {
 		for _, m := range sm.Metrics {
-			names[m.Name] = true
+			switch data := m.Data.(type) {
+			case metricdata.Sum[int64]:
+				for _, point := range data.DataPoints {
+					counts[m.Name] += uint64(point.Value)
+				}
+			case metricdata.Histogram[float64]:
+				for _, point := range data.DataPoints {
+					counts[m.Name] += point.Count
+				}
+			}
 		}
 	}
-	return names
+	return counts
 }
