@@ -85,6 +85,25 @@ export function ChatStream({ onSend }: Props) {
 
   const t = useT();
 
+  // Pinned above whatever fills the column — a session with a hundred turns or a
+  // brand-new one. Both states carry them: the goal control lives in this slot,
+  // and rendering it only once a conversation had started meant the affordance was
+  // missing at exactly the moment you set an objective.
+  //
+  // The stream's scroll lives inside MessageStream's own container, so these stay
+  // put while the user scrolls messages below them.
+  const banners = (
+    <>
+      {/* Keyed on the session so the relocate input never carries a
+          half-typed path across a session switch. */}
+      <CwdMissingBanner key={resetKey} />
+      <RunErrorBanner />
+      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
+        <Slot name="chat.banner.top" />
+      </div>
+    </>
+  );
+
   // Empty state (Codex / ChatGPT voice): the hero + composer are ONE
   // vertically-centered group. No MessageStream / StickToBottom here — nothing
   // is streaming yet, so the delicate sticky-scroll path only mounts once there
@@ -92,8 +111,7 @@ export function ChatStream({ onSend }: Props) {
   if (messages.length === 0) {
     return (
       <>
-        <CwdMissingBanner key={resetKey} />
-        <RunErrorBanner />
+        {banners}
         {/* Hero and composer are ONE vertically-centred group, so the composer
             sits at the optical centre rather than the heading floating above a
             bottom-anchored input. */}
@@ -114,19 +132,7 @@ export function ChatStream({ onSend }: Props) {
 
   return (
     <>
-      {/* Keyed on the session so the relocate input never carries a
-          half-typed path across a tab switch. */}
-      <CwdMissingBanner key={resetKey} />
-      <RunErrorBanner />
-      {/* Banner row pinned above the message stream — sits at the
-          chat header's lower edge and stays put while the user scrolls
-          messages below (the scroll lives inside MessageStream's own
-          container, not this one). Plan-progress is the only built-in
-          contributor today; the slot is open so plugins can stack
-          their own "above the stream" banners here. */}
-      <div className="pointer-events-auto mx-auto w-full max-w-[var(--content-max)] px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
-        <Slot name="chat.banner.top" />
-      </div>
+      {banners}
       {/* The transcript scrolls; the composer is a sibling in normal flow that
           pulls UP over it. That overlap is what makes the composer read as
           floating on the conversation, and it means the scroller needs no

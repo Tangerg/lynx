@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { Button, DropdownMenu, Icon, IconButton, ProviderIcon, StatusDot, Tooltip } from "@/ui";
+import { Button, DropdownMenu, Icon, IconButton, ProviderIcon, Tooltip } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
 import { useSelectedModel } from "./public/selectedModel";
 import {
@@ -27,6 +27,9 @@ import {
   useSetComposerModelPreference,
 } from "./public/modelPreference";
 
+// The trigger wears the selected model's provider mark. It used to carry a
+// StatusDot pinned to "idle" — a control that looks like it reports state and
+// never does; provider health is not something this app models.
 function ModelPicker() {
   const t = useT();
   const { data: models = [], isLoading } = useModels();
@@ -60,7 +63,7 @@ function ModelPicker() {
             aria-label={t("composer.switchModel")}
             className="gap-1.5 whitespace-nowrap text-ui-lg text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
           >
-            <StatusDot tone="idle" />
+            <ProviderIcon provider={selected.provider} size={14} />
             <span className="max-w-[168px] truncate">{selected.label}</span>
             <Icon name="chevron-down" size={14} className="shrink-0 text-fg-faint" />
           </Button>
