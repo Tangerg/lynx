@@ -35,6 +35,9 @@ export interface AgentRuntimeGateway {
   }): Promise<{ revision: number }>;
   forkSession(input: { sessionId: string; fromRunId?: string }): Promise<{ id: string }>;
   loadSessionHistory(sessionId: string): Promise<AgentSessionHistory>;
+  /** Does this session hold any transcript item at all? One row is enough to
+   *  answer, so this asks for one rather than reading a history. */
+  sessionHoldsNothing(sessionId: string): Promise<boolean>;
   loadSessionUsage(sessionId: string): Promise<AgentSessionUsage>;
   rollbackSession(input: {
     sessionId: string;

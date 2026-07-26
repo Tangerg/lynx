@@ -162,7 +162,10 @@ for (const file of files(SRC)) {
   if (
     !isTest &&
     !rel.startsWith("rpc/") &&
-    (/\b(?:sessions\.list|items\.list|runs\.list|listOpenInterrupts|schedules\.list)\([^)]*\)\s*\)?\s*\.data\b/.test(
+    // A call that names its own `limit` is reading a bounded slice deliberately —
+    // asking for one row to answer "is there anything here?" is not the mistake
+    // this looks for.
+    (/\b(?:sessions\.list|items\.list|runs\.list|listOpenInterrupts|schedules\.list)\((?![^)]*\blimit\b)[^)]*\)\s*\)?\s*\.data\b/.test(
       code(text),
     ) ||
       (/\b(?:sessions\.list|items\.list|runs\.list|listOpenInterrupts|schedules\.list)\(/.test(

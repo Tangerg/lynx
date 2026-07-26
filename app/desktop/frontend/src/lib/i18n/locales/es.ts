@@ -913,6 +913,7 @@ export const es: Record<string, string> = {
   "session.error.relocate": "No se pudo mover la sesión.",
   "session.error.rollback": "No se pudo rebobinar la conversación.",
   "session.error.steer": "No se pudo orientar el turno en curso",
+  "session.pruned": "Se eliminaron {{count}} sesión(es) vacía(s)",
   "composer.error.readImage": "No se pudo leer la imagen",
   "composer.error.readImages": "No se pudieron leer {{count}} imágenes",
 

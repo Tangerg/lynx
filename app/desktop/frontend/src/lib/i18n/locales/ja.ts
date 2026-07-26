@@ -904,6 +904,7 @@ export const ja: Record<string, string> = {
   "session.error.relocate": "セッションの作業ディレクトリを変更できませんでした。",
   "session.error.rollback": "会話を巻き戻せませんでした。",
   "session.error.steer": "実行中のターンを誘導できませんでした",
+  "session.pruned": "空のセッション {{count}} 件を削除しました",
   "composer.error.readImage": "画像を読み込めませんでした",
   "composer.error.readImages": "{{count}} 枚の画像を読み込めませんでした",
 

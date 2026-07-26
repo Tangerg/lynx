@@ -915,6 +915,7 @@ export const fr: Record<string, string> = {
   "session.error.relocate": "Impossible de déplacer la session.",
   "session.error.rollback": "Impossible de revenir en arrière dans la conversation.",
   "session.error.steer": "Impossible d'orienter le tour en cours",
+  "session.pruned": "{{count}} session(s) vide(s) supprimée(s)",
   "composer.error.readImage": "Impossible de lire l'image",
   "composer.error.readImages": "Impossible de lire {{count}} images",
 

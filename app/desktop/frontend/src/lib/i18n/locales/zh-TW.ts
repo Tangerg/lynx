@@ -877,6 +877,7 @@ export const zhTW: Record<string, string> = {
   "session.error.relocate": "無法遷移工作階段目錄。",
   "session.error.rollback": "無法回退對話。",
   "session.error.steer": "無法引導正在執行的回合",
+  "session.pruned": "已清理 {{count}} 個空工作階段",
   "composer.error.readImage": "無法讀取該圖片",
   "composer.error.readImages": "無法讀取 {{count}} 張圖片",
 

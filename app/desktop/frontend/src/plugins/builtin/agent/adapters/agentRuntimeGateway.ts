@@ -46,6 +46,14 @@ const gateway: AgentRuntimeGateway = {
     );
     return { items, runs: [...runs.values()] };
   },
+  async sessionHoldsNothing(sessionId) {
+    // A bounded read on purpose: existence is the question, so one row answers it
+    // and the cursor is irrelevant.
+    const first = await getContainer()
+      .client()
+      .items.list({ sessionId: asSessionId(sessionId), limit: 1 });
+    return first.data.length === 0;
+  },
   loadSessionUsage(sessionId) {
     return getContainer().client().usage.session(asSessionId(sessionId));
   },

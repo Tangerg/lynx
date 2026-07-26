@@ -918,6 +918,7 @@ export const de: Record<string, string> = {
   "session.error.relocate": "Sitzung konnte nicht verschoben werden.",
   "session.error.rollback": "Unterhaltung konnte nicht zurückgespult werden.",
   "session.error.steer": "Der laufende Zug konnte nicht gesteuert werden",
+  "session.pruned": "{{count}} leere Sitzung(en) entfernt",
   "composer.error.readImage": "Bild konnte nicht gelesen werden",
   "composer.error.readImages": "{{count}} Bilder konnten nicht gelesen werden",
 
