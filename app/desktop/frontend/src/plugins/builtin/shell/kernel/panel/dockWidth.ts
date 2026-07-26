@@ -17,5 +17,14 @@ export function dockWidthRow(width: number): CSSProperties {
   return { [DOCK_WIDTH_PROPERTY]: `${width}px` } as CSSProperties;
 }
 
-/** Dock column style, constant: the width lives in the property above. */
-export const DOCK_COLUMN: CSSProperties = { flexBasis: `var(${DOCK_WIDTH_PROPERTY})` };
+/**
+ * Dock column style, constant: the width lives in the property above.
+ *
+ * The `min()` is the floor under the reading column, held in CSS so it survives a
+ * window resize. The drag clamps against the row it is dragged in, but a stored
+ * width outlives that row: drag the dock wide on an external display, unplug it,
+ * and a px basis alone would leave the conversation a sliver.
+ */
+export const DOCK_COLUMN: CSSProperties = {
+  flexBasis: `min(var(${DOCK_WIDTH_PROPERTY}), 50%)`,
+};
