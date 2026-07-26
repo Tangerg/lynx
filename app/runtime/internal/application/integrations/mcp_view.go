@@ -103,6 +103,11 @@ func mcpConfigView(server mcpserver.Server) MCPServerConfig {
 	}
 }
 
-func mcpStatusView(status mcpserver.ConnectionStatus, toolCount *int) MCPServerStatus {
-	return MCPServerStatus{Name: status.Name, Known: true, State: status.State, ToolCount: toolCount}
+func mcpStatusView(status mcpserver.ConnectionStatus) MCPServerStatus {
+	view := MCPServerStatus{Name: status.Name, Known: true, State: status.State}
+	if status.State == mcpserver.ConnectionConnected {
+		count := status.ToolCount
+		view.ToolCount = &count
+	}
+	return view
 }

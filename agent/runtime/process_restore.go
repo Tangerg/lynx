@@ -25,6 +25,20 @@ func continuationStateErrorf(format string, args ...any) error {
 	return &continuationStateError{err: fmt.Errorf(format, args...)}
 }
 
+// continuationLoss marks permanent snapshot/continuation incompatibility while
+// preserving the concrete cause for errors.Is/errors.As. Operational store and
+// coordination failures deliberately remain outside this lane.
+func continuationLoss(err error) error {
+	if err == nil {
+		return nil
+	}
+	var loss *continuationStateError
+	if errors.As(err, &loss) {
+		return err
+	}
+	return &continuationStateError{err: err}
+}
+
 func resumableSnapshotLost(operation string, err error) error {
 	return fmt.Errorf("%s: %w: %w", operation, ErrResumableSnapshotLost, err)
 }
@@ -122,11 +136,15 @@ func (e *Engine) Resumable(ctx context.Context, processID string) (bool, error) 
 		return false, fmt.Errorf("runtime.Engine.Resumable: order durable read: %w", err)
 	}
 	defer releaseWrite()
-	_, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
-	if err != nil {
-		return false, err
+	_, err = e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
+	if err == nil {
+		return true, nil
 	}
-	return loss == nil, nil
+	var loss *continuationStateError
+	if errors.As(err, &loss) {
+		return false, nil
+	}
+	return false, fmt.Errorf("runtime.Engine.Resumable: %w", err)
 }
 
 // RestoreResumable loads and rebuilds a waiting continuation. Every durable
@@ -143,13 +161,14 @@ func (e *Engine) RestoreResumable(ctx context.Context, processID string, options
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: order durable read: %w", err)
 	}
-	tree, loss, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
+	tree, err := e.loadResumableTree(ctx, processID, map[string]struct{}{}, true)
 	releaseWrite()
 	if err != nil {
-		return nil, err
-	}
-	if loss != nil {
-		return nil, resumableSnapshotLost("runtime.Engine.RestoreResumable", loss)
+		var loss *continuationStateError
+		if errors.As(err, &loss) {
+			return nil, resumableSnapshotLost("runtime.Engine.RestoreResumable", err)
+		}
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w", err)
 	}
 	var processes []*Process
 	process, err := e.restoreResumableTree(ctx, tree, options, nil, &processes)
@@ -179,82 +198,75 @@ type resumableProcessTree struct {
 	children []*resumableProcessTree
 }
 
-// loadResumableTree returns (tree, loss, err). loss reports a permanent reason
-// the continuation is unusable (missing/incompatible snapshot, cycle, unknown
-// deployment, non-resumable status) — an expected answer, mapped to
-// ErrResumableSnapshotLost by callers. err reports an operational store access
-// failure to propagate. At most one of loss/err is non-nil.
+// loadResumableTree classifies permanent continuation loss with
+// continuationStateError while leaving operational store failures ordinary.
 func (e *Engine) loadResumableTree(
 	ctx context.Context,
 	processID string,
 	visited map[string]struct{},
 	root bool,
-) (*resumableProcessTree, error, error) {
+) (*resumableProcessTree, error) {
 	if _, duplicate := visited[processID]; duplicate {
-		return nil, fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, processID), nil
+		return nil, continuationLoss(fmt.Errorf("%w: nested process cycle at %q", core.ErrInvalidSnapshot, processID))
 	}
 	visited[processID] = struct{}{}
-	snapshot, loss, err := e.loadStoredSnapshot(ctx, processID)
-	if err != nil || loss != nil {
-		return nil, loss, err
+	snapshot, err := e.loadStoredSnapshot(ctx, processID)
+	if err != nil {
+		return nil, err
 	}
 	if root {
 		if err := ValidateResumableSnapshot(snapshot); err != nil {
-			return nil, err, nil
+			return nil, continuationLoss(err)
 		}
 	} else if snapshot.Status != core.StatusWaiting && !snapshot.Status.IsTerminal() {
-		return nil, fmt.Errorf("%w: nested child %q has non-resumable status %s", core.ErrInvalidSnapshot, processID, snapshot.Status), nil
+		return nil, continuationLoss(fmt.Errorf("%w: nested child %q has non-resumable status %s", core.ErrInvalidSnapshot, processID, snapshot.Status))
 	}
 	if _, ok := e.catalog.lookup(snapshot.Deployment); !ok {
-		return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment), nil
+		return nil, continuationLoss(fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment))
 	}
 
 	tree := &resumableProcessTree{snapshot: snapshot}
 	checkpoint, relationErr := nestedChildrenFromSuspension(snapshot.Suspension)
 	if relationErr != nil {
-		return nil, relationErr, nil
+		return nil, continuationLoss(relationErr)
 	}
 	tree.children = make([]*resumableProcessTree, 0, len(checkpoint.relations))
 	for _, relation := range checkpoint.relations {
-		childTree, childLoss, childErr := e.loadResumableTree(ctx, relation.ChildID, visited, false)
-		if childErr != nil || childLoss != nil {
-			return nil, childLoss, childErr
+		childTree, err := e.loadResumableTree(ctx, relation.ChildID, visited, false)
+		if err != nil {
+			return nil, err
 		}
 		if err := relation.validateSnapshot(snapshot, childTree.snapshot); err != nil {
-			return nil, err, nil
+			return nil, continuationLoss(err)
 		}
 		tree.children = append(tree.children, childTree)
 	}
-	return tree, nil, nil
+	return tree, nil
 }
 
-// loadStoredSnapshot returns (snapshot, loss, err) with the same contract as
-// [Engine.loadResumableTree]: loss is a permanent "snapshot gone/invalid"
-// answer; err is an operational store access failure. At most one of loss/err
-// is non-nil.
-func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error, error) {
+func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core.ProcessSnapshot, error) {
 	if e == nil {
-		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: nil engine")
+		return core.ProcessSnapshot{}, errors.New("nil engine")
 	}
 	if e.processStore == nil {
-		return core.ProcessSnapshot{}, nil, errors.New("runtime.Engine.Resumable: no ProcessStore configured")
+		return core.ProcessSnapshot{}, errors.New("no ProcessStore configured")
 	}
 	snapshot, err := e.processStore.Load(ctx, processID)
 	if err != nil {
 		if errors.Is(err, core.ErrSnapshotNotFound) ||
 			errors.Is(err, core.ErrSnapshotSchema) ||
 			errors.Is(err, core.ErrInvalidSnapshot) {
-			return core.ProcessSnapshot{}, err, nil
+			return core.ProcessSnapshot{}, continuationLoss(err)
 		}
-		return core.ProcessSnapshot{}, nil, fmt.Errorf("runtime.Engine.Resumable: load process %q: %w", processID, err)
+		return core.ProcessSnapshot{}, fmt.Errorf("load process %q: %w", processID, err)
 	}
 	if snapshot.ID != processID {
-		return core.ProcessSnapshot{}, fmt.Errorf("%w: stored snapshot identity does not match process %q", core.ErrInvalidSnapshot, processID), nil
+		return core.ProcessSnapshot{}, continuationLoss(fmt.Errorf("%w: stored snapshot identity does not match process %q", core.ErrInvalidSnapshot, processID))
 	}
 	if err := snapshot.Validate(); err != nil {
-		return core.ProcessSnapshot{}, err, nil
+		return core.ProcessSnapshot{}, continuationLoss(err)
 	}
-	return snapshot, nil, nil
+	return snapshot, nil
 }
 
 func (e *Engine) restoreResumableTree(

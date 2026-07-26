@@ -555,6 +555,56 @@ func TestEngineConcurrentSaveFailsBusyWithoutCorruptingSnapshot(t *testing.T) {
 	}
 }
 
+func TestEngineSaveBlackboardCallbackReentryFailsBusyWithoutDeadlock(t *testing.T) {
+	store := storetest.NewMemoryProcessStore()
+	engine := agent.MustNewEngine(runtime.Config{
+		BuildID:      "reentrant-save",
+		ProcessStore: store,
+	})
+	base, err := engine.NewBlackboard()
+	if err != nil {
+		t.Fatalf("NewBlackboard: %v", err)
+	}
+	var (
+		processID    string
+		reentrantErr error
+		snapshotCall int
+	)
+	blackboard := &testBlackboard{
+		Blackboard: base,
+		name:       "reentrant-save",
+		snapshot: func() (runtime.BlackboardState, error) {
+			snapshotCall++
+			reentrantErr = engine.Save(t.Context(), processID)
+			return base.(runtime.BlackboardSnapshotter).Snapshot()
+		},
+	}
+	definition := buildSnapshotAgent()
+	process, err := engine.Run(
+		t.Context(),
+		definition,
+		core.Input(ssWord{Text: "lynx"}),
+		core.ProcessOptions{Blackboard: blackboard},
+	)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	processID = process.ID()
+
+	if err := engine.Save(t.Context(), processID); err != nil {
+		t.Fatalf("outer Save: %v", err)
+	}
+	if snapshotCall != 1 {
+		t.Fatalf("blackboard Snapshot calls = %d, want 1", snapshotCall)
+	}
+	if !errors.Is(reentrantErr, runtime.ErrProcessCheckpointBusy) {
+		t.Fatalf("reentrant Save error = %v, want ErrProcessCheckpointBusy", reentrantErr)
+	}
+	if snapshot, err := store.Load(t.Context(), processID); err != nil || snapshot.ID != processID {
+		t.Fatalf("stored snapshot = (%+v, %v)", snapshot, err)
+	}
+}
+
 func TestRunningProcessSnapshotAndSaveFailWithoutListenerDeadlock(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	var engine *runtime.Engine
@@ -733,7 +783,7 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
-	if _, err := engine.Discard(t.Context(), "root"); err != nil {
+	if err := engine.Discard(t.Context(), "root"); err != nil {
 		t.Fatal(err)
 	}
 	ids, err := store.List(t.Context())
@@ -742,7 +792,7 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 	}
 }
 
-func TestEngineDiscardStoreFailureReleasesRuntimeTree(t *testing.T) {
+func TestEngineDiscardStoreFailureRetainsRuntimeTreeForRetry(t *testing.T) {
 	storeErr := errors.New("delete unavailable")
 	store := newFlakyProcessStore(storeErr)
 	engine := agent.MustNewEngine(runtime.Config{BuildID: "discard-store-failure", ProcessStore: store})
@@ -773,21 +823,28 @@ func TestEngineDiscardStoreFailureReleasesRuntimeTree(t *testing.T) {
 	if _, err := engine.RestoreSnapshot(t.Context(), writes[1], core.ProcessOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	result, err := engine.Discard(t.Context(), "root")
+	err = engine.Discard(t.Context(), "root")
 	if !errors.Is(err, storeErr) {
 		t.Fatalf("Discard = %v, want store failure", err)
 	}
-	if !result.Released {
-		t.Fatal("Discard store failure did not report released runtime ownership")
+	if current, ok := engine.Process("root"); !ok || current == nil {
+		t.Fatal("store failure released root runtime ownership")
 	}
-	if _, ok := engine.Process("root"); ok {
-		t.Fatal("store failure retained root runtime ownership")
-	}
-	if _, ok := engine.Process("child"); ok {
-		t.Fatal("store failure retained child runtime ownership")
+	if current, ok := engine.Process("child"); !ok || current == nil {
+		t.Fatal("store failure released child runtime ownership")
 	}
 	ids, err := store.inner.List(t.Context())
 	if err != nil || !slices.Equal(ids, []string{"child", "root"}) {
 		t.Fatalf("preserved snapshots = %v, err=%v", ids, err)
+	}
+	store.fail.Store(false)
+	if err := engine.Discard(t.Context(), "root"); err != nil {
+		t.Fatalf("retry Discard: %v", err)
+	}
+	if _, ok := engine.Process("root"); ok {
+		t.Fatal("successful retry retained root runtime ownership")
+	}
+	if _, ok := engine.Process("child"); ok {
+		t.Fatal("successful retry retained child runtime ownership")
 	}
 }

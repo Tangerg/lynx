@@ -77,8 +77,8 @@ func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
 		})
 	}
 
-	if err := c.Remove(context.Background(), cfg.Name); !errors.Is(err, ErrConnectionsClosed) {
-		t.Fatalf("Remove after Shutdown = %v, want ErrConnectionsClosed", err)
+	if err := c.Detach(cfg.Name); !errors.Is(err, ErrConnectionsClosed) {
+		t.Fatalf("Detach after Shutdown = %v, want ErrConnectionsClosed", err)
 	}
 	if got := c.Statuses(); len(got) != 0 {
 		t.Fatalf("statuses after Shutdown + Remove = %v, want empty", got)
@@ -90,8 +90,8 @@ func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
 
 func TestNilConnectionsRejectRemoval(t *testing.T) {
 	var connections *Connections
-	if err := connections.Remove(t.Context(), "server"); !errors.Is(err, ErrConnectionsUnavailable) {
-		t.Fatalf("Remove on nil pool = %v, want ErrConnectionsUnavailable", err)
+	if err := connections.Detach("server"); !errors.Is(err, ErrConnectionsUnavailable) {
+		t.Fatalf("Detach on nil pool = %v, want ErrConnectionsUnavailable", err)
 	}
 }
 
@@ -221,7 +221,7 @@ func TestPublishToolsUsesVerifiedSnapshotsInServerOrder(t *testing.T) {
 	}
 }
 
-func TestRemovePublishesRemainingSnapshotWithCanceledContext(t *testing.T) {
+func TestDetachPublishesRemainingSnapshot(t *testing.T) {
 	c := &Connections{servers: []*server{
 		{config: ServerConfig{Name: "remove"}, tools: []tools.Tool{catalogTool("remove_read")}},
 		{
@@ -238,11 +238,8 @@ func TestRemovePublishesRemainingSnapshotWithCanceledContext(t *testing.T) {
 		}
 		published <- names
 	})
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-
-	if err := c.Remove(ctx, "remove"); err != nil {
-		t.Fatalf("Remove: %v", err)
+	if err := c.Detach("remove"); err != nil {
+		t.Fatalf("Detach: %v", err)
 	}
 	if got := <-published; !slices.Equal(got, []string{"keep_read"}) {
 		t.Fatalf("published tools = %v, want [keep_read]", got)
@@ -311,11 +308,14 @@ func TestSessionLedgerOwnsReplacementUntilClose(t *testing.T) {
 	if got := ownedSessionCount(c); got != 1 {
 		t.Fatalf("owned sessions after replacement = %d, want 1", got)
 	}
-	if err := c.Remove(t.Context(), config.Name); err != nil {
+	if err := c.Detach(config.Name); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Shutdown(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 	if got := ownedSessionCount(c); got != 0 {
-		t.Fatalf("owned sessions after Remove = %d, want 0", got)
+		t.Fatalf("owned sessions after Detach + Shutdown = %d, want 0", got)
 	}
 }
 

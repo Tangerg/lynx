@@ -22,12 +22,6 @@ type TurnCompletion struct {
 	Err       error
 }
 
-// DiscardResult reports whether terminal process ownership left the Agent
-// runtime. Released may be true together with a durable deletion error.
-type DiscardResult struct {
-	Released bool
-}
-
 func (c TurnCompletion) Error() error {
 	if c.Failure == nil {
 		return c.Err
@@ -83,10 +77,10 @@ type TurnProcess interface {
 	// completion — but that snapshot only matters while the process is PARKED
 	// awaiting HITL resume; once the turn reaches a terminal state it is dead
 	// weight, and left behind it accumulates one orphaned snapshot row per run.
-	// After the terminal tree reaches removal ownership, snapshot deletion
-	// failures are reported without retaining the dead runtime tree. NEVER call
-	// on a parked process, whose snapshot must survive for resume.
-	Discard(ctx context.Context) (DiscardResult, error)
+	// A failure retains the terminal runtime tree so cleanup can retry the same
+	// atomic deletion. NEVER call on a parked process, whose snapshot must
+	// survive for resume.
+	Discard(ctx context.Context) error
 }
 
 // turnProcess is the canonical [TurnProcess] backed by a real
@@ -145,10 +139,9 @@ func (p *turnProcess) Resume(ctx context.Context, resolution interrupts.Resoluti
 
 func (p *turnProcess) Suspension() *agent.Suspension { return p.process.Suspension() }
 
-func (p *turnProcess) Discard(ctx context.Context) (DiscardResult, error) {
+func (p *turnProcess) Discard(ctx context.Context) error {
 	if p == nil || p.process == nil || p.engine == nil {
-		return DiscardResult{}, errors.New("agentexec: discard process: incomplete turn process")
+		return errors.New("agentexec: discard process: incomplete turn process")
 	}
-	result, err := p.engine.Discard(ctx, p.process.ID())
-	return DiscardResult{Released: result.Released}, err
+	return p.engine.Discard(ctx, p.process.ID())
 }

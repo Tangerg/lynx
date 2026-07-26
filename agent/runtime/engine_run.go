@@ -3,6 +3,7 @@ package runtime
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -346,7 +347,12 @@ func (e *Engine) Resume(ctx context.Context, id, suspensionID string, response a
 	if !e.processes.available(process) {
 		return processNotFoundError("resume process", id)
 	}
-	if err := e.resumeProcess(process, suspensionID, response, map[string]struct{}{}); err != nil {
+	transaction, err := e.prepareResume(process, suspensionID, response)
+	if err != nil {
+		return fmt.Errorf("resume process %q: %w", id, err)
+	}
+	defer transaction.release()
+	if err := transaction.commit(false); err != nil {
 		return fmt.Errorf("resume process %q: %w", id, err)
 	}
 	return nil
@@ -376,27 +382,51 @@ func (e *Engine) ResumeAsync(
 	if !e.processes.available(process) {
 		return nil, processNotFoundError("resume process asynchronously", id)
 	}
-	if err := e.resumeProcess(process, suspensionID, response, map[string]struct{}{}); err != nil {
+	transaction, err := e.prepareResume(process, suspensionID, response)
+	if err != nil {
 		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
 	}
-	started, err := process.beginRun()
-	if err != nil || !started {
-		panic(fmt.Sprintf(
-			"runtime.Engine.ResumeAsync: accepted response for process %q without continuation ownership: started=%t err=%v",
-			id,
-			started,
-			err,
-		))
+	defer transaction.release()
+	if err := transaction.commit(true); err != nil {
+		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
 	}
+	transaction.release()
 	segment := newSegment(process)
 	go process.runOwnedSegment(normalizeContext(runCtx), segment, nil)
 	return segment, nil
 }
 
-// resumeProcess records one response along the active nested-child branch back
-// to the requested parent. Sibling children remain parked. Locks are acquired
-// root → leaf, matching save traversal and avoiding child → parent cycles.
-func (e *Engine) resumeProcess(process *Process, suspensionID string, response any, visited map[string]struct{}) error {
+type resumeResponse struct {
+	state      *processState
+	suspension string
+	response   json.RawMessage
+}
+
+type resumeTransaction struct {
+	root      *Process
+	claims    []*processState
+	responses []resumeResponse
+}
+
+func (e *Engine) prepareResume(process *Process, suspensionID string, response any) (*resumeTransaction, error) {
+	transaction := &resumeTransaction{root: process}
+	if err := e.collectResume(transaction, process, suspensionID, response, map[string]struct{}{}); err != nil {
+		transaction.release()
+		return nil, err
+	}
+	return transaction, nil
+}
+
+// collectResume validates the complete active nested-child branch and claims
+// every process checkpoint before recording any response. Sibling children
+// remain parked. Claims are acquired root → leaf, matching save traversal.
+func (e *Engine) collectResume(
+	transaction *resumeTransaction,
+	process *Process,
+	suspensionID string,
+	response any,
+	visited map[string]struct{},
+) error {
 	if process == nil {
 		return errors.New("resume process: process is nil")
 	}
@@ -407,13 +437,14 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 	if err := process.state.claimCheckpoint(false); err != nil {
 		return err
 	}
-	defer process.state.releaseCheckpoint()
+	transaction.claims = append(transaction.claims, &process.state)
 
 	suspension := process.Suspension()
 	if suspension == nil || process.Status() != core.StatusWaiting || suspension.ID != suspensionID {
 		return fmt.Errorf("%w: process %q has no pending suspension %q", interaction.ErrSuspensionStale, process.ID(), suspensionID)
 	}
-	if _, err := suspension.ValidateResponse(response); err != nil {
+	canonical, err := suspension.ValidateResponse(response)
+	if err != nil {
 		return err
 	}
 	checkpoint, err := nestedChildrenFromSuspension(suspension)
@@ -430,15 +461,68 @@ func (e *Engine) resumeProcess(process *Process, suspensionID string, response a
 			return err
 		}
 		if child.Status() == core.StatusWaiting {
-			if err := e.resumeProcess(child, relation.SuspensionID, response, visited); err != nil {
+			if err := e.collectResume(transaction, child, relation.SuspensionID, response, visited); err != nil {
 				return err
 			}
 		}
 	}
-	if err := process.state.respondToSuspension(suspensionID, response, time.Now()); err != nil {
+	transaction.responses = append(transaction.responses, resumeResponse{
+		state:      &process.state,
+		suspension: suspensionID,
+		response:   canonical,
+	})
+	return nil
+}
+
+func (transaction *resumeTransaction) commit(start bool) error {
+	type appliedResponse struct {
+		state    *processState
+		previous *interaction.Suspension
+	}
+	var applied []appliedResponse
+	rollback := func() {
+		for index := len(applied) - 1; index >= 0; index-- {
+			applied[index].state.restoreClaimedSuspension(applied[index].previous)
+		}
+	}
+	now := time.Now()
+	for _, prepared := range transaction.responses {
+		previous, changed, err := prepared.state.installClaimedSuspensionResponse(
+			prepared.suspension,
+			prepared.response,
+			now,
+		)
+		if err != nil {
+			rollback()
+			return err
+		}
+		if changed {
+			applied = append(applied, appliedResponse{state: prepared.state, previous: previous})
+		}
+	}
+	if !start {
+		return nil
+	}
+	started, err := transaction.root.state.beginRunFromCheckpoint()
+	if err != nil {
+		rollback()
 		return err
 	}
+	if !started {
+		rollback()
+		return fmt.Errorf("%w: process %q cannot continue from its terminal state", interaction.ErrSuspensionStale, transaction.root.ID())
+	}
 	return nil
+}
+
+func (transaction *resumeTransaction) release() {
+	if transaction == nil {
+		return
+	}
+	for index := len(transaction.claims) - 1; index >= 0; index-- {
+		transaction.claims[index].releaseCheckpoint()
+	}
+	transaction.claims = nil
 }
 
 // Kill terminates a process and its live descendants. It transitions the
@@ -469,6 +553,10 @@ func (e *Engine) killProcess(ctx context.Context, id string) (bool, error) {
 	if !e.processes.available(process) {
 		releaseMutation()
 		return false, processNotFoundError("kill process", id)
+	}
+	if err := e.ensureSubtreeMutationAvailable(process); err != nil {
+		releaseMutation()
+		return false, fmt.Errorf("runtime.Engine.Kill: %w", err)
 	}
 	won, killed, snapshots := e.killSubtreeOwned(process)
 	releaseMutation()
@@ -505,6 +593,18 @@ func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process, []*Proces
 	return won, killed, snapshots
 }
 
+func (e *Engine) ensureSubtreeMutationAvailable(process *Process) error {
+	if process.state.checkpointBusy() {
+		return fmt.Errorf("process %q: %w", process.ID(), ErrProcessCheckpointBusy)
+	}
+	for _, child := range e.directChildren(process.ID()) {
+		if err := e.ensureSubtreeMutationAvailable(child); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func publishKilledProcesses(ctx context.Context, processes []*Process) {
 	for _, process := range processes {
 		process.publishEvent(ctx, event.ProcessKilled{
@@ -539,6 +639,12 @@ func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, e
 		if !e.processes.available(parent) {
 			releaseMutation()
 			return nil, processNotFoundError("kill child processes", parentID)
+		}
+		for _, child := range e.directChildren(parentID) {
+			if err := e.ensureSubtreeMutationAvailable(child); err != nil {
+				releaseMutation()
+				return nil, fmt.Errorf("runtime.Engine.KillChildren: %w", err)
+			}
 		}
 		killed, events, snapshots := e.killChildrenOwned(parentID)
 		releaseMutation()

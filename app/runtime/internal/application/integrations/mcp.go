@@ -29,6 +29,10 @@ var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP ser
 // result. The underlying domain sentinel remains internal to this package.
 var ErrUnknownMCPServer = errors.New("integrations: unknown MCP server")
 
+// ErrMCPServerDisabled reports a connection command against a configured
+// server whose durable enablement gate is closed.
+var ErrMCPServerDisabled = errors.New("integrations: MCP server is disabled")
+
 // resolveMCPServerConfiguration applies the registry-owned credential policy to
 // an editable command. An omitted HTTP Authorization retains a stored token only
 // when the transport and origin remain unchanged; credentials never silently
@@ -55,26 +59,39 @@ func (c *Coordinator) resolveMCPServerConfiguration(ctx context.Context, candida
 // — the server is persisted and tracked "failed" (reconnectable); the
 // connectivity feedback path is TestMCPServer.
 func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInput) (MCPServerConfig, error) {
-	srv, err := c.validatedMCPServer(ctx, input)
+	candidate, err := mcpServerCandidate(input)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
-	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
+	write, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return MCPServerConfig{}, err
 	}
-	defer release()
-	if err := c.mcpRegistry.Configure(requestCtx, srv); err != nil {
+	defer write.close()
+	// Credential retention reads the current durable entry inside the same
+	// mutation order as the following upsert. Resolving it before admission would
+	// let a concurrent configure overwrite a newer token with a stale snapshot.
+	srv, err := c.resolveMCPServerConfiguration(write.requestCtx, candidate)
+	if err != nil {
 		return MCPServerConfig{}, err
 	}
-	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	if err := c.mcpRegistry.Configure(write.requestCtx, srv); err != nil {
+		return MCPServerConfig{}, err
+	}
+	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
 		return MCPServerConfig{}, err
 	}
-	c.notifyMCPStatus(ownerCtx, srv.Name, false)
+	var statusEvent mcpStatusEvent
+	if !srv.Enabled {
+		statusEvent = c.prepareMCPStatus(MCPServerStatus{Name: srv.Name})
+	}
+	write.unlock()
 	if srv.Enabled {
-		c.redialMCPServer(ownerCtx, srv)
+		c.redialMCPServer(write.ownerCtx, srv)
+	} else {
+		c.publishMCPStatus(statusEvent)
 	}
 	return mcpConfigView(srv), nil
 }
@@ -82,43 +99,46 @@ func (c *Coordinator) ConfigureMCPServer(ctx context.Context, input MCPServerInp
 // RemoveMCPServer deletes a server from the registry and drops it from the live
 // connections.
 func (c *Coordinator) RemoveMCPServer(ctx context.Context, name string) error {
-	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
+	write, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer write.close()
 	c.cancelMCPDial(name)
-	if err := c.mcpRegistry.Remove(requestCtx, name); err != nil {
+	if err := c.mcpRegistry.Remove(write.requestCtx, name); err != nil {
 		return err
 	}
-	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	// Shrink the live set before publishing the new policy: dropping tools can't
 	// expose a hidden one, but publishing first would leave the about-to-be-dropped
 	// tools briefly live under the wrong policy.
 	var projectionErr error
 	if c.mcpRegistryCommands != nil {
-		projectionErr = c.mcpRegistryCommands.Remove(reconcileCtx, name)
+		projectionErr = c.mcpRegistryCommands.Detach(name)
 	}
 	policyErr := c.refreshMCPToolPolicy(reconcileCtx)
+	var statusEvent mcpStatusEvent
 	if policyErr == nil {
-		c.notifyMCPStatus(ownerCtx, name, false)
+		statusEvent = c.prepareMCPStatus(MCPServerStatus{Name: name})
 	}
+	write.unlock()
+	c.publishMCPStatus(statusEvent)
 	return errors.Join(projectionErr, policyErr)
 }
 
 // SetMCPServerEnabled flips a server's enablement in the registry and applies it
 // to the live connections (enable → dial, disable → drop).
 func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enabled bool) error {
-	requestCtx, ownerCtx, release, err := c.beginMCPWrite(ctx)
+	write, err := c.beginMCPWrite(ctx)
 	if err != nil {
 		return err
 	}
-	defer release()
-	if err := c.mcpRegistry.SetEnabled(requestCtx, name, enabled); err != nil {
+	defer write.close()
+	if err := c.mcpRegistry.SetEnabled(write.requestCtx, name, enabled); err != nil {
 		return err
 	}
-	reconcileCtx, cancel := context.WithTimeout(ownerCtx, mcpReconcileTimeout)
+	reconcileCtx, cancel := context.WithTimeout(write.ownerCtx, mcpReconcileTimeout)
 	defer cancel()
 	srv, ok, err := c.mcpRegistry.Get(reconcileCtx, name)
 	if err != nil {
@@ -133,61 +153,73 @@ func (c *Coordinator) SetMCPServerEnabled(ctx context.Context, name string, enab
 	if err := c.applyMCPRegistryChange(reconcileCtx, srv); err != nil {
 		return err
 	}
-	c.notifyMCPStatus(ownerCtx, srv.Name, false)
+	var statusEvent mcpStatusEvent
+	if !srv.Enabled {
+		statusEvent = c.prepareMCPStatus(MCPServerStatus{Name: srv.Name})
+	}
+	write.unlock()
 	if srv.Enabled {
-		c.redialMCPServer(ownerCtx, srv)
+		c.redialMCPServer(write.ownerCtx, srv)
+	} else {
+		c.publishMCPStatus(statusEvent)
 	}
 	return nil
 }
 
-// beginMCPMutation gives a write both scopes it needs: requestCtx is canceled by
-// the caller or component shutdown and is used until the durable registry commit;
-// ownerCtx ignores caller cancellation but is still canceled by shutdown, so
-// post-commit live/policy reconciliation cannot be abandoned by a dropped
-// connection or escape component shutdown.
-func (c *Coordinator) beginMCPMutation(parent context.Context) (
-	requestCtx context.Context,
-	ownerCtx context.Context,
-	finish func(),
-	err error,
-) {
-	ownerCtx, releaseOwner, ok := c.tasks.Attach(parent)
-	if !ok {
-		return nil, nil, nil, errClosed
-	}
-	requestCtx, releaseRequest, ok := c.tasks.AttachLinked(parent)
-	if !ok {
-		releaseOwner()
-		return nil, nil, nil, errClosed
-	}
-	return requestCtx, ownerCtx, func() {
-		releaseRequest()
-		releaseOwner()
-	}, nil
+type mcpWrite struct {
+	coordinator *Coordinator
+	requestCtx  context.Context
+	ownerCtx    context.Context
+	finish      func()
+	locked      bool
 }
 
-// beginMCPWrite acquires both mutation scopes plus the serialization lock and
-// returns a single release the caller must defer. requestCtx is caller-cancelable
-// (used through the durable registry commit); ownerCtx survives caller cancel but
-// not component shutdown (used for post-commit live/policy reconciliation).
-// release unlocks then tears the scopes down — the acquire order reversed — so the
-// lock/ctx/teardown protocol lives in one place across the write methods. err is
-// non-nil when the component is shutting down or the caller ctx is already dead.
-func (c *Coordinator) beginMCPWrite(ctx context.Context) (requestCtx, ownerCtx context.Context, release func(), err error) {
-	requestCtx, ownerCtx, finish, err := c.beginMCPMutation(ctx)
-	if err != nil {
-		return nil, nil, nil, err
+// beginMCPWrite owns both task scopes and the durable mutation lock. Callers
+// release the lock before invoking status sinks or dispatching live dials, then
+// defer close to release the task scopes on every exit.
+func (c *Coordinator) beginMCPWrite(ctx context.Context) (*mcpWrite, error) {
+	ownerCtx, releaseOwner, ok := c.tasks.Attach(ctx)
+	if !ok {
+		return nil, errClosed
+	}
+	requestCtx, releaseRequest, ok := c.tasks.AttachLinked(ctx)
+	if !ok {
+		releaseOwner()
+		return nil, errClosed
 	}
 	c.mcpMutationMu.Lock()
 	if err := requestCtx.Err(); err != nil {
 		c.mcpMutationMu.Unlock()
-		finish()
-		return nil, nil, nil, err
+		releaseRequest()
+		releaseOwner()
+		return nil, err
 	}
-	return requestCtx, ownerCtx, func() {
-		c.mcpMutationMu.Unlock()
-		finish()
+	return &mcpWrite{
+		coordinator: c,
+		requestCtx:  requestCtx,
+		ownerCtx:    ownerCtx,
+		finish: func() {
+			releaseRequest()
+			releaseOwner()
+		},
+		locked: true,
 	}, nil
+}
+
+func (write *mcpWrite) unlock() {
+	if write != nil && write.locked {
+		write.locked = false
+		write.coordinator.mcpMutationMu.Unlock()
+	}
+}
+
+func (write *mcpWrite) close() {
+	if write == nil || write.finish == nil {
+		return
+	}
+	write.unlock()
+	write.finish()
+	write.finish = nil
 }
 
 // applyMCPRegistryChange reflects a persisted registry entry into the policy
@@ -197,7 +229,8 @@ func (c *Coordinator) beginMCPWrite(ctx context.Context) (requestCtx, ownerCtx c
 //   - enabling publishes policy here; the live (re)dial is NOT done here — the
 //     caller dispatches it detached, after releasing the lock, because a network
 //     handshake must never hold the control-plane lock (see ConfigureMCPServer);
-//   - disabling removes tools (bounded teardown) before publishing policy.
+//   - disabling detaches the live projection before publishing policy; physical
+//     session retirement remains owned by the adapter's shutdown lifecycle.
 //
 // Either reversal would leave a window where a disabled tool is live under the
 // wrong policy. The caller has already mutated the registry, so
@@ -208,7 +241,7 @@ func (c *Coordinator) applyMCPRegistryChange(ctx context.Context, srv mcpserver.
 	}
 	var projectionErr error
 	if c.mcpRegistryCommands != nil {
-		projectionErr = c.mcpRegistryCommands.Remove(ctx, srv.Name)
+		projectionErr = c.mcpRegistryCommands.Detach(srv.Name)
 	}
 	return errors.Join(projectionErr, c.refreshMCPToolPolicy(ctx))
 }
@@ -251,11 +284,17 @@ func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (
 }
 
 func (c *Coordinator) validatedMCPServer(ctx context.Context, input MCPServerInput) (mcpserver.Server, error) {
-	srv, err := c.resolveMCPServerConfiguration(ctx, input.server())
+	candidate, err := mcpServerCandidate(input)
 	if err != nil {
 		return mcpserver.Server{}, err
 	}
-	if err := srv.Validate(); err != nil {
+	return c.resolveMCPServerConfiguration(ctx, candidate)
+}
+
+func mcpServerCandidate(input MCPServerInput) (mcpserver.Server, error) {
+	srv := input.server()
+	err := srv.Validate()
+	if err != nil {
 		return mcpserver.Server{}, fmt.Errorf("%w: %w", ErrInvalidMCPServerConfiguration, err)
 	}
 	return srv, nil

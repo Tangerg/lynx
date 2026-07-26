@@ -142,6 +142,40 @@ func (s *processState) respondToSuspension(id string, response any, now time.Tim
 	return nil
 }
 
+func (s *processState) installClaimedSuspensionResponse(
+	id string,
+	response json.RawMessage,
+	now time.Time,
+) (*interaction.Suspension, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.checkpointOwned {
+		return nil, false, ErrProcessCheckpointBusy
+	}
+	current := s.pendingSuspension
+	if s.currentStatus != core.StatusWaiting || current == nil || current.ID != id {
+		return nil, false, fmt.Errorf("%w: process has no pending suspension %q", interaction.ErrSuspensionStale, id)
+	}
+	if current.Responded() {
+		if current.SameResponse(response) {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("%w: suspension %q already has a different response", interaction.ErrSuspensionConflict, id)
+	}
+	previous := current.Clone()
+	current.Response = bytes.Clone(response)
+	current.RespondedAt = now
+	return previous, true, nil
+}
+
+func (s *processState) restoreClaimedSuspension(value *interaction.Suspension) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.checkpointOwned {
+		s.pendingSuspension = value.Clone()
+	}
+}
+
 func (s *processState) clearRespondedSuspension() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -304,11 +338,23 @@ func (s *processState) snapshotExclusions() planning.Exclusions {
 func (s *processState) beginRun() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.beginRunLocked(false)
+}
 
+func (s *processState) beginRunFromCheckpoint() (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.beginRunLocked(true)
+}
+
+func (s *processState) beginRunLocked(fromCheckpoint bool) (bool, error) {
 	if s.runPhase != runIdle {
 		return false, ErrProcessRunning
 	}
-	if s.checkpointOwned {
+	if fromCheckpoint && !s.checkpointOwned {
+		return false, ErrProcessCheckpointBusy
+	}
+	if !fromCheckpoint && s.checkpointOwned {
 		return false, ErrProcessCheckpointBusy
 	}
 	switch s.currentStatus {
@@ -394,6 +440,12 @@ func (s *processState) runActive() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.runPhase != runIdle
+}
+
+func (s *processState) checkpointBusy() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.checkpointOwned
 }
 
 func (s *processState) claimCheckpoint(allowActiveRun bool) error {

@@ -38,7 +38,7 @@ func installTurnTraceCapture(t *testing.T) (*sdktrace.TracerProvider, *tracetest
 	return turnTraceProvider, turnTraceExporter
 }
 
-func TestTerminalDiscardFailureIsRecordedWithoutRetainingTurn(t *testing.T) {
+func TestTerminalDiscardFailureIsRecordedUntilCleanupSucceeds(t *testing.T) {
 	discardErr := errors.New("snapshot discard failed")
 	_, exporter := installTurnTraceCapture(t)
 
@@ -58,6 +58,10 @@ func TestTerminalDiscardFailureIsRecordedWithoutRetainingTurn(t *testing.T) {
 		!errors.Is(err, turn.ErrTurnNotFound) &&
 		!errors.Is(err, discardErr) {
 		t.Fatalf("join terminal cleanup: %v", err)
+	}
+	stub.lastProcess.Load().discardErr = nil
+	if err := dispatcher.Cancel(t.Context(), handle); err != nil {
+		t.Fatalf("retry terminal cleanup: %v", err)
 	}
 	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("Cancel after joined terminal cleanup = %v, want ErrTurnNotFound", err)

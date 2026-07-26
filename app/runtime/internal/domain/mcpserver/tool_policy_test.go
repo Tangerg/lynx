@@ -25,7 +25,7 @@ func TestToolPolicy(t *testing.T) {
 				{Server: "files", Tool: "read"}:  {autoApproved: true},
 				{Server: "db", Tool: "drop"}:     {disabled: true},
 				{Server: "db", Tool: "select"}:   {autoApproved: true},
-				{Tool: "write"}:                  {},
+				{Tool: "write"}:                  {disabled: true},
 			},
 		},
 		{
@@ -37,8 +37,8 @@ func TestToolPolicy(t *testing.T) {
 				disabled     bool
 				autoApproved bool
 			}{
-				{Server: "files", Tool: "write"}: {},
-				{Server: "files", Tool: "read"}:  {},
+				{Server: "files", Tool: "write"}: {disabled: true},
+				{Server: "files", Tool: "read"}:  {disabled: true},
 			},
 		},
 	}
@@ -58,10 +58,10 @@ func TestToolPolicy(t *testing.T) {
 	}
 }
 
-func TestZeroToolPolicyDeniesNoTools(t *testing.T) {
+func TestZeroToolPolicyDisablesUnregisteredTools(t *testing.T) {
 	var policy ToolPolicy
 	ref := ToolRef{Server: "server", Tool: "tool"}
-	if policy.Disabled(ref) || policy.AutoApproved(ref) {
-		t.Fatal("zero policy must not disable or auto-approve tools")
+	if !policy.Disabled(ref) || policy.AutoApproved(ref) {
+		t.Fatal("zero policy must disable unregistered tools without auto-approving them")
 	}
 }

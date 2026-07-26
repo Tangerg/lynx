@@ -84,38 +84,28 @@ func (e *Engine) Save(ctx context.Context, processID string) error {
 	return e.saveProcess(ctx, process, false)
 }
 
-// DiscardResult reports whether [Engine.Discard] relinquished the runtime
-// process tree. Released may be true together with an error when durable
-// snapshot deletion failed after the registry release became irrevocable.
-type DiscardResult struct {
-	Released bool
-}
-
 // Discard terminates a process tree, deletes its durable snapshots, and
-// relinquishes its runtime ownership. The result distinguishes failures that
-// retain runtime ownership from a durable deletion failure reported after
-// release.
-func (e *Engine) Discard(ctx context.Context, processID string) (DiscardResult, error) {
+// relinquishes its runtime ownership. An error leaves the terminal runtime tree
+// registered so the same operation can be retried without losing ownership of
+// snapshots that may still exist.
+func (e *Engine) Discard(ctx context.Context, processID string) error {
 	ctx, span := agentTracer.Start(
 		normalizeContext(ctx),
 		spanDiscard,
 		trace.WithAttributes(attribute.String(attrProcessID, processID)),
 	)
-	var (
-		result     DiscardResult
-		discardErr error
-	)
+	var discardErr error
 	defer func() {
 		finishSpanWithError(span, discardErr)
 		span.End()
 	}()
-	result, discardErr = e.discard(ctx, processID, span)
-	return result, discardErr
+	discardErr = e.discard(ctx, processID, span)
+	return discardErr
 }
 
-func (e *Engine) discard(ctx context.Context, processID string, span trace.Span) (DiscardResult, error) {
+func (e *Engine) discard(ctx context.Context, processID string, span trace.Span) error {
 	if e == nil {
-		return DiscardResult{}, errors.New("runtime.Engine.Discard: nil Engine")
+		return errors.New("runtime.Engine.Discard: nil Engine")
 	}
 	sequenceKey := processID
 	if process, ok := e.Process(processID); ok {
@@ -123,7 +113,7 @@ func (e *Engine) discard(ctx context.Context, processID string, span trace.Span)
 	}
 	tree, err := e.discoverProcessTrees([]string{processID})
 	if err != nil {
-		return DiscardResult{}, fmt.Errorf("runtime.Engine.Discard: %w", err)
+		return fmt.Errorf("runtime.Engine.Discard: %w", err)
 	}
 	var terminateErrs []error
 	for _, id := range tree.order {
@@ -137,42 +127,43 @@ func (e *Engine) discard(ctx context.Context, processID string, span trace.Span)
 	}
 	tree, err = e.discoverProcessTrees([]string{processID})
 	if err != nil {
-		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: refresh process tree: %w", err))
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: refresh process tree: %w", err))
 	}
 	if process := tree.live[processID]; process != nil {
 		sequenceKey = e.processTreeRootID(process)
 	}
 	if err := tree.wait(ctx); err != nil {
-		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	releaseMutation, err := e.processMutations.acquire(ctx, sequenceKey)
 	if err != nil {
-		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: acquire process tree: %w", err))
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: acquire process tree: %w", err))
 	}
 	if err := tree.claim(); err != nil {
 		releaseMutation()
-		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: %w", err))
 	}
 	releaseWrite, err := e.processWrites.acquire(ctx, sequenceKey)
 	if err != nil {
 		tree.releaseClaims()
 		releaseMutation()
-		return DiscardResult{}, errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: order durable delete: %w", err))
+		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: order durable delete: %w", err))
 	}
 	releaseMutation()
 	defer releaseWrite()
-	var deleteErr error
 	if e.processStore != nil {
 		change := core.ProcessSnapshotChange{DeleteRoots: []string{processID}}
 		if err := e.processStore.Apply(ctx, change); err != nil {
-			deleteErr = fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err)
+			tree.releaseClaims()
+			return errors.Join(
+				errors.Join(terminateErrs...),
+				fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err),
+			)
 		}
 	}
-	if err := tree.release(); err != nil {
-		return DiscardResult{}, errors.Join(deleteErr, fmt.Errorf("runtime.Engine.Discard: %w", err))
-	}
+	tree.release()
 	recordDiscardDiagnostics(span, terminateErrs)
-	return DiscardResult{Released: true}, deleteErr
+	return nil
 }
 
 func recordDiscardDiagnostics(span trace.Span, diagnostics []error) {
@@ -195,17 +186,49 @@ func (e *Engine) saveProcess(ctx context.Context, process *Process, allowActiveR
 		releaseMutation()
 		return fmt.Errorf("runtime.Engine.saveProcess: process %q: %w", process.ID(), ErrProcessNotFound)
 	}
-	prepared, err := e.prepareProcessSaveOwned(ctx, process, allowActiveRun)
+	if !allowActiveRun && process.state.runActive() {
+		releaseMutation()
+		return fmt.Errorf("runtime.Engine.saveProcess: process %q: %w", process.ID(), ErrProcessRunning)
+	}
+	tree, err := e.claimProcessTree(process, map[string]struct{}{}, allowActiveRun)
 	if err != nil {
 		releaseMutation()
 		return err
 	}
+	// Process checkpoints, rather than the tree sequencer, own snapshot
+	// stability. Releasing the sequencer before Blackboard SPI runs makes
+	// re-entry fail fast with ErrProcessCheckpointBusy instead of deadlocking.
+	releaseMutation()
+
+	prepared, err := e.captureProcessSave(ctx, tree)
+	if err != nil {
+		releaseProcessTree(tree)
+		return err
+	}
+
+	releaseMutation, err = e.processMutations.acquire(ctx, treeID)
+	if err != nil {
+		releaseProcessTree(tree)
+		return fmt.Errorf("runtime.Engine.saveProcess: reacquire process tree: %w", err)
+	}
+	if !e.processes.available(process) {
+		releaseProcessTree(tree)
+		releaseMutation()
+		return fmt.Errorf("runtime.Engine.saveProcess: process %q: %w", process.ID(), ErrProcessNotFound)
+	}
+	if err := prepared.cleanupTree.claim(); err != nil {
+		releaseProcessTree(tree)
+		releaseMutation()
+		return fmt.Errorf("runtime.Engine.saveProcess: %w", err)
+	}
 	releaseWrite, err := e.processWrites.acquire(ctx, treeID)
 	if err != nil {
 		prepared.cleanupTree.releaseClaims()
+		releaseProcessTree(tree)
 		releaseMutation()
 		return fmt.Errorf("runtime.Engine.saveProcess: order durable commit: %w", err)
 	}
+	releaseProcessTree(tree)
 	releaseMutation()
 	defer releaseWrite()
 	return e.commitPreparedProcessSave(ctx, prepared)
@@ -218,37 +241,22 @@ type preparedProcessSave struct {
 	cleanupTree  *discoveredProcessTrees
 }
 
-func (e *Engine) prepareProcessSaveOwned(
+func (e *Engine) captureProcessSave(
 	ctx context.Context,
-	process *Process,
-	allowActiveRun bool,
+	tree *claimedProcessTree,
 ) (*preparedProcessSave, error) {
-	if !allowActiveRun && process.state.runActive() {
-		return nil, fmt.Errorf("runtime.Engine.saveProcess: process %q: %w", process.ID(), ErrProcessRunning)
-	}
-	tree, err := e.claimProcessTree(process, map[string]struct{}{}, allowActiveRun)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := captureClaimedProcessTree(tree); err != nil {
-		releaseProcessTree(tree)
 		return nil, err
 	}
 	var cleanup []deferredProcessCleanup
 	collectNestedChildCleanup(tree, &cleanup)
 	cleanupRoots := cleanupProcessRoots(cleanup)
-	// Capture is complete and tree.snapshot now holds immutable copies.
-	releaseProcessTree(tree)
 
 	cleanupTree, err := e.discoverProcessTrees(cleanupRoots)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.saveProcess: %w", err)
 	}
 	if err := cleanupTree.wait(ctx); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.saveProcess: %w", err)
-	}
-	if err := cleanupTree.claim(); err != nil {
 		return nil, fmt.Errorf("runtime.Engine.saveProcess: %w", err)
 	}
 	return &preparedProcessSave{
@@ -264,9 +272,7 @@ func (e *Engine) commitPreparedProcessSave(ctx context.Context, prepared *prepar
 		prepared.cleanupTree.releaseClaims()
 		return err
 	}
-	if err := prepared.cleanupTree.release(); err != nil {
-		return fmt.Errorf("runtime.Engine.saveProcess: release deleted process tree: %w", err)
-	}
+	prepared.cleanupTree.release()
 	for _, pending := range prepared.cleanup {
 		pending.owner.acknowledgeNestedChildCleanup(pending.roots)
 	}
@@ -559,17 +565,16 @@ func (tree *discoveredProcessTrees) releaseClaims() {
 	}
 }
 
-func (tree *discoveredProcessTrees) release() error {
+func (tree *discoveredProcessTrees) release() {
 	if tree == nil || tree.engine == nil {
-		return nil
+		return
 	}
 	processes := tree.liveProcesses()
 	if !tree.engine.processes.unregisterReservedTree(processes) {
 		tree.releaseClaims()
-		return fmt.Errorf("release process tree registry ownership: %w", ErrProcessActive)
+		panic("runtime: reserved process tree changed before release")
 	}
 	tree.reserved = false
-	return nil
 }
 
 func (tree *discoveredProcessTrees) liveProcesses() []*Process {

@@ -3,7 +3,6 @@ package runtime_test
 import (
 	"context"
 	"errors"
-	goruntime "runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -321,16 +320,11 @@ func TestKillDurableWriteQueuesBehindManualSave(t *testing.T) {
 	defer cancelKill()
 	killDone := make(chan error, 1)
 	go func() { killDone <- engine.Kill(killCtx, process.ID()) }()
-	for process.Status() != core.StatusKilled {
-		select {
-		case err := <-killDone:
-			t.Fatalf("Kill returned before transitioning the process: %v", err)
-		default:
-			goruntime.Gosched()
-		}
-	}
 	if err := <-killDone; !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("Kill durable write = %v, want queued acquisition deadline", err)
+	}
+	if process.Status() != core.StatusKilled {
+		t.Fatalf("Kill durable write failure left status %s, want killed", process.Status())
 	}
 	close(store.release)
 	if err := <-saveDone; err != nil {
@@ -380,7 +374,7 @@ func TestDiscardWaitsForActiveFinalSnapshotWithoutHoldingItsSequenceLock(t *test
 	}
 	discardCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if _, err := engine.Discard(discardCtx, process.ID()); err != nil {
+	if err := engine.Discard(discardCtx, process.ID()); err != nil {
 		t.Fatalf("Discard: %v", err)
 	}
 	awaitSegment(t, segment)
@@ -422,10 +416,10 @@ func TestDiscardTimeoutRetainsRuntimeOwnershipBehindSave(t *testing.T) {
 	go func() { saveDone <- engine.Save(t.Context(), process.ID()) }()
 	<-store.entered
 	discardCtx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
-	result, discardErr := engine.Discard(discardCtx, process.ID())
+	discardErr := engine.Discard(discardCtx, process.ID())
 	cancel()
-	if !errors.Is(discardErr, context.DeadlineExceeded) || result.Released {
-		t.Fatalf("Discard = (%+v, %v), want retained ownership and deadline", result, discardErr)
+	if !errors.Is(discardErr, context.DeadlineExceeded) {
+		t.Fatalf("Discard = %v, want retained ownership and deadline", discardErr)
 	}
 	if current, ok := engine.Process(process.ID()); !ok || current != process {
 		t.Fatal("timed-out Discard released the registered process")
@@ -435,9 +429,8 @@ func TestDiscardTimeoutRetainsRuntimeOwnershipBehindSave(t *testing.T) {
 	if err := <-saveDone; err != nil {
 		t.Fatal(err)
 	}
-	result, err = engine.Discard(t.Context(), process.ID())
-	if err != nil || !result.Released {
-		t.Fatalf("retry Discard = (%+v, %v), want released", result, err)
+	if err := engine.Discard(t.Context(), process.ID()); err != nil {
+		t.Fatalf("retry Discard = %v, want released", err)
 	}
 	if _, err := store.Load(t.Context(), process.ID()); !errors.Is(err, core.ErrSnapshotNotFound) {
 		t.Fatalf("snapshot survived successful Discard: %v", err)
@@ -602,7 +595,7 @@ func TestDiscardReleasesAfterNonFatalTerminationDiagnostic(t *testing.T) {
 	}
 
 	store.fail.Store(true)
-	if _, err := engine.Discard(t.Context(), proc.ID()); err != nil {
+	if err := engine.Discard(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Discard = %v, want released with diagnostic confined to observability", err)
 	}
 	if _, ok := engine.Process(proc.ID()); ok {

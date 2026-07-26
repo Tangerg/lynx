@@ -119,10 +119,12 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			cfg := runtimeConfigWithRequiredDeps(t)
 			tt.edit(&cfg)
 
-			_, err := Assemble(t.Context(), cfg)
+			assembly := NewAssembly(cfg)
+			_, err := BuildAssembly(t.Context(), assembly)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("Assemble error = %v, want containing %q", err, tt.want)
+				t.Fatalf("Assembly.Build error = %v, want containing %q", err, tt.want)
 			}
+			_ = CloseAssembly(assembly)
 		})
 	}
 }
@@ -131,7 +133,27 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 // composition test proves atomic replacement and counting are required.
 type basicHistoryStore struct{ history.Store }
 
-func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) {
+func TestAssemblyCloseBeforeBuildReleasesResourcesAndConsumesBuilder(t *testing.T) {
+	var closed atomic.Int32
+	assembly := NewAssembly(Config{
+		Resources: []ShutdownResource{closerFunc(func() error {
+			closed.Add(1)
+			return nil
+		})},
+	})
+
+	if err := CloseAssembly(assembly); err != nil {
+		t.Fatalf("Assembly.Close: %v", err)
+	}
+	if got := closed.Load(); got != 1 {
+		t.Fatalf("owned resource closer calls = %d, want 1", got)
+	}
+	if host, err := BuildAssembly(t.Context(), assembly); err == nil || host != nil {
+		t.Fatalf("Build after Close = (%v, %v), want consumed Assembly", host, err)
+	}
+}
+
+func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Force engine construction to fail after the tool environment is built, so
 	// the reclamation path runs; an invalid BuildID is rejected inside New.
@@ -145,7 +167,7 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		return nil
 	})}
 
-	_, err := assemble(t.Context(), cfg, func(
+	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
@@ -167,23 +189,27 @@ func TestAssembleFailureReclaimsToolsWithoutTakingCallerResources(t *testing.T) 
 		}))
 		return built, nil
 	})
+	host, err := BuildAssembly(t.Context(), assembly)
 	if err == nil || !strings.Contains(err.Error(), "BuildID") {
-		t.Fatalf("assemble error = %v, want engine construction failure", err)
+		t.Fatalf("Assembly.Build error = %v, want engine construction failure", err)
+	}
+	if host != nil {
+		t.Fatal("failed Build returned a Host")
 	}
 	if got := toolClosed.Load(); got != 1 {
 		t.Fatalf("tool closer calls = %d, want 1", got)
 	}
-	if got := resourceClosed.Load(); got != 0 {
-		t.Fatalf("caller resource closer calls = %d, want 0 before successful ownership transfer", got)
+	if got := resourceClosed.Load(); got != 1 {
+		t.Fatalf("owned resource closer calls = %d, want 1", got)
 	}
 }
 
-func TestAssembleBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
+func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	buildErr := errors.New("tool environment failed")
 	var closed atomic.Int32
 
-	host, err := assemble(t.Context(), cfg, func(
+	assembly := newAssembly(cfg, func(
 		context.Context,
 		Config,
 		agentexec.Config,
@@ -202,6 +228,7 @@ func TestAssembleBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 			})},
 		}, buildErr
 	})
+	host, err := BuildAssembly(t.Context(), assembly)
 	if !errors.Is(err, buildErr) {
 		t.Fatalf("assemble error = %v, want build failure", err)
 	}
@@ -213,10 +240,10 @@ func TestAssembleBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 	}
 }
 
-func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
+func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Fail after tools exist, then make the last tool closer fail once. The
-	// failed Host must retain the same shutdown.Step so a retry continues the
+	// Assembly must retain the same shutdown.Step so a retry continues the
 	// dependency-ordered teardown instead of silently abandoning it.
 	cfg.Engine.BuildID = "dev"
 	closeErr := errors.New("tool close")
@@ -226,7 +253,7 @@ func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
 		return nil
 	})}
 
-	failedHost, err := assemble(t.Context(), cfg, func(
+	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
@@ -250,11 +277,15 @@ func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
 		}))
 		return built, nil
 	})
+	failedHost, err := BuildAssembly(t.Context(), assembly)
 	if err == nil || !strings.Contains(err.Error(), "BuildID") || !errors.Is(err, closeErr) {
 		t.Fatalf("assemble error = %v, want joined engine and tool-close errors", err)
 	}
-	if failedHost.lifetime == nil {
-		t.Fatal("failed assembly returned no owner for incomplete tool teardown")
+	if failedHost != nil {
+		t.Fatal("failed Build returned a Host")
+	}
+	if assembly.lifetime == nil {
+		t.Fatal("failed Assembly lost ownership of incomplete tool teardown")
 	}
 	if got := attempts.Load(); got != 1 {
 		t.Fatalf("tool close attempts after assemble = %d, want 1", got)
@@ -262,8 +293,8 @@ func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
 	if got := resourceClosed.Load(); got != 0 {
 		t.Fatalf("resource closer calls before rollback completes = %d, want 0", got)
 	}
-	if err := failedHost.Close(); err != nil {
-		t.Fatalf("retry failed-host Close: %v", err)
+	if err := CloseAssembly(assembly); err != nil {
+		t.Fatalf("retry Assembly.Close: %v", err)
 	}
 	if got := attempts.Load(); got != 2 {
 		t.Fatalf("tool close attempts after retry = %d, want 2", got)
@@ -273,11 +304,11 @@ func TestAssembleFailureReturnsRetryableCleanupOwner(t *testing.T) {
 	}
 }
 
-func TestAssembleDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
+func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	var toolClosed atomic.Int32
 
-	host, err := assemble(t.Context(), cfg, func(
+	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
@@ -303,6 +334,7 @@ func TestAssembleDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		built.tools.Resolver = nil
 		return built, nil
 	})
+	host, err := BuildAssembly(t.Context(), assembly)
 	if err != nil {
 		t.Fatalf("assemble: %v", err)
 	}
@@ -348,7 +380,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	}
 }
 
-func TestAssembleRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
+func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	ctx := t.Context()
 	const (
@@ -407,9 +439,10 @@ func TestAssembleRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 
-	host, err := Assemble(ctx, cfg)
+	assembly := NewAssembly(cfg)
+	host, err := BuildAssembly(ctx, assembly)
 	if err != nil {
-		t.Fatalf("Assemble: %v", err)
+		t.Fatalf("Assembly.Build: %v", err)
 	}
 	t.Cleanup(func() { _ = host.Close() })
 

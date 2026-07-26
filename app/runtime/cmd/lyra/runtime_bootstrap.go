@@ -77,17 +77,14 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 	if cwd, cwdErr := os.UserHomeDir(); cwdErr == nil {
 		runtimeCfg.DefaultCwd = cwd
 	}
-	host, err := bootstrap.Assemble(ctx, runtimeCfg)
+	assembly := bootstrap.NewAssembly(runtimeCfg)
+	owned = false
+	defer func() {
+		err = errors.Join(err, bootstrap.CloseAssembly(assembly))
+	}()
+	host, err := bootstrap.BuildAssembly(ctx, assembly)
 	if err != nil {
-		// A non-nil failed Host owns rollback that outlived Assemble's first
-		// bounded attempt, including stores once it needs them for ordered
-		// teardown. Hand it to run rather than letting this deferred store close
-		// race an in-flight tool or dispatcher shutdown.
-		if host != nil {
-			owned = false
-		}
-		return host, config.Config{}, err
+		return nil, config.Config{}, err
 	}
-	owned = false // successful Runtime construction takes ownership of stores
 	return host, cfg, nil
 }

@@ -18,8 +18,9 @@ const (
 // control plane. Connection failures stay in the operation and observability
 // paths; a status is deliberately not an error transport.
 type ConnectionStatus struct {
-	Name  string
-	State ConnectionState
+	Name      string
+	State     ConnectionState
+	ToolCount int
 }
 
 // ErrUnknownServer is returned when a live MCP operation addresses a server

@@ -96,11 +96,11 @@ func (c *Connections) Configure(ctx context.Context, server mcpserver.Server) er
 	return mapError(c.inner.Configure(ctx, cfg))
 }
 
-func (c *Connections) Remove(ctx context.Context, name string) error {
+func (c *Connections) Detach(name string) error {
 	if c == nil || c.inner == nil {
 		return mcp.ErrConnectionsUnavailable
 	}
-	return mapError(c.inner.Remove(ctx, name))
+	return mapError(c.inner.Detach(name))
 }
 
 // SetToolSink wires live connection changes to the resolver's atomically

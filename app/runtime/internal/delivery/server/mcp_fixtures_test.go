@@ -48,7 +48,7 @@ func (f *fakeMCPPorts) Authorize(_ context.Context, name string) error {
 
 func (*fakeMCPPorts) Probe(context.Context, mcpserver.Server) error     { return nil }
 func (*fakeMCPPorts) Configure(context.Context, mcpserver.Server) error { return nil }
-func (*fakeMCPPorts) Remove(context.Context, string) error              { return nil }
+func (*fakeMCPPorts) Detach(string) error                               { return nil }
 
 func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 	servers := make(map[string]mcpserver.Server, len(ports.statuses))

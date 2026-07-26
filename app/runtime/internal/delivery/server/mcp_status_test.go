@@ -13,7 +13,7 @@ import (
 func TestListMCPServers(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
 		statuses: []mcpserver.ConnectionStatus{
-			{Name: "fs", State: mcpserver.ConnectionConnected},
+			{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 2},
 			{Name: "down", State: mcpserver.ConnectionFailed},
 		},
 		tools: []mcpserver.ToolInfo{
@@ -72,7 +72,7 @@ func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 
 func TestReconnectMCPServer(t *testing.T) {
 	s := serverWithMCP(fakeMCPPortsConfig(&fakeMCPPorts{
-		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
+		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 1}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}))
 	defer s.Close()

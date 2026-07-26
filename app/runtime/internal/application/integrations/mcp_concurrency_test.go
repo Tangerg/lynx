@@ -2,6 +2,7 @@ package integrations
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -11,8 +12,9 @@ import (
 
 // mcpLiveSet is the registry-command projection the mutation tests observe.
 type mcpLiveSet struct {
-	mu      sync.Mutex
-	servers map[string]bool
+	mu         sync.Mutex
+	servers    map[string]bool
+	configured chan string
 }
 
 func (*mcpLiveSet) Probe(context.Context, mcpserver.Server) error {
@@ -26,10 +28,13 @@ func (s *mcpLiveSet) Configure(ctx context.Context, cfg mcpserver.Server) error 
 	s.mu.Lock()
 	s.servers[cfg.Name] = true
 	s.mu.Unlock()
+	if s.configured != nil {
+		s.configured <- cfg.Name
+	}
 	return nil
 }
 
-func (s *mcpLiveSet) Remove(_ context.Context, name string) error {
+func (s *mcpLiveSet) Detach(name string) error {
 	s.mu.Lock()
 	delete(s.servers, name)
 	s.mu.Unlock()
@@ -87,13 +92,12 @@ func TestMCPRegistryMutationIsLinearizedThroughLiveApply(t *testing.T) {
 		configured <- err
 	}()
 	<-registry.configureCommitted
+	if c.mcpMutationMu.TryLock() {
+		c.mcpMutationMu.Unlock()
+		t.Fatal("configure released the mutation order before applying its live projection")
+	}
 	removed := make(chan error, 1)
 	go func() { removed <- c.RemoveMCPServer(context.Background(), server.Name) }()
-	select {
-	case err := <-removed:
-		t.Fatalf("remove crossed an incomplete configure workflow: %v", err)
-	case <-time.After(20 * time.Millisecond):
-	}
 	close(registry.releaseConfigure)
 	if err := <-configured; err != nil {
 		t.Fatalf("ConfigureMCPServer: %v", err)
@@ -119,7 +123,7 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 		configureCommitted: make(chan struct{}),
 		releaseConfigure:   make(chan struct{}),
 	}
-	live := &mcpLiveSet{servers: map[string]bool{}}
+	live := &mcpLiveSet{servers: map[string]bool{}, configured: make(chan string, 1)}
 	policy := mcpserver.NewToolPolicy(nil)
 	c := New(Config{MCPRegistry: registry, MCPRegistryCommands: live, MCPPolicy: NewToolPolicyState(policy)})
 	server := mcpserver.Server{Name: "files", Enabled: true, Transport: mcpserver.TransportStdio, Command: "mcp-files"}
@@ -136,23 +140,15 @@ func TestMCPPostCommitReconciliationOutlivesRequestCancellation(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("ConfigureMCPServer after durable commit: %v", err)
 	}
-	// The live (re)dial is dispatched detached so a slow handshake never holds the
-	// mutation lock, so it settles shortly after the call returns rather than
-	// synchronously. It must still run despite the request-ctx cancellation, since
-	// it is dispatched on the owner-scoped task group.
-	deadline := time.After(time.Second)
-	for {
-		live.mu.Lock()
-		livePresent := live.servers[server.Name]
-		live.mu.Unlock()
-		if livePresent {
-			return
-		}
-		select {
-		case <-deadline:
-			t.Fatal("request cancellation abandoned post-commit live reconciliation")
-		case <-time.After(time.Millisecond):
-		}
+	if got := <-live.configured; got != server.Name {
+		t.Fatalf("reconciled server = %q, want %q", got, server.Name)
+	}
+	requireCoordinatorShutdown(t, c)
+	live.mu.Lock()
+	livePresent := live.servers[server.Name]
+	live.mu.Unlock()
+	if !livePresent {
+		t.Fatal("request cancellation abandoned post-commit live reconciliation")
 	}
 }
 
@@ -243,30 +239,22 @@ func TestMCPQueuedReconnectCannotReviveRemovedServer(t *testing.T) {
 	removed := make(chan error, 1)
 	go func() { removed <- c.RemoveMCPServer(context.Background(), name) }()
 	<-registry.removeCommitted
-	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
+	if err := c.ReconnectMCPServer(context.Background(), name); !errors.Is(err, ErrUnknownMCPServer) {
 		close(registry.releaseRemove)
-		close(live.releaseReconnect)
 		requireCoordinatorShutdown(t, c)
-		t.Fatalf("ReconnectMCPServer: %v", err)
-	}
-
-	reconnectStarted := false
-	select {
-	case <-live.reconnectStarted:
-		reconnectStarted = true
-	case <-time.After(20 * time.Millisecond):
+		t.Fatalf("ReconnectMCPServer = %v, want ErrUnknownMCPServer", err)
 	}
 	close(registry.releaseRemove)
 	if err := <-removed; err != nil {
-		close(live.releaseReconnect)
 		requireCoordinatorShutdown(t, c)
 		t.Fatalf("RemoveMCPServer: %v", err)
 	}
-	close(live.releaseReconnect)
 	requireCoordinatorShutdown(t, c)
 
-	if reconnectStarted {
-		t.Fatal("reconnect crossed a committed removal instead of revalidating the registry")
+	select {
+	case <-live.reconnectStarted:
+		t.Fatal("reconnect crossed a committed removal instead of reading the registry")
+	default:
 	}
 	live.mu.Lock()
 	livePresent := live.servers[name]

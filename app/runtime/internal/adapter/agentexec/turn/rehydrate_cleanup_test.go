@@ -65,12 +65,16 @@ func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 	if err := dispatcher.AwaitShutdown(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("join failed shutdown cleanup = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
-		t.Fatalf("failed restored-process cleanup retained turn: %v", err)
+	if _, err := dispatcher.findTurn("turn_1"); err != nil {
+		t.Fatalf("failed restored-process cleanup lost turn: %v", err)
 	}
 
+	process.discardErr = nil
 	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
-		t.Fatalf("join released shutdown target: %v", err)
+		t.Fatalf("retry restored-process cleanup: %v", err)
+	}
+	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("successful restored-process cleanup retained turn: %v", err)
 	}
 }
 
@@ -117,11 +121,15 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 	if err := attempt.Wait(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("late-publication shutdown = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
-		t.Fatalf("failed late cleanup retained turn: %v", err)
+	if _, err := dispatcher.findTurn("turn_1"); err != nil {
+		t.Fatalf("failed late cleanup lost turn: %v", err)
 	}
 
+	process.discardErr = nil
 	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
-		t.Fatalf("join released shutdown target: %v", err)
+		t.Fatalf("retry late cleanup: %v", err)
+	}
+	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("successful late cleanup retained turn: %v", err)
 	}
 }

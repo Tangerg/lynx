@@ -14,36 +14,40 @@ import (
 
 func TestMCPStatusAndToolsUsePorts(t *testing.T) {
 	ports := &fakeMCPPorts{
-		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
+		statuses: []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected, ToolCount: 1}},
 		tools:    []mcpserver.ToolInfo{{Server: "fs", Name: "read"}},
 	}
 	c := New(configWithMCPPorts(ports))
 
-	if got := c.MCPServerStatuses(context.Background()); len(got) != 1 || got[0].Name != "fs" {
+	if got := c.MCPServerStatuses(context.Background()); len(got) != 1 || got[0].Name != "fs" ||
+		got[0].ToolCount == nil || *got[0].ToolCount != 1 {
 		t.Fatalf("MCPServerStatuses = %+v", got)
+	}
+	if ports.toolsCalls != 0 {
+		t.Fatalf("status read made %d live tools/list calls, want 0", ports.toolsCalls)
 	}
 	tools, err := c.MCPTools(context.Background(), "fs")
 	if err != nil {
 		t.Fatalf("MCPTools err = %v", err)
 	}
-	if ports.toolsServer != "fs" || len(tools) != 1 || tools[0].Name != "read" {
+	if ports.toolsCalls != 1 || ports.toolsServer != "fs" || len(tools) != 1 || tools[0].Name != "read" {
 		t.Fatalf("tools server=%q tools=%+v", ports.toolsServer, tools)
 	}
 }
 
-func TestRemoveMCPServerCompletesProjectionAfterSessionCloseFailure(t *testing.T) {
-	closeErr := errors.New("session close failed")
+func TestRemoveMCPServerPublishesRemovalAfterProjectionFailure(t *testing.T) {
+	projectionErr := errors.New("projection detach failed")
 	ports := &fakeMCPPorts{
 		statuses:  []mcpserver.ConnectionStatus{{Name: "fs", State: mcpserver.ConnectionConnected}},
-		removeErr: closeErr,
+		removeErr: projectionErr,
 	}
 	notified := make(chan string, 1)
 	cfg := configWithMCPPorts(ports)
 	cfg.MCPStatus = func(status MCPServerStatus) { notified <- status.Name }
 	c := New(cfg)
 
-	if err := c.RemoveMCPServer(t.Context(), "fs"); !errors.Is(err, closeErr) {
-		t.Fatalf("RemoveMCPServer = %v, want close failure", err)
+	if err := c.RemoveMCPServer(t.Context(), "fs"); !errors.Is(err, projectionErr) {
+		t.Fatalf("RemoveMCPServer = %v, want projection failure", err)
 	}
 	if ports.removeName != "fs" {
 		t.Fatalf("live removal = %q, want fs", ports.removeName)
@@ -88,6 +92,111 @@ func TestMCPConnectionCommandsUsePorts(t *testing.T) {
 
 	if err := c.ReconnectMCPServer(context.Background(), "ghost"); !errors.Is(err, ErrUnknownMCPServer) {
 		t.Fatalf("reconnect unknown = %v, want ErrUnknownMCPServer", err)
+	}
+}
+
+func TestMCPConnectionValidationUsesDurableRegistry(t *testing.T) {
+	const name = "fs"
+	ports := &fakeMCPPorts{reconnectDone: make(chan string, 1)}
+	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{
+		name: {Name: name, Enabled: true},
+	}}
+	c := New(Config{
+		MCPRegistry:           registry,
+		MCPStatusReader:       ports,
+		MCPToolCatalog:        ports,
+		MCPConnectionCommands: ports,
+		MCPRegistryCommands:   ports,
+	})
+
+	// The live projection intentionally has no entry. Durable configuration is
+	// the command authority; the background dial is what repairs that projection.
+	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
+		t.Fatalf("ReconnectMCPServer with stale live projection: %v", err)
+	}
+	if got := <-ports.reconnectDone; got != name {
+		t.Fatalf("reconnect target = %q, want %q", got, name)
+	}
+	requireCoordinatorShutdown(t, c)
+	if ports.reconnectName != name {
+		t.Fatalf("reconnect target = %q, want %q", ports.reconnectName, name)
+	}
+}
+
+func TestMCPConnectionRejectsDurablyDisabledServer(t *testing.T) {
+	const name = "fs"
+	ports := &fakeMCPPorts{
+		statuses: []mcpserver.ConnectionStatus{{Name: name, State: mcpserver.ConnectionConnected}},
+	}
+	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{
+		name: {Name: name, Enabled: false},
+	}}
+	c := New(Config{
+		MCPRegistry:           registry,
+		MCPStatusReader:       ports,
+		MCPToolCatalog:        ports,
+		MCPConnectionCommands: ports,
+		MCPRegistryCommands:   ports,
+	})
+
+	// Even a stale connected projection cannot override the durable enablement
+	// gate.
+	if err := c.ReconnectMCPServer(context.Background(), name); !errors.Is(err, ErrMCPServerDisabled) {
+		t.Fatalf("ReconnectMCPServer = %v, want ErrMCPServerDisabled", err)
+	}
+	if ports.reconnectName != "" {
+		t.Fatalf("disabled server was dialed as %q", ports.reconnectName)
+	}
+}
+
+func TestMCPStatusCallbackMayReenterMutationWithoutDeadlock(t *testing.T) {
+	const name = "fs"
+	ports := &fakeMCPPorts{
+		statuses: []mcpserver.ConnectionStatus{{Name: name, State: mcpserver.ConnectionConnected}},
+	}
+	registry := &testMCPRegistry{servers: map[string]mcpserver.Server{
+		name: {Name: name, Enabled: true},
+	}}
+	statuses := make(chan MCPServerStatus, 2)
+	mutationResult := make(chan error, 1)
+	cfg := Config{
+		MCPRegistry:           registry,
+		MCPStatusReader:       ports,
+		MCPToolCatalog:        ports,
+		MCPConnectionCommands: ports,
+		MCPRegistryCommands:   ports,
+	}
+	var c *Coordinator
+	cfg.MCPStatus = func(status MCPServerStatus) {
+		statuses <- status
+		if status.State == mcpserver.ConnectionConnecting {
+			// A status consumer is application-external code. It may synchronously
+			// issue another command; publication must hold neither mutation nor
+			// delivery-ordering locks while invoking it.
+			mutationResult <- c.SetMCPServerEnabled(context.Background(), name, false)
+		}
+	}
+	c = New(cfg)
+
+	if err := c.ReconnectMCPServer(context.Background(), name); err != nil {
+		t.Fatalf("ReconnectMCPServer: %v", err)
+	}
+	first := <-statuses
+	if first.Name != name || first.State != mcpserver.ConnectionConnecting || !first.Known {
+		t.Fatalf("first status = %+v, want connecting", first)
+	}
+	if err := <-mutationResult; err != nil {
+		t.Fatalf("reentrant SetMCPServerEnabled: %v", err)
+	}
+	second := <-statuses
+	if second.Name != name || second.Known {
+		t.Fatalf("second status = %+v, want ordered removal projection", second)
+	}
+	requireCoordinatorShutdown(t, c)
+
+	server, ok, err := registry.Get(context.Background(), name)
+	if err != nil || !ok || server.Enabled {
+		t.Fatalf("durable server after reentrant disable = (%+v, %v, %v)", server, ok, err)
 	}
 }
 
@@ -163,8 +272,10 @@ type fakeMCPPorts struct {
 	tools    []mcpserver.ToolInfo
 
 	toolsServer string
+	toolsCalls  int
 
 	reconnectName string
+	reconnectDone chan string
 	authorizeName string
 
 	probe      mcpserver.Server
@@ -176,12 +287,16 @@ type fakeMCPPorts struct {
 func (f *fakeMCPPorts) Statuses() []mcpserver.ConnectionStatus { return f.statuses }
 
 func (f *fakeMCPPorts) Tools(_ context.Context, server string) ([]mcpserver.ToolInfo, error) {
+	f.toolsCalls++
 	f.toolsServer = server
 	return f.tools, nil
 }
 
 func (f *fakeMCPPorts) Reconnect(_ context.Context, name string) error {
 	f.reconnectName = name
+	if f.reconnectDone != nil {
+		f.reconnectDone <- name
+	}
 	return nil
 }
 
@@ -200,7 +315,7 @@ func (f *fakeMCPPorts) Configure(_ context.Context, cfg mcpserver.Server) error 
 	return nil
 }
 
-func (f *fakeMCPPorts) Remove(_ context.Context, name string) error {
+func (f *fakeMCPPorts) Detach(name string) error {
 	f.removeName = name
 	return f.removeErr
 }

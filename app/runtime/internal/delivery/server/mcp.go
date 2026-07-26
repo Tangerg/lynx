@@ -60,7 +60,8 @@ func (s *Server) AuthorizeMCPServer(ctx context.Context, server string) error {
 // wireMCPError maps the coordinator's unknown-server sentinel onto invalid_params
 // (an unknown / empty name is a bad request); every other error surfaces as-is.
 func wireMCPError(err error) error {
-	if errors.Is(err, integrations.ErrUnknownMCPServer) {
+	if errors.Is(err, integrations.ErrUnknownMCPServer) ||
+		errors.Is(err, integrations.ErrMCPServerDisabled) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
 	if errors.Is(err, integrations.ErrInvalidMCPServerConfiguration) {

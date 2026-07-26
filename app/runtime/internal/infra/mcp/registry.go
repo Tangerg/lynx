@@ -19,8 +19,8 @@ type target struct {
 	session *sdkmcp.ClientSession
 }
 
-// Statuses returns one entry per CONFIGURED server (connected and failed
-// alike), in dial order. Nil-safe.
+// Statuses returns one cached entry per server attached to the live projection
+// (connected and failed alike), in dial order. Nil-safe.
 func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 	if c == nil {
 		return nil
@@ -29,7 +29,11 @@ func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
 	defer c.mu.Unlock()
 	out := make([]mcpserver.ConnectionStatus, 0, len(c.servers))
 	for _, ms := range c.servers {
-		out = append(out, mcpserver.ConnectionStatus{Name: ms.name(), State: ms.state})
+		out = append(out, mcpserver.ConnectionStatus{
+			Name:      ms.name(),
+			State:     ms.state,
+			ToolCount: len(ms.tools),
+		})
 	}
 	return out
 }
@@ -80,14 +84,10 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 	return out, nil
 }
 
-// Remove drops a server from the live set, closes its session, and refreshes
-// the model-facing tool set. Removing an unknown name is a no-op (the registry
-// is the source of truth; the live set may legitimately lag it). Disabling a
-// server routes here too — it stays in the registry but leaves the live set.
-// Once Remove is invoked on a valid pool, the server is absent from the live
-// set before the method returns; a returned error reports session teardown, not
-// an unapplied projection.
-func (c *Connections) Remove(ctx context.Context, name string) error {
+// Detach removes a server from the live projection and starts retiring its
+// session. Session teardown remains owned by Connections and is joined by
+// Shutdown; it never delays the application control-plane mutation.
+func (c *Connections) Detach(name string) error {
 	if c == nil {
 		return ErrConnectionsUnavailable
 	}
@@ -112,10 +112,24 @@ func (c *Connections) Remove(ctx context.Context, name string) error {
 	c.mu.Unlock()
 
 	// Shrink the model-facing catalog before a potentially-blocking session
-	// close. The mutation lock keeps this publication ordered with every dial.
+	// close. The publication lock keeps this ordered with every dial.
 	c.publishTools()
+	c.retireSession(old)
+	return nil
+}
 
-	return c.closeSession(ctx, old)
+func (c *Connections) retireSession(session *sdkmcp.ClientSession) {
+	if session == nil {
+		return
+	}
+	c.mu.Lock()
+	owned := c.sessions[session]
+	if owned != nil && owned.close == nil {
+		attempt := &sessionCloseAttempt{done: make(chan struct{})}
+		owned.close = attempt
+		go c.closeSessionAttempt(session, owned, attempt)
+	}
+	c.mu.Unlock()
 }
 
 // publishTools rebuilds the model-facing catalog from each connected server's

@@ -24,19 +24,10 @@ func (s *memoryDispatcher) cleanupTurnOwned(ctx context.Context, st *turnState) 
 	if !st.terminalized() {
 		return errors.New("turn: cleanup requested before terminal")
 	}
-	var cleanupErr error
 	if p := st.process(); p != nil {
-		result, err := discardProcess(ctx, p)
-		if err != nil {
+		if err := discardProcess(ctx, p); err != nil {
 			recordTurnCleanupError(st, err)
-			cleanupErr = err
-		}
-		if !result.Released {
-			if cleanupErr == nil {
-				cleanupErr = fmt.Errorf("turn: discard process %q retained runtime ownership", p.ID())
-				recordTurnCleanupError(st, cleanupErr)
-			}
-			return cleanupErr
+			return err
 		}
 	}
 	if st.span != nil {
@@ -49,15 +40,15 @@ func (s *memoryDispatcher) cleanupTurnOwned(ctx context.Context, st *turnState) 
 	s.mu.Unlock()
 	st.markReleased()
 	close(st.done)
-	return cleanupErr
+	return nil
 }
 
-func discardProcess(ctx context.Context, process agentexec.TurnProcess) (agentexec.DiscardResult, error) {
-	result, err := process.Discard(ctx)
+func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
+	err := process.Discard(ctx)
 	if err != nil {
-		return result, fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
+		return fmt.Errorf("turn: discard process %q: %w", process.ID(), err)
 	}
-	return result, nil
+	return nil
 }
 
 // finishTurn emits the terminal [TurnEnd] (stamping the elapsed duration)

@@ -3,6 +3,7 @@ package integrations
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -45,8 +46,19 @@ func (c *Coordinator) startMCPConnection(ctx context.Context, name string, dial 
 	if c.mcpRegistry == nil || c.mcpStatusReader == nil || c.mcpConnectionCommands == nil {
 		return errMCPConnectionUnavailable
 	}
-	if !c.mcpServerKnown(name) {
+	registryCtx := context.Background()
+	if ctx != nil {
+		registryCtx = context.WithoutCancel(ctx)
+	}
+	srv, ok, err := c.mcpRegistry.Get(registryCtx, name)
+	if err != nil {
+		return fmt.Errorf("integrations: read MCP server %q: %w", name, err)
+	}
+	if !ok {
 		return ErrUnknownMCPServer
+	}
+	if !srv.Enabled {
+		return ErrMCPServerDisabled
 	}
 	return c.dispatchMCPConnection(ctx, name, dial)
 }
@@ -84,8 +96,17 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 			c.mcpMutationMu.Unlock()
 			return
 		}
-		c.notifyMCPStatus(ctx, name, true)
+		if !c.currentMCPDial(name, operation) {
+			c.mcpMutationMu.Unlock()
+			return
+		}
+		connecting := c.prepareMCPStatus(MCPServerStatus{
+			Name:  name,
+			Known: true,
+			State: mcpserver.ConnectionConnecting,
+		})
 		c.mcpMutationMu.Unlock()
+		c.publishMCPStatus(connecting)
 
 		// Interactive OAuth may wait minutes for a human. The live connection
 		// adapter owns per-server generation/cancellation, so no application-wide
@@ -98,17 +119,21 @@ func (c *Coordinator) dispatchMCPConnection(ctx context.Context, name string, co
 			return
 		}
 
+		status := c.MCPServerStatus(ctx, name)
 		c.mcpMutationMu.Lock()
-		defer c.mcpMutationMu.Unlock()
 		srv, ok, err = c.mcpRegistry.Get(ctx, name)
 		if err != nil {
+			c.mcpMutationMu.Unlock()
 			recordMCPConnectionError(ctx, fmt.Errorf("integrations: read MCP server %q after connection: %w", name, err))
 			return
 		}
-		if !ok || !srv.Enabled {
+		if !ok || !srv.Enabled || !c.currentMCPDial(name, operation) {
+			c.mcpMutationMu.Unlock()
 			return
 		}
-		c.notifyMCPStatus(ctx, name, false)
+		settled := c.prepareMCPStatus(status)
+		c.mcpMutationMu.Unlock()
+		c.publishMCPStatus(settled)
 	}) {
 		operation.cancel()
 		c.clearMCPDial(name, operation)
@@ -151,32 +176,74 @@ func (c *Coordinator) clearMCPDial(name string, dial *mcpDial) {
 	c.mcpDialMu.Unlock()
 }
 
+func (c *Coordinator) currentMCPDial(name string, dial *mcpDial) bool {
+	c.mcpDialMu.Lock()
+	defer c.mcpDialMu.Unlock()
+	return c.mcpDials[name] == dial
+}
+
 func recordMCPConnectionError(ctx context.Context, err error) {
 	if err != nil {
 		trace.SpanFromContext(ctx).RecordError(err)
 	}
 }
 
-// mcpServerKnown reports whether name is a tracked MCP server (a configured
-// server appears in the live statuses even when its last dial failed).
-func (c *Coordinator) mcpServerKnown(name string) bool {
-	if c.mcpStatusReader == nil {
-		return false
-	}
-	for _, st := range c.mcpStatusReader.Statuses() {
-		if st.Name == name {
-			return true
-		}
-	}
-	return false
+type mcpStatusEvent struct {
+	sequence uint64
+	status   MCPServerStatus
 }
 
-func (c *Coordinator) notifyMCPStatus(ctx context.Context, name string, connecting bool) {
-	if c.mcpStatus != nil {
-		if connecting {
-			c.mcpStatus(MCPServerStatus{Name: name, Known: true, State: mcpserver.ConnectionConnecting})
+type mcpStatusQueue struct {
+	mu       sync.Mutex
+	next     uint64
+	pending  map[uint64]MCPServerStatus
+	draining bool
+	sink     func(MCPServerStatus)
+}
+
+func newMCPStatusQueue(sink func(MCPServerStatus)) *mcpStatusQueue {
+	return &mcpStatusQueue{
+		next:    1,
+		pending: make(map[uint64]MCPServerStatus),
+		sink:    sink,
+	}
+}
+
+// prepareMCPStatus is called while mcpMutationMu is held. The sequence lets
+// lock-free callback delivery retain the exact mutation order.
+func (c *Coordinator) prepareMCPStatus(status MCPServerStatus) mcpStatusEvent {
+	c.mcpStatusSequence++
+	return mcpStatusEvent{sequence: c.mcpStatusSequence, status: status}
+}
+
+func (c *Coordinator) publishMCPStatus(event mcpStatusEvent) {
+	c.mcpStatusQueue.publish(event)
+}
+
+func (q *mcpStatusQueue) publish(event mcpStatusEvent) {
+	if q == nil || q.sink == nil || event.sequence == 0 {
+		return
+	}
+	q.mu.Lock()
+	q.pending[event.sequence] = event.status
+	if q.draining {
+		q.mu.Unlock()
+		return
+	}
+	q.draining = true
+	q.mu.Unlock()
+
+	for {
+		q.mu.Lock()
+		status, ok := q.pending[q.next]
+		if !ok {
+			q.draining = false
+			q.mu.Unlock()
 			return
 		}
-		c.mcpStatus(c.MCPServerStatus(ctx, name))
+		delete(q.pending, q.next)
+		q.next++
+		q.mu.Unlock()
+		q.sink(status)
 	}
 }

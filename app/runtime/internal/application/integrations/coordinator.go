@@ -36,7 +36,7 @@ type MCPConnectionCommands interface {
 type MCPRegistryCommands interface {
 	Probe(ctx context.Context, server mcpserver.Server) error
 	Configure(ctx context.Context, server mcpserver.Server) error
-	Remove(ctx context.Context, name string) error
+	Detach(name string) error
 }
 
 // Registry is the durable MCP-server surface the integration use cases own.
@@ -66,16 +66,13 @@ type Coordinator struct {
 	mcpMutationMu         sync.Mutex
 	mcpDialMu             sync.Mutex
 	mcpDials              map[string]*mcpDial
+	mcpStatusSequence     uint64
+	mcpStatusQueue        *mcpStatusQueue
 
 	// tasks is this component's context for post-commit reconcile: MCP registry
 	// mutations outlive the request but are canceled and joined by the
 	// BeginShutdown/AwaitShutdown lifecycle (§10.2 component context, §10.3).
 	tasks taskgroup.Group
-
-	// mcpStatus publishes fully resolved, safe MCP status read models so a
-	// delivery consumer can republish them without reaching back into live
-	// infrastructure. The composition root injects the notifier's Publish.
-	mcpStatus func(status MCPServerStatus)
 }
 
 // Config bundles the Coordinator's dependencies.
@@ -103,8 +100,8 @@ func New(cfg Config) *Coordinator {
 		mcpConnectionCommands: cfg.MCPConnectionCommands,
 		mcpRegistryCommands:   cfg.MCPRegistryCommands,
 		mcpPolicy:             cfg.MCPPolicy,
-		mcpStatus:             cfg.MCPStatus,
 		mcpDials:              make(map[string]*mcpDial),
+		mcpStatusQueue:        newMCPStatusQueue(cfg.MCPStatus),
 	}
 }
 

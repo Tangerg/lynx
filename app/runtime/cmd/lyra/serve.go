@@ -24,12 +24,10 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
 	host, cfg, err := bootstrapRuntime(ctx)
-	if host != nil {
-		defer func() { err = errors.Join(err, host.Close()) }()
-	}
 	if err != nil {
 		return err
 	}
+	defer func() { err = errors.Join(err, host.Close()) }()
 	// The Host owns the application tier's reverse-order shutdown (§10.3): the
 	// integrations reconcile + codebase reindex tasks, then the run pump + engine +
 	// persistence. api.Close (the run supervisor) is deferred later, so LIFO runs

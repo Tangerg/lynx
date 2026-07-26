@@ -154,7 +154,13 @@ func (h *Host) Close() error {
 	if h == nil || h.lifetime == nil {
 		return nil
 	}
-	lifetime := h.lifetime
+	return closeHostLifetime(h.lifetime)
+}
+
+func closeHostLifetime(lifetime *hostLifetime) error {
+	if lifetime == nil {
+		return nil
+	}
 	lifetime.closeMu.Lock()
 	defer lifetime.closeMu.Unlock()
 	if lifetime.closed {
@@ -214,19 +220,6 @@ func (h *Host) Close() error {
 	return nil
 }
 
-// Assemble builds the application Host from cfg: it constructs the engine, turn
-// dispatcher, tool registry, and the utility/embedding/mcp environments, then builds
-// the application coordinators + adapters (run lifecycle, sessions, integrations,
-// queries, turn control, workspace, schedules) from those materials, and hands the
-// process resources to the Host for shutdown. Returns an error when a required
-// dependency is missing or any internal constructor fails — engine deployment,
-// MCP dial, etc. When rollback cannot finish within its shutdown budget, the
-// returned Host remains non-nil and owns the unfinished rollback; callers must
-// close every non-nil Host, including one returned together with an error.
-func Assemble(ctx context.Context, cfg Config) (*Host, error) {
-	return assemble(ctx, cfg, buildToolEnvironment)
-}
-
 type toolEnvironmentBuilder func(
 	context.Context,
 	Config,
@@ -240,7 +233,76 @@ type toolEnvironmentBuilder func(
 	*skillauthoring.Store,
 ) (toolEnvironment, error)
 
-func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder) (host *Host, err error) {
+// Assembly owns configuration resources before construction begins.
+type Assembly struct {
+	mu         sync.Mutex
+	cfg        Config
+	buildTools toolEnvironmentBuilder
+	lifetime   *hostLifetime
+	started    bool
+}
+
+// NewAssembly acquires cfg.Resources and returns a single-use Host builder.
+func NewAssembly(cfg Config) *Assembly {
+	return newAssembly(cfg, buildToolEnvironment)
+}
+
+func newAssembly(cfg Config, buildTools toolEnvironmentBuilder) *Assembly {
+	return &Assembly{
+		cfg:        cfg,
+		buildTools: buildTools,
+		lifetime: &hostLifetime{
+			resources: shutdownResources(cfg.Resources),
+		},
+	}
+}
+
+// BuildAssembly constructs and returns a complete Host. On failure it performs
+// one rollback attempt and returns nil; CloseAssembly retains any unfinished
+// rollback for a later caller-owned attempt.
+func BuildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
+	if a == nil {
+		return nil, errors.New("runtime: nil Assembly")
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.started {
+		return nil, errors.New("runtime: BuildAssembly called more than once")
+	}
+	if a.lifetime == nil || a.buildTools == nil {
+		return nil, errors.New("runtime: uninitialized Assembly")
+	}
+	a.started = true
+	host, err := buildAssembly(ctx, a)
+	if err != nil {
+		if rollbackErr := closeHostLifetime(a.lifetime); rollbackErr != nil {
+			err = errors.Join(err, fmt.Errorf("runtime: rollback assembly: %w", rollbackErr))
+		}
+		return nil, err
+	}
+	a.lifetime = nil
+	return host, nil
+}
+
+// CloseAssembly releases resources when BuildAssembly has not run, completes
+// rollback after a failed build, and is a no-op after ownership transfers to a
+// successful Host.
+func CloseAssembly(a *Assembly) error {
+	if a == nil {
+		return nil
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	// Closing an unstarted Assembly consumes its single use. Otherwise a later
+	// BuildAssembly could construct a Host over resources already released.
+	a.started = true
+	return closeHostLifetime(a.lifetime)
+}
+
+func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
+	cfg := a.cfg
+	buildTools := a.buildTools
+	lifetime := a.lifetime
 	if err := validateAssemblyConfig(cfg); err != nil {
 		return nil, err
 	}
@@ -321,27 +383,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		Paths: workspacepath.Resolver{},
 	})
 	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
-	transferred := false
-	rollback := &hostLifetime{}
-	defer func() {
-		if transferred {
-			return
-		}
-		cleanup := &Host{lifetime: rollback}
-		if cleanupErr := cleanup.Close(); cleanupErr != nil {
-			err = errors.Join(err, fmt.Errorf("runtime: rollback partial assembly: %w", cleanupErr))
-			// A partial rollback now owns every resource that would have moved to
-			// a successful Host. Keeping the resources behind its unresolved
-			// dependencies preserves their close order for the caller's retry.
-			rollback.resources = shutdownResources(cfg.Resources)
-			// Keep the exact graph — including any in-flight shutdown.Step — owned
-			// by the returned Host. A caller can therefore retry Close without
-			// racing a second closer or losing dependencies below it.
-			host = cleanup
-		}
-	}()
 	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, codebaseToolIndex, memorySearcher, scheduleCoord, goalState, skillStore)
-	rollback.toolClosers = slices.Clone(built.closers)
+	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +420,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	if err != nil {
 		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
-	rollback.dispatcher = turnDispatcher
+	lifetime.dispatcher = turnDispatcher
 	home, _ := os.UserHomeDir()
 	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
 	toolRegistry := toolset.NewDiagnosticRegistry()
@@ -394,6 +437,9 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	var isolator *isolation.Isolator
 	if cfg.SandboxDir != "" {
 		isolator = isolation.New(cfg.SandboxDir, cfg.SandboxReadOnlyPaths)
+		lifetime.toolClosers = append(lifetime.toolClosers, shutdown.New(func(context.Context) error {
+			return isolator.Close()
+		}))
 	}
 
 	// The run coordinator owns the run lifecycle (§20). It commits durable side
@@ -408,7 +454,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
-	rollback.effectsTasks = effectsTasks
+	lifetime.effectsTasks = effectsTasks
 	runEffects := runsegment.New(runsegment.Config{
 		Interrupts:         cfg.InterruptStore,
 		Sessions:           cfg.SessionStore,
@@ -507,7 +553,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		runDeps.Isolation = isolator
 	}
 	runCoord := runs.NewCoordinator(runDeps)
-	rollback.coordinator = runCoord
+	lifetime.coordinator = runCoord
 	scheduleFires := &signal.Signal[string]{}
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
@@ -527,7 +573,7 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 		MCPPolicy:             mcpEnv.policy,
 		MCPStatus:             mcpStatus.Publish,
 	})
-	rollback.integrations = integrationsCoord
+	lifetime.integrations = integrationsCoord
 
 	// Goal mode: the autonomous-execution loop driver over the run coordinator.
 	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
@@ -536,19 +582,11 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
 		goalDriver = goals.NewDriverWithMutations(cfg.GoalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
-		rollback.goals = goalDriver
+		lifetime.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
 		}
 	}
-	toolClosers := slices.Clone(built.closers)
-	if isolator != nil {
-		// Destroy any live isolated working copies on shutdown.
-		toolClosers = append(toolClosers, shutdown.New(func(context.Context) error {
-			return isolator.Close()
-		}))
-	}
-
 	// Same discipline for the skill library: leave the ports interface-nil when
 	// authoring is disabled (empty skills dir), so the coordinator's nil-gate
 	// reports capability_not_negotiated instead of the store's bare disabled error.
@@ -572,12 +610,12 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
 	codebaseCoord := codebase.New(codebaseUseCases, workspaceContext)
-	rollback.codebase = codebaseCoord
+	lifetime.codebase = codebaseCoord
 	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
 		Store: cfg.AgentMemoryStore,
 		Roots: workspaceContext,
 	})
-	host = &Host{
+	host := &Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
 			Integrations:     integrationsCoord,
@@ -616,18 +654,8 @@ func assemble(ctx context.Context, cfg Config, buildTools toolEnvironmentBuilder
 			GitAvailable:       checkpointstore.GitAvailable(),
 			TodosEnabled:       cfg.TodoStore != nil,
 		},
-		lifetime: &hostLifetime{
-			goals:        goalDriver,
-			integrations: integrationsCoord,
-			codebase:     codebaseCoord,
-			coordinator:  runCoord,
-			dispatcher:   turnDispatcher,
-			effectsTasks: effectsTasks,
-			toolClosers:  toolClosers,
-			resources:    shutdownResources(cfg.Resources),
-		},
+		lifetime: lifetime,
 	}
-	transferred = true
 	return host, nil
 }
 
