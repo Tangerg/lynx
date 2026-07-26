@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { WorkspaceFileChange } from "./workspaceData";
 import { fileChangesSubtext, fileChangesViewModel } from "./fileChangesViewModel";
 
@@ -75,6 +76,6 @@ describe("fileChangesViewModel", () => {
 
 describe("fileChangesSubtext", () => {
   it("builds files header subtext", () => {
-    expect(fileChangesSubtext({ fileCount: 2 })).toBe("2 files · uncommitted");
+    expect(fileChangesSubtext(t, { fileCount: 2 })).toBe("2 files · uncommitted");
   });
 });

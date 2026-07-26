@@ -71,7 +71,7 @@ function ToolsTab() {
       icon="tool"
       titleStrong
       title="tools.title"
-      sub={toolCatalogSubtext(view)}
+      sub={toolCatalogSubtext(t, view)}
       scrollClassName="py-1"
     >
       <BuiltinToolsSection />

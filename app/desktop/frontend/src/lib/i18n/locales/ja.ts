@@ -104,8 +104,27 @@ export const ja: Record<string, string> = {
   "tools.preview.viewDetails": "詳細を表示",
   "tools.preview.viewText": "テキスト全体を表示",
   "tools.preview.viewReply": "返信全体を表示",
+  "tools.preview.pending.matching": "照合中…",
+  "tools.preview.pending.querying": "問い合わせ中…",
+  "tools.preview.pending.running": "実行中…",
+  "tools.preview.pending.searching": "検索中…",
+  "tools.preview.idle.noMatches": "（一致なし）",
+  "tools.preview.idle.empty": "（空）",
+  "tools.preview.idle.noOutput": "（出力なし）",
+  "tools.preview.idle.noResults": "（結果なし）",
+  "tools.overflow.more": "他 {{count}} 件",
+  "tools.overflow.matches": "他 {{count}} 件の一致",
+  "tools.overflow.rows": "他 {{count}} 行",
+  "tools.overflow.lines": "他 {{count}} 行",
+  "tools.overflow.truncated": "ランタイムにより切り詰められました",
+  "tools.overflow.outputTruncated": "出力がランタイムにより切り詰められました",
+  "tools.group.calls": "{{count}} 件の呼び出し",
 
   "common.remove": "削除",
+  "common.loading": "読み込み中",
+  "tasks.header": "タスク",
+  "tasks.title.running": "{{count}} 件のタスクを実行中",
+  "tasks.title.recent": "最近のタスク",
   "status.notifications": "通知",
   "status.notifications.unread": "未読の通知 {{count}} 件",
   "session.row.titleLabel": "セッションのタイトル",
@@ -192,6 +211,10 @@ export const ja: Record<string, string> = {
   "plugins.origin.builtin.title": "Lyra に同梱",
   "plugins.origin.sideload": "サイドロード",
   "plugins.origin.sideload.title": "ユーザーがインストール",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> の描画に失敗しました。",
+  "plugins.mainView": "メインビュー",
+  "plugins.sideload":
+    "<code>{{file}}</code> を含むプラグインフォルダーを <code>{{dir}}</code> に置き、アプリを再起動するとサイドロードされます。テンプレートは <code>{{sample}}</code> を参照してください。",
 
   "connection.error.invalidUrl": "無効な URL",
   "shape.radius.aria": "角丸",
@@ -233,6 +256,8 @@ export const ja: Record<string, string> = {
   "settings.font.code": "コード",
   "settings.font.size": "サイズ",
   "settings.font.default": "デフォルト",
+  "settings.font.defaultUi": "デフォルト（システム）",
+  "settings.font.defaultMono": "デフォルト（システム等幅）",
   "settings.font.smoothing": "フォントスムージング（macOS アンチエイリアス）",
   "settings.customColors": "カスタムカラー",
   "settings.customColors.sub": "背景 + 前景。残りは自動的に派生します。",
@@ -274,6 +299,9 @@ export const ja: Record<string, string> = {
   "iconGallery.filterLabel": "アイコン名で絞り込み",
   "iconGallery.filterPlaceholder": "名前で絞り込み…",
   "iconGallery.empty": '"{{q}}" に一致するアイコンはありません。',
+  "iconGallery.subtitle": "{{count}} 個のアイコン · LLM モデル・プロバイダー・アプリのブランド",
+  "iconGallery.showcase":
+    "<code>{{pkg}}</code> から厳選した {{count}} 個のブランドアイコン。全カタログ: <em>{{combo}} → View: Icon Gallery</em>。",
 
   "approval.settled.approved": "承認済",
   "approval.settled.declined": "拒否",
@@ -340,6 +368,8 @@ export const ja: Record<string, string> = {
 
   // ── ワークスペースビュー：タイムライン ──
   "timeline.title": "実行タイムライン",
+  "timeline.runLabel": "実行 {{id}}",
+  "timeline.summary": "{{events}} 件のイベント · {{runs}} 回の実行",
   "timeline.jumpToChat": "チャットへ移動",
   "timeline.empty.title": "まだアクティビティがありません",
   "timeline.empty.sub":
@@ -356,6 +386,7 @@ export const ja: Record<string, string> = {
   "notifications.title": "通知",
   "notifications.clearAll": "すべてクリア",
   "notifications.dismiss": "閉じる",
+  "notifications.subtext": "未読 {{unread}} 件 · 全 {{total}} 件",
   "notifications.empty.title": "通知はありません",
   "notifications.empty.sub": "プラグインが host.notify() で報告した内容がここに表示されます。",
 
@@ -369,6 +400,8 @@ export const ja: Record<string, string> = {
   "search.placeholder": "検索パターン（正規表現）…",
   "search.aria": "検索パターン",
   "search.noMatches": "セッションワークスペースを正規表現で検索",
+  "search.matches": "{{count}} 件の一致",
+  "search.overflow": "他 {{count}} 件の一致は表示されていません — 条件を絞り込んでください。",
   "search.empty.title": "一致なし",
   "search.empty.sub": "ワークスペース内にこのパターンに一致するものはありません。",
 
@@ -383,6 +416,7 @@ export const ja: Record<string, string> = {
   "terminal.title": "ターミナル",
   "terminal.empty.title": "まだコマンドはありません",
   "terminal.empty.sub": "agent が実行したコマンドとその出力がここに表示されます。",
+  "terminal.commands": "{{count}} 件のコマンド",
 
   // ── ワークスペースビュー：プラン ──
   "plan.title": "プラン",
@@ -397,6 +431,7 @@ export const ja: Record<string, string> = {
   "tools.empty.title": "MCP サーバーが設定されていません",
   "tools.empty.sub": "MCP 設定でサーバーを追加して agent にツールを公開します。",
   "tools.footer": "設定で MCP サーバーを管理",
+  "tools.mcpSubtext": "MCP {{active}} 件が接続中 · 設定済み {{configured}} 件",
   "tools.status.on": "オン",
   "tools.status.off": "オフ",
   "tools.status.error": "エラー",
@@ -420,6 +455,9 @@ export const ja: Record<string, string> = {
   // ── ワークスペースビュー：メモリ ──
   "memory.title": "メモリ",
   "memory.scopes": "{{count}} スコープ",
+  "memory.scope.cwd": "作業ディレクトリ",
+  "memory.scope.projectRoot": "プロジェクトルート",
+  "memory.scope.home": "ホーム",
   "memory.off": "オフ",
   "memory.empty.title": "まだメモリはありません",
   "memory.empty.sub": "ランタイムが agent のために管理する LYRA.md ファイルがここに表示されます。",
@@ -479,6 +517,7 @@ export const ja: Record<string, string> = {
   "diff.baselineAria": "Diff ベースライン",
   "diff.mode.worktree": "ワークツリー",
   "diff.mode.branch": "ブランチ",
+  "diff.fileCount": "{{count}} 個のファイル",
   "diff.error.noBaseline": "ベースラインブランチなし",
   "diff.error.loadFailed": "Diff を読み込めませんでした",
   "diff.error.noBaselineSub":
@@ -499,9 +538,11 @@ export const ja: Record<string, string> = {
   // ── プラン / タスクリスト見出し ──
   "plan.list.heading": "タスクプラン",
   "todos.list.heading": "タスクリスト",
+  "todos.progress": "{{total}} 件中 {{done}} 件完了",
 
   // ── ファイル変更 ──
   "files.changed": "{{count}} ファイル変更",
+  "files.uncommitted": "{{count}} 個のファイル · 未コミット",
   "files.binary": "bin",
 
   "compaction.compacted": "コンテキストが圧縮されました",
@@ -514,6 +555,8 @@ export const ja: Record<string, string> = {
   "convExport.markdown": "会話を Markdown でエクスポート",
   "convExport.json": "会話を JSON でエクスポート",
   "convExport.import": "JSON から会話をインポート",
+  "convExport.docTitle": "会話",
+  "convExport.exportedAt": "{{time}} にエクスポート",
   "convExport.importUnsupported": "このランタイムはセッションインポートをサポートしていません。",
   "convExport.notJson": "JSON ファイルではありません。",
   "convExport.notLyra":
@@ -542,6 +585,13 @@ export const ja: Record<string, string> = {
   "command.focusComposer": "コンポーザーにフォーカス",
 
   "diagnostics.clear": "クリア",
+  "diagnostics.title": "診断",
+  "diagnostics.description":
+    "リアルタイム OpenTelemetry — トレース / メトリクス / ログ。メモリ内のみ（上限あり）で、永続的な記録は OTLP 経由で送られます。「クリア」でバッファをリセットします。",
+  "diagnostics.signalAria": "テレメトリー信号",
+  "diagnostics.signal.traces": "トレース",
+  "diagnostics.signal.metrics": "メトリクス",
+  "diagnostics.signal.logs": "ログ",
   "reasoning.thinking": "考えています…",
   "reasoning.thinkingWithTime": "考えています · {{time}}",
   "reasoning.thoughtFor": "{{time}} 考えました",
@@ -581,6 +631,7 @@ export const ja: Record<string, string> = {
   "usage.range.all": "すべて",
   "usage.range.30d": "30日",
   "usage.range.7d": "7日",
+  "usage.rangeAria": "使用量の期間",
   "usage.loading": "使用量を読み込み中…",
   "usage.error": "使用量を読み込めませんでした。",
   "usage.empty": "使用量はまだありません",
@@ -864,6 +915,7 @@ export const ja: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 件一致",
+  "tool.meta.files": "{{count}} 個のファイル",
   "tool.meta.exit": "終了コード {{code}}",
   "tool.meta.live": "実行中",
   "tool.group.read": "読み取り {{count}}",

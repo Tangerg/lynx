@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { TaskReadoutTask } from "./ports/taskReadoutPort";
 import { taskProgressPercent, taskReadout } from "./taskReadout";
 
@@ -14,7 +15,7 @@ const task = (id: string, patch: Partial<TaskReadoutTask>): TaskReadoutTask => (
 
 describe("taskReadout", () => {
   it("returns null when no task exists", () => {
-    expect(taskReadout(new Map())).toBeNull();
+    expect(taskReadout(t, new Map())).toBeNull();
   });
 
   it("sorts by start time and highlights the oldest running task", () => {
@@ -23,6 +24,7 @@ describe("taskReadout", () => {
     const secondRunning = task("second", { startedAt: 3 });
 
     const readout = taskReadout(
+      t,
       new Map([
         [secondRunning.id, secondRunning],
         [done.id, done],
@@ -45,6 +47,7 @@ describe("taskReadout", () => {
 
     expect(
       taskReadout(
+        t,
         new Map([
           [first.id, first],
           [latest.id, latest],

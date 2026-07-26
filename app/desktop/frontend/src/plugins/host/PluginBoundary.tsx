@@ -1,3 +1,4 @@
+import { Trans } from "@/lib/i18n";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { pickPluginErrorFallback, reportPluginError } from "../sdk";
@@ -52,7 +53,11 @@ export class PluginBoundary extends Component<Props, State> {
 
     return (
       <div className="plugin-boundary-error">
-        <strong>{this.props.label ?? this.props.plugin}</strong> failed to render.
+        <Trans
+          i18nKey="plugins.renderFailed"
+          values={{ plugin: this.props.label ?? this.props.plugin }}
+          components={{ strong: <strong /> }}
+        />
         <code>{this.state.error.message}</code>
       </div>
     );

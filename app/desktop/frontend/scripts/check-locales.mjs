@@ -40,10 +40,27 @@
 //      view model or hold a rule; the words belong to the view, which has a
 //      translator. Five modules had drifted — tool labels, meta chips, a group
 //      summary, nine danger reasons, a run digest — so seven locales read parts
-//      of the chat stream in English. `application/` is NOT covered: it
-//      legitimately carries developer strings (port messages, log lines), and a
-//      rule that needs an exemption list per callsite is a rule that stops
-//      being read.
+//      of the chat stream in English.
+//  10. No SENTENCE in `application/`. This ring was left out for a while because
+//      it does carry developer strings the rule would trip on; the cost of that
+//      gap was four sibling view models each inventing English for the same
+//      header slot ("2 MCP active · 5 configured", "3 commands", "7 matches",
+//      "1 unread · 4 total") plus a task pill title, none of which any catalog
+//      could see. Both families it was waiting on are now handled precisely
+//      rather than by an exemption list: a port's not-configured message is read
+//      out of the `createSingletonPort` argument and dropped, and a sentence is
+//      required to LOOK like one — a space plus a word that starts lowercase —
+//      so a curated list of font families ("SF Pro Text") isn't one.
+//  11. No copy inside a component. A view is the right ring for words, but a
+//      literal there still bypasses all eight catalogs, and twenty-six had: five
+//      tool previews' placeholders, four overflow footers, a diagnostics panel's
+//      title / description / signal switch, the plugin boundary's error line, the
+//      sideload hint, the loader's screen-reader label. Three shapes are checked —
+//      a text node of two or more words, a text node that mixes an expression
+//      with words ("{count} more"), and a string-valued prop that reads as a
+//      sentence. Single tokens are NOT caught: a regex can't tell the `esc` on a
+//      keycap or a `json` badge from a word, and pretending otherwise would make
+//      the rule noisy enough to be turned off.
 //
 // And one on WHEN copy is resolved:
 //
@@ -96,6 +113,51 @@ const PROSE_PATTERN = /(?:"([^"\n]*)"|`([^`\n]*)`)/g;
 const TWO_WORDS = /[A-Za-z]{2,}[ ,]+[A-Za-z]{2,}/;
 // Rings whose job is a model, a rule or a view model — never one locale's words.
 const COPY_FREE_RING = /plugins\/builtin\/.+\/(?:presentation|domain)\/.+\.tsx?$/;
+// Use cases: they may take a translator, but they may not know one locale's words.
+const USE_CASE_RING = /plugins\/builtin\/.+\/application\/.+\.tsx?$/;
+// A port's "… is not configured" is thrown at a developer before any screen exists.
+const PORT_MESSAGE = /createSingletonPort(?:<[^>]*>)?\(\s*(["'`])(?:\\.|(?!\1)[\s\S])*?\1/g;
+// `${ … }` inside a template, tolerating one level of nesting (`t("k", { n })`).
+const INTERPOLATION = /\$\{(?:[^{}]|\{[^{}]*\})*\}/g;
+// A JSX text node with no expression in it: `>Some words</`. The `>` must close
+// a tag, so it may not be preceded by a space — `count > 0 ? … : …` inside an
+// expression is a comparison, not the end of `<div>`.
+const JSX_TEXT = /[^\s]>([^<>{}]{4,}?)<\//g;
+// A JSX text node that mixes expressions with literal text: `>… {count} more</`.
+const JSX_MIXED = /[^\s]>([^<>]*\{[^<>]*\}[^<>]*)<\//g;
+// `&nbsp;` and friends are typesetting, not words.
+const HTML_ENTITY = /&[a-zA-Z]+;|&#\d+;/g;
+// A string-valued JSX prop. `className` and friends carry mechanisms, not words.
+const JSX_PROP = /\s([a-zA-Z][\w-]*)=["]([^"]*[ ][^"]*)["]/g;
+const MECHANISM_PROP = /^(?:className|class|style|d|viewBox|accept|srcSet|sizes|content|rel)$/;
+
+/**
+ * Does this read as a sentence rather than as data?
+ *
+ * A space plus a word that starts lowercase. Curated identifier lists live in
+ * `application/` for good reasons — the font families the picker offers, an MCP
+ * server's own name — and "SF Pro Text" is not copy. "Recent tasks" is.
+ */
+function looksLikeSentence(text) {
+  return / /.test(text) && /(?:^|[^A-Za-z])[a-z]{3,}/.test(text);
+}
+
+/** The literal halves of a template literal — what a reader actually sees. */
+function literalParts(raw) {
+  return raw.split(INTERPOLATION);
+}
+
+/** Text at brace depth 0 — the words in a mixed JSX node, minus the expressions. */
+function textOutsideExpressions(node) {
+  let depth = 0;
+  let out = "";
+  for (const char of node) {
+    if (char === "{") depth++;
+    else if (char === "}") depth = Math.max(0, depth - 1);
+    else if (depth === 0) out += char;
+  }
+  return out;
+}
 
 // A registration call — its argument is a spec that outlives this moment.
 const CONTRIBUTION_CALL =
@@ -247,6 +309,51 @@ for (const path of sourceFiles(SRC_DIR)) {
         if (TWO_WORDS.test(text)) {
           failures.push(`${relative}: prose in a copy-free ring — "${text}" belongs in a catalog`);
         }
+      }
+    }
+  }
+
+  // Rule 10 — a use case may hold a rule about copy, never the copy.
+  if (USE_CASE_RING.test(relative)) {
+    for (const line of code.replace(PORT_MESSAGE, "createSingletonPort(").split("\n")) {
+      // A `when:` clause is an expression in the command DSL, not a sentence.
+      if (line.includes("console.") || line.includes("Error(") || /\bwhen:/.test(line)) continue;
+      for (const match of line.matchAll(PROSE_PATTERN)) {
+        for (const part of literalParts(match[1] ?? match[2] ?? "")) {
+          if (looksLikeSentence(part)) {
+            failures.push(
+              `${relative}: a use case wrote copy — "${part.trim()}" belongs in a catalog, resolved by the view (or take a Translate)`,
+            );
+          }
+        }
+      }
+    }
+  }
+
+  // Rule 11 — a component renders copy; it doesn't author it.
+  if (relative.endsWith(".tsx")) {
+    for (const match of code.matchAll(JSX_TEXT)) {
+      const text = match[1].replace(/\s+/g, " ").trim();
+      if (TWO_WORDS.test(text)) {
+        failures.push(`${relative}: literal copy in a component — "${text}" belongs in a catalog`);
+      }
+    }
+    for (const match of code.matchAll(JSX_MIXED)) {
+      const text = textOutsideExpressions(match[1])
+        .replace(HTML_ENTITY, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (/[A-Za-z]{3,}/.test(text)) {
+        failures.push(
+          `${relative}: literal copy beside an expression — "${text}" belongs in a catalog`,
+        );
+      }
+    }
+    for (const match of code.matchAll(JSX_PROP)) {
+      const [, prop, value] = match;
+      if (MECHANISM_PROP.test(prop)) continue;
+      if (looksLikeSentence(value)) {
+        failures.push(`${relative}: ${prop}="${value}" is copy — pass a catalog key or a t() call`);
       }
     }
   }

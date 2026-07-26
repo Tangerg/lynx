@@ -151,9 +151,15 @@ function toolDiffRow(value: unknown): ToolDiffRow | undefined {
  *  edit's patch inline and shows real counts; a `write` (or any shape without
  *  `diff` rows) carries none, so we return {} rather than a fabricated "+0 −0"
  *  on every card (ToolMeta renders `+{added}` whenever `added != null`). */
-function editLineCounts(result: unknown): Partial<ToolCall> {
+/** result.changes (FileEdit[]) — the files one edit call touched. */
+function editChanges(result: unknown): unknown[] {
   const changes = asRecord(result)?.changes;
-  if (!Array.isArray(changes)) return {};
+  return Array.isArray(changes) ? changes : [];
+}
+
+function editLineCounts(result: unknown): Partial<ToolCall> {
+  const changes = editChanges(result);
+  if (changes.length === 0) return {};
   const rows = changes.flatMap((c): ToolDiffRow[] => {
     const diff = asRecord(c)?.diff;
     return Array.isArray(diff) ? diff.flatMap((row) => toolDiffRow(row) ?? []) : [];
@@ -220,11 +226,13 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
     case "fileEdit": {
       const path = asString(a.file_path) ?? asString(a.path);
       if (path) return path;
-      const rawChanges = asRecord(tool.result)?.changes;
-      const changes = Array.isArray(rawChanges) ? rawChanges : [];
-      return changes.length === 1
-        ? (asString(asRecord(changes[0])?.path) ?? "file")
-        : `${changes.length} files`;
+      const single = asString(asRecord(editChanges(tool.result)[0])?.path);
+      // No single path to show: leave the tool's own name, which is how every
+      // other label-less case reports "I have nothing better" — presentation
+      // then resolves it through TOOL_LABEL_KEYS, and the file count rides along
+      // as a meta chip. A fold that spelled "3 files" here froze one language
+      // into the view state.
+      return single ?? tool.name;
     }
     case "search":
       return asString(a.query) || asString(a.pattern) || "search";
@@ -274,8 +282,13 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
           : {}),
       };
     }
-    case "fileEdit":
-      return editLineCounts(tool.result);
+    case "fileEdit": {
+      const changes = editChanges(tool.result);
+      return {
+        ...editLineCounts(tool.result),
+        ...(changes.length > 1 ? { files: changes.length } : {}),
+      };
+    }
     case "search":
       // grep returns ONE of matches/files/counts (output_mode); glob returns
       // paths. `hits` (§4.4.2) kept first for convention-shaped runtimes.

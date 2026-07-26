@@ -29,7 +29,7 @@ export function WorkspaceViewBody({ viewId }: Props) {
     );
   }
   return (
-    <PluginBoundary plugin={`workspace:${viewId}`} label="main view">
+    <PluginBoundary plugin={`workspace:${viewId}`} label={t("plugins.mainView")}>
       <Body />
     </PluginBoundary>
   );

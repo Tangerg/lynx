@@ -2,6 +2,7 @@
 // workspace.grep query and GlobResponse carries the paths inline, so it gets its
 // own preview rather than riding the grep one.
 
+import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
@@ -12,11 +13,16 @@ import { globToolPreview } from "@/plugins/builtin/chat/tools/application/toolPr
 import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const t = useT();
   const { paths, truncated } = globPreviewData(tool.result);
   return (
     <div className={PREVIEW_WRAP}>
       {paths.length === 0 && (
-        <PreviewPlaceholder status={tool.status} pending="Matching…" idle="(no matches)" />
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.matching"
+          idle="tools.preview.idle.noMatches"
+        />
       )}
       {paths.slice(0, MAX_ROWS).map((p) => (
         <div
@@ -27,7 +33,7 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
         </div>
       ))}
       <Overflow count={paths.length - MAX_ROWS} />
-      {truncated && <div className="text-fg-faint">… truncated by runtime</div>}
+      {truncated && <div className="text-fg-faint">… {t("tools.overflow.truncated")}</div>}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

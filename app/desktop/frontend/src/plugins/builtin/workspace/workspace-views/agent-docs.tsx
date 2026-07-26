@@ -44,7 +44,7 @@ function AgentDocsTab() {
                   <div className="mt-0.5 truncate font-mono text-ui-sm text-fg-faint">{d.path}</div>
                 </div>
                 <span className="rounded-full bg-surface-2 px-1.5 py-px text-ui-xs text-fg-muted">
-                  {d.scopeLabel}
+                  {t(d.scopeLabelKey)}
                 </span>
               </div>
             ))}

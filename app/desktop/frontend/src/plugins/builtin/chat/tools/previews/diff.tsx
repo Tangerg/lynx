@@ -1,6 +1,7 @@
 // diff preview — edit / write. Prefers the call-scoped patch (FileEdit.diff),
 // falling back to the whole-worktree diff via useDiffToolPreview.
 
+import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,7 @@ const ROW_STYLE: Record<
 };
 
 function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const t = useT();
   // Prefer THIS edit's call-scoped patch (FileEdit.diff, §12.1 C) — exactly
   // what the edit changed. Fall back to the whole-worktree diff for a `write`
   // (no call-scoped diff) or until the completed item carries one; each file's
@@ -64,8 +66,8 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
         })}
         {(hiddenRows > 0 || truncated) && (
           <div className="text-fg-faint">
-            {hiddenRows > 0 && `… ${hiddenRows} more rows`}
-            {truncated && " · truncated by runtime"}
+            {hiddenRows > 0 && `… ${t("tools.overflow.rows", { count: hiddenRows })}`}
+            {truncated && ` · ${t("tools.overflow.truncated")}`}
           </div>
         )}
       </div>

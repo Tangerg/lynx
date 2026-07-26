@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { NotificationEntry, NotificationLevel } from "@/plugins/sdk";
 
 export type NotificationDotTone = "err" | "waiting" | "idle";
@@ -32,11 +33,11 @@ export function notificationsViewModel(log: readonly NotificationEntry[]): Notif
   };
 }
 
-export function notificationsSubtext({
-  unreadCount,
-  totalCount,
-}: Pick<NotificationsViewModel, "unreadCount" | "totalCount">): string {
-  return `${unreadCount} unread · ${totalCount} total`;
+export function notificationsSubtext(
+  t: Translate,
+  { unreadCount, totalCount }: Pick<NotificationsViewModel, "unreadCount" | "totalCount">,
+): string {
+  return t("notifications.subtext", { unread: unreadCount, total: totalCount });
 }
 
 export function notificationDotTone(level: NotificationLevel): NotificationDotTone {

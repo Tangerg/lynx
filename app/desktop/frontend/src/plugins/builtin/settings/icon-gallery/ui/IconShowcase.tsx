@@ -3,6 +3,8 @@
 // just shows the brands most users care about, grouped by purpose, so the
 // pane fits the rail-style settings layout.
 
+import { comboGlyph } from "@/lib/combo";
+import { Trans } from "@/lib/i18n";
 import { IconMap, TocById } from "./iconMap";
 
 interface Section {
@@ -111,11 +113,16 @@ export function IconShowcase() {
   return (
     <div className="flex flex-col gap-4.5">
       <p className="m-0 mb-1 text-ui-lg leading-body text-fg-muted">
-        A curated set of {total} brand glyphs from{" "}
-        <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-ui-md text-fg">
-          @lobehub/icons
-        </code>
-        . Full catalogue: <em className="not-italic text-fg">Cmd + K → View: Icon Gallery</em>.
+        <Trans
+          i18nKey="iconGallery.showcase"
+          values={{ count: total, pkg: "@lobehub/icons", combo: comboGlyph("Mod+K") }}
+          components={{
+            code: (
+              <code className="rounded-xs bg-surface-2 px-1.5 py-px font-mono text-ui-md text-fg" />
+            ),
+            em: <em className="not-italic text-fg" />,
+          }}
+        />
       </p>
 
       {SECTIONS.map((sec) => (

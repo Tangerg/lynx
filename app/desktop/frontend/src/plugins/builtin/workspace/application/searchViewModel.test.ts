@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { WorkspaceGrepMatch } from "./workspaceData";
 import { workspaceSearchSubtext, workspaceSearchViewModel } from "./searchViewModel";
 
@@ -49,11 +50,11 @@ describe("workspaceSearchViewModel", () => {
 
 describe("workspaceSearchSubtext", () => {
   it("omits subtext before a result exists", () => {
-    expect(workspaceSearchSubtext(workspaceSearchViewModel(null))).toBeUndefined();
+    expect(workspaceSearchSubtext(t, workspaceSearchViewModel(null))).toBeUndefined();
   });
 
   it("builds match count subtext", () => {
-    expect(workspaceSearchSubtext(workspaceSearchViewModel({ matches: [], total: 4 }))).toBe(
+    expect(workspaceSearchSubtext(t, workspaceSearchViewModel({ matches: [], total: 4 }))).toBe(
       "4 matches",
     );
   });

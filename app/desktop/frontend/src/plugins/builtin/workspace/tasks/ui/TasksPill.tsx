@@ -1,3 +1,4 @@
+import { useT } from "@/lib/i18n";
 import { Icon, IconButton, Popover, ProgressBar } from "@/ui";
 import { cn } from "@/lib/utils";
 import type { TaskReadoutStatus, TaskReadoutTask } from "../application/ports/taskReadoutPort";
@@ -11,6 +12,7 @@ const STATUS_ICON: Record<TaskReadoutStatus, { name: "spark" | "check" | "x"; to
 
 export function TasksPill() {
   const readout = useTaskReadout();
+  const t = useT();
   if (!readout) return null;
 
   const { name, tone } = STATUS_ICON[readout.head.status];
@@ -30,7 +32,9 @@ export function TasksPill() {
         }
       />
       <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-xl">
-        <div className="px-3 pt-2 pb-1 text-ui-xs font-semibold text-fg-faint">Tasks</div>
+        <div className="px-3 pt-2 pb-1 text-ui-xs font-semibold text-fg-faint">
+          {t("tasks.header")}
+        </div>
         <div className="max-h-[280px] overflow-y-auto">
           {readout.tasks.map((task) => (
             <TaskRow key={task.id} task={task} />

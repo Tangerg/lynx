@@ -40,6 +40,9 @@ export interface ToolCall {
    *  re-querying the whole worktree. Absent for write / non-edit tools. */
   diff?: ToolDiffRow[];
   hits?: number;
+  /** fileEdit-category: how many files this one call touched. A count, not a
+   *  sentence — the meta chip words it in the reader's language. */
+  files?: number;
   /** command-category (`shell`) exit code, from result.exitCode (§4.4.2).
    *  Surfaced for visibility; a non-zero exit is shown but does NOT force the
    *  status red (exit≠0 isn't always failure — e.g. grep "no match"). Real

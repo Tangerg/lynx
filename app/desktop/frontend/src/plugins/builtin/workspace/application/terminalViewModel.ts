@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { WorkspaceCommandActivity } from "./toolActivity";
 
 export interface TerminalViewModel {
@@ -23,11 +24,12 @@ export function terminalViewModel(
   };
 }
 
-export function terminalSubtext({
-  commandCount,
-}: Pick<TerminalViewModel, "commandCount">): string | undefined {
+export function terminalSubtext(
+  t: Translate,
+  { commandCount }: Pick<TerminalViewModel, "commandCount">,
+): string | undefined {
   if (commandCount === 0) {
     return undefined;
   }
-  return `${commandCount} commands`;
+  return t("terminal.commands", { count: commandCount });
 }

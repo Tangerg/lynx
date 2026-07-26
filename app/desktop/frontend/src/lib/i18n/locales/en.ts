@@ -115,8 +115,27 @@ export const en: Record<string, string> = {
   "tools.preview.viewDetails": "View details",
   "tools.preview.viewText": "View full text",
   "tools.preview.viewReply": "View full reply",
+  "tools.preview.pending.matching": "Matching…",
+  "tools.preview.pending.querying": "Querying…",
+  "tools.preview.pending.running": "Running…",
+  "tools.preview.pending.searching": "Searching…",
+  "tools.preview.idle.noMatches": "(no matches)",
+  "tools.preview.idle.empty": "(empty)",
+  "tools.preview.idle.noOutput": "(no output)",
+  "tools.preview.idle.noResults": "(no results)",
+  "tools.overflow.more": "{{count}} more",
+  "tools.overflow.matches": "{{count}} more matches",
+  "tools.overflow.rows": "{{count}} more rows",
+  "tools.overflow.lines": "{{count}} more lines",
+  "tools.overflow.truncated": "truncated by runtime",
+  "tools.overflow.outputTruncated": "output truncated by runtime",
+  "tools.group.calls": "{{count}} calls",
 
   "common.remove": "Remove",
+  "common.loading": "Loading",
+  "tasks.header": "Tasks",
+  "tasks.title.running": "{{count}} running task(s)",
+  "tasks.title.recent": "Recent tasks",
   "status.notifications": "Notifications",
   "status.notifications.unread": "{{count}} unread notification(s)",
   "session.row.titleLabel": "Session title",
@@ -168,6 +187,7 @@ export const en: Record<string, string> = {
   "usage.range.all": "All",
   "usage.range.30d": "30d",
   "usage.range.7d": "7d",
+  "usage.rangeAria": "Usage range",
   "usage.loading": "Loading usage…",
   "usage.error": "Couldn't load usage.",
   "usage.empty": "No usage yet",
@@ -320,6 +340,10 @@ export const en: Record<string, string> = {
   "plugins.origin.builtin.title": "Ships with Lyra",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "User-installed",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> failed to render.",
+  "plugins.mainView": "main view",
+  "plugins.sideload":
+    "Sideload by dropping a plugin folder containing <code>{{file}}</code> into <code>{{dir}}</code> and restarting the app. See <code>{{sample}}</code> for a template.",
 
   "connection.error.invalidUrl": "Invalid URL",
   "shape.radius.aria": "Corner radius",
@@ -366,6 +390,8 @@ export const en: Record<string, string> = {
   "settings.font.code": "Code",
   "settings.font.size": "Size",
   "settings.font.default": "Default",
+  "settings.font.defaultUi": "Default (System)",
+  "settings.font.defaultMono": "Default (System mono)",
   "settings.font.smoothing": "Font smoothing (macOS antialiasing)",
   "settings.customColors": "Custom colors",
   "settings.customColors.sub": "Background + foreground; the rest is derived.",
@@ -409,6 +435,9 @@ export const en: Record<string, string> = {
   "iconGallery.filterLabel": "Filter icons by name",
   "iconGallery.filterPlaceholder": "Filter by name…",
   "iconGallery.empty": 'No icons match "{{q}}".',
+  "iconGallery.subtitle": "{{count}} icons · brands across LLM models, providers, and apps",
+  "iconGallery.showcase":
+    "A curated set of {{count}} brand glyphs from <code>{{pkg}}</code>. Full catalogue: <em>{{combo}} → View: Icon Gallery</em>.",
 
   "approval.settled.approved": "Approved",
   "approval.settled.declined": "Declined",
@@ -478,6 +507,8 @@ export const en: Record<string, string> = {
 
   // ── Workspace view: Timeline ──
   "timeline.title": "Run timeline",
+  "timeline.runLabel": "run {{id}}",
+  "timeline.summary": "{{events}} events · {{runs}} run(s)",
   "timeline.jumpToChat": "Jump to chat",
   "timeline.empty.title": "No activity yet",
   "timeline.empty.sub":
@@ -494,6 +525,7 @@ export const en: Record<string, string> = {
   "notifications.title": "Notifications",
   "notifications.clearAll": "Clear all",
   "notifications.dismiss": "Dismiss",
+  "notifications.subtext": "{{unread}} unread · {{total}} total",
   "notifications.empty.title": "No notifications",
   "notifications.empty.sub": "Anything a plugin reports via host.notify() will appear here.",
 
@@ -507,6 +539,8 @@ export const en: Record<string, string> = {
   "search.placeholder": "Search pattern (regex)…",
   "search.aria": "Search pattern",
   "search.noMatches": "regex over the session workspace",
+  "search.matches": "{{count}} matches",
+  "search.overflow": "{{count}} more matches not shown — narrow the query.",
   "search.empty.title": "No matches",
   "search.empty.sub": "Nothing in the workspace matches this pattern.",
 
@@ -521,6 +555,7 @@ export const en: Record<string, string> = {
   "terminal.title": "Terminal",
   "terminal.empty.title": "No commands yet",
   "terminal.empty.sub": "Commands the agent runs show up here with their output.",
+  "terminal.commands": "{{count}} commands",
 
   // ── Workspace view: Plan ──
   "plan.title": "Plan",
@@ -535,6 +570,7 @@ export const en: Record<string, string> = {
   "tools.empty.title": "No MCP servers configured",
   "tools.empty.sub": "Add a server in MCP settings to expose tools to the agent.",
   "tools.footer": "Manage MCP servers in settings",
+  "tools.mcpSubtext": "{{active}} MCP active · {{configured}} configured",
   "tools.status.on": "On",
   "tools.status.off": "Off",
   "tools.status.error": "Error",
@@ -682,6 +718,9 @@ export const en: Record<string, string> = {
   // ── Workspace view: Memory ──
   "memory.title": "Memory",
   "memory.scopes": "{{count}} scopes",
+  "memory.scope.cwd": "cwd",
+  "memory.scope.projectRoot": "project root",
+  "memory.scope.home": "home",
   "memory.off": "off",
   "memory.empty.title": "No memory yet",
   "memory.empty.sub": "LYRA.md files the runtime maintains for the agent show up here.",
@@ -752,6 +791,7 @@ export const en: Record<string, string> = {
   "diff.layout.split": "Split",
   "diff.mode.worktree": "Worktree",
   "diff.mode.branch": "Branch",
+  "diff.fileCount": "{{count}} files",
   "diff.error.noBaseline": "No baseline branch",
   "diff.error.loadFailed": "Couldn't load the diff",
   "diff.error.noBaselineSub":
@@ -777,9 +817,11 @@ export const en: Record<string, string> = {
   // ── Plan / Task list headings ──
   "plan.list.heading": "Task plan",
   "todos.list.heading": "Task list",
+  "todos.progress": "{{done}} of {{total}} done",
 
   // ── Files changed ──
   "files.changed": "{{count}} files changed",
+  "files.uncommitted": "{{count}} files · uncommitted",
   "files.binary": "bin",
 
   // ── Compaction block ──
@@ -801,6 +843,8 @@ export const en: Record<string, string> = {
   "convExport.markdown": "Export conversation as Markdown",
   "convExport.json": "Export conversation as JSON",
   "convExport.import": "Import conversation from JSON",
+  "convExport.docTitle": "Conversation",
+  "convExport.exportedAt": "Exported {{time}}",
   "convExport.importUnsupported": "This runtime doesn't support session import.",
   "convExport.notJson": "Not a JSON file.",
   "convExport.notLyra":
@@ -844,6 +888,13 @@ export const en: Record<string, string> = {
 
   // ── Diagnostics view ──
   "diagnostics.clear": "Clear",
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.description":
+    "Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable record leaves via OTLP. “Clear” resets the buffers.",
+  "diagnostics.signalAria": "Telemetry signal",
+  "diagnostics.signal.traces": "Traces",
+  "diagnostics.signal.metrics": "Metrics",
+  "diagnostics.signal.logs": "Logs",
 
   // ── Icon showcase section titles ──
 
@@ -904,6 +955,7 @@ export const en: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} matches",
+  "tool.meta.files": "{{count}} files",
   "tool.meta.exit": "exit {{code}}",
   "tool.meta.live": "live",
   "tool.group.read": "{{count}} read",

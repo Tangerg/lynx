@@ -42,7 +42,7 @@ function FilesView() {
       icon="filetext"
       titleStrong
       title="files.title"
-      sub={fileChangesSubtext(view)}
+      sub={fileChangesSubtext(t, view)}
     >
       <DataView
         items={gitEnabled ? items : []}

@@ -35,7 +35,7 @@ function SearchTab() {
       icon="search"
       titleStrong
       title="search.title"
-      sub={workspaceSearchSubtext(view) ?? t("search.noMatches")}
+      sub={workspaceSearchSubtext(t, view) ?? t("search.noMatches")}
       scrollClassName="py-1"
     >
       <div className="px-4 pt-1 pb-2">
@@ -88,7 +88,7 @@ function SearchTab() {
               ))}
               {view.overflowCount > 0 && (
                 <div className="px-4 py-2 text-ui-sm text-fg-faint">
-                  … {view.overflowCount} more matches not shown — narrow the query.
+                  … {t("search.overflow", { count: view.overflowCount })}
                 </div>
               )}
             </div>

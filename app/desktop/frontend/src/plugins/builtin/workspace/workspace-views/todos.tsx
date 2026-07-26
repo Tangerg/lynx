@@ -22,7 +22,7 @@ function TodosTab() {
       icon="check"
       titleStrong
       title="todos.title"
-      sub={workspaceTodosSubtext(view)}
+      sub={workspaceTodosSubtext(t, view)}
     >
       {view.state === "unavailable" ? (
         <EmptyState

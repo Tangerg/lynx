@@ -61,6 +61,9 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
       tone: "negative",
     });
   }
+  if (tool.files != null) {
+    items.push({ id: "files", label: t("tool.meta.files", { count: tool.files }), tone: "muted" });
+  }
   if (tool.hits != null) {
     items.push({ id: "hits", label: t("tool.meta.matches", { count: tool.hits }), tone: "muted" });
   }

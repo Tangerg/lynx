@@ -1,6 +1,7 @@
 // terminal preview — shell + the background-shell family (run_in_background /
 // shell_output / shell_kill), all terminal-style plain text.
 
+import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
@@ -14,6 +15,7 @@ import { CODE_PANEL } from "./shared";
 const MAX_TERM_LINES = 9;
 
 function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const t = useT();
   // Render THIS call's stdout from `tool.result` — the authoritative merged
   // output reconciled from the completed Item's tool.result.output, with
   // the toolOutput delta stream as the live preview while running (see
@@ -31,12 +33,16 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
             </div>
           ))
         ) : (
-          <PreviewPlaceholder status={tool.status} pending="Running…" idle="(no output)" />
+          <PreviewPlaceholder
+            status={tool.status}
+            pending="tools.preview.pending.running"
+            idle="tools.preview.idle.noOutput"
+          />
         )}
         {(hiddenLines > 0 || tool.outputTruncated) && (
           <div className="text-fg-faint">
-            {hiddenLines > 0 && `… ${hiddenLines} more lines`}
-            {tool.outputTruncated && " · output truncated by runtime"}
+            {hiddenLines > 0 && `… ${t("tools.overflow.lines", { count: hiddenLines })}`}
+            {tool.outputTruncated && ` · ${t("tools.overflow.outputTruncated")}`}
           </div>
         )}
       </div>

@@ -8,6 +8,7 @@
 // can be reloaded but not unloaded (they're shipped in the bundle;
 // disabling would brick the kernel).
 
+import { Trans } from "@/lib/i18n";
 import type { PluginError, PluginErrorSource } from "@/plugins/sdk";
 import { useState } from "react";
 import { Icon, IconButton, PillButton, TextButton } from "@/ui";
@@ -126,10 +127,15 @@ export function PluginsPane() {
       </div>
 
       <div className="mt-4 text-ui-lg leading-body text-fg-muted">
-        Sideload by dropping a plugin folder containing{" "}
-        <code className={INLINE_CODE}>index.js</code> into{" "}
-        <code className={INLINE_CODE}>~/.lyra/plugins/</code> and restarting the app. See{" "}
-        <code className={INLINE_CODE}>frontend/sample-plugins/hello-sideload/</code> for a template.
+        <Trans
+          i18nKey="plugins.sideload"
+          values={{
+            file: "index.js",
+            dir: "~/.lyra/plugins/",
+            sample: "frontend/sample-plugins/hello-sideload/",
+          }}
+          components={{ code: <code className={INLINE_CODE} /> }}
+        />
       </div>
     </div>
   );

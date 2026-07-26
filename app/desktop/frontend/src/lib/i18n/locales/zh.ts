@@ -110,8 +110,27 @@ export const zh: Record<string, string> = {
   "tools.preview.viewDetails": "查看详情",
   "tools.preview.viewText": "查看完整文本",
   "tools.preview.viewReply": "查看完整回复",
+  "tools.preview.pending.matching": "匹配中…",
+  "tools.preview.pending.querying": "查询中…",
+  "tools.preview.pending.running": "运行中…",
+  "tools.preview.pending.searching": "搜索中…",
+  "tools.preview.idle.noMatches": "（无匹配）",
+  "tools.preview.idle.empty": "（空）",
+  "tools.preview.idle.noOutput": "（无输出）",
+  "tools.preview.idle.noResults": "（无结果）",
+  "tools.overflow.more": "还有 {{count}} 项",
+  "tools.overflow.matches": "还有 {{count}} 个匹配",
+  "tools.overflow.rows": "还有 {{count}} 行",
+  "tools.overflow.lines": "还有 {{count}} 行",
+  "tools.overflow.truncated": "已被运行时截断",
+  "tools.overflow.outputTruncated": "输出已被运行时截断",
+  "tools.group.calls": "{{count}} 次调用",
 
   "common.remove": "移除",
+  "common.loading": "加载中",
+  "tasks.header": "任务",
+  "tasks.title.running": "{{count}} 个任务运行中",
+  "tasks.title.recent": "最近任务",
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 条未读通知",
   "session.row.titleLabel": "会话标题",
@@ -161,6 +180,7 @@ export const zh: Record<string, string> = {
   "usage.range.all": "全部",
   "usage.range.30d": "30 天",
   "usage.range.7d": "7 天",
+  "usage.rangeAria": "用量范围",
   "usage.loading": "加载用量中…",
   "usage.error": "无法加载用量。",
   "usage.empty": "暂无用量",
@@ -311,6 +331,10 @@ export const zh: Record<string, string> = {
   "plugins.origin.builtin.title": "随 Lyra 一同发布",
   "plugins.origin.sideload": "旁加载",
   "plugins.origin.sideload.title": "用户安装",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> 渲染失败。",
+  "plugins.mainView": "主视图",
+  "plugins.sideload":
+    "将包含 <code>{{file}}</code> 的插件目录放入 <code>{{dir}}</code> 并重启应用即可旁加载。模板见 <code>{{sample}}</code>。",
 
   "connection.error.invalidUrl": "无效的 URL",
   "shape.radius.aria": "圆角",
@@ -356,6 +380,8 @@ export const zh: Record<string, string> = {
   "settings.font.code": "代码",
   "settings.font.size": "字号",
   "settings.font.default": "默认",
+  "settings.font.defaultUi": "默认（系统）",
+  "settings.font.defaultMono": "默认（系统等宽）",
   "settings.font.smoothing": "字体平滑（macOS 抗锯齿）",
   "settings.customColors": "自定义颜色",
   "settings.customColors.sub": "背景 + 前景，其余自动派生。",
@@ -396,6 +422,9 @@ export const zh: Record<string, string> = {
   "iconGallery.filterLabel": "按名称筛选图标",
   "iconGallery.filterPlaceholder": "按名称筛选…",
   "iconGallery.empty": '没有匹配 "{{q}}" 的图标。',
+  "iconGallery.subtitle": "{{count}} 个图标 · 覆盖 LLM 模型、服务商与应用品牌",
+  "iconGallery.showcase":
+    "精选 {{count}} 个品牌图标，来自 <code>{{pkg}}</code>。完整目录：<em>{{combo}} → View: Icon Gallery</em>。",
 
   "approval.settled.approved": "已批准",
   "approval.settled.declined": "已拒绝",
@@ -463,6 +492,8 @@ export const zh: Record<string, string> = {
 
   // ── 工作区视图：时间线 ──
   "timeline.title": "运行时间线",
+  "timeline.runLabel": "运行 {{id}}",
+  "timeline.summary": "{{events}} 个事件 · {{runs}} 次运行",
   "timeline.jumpToChat": "转到聊天",
   "timeline.empty.title": "暂无活动",
   "timeline.empty.sub": "agent 运行时，每次工具调用、审批和运行边界都会显示在这里。",
@@ -478,6 +509,7 @@ export const zh: Record<string, string> = {
   "notifications.title": "通知",
   "notifications.clearAll": "全部清除",
   "notifications.dismiss": "忽略",
+  "notifications.subtext": "{{unread}} 条未读 · 共 {{total}} 条",
   "notifications.empty.title": "暂无通知",
   "notifications.empty.sub": "插件通过 host.notify() 报告的任何内容都会显示在这里。",
 
@@ -491,6 +523,8 @@ export const zh: Record<string, string> = {
   "search.placeholder": "搜索模式（正则）…",
   "search.aria": "搜索模式",
   "search.noMatches": "在会话工作区中使用正则搜索",
+  "search.matches": "{{count}} 个匹配",
+  "search.overflow": "还有 {{count}} 个匹配未显示 —— 请缩小查询范围。",
   "search.empty.title": "无匹配",
   "search.empty.sub": "工作区中没有内容匹配此模式。",
 
@@ -505,6 +539,7 @@ export const zh: Record<string, string> = {
   "terminal.title": "终端",
   "terminal.empty.title": "暂无命令",
   "terminal.empty.sub": "agent 运行的命令及其输出会显示在这里。",
+  "terminal.commands": "{{count}} 条命令",
 
   // ── 工作区视图：计划 ──
   "plan.title": "计划",
@@ -519,6 +554,7 @@ export const zh: Record<string, string> = {
   "tools.empty.title": "未配置 MCP 服务器",
   "tools.empty.sub": "在 MCP 设置中添加服务器以向 agent 暴露工具。",
   "tools.footer": "在设置中管理 MCP 服务器",
+  "tools.mcpSubtext": "{{active}} 个 MCP 已连接 · 共配置 {{configured}} 个",
   "tools.status.on": "开",
   "tools.status.off": "关",
   "tools.status.error": "错误",
@@ -589,6 +625,9 @@ export const zh: Record<string, string> = {
   // ── 工作区视图：记忆 ──
   "memory.title": "记忆",
   "memory.scopes": "{{count}} 个作用域",
+  "memory.scope.cwd": "当前目录",
+  "memory.scope.projectRoot": "项目根目录",
+  "memory.scope.home": "主目录",
   "memory.off": "关闭",
   "memory.empty.title": "暂无记忆",
   "memory.empty.sub": "运行时为 agent 维护的 LYRA.md 文件会显示在这里。",
@@ -650,6 +689,7 @@ export const zh: Record<string, string> = {
   "diff.layout.split": "分栏",
   "diff.mode.worktree": "工作树",
   "diff.mode.branch": "分支",
+  "diff.fileCount": "{{count}} 个文件",
   "diff.error.noBaseline": "无基线分支",
   "diff.error.loadFailed": "无法加载 diff",
   "diff.error.noBaselineSub": "无法解析默认分支（无远程 / 独立 HEAD）。",
@@ -674,9 +714,11 @@ export const zh: Record<string, string> = {
   // ── 计划 / 任务列表标题 ──
   "plan.list.heading": "任务计划",
   "todos.list.heading": "任务列表",
+  "todos.progress": "已完成 {{done}} / {{total}}",
 
   // ── 文件变更 ──
   "files.changed": "{{count}} 个文件变更",
+  "files.uncommitted": "{{count}} 个文件 · 未提交",
   "files.binary": "bin",
 
   // ── 压缩块 ──
@@ -690,6 +732,8 @@ export const zh: Record<string, string> = {
   "convExport.markdown": "导出对话为 Markdown",
   "convExport.json": "导出对话为 JSON",
   "convExport.import": "从 JSON 导入对话",
+  "convExport.docTitle": "会话",
+  "convExport.exportedAt": "导出于 {{time}}",
   "convExport.importUnsupported": "此运行时不支持会话导入。",
   "convExport.notJson": "不是 JSON 文件。",
   "convExport.notLyra": "不是 Lyra 会话导出 —— 请选择通过「导出对话」导出的 JSON 文件。",
@@ -719,6 +763,13 @@ export const zh: Record<string, string> = {
   "command.focusComposer": "聚焦输入框",
 
   "diagnostics.clear": "清除",
+  "diagnostics.title": "诊断",
+  "diagnostics.description":
+    "实时 OpenTelemetry —— 链路 / 指标 / 日志。仅保留在内存中（有上限）；持久记录经 OTLP 导出。“清空”会重置缓冲区。",
+  "diagnostics.signalAria": "遥测信号",
+  "diagnostics.signal.traces": "链路",
+  "diagnostics.signal.metrics": "指标",
+  "diagnostics.signal.logs": "日志",
   "reasoning.thinking": "思考中…",
   "reasoning.thinkingWithTime": "思考中 · {{time}}",
   "reasoning.thoughtFor": "思考用时 {{time}}",
@@ -838,6 +889,7 @@ export const zh: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 处匹配",
+  "tool.meta.files": "{{count}} 个文件",
   "tool.meta.exit": "退出码 {{code}}",
   "tool.meta.live": "进行中",
   "tool.group.read": "读取 {{count}}",

@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { WorkspaceGrepMatch } from "./workspaceData";
 
 export const WORKSPACE_SEARCH_MATCH_LIMIT = 200;
@@ -37,14 +38,14 @@ export function workspaceSearchViewModel(
   };
 }
 
-export function workspaceSearchSubtext({
-  hasResult,
-  totalCount,
-}: Pick<WorkspaceSearchViewModel, "hasResult" | "totalCount">): string | undefined {
+export function workspaceSearchSubtext(
+  t: Translate,
+  { hasResult, totalCount }: Pick<WorkspaceSearchViewModel, "hasResult" | "totalCount">,
+): string | undefined {
   if (!hasResult) {
     return undefined;
   }
-  return `${totalCount} matches`;
+  return t("search.matches", { count: totalCount });
 }
 
 function groupSearchMatchesByFile(

@@ -76,7 +76,7 @@ function DiffViewTab() {
       <span className="mx-1">·</span>
       <span className="text-negative">−{view.subtext.removed}</span>
       <span className="mx-2">·</span>
-      <span>{view.subtext.fileCount} files</span>
+      <span>{t("diff.fileCount", { count: view.subtext.fileCount })}</span>
     </>
   ) : undefined;
 

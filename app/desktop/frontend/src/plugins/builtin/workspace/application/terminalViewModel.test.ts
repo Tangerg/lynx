@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { WorkspaceCommandActivity } from "./toolActivity";
 import { terminalSubtext, terminalViewModel } from "./terminalViewModel";
 
@@ -36,10 +37,10 @@ describe("terminalViewModel", () => {
 
 describe("terminalSubtext", () => {
   it("omits header subtext when there are no commands", () => {
-    expect(terminalSubtext({ commandCount: 0 })).toBeUndefined();
+    expect(terminalSubtext(t, { commandCount: 0 })).toBeUndefined();
   });
 
   it("builds command count header text", () => {
-    expect(terminalSubtext({ commandCount: 1 })).toBe("1 commands");
+    expect(terminalSubtext(t, { commandCount: 1 })).toBe("1 commands");
   });
 });

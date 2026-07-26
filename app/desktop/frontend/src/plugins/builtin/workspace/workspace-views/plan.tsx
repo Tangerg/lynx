@@ -12,7 +12,7 @@ function PlanTab() {
   const view = planViewModel(plan);
 
   return (
-    <WorkspaceViewLayout icon="list" titleStrong title="plan.title" sub={planSubtext(view)}>
+    <WorkspaceViewLayout icon="list" titleStrong title="plan.title" sub={planSubtext(t, view)}>
       {view.isEmpty ? (
         <EmptyState icon="list" title={t("plan.empty.title")} sub={t("plan.empty.sub")} />
       ) : (

@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import { useSharedState } from "@/plugins/builtin/agent/public/sharedState";
 import { useWorkspaceCapability } from "./workspaceCapabilities";
 
@@ -43,12 +44,12 @@ export function workspaceTodosViewModel(
   };
 }
 
-export function workspaceTodosSubtext({
-  done,
-  total,
-}: Pick<WorkspaceTodosViewModel, "done" | "total">): string | undefined {
+export function workspaceTodosSubtext(
+  t: Translate,
+  { done, total }: Pick<WorkspaceTodosViewModel, "done" | "total">,
+): string | undefined {
   if (total === 0) {
     return undefined;
   }
-  return `${done} of ${total} done`;
+  return t("todos.progress", { done, total });
 }

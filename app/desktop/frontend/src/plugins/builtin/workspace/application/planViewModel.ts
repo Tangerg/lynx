@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 
 export interface PlanViewModel {
@@ -23,12 +24,12 @@ export function planViewModel(items: readonly PlanItem[]): PlanViewModel {
   };
 }
 
-export function planSubtext({
-  doneCount,
-  totalCount,
-}: Pick<PlanViewModel, "doneCount" | "totalCount">): string | undefined {
+export function planSubtext(
+  t: Translate,
+  { doneCount, totalCount }: Pick<PlanViewModel, "doneCount" | "totalCount">,
+): string | undefined {
   if (totalCount === 0) {
     return undefined;
   }
-  return `${doneCount} of ${totalCount} complete`;
+  return t("plan.complete", { done: doneCount, total: totalCount });
 }

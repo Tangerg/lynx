@@ -104,8 +104,27 @@ export const zhTW: Record<string, string> = {
   "tools.preview.viewDetails": "檢視詳情",
   "tools.preview.viewText": "檢視完整文字",
   "tools.preview.viewReply": "檢視完整回覆",
+  "tools.preview.pending.matching": "比對中…",
+  "tools.preview.pending.querying": "查詢中…",
+  "tools.preview.pending.running": "執行中…",
+  "tools.preview.pending.searching": "搜尋中…",
+  "tools.preview.idle.noMatches": "（無相符項）",
+  "tools.preview.idle.empty": "（空）",
+  "tools.preview.idle.noOutput": "（無輸出）",
+  "tools.preview.idle.noResults": "（無結果）",
+  "tools.overflow.more": "還有 {{count}} 項",
+  "tools.overflow.matches": "還有 {{count}} 個相符項",
+  "tools.overflow.rows": "還有 {{count}} 列",
+  "tools.overflow.lines": "還有 {{count}} 行",
+  "tools.overflow.truncated": "已被執行環境截斷",
+  "tools.overflow.outputTruncated": "輸出已被執行環境截斷",
+  "tools.group.calls": "{{count}} 次呼叫",
 
   "common.remove": "移除",
+  "common.loading": "載入中",
+  "tasks.header": "工作",
+  "tasks.title.running": "{{count}} 個工作執行中",
+  "tasks.title.recent": "最近工作",
   "status.notifications": "通知",
   "status.notifications.unread": "{{count}} 則未讀通知",
   "session.row.titleLabel": "工作階段標題",
@@ -190,6 +209,10 @@ export const zhTW: Record<string, string> = {
   "plugins.origin.builtin.title": "隨 Lyra 一同發布",
   "plugins.origin.sideload": "旁載入",
   "plugins.origin.sideload.title": "使用者安裝",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> 算繪失敗。",
+  "plugins.mainView": "主檢視",
+  "plugins.sideload":
+    "將含有 <code>{{file}}</code> 的外掛資料夾放入 <code>{{dir}}</code> 並重新啟動應用程式即可側載。範本請見 <code>{{sample}}</code>。",
 
   "connection.error.invalidUrl": "無效的 URL",
   "shape.radius.aria": "圓角",
@@ -232,6 +255,8 @@ export const zhTW: Record<string, string> = {
   "settings.font.code": "程式碼",
   "settings.font.size": "大小",
   "settings.font.default": "預設",
+  "settings.font.defaultUi": "預設（系統）",
+  "settings.font.defaultMono": "預設（系統等寬）",
   "settings.font.smoothing": "字型平滑（macOS 反鋸齒）",
   "settings.customColors": "自訂顏色",
   "settings.customColors.sub": "背景 + 前景，其餘自動衍生。",
@@ -272,6 +297,9 @@ export const zhTW: Record<string, string> = {
   "iconGallery.filterLabel": "依名稱篩選圖示",
   "iconGallery.filterPlaceholder": "依名稱篩選…",
   "iconGallery.empty": '沒有符合 "{{q}}" 的圖示。',
+  "iconGallery.subtitle": "{{count}} 個圖示 · 涵蓋 LLM 模型、供應商與應用品牌",
+  "iconGallery.showcase":
+    "精選 {{count}} 個品牌圖示，來自 <code>{{pkg}}</code>。完整目錄：<em>{{combo}} → View: Icon Gallery</em>。",
 
   "approval.settled.approved": "已核可",
   "approval.settled.declined": "已拒絕",
@@ -340,6 +368,8 @@ export const zhTW: Record<string, string> = {
 
   // ── 工作區檢視：時間軸 ──
   "timeline.title": "執行時間軸",
+  "timeline.runLabel": "執行 {{id}}",
+  "timeline.summary": "{{events}} 個事件 · {{runs}} 次執行",
   "timeline.jumpToChat": "前往聊天",
   "timeline.empty.title": "尚無活動",
   "timeline.empty.sub": "agent 執行時，每次工具呼叫、核准和執行邊界都會顯示在這裡。",
@@ -355,6 +385,7 @@ export const zhTW: Record<string, string> = {
   "notifications.title": "通知",
   "notifications.clearAll": "全部清除",
   "notifications.dismiss": "忽略",
+  "notifications.subtext": "{{unread}} 則未讀 · 共 {{total}} 則",
   "notifications.empty.title": "尚無通知",
   "notifications.empty.sub": "外掛透過 host.notify() 報告的任何內容都會顯示在這裡。",
 
@@ -368,6 +399,8 @@ export const zhTW: Record<string, string> = {
   "search.placeholder": "搜尋模式（正則）…",
   "search.aria": "搜尋模式",
   "search.noMatches": "在工作階段工作區中使用正則搜尋",
+  "search.matches": "{{count}} 個相符項",
+  "search.overflow": "還有 {{count}} 個相符項未顯示 —— 請縮小查詢範圍。",
   "search.empty.title": "無符合",
   "search.empty.sub": "工作區中沒有內容符合此模式。",
 
@@ -382,6 +415,7 @@ export const zhTW: Record<string, string> = {
   "terminal.title": "終端機",
   "terminal.empty.title": "尚無命令",
   "terminal.empty.sub": "agent 執行的命令及其輸出會顯示在這裡。",
+  "terminal.commands": "{{count}} 條指令",
 
   // ── 工作區檢視：計畫 ──
   "plan.title": "計畫",
@@ -396,6 +430,7 @@ export const zhTW: Record<string, string> = {
   "tools.empty.title": "未設定 MCP 伺服器",
   "tools.empty.sub": "在 MCP 設定中新增伺服器以向 agent 暴露工具。",
   "tools.footer": "在設定中管理 MCP 伺服器",
+  "tools.mcpSubtext": "{{active}} 個 MCP 已連線 · 共設定 {{configured}} 個",
   "tools.status.on": "開",
   "tools.status.off": "關",
   "tools.status.error": "錯誤",
@@ -419,6 +454,9 @@ export const zhTW: Record<string, string> = {
   // ── 工作區檢視：記憶 ──
   "memory.title": "記憶",
   "memory.scopes": "{{count}} 個作用域",
+  "memory.scope.cwd": "目前目錄",
+  "memory.scope.projectRoot": "專案根目錄",
+  "memory.scope.home": "家目錄",
   "memory.off": "關閉",
   "memory.empty.title": "尚無記憶",
   "memory.empty.sub": "執行時為 agent 維護的 LYRA.md 檔案會顯示在這裡。",
@@ -480,6 +518,7 @@ export const zhTW: Record<string, string> = {
   "diff.layout.split": "分欄",
   "diff.mode.worktree": "工作樹",
   "diff.mode.branch": "分支",
+  "diff.fileCount": "{{count}} 個檔案",
   "diff.error.noBaseline": "無基線分支",
   "diff.error.loadFailed": "無法載入 diff",
   "diff.error.noBaselineSub": "無法解析預設分支（無遠端 / 獨立 HEAD）。",
@@ -504,9 +543,11 @@ export const zhTW: Record<string, string> = {
   // ── 計畫 / 任務清單標題 ──
   "plan.list.heading": "任務計畫",
   "todos.list.heading": "任務清單",
+  "todos.progress": "已完成 {{done}} / {{total}}",
 
   // ── 檔案變更 ──
   "files.changed": "{{count}} 個檔案變更",
+  "files.uncommitted": "{{count}} 個檔案 · 未提交",
   "files.binary": "bin",
 
   "compaction.compacted": "上下文已壓縮",
@@ -519,6 +560,8 @@ export const zhTW: Record<string, string> = {
   "convExport.markdown": "匯出對話為 Markdown",
   "convExport.json": "匯出對話為 JSON",
   "convExport.import": "從 JSON 匯入對話",
+  "convExport.docTitle": "對話",
+  "convExport.exportedAt": "匯出於 {{time}}",
   "convExport.importUnsupported": "此執行時不支援工作階段匯入。",
   "convExport.notJson": "非 JSON 檔案。",
   "convExport.notLyra": "非 Lyra 工作階段匯出 —— 請選擇透過「匯出對話」匯出的 JSON 檔案。",
@@ -548,6 +591,13 @@ export const zhTW: Record<string, string> = {
   "command.focusComposer": "聚焦輸入框",
 
   "diagnostics.clear": "清除",
+  "diagnostics.title": "診斷",
+  "diagnostics.description":
+    "即時 OpenTelemetry —— 追蹤 / 指標 / 記錄。僅保留在記憶體中（有上限）；持久紀錄經 OTLP 匯出。「清空」會重設緩衝區。",
+  "diagnostics.signalAria": "遙測訊號",
+  "diagnostics.signal.traces": "追蹤",
+  "diagnostics.signal.metrics": "指標",
+  "diagnostics.signal.logs": "記錄",
   "reasoning.thinking": "思考中…",
   "reasoning.thinkingWithTime": "思考中 · {{time}}",
   "reasoning.thoughtFor": "思考用時 {{time}}",
@@ -582,6 +632,7 @@ export const zhTW: Record<string, string> = {
   "usage.range.all": "全部",
   "usage.range.30d": "30 天",
   "usage.range.7d": "7 天",
+  "usage.rangeAria": "用量範圍",
   "usage.loading": "正在載入用量…",
   "usage.error": "無法載入用量。",
   "usage.empty": "還沒有用量",
@@ -837,6 +888,7 @@ export const zhTW: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 處符合",
+  "tool.meta.files": "{{count}} 個檔案",
   "tool.meta.exit": "結束碼 {{code}}",
   "tool.meta.live": "進行中",
   "tool.group.read": "讀取 {{count}}",

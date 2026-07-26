@@ -47,7 +47,7 @@ function TerminalTab() {
     <WorkspaceViewLayout
       icon="terminal"
       title="terminal.title"
-      sub={terminalSubtext(view)}
+      sub={terminalSubtext(t, view)}
       scrollRef={scrollRef}
     >
       {view.isEmpty ? (

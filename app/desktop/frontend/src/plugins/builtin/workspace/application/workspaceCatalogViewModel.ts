@@ -12,7 +12,7 @@ export interface WorkspaceCatalogViewModel<Row> {
 export interface WorkspaceMemoryRowViewModel {
   id: string;
   scope: WorkspaceMemoryScope;
-  scopeLabel: string;
+  scopeLabelKey: string;
   path: string;
   content: string;
   updatedAt?: string;
@@ -45,7 +45,7 @@ export interface WorkspaceAgentDocRowViewModel {
   id: string;
   title: string;
   path: string;
-  scopeLabel: string;
+  scopeLabelKey: string;
 }
 
 export interface CodebaseStatusProjection {
@@ -66,10 +66,11 @@ export interface CodebaseSearchViewModel {
   isEmpty: boolean;
 }
 
-const SCOPE_LABEL: Record<WorkspaceMemoryScope, string> = {
-  cwd: "cwd",
-  projectRoot: "project root",
-  home: "home",
+// The scope words live in the catalogs; this maps a scope to its key.
+const SCOPE_LABEL_KEY: Record<WorkspaceMemoryScope, string> = {
+  cwd: "memory.scope.cwd",
+  projectRoot: "memory.scope.projectRoot",
+  home: "memory.scope.home",
 };
 
 function catalog<Row>(rows: Row[], enabled = true): WorkspaceCatalogViewModel<Row> {
@@ -81,8 +82,9 @@ function catalog<Row>(rows: Row[], enabled = true): WorkspaceCatalogViewModel<Ro
   };
 }
 
-export function scopeLabel(scope: string): string {
-  return (SCOPE_LABEL as Record<string, string>)[scope] ?? scope;
+/** The catalog key for a memory scope; an unknown scope reads as itself. */
+export function scopeLabelKey(scope: string): string {
+  return SCOPE_LABEL_KEY[scope as WorkspaceMemoryScope] ?? scope;
 }
 
 export function workspaceMemoryViewModel(
@@ -97,7 +99,7 @@ export function workspaceMemoryViewModel(
     entries.map((entry) => ({
       id: `${entry.scope}:${entry.path}`,
       scope: entry.scope,
-      scopeLabel: scopeLabel(entry.scope),
+      scopeLabelKey: scopeLabelKey(entry.scope),
       path: entry.path,
       content: entry.content,
       updatedAt: entry.updatedAt,
@@ -145,7 +147,7 @@ export function workspaceAgentDocsViewModel(
       id: doc.path,
       title: doc.title || doc.path,
       path: doc.path,
-      scopeLabel: scopeLabel(doc.scope),
+      scopeLabelKey: scopeLabelKey(doc.scope),
     })),
   );
 }

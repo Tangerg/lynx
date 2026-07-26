@@ -18,7 +18,11 @@ function WebSearchPreview({ tool, onOpenView }: ToolPreviewProps) {
   if (results.length === 0) {
     return (
       <div className={PREVIEW_WRAP}>
-        <PreviewPlaceholder status={tool.status} pending="Searching…" idle="(no results)" />
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.searching"
+          idle="tools.preview.idle.noResults"
+        />
       </div>
     );
   }

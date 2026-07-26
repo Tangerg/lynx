@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import type { Translate } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import type { TaskReadoutTask } from "./ports/taskReadoutPort";
 import { taskReadoutPort } from "./ports/taskReadoutPort";
 
@@ -12,10 +14,11 @@ export interface TaskReadout {
 
 export function useTaskReadout(): TaskReadout | null {
   const tasks = taskReadoutPort().useTasks();
-  return useMemo(() => taskReadout(tasks), [tasks]);
+  const t = useT();
+  return useMemo(() => taskReadout(t, tasks), [t, tasks]);
 }
 
-export function taskReadout(tasks: Map<string, TaskReadoutTask>): TaskReadout | null {
+export function taskReadout(t: Translate, tasks: Map<string, TaskReadoutTask>): TaskReadout | null {
   if (tasks.size === 0) return null;
 
   const list = Array.from(tasks.values()).sort((a, b) => a.startedAt - b.startedAt);
@@ -28,7 +31,10 @@ export function taskReadout(tasks: Map<string, TaskReadoutTask>): TaskReadout | 
     runningCount: running.length,
     head,
     label: running.length > 1 ? `${head.label} +${running.length - 1}` : head.label,
-    title: running.length > 0 ? `${running.length} running task(s)` : "Recent tasks",
+    title:
+      running.length > 0
+        ? t("tasks.title.running", { count: running.length })
+        : t("tasks.title.recent"),
   };
 }
 

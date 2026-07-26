@@ -106,8 +106,27 @@ export const de: Record<string, string> = {
   "tools.preview.viewDetails": "Details anzeigen",
   "tools.preview.viewText": "Volltext anzeigen",
   "tools.preview.viewReply": "Ganze Antwort anzeigen",
+  "tools.preview.pending.matching": "Wird abgeglichen…",
+  "tools.preview.pending.querying": "Wird abgefragt…",
+  "tools.preview.pending.running": "Läuft…",
+  "tools.preview.pending.searching": "Wird gesucht…",
+  "tools.preview.idle.noMatches": "(keine Treffer)",
+  "tools.preview.idle.empty": "(leer)",
+  "tools.preview.idle.noOutput": "(keine Ausgabe)",
+  "tools.preview.idle.noResults": "(keine Ergebnisse)",
+  "tools.overflow.more": "{{count}} weitere",
+  "tools.overflow.matches": "{{count}} weitere Treffer",
+  "tools.overflow.rows": "{{count}} weitere Zeilen",
+  "tools.overflow.lines": "{{count}} weitere Zeilen",
+  "tools.overflow.truncated": "von der Runtime gekürzt",
+  "tools.overflow.outputTruncated": "Ausgabe von der Runtime gekürzt",
+  "tools.group.calls": "{{count}} Aufrufe",
 
   "common.remove": "Entfernen",
+  "common.loading": "Wird geladen",
+  "tasks.header": "Aufgaben",
+  "tasks.title.running": "{{count}} laufende Aufgabe(n)",
+  "tasks.title.recent": "Letzte Aufgaben",
   "status.notifications": "Benachrichtigungen",
   "status.notifications.unread": "{{count}} ungelesene Benachrichtigung(en)",
   "session.row.titleLabel": "Sitzungstitel",
@@ -195,6 +214,10 @@ export const de: Record<string, string> = {
   "plugins.origin.builtin.title": "Wird mit Lyra ausgeliefert",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "Vom Benutzer installiert",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> konnte nicht gerendert werden.",
+  "plugins.mainView": "Hauptansicht",
+  "plugins.sideload":
+    "Zum Sideload einen Plugin-Ordner mit <code>{{file}}</code> in <code>{{dir}}</code> legen und die App neu starten. Eine Vorlage findest du unter <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "Ungültige URL",
   "shape.radius.aria": "Eckenradius",
@@ -237,6 +260,8 @@ export const de: Record<string, string> = {
   "settings.font.code": "Code",
   "settings.font.size": "Größe",
   "settings.font.default": "Standard",
+  "settings.font.defaultUi": "Standard (System)",
+  "settings.font.defaultMono": "Standard (System, monospace)",
   "settings.font.smoothing": "Schriftglättung (macOS-Kantenglättung)",
   "settings.customColors": "Eigene Farben",
   "settings.customColors.sub": "Hintergrund + Vordergrund; der Rest wird abgeleitet.",
@@ -279,6 +304,9 @@ export const de: Record<string, string> = {
   "iconGallery.filterLabel": "Symbole nach Name filtern",
   "iconGallery.filterPlaceholder": "Nach Name filtern…",
   "iconGallery.empty": 'Keine Symbole passen zu "{{q}}".',
+  "iconGallery.subtitle": "{{count}} Symbole · Marken von LLM-Modellen, Anbietern und Apps",
+  "iconGallery.showcase":
+    "Eine kuratierte Auswahl von {{count}} Markenglyphen aus <code>{{pkg}}</code>. Vollständiger Katalog: <em>{{combo}} → View: Icon Gallery</em>.",
 
   "approval.settled.approved": "Genehmigt",
   "approval.settled.declined": "Abgelehnt",
@@ -346,6 +374,8 @@ export const de: Record<string, string> = {
 
   // ── Workspace-Ansicht: Timeline ──
   "timeline.title": "Lauf-Timeline",
+  "timeline.runLabel": "Lauf {{id}}",
+  "timeline.summary": "{{events}} Ereignisse · {{runs}} Lauf/Läufe",
   "timeline.jumpToChat": "Zum Chat springen",
   "timeline.empty.title": "Noch keine Aktivität",
   "timeline.empty.sub":
@@ -362,6 +392,7 @@ export const de: Record<string, string> = {
   "notifications.title": "Benachrichtigungen",
   "notifications.clearAll": "Alle löschen",
   "notifications.dismiss": "Ausblenden",
+  "notifications.subtext": "{{unread}} ungelesen · {{total}} insgesamt",
   "notifications.empty.title": "Keine Benachrichtigungen",
   "notifications.empty.sub": "Alles, was ein Plugin über host.notify() meldet, erscheint hier.",
 
@@ -375,6 +406,8 @@ export const de: Record<string, string> = {
   "search.placeholder": "Suchmuster (Regex)…",
   "search.aria": "Suchmuster",
   "search.noMatches": "Regex über den Session-Workspace",
+  "search.matches": "{{count}} Treffer",
+  "search.overflow": "{{count}} weitere Treffer werden nicht gezeigt — Suche eingrenzen.",
   "search.empty.title": "Keine Treffer",
   "search.empty.sub": "Nichts im Workspace entspricht diesem Muster.",
 
@@ -389,6 +422,7 @@ export const de: Record<string, string> = {
   "terminal.title": "Terminal",
   "terminal.empty.title": "Noch keine Befehle",
   "terminal.empty.sub": "Befehle, die der Agent ausführt, erscheinen hier mit ihrer Ausgabe.",
+  "terminal.commands": "{{count}} Befehle",
 
   // ── Workspace-Ansicht: Plan ──
   "plan.title": "Plan",
@@ -404,6 +438,7 @@ export const de: Record<string, string> = {
   "tools.empty.sub":
     "Füge einen Server in den MCP-Einstellungen hinzu, um dem Agenten Werkzeuge bereitzustellen.",
   "tools.footer": "Verwalte MCP-Server in den Einstellungen",
+  "tools.mcpSubtext": "{{active}} MCP aktiv · {{configured}} konfiguriert",
   "tools.status.on": "An",
   "tools.status.off": "Aus",
   "tools.status.error": "Fehler",
@@ -427,6 +462,9 @@ export const de: Record<string, string> = {
   // ── Workspace-Ansicht: Memory ──
   "memory.title": "Speicher",
   "memory.scopes": "{{count}} Bereiche",
+  "memory.scope.cwd": "Arbeitsverzeichnis",
+  "memory.scope.projectRoot": "Projektwurzel",
+  "memory.scope.home": "Home",
   "memory.off": "aus",
   "memory.empty.title": "Noch kein Speicher",
   "memory.empty.sub": "LYRA.md-Dateien, die die Runtime für den Agenten pflegt, erscheinen hier.",
@@ -486,6 +524,7 @@ export const de: Record<string, string> = {
   "diff.baselineAria": "Diff-Basis",
   "diff.mode.worktree": "Arbeitsbaum",
   "diff.mode.branch": "Branch",
+  "diff.fileCount": "{{count}} Dateien",
   "diff.error.noBaseline": "Kein Baseline-Branch",
   "diff.error.loadFailed": "Diff konnte nicht geladen werden",
   "diff.error.noBaselineSub":
@@ -506,9 +545,11 @@ export const de: Record<string, string> = {
   // ── Plan- / Aufgabenlisten-Überschrift ──
   "plan.list.heading": "Aufgabenplan",
   "todos.list.heading": "Aufgabenliste",
+  "todos.progress": "{{done}} von {{total}} erledigt",
 
   // ── Dateiänderungen ──
   "files.changed": "{{count}} Dateien geändert",
+  "files.uncommitted": "{{count}} Dateien · nicht committet",
   "files.binary": "bin",
 
   "compaction.compacted": "Kontext komprimiert",
@@ -522,6 +563,8 @@ export const de: Record<string, string> = {
   "convExport.markdown": "Konversation als Markdown exportieren",
   "convExport.json": "Konversation als JSON exportieren",
   "convExport.import": "Konversation aus JSON importieren",
+  "convExport.docTitle": "Unterhaltung",
+  "convExport.exportedAt": "Exportiert {{time}}",
   "convExport.importUnsupported": "Diese Runtime unterstützt keinen Sitzungsimport.",
   "convExport.notJson": "Keine JSON-Datei.",
   "convExport.notLyra":
@@ -550,6 +593,13 @@ export const de: Record<string, string> = {
   "command.focusComposer": "Editor fokussieren",
 
   "diagnostics.clear": "Löschen",
+  "diagnostics.title": "Diagnose",
+  "diagnostics.description":
+    "Live-OpenTelemetry — Traces / Metriken / Logs. Nur im Speicher (begrenzt); die dauerhafte Aufzeichnung geht über OTLP hinaus. „Leeren“ setzt die Puffer zurück.",
+  "diagnostics.signalAria": "Telemetriesignal",
+  "diagnostics.signal.traces": "Traces",
+  "diagnostics.signal.metrics": "Metriken",
+  "diagnostics.signal.logs": "Logs",
   "reasoning.thinking": "Denkt nach…",
   "reasoning.thinkingWithTime": "Denkt nach · {{time}}",
   "reasoning.thoughtFor": "{{time}} nachgedacht",
@@ -589,6 +639,7 @@ export const de: Record<string, string> = {
   "usage.range.all": "Alle",
   "usage.range.30d": "30 T",
   "usage.range.7d": "7 T",
+  "usage.rangeAria": "Nutzungszeitraum",
   "usage.loading": "Verbrauch wird geladen…",
   "usage.error": "Verbrauch konnte nicht geladen werden.",
   "usage.empty": "Noch kein Verbrauch",
@@ -878,6 +929,7 @@ export const de: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} Treffer",
+  "tool.meta.files": "{{count}} Dateien",
   "tool.meta.exit": "Exit {{code}}",
   "tool.meta.live": "läuft",
   "tool.group.read": "{{count}} gelesen",

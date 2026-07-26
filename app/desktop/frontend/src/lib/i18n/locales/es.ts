@@ -105,8 +105,27 @@ export const es: Record<string, string> = {
   "tools.preview.viewDetails": "Ver detalles",
   "tools.preview.viewText": "Ver texto completo",
   "tools.preview.viewReply": "Ver respuesta completa",
+  "tools.preview.pending.matching": "Buscando coincidencias…",
+  "tools.preview.pending.querying": "Consultando…",
+  "tools.preview.pending.running": "En ejecución…",
+  "tools.preview.pending.searching": "Buscando…",
+  "tools.preview.idle.noMatches": "(sin coincidencias)",
+  "tools.preview.idle.empty": "(vacío)",
+  "tools.preview.idle.noOutput": "(sin salida)",
+  "tools.preview.idle.noResults": "(sin resultados)",
+  "tools.overflow.more": "{{count}} más",
+  "tools.overflow.matches": "{{count}} coincidencias más",
+  "tools.overflow.rows": "{{count}} filas más",
+  "tools.overflow.lines": "{{count}} líneas más",
+  "tools.overflow.truncated": "truncado por el runtime",
+  "tools.overflow.outputTruncated": "salida truncada por el runtime",
+  "tools.group.calls": "{{count}} llamadas",
 
   "common.remove": "Eliminar",
+  "common.loading": "Cargando",
+  "tasks.header": "Tareas",
+  "tasks.title.running": "{{count}} tarea(s) en ejecución",
+  "tasks.title.recent": "Tareas recientes",
   "status.notifications": "Notificaciones",
   "status.notifications.unread": "{{count}} notificación(es) sin leer",
   "session.row.titleLabel": "Título de la sesión",
@@ -193,6 +212,10 @@ export const es: Record<string, string> = {
   "plugins.origin.builtin.title": "Incluido con Lyra",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "Instalado por el usuario",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> no se pudo renderizar.",
+  "plugins.mainView": "vista principal",
+  "plugins.sideload":
+    "Para cargar un plugin, coloca una carpeta con <code>{{file}}</code> en <code>{{dir}}</code> y reinicia la app. Tienes una plantilla en <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "URL no válida",
   "shape.radius.aria": "Radio de esquina",
@@ -235,6 +258,8 @@ export const es: Record<string, string> = {
   "settings.font.code": "Código",
   "settings.font.size": "Tamaño",
   "settings.font.default": "Predeterminado",
+  "settings.font.defaultUi": "Predeterminada (sistema)",
+  "settings.font.defaultMono": "Predeterminada (sistema, monoespaciada)",
   "settings.font.smoothing": "Suavizado de fuente (antialiasing de macOS)",
   "settings.customColors": "Colores personalizados",
   "settings.customColors.sub": "Fondo + primer plano; el resto se deriva.",
@@ -278,6 +303,9 @@ export const es: Record<string, string> = {
   "iconGallery.filterLabel": "Filtrar iconos por nombre",
   "iconGallery.filterPlaceholder": "Filtrar por nombre…",
   "iconGallery.empty": 'Ningún icono coincide con "{{q}}".',
+  "iconGallery.subtitle": "{{count}} iconos · marcas de modelos LLM, proveedores y apps",
+  "iconGallery.showcase":
+    "Una selección de {{count}} glifos de marca de <code>{{pkg}}</code>. Catálogo completo: <em>{{combo}} → View: Icon Gallery</em>.",
 
   "approval.settled.approved": "Aprobado",
   "approval.settled.declined": "Rechazado",
@@ -345,6 +373,8 @@ export const es: Record<string, string> = {
 
   // ── Vista de espacio de trabajo: Línea de tiempo ──
   "timeline.title": "Línea de tiempo de ejecución",
+  "timeline.runLabel": "ejecución {{id}}",
+  "timeline.summary": "{{events}} eventos · {{runs}} ejecución(es)",
   "timeline.jumpToChat": "Ir al chat",
   "timeline.empty.title": "Sin actividad aún",
   "timeline.empty.sub":
@@ -361,6 +391,7 @@ export const es: Record<string, string> = {
   "notifications.title": "Notificaciones",
   "notifications.clearAll": "Borrar todo",
   "notifications.dismiss": "Descartar",
+  "notifications.subtext": "{{unread}} sin leer · {{total}} en total",
   "notifications.empty.title": "Sin notificaciones",
   "notifications.empty.sub":
     "Todo lo que un plugin informe a través de host.notify() aparece aquí.",
@@ -375,6 +406,8 @@ export const es: Record<string, string> = {
   "search.placeholder": "Patrón de búsqueda (regex)…",
   "search.aria": "Patrón de búsqueda",
   "search.noMatches": "Regex sobre el espacio de trabajo de la sesión",
+  "search.matches": "{{count}} coincidencias",
+  "search.overflow": "{{count}} coincidencias más no se muestran: acota la consulta.",
   "search.empty.title": "Sin coincidencias",
   "search.empty.sub": "Nada en el espacio de trabajo coincide con este patrón.",
 
@@ -389,6 +422,7 @@ export const es: Record<string, string> = {
   "terminal.title": "Terminal",
   "terminal.empty.title": "Sin comandos aún",
   "terminal.empty.sub": "Los comandos que ejecuta el agent aparecen aquí con su salida.",
+  "terminal.commands": "{{count}} comandos",
 
   // ── Vista de espacio de trabajo: Plan ──
   "plan.title": "Plan",
@@ -403,6 +437,7 @@ export const es: Record<string, string> = {
   "tools.empty.title": "Sin servidores MCP configurados",
   "tools.empty.sub": "Añade un servidor en los ajustes de MCP para exponer herramientas al agent.",
   "tools.footer": "Gestiona los servidores MCP en ajustes",
+  "tools.mcpSubtext": "{{active}} MCP activos · {{configured}} configurados",
   "tools.status.on": "Activo",
   "tools.status.off": "Inactivo",
   "tools.status.error": "Error",
@@ -427,6 +462,9 @@ export const es: Record<string, string> = {
   // ── Vista de espacio de trabajo: Memoria ──
   "memory.title": "Memoria",
   "memory.scopes": "{{count}} ámbito(s)",
+  "memory.scope.cwd": "directorio actual",
+  "memory.scope.projectRoot": "raíz del proyecto",
+  "memory.scope.home": "carpeta personal",
   "memory.off": "desactivado",
   "memory.empty.title": "Sin memoria aún",
   "memory.empty.sub": "Los archivos LYRA.md que el runtime mantiene para el agent aparecen aquí.",
@@ -486,6 +524,7 @@ export const es: Record<string, string> = {
   "diff.baselineAria": "Base del diff",
   "diff.mode.worktree": "Árbol",
   "diff.mode.branch": "Rama",
+  "diff.fileCount": "{{count}} archivos",
   "diff.error.noBaseline": "Sin rama de referencia",
   "diff.error.loadFailed": "No se pudo cargar el diff",
   "diff.error.noBaselineSub":
@@ -506,9 +545,11 @@ export const es: Record<string, string> = {
   // ── Encabezados de Plan / Lista de tareas ──
   "plan.list.heading": "Plan de tareas",
   "todos.list.heading": "Lista de tareas",
+  "todos.progress": "{{done}} de {{total}} completadas",
 
   // ── Archivos modificados ──
   "files.changed": "{{count}} archivos modificados",
+  "files.uncommitted": "{{count}} archivos · sin confirmar",
   "files.binary": "bin",
 
   "compaction.compacted": "Contexto compactado",
@@ -522,6 +563,8 @@ export const es: Record<string, string> = {
   "convExport.markdown": "Exportar conversación como Markdown",
   "convExport.json": "Exportar conversación como JSON",
   "convExport.import": "Importar conversación desde JSON",
+  "convExport.docTitle": "Conversación",
+  "convExport.exportedAt": "Exportado {{time}}",
   "convExport.importUnsupported": "Este runtime no admite la importación de sesiones.",
   "convExport.notJson": "No es un archivo JSON.",
   "convExport.notLyra":
@@ -550,6 +593,13 @@ export const es: Record<string, string> = {
   "command.focusComposer": "Enfocar compositor",
 
   "diagnostics.clear": "Limpiar",
+  "diagnostics.title": "Diagnóstico",
+  "diagnostics.description":
+    "OpenTelemetry en vivo: trazas / métricas / registros. Solo en memoria (con límite); el registro duradero sale por OTLP. «Borrar» reinicia los búferes.",
+  "diagnostics.signalAria": "Señal de telemetría",
+  "diagnostics.signal.traces": "Trazas",
+  "diagnostics.signal.metrics": "Métricas",
+  "diagnostics.signal.logs": "Registros",
   "reasoning.thinking": "Pensando…",
   "reasoning.thinkingWithTime": "Pensando · {{time}}",
   "reasoning.thoughtFor": "Pensó durante {{time}}",
@@ -589,6 +639,7 @@ export const es: Record<string, string> = {
   "usage.range.all": "Todo",
   "usage.range.30d": "30 d",
   "usage.range.7d": "7 d",
+  "usage.rangeAria": "Periodo de uso",
   "usage.loading": "Cargando uso…",
   "usage.error": "No se pudo cargar el uso.",
   "usage.empty": "Aún no hay uso",
@@ -873,6 +924,7 @@ export const es: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} coincidencias",
+  "tool.meta.files": "{{count}} archivos",
   "tool.meta.exit": "salida {{code}}",
   "tool.meta.live": "en curso",
   "tool.group.read": "{{count}} lectura",

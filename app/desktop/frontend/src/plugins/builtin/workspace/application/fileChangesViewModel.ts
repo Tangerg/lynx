@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { WorkspaceFileChange } from "./workspaceData";
 
 export interface FileChangeTag {
@@ -59,6 +60,9 @@ export function fileChangesViewModel(
   };
 }
 
-export function fileChangesSubtext({ fileCount }: Pick<FileChangesViewModel, "fileCount">): string {
-  return `${fileCount} files · uncommitted`;
+export function fileChangesSubtext(
+  t: Translate,
+  { fileCount }: Pick<FileChangesViewModel, "fileCount">,
+): string {
+  return t("files.uncommitted", { count: fileCount });
 }

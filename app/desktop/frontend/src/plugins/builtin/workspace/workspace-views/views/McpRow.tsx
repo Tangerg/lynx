@@ -104,7 +104,7 @@ export function McpRow({ server }: { server: MCPServer }) {
           <div className="mt-0.5 text-ui-md text-fg-faint truncate">{server.desc}</div>
         </button>
         <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-faint">
-          {server.tools} tools
+          {t("mcp.toolCount", { count: server.tools })}
         </div>
         <div
           className={cn(

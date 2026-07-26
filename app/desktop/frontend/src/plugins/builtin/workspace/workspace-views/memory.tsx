@@ -67,7 +67,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
         />
         <span className="truncate font-mono text-ui-md text-fg">{row.path}</span>
         <span className="rounded-full bg-surface-2 px-1.5 py-px text-ui-xs text-fg-muted">
-          {row.scopeLabel}
+          {t(row.scopeLabelKey)}
         </span>
       </button>
       {open && (

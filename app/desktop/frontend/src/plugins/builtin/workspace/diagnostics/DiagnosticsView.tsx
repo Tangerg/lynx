@@ -19,9 +19,9 @@ import { useT } from "@/lib/i18n";
 type Signal = "traces" | "metrics" | "logs";
 
 const SIGNALS = [
-  { value: "traces" as const, label: "Traces" },
-  { value: "metrics" as const, label: "Metrics" },
-  { value: "logs" as const, label: "Logs" },
+  { value: "traces" as const, label: "diagnostics.signal.traces" },
+  { value: "metrics" as const, label: "diagnostics.signal.metrics" },
+  { value: "logs" as const, label: "diagnostics.signal.logs" },
 ];
 
 export function DiagnosticsView() {
@@ -33,18 +33,15 @@ export function DiagnosticsView() {
     <div className="flex h-full flex-col gap-3 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-display-sm font-semibold text-fg">Diagnostics</div>
-          <div className="mt-0.5 text-ui-md text-fg-muted">
-            Live OpenTelemetry — traces / metrics / logs. In-memory only (bounded); the durable
-            record leaves via OTLP. "Clear" resets the buffers.
-          </div>
+          <div className="text-display-sm font-semibold text-fg">{t("diagnostics.title")}</div>
+          <div className="mt-0.5 text-ui-md text-fg-muted">{t("diagnostics.description")}</div>
         </div>
         <div className="flex items-center gap-2">
           <Segmented
             value={signal}
             options={SIGNALS}
             onChange={setSignal}
-            ariaLabel="Telemetry signal"
+            ariaLabel={t("diagnostics.signalAria")}
           />
           <Button variant="outline" size="sm" onClick={clear}>
             {t("diagnostics.clear")}

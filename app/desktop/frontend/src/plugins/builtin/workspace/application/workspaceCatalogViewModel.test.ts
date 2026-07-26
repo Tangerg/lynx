@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   codebaseSearchViewModel,
   codebaseStatusViewModel,
-  scopeLabel,
+  scopeLabelKey,
   workspaceAgentDocsViewModel,
   workspaceMemoryViewModel,
   workspaceRecipesViewModel,
@@ -35,7 +35,7 @@ describe("workspace catalog view models", () => {
         {
           id: "projectRoot:project/LYRA.md",
           scope: "projectRoot",
-          scopeLabel: "project root",
+          scopeLabelKey: "memory.scope.projectRoot",
           path: "project/LYRA.md",
           content: "memory",
           updatedAt: undefined,
@@ -94,18 +94,18 @@ describe("workspace catalog view models", () => {
         { path: "root/AGENTS.md", title: "Root rules", scope: "projectRoot" },
       ]).rows,
     ).toEqual([
-      { id: "AGENTS.md", title: "AGENTS.md", path: "AGENTS.md", scopeLabel: "cwd" },
+      { id: "AGENTS.md", title: "AGENTS.md", path: "AGENTS.md", scopeLabelKey: "memory.scope.cwd" },
       {
         id: "root/AGENTS.md",
         title: "Root rules",
         path: "root/AGENTS.md",
-        scopeLabel: "project root",
+        scopeLabelKey: "memory.scope.projectRoot",
       },
     ]);
   });
 
   it("falls back to raw unknown scope labels", () => {
-    expect(scopeLabel("workspace")).toBe("workspace");
+    expect(scopeLabelKey("workspace")).toBe("workspace");
   });
 });
 

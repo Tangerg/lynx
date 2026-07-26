@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { NotificationEntry } from "@/plugins/sdk";
 import {
   notificationDotTone,
@@ -41,7 +42,7 @@ describe("notificationsViewModel", () => {
 
 describe("notifications view helpers", () => {
   it("builds header subtext", () => {
-    expect(notificationsSubtext({ unreadCount: 1, totalCount: 3 })).toBe("1 unread · 3 total");
+    expect(notificationsSubtext(t, { unreadCount: 1, totalCount: 3 })).toBe("1 unread · 3 total");
   });
 
   it("maps notification levels to status dot tones", () => {

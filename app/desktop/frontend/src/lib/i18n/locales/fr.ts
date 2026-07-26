@@ -105,8 +105,27 @@ export const fr: Record<string, string> = {
   "tools.preview.viewDetails": "Voir les détails",
   "tools.preview.viewText": "Voir le texte complet",
   "tools.preview.viewReply": "Voir la réponse entière",
+  "tools.preview.pending.matching": "Correspondance…",
+  "tools.preview.pending.querying": "Requête…",
+  "tools.preview.pending.running": "En cours…",
+  "tools.preview.pending.searching": "Recherche…",
+  "tools.preview.idle.noMatches": "(aucune correspondance)",
+  "tools.preview.idle.empty": "(vide)",
+  "tools.preview.idle.noOutput": "(aucune sortie)",
+  "tools.preview.idle.noResults": "(aucun résultat)",
+  "tools.overflow.more": "{{count}} de plus",
+  "tools.overflow.matches": "{{count}} correspondances de plus",
+  "tools.overflow.rows": "{{count}} lignes de plus",
+  "tools.overflow.lines": "{{count}} lignes de plus",
+  "tools.overflow.truncated": "tronqué par le runtime",
+  "tools.overflow.outputTruncated": "sortie tronquée par le runtime",
+  "tools.group.calls": "{{count}} appels",
 
   "common.remove": "Supprimer",
+  "common.loading": "Chargement",
+  "tasks.header": "Tâches",
+  "tasks.title.running": "{{count}} tâche(s) en cours",
+  "tasks.title.recent": "Tâches récentes",
   "status.notifications": "Notifications",
   "status.notifications.unread": "{{count}} notification(s) non lue(s)",
   "session.row.titleLabel": "Titre de la session",
@@ -194,6 +213,10 @@ export const fr: Record<string, string> = {
   "plugins.origin.builtin.title": "Fourni avec Lyra",
   "plugins.origin.sideload": "Sideload",
   "plugins.origin.sideload.title": "Installé par l'utilisateur",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> n'a pas pu s'afficher.",
+  "plugins.mainView": "vue principale",
+  "plugins.sideload":
+    "Pour charger un plug-in, placez un dossier contenant <code>{{file}}</code> dans <code>{{dir}}</code> puis redémarrez l'application. Un modèle est disponible dans <code>{{sample}}</code>.",
 
   "connection.error.invalidUrl": "URL invalide",
   "shape.radius.aria": "Rayon des coins",
@@ -236,6 +259,8 @@ export const fr: Record<string, string> = {
   "settings.font.code": "Code",
   "settings.font.size": "Taille",
   "settings.font.default": "Par défaut",
+  "settings.font.defaultUi": "Par défaut (système)",
+  "settings.font.defaultMono": "Par défaut (système, monospace)",
   "settings.font.smoothing": "Lissage des polices (anticrénelage macOS)",
   "settings.customColors": "Couleurs personnalisées",
   "settings.customColors.sub": "Arrière-plan + premier plan ; le reste en découle.",
@@ -278,6 +303,9 @@ export const fr: Record<string, string> = {
   "iconGallery.filterLabel": "Filtrer les icônes par nom",
   "iconGallery.filterPlaceholder": "Filtrer par nom…",
   "iconGallery.empty": 'Aucune icône ne correspond à "{{q}}".',
+  "iconGallery.subtitle": "{{count}} icônes · marques de modèles LLM, fournisseurs et applications",
+  "iconGallery.showcase":
+    "Une sélection de {{count}} glyphes de marques issus de <code>{{pkg}}</code>. Catalogue complet : <em>{{combo}} → View: Icon Gallery</em>.",
 
   "approval.settled.approved": "Approuvé",
   "approval.settled.declined": "Refusé",
@@ -345,6 +373,8 @@ export const fr: Record<string, string> = {
 
   // ── Vue espace de travail : Chronologie ──
   "timeline.title": "Chronologie d'exécution",
+  "timeline.runLabel": "exécution {{id}}",
+  "timeline.summary": "{{events}} évènements · {{runs}} exécution(s)",
   "timeline.jumpToChat": "Aller au chat",
   "timeline.empty.title": "Aucune activité pour l'instant",
   "timeline.empty.sub":
@@ -361,6 +391,7 @@ export const fr: Record<string, string> = {
   "notifications.title": "Notifications",
   "notifications.clearAll": "Tout effacer",
   "notifications.dismiss": "Ignorer",
+  "notifications.subtext": "{{unread}} non lus · {{total}} au total",
   "notifications.empty.title": "Aucune notification",
   "notifications.empty.sub": "Tout ce qu'un plugin signale via host.notify() apparaît ici.",
 
@@ -374,6 +405,9 @@ export const fr: Record<string, string> = {
   "search.placeholder": "Motif de recherche (regex)…",
   "search.aria": "Motif de recherche",
   "search.noMatches": "Regex sur l'espace de travail de la session",
+  "search.matches": "{{count}} correspondances",
+  "search.overflow":
+    "{{count}} correspondances de plus ne sont pas affichées — affinez la requête.",
   "search.empty.title": "Aucune correspondance",
   "search.empty.sub": "Rien dans l'espace de travail ne correspond à ce motif.",
 
@@ -388,6 +422,7 @@ export const fr: Record<string, string> = {
   "terminal.title": "Terminal",
   "terminal.empty.title": "Aucune commande pour l'instant",
   "terminal.empty.sub": "Les commandes exécutées par l'agent apparaissent ici avec leur sortie.",
+  "terminal.commands": "{{count}} commandes",
 
   // ── Vue espace de travail : Plan ──
   "plan.title": "Plan",
@@ -402,6 +437,7 @@ export const fr: Record<string, string> = {
   "tools.empty.title": "Aucun serveur MCP configuré",
   "tools.empty.sub": "Ajoutez un serveur dans les réglages MCP pour exposer des outils à l'agent.",
   "tools.footer": "Gérez les serveurs MCP dans les réglages",
+  "tools.mcpSubtext": "{{active}} MCP actifs · {{configured}} configurés",
   "tools.status.on": "Actif",
   "tools.status.off": "Inactif",
   "tools.status.error": "Erreur",
@@ -426,6 +462,9 @@ export const fr: Record<string, string> = {
   // ── Vue espace de travail : Mémoire ──
   "memory.title": "Mémoire",
   "memory.scopes": "{{count}} portée(s)",
+  "memory.scope.cwd": "répertoire courant",
+  "memory.scope.projectRoot": "racine du projet",
+  "memory.scope.home": "dossier personnel",
   "memory.off": "désactivé",
   "memory.empty.title": "Aucune mémoire pour l'instant",
   "memory.empty.sub": "Les fichiers LYRA.md que le runtime gère pour l'agent apparaissent ici.",
@@ -485,6 +524,7 @@ export const fr: Record<string, string> = {
   "diff.baselineAria": "Base du diff",
   "diff.mode.worktree": "Arbre",
   "diff.mode.branch": "Branche",
+  "diff.fileCount": "{{count}} fichiers",
   "diff.error.noBaseline": "Pas de branche de référence",
   "diff.error.loadFailed": "Impossible de charger le diff",
   "diff.error.noBaselineSub":
@@ -504,9 +544,11 @@ export const fr: Record<string, string> = {
   // ── Titres Plan / Liste de tâches ──
   "plan.list.heading": "Plan de tâches",
   "todos.list.heading": "Liste de tâches",
+  "todos.progress": "{{done}} sur {{total}} terminés",
 
   // ── Fichiers modifiés ──
   "files.changed": "{{count}} fichiers modifiés",
+  "files.uncommitted": "{{count}} fichiers · non validés",
   "files.binary": "bin",
 
   "compaction.compacted": "Contexte compacté",
@@ -520,6 +562,8 @@ export const fr: Record<string, string> = {
   "convExport.markdown": "Exporter la conversation en Markdown",
   "convExport.json": "Exporter la conversation en JSON",
   "convExport.import": "Importer une conversation depuis JSON",
+  "convExport.docTitle": "Conversation",
+  "convExport.exportedAt": "Exporté {{time}}",
   "convExport.importUnsupported": "Ce runtime ne prend pas en charge l'importation de session.",
   "convExport.notJson": "Ce n'est pas un fichier JSON.",
   "convExport.notLyra":
@@ -548,6 +592,13 @@ export const fr: Record<string, string> = {
   "command.focusComposer": "Focus sur le compositeur",
 
   "diagnostics.clear": "Effacer",
+  "diagnostics.title": "Diagnostics",
+  "diagnostics.description":
+    "OpenTelemetry en direct — traces / métriques / journaux. En mémoire uniquement (borné) ; l'enregistrement durable part via OTLP. « Effacer » réinitialise les tampons.",
+  "diagnostics.signalAria": "Signal de télémétrie",
+  "diagnostics.signal.traces": "Traces",
+  "diagnostics.signal.metrics": "Métriques",
+  "diagnostics.signal.logs": "Journaux",
   "reasoning.thinking": "Réflexion…",
   "reasoning.thinkingWithTime": "Réflexion · {{time}}",
   "reasoning.thoughtFor": "A réfléchi pendant {{time}}",
@@ -587,6 +638,7 @@ export const fr: Record<string, string> = {
   "usage.range.all": "Tout",
   "usage.range.30d": "30 j",
   "usage.range.7d": "7 j",
+  "usage.rangeAria": "Période d'utilisation",
   "usage.loading": "Chargement de la consommation…",
   "usage.error": "Impossible de charger la consommation.",
   "usage.empty": "Aucune consommation",
@@ -874,6 +926,7 @@ export const fr: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} correspondances",
+  "tool.meta.files": "{{count}} fichiers",
   "tool.meta.exit": "sortie {{code}}",
   "tool.meta.live": "en cours",
   "tool.group.read": "{{count}} lecture",

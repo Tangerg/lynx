@@ -95,7 +95,7 @@ function TimelineTab() {
       icon="history"
       titleStrong
       title="timeline.title"
-      sub={timelineSubtext(view)}
+      sub={timelineSubtext(t, view)}
       scrollClassName="py-1"
       actions={
         <IconButton
@@ -116,7 +116,9 @@ function TimelineTab() {
         view.groups.map((g, gi) => (
           <div key={timelineGroupKey(g, gi)} className={cn(gi > 0 && "mt-3 pt-1")}>
             {g.runId && (
-              <div className="px-3.5 pb-1 font-mono text-ui-xs text-fg-faint">run {g.runId}</div>
+              <div className="px-3.5 pb-1 font-mono text-ui-xs text-fg-faint">
+                {t("timeline.runLabel", { id: g.runId })}
+              </div>
             )}
             {g.items.map((entry) => (
               <TimelineRow key={entry.id} entry={entry} />

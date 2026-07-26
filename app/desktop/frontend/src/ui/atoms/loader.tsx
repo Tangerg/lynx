@@ -9,6 +9,7 @@
 // spinner-style variants from the source library are dropped — these are the
 // inline "agent is working" marks that sit next to text.
 
+import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 export type LoaderVariant =
@@ -40,7 +41,8 @@ const TEXT: Record<LoaderSize, string> = {
 // aria-live=polite (the semantic AT hook), so the visual container elements
 // stay presentational — no `role` attribute needed on them.
 function Loading() {
-  return <output className="sr-only">Loading</output>;
+  const t = useT();
+  return <output className="sr-only">{t("common.loading")}</output>;
 }
 
 function DotsLoader({ size = "md", className }: { size?: LoaderSize; className?: string }) {

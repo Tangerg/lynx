@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import {
   workspaceTodosSubtext,
   workspaceTodosViewModel,
@@ -50,12 +51,12 @@ describe("workspaceTodosViewModel", () => {
 
 describe("workspaceTodosSubtext", () => {
   it("omits header subtext when there are no todos", () => {
-    expect(workspaceTodosSubtext(workspaceTodosViewModel(true, []))).toBeUndefined();
+    expect(workspaceTodosSubtext(t, workspaceTodosViewModel(true, []))).toBeUndefined();
   });
 
   it("builds completion subtext", () => {
     expect(
-      workspaceTodosSubtext(workspaceTodosViewModel(true, [todo({ status: "completed" })])),
+      workspaceTodosSubtext(t, workspaceTodosViewModel(true, [todo({ status: "completed" })])),
     ).toBe("1 of 1 done");
   });
 });

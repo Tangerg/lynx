@@ -23,7 +23,7 @@ function NotificationsTab() {
       icon="chat"
       titleStrong
       title="notifications.title"
-      sub={notificationsSubtext(view)}
+      sub={notificationsSubtext(t, view)}
       scrollClassName="py-1"
       actions={
         <IconButton icon="x" iconSize={14} title={t("notifications.clearAll")} onClick={clearAll} />

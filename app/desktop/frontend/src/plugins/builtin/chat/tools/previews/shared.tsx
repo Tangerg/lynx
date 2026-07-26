@@ -5,6 +5,8 @@
 // Shared container shape for the list/text inline previews. The wrapper lives
 // inside a bg-surface card (the expanded activity row), so it uses no
 // additional background — just padding and typography.
+import { useT } from "@/lib/i18n";
+
 export const PREVIEW_WRAP =
   "max-h-60 overflow-y-auto px-0 pt-1 pb-0 font-mono text-ui-md leading-body text-fg-muted";
 
@@ -20,6 +22,7 @@ export const MAX_ROWS = 9;
 
 // The "… N more" overflow footer shared across the specialised previews.
 export function Overflow({ count }: { count: number }) {
+  const t = useT();
   if (count <= 0) return null;
-  return <div className="text-fg-faint">… {count} more</div>;
+  return <div className="text-fg-faint">… {t("tools.overflow.more", { count })}</div>;
 }

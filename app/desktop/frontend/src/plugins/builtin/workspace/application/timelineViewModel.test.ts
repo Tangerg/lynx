@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { TimelineEntry } from "@/plugins/builtin/agent/public/viewState";
 import {
   groupTimelineByRun,
@@ -51,8 +52,8 @@ describe("timeline view helpers", () => {
   it("builds stable group keys and header subtext", () => {
     expect(timelineGroupKey({ runId: null, items: [] }, 0)).toBe("pre:0");
     expect(timelineGroupKey({ runId: "run-a", items: [] }, 2)).toBe("run-a:2");
-    expect(timelineSubtext({ eventCount: 0, runCount: 0 })).toBe("0 events · 0 runs");
-    expect(timelineSubtext({ eventCount: 3, runCount: 1 })).toBe("3 events · 1 run");
+    expect(timelineSubtext(t, { eventCount: 0, runCount: 0 })).toBe("0 events · 0 run(s)");
+    expect(timelineSubtext(t, { eventCount: 3, runCount: 1 })).toBe("3 events · 1 run(s)");
   });
 
   it("formats timestamps as local time of day", () => {

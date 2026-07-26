@@ -17,6 +17,16 @@
 
 import i18next from "i18next";
 import { initReactI18next, useTranslation } from "react-i18next";
+
+/**
+ * A translated sentence that contains markup — `<code>`, `<strong>`, a link.
+ *
+ * Re-exported here so the whole app has one i18n import. The alternative that
+ * had grown instead was splitting such a sentence into fragments around the JSX
+ * ("… containing", "into", "and restarting the app"), which cannot be reordered
+ * by a translator and so is not translatable at all.
+ */
+export { Trans } from "react-i18next";
 import { en } from "@/lib/i18n/locales/en";
 
 export type Locale = string;

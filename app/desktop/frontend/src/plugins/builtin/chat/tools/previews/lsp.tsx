@@ -21,7 +21,11 @@ function LspLocationsPreview({ tool, onOpenView }: ToolPreviewProps) {
   return (
     <div className={PREVIEW_WRAP}>
       {rows.length === 0 && (
-        <PreviewPlaceholder status={tool.status} pending="Querying…" idle="(empty)" />
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.querying"
+          idle="tools.preview.idle.empty"
+        />
       )}
       {rows.slice(0, MAX_ROWS).map((row, i) => {
         const sep = row.lastIndexOf(" — ");
@@ -55,7 +59,13 @@ function LspHoverPreview({ tool, onOpenView }: ToolPreviewProps) {
   const text = tool.result?.trim();
   return (
     <div className={cn(PREVIEW_WRAP, "whitespace-pre-wrap break-words text-fg-soft")}>
-      {text || <PreviewPlaceholder status={tool.status} pending="Querying…" idle="(empty)" />}
+      {text || (
+        <PreviewPlaceholder
+          status={tool.status}
+          pending="tools.preview.pending.querying"
+          idle="tools.preview.idle.empty"
+        />
+      )}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { MCPServer } from "@/plugins/builtin/settings/mcp-servers/public/data";
 import {
   builtinToolCatalogViewModel,
@@ -67,7 +68,7 @@ describe("builtinToolCatalogViewModel", () => {
 
 describe("toolCatalogSubtext", () => {
   it("builds MCP catalog header text", () => {
-    expect(toolCatalogSubtext({ activeMcpServerCount: 2, configuredMcpServerCount: 5 })).toBe(
+    expect(toolCatalogSubtext(t, { activeMcpServerCount: 2, configuredMcpServerCount: 5 })).toBe(
       "2 MCP active · 5 configured",
     );
   });

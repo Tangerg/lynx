@@ -69,7 +69,7 @@ export function UsagePane() {
           value={sinceDays}
           options={USAGE_RANGES.map((r) => ({ value: r.days, label: t(r.label) }))}
           onChange={setSinceDays}
-          ariaLabel="Usage range"
+          ariaLabel={t("usage.rangeAria")}
         />
       </div>
 

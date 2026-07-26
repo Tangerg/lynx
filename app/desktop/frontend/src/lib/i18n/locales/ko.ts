@@ -102,8 +102,27 @@ export const ko: Record<string, string> = {
   "tools.preview.viewDetails": "세부 정보 보기",
   "tools.preview.viewText": "전체 텍스트 보기",
   "tools.preview.viewReply": "전체 답장 보기",
+  "tools.preview.pending.matching": "검색 중…",
+  "tools.preview.pending.querying": "조회 중…",
+  "tools.preview.pending.running": "실행 중…",
+  "tools.preview.pending.searching": "검색 중…",
+  "tools.preview.idle.noMatches": "(일치 항목 없음)",
+  "tools.preview.idle.empty": "(비어 있음)",
+  "tools.preview.idle.noOutput": "(출력 없음)",
+  "tools.preview.idle.noResults": "(결과 없음)",
+  "tools.overflow.more": "{{count}}개 더",
+  "tools.overflow.matches": "일치 항목 {{count}}개 더",
+  "tools.overflow.rows": "{{count}}행 더",
+  "tools.overflow.lines": "{{count}}줄 더",
+  "tools.overflow.truncated": "런타임에서 잘렸습니다",
+  "tools.overflow.outputTruncated": "런타임에서 출력이 잘렸습니다",
+  "tools.group.calls": "호출 {{count}}회",
 
   "common.remove": "제거",
+  "common.loading": "불러오는 중",
+  "tasks.header": "작업",
+  "tasks.title.running": "실행 중인 작업 {{count}}개",
+  "tasks.title.recent": "최근 작업",
   "status.notifications": "알림",
   "status.notifications.unread": "읽지 않은 알림 {{count}}건",
   "session.row.titleLabel": "세션 제목",
@@ -189,6 +208,10 @@ export const ko: Record<string, string> = {
   "plugins.origin.builtin.title": "Lyra에 포함됨",
   "plugins.origin.sideload": "사이드로드",
   "plugins.origin.sideload.title": "사용자 설치",
+  "plugins.renderFailed": "<strong>{{plugin}}</strong> 렌더링에 실패했습니다.",
+  "plugins.mainView": "메인 뷰",
+  "plugins.sideload":
+    "<code>{{file}}</code>이 들어 있는 플러그인 폴더를 <code>{{dir}}</code>에 넣고 앱을 다시 시작하면 사이드로드됩니다. 템플릿은 <code>{{sample}}</code>을 참고하세요.",
 
   "connection.error.invalidUrl": "잘못된 URL",
   "shape.radius.aria": "모서리 반경",
@@ -230,6 +253,8 @@ export const ko: Record<string, string> = {
   "settings.font.code": "코드",
   "settings.font.size": "크기",
   "settings.font.default": "기본",
+  "settings.font.defaultUi": "기본값(시스템)",
+  "settings.font.defaultMono": "기본값(시스템 고정폭)",
   "settings.font.smoothing": "글꼴 스무딩 (macOS 안티앨리어싱)",
   "settings.customColors": "사용자 지정 색상",
   "settings.customColors.sub": "배경 + 전경, 나머지는 자동으로 파생됩니다.",
@@ -270,6 +295,9 @@ export const ko: Record<string, string> = {
   "iconGallery.filterLabel": "이름으로 아이콘 필터",
   "iconGallery.filterPlaceholder": "이름으로 필터…",
   "iconGallery.empty": '"{{q}}" 에 일치하는 아이콘이 없습니다.',
+  "iconGallery.subtitle": "아이콘 {{count}}개 · LLM 모델·제공자·앱 브랜드",
+  "iconGallery.showcase":
+    "<code>{{pkg}}</code>에서 고른 브랜드 글리프 {{count}}개. 전체 목록: <em>{{combo}} → View: Icon Gallery</em>.",
 
   "approval.settled.approved": "승인됨",
   "approval.settled.declined": "거부됨",
@@ -336,6 +364,8 @@ export const ko: Record<string, string> = {
 
   // ── 워크스페이스 뷰: 타임라인 ──
   "timeline.title": "실행 타임라인",
+  "timeline.runLabel": "실행 {{id}}",
+  "timeline.summary": "이벤트 {{events}}개 · 실행 {{runs}}회",
   "timeline.jumpToChat": "채팅으로 이동",
   "timeline.empty.title": "아직 활동 없음",
   "timeline.empty.sub": "agent가 실행되면 모든 도구 호출, 승인, 실행 경계가 여기에 표시됩니다.",
@@ -351,6 +381,7 @@ export const ko: Record<string, string> = {
   "notifications.title": "알림",
   "notifications.clearAll": "모두 지우기",
   "notifications.dismiss": "닫기",
+  "notifications.subtext": "읽지 않음 {{unread}}개 · 전체 {{total}}개",
   "notifications.empty.title": "알림 없음",
   "notifications.empty.sub": "플러그인이 host.notify()로 보고한 모든 내용이 여기에 표시됩니다.",
 
@@ -364,6 +395,8 @@ export const ko: Record<string, string> = {
   "search.placeholder": "검색 패턴 (정규식)…",
   "search.aria": "검색 패턴",
   "search.noMatches": "세션 워크스페이스에서 정규식 검색",
+  "search.matches": "일치 항목 {{count}}개",
+  "search.overflow": "표시되지 않은 일치 항목 {{count}}개 — 검색 범위를 좁히세요.",
   "search.empty.title": "일치 없음",
   "search.empty.sub": "워크스페이스에 이 패턴과 일치하는 내용이 없습니다.",
 
@@ -378,6 +411,7 @@ export const ko: Record<string, string> = {
   "terminal.title": "터미널",
   "terminal.empty.title": "아직 명령 없음",
   "terminal.empty.sub": "agent가 실행한 명령과 그 출력이 여기에 표시됩니다.",
+  "terminal.commands": "명령 {{count}}개",
 
   // ── 워크스페이스 뷰: 플랜 ──
   "plan.title": "플랜",
@@ -392,6 +426,7 @@ export const ko: Record<string, string> = {
   "tools.empty.title": "MCP 서버가 구성되지 않음",
   "tools.empty.sub": "MCP 설정에서 서버를 추가하여 agent에 도구를 노출하세요.",
   "tools.footer": "설정에서 MCP 서버 관리",
+  "tools.mcpSubtext": "MCP {{active}}개 연결됨 · 설정 {{configured}}개",
   "tools.status.on": "켜짐",
   "tools.status.off": "꺼짐",
   "tools.status.error": "오류",
@@ -415,6 +450,9 @@ export const ko: Record<string, string> = {
   // ── 워크스페이스 뷰: 메모리 ──
   "memory.title": "메모리",
   "memory.scopes": "{{count}}개 스코프",
+  "memory.scope.cwd": "작업 디렉터리",
+  "memory.scope.projectRoot": "프로젝트 루트",
+  "memory.scope.home": "홈",
   "memory.off": "꺼짐",
   "memory.empty.title": "아직 메모리 없음",
   "memory.empty.sub": "런타임이 agent를 위해 유지 관리하는 LYRA.md 파일이 여기에 표시됩니다.",
@@ -473,6 +511,7 @@ export const ko: Record<string, string> = {
   "diff.baselineAria": "Diff 기준",
   "diff.mode.worktree": "워크트리",
   "diff.mode.branch": "브랜치",
+  "diff.fileCount": "파일 {{count}}개",
   "diff.error.noBaseline": "기준 브랜치 없음",
   "diff.error.loadFailed": "Diff를 불러올 수 없음",
   "diff.error.noBaselineSub": "기본 브랜치를 확인할 수 없습니다 (원격 없음 / 분리된 HEAD).",
@@ -491,9 +530,11 @@ export const ko: Record<string, string> = {
   // ── 플랜 / 작업 목록 제목 ──
   "plan.list.heading": "작업 플랜",
   "todos.list.heading": "작업 목록",
+  "todos.progress": "{{total}}개 중 {{done}}개 완료",
 
   // ── 파일 변경 ──
   "files.changed": "{{count}}개 파일 변경",
+  "files.uncommitted": "파일 {{count}}개 · 커밋되지 않음",
   "files.binary": "bin",
 
   "compaction.compacted": "컨텍스트 압축됨",
@@ -506,6 +547,8 @@ export const ko: Record<string, string> = {
   "convExport.markdown": "대화를 Markdown으로 내보내기",
   "convExport.json": "대화를 JSON으로 내보내기",
   "convExport.import": "JSON에서 대화 가져오기",
+  "convExport.docTitle": "대화",
+  "convExport.exportedAt": "{{time}}에 내보냄",
   "convExport.importUnsupported": "이 런타임은 세션 가져오기를 지원하지 않습니다.",
   "convExport.notJson": "JSON 파일이 아닙니다.",
   "convExport.notLyra":
@@ -534,6 +577,13 @@ export const ko: Record<string, string> = {
   "command.focusComposer": "컴포저에 포커스",
 
   "diagnostics.clear": "지우기",
+  "diagnostics.title": "진단",
+  "diagnostics.description":
+    '실시간 OpenTelemetry — 트레이스 / 메트릭 / 로그. 메모리에만 보관되며(상한 있음) 영구 기록은 OTLP로 나갑니다. "지우기"는 버퍼를 초기화합니다.',
+  "diagnostics.signalAria": "텔레메트리 신호",
+  "diagnostics.signal.traces": "트레이스",
+  "diagnostics.signal.metrics": "메트릭",
+  "diagnostics.signal.logs": "로그",
   "reasoning.thinking": "생각 중…",
   "reasoning.thinkingWithTime": "생각 중 · {{time}}",
   "reasoning.thoughtFor": "{{time}} 동안 생각함",
@@ -572,6 +622,7 @@ export const ko: Record<string, string> = {
   "usage.range.all": "전체",
   "usage.range.30d": "30일",
   "usage.range.7d": "7일",
+  "usage.rangeAria": "사용량 기간",
   "usage.loading": "사용량 불러오는 중…",
   "usage.error": "사용량을 불러올 수 없습니다.",
   "usage.empty": "아직 사용량이 없습니다",
@@ -846,6 +897,7 @@ export const ko: Record<string, string> = {
   "tool.meta.added": "+{{count}}",
   "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}}건 일치",
+  "tool.meta.files": "파일 {{count}}개",
   "tool.meta.exit": "종료 코드 {{code}}",
   "tool.meta.live": "진행 중",
   "tool.group.read": "읽기 {{count}}",

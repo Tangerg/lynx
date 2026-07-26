@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { t } from "@/lib/i18n";
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import { planSubtext, planViewModel } from "./planViewModel";
 
@@ -36,10 +37,10 @@ describe("planViewModel", () => {
 
 describe("planSubtext", () => {
   it("omits header subtext for an empty plan", () => {
-    expect(planSubtext({ doneCount: 0, totalCount: 0 })).toBeUndefined();
+    expect(planSubtext(t, { doneCount: 0, totalCount: 0 })).toBeUndefined();
   });
 
   it("builds completion subtext", () => {
-    expect(planSubtext({ doneCount: 2, totalCount: 3 })).toBe("2 of 3 complete");
+    expect(planSubtext(t, { doneCount: 2, totalCount: 3 })).toBe("2 of 3 complete");
   });
 });

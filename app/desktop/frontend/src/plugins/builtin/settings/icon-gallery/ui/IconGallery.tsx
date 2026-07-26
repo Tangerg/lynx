@@ -52,7 +52,7 @@ export function IconGallery() {
         <div>
           <div className="text-display-sm font-medium text-fg">@lobehub/icons</div>
           <div className="mt-1 text-ui-md text-fg-muted">
-            {rawToc.length} icons · brands across LLM models, providers, and apps
+            {t("iconGallery.subtitle", { count: rawToc.length })}
           </div>
         </div>
         <SearchField

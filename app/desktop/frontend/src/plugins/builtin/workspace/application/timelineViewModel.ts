@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { TimelineEntry } from "@/plugins/builtin/agent/public/viewState";
 
 export interface TimelineRunGroup {
@@ -37,11 +38,11 @@ export function timelineGroupKey(group: TimelineRunGroup, index: number): string
   return `${group.runId ?? "pre"}:${index}`;
 }
 
-export function timelineSubtext({
-  eventCount,
-  runCount,
-}: Pick<TimelineViewModel, "eventCount" | "runCount">): string {
-  return `${eventCount} events · ${runCount} run${runCount === 1 ? "" : "s"}`;
+export function timelineSubtext(
+  t: Translate,
+  { eventCount, runCount }: Pick<TimelineViewModel, "eventCount" | "runCount">,
+): string {
+  return t("timeline.summary", { events: eventCount, runs: runCount });
 }
 
 export function timelineTimeOfDay(ts: number): string {

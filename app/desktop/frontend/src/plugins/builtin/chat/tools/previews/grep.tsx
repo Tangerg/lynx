@@ -3,6 +3,7 @@
 // workspace.grep re-query. The query comes off `tool.fn` (search → query, the
 // §4.4.2 projection).
 
+import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
@@ -15,6 +16,7 @@ import { PREVIEW_WRAP } from "./shared";
 const MAX_GREP_MATCHES = 4;
 
 function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
+  const t = useT();
   const { shown, overflow, truncated } = useGrepToolPreview(tool, MAX_GREP_MATCHES);
   // §7.5 no-silent-caps: surface both our preview cap and server truncation.
   return (
@@ -31,8 +33,12 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
             <span className="truncate text-fg-soft">{r.text}</span>
           </div>
         ))}
-        {overflow > 0 && <div className="pt-1 text-fg-faint">… {overflow} more matches</div>}
-        {truncated && <div className="pt-1 text-fg-faint">… truncated by runtime</div>}
+        {overflow > 0 && (
+          <div className="pt-1 text-fg-faint">
+            … {t("tools.overflow.matches", { count: overflow })}
+          </div>
+        )}
+        {truncated && <div className="pt-1 text-fg-faint">… {t("tools.overflow.truncated")}</div>}
       </div>
       <PreviewFoot label="tools.preview.viewMatches" onClick={onOpenView} />
     </div>

@@ -1,3 +1,4 @@
+import type { Translate } from "@/lib/i18n";
 import type { Tone } from "@/lib/tone";
 import {
   useMCPServers,
@@ -92,11 +93,17 @@ export function builtinToolCatalogViewModel(
   };
 }
 
-export function toolCatalogSubtext({
-  activeMcpServerCount,
-  configuredMcpServerCount,
-}: Pick<ToolCatalogViewModel, "activeMcpServerCount" | "configuredMcpServerCount">): string {
-  return `${activeMcpServerCount} MCP active · ${configuredMcpServerCount} configured`;
+export function toolCatalogSubtext(
+  t: Translate,
+  {
+    activeMcpServerCount,
+    configuredMcpServerCount,
+  }: Pick<ToolCatalogViewModel, "activeMcpServerCount" | "configuredMcpServerCount">,
+): string {
+  return t("tools.mcpSubtext", {
+    active: activeMcpServerCount,
+    configured: configuredMcpServerCount,
+  });
 }
 
 export function builtinToolSafetyTone(safetyClass: BuiltinToolInfo["safetyClass"]): Tone {

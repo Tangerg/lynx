@@ -75,8 +75,8 @@ function exportLocalMarkdown(): void {
   const view = getActiveConversationSnapshot();
   const sid = getActiveSessionId();
   const sections: string[] = [
-    `# Conversation \`${sid}\``,
-    `*Exported ${new Date().toISOString()}*`,
+    `# ${t("convExport.docTitle")} \`${sid}\``,
+    `*${t("convExport.exportedAt", { time: new Date().toISOString() })}*`,
     "",
   ];
   for (const msg of view.messages) {

@@ -40,7 +40,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: 
         <Icon name="search" size={14} className="shrink-0 text-fg-muted" />
         <span className="truncate text-ui-lg font-medium text-fg-muted">{model.summary}</span>
         <span className="ml-auto shrink-0 rounded-pill bg-fg/[0.06] px-2 py-0.5 font-mono text-ui-sm font-medium text-fg-muted">
-          {model.count} calls
+          {t("tools.group.calls", { count: model.count })}
         </span>
         <Icon
           name="chevron-down"

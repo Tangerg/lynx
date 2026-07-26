@@ -1,4 +1,6 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { Translate } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import {
   useWorkspaceDiff,
   useWorkspaceFileHead,
@@ -37,6 +39,7 @@ interface GrepPreviewRow {
 }
 
 function inlineGrepRows(
+  t: Translate,
   result: string | undefined,
 ): { rows: GrepPreviewRow[]; truncated: boolean } | undefined {
   const parsed = parseJsonResult(result);
@@ -60,7 +63,7 @@ function inlineGrepRows(
     return {
       rows: parsed.counts.map((count) => ({
         loc: String(rec(count).path ?? ""),
-        text: `${String(rec(count).count ?? 0)} matches`,
+        text: t("tool.meta.matches", { count: Number(rec(count).count ?? 0) }),
       })),
       truncated,
     };
@@ -69,7 +72,8 @@ function inlineGrepRows(
 }
 
 export function useGrepToolPreview(tool: ToolCall, maxMatches: number) {
-  const inline = inlineGrepRows(tool.result);
+  const t = useT();
+  const inline = inlineGrepRows(t, tool.result);
   const cwd = useActiveSessionCwd();
   const query =
     !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
