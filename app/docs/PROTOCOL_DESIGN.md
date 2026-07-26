@@ -13,6 +13,8 @@
 >
 > **裁决立场**：对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md)（薄核 / 窄腰 / 一个扩展机制）与 [`../../CLAUDE.md`](../../CLAUDE.md)（第一法则不留债、第二法则治本、YAGNI）判"该不该学"，而非见特性就抄。引擎能力对比见 [`RUNTIME_COMPARISON.md`](RUNTIME_COMPARISON.md)，GUI 形态见 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md)。
 >
+> **与 [`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md) 的分工**：那份是**独立复核稿**（保留独立判断、负责挑战本篇的结论）；本篇是**收敛稿**，额外承载 §19 的决策簿。两份都用同一套三级标注，互为对照——**决策簿只存在于本篇一处**，避免"哪份是真相"再出现第三次。本轮已吸收对方对本篇 cursor 结论与前端错误码结论的**反驳**（§7.3、§15 表第 4 / 11 行），以及跨 Segment 计量（§5.4）与控制面协议根（§16 P2）两处它先提出的问题。
+>
 > 本篇与 canonical 协议冲突时，**以 canonical 协议与代码为准**；本篇用于指导下一轮经确认的调整。
 
 ---
@@ -23,7 +25,9 @@
 
 **吸收 4 条**：① 可执行契约注册表 → 机器可读制品（method 名现在写四遍）；② 精确状态 + 并发前置条件（`waiting` 一等、`expectedSegmentId`、subscribe 绑 segment）；③ 把 `durable` 拆成 **authoritative / replayable / ephemeral** 三级；④ 高层 SDK 流句柄（wire 保持窄，复杂度收在客户端库）。
 
-**修 7 类**（§15 逐条附证据）：wire 把 parked run 报成 `finished` · `RunOutcome` 混入 `interrupt` · steer 无执行实例前置 · subscribe 只绑 runId 且三种情况同一个错 · replay cursor 契约与实现不一致 · MCP 工具 identity 文档与代码不同 · 一批文档与类型漂移。
+**修 9 类**（§15 逐条附证据）：wire 把 parked run 报成 `finished` · `RunOutcome` 混入 `interrupt` · steer 无执行实例前置 · subscribe 只绑 runId 且三种情况同一个错 · replay cursor 无归属校验（重启后会静默跳过 replay）· **跨 Segment 计量无闭合语义（interrupt 边界不带计量）** · MCP 工具 identity 文档与代码不同 · **前端存在第二份手写错误码表且已错值** · 一批文档与类型漂移。
+
+**待裁决 7 项**：见 §19 决策簿——计量 shape · duration 口径 · cursor 编码与 retention · interrupt 查询命名 · `ProblemData` 字段 · 注册表实现方式 · 控制面推送的触发条件。
 
 **拒 8 条**：REST 影子面 · 常开全局 SSE 总线 · 强制连接握手 · server→client request · per-tool Item 联合膨胀 · per-event 版本化与 V1/V2 并存 · 业务错误映 HTTP status · 把进程内 SDK 消息联合当 wire。
 
@@ -145,13 +149,27 @@ type SegmentOutcome = { type: "interrupt"; interrupts: Interrupt[] } | RunOutcom
 
 `segment.finished` 携带 `SegmentOutcome`；`RunRef.outcome` 只携带 `RunOutcome`。这一改同时消灭"已完成但还能继续"的非法心智，和"哪个 outcome 属于哪一层"的模糊。**破坏性**：见 §16 P1。
 
-### 5.3 所有权
+### 5.3 跨 Segment 计量必须闭环【已核实 + 待定】
+
+Run 跨 resume 保持身份，计量就不能在每段悄悄归零。**已核实的缺口**：`delivery/server/presenter_run.go` 在 `Interrupted` 分支返回的是 `RunOutcome{Type: OutcomeInterrupt, Interrupts: …}`——**不带 `Result`**。也就是说停车边界上客户端拿不到任何 authoritative 的 usage / steps 快照；要显示"这次运行已花了多少"，只能另查 `usage.session` 或丢掉这段的部分值。
+
+目标语义（**落地前需裁决**，见 §19）：
+
+- `maxSteps` / `maxBudgetUsd` 是 **Run 生命周期**的限制；若契约定义为含 subagent 树，resume 后仍按同一棵树累计；
+- **每次 `segment.finished` 都带停止边界上的 authoritative 计量快照，`interrupt` 不例外**；
+- 最终 `RunResult` 是各段的累计终值，不能只反映最后一段；
+- subagent 自身用量与 root 聚合用量各有唯一口径，不让客户端自己求和后再猜有没有重复计；
+- `segment.progress` 可以近似/节流/丢帧，但**不得**成为计费与预算判断的唯一来源。
+
+**duration 是独立待决项**：`elapsedDurationMs`（创建→Finished，含等人）/ `activeDurationMs`（各执行段之和，不含 Waiting）/ `segmentDurationMs`（单段）回答三个不同问题。当前只有一个 `durationMs` 且文档定义为"跨 interrupt/resume 的墙钟耗时"——它同时被当性能指标和用户端总耗时用，必须先定它是哪一个，再决定是否需要第二个字段。
+
+### 5.4 所有权
 
 | 对象 | 身份稳定期 | 拥有 | 不应拥有 |
 |---|---|---|---|
 | Session | 整个对话 | cwd、标题、默认模型、Run 历史 | 当前 executor handle |
-| Run | 一次用户意图（跨 resume） | 状态、终态、usage、subagent 树 | transport connection |
-| Segment | 一段连续执行 | stream root、开始/停止原因 | 长期对话身份 |
+| Run | 一次用户意图（跨 resume） | 状态、终态、**累计计量**、subagent 树 | transport connection |
+| Segment | 一段连续执行 | stream root、停止原因、**段计量边界** | 长期对话身份 |
 | Item | 时间线单元 | 内容、工具调用、权威完成态 | transport delta buffer |
 | Interrupt | Run 的 durable 等待 | 待答内容、关联 item、创建时间 | 原客户端连接 |
 
@@ -206,9 +224,15 @@ workspace、mcp、providers、models、memory、schedules、goals 等继续是 c
 
 ### 7.3 cursor 契约【已核实 + 设计判断】
 
-**核实结果（与初版分析相反，此处以代码为准）**：event cursor 由 `application/runs` 的 Coordinator 持有**进程级**单调计数器（定宽零填充，保证字典序=数值序），`evt_` 框架在 delivery 施加。而 `API.md §2.4` 写的是"`runs.resume` … eventId 从头"（每段重置）——**错的是文档**。
+**核实结果**：event cursor 由 `application/runs` 的 Coordinator 持有**进程级**单调计数器（定宽零填充，保证字典序=数值序），`evt_` 框架在 delivery 施加。而 `API.md §2.4` 写的是"`runs.resume` … eventId 从头"（每段重置）——**文档描述的不是实现**。
 
-**关键推论**：恰恰因为实现没按文档做 per-segment 重置，陈旧的 `Last-Event-Id` 才不会静默错位重放（全局 id 在新段里必然更大，replay-after 落空即从新段头开始，且响应首帧回传新 `segmentId` 让客户端能发现换段了）。**若按文档"修"实现，反而会造出真 bug。**
+**但"实现是安全的那一方"这个结论是错的（本篇上一版的结论，已由独立复核推翻，此处以代码为准）**。进程级计数器只消除了"同进程内不同 Segment 复用同一数值"这一种冲突，三个漏洞仍在：
+
+- `application/runs` 的 `Journal.Subscribe` 只做 `ev.Cursor() > fromCursor` 的**字符串比较，不校验 cursor 是否属于本流**；
+- **计数器随进程重启归零**（这是有意的：eventId 不是全局时钟），于是重启前的旧 cursor 可能**大于**新段已有 cursor → replay 被**静默跳过**，而不是报错；
+- `runs.subscribe` 只按 runId 选活跃 entry，**无法证明** `Last-Event-Id` 与它返回的 `segmentId` 同源。
+
+**所以正确结论是**：实现比"每段裸重置"少一种冲突，但目标契约仍未落地——**不是把文档改成"进程级全局递增"就完事**，必须同时补归属校验与两个显式错误。
 
 **目标契约**：
 
@@ -410,14 +434,16 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 | 1 | parked run 在 wire 上被报成 `finished`，`RunOutcome` 混入 `interrupt` | `domain/execution/run.go`（注释明写 interrupt 不是 Outcome）· `delivery/protocol/runs.go` · `delivery/server/presenter_run.go`（`Interrupted → RunStatusFinished`） | **成立，第一优先级根因**；且与 wire 已有的 `SessionStatus.waiting` 自相矛盾 |
 | 2 | `runs.steer` 无执行实例前置，输入退化为 string | `delivery/protocol` 的 `SteerRunRequest{runId, message}` | 成立 |
 | 3 | `runs.subscribe` 只绑 runId；不存在/已结束/停车中三种情况同一个 `run_not_found` | `delivery/protocol` 的 `SubscribeRunRequest{runId}` · `delivery/server` SubscribeRun | 成立 |
-| 4 | replay cursor 契约与实现不一致 | `application/runs` Coordinator 的进程级定宽计数器 vs `API.md §2.4`"eventId 从头" | 成立，**但错在文档**；实现是安全的一方（§7.3） |
+| 4 | replay cursor 契约与实现不一致 | `application/runs` Coordinator 的进程级定宽计数器 vs `API.md §2.4`"eventId 从头"；`Journal.Subscribe` 只做 `cursor >` 字符串比较、无归属校验；计数器随进程重启归零 | 成立。**本篇上一版说"实现是安全的一方"是错的**：它只少一种冲突，重启后的旧 cursor 会静默跳过 replay（§7.3） |
 | 5 | MCP 工具 identity 文档与代码不同（点号 vs 下划线） | `mcp/tools.go` 组名 + sanitize vs `API.md §4.4` 两处 | 成立，**最贵**（identity 是审批规则/展示注册表/日志共用的匹配值） |
 | 6 | `TRANSPORT.md` 残留不存在的 `background.subscribe` | 该文档多处提及；dispatcher 无 `background.*` | 成立 |
 | 7 | `TRANSPORT.md` 续流路径写成 `/v2/rpc/runs.subscribe` | 同文档 §6.1 只有 `POST /v2/rpc` 且明写"URL 不再重复 method" | 成立，**同一文档自相矛盾，且错的那句在重连路径上** |
 | 8 | 类型目录漏项 | Go 有 `RunProgress.contextTokens`、`TodoSnapshot.blockedReason/nextAction`、`Provider.embeddingCapable/defaultEmbeddingModel`，`API.md` 对应 schema 未列 | 成立 |
 | 9 | dispatcher 有文档未描述的方法 | `mcp.configs.{list,configure,remove,setEnabled,test}` + `mcp.servers.authorize` | 成立 |
 | 10 | goal 状态靠前端轮询 | `chat/goal/application/goalData.ts` 的 `refetchInterval` | 成立（根因是控制面无推送落点，见 §16 P2） |
-| 11 | 前端 `idempotency_conflict` 数字码与后端不一致 | 前端 `rpc/errors.ts` **没有数字码表**（只按符号 `type` 分支，正是协议要求）；唯一用码的 fixture 是 `-32021` 配 `idempotency_in_progress`，与后端一致 | **不成立**（记录在此以免重复提出） |
+| 11 | 前端 `idempotency_conflict` 数字码与后端不一致 | 前端 `rpc/types.ts` 的 `RPC_IDEMPOTENCY_CONFLICT = -32015`，后端 `CodeIdempotencyConflict = -32020`（`-32015` 在后端表里根本没分配）；且这张手写镜像表停在 `-32016`，缺 `-32017…-32021` 全部 | **成立。本篇上一版判它"不成立"是我查错了文件**（查的是 `rpc/errors.ts`、搜的是 wire 符号名而非常量名）。**治本不是改那个数字**：协议要求客户端按 `type` 判错、数字码只作粗分类，而这张表除了在 barrel 里 re-export **没有任何消费者** → 删掉整份手写镜像（要用就从 §12 的注册表生成） |
+| 12 | interrupt 边界不带计量 | `presenter_run.go` 的 `Interrupted` 分支返回的 `RunOutcome` 无 `Result` | 成立（§5.3） |
+| 13 | `workspace.subscribe` 承载 runtime 级事件 | 其事件集含 `mcp.serverChanged` / `skills.changed` / `schedules.fired` | 成立——**今天就已经违反"`workspace.*` 只表示工作树"这条领域根规则**（§16 P2） |
 
 **结论**：`API.md` 头部那句"canonical, frozen baseline"与"靠 review 保持同步"不能同时成立。"frozen"这个词只应在 §12.4 的 drift gate 全绿之后使用。
 
@@ -434,14 +460,18 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 - 补类型目录漏项（`contextTokens` / `blockedReason` / `nextAction` / provider 两个 embedding 字段）；
 - 补 6 个未文档化的 `mcp.*` 方法；
 - 删 §13 那条与已实现的 `runs.steer` 打架的 stale 条目；
-- cursor 契约按实现改写（opaque、相等去重、绑 segment）；
+- **删掉前端 `rpc/types.ts` 的手写数字码镜像**（含错值 `RPC_IDEMPOTENCY_CONFLICT = -32015`）——协议要求按 `type` 判错，这张表无消费者且已漂移；要保留就等 §12 注册表生成；
+- cursor 契约按**实现 + 已知漏洞**改写（opaque、相等去重、绑 segment；并写明归属校验尚未落地，见 §7.3）；
 - `§14` 的语气改成诚实待办，直到 P1 契约落地。
 
-**验收**：方法表与 dispatcher 逐项对齐；文档内不存在互相矛盾的两处描述。
+**验收**：方法表与 dispatcher 逐项对齐；文档内不存在互相矛盾的两处描述；前后端不存在第二份手写的错误码真相。
 
 ### P1 · 核心生命周期治本（**破坏性，需先批准**）
 
+> **先冻结语义、再冻结 shape**：这一批动手前，§19 的 1–4 项（计量 shape / duration 口径 / cursor 编码与 retention / interrupt 查询命名）必须先有结论——否则会在实现过程里被悄悄决定。
+
 - `RunStatus` 加 `waiting`；`RunOutcome` 移出 `interrupt`；`SegmentOutcome` 承载它；
+- 每次 `segment.finished`（含 `interrupt`）带 authoritative 计量边界，`RunResult` 可从各段确定性聚合（§5.3）；
 - presenter / `runs.list` / `items.list` / SessionStatus 对齐同一状态机；
 - `runs.steer` 加 `expectedSegmentId`、输入改 `ContentBlock[]`；
 - `runs.subscribe` 绑 `segmentId`；
@@ -454,14 +484,20 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 
 Registry → OpenRPC + JSON Schema + canonical samples 补全 + §12.4 的 drift gate。**先只做这一圈**；TS validator 只覆盖 authoritative/terminal 帧，typed client 与 compatibility diff 等有真实第三方客户端再说（YAGNI）。
 
-### P2 · 控制面推送（additive，需确认落点）
+### P2 · 控制面推送（**先测量，再决定是否 additive**）
 
 **根因【已核实】**：非当前流的 run / 会话 / goal 状态没有推送落点——goal 模式在前端定时轮询 `goals.get`，schedules 触发的 headless run 只能靠 `schedules.fired` 提示去重拉列表。
 
-- **备选 A（推荐）**：在 `workspace.subscribe` 的事件集上增开控制面事件（`session.status` / `goal.updated` / `interrupt.resolved`），与既有 `schedules.fired`、`mcp.serverChanged` 同性质；同时在 `AUX_API.md` 里把它的职责正名为 runtime 级控制面，否则下一个人以为它只管文件。
-- **备选 B**：新开 `sessions.subscribe`，语义更正，代价是多一条流 + 多一套重连/回放规则。
+**本篇上一版推荐"塞进 `workspace.subscribe`"，撤回**——那违反本篇 §3.6 自己写的领域根规则（`workspace.*` 只表示工作树），是拿"已经有一条流"当理由寄生到错误的根上。而"新开 `sessions.subscribe`"也不对：它容不下 goal / schedule / MCP 这些非会话的 runtime 级失效事件。
 
-落地后删掉 goal 轮询。**不回退到常开全局 SSE 总线。**
+**目标顺序**：
+
+1. **先测量**：轮询频率、后台 run 数量、状态陈旧对 UX 的真实影响。成本可接受就继续轮询——**不为架构对称性加一条长流**。
+2. 触发条件（任一）达到后，新增职责真实、**可过滤**的 `runtime.subscribe`：per-call 流、符合 Streamable HTTP、不是 server→client request、不维护客户端连接身份。
+3. 事件**只做 invalidation**，权威事实仍由 sessions / runs / goals / interrupts 查询面提供；支持 `resync` 让客户端在丢帧或重连后统一 refetch。
+4. **顺带归位**：`workspace.subscribe` 今天已经承载 `mcp.serverChanged` / `skills.changed` / `schedules.fired`——这些本就是 runtime 级事件寄生在工作树根上。若 `runtime.subscribe` 落地，它不只是新事件的去处，**也是这三个事件应该迁走的去处**（breaking，但是把边界改对）。
+
+**不回退到常开、无过滤的全局 SSE 总线。**
 
 ### P3 · 加固与便利
 
@@ -505,8 +541,40 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 
 ---
 
+## 19. 决策簿（持续演进的唯一账本）
+
+> 后续讨论不从"四家谁更好"重开。**已收敛的当基线，只有新事实才重开**；待裁决的逐项定，定完就地记录"结论 / 理由 / 影响 protocolVersion / 被替代方案"。**这份账本只存在于本篇**（对照稿不复制，避免同一问题在两处漂移）。
+
+### 19.1 已收敛，不建议反复讨论
+
+- Session → Run → Segment → Item 四层，Run 跨 resume 稳定；
+- Run 有 `running / waiting / finished`，**Interrupt 不是 RunOutcome**；
+- `runs.steer` 需要 `expectedSegmentId`；subscribe 与 cursor 必须绑 Segment；
+- authoritative / replayable / ephemeral 三级分开，ephemeral 必有权威落点；
+- 通用 `ToolInvocation`，不扩 per-tool wire union；
+- Go 契约注册表导出 OpenRPC / JSON Schema / TS wire types；golden sample 是独立补充、不替代 schema；
+- `workspace.*` 不承载 runtime / session / goal 控制面；
+- server→client request、REST 影子面、无过滤的全局广播总线不进核心协议；
+- 业务错误不映 HTTP status；客户端按符号 `type` 判错。
+
+### 19.2 下一轮需要逐项裁决
+
+| # | 决策项 | 两种（或多种）解 | 前置材料 |
+|---|---|---|---|
+| 1 | **计量 shape** | `interrupt` 边界带**本段值**，还是带 **Run 累计快照**；最终 `RunResult` 怎么表达 subagent 聚合 | 现有 usage 消费者清单（UI / 预算 / `usage.summary` 归因） |
+| 2 | **duration 口径** | 只保留一个明确含义，还是同时给 `active` / `elapsed` | 现有 UI、预算、调度三处的实际读法 |
+| 3 | **cursor 编码与 retention** | opaque id 是否显式含 epoch/segment；归属如何校验；重启后何时返回 `replay_unavailable` | §7.3 的三个漏洞 + 重连实测 |
+| 4 | **Interrupt 查询命名** | 保留 `runs.listOpenInterrupts`，还是在同批 breaking 里收敛为 `interrupts.list` | 只在 P1 一起改，不单独为改名做破坏性变更 |
+| 5 | **`ProblemData`** | `channel` 删除还是留作脱上下文自描述；`retryable` 删除 / 改名 `transient` / 补清与幂等重试的区别 | 先解决 `provider_rejected` vs `invalid_request` 同名不同物（§11.2） |
+| 6 | **注册表实现方式** | Go reflection / AST 注解 codegen / 显式 registry metadata | 以"能否可靠生成 union discriminator + 方法表"实测裁决 |
+| 7 | **控制面触发条件** | 继续轮询，还是新增可过滤 `runtime.subscribe`（并把三个寄生事件归位） | goal 轮询与后台 run 的实测成本；多客户端 interrupt 失效是否真需求 |
+
+---
+
 ## 附录 · 参考
 
-**外部（一手）**：Codex app-server 规范 · opencode v2 `packages/{protocol,schema}` 源码与在线 API 文档 · Claude Code headless / Agent SDK 文档与其 bridge 的 `control_request` 实现。
+**同期独立复核稿**：[`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md)（分工见文首）。
+
+**外部（一手）**：Codex app-server 规范 · opencode v2 `packages/{protocol,schema}` 源码与在线 API 文档（**注意分级**：公开稳定文档 / Experimental 文档 / 仓库 HEAD 不是同一级契约，其公开 `/api/event` 与源码里的 durable session event 不能混写成一个结论）· Claude Code headless / Agent SDK 文档与其 bridge 的 `control_request` 实现。
 
 **本地**：`app/desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` · `app/runtime/internal/delivery/{protocol,dispatch,server}` · `app/runtime/internal/application/runs` · `app/runtime/internal/domain/execution` · `app/desktop/frontend/src/rpc` · [`../runtime/CLAUDE.md`](../runtime/CLAUDE.md) · [`../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md`](../runtime/doc/EXECUTION_CENTERED_ARCHITECTURE.md)
