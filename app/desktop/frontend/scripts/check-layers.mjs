@@ -224,6 +224,14 @@ function builtinContext(path, contextRoots) {
 // get no such license.
 const BUILTIN_MANIFEST = "plugins/builtin/index.ts";
 const TEST_SETUP = "test/setup.ts";
+// A test sitting in the manifest's own directory tests the *assembled* plugin
+// set — cross-context invariants no single context can check — so it loads
+// plugins the way the manifest does. Nested test files get no such license.
+const COMPOSITION_TEST = /^plugins\/builtin\/[^/]+\.test\.tsx?$/;
+
+function atCompositionRoot(file) {
+  return file === BUILTIN_MANIFEST || file === TEST_SETUP || COMPOSITION_TEST.test(file);
+}
 
 // A peer context may import only another context's `public/` facade. Any other
 // cross-context import — including into a loose file sitting at the context
@@ -232,8 +240,7 @@ const TEST_SETUP = "test/setup.ts";
 // reach application/domain/adapters/presentation/ui" rule: it also closes the
 // loophole of importing a root-level file that lives in no boundary dir at all.
 function crossContextViolation(file, dep, contextRoots) {
-  if (file === BUILTIN_MANIFEST) return null; // plugin composition root
-  if (file === TEST_SETUP) return null; // test-only composition root installs concrete adapters
+  if (atCompositionRoot(file)) return null; // composition root (manifest, its tests, test setup)
   const depContext = builtinContext(dep, contextRoots);
   if (!depContext) return null; // dep isn't inside any recognized context
   const fromContext = builtinContext(file, contextRoots);

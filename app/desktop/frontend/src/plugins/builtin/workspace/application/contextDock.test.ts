@@ -1,34 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
-import {
-  openContextDockDestination,
-  openContextDockLauncher,
-  openContextDockView,
-} from "./contextDock";
+import { openContextDockDestination, openContextDockLauncher } from "./contextDock";
 
 describe("context dock navigation", () => {
   beforeEach(() => {
-    useWorkspaceSurfaceStore.setState({
-      activeMainView: null,
-      mainViewTabs: [],
-    });
-    useContextDockStore.setState({
-      splitViewId: null,
-    });
-  });
-
-  it("opens workspace material beside the agent narrative", () => {
-    openContextDockView({ id: "search", title: "workspace.view.title.search", icon: "search" });
-
-    expect(useContextDockStore.getState().splitViewId).toBe("search");
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    useWorkspaceSurfaceStore.setState({ activeMainView: null });
+    useContextDockStore.setState({ dockViewId: null, lastDockViewId: null });
   });
 
   it("opens the context launcher beside the agent narrative", () => {
     openContextDockLauncher();
 
-    expect(useContextDockStore.getState().splitViewId).toBe("context");
+    expect(useContextDockStore.getState().dockViewId).toBe("context");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 
@@ -40,7 +24,7 @@ describe("context dock navigation", () => {
       scope: "workspace",
     });
 
-    expect(useContextDockStore.getState().splitViewId).toBe("files");
+    expect(useContextDockStore.getState().dockViewId).toBe("files");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
   });
 });

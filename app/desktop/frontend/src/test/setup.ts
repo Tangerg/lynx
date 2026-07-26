@@ -39,14 +39,13 @@ beforeEach(() => {
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
   useWorkspaceSurfaceStore.setState({
-    mainViewTabs: [],
     activeMainView: null,
     settingsPane: null,
   });
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    splitViewId: null,
+    dockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",

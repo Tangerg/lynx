@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { IconName } from "@/ui";
 import { Icon, SearchField, VerticalTabs } from "@/ui";
-import { noDragClasses } from "@/lib/windowDrag";
+import { AgentSurfaceHeader } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import {
@@ -69,8 +69,8 @@ export function SettingsPage() {
       groups={grouped}
       value={activeId}
       onValueChange={setSelectedId}
-      sidebarHeader={
-        <SettingsSidebarHeader
+      railHeader={
+        <SettingsRailHeader
           query={query}
           onQueryChange={setQuery}
           searchPlaceholder={t("settings.searchPlaceholder")}
@@ -80,7 +80,7 @@ export function SettingsPage() {
   );
 }
 
-function SettingsSidebarHeader({
+function SettingsRailHeader({
   query,
   onQueryChange,
   searchPlaceholder,
@@ -91,26 +91,30 @@ function SettingsSidebarHeader({
 }) {
   const t = useT();
   return (
-    <div className="pb-4">
-      {/* Clears the native macOS traffic-light inset (the only window controls). */}
-      <div className="h-[38px]" aria-hidden />
-      <button
-        type="button"
-        data-chrome-focus=""
-        onClick={selectWorkspaceChat}
-        className="mb-4 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[120ms] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
-      >
-        <Icon name="arrow-left" size={15} strokeWidth={1.8} />
-        <span>{t("settings.backToApp")}</span>
-      </button>
-      <SearchField
-        size="lg"
-        value={query}
-        onValueChange={onQueryChange}
-        placeholder={searchPlaceholder}
-        aria-label={searchPlaceholder}
-        className={noDragClasses}
-      />
+    <div className="flex flex-col">
+      {/* Settings takes the whole window, so this is the ONLY chrome bar on the
+          page: it clears the macOS traffic lights and it is what the user drags
+          the window by. A hand-rolled spacer did the first job and not the
+          second, which left the window immovable while settings was open. */}
+      <AgentSurfaceHeader divider={false} windowCorner aria-hidden />
+      <div className="px-4 pb-4">
+        <button
+          type="button"
+          data-chrome-focus=""
+          onClick={selectWorkspaceChat}
+          className="mb-3 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[120ms] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
+        >
+          <Icon name="arrow-left" size={15} strokeWidth={1.8} />
+          <span>{t("settings.backToApp")}</span>
+        </button>
+        <SearchField
+          size="lg"
+          value={query}
+          onValueChange={onQueryChange}
+          placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
+        />
+      </div>
     </div>
   );
 }

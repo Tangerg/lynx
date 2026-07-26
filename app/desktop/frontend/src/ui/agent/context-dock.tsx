@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Icon, type IconName } from "@/ui/icons";
 
@@ -21,12 +21,20 @@ export interface AgentDockTab {
  */
 export function AgentContextDock({
   className,
+  style,
   children,
 }: {
   className?: string;
+  /** Carries the resizable width, which lives in a custom property so a drag
+   *  doesn't re-render the card. */
+  style?: CSSProperties;
   children: ReactNode;
 }) {
-  return <aside className={cn("agent-context-dock", className)}>{children}</aside>;
+  return (
+    <aside className={cn("agent-context-dock", className)} style={style}>
+      {children}
+    </aside>
+  );
 }
 
 /** Dock tabs wear the chrome-chip skin, so a tab and a header toggle read as one

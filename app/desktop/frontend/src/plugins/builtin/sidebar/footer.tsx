@@ -3,8 +3,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { AgentRow } from "@/ui/agent";
 import { Button, Icon } from "@/ui";
-import { noDragClasses } from "@/lib/windowDrag";
-import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useWorkIndexActions } from "@/plugins/builtin/navigation/public/workIndex";
 import { isLightTheme, toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
@@ -49,7 +47,7 @@ function SidebarFooter() {
   const actions = useWorkIndexActions();
 
   return (
-    <div className={cn("flex items-center gap-1 p-2", noDragClasses)}>
+    <div className="flex items-center gap-1 p-2">
       <AgentRow icon="settings" className="min-w-0 flex-1" onClick={actions.openSettings}>
         {t("sidebar.action.settings")}
       </AgentRow>

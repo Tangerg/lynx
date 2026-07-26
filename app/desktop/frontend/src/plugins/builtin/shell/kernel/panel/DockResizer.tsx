@@ -1,27 +1,26 @@
-// Drag handle between the chat stream and a split workspace view. Self-written
-// because Base UI has no split-pane primitive (DESIGN §4 exemption: this is
-// interactive chrome, not a decorative divider — idle shows nothing but a
-// col-resize cursor; the accent guide appears only on hover/drag). On drag it
-// computes the chat's fraction of the parent row's width and persists it
-// (clamped 0.25–0.75) to uiStore so the split holds across sessions/launches.
+// Drag handle between the chat stream and the context dock. Self-written because
+// Base UI has no split-pane primitive (DESIGN §4 exemption: this is interactive
+// chrome, not a decorative divider — idle shows nothing but a col-resize cursor;
+// the accent guide appears only on hover/drag).
 //
-// During the drag the fraction goes straight onto the row as `--chat-split`, and
-// the store hears about it once, on release. State per pointer-move re-rendered
-// ChatPanel — the transcript, the composer and the workspace view with it — at
+// During the drag the width goes straight onto the row as `--dock-width`, and the
+// store hears about it once, on release. State per pointer-move re-rendered
+// ChatPanel — the transcript, the composer and the dock's view with it — at
 // pointer frequency, which is the mistake AgentSeamRail already documents.
 
 import { useCallback, useEffect, useRef } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { clampDockWidth } from "@/lib/shellGeometry";
 import { useT } from "@/lib/i18n";
-import { useUiStore } from "@/state/uiStore";
-import { CHAT_SPLIT_PROPERTY } from "./chatSplit";
+import { useDockWidth } from "@/plugins/builtin/workspace/public/sidebarDrawer";
+import { DOCK_WIDTH_PROPERTY } from "./dockWidth";
 
-export function SplitResizer() {
+export function DockResizer() {
   const t = useT();
-  const setSplitRatio = useUiStore((s) => s.setSplitRatio);
+  const { setWidth } = useDockWidth();
   // Track the row element so `move` re-reads getBoundingClientRect on each
   // event — if the window resizes mid-drag, the stale-captured rect would
-  // otherwise compute an incorrect ratio.
+  // otherwise compute an incorrect width.
   const rowRef = useRef<HTMLElement | null>(null);
   // Track attached listeners so the unmount cleanup can detach them even
   // when the pointerup event fires outside the window (or never fires).
@@ -55,26 +54,26 @@ export function SplitResizer() {
         window.removeEventListener("pointerup", prev.up);
       }
 
-      let ratio = useUiStore.getState().splitRatio;
+      let width = 0;
       const move = (ev: PointerEvent) => {
         const element = rowRef.current;
         const rect = element?.getBoundingClientRect();
         if (!element || !rect) return;
-        ratio = Math.max(0.25, Math.min(0.75, (ev.clientX - rect.left) / rect.width));
-        element.style.setProperty(CHAT_SPLIT_PROPERTY, `${ratio * 100}%`);
+        width = clampDockWidth(rect.right - ev.clientX, rect.width);
+        element.style.setProperty(DOCK_WIDTH_PROPERTY, `${width}px`);
       };
       const up = () => {
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", up);
         listenersRef.current = null;
         rowRef.current = null;
-        setSplitRatio(ratio);
+        if (width > 0) setWidth(width);
       };
       listenersRef.current = { move, up };
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     },
-    [setSplitRatio],
+    [setWidth],
   );
 
   return (
@@ -83,7 +82,7 @@ export function SplitResizer() {
       // a non-interactive horizontal thematic break — wrong for a resize handle.
       role="separator"
       aria-orientation="vertical"
-      aria-label={t("panel.split.resize")}
+      aria-label={t("dock.action.resize")}
       onPointerDown={onPointerDown}
       className="agent-pane-resizer relative w-2 shrink-0 cursor-col-resize touch-none"
     />

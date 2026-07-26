@@ -60,5 +60,6 @@ export const agentDocsView = defineWorkspaceView({
   title: "workspace.view.title.agentDocs",
   icon: "book",
   order: 46,
+  splittable: true,
   component: AgentDocsTab,
 });

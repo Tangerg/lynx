@@ -1,7 +1,7 @@
 export {
   activateWorkspaceSessionScope,
   closeActiveWorkspaceView,
-  closeWorkspaceSplit,
+  closeWorkspaceDockView,
   closeWorkspaceView,
   clearWorkspaceSettingsPaneTarget,
   forgetWorkspaceSessionScopes,
@@ -10,17 +10,21 @@ export {
   openWorkspaceFile,
   openWorkspaceSettingsPane,
   openWorkspaceView,
-  openWorkspaceViewBeside,
-  promoteWorkspaceSplitToView,
+  openWorkspaceViewInDock,
+  promoteWorkspaceDockViewToFull,
   selectInitialWorkspaceTool,
   selectWorkspaceChat,
   useActiveWorkspaceFile,
   useActiveWorkspaceViewId,
+  useDockWorkspaceViewId,
   useExpandedWorkspaceToolIds,
   useSelectWorkspaceTool,
-  useSplitWorkspaceViewId,
   useToggleWorkspaceTool,
   useWorkspaceFileViewer,
   useWorkspaceSettingsPaneTarget,
 } from "../application/navigation";
-export { openContextDockDestination, openContextDockLauncher } from "../application/contextDock";
+export {
+  openContextDockDestination,
+  openContextDockLauncher,
+  toggleContextDock,
+} from "../application/contextDock";

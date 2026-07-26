@@ -16,10 +16,9 @@ describe("openWorkspaceViewForTool", () => {
   beforeEach(() => {
     useWorkspaceSurfaceStore.setState({
       activeMainView: null,
-      mainViewTabs: [],
     });
     useContextDockStore.setState({
-      splitViewId: null,
+      dockViewId: null,
       selectedToolId: "",
       activeFile: "",
     });
@@ -33,27 +32,27 @@ describe("openWorkspaceViewForTool", () => {
 
   it("opens a command tool beside chat as the terminal split, leaving activeMainView null", () => {
     openWorkspaceViewForTool(toolCall({ id: "t1", name: "shell", fn: "ls -la" }));
-    expect(useContextDockStore.getState().splitViewId).toBe("terminal");
+    expect(useContextDockStore.getState().dockViewId).toBe("terminal");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
     expect(useContextDockStore.getState().selectedToolId).toBe("t1");
   });
 
   it("opens a fileEdit tool as the diff split and focuses its file", () => {
     openWorkspaceViewForTool(toolCall({ id: "t2", name: "edit", fn: "src/app.ts" }));
-    expect(useContextDockStore.getState().splitViewId).toBe("diff");
+    expect(useContextDockStore.getState().dockViewId).toBe("diff");
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
     expect(useContextDockStore.getState().activeFile).toBe("src/app.ts");
   });
 
   it("does not feed a multi-file edit label to the diff's active-file focus", () => {
     openWorkspaceViewForTool(toolCall({ id: "t3", name: "edit", fn: "3 files" }));
-    expect(useContextDockStore.getState().splitViewId).toBe("diff");
+    expect(useContextDockStore.getState().dockViewId).toBe("diff");
     expect(useContextDockStore.getState().activeFile).toBe("");
   });
 
   it("promotes no view for inline-only categories", () => {
     openWorkspaceViewForTool(toolCall({ id: "t4", name: "grep", fn: "foo" }));
-    expect(useContextDockStore.getState().splitViewId).toBeNull();
+    expect(useContextDockStore.getState().dockViewId).toBeNull();
     expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
     expect(useContextDockStore.getState().selectedToolId).toBe("");
   });

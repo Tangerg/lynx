@@ -21,7 +21,9 @@ interface VerticalTabsProps {
   groups: VerticalTabGroup[];
   value?: string;
   onValueChange: (value: string | undefined) => void;
-  sidebarHeader?: ReactNode;
+  /** Chrome above the rail's list — a window-corner bar, a back link, a filter.
+   *  Outside the scroller, so it stays put and can be full-bleed. */
+  railHeader?: ReactNode;
 }
 
 export function VerticalTabs({
@@ -29,7 +31,7 @@ export function VerticalTabs({
   groups,
   value,
   onValueChange,
-  sidebarHeader,
+  railHeader,
 }: VerticalTabsProps) {
   const items = groups.flatMap((group) => group.items);
   return (
@@ -39,28 +41,30 @@ export function VerticalTabs({
       onValueChange={(next) => onValueChange(next ? String(next) : undefined)}
       className="grid h-full w-full grid-cols-[260px_1fr] overflow-hidden bg-canvas"
     >
-      <TabsPrimitive.List
-        className="flex flex-col gap-px overflow-y-auto bg-surface px-4 pb-8 shadow-[inset_-0.5px_0_0_var(--color-field)]"
-        aria-label={ariaLabel}
-        activateOnFocus
-      >
-        {sidebarHeader}
-        {groups.map((group) => (
-          <div key={group.id} className="flex flex-col gap-px">
-            <SectionLabel className="px-2 pb-1 pt-4">{group.label}</SectionLabel>
-            {group.items.map((item) => (
-              <TabsPrimitive.Tab
-                key={item.id}
-                value={item.id}
-                className="flex h-8 items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left font-sans text-ui-lg leading-none text-fg transition-[background-color] duration-[120ms] ease-out hover:bg-hover focus-visible:outline-none data-[active]:bg-selected"
-              >
-                {item.icon && <Icon name={item.icon} size={15} className="shrink-0" />}
-                <span className="truncate">{item.label}</span>
-              </TabsPrimitive.Tab>
-            ))}
-          </div>
-        ))}
-      </TabsPrimitive.List>
+      <div className="flex min-h-0 flex-col bg-surface shadow-[inset_-0.5px_0_0_var(--color-field)]">
+        {railHeader}
+        <TabsPrimitive.List
+          className="flex min-h-0 flex-1 flex-col gap-px overflow-y-auto px-4 pb-8"
+          aria-label={ariaLabel}
+          activateOnFocus
+        >
+          {groups.map((group) => (
+            <div key={group.id} className="flex flex-col gap-px">
+              <SectionLabel className="px-2 pb-1 pt-4">{group.label}</SectionLabel>
+              {group.items.map((item) => (
+                <TabsPrimitive.Tab
+                  key={item.id}
+                  value={item.id}
+                  className="flex h-8 items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left font-sans text-ui-lg leading-none text-fg transition-[background-color] duration-[120ms] ease-out hover:bg-hover focus-visible:outline-none data-[active]:bg-selected"
+                >
+                  {item.icon && <Icon name={item.icon} size={15} className="shrink-0" />}
+                  <span className="truncate">{item.label}</span>
+                </TabsPrimitive.Tab>
+              ))}
+            </div>
+          ))}
+        </TabsPrimitive.List>
+      </div>
       <div className="min-h-0 min-w-0 overflow-y-auto bg-canvas">
         <div className="mx-auto max-w-[760px] px-8 py-10">
           {items.map((item) => (

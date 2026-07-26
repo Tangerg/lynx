@@ -5,7 +5,7 @@ function reset() {
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    splitViewId: null,
+    dockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",
@@ -21,7 +21,7 @@ describe("context dock session scopes", () => {
       activeFile: "src/a.ts",
       selectedToolId: "tool-1",
       expandedToolIds: new Set(["tool-1"]),
-      splitViewId: "diff",
+      dockViewId: "diff",
     });
   }
 
@@ -30,7 +30,7 @@ describe("context dock session scopes", () => {
     expect(s.activeFile).toBe("");
     expect(s.selectedToolId).toBe("");
     expect(s.expandedToolIds.size).toBe(0);
-    expect(s.splitViewId).toBeNull();
+    expect(s.dockViewId).toBeNull();
   }
 
   function expectSeededScope() {
@@ -38,7 +38,7 @@ describe("context dock session scopes", () => {
     expect(s.activeFile).toBe("src/a.ts");
     expect(s.selectedToolId).toBe("tool-1");
     expect(s.expandedToolIds.has("tool-1")).toBe(true);
-    expect(s.splitViewId).toBe("diff");
+    expect(s.dockViewId).toBe("diff");
   }
 
   it("activateSessionScope saves and restores each session's dock state", () => {
@@ -52,7 +52,7 @@ describe("context dock session scopes", () => {
       activeFile: "src/b.ts",
       selectedToolId: "tool-2",
       expandedToolIds: new Set(["tool-2"]),
-      splitViewId: "terminal",
+      dockViewId: "terminal",
     });
 
     useContextDockStore.getState().activateSessionScope("s1");
@@ -63,7 +63,7 @@ describe("context dock session scopes", () => {
     expect(s.activeFile).toBe("src/b.ts");
     expect(s.selectedToolId).toBe("tool-2");
     expect(s.expandedToolIds.has("tool-2")).toBe(true);
-    expect(s.splitViewId).toBe("terminal");
+    expect(s.dockViewId).toBe("terminal");
   });
 
   it("forgetSessionScopes drops dock state for sessions no longer open", () => {

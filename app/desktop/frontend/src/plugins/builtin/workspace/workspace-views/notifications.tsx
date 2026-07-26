@@ -83,5 +83,6 @@ export const notificationsView = defineWorkspaceView({
   title: "workspace.view.title.notifications",
   icon: "chat",
   order: 50,
+  splittable: true,
   component: NotificationsTab,
 });

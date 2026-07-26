@@ -2,7 +2,7 @@ import { Button } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
-import { openDiffViewBeside } from "@/plugins/builtin/workspace/public/deeplinks";
+import { openDiffViewInDock } from "@/plugins/builtin/workspace/public/deeplinks";
 import {
   useWorkspaceCapability,
   useWorkspaceFileChanges,
@@ -36,7 +36,7 @@ export function HeaderDiffStat({ className }: { className?: string }) {
       press={false}
       data-chrome-focus=""
       aria-label={t("workspace.view.title.diff")}
-      onClick={openDiffViewBeside}
+      onClick={openDiffViewInDock}
       className={cn("gap-1.5 px-1.5 font-mono text-ui-sm tabular-nums", className)}
     >
       <span className="text-success">+{totals.added}</span>

@@ -1,11 +1,18 @@
-// Shared header bar for workspace-view tabs: icon · title · subtitle · actions.
+// The bar a workspace view puts above its body — one shape per placement.
+//
+// Full width, the view owns the window's top-left corner, so the bar carries the
+// drawer toggle, the view's identity and its way out. In the dock, the dock's own
+// bar already names the view and owns the container controls, so this one appears
+// only when the view has something of its own to add (subtext, actions) — two
+// stacked bars saying the same word in a 400px column was the old shape.
 
 import type { ReactNode } from "react";
 import type { IconName } from "@/ui";
-import { AgentSurfaceHeader } from "@/ui/agent";
+import { AgentDrawerToggle, AgentSurfaceHeader } from "@/ui/agent";
 import { Icon, IconButton } from "@/ui";
 import { cn } from "@/lib/utils";
 import { useT } from "@/lib/i18n";
+import { useSidebarDrawer } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { useViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 
 export interface ViewHeaderProps {
@@ -22,43 +29,41 @@ export interface ViewHeaderProps {
 }
 
 export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
-  // Placement toggle — present only when this view is promoted (ChatPanel
-  // provides the context). Lets the view move full ↔ beside-chat / close from
-  // its own header, leaving the tab strip untouched.
   const placement = useViewPlacement();
+  if (placement?.placement === "dock") return <DockViewBar sub={sub} actions={actions} />;
+  return (
+    <FullViewBar icon={icon} title={title} sub={sub} actions={actions} titleStrong={titleStrong} />
+  );
+}
+
+/** Subtext and per-view actions only — the dock's bar carries the rest. */
+function DockViewBar({ sub, actions }: Pick<ViewHeaderProps, "sub" | "actions">) {
+  if (sub === undefined && actions === undefined) return null;
+  return (
+    <AgentSurfaceHeader className="gap-2">
+      <span className="min-w-0 flex-1 truncate font-mono text-ui-md text-fg-muted">{sub}</span>
+      {actions !== undefined && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
+    </AgentSurfaceHeader>
+  );
+}
+
+function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps) {
+  const placement = useViewPlacement();
+  const drawer = useSidebarDrawer();
   const t = useT();
-  let placementControls: ReactNode = null;
-  if (placement?.placement === "split") {
-    // Promote the side pane to a full-width tab, or close it (chat returns to
-    // full width). Promote sits before close to mirror the tab strip's order.
-    placementControls = (
-      <div className="flex items-center gap-1">
-        <IconButton
-          icon="maximize"
-          size="sm"
-          title={t("workspace.view.promote")}
-          onClick={placement.onPromote}
-        />
-        <IconButton icon="x" size="sm" title={t("common.close")} onClick={placement.onClose} />
-      </div>
-    );
-  } else if (placement?.placement === "full" && placement.splittable) {
-    placementControls = (
-      <IconButton
-        icon="panel-r"
-        size="sm"
-        title={t("workspace.view.openBeside")}
-        onClick={placement.onSplit}
-      />
-    );
-  }
 
   return (
     // Every chrome bar in the app is this component: one height
-    // (`--surface-header-height`), one inset, one bottom hairline. A view can be
-    // promoted beside the chat, so its header sits directly next to that one and any
-    // divergence reads as two different kinds of bar.
-    <AgentSurfaceHeader className="gap-2">
+    // (`--surface-header-height`), one inset, one bottom hairline, one drag
+    // region. A view can be opened beside the chat, so its header sits directly
+    // next to that one and any divergence reads as two different kinds of bar.
+    <AgentSurfaceHeader className="gap-2" windowCorner>
+      <AgentDrawerToggle
+        collapsed={drawer.collapsed}
+        onToggle={drawer.toggle}
+        expandLabel={t("sidebar.action.expand")}
+        collapseLabel={t("sidebar.action.collapse")}
+      />
       <Icon name={icon} size={15} strokeWidth={1.8} className="shrink-0 text-fg-muted" />
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
@@ -83,12 +88,22 @@ export function ViewHeader({ icon, title, sub, actions, titleStrong }: ViewHeade
           </>
         )}
       </div>
-      {(actions !== undefined || placementControls) && (
-        <div className="flex shrink-0 items-center gap-1">
-          {actions}
-          {placementControls}
-        </div>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {actions}
+        {placement?.splittable && (
+          <IconButton
+            icon="panel-r"
+            size="sm"
+            title={t("workspace.view.openBeside")}
+            onClick={placement.onOpenInDock}
+          />
+        )}
+        {/* The way out. Without it, a maximised view left Escape (which an
+            input steals) and ⌘W as the only exits. */}
+        {placement && (
+          <IconButton icon="x" size="sm" title={t("common.close")} onClick={placement.onClose} />
+        )}
+      </div>
     </AgentSurfaceHeader>
   );
 }

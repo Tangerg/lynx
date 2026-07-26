@@ -13,6 +13,7 @@ export interface ContextDockLauncherItem {
   icon?: string;
   scope: ContextDockDestinationScope;
   order?: number;
+  pinned?: boolean;
 }
 
 export interface ContextDockDestinationGroup {
@@ -39,9 +40,20 @@ export function resolveContextDockItems(
       icon: view.icon,
       scope: destination.scope,
       order: destination.order,
+      pinned: destination.pinned,
     });
   }
   return items;
+}
+
+/** The destinations that keep a chip in the dock's tab strip, in launcher order.
+ *  A pinned destination whose view is gone drops out with the rest. */
+export function pinnedContextDockItems(
+  items: ContextDockLauncherItem[],
+): ContextDockLauncherItem[] {
+  return items
+    .filter((item) => item.pinned)
+    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 }
 
 const groupOrder: Array<{ id: ContextDockDestinationScope; title: string }> = [

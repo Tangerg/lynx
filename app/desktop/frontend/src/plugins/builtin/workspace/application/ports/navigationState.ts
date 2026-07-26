@@ -1,33 +1,38 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-export interface WorkspaceViewTab {
-  id: string;
-  title?: string;
-  icon?: string;
-}
 
 export interface WorkspaceFileViewer {
   path: string;
   line: number;
 }
 
+/** A resizable column of the content card: its width and the setter a drag
+ *  commits to. Both edges of the card (drawer, dock) are sized this way. */
+export interface WorkspaceColumnWidth {
+  width: number;
+  setWidth: (width: number) => void;
+}
+
 export interface WorkspaceNavigationPort {
   useActiveViewId(): string | null;
-  useSplitViewId(): string | null;
+  useDockViewId(): string | null;
   useActiveFile(): string;
   useFileViewer(): WorkspaceFileViewer | null;
   useSettingsPaneTarget(): string | null;
   useExpandedToolIds(): Set<string>;
   useSelectTool(): (id: string) => void;
   useToggleTool(): (id: string) => void;
-  useSidebarRail(): boolean;
-  useSidebarWidth(): { width: number; setWidth: (width: number) => void };
+  useSidebarDrawer(): { collapsed: boolean; toggle: () => void };
+  useSidebarWidth(): WorkspaceColumnWidth;
+  useDockWidth(): WorkspaceColumnWidth;
   selectChat(): void;
-  openView(tab: WorkspaceViewTab): void;
-  openViewBeside(tab: WorkspaceViewTab): void;
+  openView(id: string): void;
+  openViewInDock(id: string): void;
   closeView(id: string): void;
   activeViewId(): string | null;
-  closeSplit(): void;
-  promoteSplitToView(): void;
+  dockViewId(): string | null;
+  lastDockViewId(): string | null;
+  closeDockView(): void;
+  promoteDockViewToFull(): void;
   setSettingsPane(pane: string | null): void;
   settingsPaneTarget(): string | null;
   setActiveFile(path: string): void;

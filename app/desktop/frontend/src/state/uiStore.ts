@@ -9,7 +9,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
-import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
+import { DOCK_DEFAULT_WIDTH_PX, SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
 // Same reason the extension-point reads below import from the deep
@@ -36,10 +36,9 @@ const uiPersistSchema = z.object({
   motionScale: z.number(),
   messageStyle: z.enum(["bubble", "plain"]),
   streamReveal: z.enum(["smooth", "typewriter"]),
-  splitRatio: z.number(),
-  sidebarRail: z.boolean(),
+  sidebarCollapsed: z.boolean(),
   sidebarWidth: z.number(),
-  dockCollapsed: z.boolean(),
+  dockWidth: z.number(),
   completionSound: z.boolean(),
 });
 
@@ -64,10 +63,9 @@ interface UiActions {
   setMotionScale: (scale: number) => void;
   setMessageStyle: (style: "bubble" | "plain") => void;
   setStreamReveal: (mode: "smooth" | "typewriter") => void;
-  setSplitRatio: (ratio: number) => void;
   toggleSidebar: () => void;
   setSidebarWidth: (width: number) => void;
-  toggleDock: () => void;
+  setDockWidth: (width: number) => void;
   setCompletionSound: (on: boolean) => void;
 }
 
@@ -87,10 +85,9 @@ export const useUiStore = create<UiState & UiActions>()(
       motionScale: 1,
       messageStyle: "bubble",
       streamReveal: "smooth",
-      splitRatio: 0.5,
-      sidebarRail: false,
+      sidebarCollapsed: false,
       sidebarWidth: SIDEBAR_DEFAULT_WIDTH_PX,
-      dockCollapsed: false,
+      dockWidth: DOCK_DEFAULT_WIDTH_PX,
       completionSound: false,
 
       setTheme: (theme) => set({ theme }),
@@ -106,16 +103,15 @@ export const useUiStore = create<UiState & UiActions>()(
       setMotionScale: (motionScale) => set({ motionScale }),
       setMessageStyle: (messageStyle) => set({ messageStyle }),
       setStreamReveal: (streamReveal) => set({ streamReveal }),
-      setSplitRatio: (splitRatio) => set({ splitRatio }),
-      toggleSidebar: () => set((s) => ({ sidebarRail: !s.sidebarRail })),
+      toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
-      toggleDock: () => set((s) => ({ dockCollapsed: !s.dockCollapsed })),
+      setDockWidth: (dockWidth) => set({ dockWidth }),
       setCompletionSound: (completionSound) => set({ completionSound }),
     }),
     {
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
-      version: 5,
+      version: 6,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);

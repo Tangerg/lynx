@@ -6,7 +6,12 @@ export interface WorkspaceFileViewer {
 }
 
 interface ContextDockSessionScope {
-  splitViewId: string | null;
+  /** The view the dock is showing. `null` IS the closed dock — there is no
+   *  second "collapsed" flag to disagree with it. */
+  dockViewId: string | null;
+  /** What reopening restores, so the dock toggle is a round trip rather than a
+   *  trip back to the launcher. Kept across a close on purpose. */
+  lastDockViewId: string | null;
   activeFile: string;
   fileViewer: WorkspaceFileViewer | null;
   selectedToolId: string;
@@ -19,9 +24,9 @@ interface ContextDockState extends ContextDockSessionScope {
 }
 
 interface ContextDockActions {
-  openSplit: (id: string) => void;
-  closeSplit: () => void;
-  closeSplitIf: (id: string) => void;
+  openDockView: (id: string) => void;
+  closeDockView: () => void;
+  closeDockViewIf: (id: string) => void;
   setActiveFile: (path: string) => void;
   setFileViewer: (path: string, line?: number) => void;
   setSelectedToolId: (id: string) => void;
@@ -36,7 +41,8 @@ function emptySessionScope(): ContextDockSessionScope {
     fileViewer: null,
     selectedToolId: "",
     expandedToolIds: new Set<string>(),
-    splitViewId: null,
+    dockViewId: null,
+    lastDockViewId: null,
   };
 }
 
@@ -46,7 +52,8 @@ function cloneSessionScope(scope: ContextDockSessionScope): ContextDockSessionSc
     fileViewer: scope.fileViewer ? { ...scope.fileViewer } : null,
     selectedToolId: scope.selectedToolId,
     expandedToolIds: new Set(scope.expandedToolIds),
-    splitViewId: scope.splitViewId,
+    dockViewId: scope.dockViewId,
+    lastDockViewId: scope.lastDockViewId,
   };
 }
 
@@ -59,16 +66,17 @@ function saveCurrentSessionScope(state: ContextDockState) {
 export const useContextDockStore = create<ContextDockState & ContextDockActions>((set, get) => ({
   activeSessionScopeId: "",
   sessionScopes: new Map<string, ContextDockSessionScope>(),
-  splitViewId: null,
+  dockViewId: null,
+  lastDockViewId: null,
   activeFile: "",
   fileViewer: null,
   selectedToolId: "",
   expandedToolIds: new Set<string>(),
 
-  openSplit: (id) => set({ splitViewId: id }),
-  closeSplit: () => set({ splitViewId: null }),
-  closeSplitIf: (id) => {
-    if (get().splitViewId === id) set({ splitViewId: null });
+  openDockView: (id) => set({ dockViewId: id, lastDockViewId: id }),
+  closeDockView: () => set({ dockViewId: null }),
+  closeDockViewIf: (id) => {
+    if (get().dockViewId === id) set({ dockViewId: null });
   },
   setActiveFile: (path) => set({ activeFile: path }),
   setFileViewer: (path, line) => set({ fileViewer: { path, line: line ?? 0 } }),

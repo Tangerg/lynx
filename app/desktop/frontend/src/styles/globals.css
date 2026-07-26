@@ -1074,6 +1074,20 @@ html.theme-dark {
   align-items: center;
   gap: 8px;
   padding-inline: 12px;
+  /* A frameless window has no title bar but the chrome bars, so every one of
+     them drags the window. Stated once here rather than per component: the
+     components that forgot left whole surfaces (the settings page, a maximised
+     view, the dock's own bar) with no way to move the window at all. */
+  -webkit-app-region: drag;
+  --wails-draggable: drag;
+}
+
+/* Anything you can click, type in or drag inside a chrome bar keeps its own
+   gesture. A per-callsite opt-out is a rule that gets forgotten. */
+.agent-surface-header
+  :where(button, a, input, textarea, select, [role="tab"], [role="separator"], [contenteditable]) {
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
 }
 @media (min-width: 640px) {
   .agent-surface-header {
@@ -1105,7 +1119,10 @@ html.theme-dark {
    collapsed the card reaches that corner, so its header has to yield the slot.
    This is why the padding lives here and not in a `pl-*` utility: unlayered
    rules outrank `@layer utilities`, so a utility could never win. */
-.agent-shell[data-sidebar="collapsed"] .agent-content-card > .agent-surface-header {
+/* Keyed on the bar's own declaration, not on its depth in the tree: the bar at
+   the corner is sometimes the chat's, sometimes a maximised view's, sometimes the
+   settings rail's, and only the first of those was ever a direct child. */
+.agent-shell[data-sidebar="collapsed"] .agent-surface-header[data-window-corner] {
   padding-inline-start: 96px;
 }
 

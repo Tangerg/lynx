@@ -120,14 +120,11 @@ export function createHost(
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        useWorkspaceSurfaceStore
-          .getState()
-          .openMainView({ id, title: view.title, icon: view.icon });
-        useContextDockStore.getState().closeSplit();
+        useWorkspaceSurfaceStore.getState().openMainView(id);
       },
       closeView(id: string): void {
         useWorkspaceSurfaceStore.getState().closeMainView(id);
-        useContextDockStore.getState().closeSplitIf(id);
+        useContextDockStore.getState().closeDockViewIf(id);
       },
     },
 

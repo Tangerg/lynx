@@ -22,9 +22,8 @@ export interface UiState {
   motionScale: number;
   messageStyle: "bubble" | "plain";
   streamReveal: "smooth" | "typewriter";
-  splitRatio: number;
-  sidebarRail: boolean;
+  sidebarCollapsed: boolean;
   sidebarWidth: number;
-  dockCollapsed: boolean;
+  dockWidth: number;
   completionSound: boolean;
 }

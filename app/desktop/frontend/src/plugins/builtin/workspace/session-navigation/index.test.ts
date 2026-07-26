@@ -63,26 +63,19 @@ vi.mock("@/plugins/builtin/agent/public/session", () => ({
   subscribeAgentSessionSelection: agentSessionSelection.subscribe,
 }));
 
-const views = [
-  { id: "v1", title: "View 1" },
-  { id: "v2", title: "View 2" },
-  { id: "v3", title: "View 3" },
-];
-
 function selection(activeSessionId: string, selectionEpoch: number): AgentSessionSelectionSnapshot {
   return { activeSessionId, selectionEpoch };
 }
 
 function resetWorkspace() {
   useWorkspaceSurfaceStore.setState({
-    mainViewTabs: views.map((view) => ({ ...view })),
     activeMainView: "v2",
     settingsPane: null,
   });
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    splitViewId: null,
+    dockViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",
@@ -95,7 +88,7 @@ function seedInspector() {
     activeFile: "src/a.ts",
     selectedToolId: "tool-1",
     expandedToolIds: new Set(["tool-1"]),
-    splitViewId: "diff",
+    dockViewId: "diff",
   });
 }
 
@@ -104,7 +97,7 @@ function expectSessionScopedStateBlank() {
   expect(state.activeFile).toBe("");
   expect(state.selectedToolId).toBe("");
   expect(state.expandedToolIds.size).toBe(0);
-  expect(state.splitViewId).toBeNull();
+  expect(state.dockViewId).toBeNull();
 }
 
 function expectSessionScopedStatePreserved() {
@@ -112,7 +105,7 @@ function expectSessionScopedStatePreserved() {
   expect(state.activeFile).toBe("src/a.ts");
   expect(state.selectedToolId).toBe("tool-1");
   expect(state.expandedToolIds.has("tool-1")).toBe(true);
-  expect(state.splitViewId).toBe("diff");
+  expect(state.dockViewId).toBe("diff");
 }
 
 describe("workspace session navigation", () => {
@@ -145,7 +138,7 @@ describe("workspace session navigation", () => {
       activeFile: "src/b.ts",
       selectedToolId: "tool-2",
       expandedToolIds: new Set(["tool-2"]),
-      splitViewId: "terminal",
+      dockViewId: "terminal",
     });
 
     agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
@@ -156,7 +149,7 @@ describe("workspace session navigation", () => {
     expect(state.activeFile).toBe("src/b.ts");
     expect(state.selectedToolId).toBe("tool-2");
     expect(state.expandedToolIds.has("tool-2")).toBe(true);
-    expect(state.splitViewId).toBe("terminal");
+    expect(state.dockViewId).toBe("terminal");
   });
 
   it("re-selecting the same session preserves session-scoped workspace state", () => {

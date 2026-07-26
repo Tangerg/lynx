@@ -1,5 +1,5 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { focusWorkspaceFile, openWorkspaceViewBeside, selectWorkspaceTool } from "./navigation";
+import { focusWorkspaceFile, openWorkspaceViewInDock, selectWorkspaceTool } from "./navigation";
 import { decideWorkspaceToolRoute, hasWorkspaceToolView } from "./toolRouteDecision";
 import { workspaceToolActivityFromAgentTool } from "./toolActivity";
 
@@ -14,5 +14,5 @@ export function openWorkspaceViewForTool(tool: ToolCall): void {
 
   selectWorkspaceTool(activity.id);
   if (route.activeFile) focusWorkspaceFile(route.activeFile);
-  openWorkspaceViewBeside(route.view);
+  openWorkspaceViewInDock(route.view);
 }

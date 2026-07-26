@@ -8,6 +8,7 @@ export function diagnosticsWorkspaceView(
     title: "workspace.view.title.diagnostics",
     icon: "spark",
     order: 90,
+    splittable: true,
     component,
   };
 }

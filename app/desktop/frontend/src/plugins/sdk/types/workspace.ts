@@ -60,6 +60,9 @@ export interface ContextDockDestinationSpec {
   viewId: string;
   scope: ContextDockDestinationScope;
   order?: number;
+  /** Keep a chip for this destination in the dock's tab strip, so switching to
+   *  it costs one click instead of a trip through the launcher. */
+  pinned?: boolean;
 }
 
 /**

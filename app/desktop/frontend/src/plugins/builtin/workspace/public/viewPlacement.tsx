@@ -1,21 +1,18 @@
 // View placement controls — provided by ChatPanel (the layout owner) and
-// consumed by a workspace view's own ViewHeader, so the view gets a
-// "open beside / expand / close" affordance without ChatPanel reaching into
-// the view body or the tab strip. null when not inside a promoted view (e.g.
-// the welcome screen renders no view).
+// consumed by a workspace view's own ViewHeader, so the view gets an
+// "open in the dock / close" affordance without ChatPanel reaching into the view
+// body. null when not inside a view at all (e.g. the chat itself).
 
 import { createContext, useContext } from "react";
 
 export interface ViewPlacement {
-  /** "full" = the view replaces the chat stream; "split" = beside it. */
-  placement: "full" | "split";
-  /** May this view be shown beside chat? Drives the "open beside" affordance. */
+  /** "full" = the view has the whole content card; "dock" = beside the chat. */
+  placement: "full" | "dock";
+  /** May this view sit in the dock? Drives the "open in the dock" affordance. */
   splittable: boolean;
-  /** Move a full view to beside-chat (split). */
-  onSplit: () => void;
-  /** Promote a beside-chat (split) view to a full-width main tab. */
-  onPromote: () => void;
-  /** Dismiss this view (full → back to chat; split → close the side pane). */
+  /** Move a full-width view into the dock. */
+  onOpenInDock: () => void;
+  /** Dismiss this view — full → back to the chat; dock → close the dock. */
   onClose: () => void;
 }
 

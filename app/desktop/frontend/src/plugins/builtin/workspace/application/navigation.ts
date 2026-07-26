@@ -1,15 +1,15 @@
 import {
   workspaceNavigation,
+  type WorkspaceColumnWidth,
   type WorkspaceFileViewer,
-  type WorkspaceViewTab,
 } from "./ports/navigationState";
 
 export function useActiveWorkspaceViewId(): string | null {
   return workspaceNavigation().useActiveViewId();
 }
 
-export function useSplitWorkspaceViewId(): string | null {
-  return workspaceNavigation().useSplitViewId();
+export function useDockWorkspaceViewId(): string | null {
+  return workspaceNavigation().useDockViewId();
 }
 
 export function useActiveWorkspaceFile(): string {
@@ -36,16 +36,34 @@ export function useToggleWorkspaceTool(): (id: string) => void {
   return workspaceNavigation().useToggleTool();
 }
 
+/** The drawer's collapse state and its toggle — one reader for every chrome bar
+ *  that can sit in the window's top-left corner. */
+export function useSidebarDrawer(): { collapsed: boolean; toggle: () => void } {
+  return workspaceNavigation().useSidebarDrawer();
+}
+
+export function useSidebarWidth(): WorkspaceColumnWidth {
+  return workspaceNavigation().useSidebarWidth();
+}
+
+export function useDockWidth(): WorkspaceColumnWidth {
+  return workspaceNavigation().useDockWidth();
+}
+
 export function selectWorkspaceChat(): void {
   workspaceNavigation().selectChat();
 }
 
-export function openWorkspaceView(tab: string | WorkspaceViewTab): void {
-  workspaceNavigation().openView(typeof tab === "string" ? { id: tab } : tab);
+/** Give a view the whole content card. Reserved for surfaces that have nothing
+ *  to say beside a conversation (settings) and for an explicit "maximise". */
+export function openWorkspaceView(id: string): void {
+  workspaceNavigation().openView(id);
 }
 
-export function openWorkspaceViewBeside(tab: string | WorkspaceViewTab): void {
-  workspaceNavigation().openViewBeside(typeof tab === "string" ? { id: tab } : tab);
+/** Open a view in the dock, beside the conversation — the default placement for
+ *  anything opened *from* the conversation or the palette. */
+export function openWorkspaceViewInDock(id: string): void {
+  workspaceNavigation().openViewInDock(id);
 }
 
 export function closeWorkspaceView(id: string): void {
@@ -59,17 +77,17 @@ export function closeActiveWorkspaceView(): boolean {
   return true;
 }
 
-export function closeWorkspaceSplit(): void {
-  workspaceNavigation().closeSplit();
+export function closeWorkspaceDockView(): void {
+  workspaceNavigation().closeDockView();
 }
 
-export function promoteWorkspaceSplitToView(): void {
-  workspaceNavigation().promoteSplitToView();
+export function promoteWorkspaceDockViewToFull(): void {
+  workspaceNavigation().promoteDockViewToFull();
 }
 
 export function openWorkspaceSettingsPane(pane: string): void {
   workspaceNavigation().setSettingsPane(pane);
-  workspaceNavigation().openView({ id: "settings" });
+  workspaceNavigation().openView("settings");
 }
 
 export function getWorkspaceSettingsPaneTarget(): string | null {
@@ -82,7 +100,7 @@ export function clearWorkspaceSettingsPaneTarget(): void {
 
 export function openWorkspaceDiffForFile(path: string): void {
   workspaceNavigation().setActiveFile(path);
-  workspaceNavigation().openView({ id: "diff" });
+  workspaceNavigation().openViewInDock("diff");
 }
 
 export function focusWorkspaceFile(path: string): void {
