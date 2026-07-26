@@ -13,7 +13,9 @@
 >
 > **裁决立场**：对照 [`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md)（薄核 / 窄腰 / 一个扩展机制）与 [`../../CLAUDE.md`](../../CLAUDE.md)（第一法则不留债、第二法则治本、YAGNI）判"该不该学"，而非见特性就抄。引擎能力对比见 [`RUNTIME_COMPARISON.md`](RUNTIME_COMPARISON.md)，GUI 形态见 [`DESKTOP_COMPARISON.md`](DESKTOP_COMPARISON.md)。
 >
-> **与 [`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md) 的分工**：那份是**独立复核稿**（保留独立判断、负责挑战本篇的结论）；本篇是**收敛稿**，额外承载 §19 的决策簿。两份都用同一套三级标注，互为对照——**决策簿只存在于本篇一处**，避免"哪份是真相"再出现第三次。本轮已吸收对方对本篇 cursor 结论与前端错误码结论的**反驳**（§7.3、§15 表第 4 / 11 行），以及跨 Segment 计量（§5.4）与控制面协议根（§16 P2）两处它先提出的问题。
+> **与 [`codex_runtime_api_design_guide.md`](codex_runtime_api_design_guide.md) 的分工**：那份是**独立复核稿**（保留独立判断、负责挑战本篇的结论）；本篇是**收敛稿**，额外承载 §19 的决策簿。两份都用同一套三级标注，互为对照——**决策簿只存在于本篇一处**，避免"哪份是真相"再出现第三次。
+>
+> **已吸收的反驳（本篇被改正的地方）**：cursor 结论（§7.3，"实现是安全的一方"是错的）· 前端错误码结论（§15 表第 11 行，我查错了文件）· 跨 Segment 计量（§5.3）· 控制面协议根（§16 P2，撤回了本篇原来的推荐）· opencode 可靠性是两层不是 volatile 一层（§2）· Codex 强类型 item 的代价界定（§2）· per-request 协商的绝对化表述降调（§3.5）· canonical sample 不能由 Registry 生成（§12.1）· 错误码清理属代码批不属文档批（§16 P0-B）。
 >
 > 本篇与 canonical 协议冲突时，**以 canonical 协议与代码为准**；本篇用于指导下一轮经确认的调整。
 
@@ -55,7 +57,7 @@ Agent：同一个 Run 跨若干 Segment 推进，产出一条权威 Item 时间�
 | 核心资源 | Thread → Turn → Item（**强类型变体**） | Session → Message → Part（**事件源投影**） | 无服务端资源（JSONL + `session_id`） | **Session → Run → Segment → Item** |
 | 初始化 | 每连接 `initialize` → `initialized` | 无握手（调 list 探能力） | SDK 起子进程 | `runtime.discover` 可选，请求自描述 |
 | 流式 | 同一双向连接的通知 | 单条全局 `/api/event` SSE | `Query extends AsyncGenerator` | 每个流式调用走自己的 POST 响应流 |
-| 事件可靠性 | 通知 + 持久 thread/item 查询 | 明确 volatile，断线即丢 | transcript + 当前进程流 | **三级：authoritative / replayable / ephemeral** |
+| 事件可靠性 | 通知 + 持久 thread/item 查询 | **两层**：全局 `/api/event` volatile（断线即丢）+ **per-session durable 事件流** `GET /api/session/:id/event?after=<seq>` 与 `/history` | transcript + 当前进程流 | **三级：authoritative / replayable / ephemeral** |
 | HITL | **server→client request** + `serverRequest/resolved` | **三套并存**：permission / question / form | 进程内 `canUseTool` 回调 | durable Interrupt + `runs.resume`，不绑连接 |
 | steer | `turn/steer` + `expectedTurnId` | prompt 支持 steer delivery | streaming input / control 方法 | `runs.steer` + `expectedSegmentId` |
 | schema | 运行版本生成 TS + JSON Schema | Schema 即 SSOT → OpenAPI → 生成 SDK | SDK 自带 TS/Python 类型 | Go 契约注册表 → OpenRPC / JSON Schema / TS |
@@ -64,8 +66,8 @@ Agent：同一个 Run 跨若干 Segment 推进，产出一条权威 Item 时间�
 
 **每家的代价，一句话**：
 
-- **Codex** 为强类型 item 付出"新工具动三处协议"（连审批方法都按变体分裂成 `item/commandExecution/requestApproval`、`item/fileChange/requestApproval`、`item/permissions/requestApproval`），为 server→client request 付出一个必须额外发明 `serverRequest/resolved` 去清理的孤儿态。
-- **opencode v2** 为事件源付出 per-event 版本化（其 schema 包里有 `Event.latest()` / `versionedType()` 这套迁移机制、事件帧带 `{aggregateID, seq, version}`）与 **session / permission / question 的 V1 V2 定义并存 + 专门的 legacy 事件模块**；一次工具入参流式要三个事件名（`…tool.input.started/.delta/.ended`）。
+- **Codex** 为强类型 item 付出的代价要**准确界定**：新增一个一等**执行类别**（command execution / file change 这种）要动 wire 类型**并**分裂审批方法（`item/commandExecution/requestApproval`、`item/fileChange/requestApproval`、`item/permissions/requestApproval`）；普通工具（含 MCP）走 `mcpToolCall` 通用路径、**不**动协议。所以这不是"每个新工具都改协议"，而是"每类新执行语义都改三处"。另外为 server→client request 付出一个必须额外发明 `serverRequest/resolved` 去清理的孤儿态。
+- **opencode v2** 的 durable 层是真实存在的（per-session 事件流 + `history`），**这正是 per-event 版本化的原因**：事件日志就是存储格式，于是 schema 包里有 `Event.latest()` / `versionedType()` 这套迁移机制、事件帧带 `{aggregateID, seq, version}`，并且 **session / permission / question 的 V1 V2 定义并存 + 专门的 legacy 事件模块**。它的 replay cursor 是**按 aggregate 的显式数字 seq**（`?after=<seq>`），归属靠**资源路径**结构性保证——这一点见 §7.3 的对照。
 - **Claude Code** 为极致易用付出"正确性依赖进程存活 + 单客户端"（控制通道 `control_request` 复用同一条 stdio 管道）。
 
 ---
@@ -76,7 +78,7 @@ Agent：同一个 Run 跨若干 Segment 推进，产出一条权威 Item 时间�
 2. **durable 事件是投影，不是存储**：durability 是 `event.type` 的纯函数（不每帧冗余携带），权威落点在 Item + SQLite。**判据**：任何要给单个事件加 `version` 的提案都是事件源化第一步，拒。
 3. **HITL R 模型**：interrupt 收尾当前 segment、资源释放、待解项 durable、任意客户端可 resume。**判据**：不引入 server→client request；不让正确性依赖某个客户端在线。
 4. **一个判别字段 `type`**（`kind` 禁上 wire）：给人和 codegen 同时省事的硬规则，不是洁癖。
-5. **无状态 per-request 能力协商**：能力随 `params._meta` 走，server 不维护 client 连接注册表——这是多客户端下唯一自洽的形态。
+5. **无状态 per-request 能力协商**：能力随 `params._meta` 走，server 不维护 client 连接注册表。**这是最适合我们"同一语义跑多 transport + 多客户端"目标的形态**（握手式协商必须回答"这条连接的能力是谁的能力"），不是断言它对所有系统都唯一自洽——单宿主长连接系统里握手更合适。
 6. **核心/旁路分离 + 三扩展缝**：核心只 sessions/runs/items；新增旁路能力先选它**真实的**协议根（`workspace.*` 只放工作树视图，skills / recipes / agentDocs / mcp / hooks / codebase 各自顶层根）；"额外的东西"先过 Item / state / custom 选择表，并统一走 `plugin:<name>/` 命名空间。
 
 ---
@@ -242,6 +244,8 @@ workspace、mcp、providers、models、memory、schedules、goals 等继续是 c
 - replay 保留窗口（时长 / 事件数 / 仅当前进程）由 capability `limits` 明示；
 - 服务端**可以**把 segment/epoch/position 编进 opaque id，但那不是客户端契约。
 
+**归属校验的两种形态（决策输入）**：opencode v2 把流身份放进**地址**（`GET /api/session/:id/event?after=<seq>`，cursor 是该 aggregate 的显式 seq），归属由资源路径**结构性**保证——最干净，但要求"一条流一个 URL"。我们的 cursor 按既有元数据划分是**带外**（`Last-Event-Id`），所以归属必须靠 **P1 让 `runs.subscribe` 绑 `segmentId` 到 params** 来补：params 里的 segment 身份 + 头部的 cursor 合起来，server 才有足够信息判定 ownership。**结论**：不必把 cursor 挪进 params（那会破坏元数据划分规则），但没有 segmentId 参数的 subscribe 就永远无法校验 cursor。
+
 ### 7.4 慢消费者
 
 authoritative / terminal 事件不因背压丢失；ephemeral 可合并或丢弃；慢消费者不得阻塞 agent 执行；丢 delta 后不得发出无法解释的残缺 completed item；流断开不取消 run；SDK 在重连失败时切冷恢复而不是无限 retry。
@@ -364,11 +368,13 @@ Go DTO / union metadata  +  Method Registry
         ├─ OpenRPC
         ├─ JSON Schema bundle
         ├─ TypeScript wire types
-        ├─ canonical samples
+        ├─ canonical sample 的**索引与缺口检查**（不是 fixture 本身）
         └─ 人读 API reference
 ```
 
 **method 名不能在 dispatcher、前端、Markdown、测试里手写四遍。**
+
+**样本必须保持独立【重要陷阱】**：canonical sample **不能**由 Registry 生成后再拿去验证 Registry——那是同源自证，闸会永远绿。Registry 只负责生成**样本索引 + 缺口检查**（哪个变体没有样本），真实 wire fixture 仍是**人工审阅**的，并由 Go / TS / schema **三方各自独立**验证。这也是 golden sample 与 schema 互为补充、彼此不可替代的原因。
 
 ### 12.2 为什么不引入 TypeSpec / CUE 作新 SSOT
 
@@ -451,22 +457,29 @@ for await (const event of stream.events) state = foldRunEvent(state, event);
 
 ## 16. 路线图
 
-> 任何 wire breaking change 落地前，按项目约定单独出 scope / 影响面 / 备选，等确认再动。
+> **breaking change 已获授权（2026-07-27）**：不再逐批等批准，但纪律不变——每批一个可独立 revert 的 commit、动 wire 就 bump `protocolVersion`、前后端与 golden sample 同批更新、全绿才 commit。**"允许 breaking"不等于"可以不先定语义"**：P1 仍要求 §19 的相关项先有结论（见下）。
 
-### P0 · 文档治本（纯文档，无 wire 改动，可立即做）
+### P0-A · 文档治本（纯文档，零 wire / 零 SDK surface 改动）
 
 - MCP 工具 identity 以代码为准改 `API.md` 两处，并写清 sanitize + 截断 + 装配期 fail-closed 的边界；
 - 删 `TRANSPORT.md` 的 `background.subscribe` 与 `/v2/rpc/runs.subscribe`（后者与同文档 §6.1 冲突）；
 - 补类型目录漏项（`contextTokens` / `blockedReason` / `nextAction` / provider 两个 embedding 字段）；
 - 补 6 个未文档化的 `mcp.*` 方法；
 - 删 §13 那条与已实现的 `runs.steer` 打架的 stale 条目；
-- **删掉前端 `rpc/types.ts` 的手写数字码镜像**（含错值 `RPC_IDEMPOTENCY_CONFLICT = -32015`）——协议要求按 `type` 判错，这张表无消费者且已漂移；要保留就等 §12 注册表生成；
 - cursor 契约按**实现 + 已知漏洞**改写（opaque、相等去重、绑 segment；并写明归属校验尚未落地，见 §7.3）；
 - `§14` 的语气改成诚实待办，直到 P1 契约落地。
 
-**验收**：方法表与 dispatcher 逐项对齐；文档内不存在互相矛盾的两处描述；前后端不存在第二份手写的错误码真相。
+**验收**：方法表与 dispatcher 逐项对齐；文档内不存在互相矛盾的两处描述。
 
-### P1 · 核心生命周期治本（**破坏性，需先批准**）
+### P0-B · 删除前端 business-code 镜像（**改 TS 公开 surface，不是纯文档**）
+
+- **保留**标准 JSON-RPC 常量（`-32700 / -32600 / -32601 / -32602 / -32603`）——envelope 坏掉时 `error.data` 可能不存在，数字码是唯一信号，那是 transport 层事实；
+- **删除** Lyra business numeric 镜像（`-32001…-32021` 那一段，含错值 `RPC_IDEMPOTENCY_CONFLICT = -32015`）及其 barrel re-export，并把依赖它的 RPC 单测 fixture 改成不依赖这份镜像；
+- 理由：production 客户端按 `ProblemData.type` 分支、这段镜像**无业务消费者**、已漏 `-32017…-32021` 且有错值；只改一个数字等于继续保留第二真相源。将来真需要公开数字码，由 §12 的 Registry 生成。
+
+**为什么单独一批**：常量已从 `rpc/index.ts` 导出，删除会改变 TypeScript 公开 API 并动测试——按代码改动走，不混进文档批。
+
+### P1 · 核心生命周期治本（**破坏性，已授权**）
 
 > **先冻结语义、再冻结 shape**：这一批动手前，§19 的 1–4 项（计量 shape / duration 口径 / cursor 编码与 retention / interrupt 查询命名）必须先有结论——否则会在实现过程里被悄悄决定。
 
@@ -495,7 +508,7 @@ Registry → OpenRPC + JSON Schema + canonical samples 补全 + §12.4 的 drift
 1. **先测量**：轮询频率、后台 run 数量、状态陈旧对 UX 的真实影响。成本可接受就继续轮询——**不为架构对称性加一条长流**。
 2. 触发条件（任一）达到后，新增职责真实、**可过滤**的 `runtime.subscribe`：per-call 流、符合 Streamable HTTP、不是 server→client request、不维护客户端连接身份。
 3. 事件**只做 invalidation**，权威事实仍由 sessions / runs / goals / interrupts 查询面提供；支持 `resync` 让客户端在丢帧或重连后统一 refetch。
-4. **顺带归位**：`workspace.subscribe` 今天已经承载 `mcp.serverChanged` / `skills.changed` / `schedules.fired`——这些本就是 runtime 级事件寄生在工作树根上。若 `runtime.subscribe` 落地，它不只是新事件的去处，**也是这三个事件应该迁走的去处**（breaking，但是把边界改对）。
+4. **归位是一次 breaking migration，不是顺手搬家**：`workspace.subscribe` 今天已经承载 `mcp.serverChanged` / `skills.changed` / `schedules.fired`——只有 `files.changed` 与工作树 watch/resync 真属于 workspace。若 `runtime.subscribe` 落地，这三个应迁入它；但旧客户端仍在 `workspace.subscribe` 上等这些事件，**两条流短期双发会造出两个真相源**。所以：迁移与 `protocolVersion` + capability + 生成 SDK **同批一次完成**，dev 阶段**不留长期双发兼容层**。
 
 **不回退到常开、无过滤的全局 SSE 总线。**
 
@@ -530,7 +543,7 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 | 常开全局 SSE 总线 | 需要连接路由 + 订阅管理 + fan-out；与"一次操作一条流"冲突 |
 | 强制连接握手 | 适合双向长连接，不适合 stateless HTTP / in-process 语义一致 |
 | server→client JSON-RPC request | 把 HITL 绑到某条连接与某个客户端，还要额外发明孤儿态清理 |
-| per-tool Item 联合膨胀 | 每个新工具变成协议变更（Codex 连审批方法都跟着分裂） |
+| per-tool Item 联合膨胀 | 每类新执行语义都要动 wire 类型 + 分裂审批方法（Codex 的实际代价，§2） |
 | per-event 版本化 / V1·V2 并存 / legacy shim | 事件源化的必然后果（opencode v2 的现实代价）；我们按日期 bump 整协议 |
 | 深点号嵌套事件名 | 判别应在 `type` 而不在名字层级 |
 | 业务错误映 HTTP status | HTTP status 只反映传输层 |
@@ -557,13 +570,21 @@ flat union 的 encode 边界 `Validate()`；三级可靠性术语落进文档与
 - server→client request、REST 影子面、无过滤的全局广播总线不进核心协议；
 - 业务错误不映 HTTP status；客户端按符号 `type` 判错。
 
+**本轮（2026-07-27）新增收敛**：
+
+- **breaking change 已获授权**——P1/P2 不再逐批等批准，但每批仍要独立 revert 的 commit + `protocolVersion` bump + 前后端同批（§16 抬头）；
+- 数字码：**保留标准 JSON-RPC 5 个常量，删除 Lyra business 镜像**；真需要公开时由 Registry 生成（§16 P0-B）；
+- **canonical sample 不由 Registry 生成**——那是同源自证；Registry 只出索引与缺口检查（§12.1）；
+- 控制面归位是**与版本同批的一次迁移**，dev 阶段不留双发兼容层（§16 P2）；
+- 对照描述要分级：opencode 的 volatile 全局流与 per-session durable 流是**两层**，不能混写（§2）；Codex 强类型 item 的代价限定为"每类新**执行类别**动三处"，不是"每个新工具"（§2）。
+
 ### 19.2 下一轮需要逐项裁决
 
 | # | 决策项 | 两种（或多种）解 | 前置材料 |
 |---|---|---|---|
 | 1 | **计量 shape** | `interrupt` 边界带**本段值**，还是带 **Run 累计快照**；最终 `RunResult` 怎么表达 subagent 聚合 | 现有 usage 消费者清单（UI / 预算 / `usage.summary` 归因） |
 | 2 | **duration 口径** | 只保留一个明确含义，还是同时给 `active` / `elapsed` | 现有 UI、预算、调度三处的实际读法 |
-| 3 | **cursor 编码与 retention** | opaque id 是否显式含 epoch/segment；归属如何校验；重启后何时返回 `replay_unavailable` | §7.3 的三个漏洞 + 重连实测 |
+| 3 | **cursor 编码与 retention** | opaque id 是否显式含 epoch/segment；归属如何校验；重启后何时返回 `replay_unavailable` | §7.3 的三个漏洞 + 重连实测；对照 opencode 的"流身份进地址 + 显式 seq"形态 |
 | 4 | **Interrupt 查询命名** | 保留 `runs.listOpenInterrupts`，还是在同批 breaking 里收敛为 `interrupts.list` | 只在 P1 一起改，不单独为改名做破坏性变更 |
 | 5 | **`ProblemData`** | `channel` 删除还是留作脱上下文自描述；`retryable` 删除 / 改名 `transient` / 补清与幂等重试的区别 | 先解决 `provider_rejected` vs `invalid_request` 同名不同物（§11.2） |
 | 6 | **注册表实现方式** | Go reflection / AST 注解 codegen / 显式 registry metadata | 以"能否可靠生成 union discriminator + 方法表"实测裁决 |
