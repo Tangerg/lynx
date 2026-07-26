@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,24 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+var (
+	runsegmentTraceOnce     sync.Once
+	runsegmentTraceExporter *tracetest.InMemoryExporter
+	runsegmentTraceProvider *sdktrace.TracerProvider
+)
+
+func installRunsegmentTraceCapture(t *testing.T) (*sdktrace.TracerProvider, *tracetest.InMemoryExporter) {
+	t.Helper()
+	runsegmentTraceOnce.Do(func() {
+		runsegmentTraceExporter = tracetest.NewInMemoryExporter()
+		runsegmentTraceProvider = sdktrace.NewTracerProvider(sdktrace.WithSyncer(runsegmentTraceExporter))
+		otel.SetTracerProvider(runsegmentTraceProvider)
+	})
+	runsegmentTraceExporter.Reset()
+	t.Cleanup(runsegmentTraceExporter.Reset)
+	return runsegmentTraceProvider, runsegmentTraceExporter
+}
 
 func mustEffectSelection(t testing.TB, provider, model string) modelref.Selection {
 	t.Helper()
@@ -397,16 +416,7 @@ func TestFinishWaitsForCheckpointBeforeReturning(t *testing.T) {
 
 func TestFinishRecordsAcceptedBackgroundFailureOnSpan(t *testing.T) {
 	titleErr := errors.New("background title failed")
-	exporter := tracetest.NewInMemoryExporter()
-	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
-	previous := otel.GetTracerProvider()
-	otel.SetTracerProvider(provider)
-	t.Cleanup(func() {
-		otel.SetTracerProvider(previous)
-		if err := provider.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("shutdown tracer provider: %v", err)
-		}
-	})
+	provider, exporter := installRunsegmentTraceCapture(t)
 	ctx, span := provider.Tracer("test/runsegment").Start(t.Context(), "run")
 	effects := testEffects(&fakeStores{
 		session:  &fakeSession{sess: session.Session{ID: "ses_1"}},

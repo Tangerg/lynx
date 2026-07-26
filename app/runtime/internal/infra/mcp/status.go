@@ -11,7 +11,7 @@ import (
 var ErrUnknownServer = errors.New("mcp: unknown server")
 
 // ErrConnectionsClosed reports an operation attempted after the connection
-// registry began shutting down. Close is a terminal state: callers must build a
+// registry began shutting down. Shutdown is a terminal state: callers must build a
 // new registry instead of reviving sessions behind the component owner's back.
 var ErrConnectionsClosed = errors.New("mcp: connections closed")
 

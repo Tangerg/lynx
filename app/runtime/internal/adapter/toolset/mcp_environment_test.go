@@ -279,7 +279,7 @@ func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.B
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{MCPTools: mcpTools})
 	if err != nil {
-		_ = connections.Close()
+		_ = connections.Shutdown(context.WithoutCancel(t.Context()))
 		t.Fatalf("Build toolset: %v", err)
 	}
 	connections.SetToolSink(built.Resolver.SetMCPTools)
@@ -289,7 +289,7 @@ func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.B
 				_ = closeFn()
 			}
 		}
-		_ = connections.Close()
+		_ = connections.Shutdown(context.WithoutCancel(t.Context()))
 	})
 	return built, connections
 }

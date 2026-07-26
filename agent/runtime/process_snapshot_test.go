@@ -742,29 +742,45 @@ func TestEngineDiscardDeletesDurableOnlyTree(t *testing.T) {
 	}
 }
 
-func TestEngineDiscardStoreFailurePreservesWholeDurableTree(t *testing.T) {
+func TestEngineDiscardStoreFailureReleasesRuntimeTree(t *testing.T) {
 	storeErr := errors.New("delete unavailable")
 	store := newFlakyProcessStore(storeErr)
+	engine := agent.MustNewEngine(runtime.Config{BuildID: "discard-store-failure", ProcessStore: store})
+	deployment, err := engine.Deploy(t.Context(), buildSnapshotAgent())
+	if err != nil {
+		t.Fatal(err)
+	}
 	started := time.Now().UTC().Add(-time.Second)
 	writes := []core.ProcessSnapshot{
 		{
 			SchemaVersion: core.ProcessSnapshotSchemaVersion,
-			ID:            "root", Deployment: core.DeploymentRef{Name: "discard", Digest: "discard-digest"},
+			ID:            "root", Deployment: deployment.Ref(),
 			StartedAt: started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
 		},
 		{
 			SchemaVersion: core.ProcessSnapshotSchemaVersion,
 			ID:            "child", ParentID: "root", Depth: 1,
-			Deployment: core.DeploymentRef{Name: "discard", Digest: "discard-digest"},
+			Deployment: deployment.Ref(),
 			StartedAt:  started, CapturedAt: started.Add(time.Millisecond), Status: core.StatusCompleted,
 		},
 	}
 	if err := store.inner.Apply(t.Context(), snapshotChange("root", writes...)); err != nil {
 		t.Fatal(err)
 	}
-	engine := agent.MustNewEngine(runtime.Config{ProcessStore: store})
+	if _, err := engine.RestoreSnapshot(writes[0], core.ProcessOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := engine.RestoreSnapshot(writes[1], core.ProcessOptions{}); err != nil {
+		t.Fatal(err)
+	}
 	if err := engine.Discard(t.Context(), "root"); !errors.Is(err, storeErr) {
-		t.Fatalf("Discard = %v, want retained store failure", err)
+		t.Fatalf("Discard = %v, want store failure", err)
+	}
+	if _, ok := engine.Process("root"); ok {
+		t.Fatal("store failure retained root runtime ownership")
+	}
+	if _, ok := engine.Process("child"); ok {
+		t.Fatal("store failure retained child runtime ownership")
 	}
 	ids, err := store.inner.List(t.Context())
 	if err != nil || !slices.Equal(ids, []string{"child", "root"}) {

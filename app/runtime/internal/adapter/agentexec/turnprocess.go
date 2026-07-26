@@ -77,9 +77,9 @@ type TurnProcess interface {
 	// completion — but that snapshot only matters while the process is PARKED
 	// awaiting HITL resume; once the turn reaches a terminal state it is dead
 	// weight, and left behind it accumulates one orphaned snapshot row per run.
-	// A nil error is the complete release postcondition; on error the caller
-	// retains ownership and must retry. NEVER call on a parked process, whose
-	// snapshot must survive for resume.
+	// After the terminal tree reaches removal ownership, snapshot deletion
+	// failures are reported without retaining the dead runtime tree. NEVER call
+	// on a parked process, whose snapshot must survive for resume.
 	Discard(ctx context.Context) error
 }
 

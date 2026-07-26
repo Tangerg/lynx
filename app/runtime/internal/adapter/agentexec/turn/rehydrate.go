@@ -108,8 +108,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	if !live {
 		// A normal Cancel (not dispatcher shutdown) won while RestoreTurn was in
 		// flight. Process publication makes cancellation actionable, so this
-		// publisher completes the ownership handoff synchronously and leaves a
-		// failed cleanup addressable for a later Cancel.
+		// publisher completes the ownership handoff synchronously.
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), processDiscardTimeout)
 		cancelErr := s.Cancel(cleanupCtx, handle)
 		cancel()

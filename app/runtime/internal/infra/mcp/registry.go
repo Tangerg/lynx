@@ -140,50 +140,71 @@ func (c *Connections) publishTools() {
 	}
 }
 
-// Close shuts down every open session. Safe to call multiple times. Nil-safe.
-func (c *Connections) Close() error {
+// Shutdown serializes terminal close attempts and joins the active one until
+// ctx ends. Sessions whose close fails remain owned for the next attempt.
+func (c *Connections) Shutdown(ctx context.Context) error {
 	if c == nil {
 		return nil
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	c.mu.Lock()
-	if c.closed {
-		done := c.closeDone
-		c.mu.Unlock()
-		if done != nil {
-			<-done
+	if !c.closed {
+		c.closed = true
+		for _, ms := range c.servers {
+			if ms.cancel != nil {
+				ms.cancel()
+				ms.cancel = nil
+			}
+			if ms.session != nil {
+				c.pending = append(c.pending, ms.session)
+			}
 		}
-		c.mu.Lock()
-		err := c.closeErr
-		c.mu.Unlock()
-		return err
+		c.servers = nil
 	}
-	c.closed = true
-	c.closeDone = make(chan struct{})
-	done := c.closeDone
-	sessions := make([]*sdkmcp.ClientSession, 0, len(c.servers))
-	for _, ms := range c.servers {
-		if ms.cancel != nil {
-			ms.cancel()
-			ms.cancel = nil
-		}
-		if ms.session != nil {
-			sessions = append(sessions, ms.session)
+	attempt := c.shutdown
+	if attempt != nil {
+		select {
+		case <-attempt.done:
+			if attempt.err == nil {
+				c.mu.Unlock()
+				return nil
+			}
+			attempt = nil
+		default:
 		}
 	}
-	c.servers = nil
+	if attempt == nil {
+		attempt = &shutdownAttempt{done: make(chan struct{})}
+		sessions := c.pending
+		c.pending = nil
+		c.shutdown = attempt
+		go c.close(attempt, sessions)
+	}
 	c.mu.Unlock()
 
+	select {
+	case <-attempt.done:
+		return attempt.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (c *Connections) close(attempt *shutdownAttempt, sessions []sessionCloser) {
 	var errs []error
+	var failed []sessionCloser
 	for _, session := range sessions {
 		if err := session.Close(); err != nil {
 			errs = append(errs, err)
+			failed = append(failed, session)
 		}
 	}
 	c.attempts.Wait()
-	err := errors.Join(errs...)
 	c.mu.Lock()
-	c.closeErr = err
-	close(done)
+	c.pending = append(c.pending, failed...)
+	attempt.err = errors.Join(errs...)
+	close(attempt.done)
 	c.mu.Unlock()
-	return err
 }

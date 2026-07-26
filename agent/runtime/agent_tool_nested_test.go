@@ -908,7 +908,7 @@ func TestAgentToolNestedSuspensionMissingChildSnapshotIsLost(t *testing.T) {
 	}
 }
 
-func TestAgentToolNestedSuspensionRestoreRollbackPreservesReplacedTerminalProcess(t *testing.T) {
+func TestAgentToolNestedSuspensionRestorePublishesTreeAtomically(t *testing.T) {
 	store := storetest.NewMemoryProcessStore()
 	var beforeCalls atomic.Int32
 	engine1 := agent.MustNewEngine(runtime.Config{BuildID: "nested-rollback", ProcessStore: store, AutoSnapshot: true})
@@ -928,17 +928,32 @@ func TestAgentToolNestedSuspensionRestoreRollbackPreservesReplacedTerminalProces
 		t.Fatalf("RestoreSnapshot terminal predecessor: %v", err)
 	}
 
-	_, err = engine2.RestoreResumable(t.Context(), process1.ID(), core.ProcessOptions{
-		ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
-			return core.ProcessOptions{}, errors.New("restore child options unavailable")
-		},
-	})
+	childOptionsStarted := make(chan struct{})
+	releaseChildOptions := make(chan struct{})
+	result := make(chan error, 1)
+	go func() {
+		_, restoreErr := engine2.RestoreResumable(t.Context(), process1.ID(), core.ProcessOptions{
+			ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
+				close(childOptionsStarted)
+				<-releaseChildOptions
+				return core.ProcessOptions{}, errors.New("restore child options unavailable")
+			},
+		})
+		result <- restoreErr
+	}()
+	<-childOptionsStarted
+	current, ok := engine2.Process(process1.ID())
+	if !ok || current != previous || current.Status() != core.StatusCompleted {
+		t.Fatalf("partially rebuilt process became visible: current=%#v found=%v, want original terminal process", current, ok)
+	}
+	close(releaseChildOptions)
+	err = <-result
 	if !errors.Is(err, runtime.ErrResumableSnapshotLost) {
 		t.Fatalf("RestoreResumable error = %v, want ErrResumableSnapshotLost", err)
 	}
-	current, ok := engine2.Process(process1.ID())
+	current, ok = engine2.Process(process1.ID())
 	if !ok || current != previous || current.Status() != core.StatusCompleted {
-		t.Fatalf("rollback current process = %#v found=%v, want original terminal process", current, ok)
+		t.Fatalf("failed atomic restore changed registry: current=%#v found=%v, want original terminal process", current, ok)
 	}
 }
 

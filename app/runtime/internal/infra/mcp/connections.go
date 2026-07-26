@@ -35,17 +35,26 @@ type server struct {
 
 func (s *server) name() string { return s.config.Name }
 
+type shutdownAttempt struct {
+	done chan struct{}
+	err  error
+}
+
+type sessionCloser interface {
+	Close() error
+}
+
 // Connections owns the live MCP server sessions + reconnect. The optional tool
 // sink is invoked with the rebuilt model-facing tool set after a reconnect, so
 // the engine can hot-swap the live set into its resolver.
 type Connections struct {
-	mu        sync.Mutex
-	servers   []*server
-	client    *sdkmcp.Client
-	onTools   func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
-	closed    bool               // terminal state set by Close
-	closeDone chan struct{}
-	closeErr  error
+	mu       sync.Mutex
+	servers  []*server
+	client   *sdkmcp.Client
+	onTools  func([]tools.Tool) // tool sink; nil until SetToolSink; guarded by mu
+	closed   bool               // terminal admission state set by Shutdown
+	shutdown *shutdownAttempt
+	pending  []sessionCloser
 
 	// publishMu serializes snapshot+sink publication. Mutations themselves run
 	// concurrently per server; taking this lock before snapshotting guarantees a
@@ -53,7 +62,7 @@ type Connections struct {
 	// newer catalog with an older snapshot.
 	publishMu sync.Mutex
 
-	// attempts joins every in-flight dial/OAuth operation during Close. Add is
+	// attempts joins every in-flight dial/OAuth operation during Shutdown. Add is
 	// performed under mu before closed can be set, so no Add races the Wait.
 	attempts sync.WaitGroup
 }

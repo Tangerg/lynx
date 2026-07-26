@@ -107,22 +107,13 @@ func (e *Engine) RestoreResumable(ctx context.Context, processID string, options
 	if loss != nil {
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: %w", ErrResumableSnapshotLost, loss)
 	}
-	var (
-		restored []restoredProcess
-		links    []restoredProcessLink
-	)
-	process, err := e.restoreResumableTree(ctx, tree, options, nil, &restored, &links)
+	var processes []*Process
+	process, err := e.restoreResumableTree(ctx, tree, options, nil, &processes)
 	if err != nil {
-		for index := len(links) - 1; index >= 0; index-- {
-			links[index].parent.budget.removeChild(links[index].child)
-		}
-		for index := len(restored) - 1; index >= 0; index-- {
-			e.processes.unregister(restored[index].process)
-			if restored[index].previous != nil {
-				e.processes.replace(restored[index].previous)
-			}
-		}
 		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: %w: rebuild process %q: %w", ErrResumableSnapshotLost, processID, err)
+	}
+	if !e.processes.registerTree(processes) {
+		return nil, fmt.Errorf("runtime.Engine.RestoreResumable: process tree %q conflicts with registered process state", processID)
 	}
 	return process, nil
 }
@@ -209,48 +200,35 @@ func (e *Engine) loadStoredSnapshot(ctx context.Context, processID string) (core
 	return snapshot, nil, nil
 }
 
-type restoredProcessLink struct {
-	parent *Process
-	child  *Process
-}
-
-type restoredProcess struct {
-	process  *Process
-	previous *Process
-}
-
 func (e *Engine) restoreResumableTree(
 	ctx context.Context,
 	tree *resumableProcessTree,
 	options core.ProcessOptions,
 	parent *Process,
-	restored *[]restoredProcess,
-	links *[]restoredProcessLink,
+	processes *[]*Process,
 ) (*Process, error) {
 	if tree == nil {
 		return nil, errors.New("runtime: resumable process tree is nil")
 	}
 	snapshot := tree.snapshot
-	previous, _ := e.Process(snapshot.ID)
-	process, err := e.RestoreSnapshot(snapshot, options)
+	process, err := e.buildProcessSnapshot(snapshot, options)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
 	}
-	*restored = append(*restored, restoredProcess{process: process, previous: previous})
+	*processes = append(*processes, process)
 	if parent != nil {
 		linker := childRun{ctx: ctx, engine: e}
 		if err := linker.restoreSession(process, parent); err != nil {
 			return nil, fmt.Errorf("restore child session: %w", err)
 		}
 		parent.budget.addChild(process)
-		*links = append(*links, restoredProcessLink{parent: parent, child: process})
 	}
 	for _, childTree := range tree.children {
 		childOptions, err := restoredChildOptions(ctx, process, e, childTree.snapshot.Deployment)
 		if err != nil {
 			return nil, err
 		}
-		if _, err := e.restoreResumableTree(ctx, childTree, childOptions, process, restored, links); err != nil {
+		if _, err := e.restoreResumableTree(ctx, childTree, childOptions, process, processes); err != nil {
 			return nil, err
 		}
 	}
@@ -306,38 +284,49 @@ func restoredChildOptions(
 // [Engine.Start], so the continuation streams and keys chat history
 // correctly. Pass the zero value to restore read-only (audit / inspect).
 func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error) {
+	process, err := e.buildProcessSnapshot(snapshot, options)
+	if err != nil {
+		return nil, err
+	}
+	if !e.processes.registerNew(process) {
+		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: process %q conflicts with registered process state", process.id)
+	}
+	return process, nil
+}
+
+func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options core.ProcessOptions) (*Process, error) {
 	if e == nil {
-		return nil, errors.New("runtime.Engine.RestoreSnapshot: nil engine")
+		return nil, errors.New("nil engine")
 	}
 	if err := snapshot.Validate(); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 
 	deployment, ok := e.catalog.lookup(snapshot.Deployment)
 	if !ok {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w: %s", ErrDeploymentNotFound, snapshot.Deployment)
+		return nil, fmt.Errorf("%w: %s", ErrDeploymentNotFound, snapshot.Deployment)
 	}
 	agent := deployment.agent
 
 	processOptions, err := snapshotProcessOptions(options)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 	blackboard, err := e.resolveBlackboard(options.Blackboard)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: %w", err)
+		return nil, err
 	}
 	domain, err := planning.DomainForAgent(agent)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: domain: %w", err)
+		return nil, fmt.Errorf("domain: %w", err)
 	}
 
 	process := newProcess(snapshot.ID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
@@ -353,10 +342,10 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	// Re-populate state.
 	process.state.transition(snapshot.Status)
 	if err := process.state.restoreSuspension(snapshot.Suspension); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: suspension: %w", err)
+		return nil, fmt.Errorf("suspension: %w", err)
 	}
 	if err := process.restoreNestedSuspension(snapshot.Suspension); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: nested suspension: %w", err)
+		return nil, fmt.Errorf("nested suspension: %w", err)
 	}
 	if snapshot.GoalName != "" {
 		for _, goal := range agent.Goals() {
@@ -393,22 +382,15 @@ func (e *Engine) RestoreSnapshot(snapshot core.ProcessSnapshot, options core.Pro
 	// original struct, not the map JSON would otherwise yield.
 	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
 	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: decode blackboard: %w", err)
+		return nil, fmt.Errorf("decode blackboard: %w", err)
 	}
 	if err := restoreBlackboard(blackboard, BlackboardState{
 		Bindings:   bindings,
 		Conditions: snapshot.Conditions,
 		Objects:    objects,
 	}); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RestoreSnapshot: restore blackboard: %w", err)
+		return nil, fmt.Errorf("restore blackboard: %w", err)
 	}
 
-	// Restore keeps the snapshot's ORIGINAL process id, so refuse to clobber an
-	// id still held by a live process (e.g. an auto-snapshot re-restoring while
-	// the original ticks) — that would split the id across two objects. A
-	// terminal / absent slot replaces cleanly.
-	if !e.processes.registerNew(process) {
-		return nil, fmt.Errorf("runtime: cannot restore process %s: a live process with that id is already running", process.id)
-	}
 	return process, nil
 }

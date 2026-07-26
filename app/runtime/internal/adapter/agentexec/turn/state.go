@@ -168,7 +168,6 @@ const (
 	cancelObserve cancellationAction = iota
 	cancelFinish
 	cancelProcess
-	cancelCleanup
 	cancelComplete
 )
 
@@ -218,9 +217,7 @@ func (st *turnState) requestCancellation() cancellationAction {
 		return cancelObserve
 	case turnCancelDriven:
 		return cancelObserve
-	case turnTerminal:
-		return cancelCleanup
-	case turnReleased:
+	case turnTerminal, turnReleased:
 		return cancelComplete
 	default:
 		panic("turn: cancellation requested in a non-addressable lifecycle phase")

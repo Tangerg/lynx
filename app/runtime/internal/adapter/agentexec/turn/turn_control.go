@@ -39,8 +39,6 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 			return s.finishTurnOwned(state, execution.OutcomeCanceled)
 		}
 		return nil
-	case cancelCleanup:
-		return s.cleanupTurnOwned(state)
 	case cancelComplete:
 		return ErrTurnNotFound
 	default:

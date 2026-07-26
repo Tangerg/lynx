@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -16,18 +17,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
-	discardErr := errors.New("snapshot discard failed")
-	exporter := tracetest.NewInMemoryExporter()
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
-	previous := otel.GetTracerProvider()
-	otel.SetTracerProvider(tp)
-	t.Cleanup(func() {
-		otel.SetTracerProvider(previous)
-		if err := tp.Shutdown(context.WithoutCancel(t.Context())); err != nil {
-			t.Errorf("shutdown tracer provider: %v", err)
-		}
+var (
+	turnTraceOnce     sync.Once
+	turnTraceExporter *tracetest.InMemoryExporter
+	turnTraceProvider *sdktrace.TracerProvider
+)
+
+func installTurnTraceCapture(t *testing.T) (*sdktrace.TracerProvider, *tracetest.InMemoryExporter) {
+	t.Helper()
+	turnTraceOnce.Do(func() {
+		turnTraceExporter = tracetest.NewInMemoryExporter()
+		turnTraceProvider = sdktrace.NewTracerProvider(
+			sdktrace.WithSampler(sdktrace.AlwaysSample()),
+			sdktrace.WithSyncer(turnTraceExporter),
+		)
+		otel.SetTracerProvider(turnTraceProvider)
 	})
+	turnTraceExporter.Reset()
+	t.Cleanup(turnTraceExporter.Reset)
+	return turnTraceProvider, turnTraceExporter
+}
+
+func TestTerminalDiscardFailureIsRecordedWithoutRetainingTurn(t *testing.T) {
+	discardErr := errors.New("snapshot discard failed")
+	_, exporter := installTurnTraceCapture(t)
 
 	stub := &stubEngine{runReply: "ok", discardErr: discardErr}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
@@ -41,15 +54,8 @@ func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
 	}
 	for range events {
 	}
-	if spans := exporter.GetSpans(); len(spans) != 0 {
-		t.Fatalf("discard failure ended %d turn span(s) before cleanup succeeded", len(spans))
-	}
-	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, discardErr) {
-		t.Fatalf("join failed terminal cleanup: %v", err)
-	}
-	stub.lastProcess.Load().discardErr = nil
-	if err := dispatcher.Cancel(t.Context(), handle); err != nil {
-		t.Fatalf("retry terminal cleanup: %v", err)
+	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
+		t.Fatalf("Cancel after terminal cleanup = %v, want ErrTurnNotFound", err)
 	}
 
 	spans := exporter.GetSpans()
@@ -75,10 +81,7 @@ func TestTerminalDiscardFailureIsRecordedBeforeTurnSpanEnds(t *testing.T) {
 func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 	// A real (SDK) provider so spans carry a valid, recorded SpanContext;
 	// the global tracer otherwise compiles to a no-op with an invalid id.
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	prev := otel.GetTracerProvider()
-	otel.SetTracerProvider(tp)
-	t.Cleanup(func() { otel.SetTracerProvider(prev) })
+	tp, _ := installTurnTraceCapture(t)
 
 	// Open an entry span and start the turn under it — mirrors the HTTP
 	// transport opening a server span before runs.start.

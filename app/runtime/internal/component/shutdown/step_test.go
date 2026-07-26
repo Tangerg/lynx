@@ -54,6 +54,36 @@ func TestFailedAttemptIsRetryable(t *testing.T) {
 	}
 }
 
+func TestCallerJoiningFailedAttemptGetsFreshAttempt(t *testing.T) {
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	want := errors.New("first close failed")
+	var calls atomic.Int32
+	step := New(func(context.Context) error {
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-release
+			return want
+		}
+		return nil
+	})
+
+	first := step.Begin(t.Context())
+	<-entered
+	second := step.Begin(t.Context())
+	close(release)
+
+	if err := first.Wait(t.Context()); !errors.Is(err, want) {
+		t.Fatalf("first attempt = %v, want failure", err)
+	}
+	if err := second.Wait(t.Context()); err != nil {
+		t.Fatalf("joining caller's fresh attempt = %v", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("action calls = %d, want 2", got)
+	}
+}
+
 func TestAttemptWaitReturnsCompletedOutcomeAfterCallerCancellation(t *testing.T) {
 	want := errors.New("close failed")
 	attempt := completedAttempt(want)

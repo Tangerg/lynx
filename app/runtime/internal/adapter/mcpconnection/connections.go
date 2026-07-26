@@ -112,13 +112,12 @@ func (c *Connections) SetToolSink(sink func([]tools.Tool)) {
 	c.inner.SetToolSink(sink)
 }
 
-// Close releases every live connection. It is nil-safe and idempotent through
-// the infrastructure pool.
-func (c *Connections) Close() error {
+// Shutdown releases every live connection under the caller's shutdown budget.
+func (c *Connections) Shutdown(ctx context.Context) error {
 	if c == nil || c.inner == nil {
 		return nil
 	}
-	return c.inner.Close()
+	return c.inner.Shutdown(ctx)
 }
 
 func configsFromServers(servers []mcpserver.Server) ([]mcp.ServerConfig, error) {

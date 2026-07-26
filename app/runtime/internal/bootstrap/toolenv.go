@@ -12,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -46,7 +45,7 @@ func buildToolEnvironment(
 	mcpOpen := true
 	defer func() {
 		if mcpOpen {
-			_ = mcpConnections.Close()
+			_ = mcpConnections.Shutdown(ctx)
 		}
 	}()
 	bc := toolset.BuildConfig{
@@ -103,11 +102,9 @@ func buildToolEnvironment(
 	mcpConnections.SetToolSink(built.Resolver.SetMCPTools)
 	mcpOpen = false
 	return toolEnvironment{
-		tools: built,
-		mcp:   mcpConnections,
-		closers: append(shutdownClosers(built.Closers), shutdown.New(func(context.Context) error {
-			return mcpConnections.Close()
-		})),
+		tools:   built,
+		mcp:     mcpConnections,
+		closers: append(shutdownClosers(built.Closers), mcpConnections),
 	}, nil
 }
 

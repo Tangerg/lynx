@@ -16,12 +16,6 @@ func newProcessRegistry() processRegistry {
 	return processRegistry{items: map[string]*Process{}}
 }
 
-func (r *processRegistry) replace(process *Process) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.items[process.id] = process
-}
-
 func (r *processRegistry) insert(process *Process) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -36,22 +30,54 @@ func (r *processRegistry) insert(process *Process) bool {
 // finalization ownership. Otherwise the displaced run could publish state or
 // persist snapshots after the restored copy becomes active.
 func (r *processRegistry) registerNew(process *Process) bool {
-	for {
-		r.mu.RLock()
-		existing, exists := r.items[process.id]
-		r.mu.RUnlock()
-		if exists && !existing.state.removable() {
+	return r.registerTree([]*Process{process})
+}
+
+// registerTree publishes a completely rebuilt process tree in one registry
+// transaction. No node is visible unless every target slot can be replaced.
+func (r *processRegistry) registerTree(processes []*Process) bool {
+	ids := make(map[string]struct{}, len(processes))
+	for _, process := range processes {
+		if process == nil {
 			return false
+		}
+		if _, duplicate := ids[process.id]; duplicate {
+			return false
+		}
+		ids[process.id] = struct{}{}
+	}
+
+	for {
+		existing := make(map[string]*Process, len(processes))
+		r.mu.RLock()
+		for _, process := range processes {
+			existing[process.id] = r.items[process.id]
+		}
+		r.mu.RUnlock()
+
+		for _, current := range existing {
+			if current != nil && !current.state.removable() {
+				return false
+			}
 		}
 
 		r.mu.Lock()
-		current, currentExists := r.items[process.id]
-		if currentExists == exists && (!exists || current == existing) {
-			r.items[process.id] = process
+		stable := true
+		for id, current := range existing {
+			if r.items[id] != current {
+				stable = false
+				break
+			}
+		}
+		if !stable {
 			r.mu.Unlock()
-			return true
+			continue
+		}
+		for _, process := range processes {
+			r.items[process.id] = process
 		}
 		r.mu.Unlock()
+		return true
 	}
 }
 

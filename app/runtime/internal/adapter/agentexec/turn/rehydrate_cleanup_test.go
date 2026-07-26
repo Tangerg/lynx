@@ -39,7 +39,7 @@ func (e *gatedRestoreEngine) RestoreTurn(context.Context, string, agentexec.Rest
 	return e.process, nil
 }
 
-func TestRehydrateCloseRaceRetainsFailedCleanupForShutdownRetry(t *testing.T) {
+func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 	discardErr := errors.New("restored process discard failed")
 	release := make(chan struct{})
 	close(release)
@@ -65,20 +65,16 @@ func TestRehydrateCloseRaceRetainsFailedCleanupForShutdownRetry(t *testing.T) {
 	if err := dispatcher.AwaitShutdown(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("join failed shutdown cleanup = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); err != nil {
-		t.Fatalf("failed restored-process cleanup lost ownership: %v", err)
+	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("failed restored-process cleanup retained turn: %v", err)
 	}
 
-	process.discardErr = nil
 	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
-		t.Fatalf("retry shutdown cleanup: %v", err)
-	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
-		t.Fatalf("successful retry retained turn: %v", err)
+		t.Fatalf("join released shutdown target: %v", err)
 	}
 }
 
-func TestShutdownRetriesAfterLateRestoredProcessPublication(t *testing.T) {
+func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 	discardErr := errors.New("restored process discard failed")
 	processRelease := make(chan struct{})
 	close(processRelease)
@@ -121,15 +117,11 @@ func TestShutdownRetriesAfterLateRestoredProcessPublication(t *testing.T) {
 	if err := attempt.Wait(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("late-publication shutdown = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); err != nil {
-		t.Fatalf("failed late cleanup lost turn ownership: %v", err)
+	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("failed late cleanup retained turn: %v", err)
 	}
 
-	process.discardErr = nil
 	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
-		t.Fatalf("retry shutdown cleanup: %v", err)
-	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
-		t.Fatalf("successful retry retained turn: %v", err)
+		t.Fatalf("join released shutdown target: %v", err)
 	}
 }

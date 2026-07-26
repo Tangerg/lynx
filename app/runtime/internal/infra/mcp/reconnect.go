@@ -185,9 +185,9 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	c.mu.Lock()
 	current := c.currentAttempt(attempt)
 	if c.closed || !current {
-		// Close ran while we were dialing outside the lock: it niled c.servers
+		// Shutdown ran while we were dialing outside the lock: it niled c.servers
 		// (so this ms is detached) and closed every session. Storing the fresh
-		// session here would strand it past Close's sweep — a connection leak.
+		// session here would strand it past Shutdown's sweep — a connection leak.
 		// Drop it instead. Mirrors lsp.Servers.clientFor's closed re-check.
 		c.mu.Unlock()
 		var closeErr error

@@ -2,6 +2,7 @@ package runtime_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"go.opentelemetry.io/otel"
@@ -13,16 +14,24 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// TestMetrics_RecordedDuringRun installs a manual-reader MeterProvider, runs
-// an agent, and confirms the runtime emitted the tick / action / plan / exit
-// instruments. The runtime's instruments are created from the global
-// (delegating) meter, so setting the provider here wires them to our reader.
+var (
+	runtimeMetricOnce   sync.Once
+	runtimeMetricReader *sdkmetric.ManualReader
+)
+
+func installRuntimeMetricCapture() *sdkmetric.ManualReader {
+	runtimeMetricOnce.Do(func() {
+		runtimeMetricReader = sdkmetric.NewManualReader()
+		otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(runtimeMetricReader)))
+	})
+	return runtimeMetricReader
+}
+
+// TestMetrics_RecordedDuringRun uses the package's process-lifetime
+// MeterProvider and confirms the runtime emitted the tick / action / plan /
+// exit instruments.
 func TestMetrics_RecordedDuringRun(t *testing.T) {
-	reader := sdkmetric.NewManualReader()
-	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
-	prev := otel.GetMeterProvider()
-	otel.SetMeterProvider(provider)
-	t.Cleanup(func() { otel.SetMeterProvider(prev) })
+	reader := installRuntimeMetricCapture()
 
 	a := agent.New(agent.AgentConfig{Name: "metered", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil

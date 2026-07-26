@@ -15,9 +15,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-// cleanupTurnOwned releases the terminal process and only then removes the turn
-// from the registry and closes done. The caller holds lifecycleMu. A failure
-// leaves the same state addressable for a later Cancel or shutdown retry.
+// cleanupTurnOwned releases a terminal turn exactly once. Process persistence
+// failures remain observable, but cannot retain a completed turn in memory:
+// terminal cleanup has no later runtime owner that could safely retry it.
 func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 	if st.released() {
 		return nil
@@ -30,7 +30,6 @@ func (s *memoryDispatcher) cleanupTurnOwned(st *turnState) error {
 		if err := discardProcess(st.ctx, p); err != nil {
 			recordTurnCleanupError(st, err)
 			cleanupErr = err
-			return cleanupErr
 		}
 	}
 	if st.span != nil {

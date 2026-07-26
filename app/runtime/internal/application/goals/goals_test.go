@@ -32,6 +32,26 @@ type memStore struct {
 	afterContextCheck func() // test hook: called before the context-aware lock
 }
 
+var (
+	goalTraceOnce     sync.Once
+	goalTraceExporter *notifyingSpanExporter
+)
+
+func installGoalTraceCapture(t *testing.T) *notifyingSpanExporter {
+	t.Helper()
+	goalTraceOnce.Do(func() {
+		goalTraceExporter = &notifyingSpanExporter{
+			InMemoryExporter: tracetest.NewInMemoryExporter(),
+		}
+		tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(goalTraceExporter))
+		otel.SetTracerProvider(tp)
+	})
+	goalTraceExporter.Reset()
+	goalTraceExporter.exported = make(chan struct{}, 1)
+	t.Cleanup(goalTraceExporter.Reset)
+	return goalTraceExporter
+}
+
 type faultingGoalStore struct {
 	*memStore
 	gets   atomic.Int32
@@ -878,17 +898,7 @@ func TestMemStoreRejectsCancellationWhileWaitingForLock(t *testing.T) {
 // TestDriverEmitsTurnSpan proves the observability is real (not just no-op): a
 // goal.turn span carries the session, turn ordinal, and the run's outcome/usage.
 func TestDriverEmitsTurnSpan(t *testing.T) {
-	exporter := &notifyingSpanExporter{
-		InMemoryExporter: tracetest.NewInMemoryExporter(),
-		exported:         make(chan struct{}, 1),
-	}
-	tp := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
-	prev := otel.GetTracerProvider()
-	otel.SetTracerProvider(tp)
-	t.Cleanup(func() {
-		otel.SetTracerProvider(prev)
-		_ = tp.Shutdown(context.Background())
-	})
+	exporter := installGoalTraceCapture(t)
 
 	store := newMemStore()
 	// One completed turn; MaxTurns=1 blocks after it, so the span has run.outcome.

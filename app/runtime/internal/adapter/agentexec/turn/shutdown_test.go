@@ -129,7 +129,7 @@ func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
 	}
 }
 
-func TestCancelRetainsTerminalTurnUntilDiscardSucceeds(t *testing.T) {
+func TestCancelReleasesTerminalTurnWhenDiscardFails(t *testing.T) {
 	discardErr := errors.New("discard failed")
 	release := make(chan struct{})
 	close(release)
@@ -146,19 +146,11 @@ func TestCancelRetainsTerminalTurnUntilDiscardSucceeds(t *testing.T) {
 	if err := dispatcher.Cancel(t.Context(), st.handle); !errors.Is(err, discardErr) {
 		t.Fatalf("Cancel error = %v, want discard failure", err)
 	}
-	if channelClosed(st.done) {
-		t.Fatal("discard failure released the turn")
-	}
-	if _, err := dispatcher.findTurn(st.handle.TurnID); err != nil {
-		t.Fatalf("discard failure lost retry ownership: %v", err)
-	}
-
-	process.discardErr = nil
-	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
-		t.Fatalf("retry terminal cleanup: %v", err)
-	}
 	if !channelClosed(st.done) {
-		t.Fatal("successful terminal cleanup did not release the turn")
+		t.Fatal("discard failure retained the terminal turn")
+	}
+	if _, err := dispatcher.findTurn(st.handle.TurnID); !errors.Is(err, ErrTurnNotFound) {
+		t.Fatalf("discard failure retained registry ownership: %v", err)
 	}
 }
 

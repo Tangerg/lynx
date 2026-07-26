@@ -82,11 +82,10 @@ func (e *Engine) Save(ctx context.Context, processID string) error {
 	return e.saveProcess(ctx, process, false)
 }
 
-// Discard terminates a process tree, waits for every active run to release its
-// final-snapshot ownership, asks the configured store to delete its durable
-// tree, and removes the live processes from the registry in descendant-first
-// order. A nil error is the complete release postcondition; an error means the
-// tree remains owned by the engine and the caller may retry.
+// Discard terminates a process tree and relinquishes its runtime ownership.
+// Once the tree has stopped and its removal claim succeeds, registry release is
+// unconditional: persistence failures are reported without retaining an
+// otherwise-dead runtime tree for a caller to retry.
 func (e *Engine) Discard(ctx context.Context, processID string) error {
 	ctx, span := agentTracer.Start(
 		normalizeContext(ctx),
@@ -136,20 +135,20 @@ func (e *Engine) discard(ctx context.Context, processID string, span trace.Span)
 	// into a snapshot-timeout lock inversion.
 	releaseSave, err := e.processSaves.acquire(ctx, sequenceKey)
 	if err != nil {
-		tree.releaseClaims()
+		tree.release()
 		return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: sequence persistence: %w", err))
 	}
 	defer releaseSave()
+	var deleteErr error
 	if e.processStore != nil {
 		change := core.ProcessSnapshotChange{DeleteRoots: []string{processID}}
 		if err := e.processStore.Apply(ctx, change); err != nil {
-			tree.releaseClaims()
-			return errors.Join(errors.Join(terminateErrs...), fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err))
+			deleteErr = fmt.Errorf("runtime.Engine.Discard: delete snapshots: %w", err)
 		}
 	}
 	tree.release()
 	recordDiscardDiagnostics(span, terminateErrs)
-	return nil
+	return deleteErr
 }
 
 func recordDiscardDiagnostics(span trace.Span, diagnostics []error) {

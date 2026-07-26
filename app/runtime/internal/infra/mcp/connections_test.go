@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +24,18 @@ import (
 type catalogTool string
 
 type oauthHandlerStub struct{}
+
+type flakySessionCloser struct {
+	calls atomic.Int32
+	err   error
+}
+
+func (c *flakySessionCloser) Close() error {
+	if c.calls.Add(1) == 1 {
+		return c.err
+	}
+	return nil
+}
 
 func (oauthHandlerStub) TokenSource(context.Context) (oauth2.TokenSource, error) { return nil, nil }
 func (oauthHandlerStub) Authorize(context.Context, *http.Request, *http.Response) error {
@@ -57,10 +70,10 @@ func (t catalogTool) Definition() chat.ToolDefinition {
 
 func (catalogTool) Call(context.Context, string) (string, error) { return "", nil }
 
-func TestConnectionsRejectMutationsAfterClose(t *testing.T) {
+func TestConnectionsRejectMutationsAfterShutdown(t *testing.T) {
 	c := &Connections{client: newClient()}
-	if err := c.Close(); err != nil {
-		t.Fatalf("Close: %v", err)
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("Shutdown: %v", err)
 	}
 
 	cfg := ServerConfig{Name: "closed", Transport: TransportHTTP, Endpoint: "https://example.invalid"}
@@ -78,42 +91,51 @@ func TestConnectionsRejectMutationsAfterClose(t *testing.T) {
 
 	c.Remove(context.Background(), cfg.Name)
 	if got := c.Statuses(); len(got) != 0 {
-		t.Fatalf("statuses after Close + Remove = %v, want empty", got)
+		t.Fatalf("statuses after Shutdown + Remove = %v, want empty", got)
 	}
-	if err := c.Close(); err != nil {
-		t.Fatalf("second Close: %v", err)
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("second Shutdown: %v", err)
 	}
 }
 
-func TestConnectionsCloseCancelsAndJoinsAttempts(t *testing.T) {
+func TestConnectionsShutdownCancelsAndJoinsAttempts(t *testing.T) {
 	c := &Connections{}
 	target := &server{config: ServerConfig{Name: "server"}}
 	c.servers = []*server{target}
 	c.mu.Lock()
 	attempt := c.beginAttempt(t.Context(), target)
 	c.mu.Unlock()
-	done := make(chan error, 1)
-	go func() { done <- c.Close() }()
 
-	select {
-	case <-attempt.ctx.Done():
-	case <-time.After(time.Second):
-		t.Fatal("Close did not cancel the active attempt")
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
+	defer cancel()
+	if err := c.Shutdown(ctx); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("bounded Shutdown = %v, want context deadline exceeded", err)
 	}
 	select {
-	case err := <-done:
-		t.Fatalf("Close returned before the active attempt exited: %v", err)
-	case <-time.After(20 * time.Millisecond):
+	case <-attempt.ctx.Done():
+	default:
+		t.Fatal("Shutdown did not cancel the active attempt")
 	}
 
 	c.finishAttempt(attempt)
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("Close: %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("Close did not finish after the attempt exited")
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("join Shutdown: %v", err)
+	}
+}
+
+func TestConnectionsShutdownRetriesOnlyFailedSessions(t *testing.T) {
+	closeErr := errors.New("session close failed")
+	session := &flakySessionCloser{err: closeErr}
+	c := &Connections{closed: true, pending: []sessionCloser{session}}
+
+	if err := c.Shutdown(t.Context()); !errors.Is(err, closeErr) {
+		t.Fatalf("first Shutdown = %v, want close failure", err)
+	}
+	if err := c.Shutdown(t.Context()); err != nil {
+		t.Fatalf("second Shutdown: %v", err)
+	}
+	if got := session.calls.Load(); got != 2 {
+		t.Fatalf("session close calls = %d, want 2", got)
 	}
 }
 
@@ -228,8 +250,8 @@ func TestReconnectPublishesRemovalBeforeVerifiedReplacement(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("Shutdown: %v", err)
 		}
 	})
 	if len(initial) != 1 || initial[0].Definition().Name != "remote_first" {
@@ -269,8 +291,8 @@ func TestDialQuarantinesCrossServerPublicToolNameCollision(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("Shutdown: %v", err)
 		}
 	})
 	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_read"}) {
@@ -299,8 +321,8 @@ func TestConfigureRejectsCrossServerPublicToolNameCollision(t *testing.T) {
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("Shutdown: %v", err)
 		}
 	})
 	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c"}) {
@@ -351,8 +373,8 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 		t.Fatalf("Dial: %v", err)
 	}
 	t.Cleanup(func() {
-		if err := c.Close(); err != nil {
-			t.Errorf("Close: %v", err)
+		if err := c.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+			t.Errorf("Shutdown: %v", err)
 		}
 	})
 	if names := toolNames(initial); !slices.Equal(names, []string{"a_b_c", "a_safe"}) {
