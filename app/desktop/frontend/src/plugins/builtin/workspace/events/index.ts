@@ -6,6 +6,7 @@
 
 import { definePlugin } from "@/plugins/sdk";
 import { subscribeRuntimeCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
+import { installProjectIndexRefresh } from "./adapters/projectIndexRefresh";
 import {
   invalidateWorkspaceEvent,
   invalidateWorkspaceEverything,
@@ -33,12 +34,18 @@ export default definePlugin({
       reportError: (error) => console.warn("[workspace-events] subscribe failed:", error),
     });
 
-    return startWorkspaceEventSubscription({
+    const disposeProjectIndex = installProjectIndexRefresh();
+    const disposeSubscription = startWorkspaceEventSubscription({
       canSubscribe: canSubscribeWorkspaceEvents,
       subscribeCapabilities: subscribeRuntimeCapabilities,
       resolveWorkspaceCwd: resolveActiveSessionWorkspaceCwd,
       subscribeWorkspaceCwdInputs,
       loop,
     });
+
+    return () => {
+      disposeSubscription();
+      disposeProjectIndex();
+    };
   },
 });

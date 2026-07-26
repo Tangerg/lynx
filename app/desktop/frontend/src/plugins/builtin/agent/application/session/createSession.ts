@@ -55,7 +55,7 @@ async function createAndOpen({
     // Draft is filtered out of the Work Index; refetch so its graduation
     // (and any backend-assigned title) lands promptly. A cwd create may
     // also have minted a brand-new project.
-    void invalidateAgentSessions(cwd ? { projects: true } : undefined);
+    void invalidateAgentSessions();
     return session.id;
   } catch (err) {
     reportSessionError("create", err);

@@ -147,7 +147,7 @@ export async function importConversationJson(): Promise<void> {
     const session = await conversationArchiveGateway().importConversation(raw);
     await rehydrateSessionView(session.id);
     selectAgentSession(session.id);
-    void invalidateAgentSessions({ projects: true });
+    void invalidateAgentSessions();
     toast.success(t("convExport.importSuccess", { title: session.title ?? session.id }));
   } catch (err) {
     console.error("[import] sessions.import failed:", err);

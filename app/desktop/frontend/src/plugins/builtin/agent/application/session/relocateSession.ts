@@ -19,7 +19,7 @@ export function useRelocateSession(): (
       await agentRuntime().updateSession({ sessionId: id, expectedRevision, cwd });
       // projects too: the list is derived from session cwds, and this
       // session just moved — its old project may retire, the new one mint.
-      await invalidateAgentSessions({ projects: true });
+      await invalidateAgentSessions();
       return true;
     } catch (err) {
       reportSessionError("relocate", err, rpcErrorText(err) ?? String(err));
