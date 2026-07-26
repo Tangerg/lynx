@@ -18,7 +18,7 @@ export function NotificationsBadge() {
 
   return (
     <IconButton
-      icon="chat"
+      icon="bell"
       size="sm"
       quiet
       badge={badgeText ?? undefined}

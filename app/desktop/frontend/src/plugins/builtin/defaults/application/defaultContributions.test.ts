@@ -54,7 +54,7 @@ describe("defaultStaticCommands", () => {
       toggleSidebar: run,
       toggleTheme: run,
       newChat: run,
-      closeSessionOrView: run,
+      closeFocused: run,
       focusComposer: run,
     });
 
@@ -62,7 +62,7 @@ describe("defaultStaticCommands", () => {
       "view.toggle-sidebar",
       "settings.toggle-theme",
       "chat.new",
-      "chat.close-session",
+      "workspace.close-focused",
       "composer.focus",
     ]);
     expect(commands.map((command) => command.combo)).toEqual([
@@ -76,7 +76,7 @@ describe("defaultStaticCommands", () => {
       "command.toggleSidebar",
       "command.toggleTheme",
       "command.newChat",
-      "command.closeSession",
+      "command.closeFocused",
       "command.focusComposer",
     ]);
   });
@@ -88,7 +88,8 @@ describe("defaultWorkspaceViewCommands", () => {
       return null;
     }
 
-    const opened: unknown[] = [];
+    const inDock: string[] = [];
+    const full: string[] = [];
     const commands = defaultWorkspaceViewCommands(
       [
         {
@@ -103,10 +104,14 @@ describe("defaultWorkspaceViewCommands", () => {
           title: "workspace.view.title.early",
           icon: "spark",
           order: 0,
+          splittable: true,
           component: View,
         },
       ],
-      (view: string) => opened.push(view),
+      {
+        openInDock: (view: string) => inDock.push(view),
+        openFull: (view: string) => full.push(view),
+      },
     );
 
     expect(commands.map((command) => command.id)).toEqual(["view.open.early", "view.open.late"]);
@@ -121,9 +126,13 @@ describe("defaultWorkspaceViewCommands", () => {
       when: 'mainView != "early"',
     });
 
+    // Placement follows the view, not the caller: a view that can live in the dock
+    // opens there, one that cannot takes the whole card.
     void commands[0]!.run();
+    void commands[1]!.run();
 
-    expect(opened).toEqual(["early"]);
+    expect(inDock).toEqual(["early"]);
+    expect(full).toEqual(["late"]);
   });
 });
 

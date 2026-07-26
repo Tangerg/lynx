@@ -21,6 +21,9 @@ export function kernelSettingsView(component: WorkspaceViewSpec["component"]): W
     id: "settings",
     title: "settings.title",
     icon: "settings",
+    // Last in the palette's view list, and never in the dock: settings is a
+    // whole-window surface, not something you keep beside a conversation.
+    order: 200,
     component,
   };
 }

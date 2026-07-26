@@ -1,6 +1,16 @@
 // Sidebar global actions — the Work Index starts with app-level entry points.
+//
+// Two of them are about work: start a session, or find one. What used to sit here
+// beside them were two deep links into Settings (schedules, plugins), which read
+// as peers of "New session" and then replaced the whole window. Only schedules
+// survives, because a scheduled run is work this index is about; plugins live
+// where the rest of the settings do.
+//
+// The palette row says what it opens. Labelled "Search" with a magnifier, it
+// promised the thing ⌘F does (find in this conversation) and the thing the
+// workspace's Search view does (grep the project), and delivered neither.
 
-import { PLUGINS_PANE, SCHEDULES_PANE } from "@/plugins/builtin/settings/public/panes";
+import { SCHEDULES_PANE } from "@/plugins/builtin/settings/public/panes";
 import { Kbd } from "@/ui";
 import { AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
@@ -22,7 +32,7 @@ function SidebarNewSession() {
         {t("sidebar.action.newSession")}
       </AgentRow>
       <AgentRow
-        icon="search"
+        icon="command"
         onClick={() => usePaletteStore.getState().setOpen(true)}
         trailing={
           <span className="flex items-center gap-1">
@@ -31,13 +41,10 @@ function SidebarNewSession() {
           </span>
         }
       >
-        {t("common.search")}
+        {t("command.openPalette")}
       </AgentRow>
-      <AgentRow icon="history" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>
+      <AgentRow icon="clock" onClick={() => openWorkspaceSettingsPane(SCHEDULES_PANE)}>
         {t("settings.pane.schedules")}
-      </AgentRow>
-      <AgentRow icon="sparkle" onClick={() => openWorkspaceSettingsPane(PLUGINS_PANE)}>
-        {t("settings.pane.plugins")}
       </AgentRow>
     </div>
   );

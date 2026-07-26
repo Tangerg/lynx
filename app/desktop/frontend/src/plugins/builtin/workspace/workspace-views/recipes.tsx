@@ -67,7 +67,7 @@ export const recipesView = defineWorkspaceView({
   id: "recipes",
   title: "workspace.view.title.recipes",
   icon: "command",
-  order: 46,
+  order: 95,
   splittable: true,
   component: RecipesTab,
 });

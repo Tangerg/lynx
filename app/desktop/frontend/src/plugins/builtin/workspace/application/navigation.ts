@@ -77,6 +77,10 @@ export function closeActiveWorkspaceView(): boolean {
   return true;
 }
 
+export function getWorkspaceDockViewId(): string | null {
+  return workspaceNavigation().dockViewId();
+}
+
 export function closeWorkspaceDockView(): void {
   workspaceNavigation().closeDockView();
 }

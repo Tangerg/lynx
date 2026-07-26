@@ -73,7 +73,7 @@ export const skillsView = defineWorkspaceView({
   id: "skills",
   title: "workspace.view.title.skills",
   icon: "sparkle",
-  order: 45,
+  order: 80,
   splittable: true,
   component: SkillsTab,
 });

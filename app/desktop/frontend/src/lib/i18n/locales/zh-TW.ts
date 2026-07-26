@@ -3,7 +3,6 @@
 export const zhTW: Record<string, string> = {
   "common.cancel": "取消",
   "common.close": "關閉",
-  "common.search": "搜尋",
 
   "approval.what.command": "執行命令",
   "approval.what.fileEdit": "套用檔案變更",
@@ -569,7 +568,7 @@ export const zhTW: Record<string, string> = {
   "convExport.importFailed": "無法匯入對話。",
   "convExport.importSuccess": "已匯入「{{title}}」。",
   "connection.error.urlScheme": "必須以 http:// 或 https:// 開頭",
-  "chatSearch.shortcutDesc": "在對話中尋找",
+  "command.chatSearch": "在對話中尋找",
   "composer.key.sendDesc": "傳送訊息",
   "composer.key.approveDesc": "核准待處理請求，否則傳送",
   "composer.key.declineDesc": "拒絕待處理請求",
@@ -588,7 +587,8 @@ export const zhTW: Record<string, string> = {
   "command.openPalette": "開啟命令面板",
   "command.toggleTheme": "切換深色/淺色佈景",
   "command.newChat": "新增聊天",
-  "command.closeSession": "關閉目前聊天",
+  "command.closeFocused": "關閉面板或對話",
+  "command.closeFocused.desc": "先關閉開啟的面板；否則離開目前對話 —— 對話仍留在工作索引中",
   "command.focusComposer": "聚焦輸入框",
 
   "diagnostics.clear": "清除",

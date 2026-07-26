@@ -11,11 +11,18 @@ export interface DefaultCommandRuns {
   toggleSidebar: CommandRun;
   toggleTheme: CommandRun;
   newChat: CommandRun;
-  closeSessionOrView: CommandRun;
+  closeFocused: CommandRun;
   focusComposer: CommandRun;
 }
 
-export type WorkspaceViewOpener = (id: WorkspaceViewSpec["id"]) => void;
+/** The two placements a view can be opened into. Which one a command uses is the
+ *  view's own `splittable`, not the caller's guess — the palette used to send
+ *  everything to the full card, so the same destination behaved differently
+ *  depending on whether you reached it from the palette or the dock. */
+export interface WorkspaceViewOpeners {
+  openInDock: (id: WorkspaceViewSpec["id"]) => void;
+  openFull: (id: WorkspaceViewSpec["id"]) => void;
+}
 
 export type AccentSetter = (accent: ThemeAccentSpec["dark"]) => void;
 
@@ -105,14 +112,17 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       run: runs.newChat,
     },
     {
-      id: "chat.close-session",
-      label: "command.closeSession",
+      // Closes the dock's view if one is open, otherwise leaves the session —
+      // which stays in the Work Index. "Close chat" implied it was going away.
+      id: "workspace.close-focused",
+      label: "command.closeFocused",
+      description: "command.closeFocused.desc",
       icon: "x",
       group: "command.group.chat",
-      keywords: ["dismiss"],
+      keywords: ["dismiss", "leave"],
       order: 1,
       combo: "Mod+W",
-      run: runs.closeSessionOrView,
+      run: runs.closeFocused,
     },
     {
       id: "composer.focus",
@@ -129,7 +139,7 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
 
 export function defaultWorkspaceViewCommands(
   views: WorkspaceViewSpec[],
-  openView: WorkspaceViewOpener,
+  open: WorkspaceViewOpeners,
 ): CommandSpec[] {
   return [...views]
     .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
@@ -143,7 +153,7 @@ export function defaultWorkspaceViewCommands(
       order: 10,
       keywords: ["open", "show", view.id],
       when: `mainView != "${view.id}"`,
-      run: () => openView(view.id),
+      run: () => (view.splittable ? open.openInDock(view.id) : open.openFull(view.id)),
     }));
 }
 

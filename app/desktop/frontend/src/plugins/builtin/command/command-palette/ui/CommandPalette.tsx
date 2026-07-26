@@ -104,7 +104,7 @@ export function CommandPalette() {
                   }}
                   className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
                 >
-                  <Icon name="history" size={14} className="shrink-0 text-fg-faint" />
+                  <Icon name="chat" size={14} className="shrink-0 text-fg-faint" />
                   <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>
                 </Command.Item>
               ))}

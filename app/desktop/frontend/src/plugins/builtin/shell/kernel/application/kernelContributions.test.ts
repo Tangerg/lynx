@@ -31,6 +31,7 @@ describe("kernelSettingsView", () => {
       id: "settings",
       title: "settings.title",
       icon: "settings",
+      order: 200,
       component: Component,
     });
   });

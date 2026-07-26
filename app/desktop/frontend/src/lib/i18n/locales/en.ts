@@ -5,7 +5,6 @@
 export const en: Record<string, string> = {
   "common.cancel": "Cancel",
   "common.close": "Close",
-  "common.search": "Search",
 
   "approval.what.command": "Run command",
   "approval.what.fileEdit": "Apply file change",
@@ -857,7 +856,7 @@ export const en: Record<string, string> = {
   "connection.error.urlScheme": "Must start with http:// or https://",
 
   // ── Chat search shortcut ──
-  "chatSearch.shortcutDesc": "Find in chat",
+  "command.chatSearch": "Find in chat",
 
   // ── Composer mode descriptions ──
 
@@ -884,7 +883,9 @@ export const en: Record<string, string> = {
   "command.openPalette": "Open command palette",
   "command.toggleTheme": "Toggle dark/light theme",
   "command.newChat": "New chat",
-  "command.closeSession": "Close current chat",
+  "command.closeFocused": "Close panel or chat",
+  "command.closeFocused.desc":
+    "Closes the open panel; otherwise leaves the chat, which stays in the work index",
   "command.focusComposer": "Focus composer",
 
   // ── Diagnostics view ──

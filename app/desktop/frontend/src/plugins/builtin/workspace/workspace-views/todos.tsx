@@ -43,7 +43,7 @@ export const todosView = defineWorkspaceView({
   id: "todos",
   title: "workspace.view.title.todos",
   icon: "check",
-  order: 32,
+  order: 125,
   splittable: true,
   component: TodosTab,
 });

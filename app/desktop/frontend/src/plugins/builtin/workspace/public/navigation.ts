@@ -5,6 +5,7 @@ export {
   closeWorkspaceView,
   clearWorkspaceSettingsPaneTarget,
   forgetWorkspaceSessionScopes,
+  getWorkspaceDockViewId,
   getWorkspaceSettingsPaneTarget,
   openWorkspaceDiffForFile,
   openWorkspaceFile,

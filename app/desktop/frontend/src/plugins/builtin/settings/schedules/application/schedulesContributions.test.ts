@@ -11,7 +11,7 @@ describe("schedulesSettingsPane", () => {
       id: "schedules",
       label: "settings.pane.schedules",
       group: "agent",
-      icon: "command",
+      icon: "clock",
       order: 58,
       component: Component,
     });

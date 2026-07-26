@@ -3,7 +3,8 @@ import type { Translate } from "@/lib/i18n";
 
 export const GLOBAL_COMMAND_IDS = [
   "chat.new",
-  "chat.close-session",
+  "chat.search",
+  "workspace.close-focused",
   "composer.focus",
   "view.toggle-sidebar",
   "settings.toggle-theme",

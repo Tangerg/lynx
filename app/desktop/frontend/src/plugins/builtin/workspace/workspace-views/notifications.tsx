@@ -81,8 +81,8 @@ function NotificationRow({ level, message, plugin, timestamp, dismissed, onDismi
 export const notificationsView = defineWorkspaceView({
   id: "notifications",
   title: "workspace.view.title.notifications",
-  icon: "chat",
-  order: 50,
+  icon: "bell",
+  order: 145,
   splittable: true,
   component: NotificationsTab,
 });

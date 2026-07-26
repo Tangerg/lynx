@@ -3,7 +3,6 @@
 export const zh: Record<string, string> = {
   "common.cancel": "取消",
   "common.close": "关闭",
-  "common.search": "搜索",
 
   "approval.what.command": "执行命令",
   "approval.what.fileEdit": "应用文件修改",
@@ -741,7 +740,7 @@ export const zh: Record<string, string> = {
   "convExport.importFailed": "无法导入对话。",
   "convExport.importSuccess": "已导入「{{title}}」。",
   "connection.error.urlScheme": "必须以 http:// 或 https:// 开头",
-  "chatSearch.shortcutDesc": "在对话中查找",
+  "command.chatSearch": "在对话中查找",
   "composer.key.sendDesc": "发送消息",
   "composer.key.approveDesc": "批准待处理请求，否则发送",
   "composer.key.declineDesc": "拒绝待处理请求",
@@ -760,7 +759,8 @@ export const zh: Record<string, string> = {
   "command.openPalette": "打开命令面板",
   "command.toggleTheme": "切换深色/浅色主题",
   "command.newChat": "新建聊天",
-  "command.closeSession": "关闭当前聊天",
+  "command.closeFocused": "关闭面板或会话",
+  "command.closeFocused.desc": "先关闭打开的面板；否则离开当前会话 —— 会话仍留在工作索引中",
   "command.focusComposer": "聚焦输入框",
 
   "diagnostics.clear": "清除",

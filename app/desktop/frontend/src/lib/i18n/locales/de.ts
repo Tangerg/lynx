@@ -3,7 +3,6 @@
 export const de: Record<string, string> = {
   "common.cancel": "Abbrechen",
   "common.close": "Schließen",
-  "common.search": "Suchen",
 
   "approval.what.command": "Befehl ausführen",
   "approval.what.fileEdit": "Dateiänderung anwenden",
@@ -570,7 +569,7 @@ export const de: Record<string, string> = {
   "convExport.importFailed": "Konversation konnte nicht importiert werden.",
   "convExport.importSuccess": '"{{title}}" importiert.',
   "connection.error.urlScheme": "Muss mit http:// oder https:// beginnen",
-  "chatSearch.shortcutDesc": "Im Chat suchen",
+  "command.chatSearch": "Im Chat suchen",
   "composer.key.sendDesc": "Nachricht senden",
   "composer.key.approveDesc": "Ausstehende Anfrage genehmigen, sonst senden",
   "composer.key.declineDesc": "Ausstehende Anfrage ablehnen",
@@ -587,7 +586,9 @@ export const de: Record<string, string> = {
   "command.openPalette": "Befehlspalette öffnen",
   "command.toggleTheme": "Dunkles/Helles Theme umschalten",
   "command.newChat": "Neuer Chat",
-  "command.closeSession": "Aktuellen Chat schließen",
+  "command.closeFocused": "Panel oder Chat schließen",
+  "command.closeFocused.desc":
+    "Schließt das offene Panel; sonst verlässt es den Chat, der im Arbeitsindex bleibt",
   "command.focusComposer": "Editor fokussieren",
 
   "diagnostics.clear": "Löschen",

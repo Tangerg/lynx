@@ -103,7 +103,7 @@ export const searchView = defineWorkspaceView({
   id: "search",
   title: "workspace.view.title.search",
   icon: "search",
-  order: 48,
+  order: 10,
   splittable: true,
   component: SearchTab,
 });

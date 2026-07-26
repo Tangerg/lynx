@@ -121,7 +121,7 @@ export const skillLibraryView = defineWorkspaceView({
   id: "skill-library",
   title: "workspace.view.title.skillLibrary",
   icon: "sparkle",
-  order: 46,
+  order: 90,
   splittable: true,
   component: SkillLibraryTab,
 });

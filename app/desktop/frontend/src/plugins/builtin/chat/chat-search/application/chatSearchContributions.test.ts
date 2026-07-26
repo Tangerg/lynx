@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { chatSearchOverlaySlot, chatSearchShortcut } from "./chatSearchContributions";
+import { chatSearchCommand, chatSearchOverlaySlot } from "./chatSearchContributions";
 
 function Component() {
   return null;
@@ -15,25 +15,22 @@ describe("chatSearchOverlaySlot", () => {
   });
 });
 
-describe("chatSearchShortcut", () => {
-  it("binds Mod+F as an input-safe chat search shortcut", () => {
-    const shortcut = chatSearchShortcut(vi.fn());
+describe("chatSearchCommand", () => {
+  it("carries Mod+F so the global keymap can bind it", () => {
+    const command = chatSearchCommand(vi.fn());
 
-    expect(shortcut).toMatchObject({
-      key: "Mod+F",
-      description: "chatSearch.shortcutDesc",
-      allowInInputs: true,
+    expect(command).toMatchObject({
+      id: "chat.search",
+      label: "command.chatSearch",
+      combo: "Mod+F",
     });
   });
 
-  it("prevents the browser find dialog before opening chat search", () => {
+  it("opens chat search when run", () => {
     const openSearch = vi.fn();
-    const shortcut = chatSearchShortcut(openSearch);
-    const event = { preventDefault: vi.fn() } as unknown as KeyboardEvent;
 
-    shortcut.handler(event);
+    void chatSearchCommand(openSearch).run();
 
-    expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(openSearch).toHaveBeenCalledOnce();
   });
 });

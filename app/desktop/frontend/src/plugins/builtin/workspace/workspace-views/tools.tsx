@@ -110,7 +110,7 @@ export const toolsView = defineWorkspaceView({
   id: "tools",
   title: "workspace.view.title.tools",
   icon: "tool",
-  order: 40,
+  order: 70,
   splittable: true,
   component: ToolsTab,
 });

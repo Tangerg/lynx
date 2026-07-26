@@ -3,7 +3,6 @@
 export const ko: Record<string, string> = {
   "common.cancel": "취소",
   "common.close": "닫기",
-  "common.search": "검색",
 
   "approval.what.command": "명령 실행",
   "approval.what.fileEdit": "파일 변경 적용",
@@ -557,7 +556,7 @@ export const ko: Record<string, string> = {
   "convExport.importFailed": "대화를 가져올 수 없습니다.",
   "convExport.importSuccess": "'{{title}}'을(를) 가져왔습니다.",
   "connection.error.urlScheme": "http:// 또는 https://로 시작해야 합니다",
-  "chatSearch.shortcutDesc": "채팅에서 찾기",
+  "command.chatSearch": "채팅에서 찾기",
   "composer.key.sendDesc": "메시지 보내기",
   "composer.key.approveDesc": "대기 중인 요청 승인, 그렇지 않으면 전송",
   "composer.key.declineDesc": "대기 중인 요청 거부",
@@ -574,7 +573,9 @@ export const ko: Record<string, string> = {
   "command.openPalette": "명령 팔레트 열기",
   "command.toggleTheme": "다크/라이트 테마 전환",
   "command.newChat": "새 채팅",
-  "command.closeSession": "현재 채팅 닫기",
+  "command.closeFocused": "패널 또는 채팅 닫기",
+  "command.closeFocused.desc":
+    "열린 패널을 닫고, 없으면 채팅에서 나갑니다 — 채팅은 작업 색인에 남습니다",
   "command.focusComposer": "컴포저에 포커스",
 
   "diagnostics.clear": "지우기",

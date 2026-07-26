@@ -126,7 +126,7 @@ export const skillDraftsView = defineWorkspaceView({
   id: "skill-drafts",
   title: "workspace.view.title.skillDrafts",
   icon: "sparkle",
-  order: 47,
+  order: 85,
   splittable: true,
   component: SkillDraftsTab,
 });

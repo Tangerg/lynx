@@ -178,7 +178,7 @@ export const runSummaryView = defineWorkspaceView({
   title: "workspace.view.title.runSummary",
   icon: "check",
   // Sits next to Timeline (35) — both are about "what happened".
-  order: 36,
+  order: 130,
   splittable: true,
   component: RunSummaryTab,
 });

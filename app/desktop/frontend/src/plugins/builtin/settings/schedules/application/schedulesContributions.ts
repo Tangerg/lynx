@@ -6,7 +6,7 @@ export function schedulesSettingsPane(component: SettingsPaneSpec["component"]):
     id: SCHEDULES_PANE,
     label: "settings.pane.schedules",
     group: "agent",
-    icon: "command",
+    icon: "clock",
     order: 58,
     component,
   };

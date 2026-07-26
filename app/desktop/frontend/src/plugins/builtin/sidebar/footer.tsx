@@ -51,7 +51,7 @@ function SidebarFooter() {
       <AgentRow icon="settings" className="min-w-0 flex-1" onClick={actions.openSettings}>
         {t("sidebar.action.settings")}
       </AgentRow>
-      <Slot name="sidebar.footer.status" className="hidden items-center gap-0.5" />
+      <Slot name="sidebar.footer.status" className="flex items-center gap-0.5" />
       <ThemeToggle />
     </div>
   );

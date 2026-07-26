@@ -1,4 +1,4 @@
-import type { LayoutSlotSpec, ShortcutSpec } from "@/plugins/sdk";
+import type { CommandSpec, LayoutSlotSpec } from "@/plugins/sdk";
 
 export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): LayoutSlotSpec {
   return {
@@ -8,15 +8,18 @@ export function chatSearchOverlaySlot(component: LayoutSlotSpec["component"]): L
   };
 }
 
-export function chatSearchShortcut(openSearch: () => void): ShortcutSpec {
+/** A command, not a bare shortcut: the global keymap turns its combo into the
+ *  binding, and being a command is what makes it findable in the palette. As a
+ *  shortcut-only feature, ⌘F was discoverable exactly by knowing it existed. */
+export function chatSearchCommand(openSearch: () => void): CommandSpec {
   return {
-    key: "Mod+F",
-    description: "chatSearch.shortcutDesc",
-    // Users usually trigger chat search while focus is still in the composer.
-    allowInInputs: true,
-    handler: (event) => {
-      event.preventDefault();
-      openSearch();
-    },
+    id: "chat.search",
+    label: "command.chatSearch",
+    icon: "search",
+    group: "command.group.chat",
+    keywords: ["find", "search", "conversation"],
+    order: 2,
+    combo: "Mod+F",
+    run: openSearch,
   };
 }

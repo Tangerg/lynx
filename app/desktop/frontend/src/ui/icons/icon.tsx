@@ -7,9 +7,11 @@ import {
   ArrowUp,
   Book,
   Bot,
+  Bell,
   Bug,
   ChartColumn,
   Check,
+  Clock,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -121,6 +123,8 @@ export type IconName =
   | "diff"
   | "list"
   | "chart"
+  | "clock"
+  | "bell"
   | "lightning"
   | "bug"
   | "shield"
@@ -194,6 +198,8 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   diff: FileDiff,
   list: List,
   chart: ChartColumn,
+  clock: Clock,
+  bell: Bell,
   lightning: Zap,
   bug: Bug,
   shield: Shield,

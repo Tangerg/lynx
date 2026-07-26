@@ -353,7 +353,7 @@ export const agentMemoryView = defineWorkspaceView({
   id: "agent-memory",
   title: "workspace.view.title.agentMemory",
   icon: "book",
-  order: 48,
+  order: 105,
   splittable: true,
   component: AgentMemoryTab,
 });

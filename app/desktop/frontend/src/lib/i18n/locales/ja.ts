@@ -3,7 +3,6 @@
 export const ja: Record<string, string> = {
   "common.cancel": "キャンセル",
   "common.close": "閉じる",
-  "common.search": "検索",
 
   "approval.what.command": "コマンドを実行",
   "approval.what.fileEdit": "ファイル変更を適用",
@@ -563,7 +562,7 @@ export const ja: Record<string, string> = {
   "convExport.importFailed": "会話をインポートできませんでした。",
   "convExport.importSuccess": "「{{title}}」をインポートしました。",
   "connection.error.urlScheme": "http:// または https:// で始める必要があります",
-  "chatSearch.shortcutDesc": "チャット内を検索",
+  "command.chatSearch": "チャット内を検索",
   "composer.key.sendDesc": "メッセージを送信",
   "composer.key.approveDesc": "保留中のリクエストを承認、それ以外は送信",
   "composer.key.declineDesc": "保留中のリクエストを拒否",
@@ -580,7 +579,9 @@ export const ja: Record<string, string> = {
   "command.openPalette": "コマンドパレットを開く",
   "command.toggleTheme": "ダーク/ライトテーマを切り替え",
   "command.newChat": "新しいチャット",
-  "command.closeSession": "現在のチャットを閉じる",
+  "command.closeFocused": "パネルまたはチャットを閉じる",
+  "command.closeFocused.desc":
+    "開いているパネルを閉じ、なければチャットから離れます（チャットは作業インデックスに残ります）",
   "command.focusComposer": "コンポーザーにフォーカス",
 
   "diagnostics.clear": "クリア",

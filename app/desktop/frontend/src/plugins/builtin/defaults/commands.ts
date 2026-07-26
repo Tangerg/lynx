@@ -14,7 +14,10 @@ import { toggleThemeScheme } from "@/plugins/builtin/theme/public/scheme";
 import { closeActiveAgentSession, createSession } from "@/plugins/builtin/agent/public/session";
 import {
   closeActiveWorkspaceView,
+  closeWorkspaceDockView,
+  getWorkspaceDockViewId,
   openWorkspaceView,
+  openWorkspaceViewInDock,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sdk";
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
@@ -26,10 +29,14 @@ import {
   defaultWorkspaceViewCommands,
 } from "./application/defaultContributions";
 
-// Close the currently focused workspace view; otherwise close the active
-// chat session.
-function closeFocusedSessionOrView(): void {
+// Close the surface the user is looking at, innermost first: a maximised view,
+// then the dock's view, then the session itself.
+function closeFocusedSurface(): void {
   if (closeActiveWorkspaceView()) return;
+  if (getWorkspaceDockViewId()) {
+    closeWorkspaceDockView();
+    return;
+  }
   closeActiveAgentSession();
 }
 
@@ -47,7 +54,7 @@ export const defaultCommands = definePlugin({
       toggleSidebar: () => useUiStore.getState().toggleSidebar(),
       toggleTheme: toggleThemeScheme,
       newChat: openNewChatSession,
-      closeSessionOrView: closeFocusedSessionOrView,
+      closeFocused: closeFocusedSurface,
       focusComposer: () => focusComposer(),
     })) {
       host.commands.register(command);
@@ -61,7 +68,10 @@ export const defaultCommands = definePlugin({
     const rebuild = (views: WorkspaceViewSpec[], accents: ThemeAccentSpec[]) => {
       for (const d of dynamic) d.dispose();
       dynamic = [];
-      for (const command of defaultWorkspaceViewCommands(views, openWorkspaceView)) {
+      for (const command of defaultWorkspaceViewCommands(views, {
+        openInDock: openWorkspaceViewInDock,
+        openFull: openWorkspaceView,
+      })) {
         dynamic.push(host.commands.register(command));
       }
       for (const command of defaultAccentCommands(accents, (accent) =>

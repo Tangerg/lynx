@@ -67,7 +67,7 @@ export const terminalView = defineWorkspaceView({
   id: "terminal",
   title: "workspace.view.title.terminal",
   icon: "terminal",
-  order: 10,
+  order: 60,
   splittable: true,
   component: TerminalTab,
 });
