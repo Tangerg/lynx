@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { invalidateAgentSessions } from "./sessionQueries";
 import { agentRuntime } from "../ports/runtimeGateway";
 import { agentSessionState } from "../ports/sessionState";
+import { agentViewState } from "../ports/viewState";
 import { reportSessionError } from "./reportSessionError";
 
 export interface CreateSessionOptions {
@@ -69,8 +70,33 @@ async function createAndOpen({
 // Re-entrant calls join the pending create instead.
 let inflight: Promise<string | null> | null = null;
 
+/**
+ * The fresh session the user is already looking at, if any.
+ *
+ * "New session" asks to be put in front of an empty composer — it is a
+ * destination, not an instruction to allocate. The empty-composer screen is any
+ * active session with no messages, so pressing "New" while already there used to
+ * mint a second backend session that looked exactly the same, and the first one
+ * stayed on the runtime as a draft the session list filters out: invisible, and
+ * one more per press.
+ *
+ * Only a DRAFT counts. An ordinary session also reads as message-less while its
+ * history is still loading, and reusing that would drop the user back into a
+ * conversation they asked to leave. A `cwd` or a queued first message means the
+ * caller wants a specific session, not just a blank one, so those always create.
+ */
+function alreadyOnAFreshSession(opts: CreateSessionOptions): string | null {
+  if (opts.cwd !== undefined || opts.firstInput) return null;
+  const sessionId = agentSessionState().getActiveSessionId();
+  if (!sessionId || !agentSessionState().isDraftSession(sessionId)) return null;
+  const messages = agentViewState().getSession(sessionId)?.view.messages ?? [];
+  return messages.length === 0 ? sessionId : null;
+}
+
 function doCreate(opts: CreateSessionOptions): Promise<string | null> {
   if (inflight) return inflight;
+  const fresh = alreadyOnAFreshSession(opts);
+  if (fresh) return Promise.resolve(fresh);
   inflight = createAndOpen(opts).finally(() => {
     inflight = null;
   });

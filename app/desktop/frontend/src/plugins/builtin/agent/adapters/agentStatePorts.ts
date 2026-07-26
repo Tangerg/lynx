@@ -82,6 +82,7 @@ export function installAgentStatePorts(): () => void {
     selectSession: (id) => useAgentSessionStore.getState().selectSession(id),
     closeSession: (id) => useAgentSessionStore.getState().closeSession(id),
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
+    isDraftSession: (id) => useAgentSessionStore.getState().draftSessionIds.has(id),
     useSelectSession: () => useAgentSessionStore((state) => state.selectSession),
     reconcileSessions: (liveIds) => useAgentSessionStore.getState().reconcileSessions(liveIds),
     markDraftSession: (id) => useAgentSessionStore.getState().markDraft(id),

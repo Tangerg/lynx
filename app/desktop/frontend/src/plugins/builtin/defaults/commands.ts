@@ -33,9 +33,10 @@ function closeFocusedSessionOrView(): void {
   closeActiveAgentSession();
 }
 
-// Create a fresh draft session and make it active.
+// Open a fresh session — creating one only if the user isn't already looking at
+// one — and put the caret in the composer either way.
 function openNewChatSession(): void {
-  void createSession();
+  void createSession().then(() => focusComposer());
 }
 
 export const defaultCommands = definePlugin({

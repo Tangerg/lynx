@@ -7,6 +7,7 @@ import {
   useRenameSession,
   useToggleFavorite,
 } from "@/plugins/builtin/agent/public/session";
+import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { openContextDockLauncher } from "@/plugins/builtin/workspace/public/navigation";
 import { openSettingsView } from "@/plugins/builtin/workspace/public/deeplinks";
 
@@ -31,11 +32,13 @@ export function useWorkIndexActions(): WorkIndexActions {
 
   return useMemo(
     () => ({
+      // A fresh session may already be on screen, in which case create() hands
+      // that one back and nothing moves — so the caret is the acknowledgement.
       createSession: () => {
-        void create();
+        void create().then(() => focusComposer());
       },
       startSessionInFolder: (cwd) => {
-        void create({ cwd });
+        void create({ cwd }).then(() => focusComposer());
       },
       selectSession: selectAgentSession,
       renameSession: (id, expectedRevision, title) => {

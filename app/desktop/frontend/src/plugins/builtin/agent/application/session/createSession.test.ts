@@ -86,6 +86,38 @@ describe("useCreateSession", () => {
     expect(s.takePendingMessage("new-2")).toBeUndefined();
   });
 
+  it("reuses the fresh draft the user is already looking at", async () => {
+    // Pressing New on the empty-composer screen asks for a destination that is
+    // already on screen — creating there mints a second backend session and
+    // orphans the first as a draft the session list hides.
+    const create = vi.fn().mockResolvedValue(fakeSession("new-3"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    const first = await result.current();
+    const again = await result.current();
+
+    expect(again).toBe(first);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("still creates when the fresh session is not a draft, or a cwd is asked for", async () => {
+    const create = vi.fn().mockResolvedValue(fakeSession("new-4"));
+    stubCreate(create);
+    const { result } = renderHook(() => useCreateSession(), { wrapper });
+
+    await result.current();
+    // A message-less session that is NOT a draft may simply not have loaded its
+    // history yet — reuse would drop the user back into a conversation.
+    useAgentSessionStore.setState({ draftSessionIds: new Set<string>() });
+    await result.current();
+    expect(create).toHaveBeenCalledTimes(2);
+
+    useAgentSessionStore.getState().markDraft("new-4");
+    await result.current({ cwd: "/tmp/other" });
+    expect(create).toHaveBeenCalledTimes(3);
+  });
+
   it("returns null + doesn't throw when create fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
     stubCreate(vi.fn().mockRejectedValue(new Error("boom")));
