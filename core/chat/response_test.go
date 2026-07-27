@@ -51,6 +51,35 @@ func TestMessageText(t *testing.T) {
 	}
 }
 
+func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
+	reasoningTokens := int64(2)
+	response, err := chat.NewResponse(assistantChoice(0, "original"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Usage.ReasoningTokens = &reasoningTokens
+	if err := response.SetExtension("test/value", map[string]int{"count": 1}); err != nil {
+		t.Fatal(err)
+	}
+
+	cloned := response.Clone()
+	cloned.Model = "mutated"
+	cloned.Choices[0].Message.Parts[0].Text = "mutated"
+	*cloned.Usage.ReasoningTokens = 9
+	cloned.Extensions["test/value"][0] = 'x'
+
+	if response.Model != "" ||
+		response.Text() != "original" ||
+		*response.Usage.ReasoningTokens != 2 ||
+		response.Extensions["test/value"][0] == 'x' {
+		t.Fatalf("mutating clone changed source response: %#v", response)
+	}
+	var nilResponse *chat.Response
+	if nilResponse.Clone() != nil {
+		t.Fatal("nil Response.Clone returned a non-nil value")
+	}
+}
+
 func TestChoiceValidate(t *testing.T) {
 	valid := []chat.Choice{
 		assistantChoice(0, "hello"),

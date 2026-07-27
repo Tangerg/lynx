@@ -11,41 +11,19 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// turnInput is the typed input to the chat turn agent — the user's message
-// plus the per-turn provider selection and any image attachments.
+// turnInput is the typed input to the chat turn agent: the user request only.
+// Provider selection and execution limits are process policy, not planner
+// state, and therefore live in ProcessOptions plus the application checkpoint.
 type turnInput struct {
 	Message string
-
-	// Provider is the turn's provider id (the per-run selection; empty for a
-	// default turn). Carried so per-round cost pricing can attribute spend to
-	// the right provider — a model id alone is ambiguous across providers.
-	Provider string
 
 	// Media carries the turn's image attachments, attached to the opening
 	// user message as UserMessage.Media. Nil for a text-only turn (and for
 	// `task` sub-agents, whose prompt is text).
 	Media []*media.Media
 
-	// MaxBudget caps the total tokens (prompt + completion) the turn
-	// may spend across its tool-loop rounds. 0 means unlimited. When
-	// exceeded the action stops cleanly after the current round —
-	// before paying for the next LLM call — and reports the partial
-	// reply with [TurnOutput.StopReason] set to [StopReasonBudget].
-	MaxBudget int64
-
-	// MaxCostUSD caps the turn's dollar cost the same way MaxBudget caps
-	// tokens (the lynx analog of the SDK's maxBudgetUsd). 0 means no cost
-	// cap. Requires a [Config.Pricing] hook — without one cost stays 0
-	// and this never trips. Either ceiling stops the turn.
-	MaxCostUSD float64
-
-	// MaxSteps caps cumulative model calls across the root and child delegation
-	// tree. 0 means unlimited. When reached the action stops cleanly before the
-	// next LLM call with [TurnOutput.StopReason] set to [StopReasonSteps].
-	MaxSteps int
-
 	// Options carries per-run generation tuning. It deliberately does not carry
-	// model selection; Provider / per-run ChatClient own that boundary.
+	// model selection; the process ChatProvider owns that boundary.
 	Options *chat.Options
 }
 
@@ -116,7 +94,7 @@ type TurnOutput struct {
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
-		return e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
+		return e.runTurn(ctx, pc, in.Message, in.Media, in.Options)
 	}, core.ActionConfig{ToolGroups: []string{toolport.ToolRoleCoding}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})
 }
 
@@ -148,14 +126,7 @@ func (in taskInput) SubagentPrompt() string { return in.Prompt }
 // aggregates up the subtree into the parent turn's usage roll-up.
 func (e *Engine) buildSubtaskAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "task", Description: "Delegate a self-contained subtask to a fresh sub-agent that has the coding " + "tools (it cannot delegate further). Use for focused, separable work — investigate a " + "question, draft a file — so the main conversation stays uncluttered. The sub-agent starts " + "with a clean context and cannot see this conversation, so put everything it needs in the " + "prompt. It returns a single final answer; its intermediate work is not shown to the user.", Actions: []agent.Action{agent.NewAction("subtask", func(ctx context.Context, pc *core.ProcessContext, in taskInput) (string, error) {
-		execution, err := childExecutionFrom(pc.Dependencies())
-		if err != nil {
-			return "", err
-		}
-		if execution.StopReason != StopReasonNone {
-			return "", nil
-		}
-		out, err := e.runTurn(ctx, pc, execution.Provider, in.Prompt, nil, nil, execution.Budget)
+		out, err := e.runTurn(ctx, pc, in.Prompt, nil, nil)
 		if err != nil {
 			return "", err
 		}

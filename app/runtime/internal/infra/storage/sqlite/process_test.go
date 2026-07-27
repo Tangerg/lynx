@@ -195,6 +195,8 @@ func TestProcessStorePersistsApplicationTurnScopeWithRoot(t *testing.T) {
 	}
 	checkpoint := storedCheckpoint(want.SessionID, storedBuildID, accounting.Snapshot{})
 	checkpoint.Scope = want
+	checkpoint.Provider = "openai"
+	checkpoint.Budget = accounting.Budget{MaxTokens: 1234, MaxCostUSD: 2.5, MaxSteps: 7}
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), checkpoint); err != nil {
 		t.Fatalf("SaveTree: %v", err)
 	}
@@ -202,25 +204,25 @@ func TestProcessStorePersistsApplicationTurnScopeWithRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadTree: %v", err)
 	}
-	if got.Scope != want {
-		t.Fatalf("scope = %+v, want %+v", got.Scope, want)
+	if got.Scope != want || got.Provider != checkpoint.Provider || got.Budget != checkpoint.Budget {
+		t.Fatalf("checkpoint = %+v, want scope=%+v provider=%q budget=%+v", got, want, checkpoint.Provider, checkpoint.Budget)
 	}
 
 	for name, data := range map[string]string{
 		"malformed":         `{`,
-		"unknown field":     `{"session_id":"","cwd":"","isolated":false,"goal_lease_id":"","future":true}`,
-		"unstable identity": `{"session_id":" session","cwd":"","isolated":false,"goal_lease_id":""}`,
-		"trailing value":    `{"session_id":"","cwd":"","isolated":false,"goal_lease_id":""} {}`,
+		"unknown field":     `{"scope":{"session_id":"","cwd":"","isolated":false,"goal_lease_id":"","future":true},"provider":"","budget":{"max_tokens":0,"max_cost_usd":0,"max_steps":0}}`,
+		"unstable identity": `{"scope":{"session_id":" session","cwd":"","isolated":false,"goal_lease_id":""},"provider":"","budget":{"max_tokens":0,"max_cost_usd":0,"max_steps":0}}`,
+		"trailing value":    `{"scope":{"session_id":"","cwd":"","isolated":false,"goal_lease_id":""},"provider":"","budget":{"max_tokens":0,"max_cost_usd":0,"max_steps":0}} {}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), checkpoint); err != nil {
 				t.Fatalf("restore valid tree: %v", err)
 			}
-			if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET scope = ? WHERE id = ?`, data, snapshot.ID); err != nil {
-				t.Fatalf("corrupt scope: %v", err)
+			if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET policy = ? WHERE id = ?`, data, snapshot.ID); err != nil {
+				t.Fatalf("corrupt policy: %v", err)
 			}
 			if _, _, err := store.LoadTree(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
-				t.Fatalf("LoadTree(corrupt scope) err = %v, want ErrInvalidSnapshot", err)
+				t.Fatalf("LoadTree(corrupt policy) err = %v, want ErrInvalidSnapshot", err)
 			}
 		})
 	}

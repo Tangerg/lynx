@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -370,12 +369,10 @@ func (admission *resumeAdmission) apply(start bool) error {
 			applied[index].state.restoreClaimedSuspension(applied[index].previous)
 		}
 	}
-	now := time.Now()
 	for _, prepared := range admission.responses {
 		previous, err := prepared.state.installClaimedSuspensionResponse(
 			prepared.suspension,
 			prepared.response,
-			now,
 		)
 		if err != nil {
 			revert()

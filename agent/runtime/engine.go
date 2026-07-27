@@ -57,19 +57,17 @@ type Engine struct {
 // The root agent package's constructor additionally installs its default
 // planners.
 type Config struct {
-	// Chat is the shared model capability every action body reaches through
-	// [core.ProcessContext.Chat] or [core.ProcessContext.Prompt]. Model is
-	// optional; Streamer may only be set when Model is also set. Hosts can pass
-	// any implementation of the provider-neutral chat interfaces. Different
-	// processes may call the shared implementations concurrently; they own any
-	// synchronization required by mutable provider state.
+	// Chat is the shared model capability used by managed Interact and Prompt
+	// calls. Model is optional; Streamer may only be set when Model is also set.
+	// Hosts can pass any implementation of the provider-neutral chat
+	// interfaces. Different processes may call the shared implementations
+	// concurrently; they own any synchronization required by mutable provider
+	// state.
 	Chat core.ChatCapability
 
-	// ChatMiddleware is applied to every
-	// LLM call action bodies issue through [core.ProcessContext.Chat]
-	// or [core.ProcessContext.Prompt]. Typical uses:
-	// content safeguard, request/response logging, global quota.
-	// Optional — nil / empty means "no global wrapping".
+	// ChatMiddleware is applied to every managed Interact and Prompt model
+	// call. Typical uses: content safeguard, request/response logging, and
+	// global quota. Optional — nil / empty means "no global wrapping".
 	ChatMiddleware *core.ChatMiddleware
 
 	// MaxToolRounds bounds Prompt tool execution by default. Zero selects the

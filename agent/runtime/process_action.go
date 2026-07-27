@@ -28,10 +28,8 @@ func (p *Process) buildProcessContext(actionToolGroups []string, action core.Act
 	config := core.ProcessContextConfig{
 		Process:       p,
 		Control:       processControl{process: p},
-		Usage:         processUsage{process: p},
 		Blackboard:    p.blackboard,
 		Dependencies:  p.dependencies.Child(),
-		Chat:          p.effectiveChat,
 		MaxToolRounds: p.effectiveMaxToolRounds(),
 		ActionTools:   p.toolResolverFor(action),
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
@@ -44,7 +42,7 @@ func (p *Process) buildProcessContext(actionToolGroups []string, action core.Act
 }
 
 // executeAction invokes one Action with panic recovery and post-action
-// bookkeeping (history record, action-run condition, events). It returns the
+// bookkeeping (action-run condition and events). It returns the
 // ActionStatus plus an optional ReplanRequest raised by the action. Retry
 // policy belongs to the operation implementation that understands its own
 // side effects; the framework never replays an Action.
@@ -91,13 +89,6 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 
 	duration := time.Since(startedAt)
 	p.recordActionMetric(ctx, status, duration)
-
-	p.state.recordActionRun(ActionRun{
-		ActionName: metadata.Name,
-		StartedAt:  startedAt,
-		Duration:   duration,
-		Status:     status,
-	})
 
 	if status == core.ActionSucceeded {
 		// The action-run condition gates non-repeatable actions. Set it only on

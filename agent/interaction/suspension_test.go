@@ -26,7 +26,6 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 		t.Fatalf("ValidateResponse: %v", err)
 	}
 	suspension.Response = response
-	suspension.RespondedAt = time.Now().UTC()
 
 	body, err := json.Marshal(suspension)
 	if err != nil {
@@ -76,11 +75,10 @@ func TestSuspensionRejectsSchemaMismatchAndInvalidWire(t *testing.T) {
 		t.Fatal("failed Unmarshal mutated receiver")
 	}
 
-	respondedBeforeCreation := suspension
-	respondedBeforeCreation.Response = json.RawMessage(`true`)
-	respondedBeforeCreation.RespondedAt = suspension.CreatedAt.Add(-time.Second)
-	if err := respondedBeforeCreation.Validate(); !errors.Is(err, interaction.ErrInvalidSuspension) {
-		t.Fatalf("responded-before-created error = %v", err)
+	responded := suspension
+	responded.Response = json.RawMessage(`true`)
+	if err := responded.Validate(); err != nil {
+		t.Fatalf("valid response was rejected: %v", err)
 	}
 
 	invalidFrameworkState := suspension

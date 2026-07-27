@@ -102,6 +102,18 @@ type Budget struct {
 	MaxSteps   int
 }
 
+// Validate rejects malformed application limits before they are installed on
+// a live process tree or durable checkpoint.
+func (b Budget) Validate() error {
+	if b.MaxTokens < 0 || b.MaxSteps < 0 {
+		return errors.New("execution budget integer limits must not be negative")
+	}
+	if math.IsNaN(b.MaxCostUSD) || math.IsInf(b.MaxCostUSD, 0) || b.MaxCostUSD < 0 {
+		return errors.New("execution budget cost limit must be finite and non-negative")
+	}
+	return nil
+}
+
 // Pricing computes the USD cost of one LLM round from the provider, served
 // model, and full token usage.
 type Pricing func(provider, model string, usage *chat.Usage) float64

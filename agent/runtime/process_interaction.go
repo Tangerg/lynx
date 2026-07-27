@@ -30,7 +30,11 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	if err != nil {
 		return interaction.Result{}, err
 	}
-	runner, err := toolloop.NewRunner(input.Model, toolloop.Config{
+	model, err := p.managedInteractionModel(input.Stream)
+	if err != nil {
+		return interaction.Result{}, err
+	}
+	runner, err := toolloop.NewRunner(model, toolloop.Config{
 		MaxRounds:          input.Limits.MaxRounds,
 		MaxConcurrentCalls: input.Limits.MaxConcurrentToolCalls,
 	})
@@ -43,30 +47,46 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		return interaction.Result{}, err
 	}
 
+	var reservation *modelCallReservation
+	defer func() {
+		reservation.release()
+	}()
 	for boundary, runErr := range sequence {
 		if runErr != nil {
 			return interaction.Result{}, runErr
 		}
 		if boundary.Kind == toolloop.EventModelRequest {
 			frameworkEvent := projectInteractionEvent(boundary, nil, 0)
-			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
+			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent); err != nil {
 				return interaction.Result{}, err
 			}
 			if err := ctx.Err(); err != nil {
 				return interaction.Result{}, err
 			}
-			if stop := p.interactionStopReason(boundary.Round, input.Limits); stop != interaction.StopNone {
+			if stop := interactionStopReason(boundary.Round, input.Limits); stop != interaction.StopNone {
+				return interaction.Result{StopReason: stop}, nil
+			}
+			var stop interaction.StopReason
+			reservation, stop, err = p.budget.reserveModelCall()
+			if err != nil {
+				return interaction.Result{}, fmt.Errorf("runtime: reserve model call: %w", err)
+			}
+			if stop != interaction.StopNone {
 				return interaction.Result{StopReason: stop}, nil
 			}
 			continue
 		}
 
-		var recordedUsage core.Usage
+		var (
+			recordedUsage core.Usage
+			transitionErr error
+		)
 		switch boundary.Kind {
 		case toolloop.EventModelResponse:
-			recordedUsage, err = p.recordInteractionUsage(ctx, boundary.Response, input.Cost)
-			if err != nil {
-				return interaction.Result{}, fmt.Errorf("runtime: record interaction usage: %w", err)
+			recordedUsage, transitionErr = p.recordInteractionUsage(ctx, boundary.Response, reservation)
+			reservation = nil
+			if transitionErr != nil {
+				transitionErr = fmt.Errorf("runtime: record interaction usage: %w", transitionErr)
 			}
 		case toolloop.EventToolResult:
 			if resuming {
@@ -76,12 +96,13 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 				resuming = false
 			}
 		case toolloop.EventPause:
-			return interaction.Result{}, p.pauseInteraction(ctx, boundary, owner, input.Observe)
+			return interaction.Result{}, p.pauseInteraction(ctx, boundary, owner)
 		}
 
 		frameworkEvent := projectInteractionEvent(boundary, nil, recordedUsage.Cost)
-		if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
-			return interaction.Result{}, err
+		publishErr := p.publishInteractionBoundary(ctx, owner, frameworkEvent)
+		if transitionErr != nil || publishErr != nil {
+			return interaction.Result{}, errors.Join(transitionErr, publishErr)
 		}
 		if err := ctx.Err(); err != nil {
 			return interaction.Result{}, err
@@ -92,6 +113,40 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		}
 	}
 	return interaction.Result{}, errors.New("runtime: managed interaction ended without a final event")
+}
+
+func (p *Process) managedInteractionModel(stream func(*chat.Response)) (chat.Model, error) {
+	capability, err := p.effectiveChat()
+	if err != nil {
+		return nil, fmt.Errorf("runtime: resolve managed interaction model: %w", err)
+	}
+	if capability.Model == nil {
+		return nil, errors.New("runtime: managed interaction has no configured chat model")
+	}
+	if stream == nil {
+		return capability.Model, nil
+	}
+	if capability.Streamer == nil {
+		return nil, errors.New("runtime: managed interaction requested streaming but the configured chat capability has no streamer")
+	}
+	return managedStreamModel{streamer: capability.Streamer, observe: stream}, nil
+}
+
+type managedStreamModel struct {
+	streamer chat.Streamer
+	observe  func(*chat.Response)
+}
+
+func (m managedStreamModel) Call(ctx context.Context, request *chat.Request) (response *chat.Response, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			response = nil
+			err = panicerr.New("runtime: managed interaction stream observer panicked", recovered)
+		}
+	}()
+	return interaction.StreamCall(ctx, m.streamer, request, func(delta *chat.Response) {
+		m.observe(delta.Clone())
+	})
 }
 
 // resolveInteractionSequence starts a fresh tool loop, or resumes the pending
@@ -129,7 +184,7 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 // publishes the pause boundary, and returns the SuspendedError that unwinds the
 // action. It reconciles the tool-loop pause with an active nested-child pause so
 // the two cannot disagree on suspension identity, prompt, or schema.
-func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event, owner string, observe interaction.Observer) error {
+func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event, owner string) error {
 	if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
 		return errors.New("runtime: tool loop paused without a checkpoint")
 	}
@@ -169,16 +224,13 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 		CreatedAt:      createdAt,
 	}
 	frameworkEvent := projectInteractionEvent(boundary, &suspension, 0)
-	if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, observe); err != nil {
+	if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent); err != nil {
 		return err
 	}
 	return &interaction.SuspendedError{Suspension: suspension}
 }
 
 func validateInteraction(input core.Interaction) error {
-	if input.Model == nil {
-		return errors.New("runtime: managed interaction model is nil")
-	}
 	if input.Request == nil {
 		return errors.New("runtime: managed interaction request is nil")
 	}
@@ -214,26 +266,20 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 	return derivedInteractionIDPrefix + hex.EncodeToString(sum[:]), nil
 }
 
-func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
-	usage := p.Usage()
-	processBudget := p.options.budget
-	if (processBudget.TokenLimit > 0 && usage.Tokens >= processBudget.TokenLimit) ||
-		(processBudget.CostLimit > 0 && usage.Cost >= processBudget.CostLimit) ||
-		(limits.MaxTokens > 0 && int64(usage.Tokens) >= limits.MaxTokens) ||
-		(limits.MaxCost > 0 && usage.Cost >= limits.MaxCost) {
-		return interaction.StopBudget
-	}
-	if limits.MaxModelCalls > 0 && usage.ModelCalls >= limits.MaxModelCalls {
-		return interaction.StopSteps
-	}
+func interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
 	if limits.MaxSteps > 0 && round-1 >= limits.MaxSteps {
 		return interaction.StopSteps
 	}
 	return interaction.StopNone
 }
 
-func (p *Process) recordInteractionUsage(ctx context.Context, response *chat.Response, costFunc core.InteractionCostFunc) (core.Usage, error) {
+func (p *Process) recordInteractionUsage(
+	ctx context.Context,
+	response *chat.Response,
+	reservation *modelCallReservation,
+) (core.Usage, error) {
 	if response == nil {
+		reservation.release()
 		return core.Usage{}, nil
 	}
 	tokens, err := usageTokenCount(response.Usage.InputTokens, response.Usage.OutputTokens)
@@ -241,25 +287,48 @@ func (p *Process) recordInteractionUsage(ctx context.Context, response *chat.Res
 		return core.Usage{}, err
 	}
 	usage := core.Usage{Tokens: tokens, ModelCalls: 1}
-	if costFunc != nil {
-		usage.Cost, err = evaluateInteractionCost(costFunc, response)
-		if err != nil {
-			return core.Usage{}, err
+	usage.Cost, err = p.projectInteractionCost(ctx, response)
+	if err != nil {
+		usage.Cost = 0
+		if commitErr := reservation.commit(usage); commitErr != nil {
+			return core.Usage{}, errors.Join(err, commitErr)
 		}
+		return usage, err
 	}
-	if err := (processUsage{process: p}).RecordUsage(ctx, usage); err != nil {
+	if err := reservation.commit(usage); err != nil {
 		return core.Usage{}, err
 	}
 	return usage, nil
 }
 
-func evaluateInteractionCost(costFunc core.InteractionCostFunc, response *chat.Response) (cost float64, err error) {
+func (p *Process) projectInteractionCost(ctx context.Context, response *chat.Response) (float64, error) {
+	projector, ok := firstExtension[core.InteractionCostProjector](p.combinedExtensionsResolverFirst())
+	if !ok {
+		return 0, nil
+	}
+	cost, err := callInteractionCostProjector(ctx, projector, p, response)
+	if err != nil {
+		return 0, err
+	}
+	usage := core.Usage{Cost: cost}
+	if err := usage.Validate(); err != nil {
+		return 0, err
+	}
+	return cost, nil
+}
+
+func callInteractionCostProjector(
+	ctx context.Context,
+	projector extensionCapability[core.InteractionCostProjector],
+	process core.ProcessView,
+	response *chat.Response,
+) (cost float64, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New("runtime: interaction cost function panicked", recovered)
+			err = panicerr.New(fmt.Sprintf("interaction cost projector %q panicked", projector.name), recovered)
 		}
 	}()
-	return costFunc(response), nil
+	return projector.value.ProjectInteractionCost(ctx, process, response.Clone())
 }
 
 func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Suspension, cost float64) interaction.Event {
@@ -280,7 +349,7 @@ func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Su
 	return event
 }
 
-func (p *Process) publishInteractionBoundary(ctx context.Context, owner string, boundary interaction.Event, observer interaction.Observer) error {
+func (p *Process) publishInteractionBoundary(ctx context.Context, owner string, boundary interaction.Event) error {
 	if err := boundary.Validate(); err != nil {
 		return fmt.Errorf("runtime: project interaction event: %w", err)
 	}
@@ -288,12 +357,30 @@ func (p *Process) publishInteractionBoundary(ctx context.Context, owner string, 
 		Header:        p.eventHeader(),
 		Deployment:    p.Deployment(),
 		InteractionID: owner,
-		Boundary:      boundary,
+		Boundary:      boundary.Clone(),
 	})
-	if observer != nil {
-		if err := observer(ctx, boundary); err != nil {
-			return fmt.Errorf("runtime: interaction observer: %w", err)
+	var observerErr error
+	for _, observer := range collectExtensions[core.InteractionObserver](p.combinedExtensions()) {
+		if err := callInteractionObserver(ctx, observer, p, boundary.Clone()); err != nil {
+			observerErr = errors.Join(observerErr, err)
 		}
+	}
+	return observerErr
+}
+
+func callInteractionObserver(
+	ctx context.Context,
+	observer extensionCapability[core.InteractionObserver],
+	process core.ProcessView,
+	boundary interaction.Event,
+) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("interaction observer %q panicked", observer.name), recovered)
+		}
+	}()
+	if err := observer.value.ObserveInteraction(ctx, process, boundary); err != nil {
+		return fmt.Errorf("runtime: interaction observer %q: %w", observer.name, err)
 	}
 	return nil
 }

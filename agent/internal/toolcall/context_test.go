@@ -48,4 +48,4 @@ func (processView) Blackboard() core.BlackboardReader   { return nil }
 func (processView) Failure() error                      { return nil }
 func (processView) Suspension() *interaction.Suspension { return nil }
 func (processView) WorldState() core.WorldState         { return nil }
-func (processView) Usage() core.ProcessUsage            { return core.ProcessUsage{} }
+func (processView) Usage() core.Usage                   { return core.Usage{} }

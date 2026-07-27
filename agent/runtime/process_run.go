@@ -177,6 +177,15 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) {
 
 	actions := planResult.Actions()
 	action := actions[0]
+	admitted, reason, err := p.budget.admitAction()
+	if err != nil {
+		p.failProcess(fmt.Errorf("runtime.Process.tick: admit action: %w", err))
+		return
+	}
+	if !admitted {
+		p.terminateForBudget(ctx, reason)
+		return
+	}
 	status, replan, actionErr := p.executeAction(ctx, action)
 	if err := ctx.Err(); err != nil {
 		p.markCancelled(ctx, err)

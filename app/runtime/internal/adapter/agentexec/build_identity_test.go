@@ -107,10 +107,12 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	}
 
 	store.mu.Lock()
-	corrupt := store.usages[process.ID()]
+	checkpoint := store.checkpoints[process.ID()]
+	corrupt := checkpoint.Usage
 	corrupt.Models = append([]accounting.ModelUsage(nil), corrupt.Models...)
 	corrupt.Models[0].Calls++
-	store.usages[process.ID()] = corrupt
+	checkpoint.Usage = corrupt
+	store.checkpoints[process.ID()] = checkpoint
 	store.mu.Unlock()
 
 	if resumable, err := engine.ResumableProcess(t.Context(), process.ID()); err != nil || resumable {

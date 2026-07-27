@@ -2,14 +2,10 @@ package core
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/Tangerg/lynx/agent/interaction"
 )
-
-// ErrUsageUnavailable reports that a ProcessContext has no accounting owner.
-var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
 
 // ProcessView is the read-only process capability used by conditions,
 // policies, listeners, middleware, and action bodies. Blackboard returns only
@@ -30,7 +26,7 @@ type ProcessView interface {
 	WorldState() WorldState
 
 	// Usage returns subtree-aggregated execution resource totals.
-	Usage() ProcessUsage
+	Usage() Usage
 }
 
 // ProcessControl is the lifecycle mutation capability installed privately on
@@ -50,15 +46,6 @@ type ProcessControl interface {
 	// Suspend parks JSON-safe continuation state until an external
 	// caller responds through runtime.Engine.Resume.
 	Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
-}
-
-// UsageRecorder is the execution-resource mutation capability installed
-// privately on a ProcessContext. It remains available to isolated parallel
-// branches because aggregation is concurrency-safe and append-only.
-type UsageRecorder interface {
-	// RecordUsage attributes one aggregate delta to this process. Invalid or
-	// overflowing usage is rejected without mutating runtime state.
-	RecordUsage(ctx context.Context, usage Usage) error
 }
 
 // processViewCtxKey is the unexported context key for embedding a read-only

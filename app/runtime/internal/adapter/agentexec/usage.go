@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -9,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -123,8 +125,7 @@ func addModelUsage(total *accounting.ModelUsage, delta accounting.ModelUsage) er
 	if !ok {
 		return errors.New("cache-write-token total exceeds int64 capacity")
 	}
-	cost := total.CostUSD + delta.CostUSD
-	if math.IsInf(cost, 0) {
+	if delta.CostUSD > math.MaxFloat64-total.CostUSD {
 		return errors.New("cost total exceeds float64 capacity")
 	}
 	if delta.Calls > math.MaxInt-total.Calls {
@@ -135,7 +136,7 @@ func addModelUsage(total *accounting.ModelUsage, delta accounting.ModelUsage) er
 	total.ReasoningTokens = reasoning
 	total.CacheReadTokens = cacheRead
 	total.CacheWriteTokens = cacheWrite
-	total.CostUSD = cost
+	total.CostUSD += delta.CostUSD
 	total.Calls += delta.Calls
 	return nil
 }
@@ -148,9 +149,8 @@ func addInt64(left, right int64) (int64, bool) {
 }
 
 func validateFrameworkUsageCapacity(usage accounting.ModelUsage) error {
-	tokens, ok := addInt64(usage.PromptTokens, usage.CompletionTokens)
-	if !ok || tokens > int64(math.MaxInt) {
-		return errors.New("token total exceeds framework int capacity")
+	if _, ok := addInt64(usage.PromptTokens, usage.CompletionTokens); !ok {
+		return errors.New("token total exceeds int64 capacity")
 	}
 	return nil
 }
@@ -194,15 +194,66 @@ func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage) {
 	return snapshot, l.total
 }
 
-func (e *Engine) modelCost(provider string) core.InteractionCostFunc {
-	return func(response *chat.Response) float64 {
-		if e.pricing == nil || response == nil {
-			return 0
-		}
-		resolvedProvider := cmp.Or(provider, e.defaultProvider)
-		model := cmp.Or(response.Model, "unknown")
-		return e.pricing(resolvedProvider, model, &response.Usage)
+type interactionProjection struct {
+	engine      *Engine
+	provider    string
+	usage       *usageLedger
+	observation *toolObservation
+}
+
+func (*interactionProjection) Name() string { return "lyra:interaction-projection" }
+
+func (p *interactionProjection) ProjectInteractionCost(
+	_ context.Context,
+	_ core.ProcessView,
+	response *chat.Response,
+) (float64, error) {
+	if p == nil || p.engine == nil || p.engine.pricing == nil || response == nil {
+		return 0, nil
 	}
+	resolvedProvider := cmp.Or(p.provider, p.engine.defaultProvider)
+	model := cmp.Or(response.Model, "unknown")
+	return p.engine.pricing(resolvedProvider, model, &response.Usage), nil
+}
+
+func (p *interactionProjection) ObserveInteraction(
+	_ context.Context,
+	process core.ProcessView,
+	boundary interaction.Event,
+) error {
+	if p == nil {
+		return nil
+	}
+	if p.observation != nil {
+		switch boundary.Kind {
+		case interaction.EventToolCall:
+			if boundary.ToolCall != nil {
+				p.observation.begin(process, boundary.Round, *boundary.ToolCall)
+			}
+		case interaction.EventToolResult:
+			if boundary.ToolResult != nil {
+				p.observation.result(process, boundary.Round, *boundary.ToolResult)
+			}
+		}
+	}
+	if boundary.Kind != interaction.EventModelResponse {
+		return nil
+	}
+	if err := p.usage.record(boundary.Response, boundary.Cost); err != nil {
+		return err
+	}
+	if p.observation == nil || p.observation.target == nil ||
+		(boundary.Response.Usage.TotalTokens() == 0 && boundary.Response.Model == "") {
+		return nil
+	}
+	cumulative, cumulativeCost := p.usage.totals()
+	p.observation.target.OnUsage(
+		processRef(process),
+		cumulative,
+		cumulativeCost,
+		boundary.Response.Usage.InputTokens,
+	)
+	return nil
 }
 
 func tokenUsageOf(usage chat.Usage) accounting.TokenUsage {
@@ -232,13 +283,12 @@ func validateCheckpointUsage(tree core.ProcessSnapshotTree, snapshot accounting.
 
 	var framework core.Usage
 	for _, process := range tree.Snapshots {
-		nextCost := framework.Cost + process.OwnUsage.Cost
-		if math.IsInf(nextCost, 0) ||
-			process.OwnUsage.Tokens > math.MaxInt-framework.Tokens ||
+		if process.OwnUsage.Cost > math.MaxFloat64-framework.Cost ||
+			process.OwnUsage.Tokens > math.MaxInt64-framework.Tokens ||
 			process.OwnUsage.ModelCalls > math.MaxInt-framework.ModelCalls {
 			return fmt.Errorf("%w: framework usage aggregate overflows", core.ErrInvalidSnapshot)
 		}
-		framework.Cost = nextCost
+		framework.Cost += process.OwnUsage.Cost
 		framework.Tokens += process.OwnUsage.Tokens
 		framework.ModelCalls += process.OwnUsage.ModelCalls
 	}
@@ -250,10 +300,10 @@ func validateCheckpointUsage(tree core.ProcessSnapshotTree, snapshot accounting.
 		}
 	}
 	tokens, ok := addInt64(application.PromptTokens, application.CompletionTokens)
-	if !ok || tokens > int64(math.MaxInt) {
+	if !ok {
 		return fmt.Errorf("%w: application token aggregate overflows", core.ErrInvalidSnapshot)
 	}
-	if framework.Tokens != int(tokens) || framework.ModelCalls != application.Calls ||
+	if framework.Tokens != tokens || framework.ModelCalls != application.Calls ||
 		!sameCost(framework.Cost, application.CostUSD) {
 		return fmt.Errorf(
 			"%w: framework usage %+v does not match application usage {cost:%g tokens:%d model_calls:%d}",

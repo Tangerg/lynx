@@ -1,7 +1,7 @@
 package interaction
 
 import (
-	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,6 +76,30 @@ type Event struct {
 	ToolResult *chat.ToolResult
 	Suspension *Suspension
 	Resume     *Resume
+}
+
+// Clone returns an independent protocol-value snapshot of e.
+func (e Event) Clone() Event {
+	cloned := e
+	cloned.Request = e.Request.Clone()
+	cloned.Response = e.Response.Clone()
+	if e.ToolCall != nil {
+		toolCall := *e.ToolCall
+		cloned.ToolCall = &toolCall
+	}
+	if e.ToolResult != nil {
+		toolResult := *e.ToolResult
+		cloned.ToolResult = &toolResult
+	}
+	if e.Suspension != nil {
+		cloned.Suspension = e.Suspension.Clone()
+	}
+	if e.Resume != nil {
+		resume := *e.Resume
+		resume.Input = bytes.Clone(e.Resume.Input)
+		cloned.Resume = &resume
+	}
+	return cloned
 }
 
 func (e Event) Validate() error {
@@ -162,8 +186,6 @@ type ToolResolver interface {
 	Resolve(name string) (tools.Tool, bool)
 }
 
-type Observer func(context.Context, Event) error
-
 // Limits are checked before each continuation model call. Zero leaves a
 // dimension unbounded; negative values are invalid.
 type Limits struct {
@@ -174,13 +196,6 @@ type Limits struct {
 	MaxConcurrentToolCalls int
 	// MaxSteps caps model rounds in this one managed interaction.
 	MaxSteps int
-	// MaxModelCalls caps cumulative model calls already recorded by this
-	// process and its descendants. Hosts use it when one application budget
-	// must cover a complete delegation tree while MaxSteps retains its local
-	// interaction semantics.
-	MaxModelCalls int
-	MaxTokens     int64
-	MaxCost       float64
 }
 
 // ErrInvalidLimits identifies malformed managed-interaction limits.
@@ -190,12 +205,8 @@ var ErrInvalidLimits = errors.New("interaction limits: invalid")
 // Zero leaves the dimension unbounded, except MaxConcurrentToolCalls where it
 // selects the tool-loop default.
 func (l Limits) Validate() error {
-	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 || l.MaxSteps < 0 ||
-		l.MaxModelCalls < 0 || l.MaxTokens < 0 {
+	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 || l.MaxSteps < 0 {
 		return fmt.Errorf("%w: integer limits must not be negative", ErrInvalidLimits)
-	}
-	if math.IsNaN(l.MaxCost) || math.IsInf(l.MaxCost, 0) || l.MaxCost < 0 {
-		return fmt.Errorf("%w: cost limit must be finite and non-negative", ErrInvalidLimits)
 	}
 	return nil
 }

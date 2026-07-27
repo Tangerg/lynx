@@ -29,7 +29,6 @@ var agentWireFixtureCoverage = map[string]string{
 	"core.ProcessFailure":     "process_failure",
 	"core.ProcessSnapshot":    "process_snapshot",
 	"core.Usage":              "process_snapshot",
-	"core.ActionRunSnapshot":  "process_snapshot",
 	"core.TaggedValue":        "process_snapshot",
 	"interaction.Suspension":  "process_snapshot",
 	"toolloop.CallCheckpoint": "toolloop_checkpoint",

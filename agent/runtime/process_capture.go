@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -28,19 +27,6 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 	if state.failure != nil {
 		snapshot.Failure = &core.ProcessFailure{Message: state.failure.Error()}
 	}
-	history := state.history
-	if len(history) > 0 {
-		snapshot.History = make([]core.ActionRunSnapshot, len(history))
-		for i, run := range history {
-			snapshot.History[i] = core.ActionRunSnapshot{
-				ActionName: run.ActionName,
-				StartedAt:  run.StartedAt,
-				Duration:   run.Duration,
-				Status:     run.Status,
-			}
-		}
-	}
-
 	blackboardState, err := snapshotBlackboard(p.blackboard)
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("capture blackboard: %w", err)
@@ -61,7 +47,6 @@ type processCaptureState struct {
 	goal       *core.Goal
 	failure    error
 	suspension *interaction.Suspension
-	history    []ActionRun
 	ownUsage   core.Usage
 }
 
@@ -77,7 +62,6 @@ func (p *Process) captureSnapshotState() processCaptureState {
 		goal:       p.state.currentGoal,
 		failure:    p.state.runErr,
 		suspension: suspension,
-		history:    slices.Clone(p.state.history),
-		ownUsage:   p.budget.own,
+		ownUsage:   p.budget.ownUsage(),
 	}
 }

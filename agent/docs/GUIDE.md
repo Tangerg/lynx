@@ -272,10 +272,12 @@ transient：
 - `BindTransient`
 - `AddTransient`
 
-当前 ProcessSnapshot schema 为 v9，Suspension schema 为 v2。Waiting snapshot 同时允许
+当前 ProcessSnapshot schema 为 v10，Suspension schema 为 v3。Waiting snapshot 同时允许
 “尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Resume`，后者恢复
 后直接 `Continue`。`OwnUsage` 只记录该 Process 的直接通用资源计数：
-Host 定义单位的 opaque cost、tokens 与 model-call count。它不记录 provider/model 明细、
+Host 定义单位的 opaque cost、tokens、model-call 与 action count。Action 的名称、耗时和状态
+只通过 Event/OTel 输出，不再作为可恢复执行状态保存。Suspension 是否已回答只由 Response
+是否存在决定，不再保存不参与恢复语义的响应时间。`OwnUsage` 不记录 provider/model 明细、
 USD 账单、embedding 调用、时间线或审计数据；这些应用投影由 Host 从 managed-interaction
 event 建立，并在自己的事务边界持久化。v5 起使用确定的 `ProcessFailure{Message}` 对象替代
 裸 failure 字符串。任意 live error 的 sentinel 身份与 unwrap
@@ -297,7 +299,17 @@ Host 自己定义消费侧存储接口，并决定：
 - 产品 Session、subtask lineage、history 与 process snapshot 是否需要同事务提交。
 
 `core.Budget{}` 的所有维度均为无限制。Agent 不选择货币、租户或产品层默认阈值；Host
-需要限制时显式传入 cost/token/action ceiling，且同一次执行中的 cost 单位必须一致。
+需要限制时只在 root `ProcessOptions` 显式传入 cost/token/action/model-call limit，且同一次
+执行中的 cost 单位必须一致。Runtime 为完整 Process tree 建立一个共享原子准入器：
+Action 在执行前计数，模型调用在 I/O 前预留，因此并发 sibling 不会重复消费同一份
+action/model-call 余量。`ChildOptions` 不得再配置第二份 Budget。Token 与 cost 只有响应后
+才能确定，因此属于 continuation ceiling：当前已准入调用可以越过阈值，但不会再准入下一项工作。
+
+托管 Interaction 不接受调用点传入的 raw Model、Cost 或 Observer。Runtime 每次从 Process
+作用域解析 `ChatProvider` 并套用 ChatMiddleware；Host 定价实现
+`InteractionCostProjector`，产品账本/UI/审计投影实现 `InteractionObserver`。流式调用只在
+`Interaction.Stream` 暴露 delta，底层 Streamer、最终响应累积、usage 与 suspension 仍由
+Runtime 统一管理。`Prompt` 和 `PromptCondition` 使用同一条托管路径。
 
 Agent 不提供 conversation/session 标识或 context binder。Host 应通过 `ChatMiddleware` 安装普通
 Call/Stream middleware：顶层进程映射到产品 conversation，子进程可按
@@ -353,7 +365,7 @@ Child API 的状态继承是明确契约：
 | `RunChildWithState` | 父 Blackboard 的完整副本 | 子任务确实需要父工作状态 |
 | `RunChild` | 干净状态，仅绑定显式 input | 默认、安全的自包含委派及 workflow branch |
 
-Child 使用精确 Deployment、父预算子树，并仅继承父 Process 显式注册的
+Child 使用精确 Deployment、整棵树共享的预算准入器，并仅继承父 Process 显式注册的
 `SubtreeEventListener`；普通 `EventListener` 只观察注册它的 Process。其他 Process extension、
 chat middleware、history partition 和 dependency override 都由 Host 的 `ChildOptions` 显式配置。
 
@@ -392,8 +404,9 @@ Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated`
 Suspension、Pause、Checkpoint 与 Resume 的稳定 ID 统一通过 `interaction.ValidateID` 校验；
 真正持久化的 Suspension 与 Checkpoint 严格拒绝未知字段和 trailing value，协议版本漂移不会被静默吞掉。
 托管交互和 app/runtime 共享 `interaction.StopReason`，停止原因的值与 `Valid` 规则只有一个 owner。
-ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
-稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
+ProcessSnapshot 不保存重复的 action audit history；`OwnUsage.Actions` 是恢复预算准入所需的
+唯一执行计数，ActionStarted/ActionFinished 事件与 tracing 承担审计输出。恢复路径不会解析
+自由字符串或为未知值猜测降级状态。
 开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
 迁移文档一次性收口，不保留 alias/shim。存储 contract tests 属于定义该消费侧接口的 Host，
 不回流 Agent 模块。

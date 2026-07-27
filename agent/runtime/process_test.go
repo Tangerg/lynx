@@ -220,8 +220,8 @@ func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
 	if capture.event == nil || capture.event.Err == nil {
 		t.Fatal("ActionFinished did not carry the normalized failure")
 	}
-	if history := process.History(); len(history) != 1 {
-		t.Fatalf("history = %#v, want one action run", history)
+	if usage := process.Usage(); usage.Actions != 1 {
+		t.Fatalf("action usage = %d, want one action run", usage.Actions)
 	}
 }
 
@@ -283,9 +283,8 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	if got.V != 9 {
 		t.Fatalf("got %d want 9", got.V)
 	}
-	// Three actions, three ticks.
-	if len(proc.History()) != 3 {
-		t.Fatalf("history length %d, want 3", len(proc.History()))
+	if usage := proc.Usage(); usage.Actions != 3 {
+		t.Fatalf("action usage = %d, want 3", usage.Actions)
 	}
 }
 

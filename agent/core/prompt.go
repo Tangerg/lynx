@@ -47,7 +47,6 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 		return "", err
 	}
 	result, err := pc.Interact(ctx, Interaction{
-		Model:   call.model,
 		Request: call.request,
 		Tools:   call.registry,
 		Limits:  interaction.Limits{MaxRounds: call.maxRounds},
@@ -90,7 +89,6 @@ func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string
 }
 
 type promptCall struct {
-	model     chat.Model
 	request   *chat.Request
 	registry  *tools.Registry
 	maxRounds int
@@ -99,10 +97,6 @@ type promptCall struct {
 func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config PromptConfig) (*promptCall, error) {
 	if pc == nil {
 		return nil, errors.New("agent: prompt: process context is nil")
-	}
-	capability, err := pc.Chat()
-	if err != nil {
-		return nil, fmt.Errorf("agent: prompt: %w", err)
 	}
 	resolved, err := pc.promptTools(ctx, config)
 	if err != nil {
@@ -134,7 +128,6 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 		return nil, errors.New("agent: prompt: max tool rounds must not be negative")
 	}
 	return &promptCall{
-		model:     capability.Model,
 		request:   request,
 		registry:  registry,
 		maxRounds: maxRounds,

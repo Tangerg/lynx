@@ -7,6 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/core/chat"
 )
 
 var listenerDeployment = core.DeploymentRef{Name: "x", Digest: "digest"}
@@ -55,6 +57,41 @@ func TestMulticastCancelListenerFunc(t *testing.T) {
 
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
+	}
+}
+
+func TestMulticastIsolatesInteractionBoundaryListeners(t *testing.T) {
+	message := chat.NewAssistantMessage(chat.NewTextPart("original"))
+	response, err := chat.NewResponse(chat.Choice{
+		Index:        0,
+		Message:      &message,
+		FinishReason: chat.FinishReasonStop,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary := event.InteractionBoundary{
+		Header: event.NewHeader("process-1"),
+		Boundary: interaction.Event{
+			Kind:     interaction.EventModelResponse,
+			Round:    1,
+			Final:    true,
+			Response: response,
+		},
+	}
+
+	var observed string
+	multicast := event.NewMulticast()
+	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+		value.(event.InteractionBoundary).Boundary.Response.Choices[0].Message.Parts[0].Text = "mutated"
+	}))
+	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+		observed = value.(event.InteractionBoundary).Boundary.Response.Text()
+	}))
+	multicast.OnEvent(t.Context(), boundary)
+
+	if observed != "original" || boundary.Boundary.Response.Text() != "original" {
+		t.Fatalf("observed=%q source=%q, want isolated original values", observed, boundary.Boundary.Response.Text())
 	}
 }
 

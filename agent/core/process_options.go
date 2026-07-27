@@ -48,11 +48,11 @@ type ProcessOptions struct {
 	// and explicitly subtree-scoped event listeners.
 	ChildOptions ChildOptionsFunc
 
-	// Budget caps cumulative host-defined cost, action invocations, and total
-	// tokens for this process. The runtime always checks a
-	// Budget-derived [BudgetPolicy] implicitly each tick; additional
-	// [StopPolicy] extensions can be registered via
-	// Extensions (OR semantics — any policy triggers termination).
+	// Budget caps cumulative execution across the complete process tree rooted
+	// at this process. Children share one runtime-owned atomic admission
+	// authority with the root, so concurrent siblings cannot independently
+	// consume the same remaining capacity. ChildOptions must not configure a
+	// second Budget; tree-wide limits belong on the root ProcessOptions.
 	Budget Budget
 
 	// Dependencies is an optional process scope created from
@@ -90,15 +90,18 @@ type ProcessOptions struct {
 	MaxToolRounds int
 }
 
-// Budget caps cumulative host-defined cost, action invocations, and total
-// tokens for one process. Budget is enforced via [BudgetPolicy], which the
-// runtime checks implicitly each tick. Zero leaves every dimension unbounded;
-// choosing units and limits is host policy. Additional policies can be
-// registered as [StopPolicy] extensions; all are OR-composed.
+// Budget limits cumulative host-defined cost, action invocations, model calls,
+// and tokens across one complete process tree. ActionLimit and ModelCallLimit
+// are strict admission caps. CostLimit and TokenLimit are continuation
+// ceilings: the runtime cannot know a response's final usage before I/O, so an
+// already-admitted call may cross either ceiling, after which no further work
+// is admitted. Zero leaves a dimension unbounded; choosing units and limits is
+// host policy.
 type Budget struct {
-	CostLimit   float64
-	ActionLimit int
-	TokenLimit  int
+	CostLimit      float64
+	ActionLimit    int
+	ModelCallLimit int
+	TokenLimit     int64
 }
 
 // ErrInvalidBudget identifies a malformed process budget.
@@ -112,6 +115,9 @@ func (b Budget) Validate() error {
 	}
 	if b.ActionLimit < 0 {
 		return fmt.Errorf("%w: action limit must not be negative", ErrInvalidBudget)
+	}
+	if b.ModelCallLimit < 0 {
+		return fmt.Errorf("%w: model-call limit must not be negative", ErrInvalidBudget)
 	}
 	if b.TokenLimit < 0 {
 		return fmt.Errorf("%w: token limit must not be negative", ErrInvalidBudget)

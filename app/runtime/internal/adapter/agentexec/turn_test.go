@@ -68,25 +68,35 @@ func TestModelStreamContext_PreservesParentDeadline(t *testing.T) {
 	}
 }
 
-func TestStreamingModel_IdleTimeout(t *testing.T) {
+func collectStream(streamer chat.Streamer, ctx context.Context) ([]*chat.Response, error) {
+	var responses []*chat.Response
+	for response, err := range streamer.Stream(ctx, &chat.Request{}) {
+		if err != nil {
+			return responses, err
+		}
+		responses = append(responses, response)
+	}
+	return responses, nil
+}
+
+func TestStreamIdleMiddleware_IdleTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		model := streamingModel{
-			streamer: chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+		streamer := streamIdleMiddleware(30 * time.Millisecond)(
+			chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 				return func(yield func(*chat.Response, error) bool) {
 					<-ctx.Done()
 					yield(nil, ctx.Err())
 				}
 			}),
-			idleTimeout: 30 * time.Millisecond,
-		}
+		)
 
-		if _, err := model.Call(context.Background(), &chat.Request{}); !errors.Is(err, errModelStreamIdleTimeout) {
-			t.Fatalf("Call error = %v, want model stream idle timeout", err)
+		if _, err := collectStream(streamer, context.Background()); !errors.Is(err, errModelStreamIdleTimeout) {
+			t.Fatalf("Stream error = %v, want model stream idle timeout", err)
 		}
 	})
 }
 
-func TestStreamingModel_CompletionTimeoutCancelRace(t *testing.T) {
+func TestStreamIdleMiddleware_CompletionTimeoutCancelRace(t *testing.T) {
 	t.Run("completion wins", func(t *testing.T) {
 		response, err := chat.NewResponse(chat.Choice{
 			Index:        0,
@@ -96,35 +106,33 @@ func TestStreamingModel_CompletionTimeoutCancelRace(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		model := streamingModel{
-			streamer: chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		streamer := streamIdleMiddleware(time.Hour)(
+			chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 				return func(yield func(*chat.Response, error) bool) { yield(response, nil) }
 			}),
-			idleTimeout: time.Hour,
-		}
+		)
 
-		got, err := model.Call(context.Background(), &chat.Request{})
+		got, err := collectStream(streamer, context.Background())
 		if err != nil {
-			t.Fatalf("Call: %v", err)
+			t.Fatalf("Stream: %v", err)
 		}
-		if got.Text() != "done" {
-			t.Fatalf("text = %q, want done", got.Text())
+		if len(got) != 1 || got[0].Text() != "done" {
+			t.Fatalf("responses = %#v, want one done response", got)
 		}
 	})
 
 	t.Run("timeout wins", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
-			model := streamingModel{
-				streamer: chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+			streamer := streamIdleMiddleware(time.Millisecond)(
+				chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 					return func(yield func(*chat.Response, error) bool) {
 						<-ctx.Done()
 						yield(nil, ctx.Err())
 					}
 				}),
-				idleTimeout: time.Millisecond,
-			}
-			if _, err := model.Call(context.Background(), &chat.Request{}); !errors.Is(err, errModelStreamIdleTimeout) {
-				t.Fatalf("Call error = %v, want model stream idle timeout", err)
+			)
+			if _, err := collectStream(streamer, context.Background()); !errors.Is(err, errModelStreamIdleTimeout) {
+				t.Fatalf("Stream error = %v, want model stream idle timeout", err)
 			}
 		})
 	})
@@ -133,19 +141,18 @@ func TestStreamingModel_CompletionTimeoutCancelRace(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			model := streamingModel{
-				streamer: chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+			streamer := streamIdleMiddleware(time.Hour)(
+				chat.StreamerFunc(func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
 					return func(yield func(*chat.Response, error) bool) {
 						<-ctx.Done()
 						yield(nil, ctx.Err())
 					}
 				}),
-				idleTimeout: time.Hour,
-			}
-			if _, err := model.Call(ctx, &chat.Request{}); !errors.Is(err, context.Canceled) {
-				t.Fatalf("Call error = %v, want context canceled", err)
+			)
+			if _, err := collectStream(streamer, ctx); !errors.Is(err, context.Canceled) {
+				t.Fatalf("Stream error = %v, want context canceled", err)
 			} else if errors.Is(err, errModelStreamIdleTimeout) {
-				t.Fatalf("Call error = %v, cancellation misreported as model idle", err)
+				t.Fatalf("Stream error = %v, cancellation misreported as model idle", err)
 			}
 		})
 	})

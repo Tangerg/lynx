@@ -3,6 +3,8 @@ package core
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -88,8 +90,7 @@ type GoalApprover interface {
 }
 
 // ChatProvider overrides which provider-neutral chat capabilities a process's
-// actions use for their LLM calls (via [ProcessContext.Chat] /
-// [ProcessContext.Prompt]), instead of the engine's default model.
+// managed Interact and Prompt calls use instead of the engine's default model.
 // The runtime consults registered providers process-scope first then
 // engine-scope, and uses the first capability with a non-nil Model; nil
 // from all (or none registered) falls back to the engine capability.
@@ -110,4 +111,35 @@ type ChatProvider interface {
 	// by a nil Streamer; streaming is an optional capability of a selected
 	// synchronous model, never an independent routing result.
 	Chat(process ProcessView) ChatCapability
+}
+
+// InteractionCostProjector maps one managed model response to the host's
+// non-negative cost unit. Runtime owns token/model-call counters and invokes
+// only the first projector in resolver order (process scope before engine
+// scope). A panic or invalid result fails the interaction. Valid at engine and
+// process scope.
+type InteractionCostProjector interface {
+	Extension
+
+	ProjectInteractionCost(
+		ctx context.Context,
+		process ProcessView,
+		response *chat.Response,
+	) (float64, error)
+}
+
+// InteractionObserver receives every validated managed-interaction boundary
+// after the runtime has applied its own state transition. All observers run in
+// extension registration order; an error or panic fails the interaction.
+// Durable product accounting, UI projection, and audit export belong here
+// rather than on individual Interaction values. Valid at engine and process
+// scope.
+type InteractionObserver interface {
+	Extension
+
+	ObserveInteraction(
+		ctx context.Context,
+		process ProcessView,
+		boundary interaction.Event,
+	) error
 }

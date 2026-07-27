@@ -51,7 +51,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-const schemaVersion = 28
+const schemaVersion = 29
 
 func installCurrentSchema(db *sql.DB) error {
 	var version int
@@ -86,7 +86,7 @@ func installCurrentSchema(db *sql.DB) error {
 			parent_id    TEXT    NOT NULL,
 			build_id     TEXT    NOT NULL,
 			snapshot     TEXT    NOT NULL,
-			scope        TEXT    NOT NULL,
+			policy       TEXT    NOT NULL,
 			usage        TEXT    NOT NULL,
 			committed_at INTEGER NOT NULL
 		)`,

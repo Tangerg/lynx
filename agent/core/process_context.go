@@ -11,30 +11,26 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// ChatCapability is the provider-neutral model surface available to an action.
-// Model is required; Streamer is optional. Runtime composition may back both
-// with one value implementing both interfaces, but core depends only on
-// provider-neutral chat protocols.
+// ChatCapability is the provider-neutral model surface supplied to the
+// runtime. Model is required; Streamer is optional. Runtime composition may
+// back both with one value implementing both interfaces, but actions access
+// them only through the managed Interact and Prompt boundaries.
 type ChatCapability struct {
 	Model    chat.Model
 	Streamer chat.Streamer
 }
 
-// InteractionCostFunc projects a provider response onto the host's chosen
-// non-negative cost unit. nil records zero cost.
-type InteractionCostFunc func(response *chat.Response) float64
-
 // Interaction is one framework-managed model/tool exchange. ID is optional;
 // runtime derives a stable owner from the process, action, and request when it
-// is empty.
+// is empty. Stream receives raw provider deltas when set; runtime resolves and
+// scopes the process Streamer, accumulates the final response, and retains
+// ownership of accounting and lifecycle boundaries.
 type Interaction struct {
 	ID      string
-	Model   chat.Model
 	Request *chat.Request
 	Tools   interaction.ToolResolver
 	Limits  interaction.Limits
-	Observe interaction.Observer
-	Cost    InteractionCostFunc
+	Stream  func(*chat.Response)
 }
 
 // ProcessContextConfig is the runtime SPI for assembling one action capability
@@ -44,13 +40,8 @@ type Interaction struct {
 type ProcessContextConfig struct {
 	Process      ProcessView
 	Control      ProcessControl
-	Usage        UsageRecorder
 	Blackboard   Blackboard
 	Dependencies *Dependencies
-
-	// Chat resolves the process-scoped model/stream capabilities. nil means no
-	// model was configured.
-	Chat func() (ChatCapability, error)
 
 	// MaxToolRounds is the resolved process-level Prompt limit.
 	MaxToolRounds int
@@ -89,13 +80,11 @@ type ProcessContext struct {
 	// Engine-wired hooks. Private so action bodies go through
 	// the typed methods instead
 	// of touching the underlying client / closure directly.
-	chat           func() (ChatCapability, error)
 	maxToolRounds  int
 	actionTools    func(context.Context, []string) ([]tools.Tool, error)
 	runInteraction func(context.Context, Interaction) (interaction.Result, error)
 	toolCallCancel func(context.CancelFunc) (release func())
 	control        ProcessControl
-	usage          UsageRecorder
 
 	actionToolGroups []string
 
@@ -117,10 +106,8 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 	return &ProcessContext{
 		process:          config.Process,
 		control:          config.Control,
-		usage:            config.Usage,
 		blackboard:       config.Blackboard,
 		dependencies:     dependencies,
-		chat:             config.Chat,
 		maxToolRounds:    config.MaxToolRounds,
 		actionToolGroups: config.ActionToolGroups,
 		actionTools:      config.ActionTools,
@@ -157,8 +144,8 @@ func (pc *ProcessContext) Dependencies() *Dependencies {
 // concurrently with other branches of the SAME action — the workflow fan-out
 // builders (ScatterGather / Consensus / Parallel) hand one to each generator.
 //
-// It shares the read-only ProcessView and usage recorder, but forks Blackboard
-// and action-dependency state from the same pre-branch snapshot. Branch writes,
+// It shares the read-only ProcessView, but forks Blackboard and
+// action-dependency state from the same pre-branch snapshot. Branch writes,
 // conditions, and dependency registrations
 // are local and discarded; the workflow commits only returned values in
 // declaration order. Lifecycle control and managed interaction are disabled
@@ -180,7 +167,6 @@ func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error) {
 		branch.dependencies = pc.dependencies.Child()
 	}
 	branch.control = nil
-	branch.chat = nil
 	branch.runInteraction = func(context.Context, Interaction) (interaction.Result, error) {
 		return interaction.Result{}, ErrParallelBranchControl
 	}
@@ -202,24 +188,6 @@ func cloneBranchBlackboard(blackboard Blackboard) (clone Blackboard, err error) 
 		return nil, fmt.Errorf("blackboard %T Clone returned nil", blackboard)
 	}
 	return clone, nil
-}
-
-// Chat returns provider-neutral model and stream capabilities scoped to this process.
-func (pc *ProcessContext) Chat() (ChatCapability, error) {
-	if pc == nil || pc.chat == nil {
-		if pc != nil && pc.parallelBranch {
-			return ChatCapability{}, ErrParallelBranchControl
-		}
-		return ChatCapability{}, errors.New("agent.ProcessContext.Chat: no chat model configured on the engine")
-	}
-	capability, err := pc.chat()
-	if err != nil {
-		return ChatCapability{}, err
-	}
-	if capability.Model == nil {
-		return ChatCapability{}, errors.New("agent.ProcessContext.Chat: runtime resolved a nil chat model")
-	}
-	return capability, nil
 }
 
 // Interact runs a complete framework-managed model/tool interaction and
@@ -310,15 +278,6 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 			release()
 		}
 	}
-}
-
-// RecordUsage attributes one resource-consumption delta to the running process.
-// It returns [ErrUsageUnavailable] when the context has no accounting owner.
-func (pc *ProcessContext) RecordUsage(ctx context.Context, usage Usage) error {
-	if pc == nil || pc.usage == nil {
-		return ErrUsageUnavailable
-	}
-	return pc.usage.RecordUsage(contextOrBackground(ctx), usage)
 }
 
 func contextOrBackground(ctx context.Context) context.Context {

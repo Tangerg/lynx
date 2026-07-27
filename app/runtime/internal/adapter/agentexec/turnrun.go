@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -59,17 +60,18 @@ type TurnRequest struct {
 	GoalLeaseID string
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
-	// may spend across its tool-loop rounds. 0 means unlimited. See
-	// [turnInput.MaxBudget] for the stop semantics.
+	// may spend across its complete delegation tree. 0 means unlimited.
+	// An admitted model call may cross the ceiling; no later work is admitted.
 	MaxBudget int64
 
-	// MaxCostUSD caps the turn's dollar cost (0 = no cap). See
-	// [turnInput.MaxCostUSD] — requires a [Config.Pricing] hook.
+	// MaxCostUSD caps the turn's dollar cost across its complete delegation
+	// tree. 0 means unlimited. It requires a [Config.Pricing] hook and has the
+	// same continuation-ceiling semantics as MaxBudget.
 	MaxCostUSD float64
 
 	// MaxSteps caps cumulative model calls across the root and child delegation
-	// tree (0 = no cap). See [turnInput.MaxSteps]; surfaces as the maxSteps run
-	// outcome.
+	// tree (0 = no cap). Admission is strict across concurrent siblings and
+	// exhaustion surfaces as the maxSteps run outcome.
 	MaxSteps int
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
@@ -143,14 +145,20 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
 	runCtx := turnctx.WithScope(ctx, scope)
-	input := turnInput{Message: request.Message, Provider: request.ModelSelection.Provider(), Media: request.Media, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
+	provider := request.ModelSelection.Provider()
+	budget := accounting.Budget{
+		MaxTokens:  request.MaxBudget,
+		MaxCostUSD: request.MaxCostUSD,
+		MaxSteps:   request.MaxSteps,
+	}
+	input := turnInput{Message: request.Message, Media: request.Media, Options: request.Options}
 	usage := emptyUsageLedger()
 
 	middleware, err := e.steeringChatMiddleware(request.Steer)
 	if err != nil {
 		return nil, fmt.Errorf("engine: build steering chat middleware: %w", err)
 	}
-	processOptions, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, middleware, usage)
+	processOptions, err := e.turnProcessOptions(request.SessionID, provider, budget, request.Observer, request.EventListener, request.ChatClient, middleware, usage)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
@@ -165,12 +173,14 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
 	}
 	return &turnProcess{
-		process: segment.Process(),
-		segment: segment,
-		owner:   e,
-		scope:   scope,
-		runCtx:  runCtx,
-		usage:   usage,
+		process:  segment.Process(),
+		segment:  segment,
+		owner:    e,
+		scope:    scope,
+		runCtx:   runCtx,
+		usage:    usage,
+		provider: provider,
+		budget:   budget,
 	}, nil
 }
 
@@ -178,7 +188,16 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 // scoping, the observer decorator, lifecycle listener, and per-run model
 // client. Shared chat middleware is built once in [New] and can be replaced
 // per turn when mid-run steering is enabled.
-func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, middleware *core.ChatMiddleware, usage *usageLedger) (core.ProcessOptions, error) {
+func (e *Engine) turnProcessOptions(
+	sessionID string,
+	provider string,
+	budget accounting.Budget,
+	observer toolObserver,
+	listener core.Extension,
+	client *chatclient.Client,
+	middleware *core.ChatMiddleware,
+	usage *usageLedger,
+) (core.ProcessOptions, error) {
 	dependencies := e.dependencies
 	if dependencies == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: engine dependencies are required")
@@ -186,11 +205,21 @@ func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, lis
 	if usage == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: usage ledger is required")
 	}
+	if err := budget.Validate(); err != nil {
+		return core.ProcessOptions{}, fmt.Errorf("agentexec: execution budget: %w", err)
+	}
 	scope := dependencies.Child()
 	if err := core.RegisterDependency(scope, usageLedgerKey, usage); err != nil {
 		return core.ProcessOptions{}, fmt.Errorf("agentexec: register usage ledger: %w", err)
 	}
-	options := core.ProcessOptions{Dependencies: scope}
+	options := core.ProcessOptions{
+		Dependencies: scope,
+		Budget: core.Budget{
+			CostLimit:      budget.MaxCostUSD,
+			ModelCallLimit: budget.MaxSteps,
+			TokenLimit:     budget.MaxTokens,
+		},
+	}
 	baseMiddleware := e.chatMiddleware
 	if middleware != nil {
 		baseMiddleware = middleware
@@ -203,23 +232,40 @@ func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, lis
 	if err != nil {
 		return core.ProcessOptions{}, err
 	}
+	scopedMiddleware.StreamMiddlewares = append(
+		[]chat.StreamMiddleware{streamIdleMiddleware(e.modelStreamIdleTimeout)},
+		scopedMiddleware.StreamMiddlewares...,
+	)
+	childMiddleware.StreamMiddlewares = append(
+		[]chat.StreamMiddleware{streamIdleMiddleware(e.modelStreamIdleTimeout)},
+		childMiddleware.StreamMiddlewares...,
+	)
 	options.ChatMiddleware = scopedMiddleware
 	options.ChildOptions = childOptions(
+		e,
 		dependencies,
 		client,
+		provider,
 		observer,
 		e.toolResultStore,
 		e.toolResultThreshold,
 		childMiddleware,
 		usage,
 	)
+	var observation *toolObservation
 	if observer != nil {
-		observation := newToolObservation(observer, e.toolResultStore, e.toolResultThreshold)
+		observation = newToolObservation(observer, e.toolResultStore, e.toolResultThreshold)
 		if err := core.RegisterDependency(scope, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observation dependency: %w", err)
 		}
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
+	options.Extensions = append(options.Extensions, &interactionProjection{
+		engine:      e,
+		provider:    provider,
+		usage:       usage,
+		observation: observation,
+	})
 	if listener != nil {
 		options.Extensions = append(options.Extensions, listener)
 	}
@@ -265,6 +311,10 @@ type RestoreTurnRequest struct {
 	// exactly match the checkpoint (including the empty unattached scope), so a
 	// continuation can never cross product-session boundaries.
 	SessionID string
+
+	// Provider is the persisted model provider identity used for pricing. It
+	// must match the application checkpoint.
+	Provider string
 
 	// Observer receives the continuation's streaming tool-call + text
 	// deltas, exactly as on a fresh turn. May be nil.
@@ -325,6 +375,12 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 			fmt.Errorf("checkpoint session %q does not match run session %q", checkpoint.Scope.SessionID, request.SessionID),
 		)
 	}
+	if request.Provider != checkpoint.Provider {
+		return nil, processSnapshotLost(
+			"restore",
+			fmt.Errorf("checkpoint provider %q does not match run provider %q", checkpoint.Provider, request.Provider),
+		)
+	}
 	if err := validateCheckpointUsage(tree, checkpoint.Usage); err != nil {
 		return nil, processSnapshotLost("restore usage", err)
 	}
@@ -332,7 +388,16 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if err != nil {
 		return nil, processSnapshotLost("restore usage", err)
 	}
-	options, err := e.turnProcessOptions(checkpoint.Scope.SessionID, request.Observer, request.EventListener, request.ChatClient, nil, usage)
+	options, err := e.turnProcessOptions(
+		checkpoint.Scope.SessionID,
+		checkpoint.Provider,
+		checkpoint.Budget,
+		request.Observer,
+		request.EventListener,
+		request.ChatClient,
+		nil,
+		usage,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
 	}
@@ -354,7 +419,15 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if process == nil {
 		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
-	return &turnProcess{process: process, owner: e, scope: checkpoint.Scope, runCtx: runCtx, usage: usage}, nil
+	return &turnProcess{
+		process:  process,
+		owner:    e,
+		scope:    checkpoint.Scope,
+		runCtx:   runCtx,
+		usage:    usage,
+		provider: checkpoint.Provider,
+		budget:   checkpoint.Budget,
+	}, nil
 }
 
 func processTreeRoot(tree core.ProcessSnapshotTree) (core.ProcessSnapshot, bool) {

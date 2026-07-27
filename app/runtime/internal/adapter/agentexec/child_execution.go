@@ -6,38 +6,29 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-var childExecutionKey = core.MustDependencyKey[childExecution]("lyra.child_execution")
-
-type childExecution struct {
-	Provider   string
-	Budget     accounting.Budget
-	StopReason StopReason
-}
-
-// childExecutionPolicy is rebound on every root start/restore. The first child
-// invocation captures the durable turnInput from the root blackboard; returned
-// child options carry a policy bound to that same root, so deeper descendants
-// share one provider identity and one remaining application budget.
+// childExecutionPolicy propagates application-owned provider, dependencies,
+// accounting projection, and UI hooks. Agent supplies the tree-wide budget
+// authority automatically; children never receive a second limit calculation.
 type childExecutionPolicy struct {
+	engine          *Engine
 	dependencies    *core.Dependencies
 	client          *chatclient.Client
+	provider        string
 	observer        toolObserver
 	toolResultStore toolResultOffloader
 	evictThreshold  int
 	chatMiddleware  *core.ChatMiddleware
 	usage           *usageLedger
-	root            core.ProcessView
-	provider        string
-	budget          accounting.Budget
 }
 
 func childOptions(
+	engine *Engine,
 	dependencies *core.Dependencies,
 	client *chatclient.Client,
+	provider string,
 	observer toolObserver,
 	toolResultStore toolResultOffloader,
 	evictThreshold int,
@@ -45,8 +36,10 @@ func childOptions(
 	usage *usageLedger,
 ) core.ChildOptionsFunc {
 	return (childExecutionPolicy{
+		engine:          engine,
 		dependencies:    dependencies,
 		client:          client,
+		provider:        provider,
 		observer:        observer,
 		toolResultStore: toolResultStore,
 		evictThreshold:  evictThreshold,
@@ -55,33 +48,16 @@ func childOptions(
 	}).options
 }
 
-func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView, _ *core.Agent) (core.ProcessOptions, error) {
+func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ *core.Agent) (core.ProcessOptions, error) {
 	if p.dependencies == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: child execution requires engine dependencies")
 	}
-	if p.root == nil {
-		input, ok := core.Get[turnInput](parent.Blackboard(), core.DefaultBindingName)
-		if !ok {
-			return core.ProcessOptions{}, errors.New("agentexec: child execution root has no turn input")
-		}
-		p.root = parent
-		p.provider = input.Provider
-		p.budget = accounting.Budget{
-			MaxTokens:  input.MaxBudget,
-			MaxCostUSD: input.MaxCostUSD,
-			MaxSteps:   input.MaxSteps,
-		}
-	}
-
 	dependencies := p.dependencies.Child()
 	if p.usage == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: child execution requires usage ledger")
 	}
 	if err := core.RegisterDependency(dependencies, usageLedgerKey, p.usage); err != nil {
 		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child usage ledger: %w", err)
-	}
-	if err := core.RegisterDependency(dependencies, childExecutionKey, p.remaining()); err != nil {
-		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child execution context: %w", err)
 	}
 	var observation *toolObservation
 	if p.observer != nil {
@@ -98,55 +74,14 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	if p.observer != nil {
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
+	options.Extensions = append(options.Extensions, &interactionProjection{
+		engine:      p.engine,
+		provider:    p.provider,
+		usage:       p.usage,
+		observation: observation,
+	})
 	if p.client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: p.client})
 	}
 	return options, nil
-}
-
-func (p childExecutionPolicy) remaining() childExecution {
-	execution := childExecution{Provider: p.provider}
-	if p.root == nil {
-		return execution
-	}
-	usage := p.root.Usage()
-
-	if p.budget.MaxTokens > 0 {
-		remaining := p.budget.MaxTokens - int64(usage.Tokens)
-		if remaining <= 0 {
-			execution.StopReason = StopReasonBudget
-		} else {
-			execution.Budget.MaxTokens = remaining
-		}
-	}
-	if p.budget.MaxCostUSD > 0 {
-		remaining := p.budget.MaxCostUSD - usage.Cost
-		if remaining <= 0 {
-			execution.StopReason = StopReasonBudget
-		} else {
-			execution.Budget.MaxCostUSD = remaining
-		}
-	}
-	if p.budget.MaxSteps > 0 {
-		remaining := p.budget.MaxSteps - usage.ModelCalls
-		if remaining <= 0 {
-			if execution.StopReason == StopReasonNone {
-				execution.StopReason = StopReasonSteps
-			}
-		} else {
-			execution.Budget.MaxSteps = remaining
-		}
-	}
-	return execution
-}
-
-func childExecutionFrom(dependencies *core.Dependencies) (childExecution, error) {
-	execution, err := core.LookupDependency(dependencies, childExecutionKey)
-	if errors.Is(err, core.ErrDependencyNotFound) {
-		return childExecution{}, nil
-	}
-	if err != nil {
-		return childExecution{}, fmt.Errorf("agentexec: resolve child execution context: %w", err)
-	}
-	return execution, nil
 }

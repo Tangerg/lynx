@@ -54,24 +54,19 @@ var _ core.ChatProvider = fixedClientProvider{}
 type callIn struct{ V int }
 type callOut struct{ V int }
 
-// callsChat is an action body that issues one LLM call through whichever
-// client the ProcessContext resolved — the observable for which client won.
-func callsChat(t *testing.T) func(context.Context, *core.ProcessContext, callIn) (callOut, error) {
+// callsChat is an action body that issues one managed prompt through whichever
+// client the runtime resolved — the observable for which client won.
+func callsChat() func(context.Context, *core.ProcessContext, callIn) (callOut, error) {
 	return func(ctx context.Context, pc *core.ProcessContext, in callIn) (callOut, error) {
-		capability, err := pc.Chat()
-		if err != nil {
+		if _, err := pc.Prompt(ctx, "hi", core.PromptConfig{}); err != nil {
 			return callOut{}, err
-		}
-		request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hi")))
-		if _, err := capability.Model.Call(ctx, request); err != nil {
-			t.Errorf("chat call: %v", err)
 		}
 		return callOut{V: in.V + 1}, nil
 	}
 }
 
-func chatAgent(t *testing.T) *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "chat-router", Actions: []agent.Action{agent.NewAction("call", callsChat(t), core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[callOut](core.GoalConfig{Description: "done"})}})
+func chatAgent() *core.Agent {
+	return agent.New(agent.AgentConfig{Name: "chat-router", Actions: []agent.Action{agent.NewAction("call", callsChat(), core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[callOut](core.GoalConfig{Description: "done"})}})
 }
 
 // TestChatProvider_OverridesEngineClient verifies a per-process
@@ -83,7 +78,7 @@ func TestChatProvider_OverridesEngineClient(t *testing.T) {
 	platformClient, _ := chatclient.New(platformModel)
 	overrideClient, _ := chatclient.New(overrideModel)
 
-	a := chatAgent(t)
+	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
@@ -115,7 +110,7 @@ func TestChatProvider_FallsBackToEngine(t *testing.T) {
 	platformModel := newRecordingModel()
 	platformClient, _ := chatclient.New(platformModel)
 
-	a := chatAgent(t)
+	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
@@ -144,7 +139,7 @@ func TestChatProvider_TypedNilFallsBackToEngine(t *testing.T) {
 	platformClient, _ := chatclient.New(platformModel)
 	var typedNil *chatclient.Client
 
-	a := chatAgent(t)
+	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
@@ -187,7 +182,7 @@ func (p panickingChatProvider) Chat(core.ProcessView) core.ChatCapability {
 
 func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 	platformClient, _ := chatclient.New(newRecordingModel())
-	a := chatAgent(t)
+	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("Deploy: %v", err)
@@ -210,7 +205,7 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 func TestChatProvider_PanicFailsProcess(t *testing.T) {
 	cause := errors.New("chat provider sentinel")
 	platformClient, _ := chatclient.New(newRecordingModel())
-	a := chatAgent(t)
+	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient}})
 	process, err := engine.Run(
 		t.Context(), a, core.Input(callIn{V: 1}),

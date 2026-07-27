@@ -11,7 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const SuspensionSchemaVersion uint16 = 2
+const SuspensionSchemaVersion uint16 = 3
 
 var (
 	ErrInvalidSuspension  = errors.New("interaction: invalid suspension")
@@ -47,7 +47,6 @@ type Suspension struct {
 	FrameworkState json.RawMessage `json:"framework_state,omitempty"`
 	Response       json.RawMessage `json:"response,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
-	RespondedAt    time.Time       `json:"responded_at,omitzero"`
 }
 
 func (s Suspension) Validate() error {
@@ -76,19 +75,10 @@ func (s Suspension) Validate() error {
 		return fmt.Errorf("%w: framework_state must be valid JSON", ErrInvalidSuspension)
 	}
 	if len(s.Response) == 0 {
-		if !s.RespondedAt.IsZero() {
-			return fmt.Errorf("%w: responded_at requires a response", ErrInvalidSuspension)
-		}
 		return nil
 	}
 	if !validJSON(s.Response) {
 		return fmt.Errorf("%w: response must be valid JSON", ErrInvalidSuspension)
-	}
-	if s.RespondedAt.IsZero() {
-		return fmt.Errorf("%w: response requires responded_at", ErrInvalidSuspension)
-	}
-	if s.RespondedAt.Before(s.CreatedAt) {
-		return fmt.Errorf("%w: responded_at must not precede created_at", ErrInvalidSuspension)
 	}
 	if _, err := s.ValidateResponse(s.Response); err != nil {
 		return fmt.Errorf("%w: stored response: %w", ErrInvalidSuspension, err)

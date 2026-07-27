@@ -45,8 +45,8 @@ func TestTeamRunsThroughOrdinaryEnginePath(t *testing.T) {
 	if !ok || result.Result != 8 {
 		t.Fatalf("Result = %#v, %t; want 8, true", result, ok)
 	}
-	if history := process.History(); len(history) != 2 {
-		t.Fatalf("history length = %d, want 2", len(history))
+	if usage := process.Usage(); usage.Actions != 2 {
+		t.Fatalf("action usage = %d, want 2", usage.Actions)
 	}
 }
 

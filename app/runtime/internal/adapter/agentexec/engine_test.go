@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -562,14 +563,24 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		Isolated:    true,
 		GoalLeaseID: "goal-lease-restore",
 	}
+	wantProvider := "selected-provider"
+	wantBudget := accounting.Budget{
+		MaxTokens:  10_000,
+		MaxCostUSD: 10,
+		MaxSteps:   4,
+	}
 
 	proc, err := eng.StartTurn(context.Background(), TurnRequest{
-		SessionID:   wantScope.SessionID,
-		Message:     "echo lyra",
-		Cwd:         wantScope.Cwd,
-		Isolated:    wantScope.Isolated,
-		GoalLeaseID: wantScope.GoalLeaseID,
-		Observer:    observer,
+		SessionID:      wantScope.SessionID,
+		Message:        "echo lyra",
+		ModelSelection: mustTestSelection(t, wantProvider, "selected-model"),
+		Cwd:            wantScope.Cwd,
+		Isolated:       wantScope.Isolated,
+		GoalLeaseID:    wantScope.GoalLeaseID,
+		MaxBudget:      wantBudget.MaxTokens,
+		MaxCostUSD:     wantBudget.MaxCostUSD,
+		MaxSteps:       wantBudget.MaxSteps,
+		Observer:       observer,
 		Options: &chat.Options{
 			Temperature: &temp,
 			MaxTokens:   &maxTokens,
@@ -599,8 +610,18 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 	if _, checkpoint, err := store.LoadTree(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("load checkpoint metadata: %v", err)
-	} else if checkpoint.Scope != wantScope {
-		t.Fatalf("checkpoint scope = %+v, want %+v", checkpoint.Scope, wantScope)
+	} else if checkpoint.Scope != wantScope ||
+		checkpoint.Provider != wantProvider ||
+		checkpoint.Budget != wantBudget {
+		t.Fatalf(
+			"checkpoint policy = scope:%+v provider:%q budget:%+v, want scope:%+v provider:%q budget:%+v",
+			checkpoint.Scope,
+			checkpoint.Provider,
+			checkpoint.Budget,
+			wantScope,
+			wantProvider,
+			wantBudget,
+		)
 	}
 
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
@@ -609,9 +630,17 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}); mismatched != nil || !errors.Is(err, ErrProcessSnapshotLost) {
 		t.Fatalf("cross-session RestoreTurn = (%T, %v), want snapshot loss", mismatched, err)
 	}
+	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
+		SessionID: wantScope.SessionID,
+		Provider:  "another-provider",
+		Observer:  observer,
+	}); mismatched != nil || !errors.Is(err, ErrProcessSnapshotLost) {
+		t.Fatalf("cross-provider RestoreTurn = (%T, %v), want snapshot loss", mismatched, err)
+	}
 
 	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID: wantScope.SessionID,
+		Provider:  wantProvider,
 		Observer:  observer,
 	})
 	if err != nil {

@@ -80,6 +80,11 @@ type ProcessCreated struct {
 
 func (ProcessCreated) Kind() Kind { return KindProcessCreated }
 
+func (e ProcessCreated) cloneEvent() Event {
+	e.Bindings = e.Bindings.Clone()
+	return e
+}
+
 // ProcessCompleted fires when the process reaches its goal successfully.
 type ProcessCompleted struct {
 	Header
@@ -113,6 +118,13 @@ type ProcessWaiting struct {
 }
 
 func (ProcessWaiting) Kind() Kind { return KindProcessWaiting }
+
+func (e ProcessWaiting) cloneEvent() Event {
+	if e.Suspension != nil {
+		e.Suspension = e.Suspension.Clone()
+	}
+	return e
+}
 
 // ProcessKilled fires from Engine.Kill or when ctx is canceled mid-run.
 type ProcessKilled struct {
@@ -195,3 +207,8 @@ type InteractionBoundary struct {
 }
 
 func (InteractionBoundary) Kind() Kind { return KindInteractionBoundary }
+
+func (e InteractionBoundary) cloneEvent() Event {
+	e.Boundary = e.Boundary.Clone()
+	return e
+}

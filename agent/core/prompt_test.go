@@ -15,12 +15,8 @@ import (
 func newPromptContext(t *testing.T, model chat.Model) *core.ProcessContext {
 	t.Helper()
 	return core.NewProcessContext(core.ProcessContextConfig{
-		Chat: func() (core.ChatCapability, error) {
-			streamer, _ := model.(chat.Streamer)
-			return core.ChatCapability{Model: model, Streamer: streamer}, nil
-		},
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
-			response, err := input.Model.Call(ctx, input.Request)
+			response, err := model.Call(ctx, input.Request)
 			if err != nil {
 				return interaction.Result{}, err
 			}
@@ -66,8 +62,8 @@ func TestPromptRejectsMissingChatModel(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when no chat model is configured")
 	}
-	if !strings.Contains(err.Error(), "chat model") {
-		t.Fatalf("error %q should mention chat model", err.Error())
+	if !strings.Contains(err.Error(), "managed interaction") {
+		t.Fatalf("error %q should mention managed interaction", err.Error())
 	}
 }
 

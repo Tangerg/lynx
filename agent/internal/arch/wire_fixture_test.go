@@ -93,13 +93,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			CreatedAt:      startedAt.Add(4 * time.Minute),
 		},
 		GoalName: "answer-question",
-		History: []agentcore.ActionRunSnapshot{{
-			ActionName: "lookup",
-			StartedAt:  startedAt.Add(time.Minute),
-			Duration:   250 * time.Millisecond,
-			Status:     agentcore.ActionSucceeded,
-		}},
-		OwnUsage: agentcore.Usage{Cost: 0.0125, Tokens: 321, ModelCalls: 2},
+		OwnUsage: agentcore.Usage{Cost: 0.0125, Tokens: 321, ModelCalls: 2, Actions: 1},
 		Blackboard: map[string]agentcore.TaggedValue{
 			"answer": {Type: "string", Value: json.RawMessage(`"pending"`)},
 			"input":  {Type: "fixture.Input", Value: json.RawMessage(`{"query":"lynx"}`)},

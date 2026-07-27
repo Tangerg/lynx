@@ -133,6 +133,19 @@ type Response struct {
 	Extensions metadata.Map `json:"extensions,omitzero"`
 }
 
+// Clone returns an independent copy of r. It is nil-safe.
+func (r *Response) Clone() *Response {
+	if r == nil {
+		return nil
+	}
+	clone := r.cloneHeader()
+	clone.Choices = make([]Choice, len(r.Choices))
+	for index := range r.Choices {
+		clone.Choices[index] = r.Choices[index].clone()
+	}
+	return &clone
+}
+
 // NewResponse validates a Response containing choices.
 func NewResponse(choices ...Choice) (*Response, error) {
 	response := &Response{Choices: append([]Choice(nil), choices...)}

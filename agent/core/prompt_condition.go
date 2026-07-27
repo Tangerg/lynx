@@ -30,7 +30,6 @@ type ParseTruthFunc func(string) Truth
 // to one because each evaluation performs a model call.
 type PromptConditionConfig struct {
 	Name   string
-	Model  chat.Model
 	Prompt PromptFunc
 	Parse  ParseTruthFunc
 	Cost   float64
@@ -40,7 +39,6 @@ type PromptConditionConfig struct {
 type PromptCondition struct {
 	name   string
 	cost   float64
-	model  chat.Model
 	prompt PromptFunc
 	parse  ParseTruthFunc
 }
@@ -49,9 +47,6 @@ type PromptCondition struct {
 func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) {
 	if config.Name == "" {
 		return nil, errors.New("agent: prompt condition name must not be empty")
-	}
-	if config.Model == nil {
-		return nil, errors.New("agent: prompt condition model must not be nil")
 	}
 	if config.Prompt == nil {
 		return nil, errors.New("agent: prompt condition prompt must not be nil")
@@ -69,7 +64,6 @@ func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) 
 	return &PromptCondition{
 		name:   config.Name,
 		cost:   cost,
-		model:  config.Model,
 		prompt: config.Prompt,
 		parse:  config.Parse,
 	}, nil
@@ -93,7 +87,6 @@ func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 	}
 	result, err := env.RunInteraction(ctx, Interaction{
 		ID:      ConditionInteractionID(c.name),
-		Model:   c.model,
 		Request: request,
 	})
 	if err != nil || result.Final == nil || result.Final.Kind != interaction.EventModelResponse {

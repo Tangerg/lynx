@@ -6,9 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -17,17 +15,15 @@ import (
 
 // processState owns a Process's lock-protected mutable state
 // — the OODA-loop status, the goal currently being pursued, the most
-// recent observed world, the action history, the latest failure (if
-// any), and the per-process exclusion set used by the planner.
+// recent observed world, the latest failure (if any), and the per-process
+// exclusion set used by the planner.
 //
-// All access goes through methods that own the lock. processBudget shares mu
-// so accounting and action history remain one consistent aggregate.
+// All access goes through methods that own the lock.
 type processState struct {
 	mu                 sync.RWMutex
 	currentStatus      core.ProcessStatus
 	currentGoal        *core.Goal
 	world              core.WorldState
-	history            []ActionRun
 	runErr             error
 	excludedActions    planning.Exclusions
 	stuckReplanKey     string
@@ -108,7 +104,6 @@ func (s *processState) parkSuspension(candidate interaction.Suspension) error {
 func (s *processState) installClaimedSuspensionResponse(
 	id string,
 	response json.RawMessage,
-	now time.Time,
 ) (*interaction.Suspension, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -124,7 +119,6 @@ func (s *processState) installClaimedSuspensionResponse(
 	}
 	previous := current.Clone()
 	current.Response = bytes.Clone(response)
-	current.RespondedAt = now
 	return previous, nil
 }
 
@@ -155,23 +149,6 @@ func (s *processState) restoreSuspension(value *interaction.Suspension) error {
 	defer s.mu.Unlock()
 	s.pendingSuspension = value.Clone()
 	return nil
-}
-
-// historySnapshot returns a clone so callers can iterate without racing
-// the next recordActionRun.
-func (s *processState) historySnapshot() []ActionRun {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return slices.Clone(s.history)
-}
-
-// historyLen reports the action-history length without copying. Used by
-// Process.Usage to avoid materializing the slice when only the
-// count is needed.
-func (s *processState) historyLen() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.history)
 }
 
 // transition transitions to st unless the process is ALREADY terminal —
@@ -232,12 +209,6 @@ func (s *processState) fail(err error) {
 	s.runErr = err
 	s.currentStatus = core.StatusFailed
 	s.pendingSuspension = nil
-}
-
-func (s *processState) recordActionRun(run ActionRun) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.history = append(s.history, run)
 }
 
 func (s *processState) excludeAction(name string) {

@@ -92,6 +92,8 @@ func supportsProcessScope(extension core.Extension) bool {
 		core.ToolMiddleware,
 		core.GoalApprover,
 		core.ChatProvider,
+		core.InteractionCostProjector,
+		core.InteractionObserver,
 		core.StopPolicy,
 		core.ToolGroupResolver,
 		planning.Planner,
@@ -165,6 +167,18 @@ func collectExtensions[T any](extensions []extensionEntry) []extensionCapability
 		}
 	}
 	return matched
+}
+
+// firstExtension returns the first registered implementation of T. Callers
+// choose the supplied extension ordering explicitly (for example,
+// process-before-engine resolver order).
+func firstExtension[T any](extensions []extensionEntry) (extensionCapability[T], bool) {
+	for _, extension := range extensions {
+		if capability, ok := extension.value.(T); ok {
+			return extensionCapability[T]{name: extension.name, value: capability}, true
+		}
+	}
+	return extensionCapability[T]{}, false
 }
 
 // lastExtension returns the most-recently-registered extension

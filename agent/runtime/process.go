@@ -16,11 +16,8 @@ import (
 // related fields & methods cluster together while the access path stays
 // explicit at every call site:
 //
-//   - state    mu-protected status / goal / history / failure /
-//     exclusions. Owns the main mutex; budget shares it via
-//     a pointer.
-//   - budget   subtree cost / token / action aggregation; lock pointer
-//     points at state.mu.
+//   - state    mu-protected status / goal / failure / exclusions.
+//   - budget   subtree usage plus the tree-shared admission authority.
 //   - signals  channel + atomic-based signaling primitives
 //     (terminate / toolCallCancel) — no
 //     shared lock, all built on lock-free primitives.
@@ -69,14 +66,6 @@ func (p *Process) releaseDeployment() {
 	p.deploymentRetained = false
 }
 
-// ActionRun is one row of the per-process history.
-type ActionRun struct {
-	ActionName string
-	StartedAt  time.Time
-	Duration   time.Duration
-	Status     core.ActionStatus
-}
-
 // newProcess assembles a process from its inputs. Internal — users
 // invoke Engine.Run which assembles every dependency. The
 // state reader and processEvents are populated by the caller after
@@ -99,6 +88,7 @@ func newProcess(
 		options:      options,
 		startedAt:    time.Now(),
 		state:        newProcessState(),
+		budget:       newProcessBudget(options.budget),
 		signals:      newProcessSignals(),
 		blackboard:   blackboard,
 		dependencies: dependencies,
@@ -106,7 +96,6 @@ func newProcess(
 		domain:       domain,
 		engine:       engine,
 	}
-	p.budget.lock = &p.state.mu // budget shares state's mutex
 	return p
 }
 
@@ -152,4 +141,3 @@ func (p *Process) Status() core.ProcessStatus  { return p.state.status() }
 func (p *Process) Goal() *core.Goal            { return p.state.goal() }
 func (p *Process) WorldState() core.WorldState { return p.state.worldState() }
 func (p *Process) Failure() error              { return p.state.failure() }
-func (p *Process) History() []ActionRun        { return p.state.historySnapshot() }

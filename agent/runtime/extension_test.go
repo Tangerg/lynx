@@ -481,7 +481,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 	}
 }
 
-func TestActionMiddlewareShortCircuitProducesDurableHistory(t *testing.T) {
+func TestActionMiddlewareShortCircuitChargesDurableActionUsage(t *testing.T) {
 	type output struct{}
 	a := agent.New(agent.AgentConfig{
 		Name: "middleware-short-circuit",
@@ -504,8 +504,8 @@ func TestActionMiddlewareShortCircuitProducesDurableHistory(t *testing.T) {
 	if !errors.Is(process.Failure(), middlewareErr) {
 		t.Fatalf("failure = %v, want middleware error", process.Failure())
 	}
-	if history := process.History(); len(history) != 1 {
-		t.Fatalf("history = %#v, want one action run", history)
+	if usage := process.Usage(); usage.Actions != 1 {
+		t.Fatalf("action usage = %d, want one action run", usage.Actions)
 	}
 	if _, err := engine.SnapshotTree(t.Context(), process.ID()); err != nil {
 		t.Fatalf("Snapshot after short circuit: %v", err)

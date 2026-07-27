@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 9
+const ProcessSnapshotSchemaVersion uint16 = 10
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
@@ -47,12 +48,13 @@ func (f ProcessFailure) validate() error {
 	return nil
 }
 
-// ProcessSnapshot is the complete portable state required to inspect or resume
-// one process. OwnUsage contains only this process's direct execution-resource
-// counters; descendants carry their own snapshots, and runtime reconstructs
-// aggregate usage through parent-child links.
-// Runtime-only objects, derived world state, functions, and closures are
-// intentionally absent.
+// ProcessSnapshot is the portable execution state owned by the framework for
+// one process. Restoring also requires ProcessOptions to reattach the host's
+// live capabilities and execution policy. OwnUsage contains only this
+// process's direct execution-resource counters; descendants carry their own
+// snapshots, and runtime reconstructs aggregate usage through parent-child
+// links. Runtime-only objects, derived world state, functions, and closures
+// are intentionally absent.
 type ProcessSnapshot struct {
 	SchemaVersion uint16 `json:"schema_version"`
 
@@ -66,7 +68,6 @@ type ProcessSnapshot struct {
 
 	Suspension *interaction.Suspension `json:"suspension,omitempty"`
 	GoalName   string                  `json:"goal_name,omitempty"`
-	History    []ActionRunSnapshot     `json:"history,omitempty"`
 	Failure    *ProcessFailure         `json:"failure,omitempty"`
 
 	OwnUsage Usage `json:"own_usage"`
@@ -86,7 +87,6 @@ type processSnapshotWire struct {
 	Status        string                  `json:"status"`
 	Suspension    *interaction.Suspension `json:"suspension,omitempty"`
 	GoalName      string                  `json:"goal_name,omitempty"`
-	History       []ActionRunSnapshot     `json:"history,omitempty"`
 	Failure       *ProcessFailure         `json:"failure,omitempty"`
 	OwnUsage      Usage                   `json:"own_usage"`
 	Blackboard    map[string]TaggedValue  `json:"blackboard,omitempty"`
@@ -100,7 +100,7 @@ func (s ProcessSnapshot) wire() processSnapshotWire {
 		ID:            s.ID, ParentID: s.ParentID, Depth: s.Depth,
 		Deployment: s.Deployment, StartedAt: s.StartedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
-		History: s.History, Failure: s.Failure, OwnUsage: s.OwnUsage,
+		Failure: s.Failure, OwnUsage: s.OwnUsage,
 		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects,
 	}
 }
@@ -115,7 +115,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 		ID:            w.ID, ParentID: w.ParentID, Depth: w.Depth,
 		Deployment: w.Deployment, StartedAt: w.StartedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
-		History: w.History, Failure: w.Failure, OwnUsage: w.OwnUsage,
+		Failure: w.Failure, OwnUsage: w.OwnUsage,
 		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects,
 	}, nil
 }
@@ -180,11 +180,6 @@ func (s ProcessSnapshot) Validate() error {
 	if err := s.OwnUsage.Validate(); err != nil {
 		return fmt.Errorf("%w: own_usage: %w", ErrInvalidSnapshot, err)
 	}
-	for i, run := range s.History {
-		if err := run.validate(); err != nil {
-			return fmt.Errorf("%w: history[%d]: %w", ErrInvalidSnapshot, i, err)
-		}
-	}
 	for key, value := range s.Blackboard {
 		if strings.TrimSpace(key) == "" {
 			return fmt.Errorf("%w: blackboard has empty key", ErrInvalidSnapshot)
@@ -238,75 +233,6 @@ func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// ActionRunSnapshot is one portable action history row.
-type ActionRunSnapshot struct {
-	ActionName string        `json:"action"`
-	StartedAt  time.Time     `json:"started_at"`
-	Duration   time.Duration `json:"duration_ns"`
-	Status     ActionStatus  `json:"-"`
-}
-
-type actionRunSnapshotWire struct {
-	ActionName string        `json:"action"`
-	StartedAt  time.Time     `json:"started_at"`
-	Duration   time.Duration `json:"duration_ns"`
-	Status     string        `json:"status"`
-}
-
-func (r ActionRunSnapshot) MarshalJSON() ([]byte, error) {
-	if err := r.validate(); err != nil {
-		return nil, err
-	}
-	return json.Marshal(actionRunSnapshotWire{
-		ActionName: r.ActionName,
-		StartedAt:  r.StartedAt,
-		Duration:   r.Duration,
-		Status:     r.Status.String(),
-	})
-}
-
-func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error {
-	if r == nil {
-		return errors.New("action run snapshot: nil receiver")
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	var wire actionRunSnapshotWire
-	if err := decoder.Decode(&wire); err != nil {
-		return fmt.Errorf("action run snapshot: decode: %w", err)
-	}
-	status, err := parseActionStatus(wire.Status)
-	if err != nil {
-		return fmt.Errorf("action run snapshot: %w", err)
-	}
-	*r = ActionRunSnapshot{
-		ActionName: wire.ActionName,
-		StartedAt:  wire.StartedAt,
-		Duration:   wire.Duration,
-		Status:     status,
-	}
-	return nil
-}
-
-// validate is the single source of truth for a history row's invariant,
-// shared by MarshalJSON and ProcessSnapshot.Validate so the two paths cannot
-// disagree about which rows are well-formed.
-func (r ActionRunSnapshot) validate() error {
-	if strings.TrimSpace(r.ActionName) == "" {
-		return errors.New("action run snapshot: action name is empty")
-	}
-	if r.StartedAt.IsZero() {
-		return errors.New("action run snapshot: started_at is zero")
-	}
-	if r.Duration < 0 {
-		return errors.New("action run snapshot: duration is negative")
-	}
-	if !r.Status.Valid() {
-		return fmt.Errorf("action run snapshot: unknown status %d", r.Status)
-	}
-	return nil
-}
-
 // ProcessSnapshotTree is one complete runtime capture rooted at RootID.
 // Snapshots are unordered; parent links define the tree. A capture always owns
 // the complete process tree, so its root has no parent and depth zero.
@@ -325,10 +251,21 @@ func (t ProcessSnapshotTree) Validate() error {
 	}
 
 	byID := make(map[string]ProcessSnapshot, len(t.Snapshots))
+	var aggregate Usage
 	for index, snapshot := range t.Snapshots {
 		if err := snapshot.Validate(); err != nil {
 			return fmt.Errorf("process snapshot tree: snapshots[%d]: %w", index, err)
 		}
+		if snapshot.OwnUsage.Cost > math.MaxFloat64-aggregate.Cost ||
+			snapshot.OwnUsage.Tokens > math.MaxInt64-aggregate.Tokens ||
+			snapshot.OwnUsage.ModelCalls > math.MaxInt-aggregate.ModelCalls ||
+			snapshot.OwnUsage.Actions > math.MaxInt-aggregate.Actions {
+			return fmt.Errorf("%w: process tree usage exceeds runtime capacity", ErrInvalidSnapshot)
+		}
+		aggregate.Cost += snapshot.OwnUsage.Cost
+		aggregate.Tokens += snapshot.OwnUsage.Tokens
+		aggregate.ModelCalls += snapshot.OwnUsage.ModelCalls
+		aggregate.Actions += snapshot.OwnUsage.Actions
 		if _, duplicate := byID[snapshot.ID]; duplicate {
 			return fmt.Errorf("%w: duplicate process ID %q", ErrInvalidSnapshot, snapshot.ID)
 		}

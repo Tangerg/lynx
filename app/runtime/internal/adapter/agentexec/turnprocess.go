@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -86,12 +87,14 @@ type TurnProcess interface {
 // [runtime.Process]. It is package-private, so retaining the concrete Agent
 // runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
-	process *runtime.Process
-	segment *runtime.Segment
-	owner   *Engine
-	scope   execution.TurnScope
-	runCtx  context.Context
-	usage   *usageLedger
+	process  *runtime.Process
+	segment  *runtime.Segment
+	owner    *Engine
+	scope    execution.TurnScope
+	runCtx   context.Context
+	usage    *usageLedger
+	provider string
+	budget   accounting.Budget
 }
 
 const checkpointCommitTimeout = 10 * time.Second
@@ -202,9 +205,11 @@ func (p *turnProcess) persistWaitingCheckpoint(status core.ProcessStatus) error 
 		return fmt.Errorf("agentexec: validate checkpoint usage: %w", err)
 	}
 	checkpoint := execution.ProcessCheckpoint{
-		BuildID: p.owner.buildID,
-		Scope:   p.scope,
-		Usage:   usage,
+		BuildID:  p.owner.buildID,
+		Scope:    p.scope,
+		Provider: p.provider,
+		Budget:   p.budget,
+		Usage:    usage,
 	}
 	if err := p.owner.processStore.SaveTree(ctx, tree, checkpoint); err != nil {
 		return fmt.Errorf("agentexec: persist process tree: %w", err)

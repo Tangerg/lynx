@@ -57,19 +57,11 @@ func (p *Process) markCancelled(ctx context.Context, err error) {
 	})
 }
 
-// checkStopPolicies asks every applicable [core.StopPolicy]
-// — the implicit Budget-derived policy plus any policy extensions
-// registered at engine or process scope — and terminates the
-// process at the first "yes". Returns true when the run loop should
-// exit.
+// checkStopPolicies asks every host StopPolicy registered at engine or process
+// scope. Budgets are enforced at action/model admission points so an exhausted
+// tree can still reach an already-satisfied goal without admitting more work.
 func (p *Process) checkStopPolicies(ctx context.Context) (bool, error) {
-	policies := append(
-		[]extensionCapability[core.StopPolicy]{{
-			name:  core.BudgetPolicyName,
-			value: core.BudgetPolicy{Budget: p.options.budget},
-		}},
-		collectExtensions[core.StopPolicy](p.combinedExtensions())...,
-	)
+	policies := collectExtensions[core.StopPolicy](p.combinedExtensions())
 	for _, policy := range policies {
 		stop, reason, err := checkStopPolicy(policy.value, p, policy.name)
 		if err != nil {
@@ -87,6 +79,15 @@ func (p *Process) checkStopPolicies(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func (p *Process) terminateForBudget(ctx context.Context, reason string) {
+	if p.state.transition(core.StatusTerminated) {
+		p.publishEvent(ctx, event.ProcessTerminated{
+			Header: p.eventHeader(),
+			Reason: reason,
+		})
+	}
 }
 
 func checkStopPolicy(policy core.StopPolicy, process core.ProcessView, name string) (stop bool, reason string, err error) {

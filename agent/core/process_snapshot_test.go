@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -103,49 +104,6 @@ func TestProcessSnapshotFailureHasExplicitWireShape(t *testing.T) {
 	}
 }
 
-func TestActionRunSnapshotKeepsTypedStatusOnStringWire(t *testing.T) {
-	run := core.ActionRunSnapshot{
-		ActionName: "lookup",
-		StartedAt:  time.Now(),
-		Duration:   time.Second,
-		Status:     core.ActionSucceeded,
-	}
-	body, err := json.Marshal(run)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var wire map[string]any
-	if err := json.Unmarshal(body, &wire); err != nil {
-		t.Fatal(err)
-	}
-	if wire["status"] != "succeeded" {
-		t.Fatalf("status wire = %#v", wire["status"])
-	}
-	var decoded core.ActionRunSnapshot
-	if err := json.Unmarshal(body, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if decoded.Status != core.ActionSucceeded {
-		t.Fatalf("decoded status = %v", decoded.Status)
-	}
-	if err := json.Unmarshal([]byte(`{"action":"lookup","started_at":"2026-07-16T08:00:00Z","duration_ns":1,"status":"invented"}`), &decoded); err == nil {
-		t.Fatal("unknown action status was accepted")
-	}
-}
-
-// MarshalJSON and ProcessSnapshot.Validate must agree on what a well-formed
-// history row is: a row Validate would reject must not marshal clean.
-func TestActionRunSnapshotMarshalRejectsInvalidRow(t *testing.T) {
-	noName := core.ActionRunSnapshot{StartedAt: time.Now(), Duration: time.Second, Status: core.ActionSucceeded}
-	if _, err := json.Marshal(noName); err == nil {
-		t.Fatal("marshal accepted a history row with no action name")
-	}
-	zeroStart := core.ActionRunSnapshot{ActionName: "lookup", Duration: time.Second, Status: core.ActionSucceeded}
-	if _, err := json.Marshal(zeroStart); err == nil {
-		t.Fatal("marshal accepted a history row with a zero start time")
-	}
-}
-
 func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	for _, status := range []core.ProcessStatus{core.StatusNotStarted, core.StatusRunning} {
 		unstable := validSnapshot("unstable")
@@ -240,5 +198,30 @@ func TestProcessSnapshotTreeValidatesBoundary(t *testing.T) {
 	}
 	if err := valid.Validate(); err != nil {
 		t.Fatalf("valid change: %v", err)
+	}
+}
+
+func TestProcessSnapshotTreeRejectsAggregateUsageOverflow(t *testing.T) {
+	for name, usage := range map[string]core.Usage{
+		"cost":        {Cost: math.MaxFloat64},
+		"tokens":      {Tokens: math.MaxInt64},
+		"model calls": {ModelCalls: math.MaxInt},
+		"actions":     {Actions: math.MaxInt},
+	} {
+		t.Run(name, func(t *testing.T) {
+			root := validSnapshot("root")
+			root.OwnUsage = usage
+			child := validSnapshot("child")
+			child.ParentID = root.ID
+			child.Depth = 1
+			child.OwnUsage = core.Usage{Cost: 1, Tokens: 1, ModelCalls: 1, Actions: 1}
+			tree := core.ProcessSnapshotTree{
+				RootID:    root.ID,
+				Snapshots: []core.ProcessSnapshot{root, child},
+			}
+			if err := tree.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
+				t.Fatalf("Validate error = %v, want ErrInvalidSnapshot", err)
+			}
+		})
 	}
 }

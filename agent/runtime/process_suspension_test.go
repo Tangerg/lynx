@@ -24,7 +24,6 @@ func TestProcessStateSuspensionLifecycle(t *testing.T) {
 	}
 
 	state.transition(core.StatusWaiting)
-	answeredAt := time.Now()
 	if err := state.claimCheckpoint(false); err != nil {
 		t.Fatal(err)
 	}
@@ -32,20 +31,20 @@ func TestProcessStateSuspensionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := state.installClaimedSuspensionResponse("first", response, answeredAt); err != nil {
+	if _, err := state.installClaimedSuspensionResponse("first", response); err != nil {
 		t.Fatalf("respond: %v", err)
 	}
-	if _, err := state.installClaimedSuspensionResponse("first", response, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if _, err := state.installClaimedSuspensionResponse("first", response); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("duplicate response error = %v", err)
 	}
 	different, err := first.ValidateResponse(false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := state.installClaimedSuspensionResponse("first", different, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if _, err := state.installClaimedSuspensionResponse("first", different); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("different response error = %v", err)
 	}
-	if _, err := state.installClaimedSuspensionResponse("other", response, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if _, err := state.installClaimedSuspensionResponse("other", response); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("stale response error = %v", err)
 	}
 	state.releaseCheckpoint()

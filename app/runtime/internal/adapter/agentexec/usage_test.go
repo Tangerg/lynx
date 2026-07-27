@@ -110,6 +110,26 @@ func TestUsageLedgerRejectsCrossModelOverflowAtomically(t *testing.T) {
 	}
 }
 
+func TestUsageLedgerRejectsCostCapacityLossAtomically(t *testing.T) {
+	ledger, err := newUsageLedger(accounting.Snapshot{Models: []accounting.ModelUsage{{
+		Model:   "first",
+		CostUSD: math.MaxFloat64,
+		Calls:   1,
+	}}})
+	if err != nil {
+		t.Fatalf("newUsageLedger: %v", err)
+	}
+	before := ledger.snapshot()
+	err = ledger.record(&chat.Response{Model: "second"}, 1)
+	if err == nil {
+		t.Fatal("cost increment beyond representable capacity was accepted")
+	}
+	after := ledger.snapshot()
+	if len(after.Models) != 1 || after.Models[0] != before.Models[0] {
+		t.Fatalf("rejected cost partially mutated ledger: before=%+v after=%+v", before, after)
+	}
+}
+
 func TestValidateCheckpointUsageRequiresOneConsistentCommit(t *testing.T) {
 	startedAt := time.Date(2026, time.July, 27, 10, 0, 0, 0, time.UTC)
 	root := core.ProcessSnapshot{

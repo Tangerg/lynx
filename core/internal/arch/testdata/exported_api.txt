@@ -37,6 +37,7 @@ chat: func (r *Request) Clone() *Request
 chat: func (r *Request) SetExtension(key string, value any) error
 chat: func (r *Request) UnmarshalJSON(data []byte) error
 chat: func (r *Request) Validate() error
+chat: func (r *Response) Clone() *Response
 chat: func (r *Response) First() *Choice
 chat: func (r *Response) SetExtension(key string, value any) error
 chat: func (r *Response) Text() string

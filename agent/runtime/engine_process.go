@@ -132,6 +132,9 @@ func (e *Engine) createChild(
 	if options.Blackboard == nil {
 		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
+	if options.Budget != (core.Budget{}) {
+		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: child budget must be configured on the root process")
+	}
 	// A child shares its parent's event stream: process-scope
 	// SubtreeEventListener extensions propagate down so the whole delegation
 	// subtree surfaces on the listener the parent registered (each event
@@ -179,7 +182,7 @@ func (e *Engine) attachChild(parent, child *Process) error {
 	if !e.processes.insert(child) {
 		return fmt.Errorf("runtime.Engine.createChild: %w: duplicate ID %q", ErrProcessIdentity, child.id)
 	}
-	parent.budget.children = append(parent.budget.children, child)
+	parent.budget.addChild(child)
 	return nil
 }
 

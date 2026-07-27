@@ -48,6 +48,18 @@ type processScopeWire struct {
 	GoalLeaseID string `json:"goal_lease_id"`
 }
 
+type processBudgetWire struct {
+	MaxTokens  int64   `json:"max_tokens"`
+	MaxCostUSD float64 `json:"max_cost_usd"`
+	MaxSteps   int     `json:"max_steps"`
+}
+
+type processPolicyWire struct {
+	Scope    processScopeWire  `json:"scope"`
+	Provider string            `json:"provider"`
+	Budget   processBudgetWire `json:"budget"`
+}
+
 type processModelUsageWire struct {
 	Model            string  `json:"model"`
 	PromptTokens     int64   `json:"prompt_tokens"`
@@ -73,9 +85,9 @@ func (s *ProcessStore) SaveTree(
 	if err := checkpoint.Validate(); err != nil {
 		return fmt.Errorf("sqlite: save process tree checkpoint: %w", err)
 	}
-	encodedScope, err := encodeProcessScope(checkpoint.Scope)
+	encodedPolicy, err := encodeProcessPolicy(checkpoint)
 	if err != nil {
-		return fmt.Errorf("sqlite: encode process tree scope: %w", err)
+		return fmt.Errorf("sqlite: encode process tree policy: %w", err)
 	}
 	encodedUsage, err := encodeProcessUsage(checkpoint.Usage)
 	if err != nil {
@@ -105,19 +117,19 @@ func (s *ProcessStore) SaveTree(
 			return err
 		}
 		for index, snapshot := range encoded {
-			var scopeData, usageData string
+			var policyData, usageData string
 			if snapshot.id == tree.RootID {
-				scopeData = string(encodedScope)
+				policyData = string(encodedPolicy)
 				usageData = string(encodedUsage)
 			}
 			if _, err := conn(ctx, s.db).ExecContext(ctx,
-				`INSERT INTO process_snapshots(id, parent_id, build_id, snapshot, scope, usage, committed_at)
+				`INSERT INTO process_snapshots(id, parent_id, build_id, snapshot, policy, usage, committed_at)
 				 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 				snapshot.id,
 				snapshot.parentID,
 				checkpoint.BuildID,
 				string(snapshot.data),
-				scopeData,
+				policyData,
 				usageData,
 				committedAt,
 			); err != nil {
@@ -161,14 +173,14 @@ func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (core.Proces
 		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, errors.New("sqlite: load process tree: invalid root ID")
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`WITH RECURSIVE process_tree(id, snapshot, build_id, scope, usage) AS (
-			SELECT id, snapshot, build_id, scope, usage FROM process_snapshots WHERE id = ?
+		`WITH RECURSIVE process_tree(id, snapshot, build_id, policy, usage) AS (
+			SELECT id, snapshot, build_id, policy, usage FROM process_snapshots WHERE id = ?
 			UNION
-			SELECT child.id, child.snapshot, child.build_id, child.scope, child.usage
+			SELECT child.id, child.snapshot, child.build_id, child.policy, child.usage
 			FROM process_snapshots AS child
 			JOIN process_tree AS parent ON child.parent_id = parent.id
 		)
-		SELECT id, snapshot, build_id, scope, usage FROM process_tree ORDER BY id`,
+		SELECT id, snapshot, build_id, policy, usage FROM process_tree ORDER BY id`,
 		rootID,
 	)
 	if err != nil {
@@ -178,12 +190,12 @@ func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (core.Proces
 
 	var snapshots []core.ProcessSnapshot
 	var buildID string
-	var scope execution.TurnScope
+	var policy execution.ProcessCheckpoint
 	var usage accounting.Snapshot
 	metadataLoaded := false
 	for rows.Next() {
-		var id, data, rowBuildID, scopeData, usageData string
-		if err := rows.Scan(&id, &data, &rowBuildID, &scopeData, &usageData); err != nil {
+		var id, data, rowBuildID, policyData, usageData string
+		if err := rows.Scan(&id, &data, &rowBuildID, &policyData, &usageData); err != nil {
 			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: scan process tree %q: %w", rootID, err)
 		}
 		if strings.TrimSpace(rowBuildID) == "" || rowBuildID != strings.TrimSpace(rowBuildID) {
@@ -212,21 +224,21 @@ func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (core.Proces
 			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: snapshot ID %q does not match row %q: %w", snapshot.ID, id, core.ErrInvalidSnapshot)
 		}
 		if id == rootID {
-			if scopeData == "" || usageData == "" {
+			if policyData == "" || usageData == "" {
 				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: process tree %q has incomplete checkpoint metadata: %w", rootID, core.ErrInvalidSnapshot)
 			}
-			decodedScope, err := decodeProcessScope(scopeData)
+			decodedPolicy, err := decodeProcessPolicy(policyData)
 			if err != nil {
-				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q scope: %w: %w", rootID, core.ErrInvalidSnapshot, err)
+				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q policy: %w: %w", rootID, core.ErrInvalidSnapshot, err)
 			}
 			decodedUsage, err := decodeProcessUsage(usageData)
 			if err != nil {
 				return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: parse process tree %q usage: %w: %w", rootID, core.ErrInvalidSnapshot, err)
 			}
-			scope = decodedScope
+			policy = decodedPolicy
 			usage = decodedUsage
 			metadataLoaded = true
-		} else if scopeData != "" || usageData != "" {
+		} else if policyData != "" || usageData != "" {
 			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: descendant snapshot %q carries root checkpoint metadata: %w", id, core.ErrInvalidSnapshot)
 		}
 		snapshots = append(snapshots, snapshot)
@@ -244,49 +256,74 @@ func (s *ProcessStore) LoadTree(ctx context.Context, rootID string) (core.Proces
 	if err := tree.Validate(); err != nil {
 		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q: %w", rootID, err)
 	}
-	checkpoint := execution.ProcessCheckpoint{BuildID: buildID, Scope: scope, Usage: usage}
+	checkpoint := policy
+	checkpoint.BuildID = buildID
+	checkpoint.Usage = usage
 	if err := checkpoint.Validate(); err != nil {
 		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("sqlite: load process tree %q checkpoint: %w: %w", rootID, core.ErrInvalidSnapshot, err)
 	}
 	return tree, checkpoint, nil
 }
 
-func encodeProcessScope(scope execution.TurnScope) ([]byte, error) {
-	if err := scope.Validate(); err != nil {
+func encodeProcessPolicy(checkpoint execution.ProcessCheckpoint) ([]byte, error) {
+	if err := checkpoint.Validate(); err != nil {
 		return nil, err
 	}
-	return json.Marshal(processScopeWire{
-		SessionID:   scope.SessionID,
-		Cwd:         scope.Cwd,
-		Isolated:    scope.Isolated,
-		GoalLeaseID: scope.GoalLeaseID,
+	return json.Marshal(processPolicyWire{
+		Scope: processScopeWire{
+			SessionID:   checkpoint.Scope.SessionID,
+			Cwd:         checkpoint.Scope.Cwd,
+			Isolated:    checkpoint.Scope.Isolated,
+			GoalLeaseID: checkpoint.Scope.GoalLeaseID,
+		},
+		Provider: checkpoint.Provider,
+		Budget: processBudgetWire{
+			MaxTokens:  checkpoint.Budget.MaxTokens,
+			MaxCostUSD: checkpoint.Budget.MaxCostUSD,
+			MaxSteps:   checkpoint.Budget.MaxSteps,
+		},
 	})
 }
 
-func decodeProcessScope(data string) (execution.TurnScope, error) {
+func decodeProcessPolicy(data string) (execution.ProcessCheckpoint, error) {
 	decoder := json.NewDecoder(strings.NewReader(data))
 	decoder.DisallowUnknownFields()
-	var wire processScopeWire
+	var wire processPolicyWire
 	if err := decoder.Decode(&wire); err != nil {
-		return execution.TurnScope{}, err
+		return execution.ProcessCheckpoint{}, err
 	}
 	var trailing any
 	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
 		if err == nil {
-			return execution.TurnScope{}, errors.New("scope has a trailing JSON value")
+			return execution.ProcessCheckpoint{}, errors.New("policy has a trailing JSON value")
 		}
-		return execution.TurnScope{}, fmt.Errorf("scope trailing JSON: %w", err)
+		return execution.ProcessCheckpoint{}, fmt.Errorf("policy trailing JSON: %w", err)
 	}
 	scope := execution.TurnScope{
-		SessionID:   wire.SessionID,
-		Cwd:         wire.Cwd,
-		Isolated:    wire.Isolated,
-		GoalLeaseID: wire.GoalLeaseID,
+		SessionID:   wire.Scope.SessionID,
+		Cwd:         wire.Scope.Cwd,
+		Isolated:    wire.Scope.Isolated,
+		GoalLeaseID: wire.Scope.GoalLeaseID,
 	}
 	if err := scope.Validate(); err != nil {
-		return execution.TurnScope{}, err
+		return execution.ProcessCheckpoint{}, err
 	}
-	return scope, nil
+	budget := accounting.Budget{
+		MaxTokens:  wire.Budget.MaxTokens,
+		MaxCostUSD: wire.Budget.MaxCostUSD,
+		MaxSteps:   wire.Budget.MaxSteps,
+	}
+	if err := budget.Validate(); err != nil {
+		return execution.ProcessCheckpoint{}, err
+	}
+	if wire.Provider != strings.TrimSpace(wire.Provider) {
+		return execution.ProcessCheckpoint{}, errors.New("policy provider has surrounding whitespace")
+	}
+	return execution.ProcessCheckpoint{
+		Scope:    scope,
+		Provider: wire.Provider,
+		Budget:   budget,
+	}, nil
 }
 
 func encodeProcessUsage(usage accounting.Snapshot) ([]byte, error) {

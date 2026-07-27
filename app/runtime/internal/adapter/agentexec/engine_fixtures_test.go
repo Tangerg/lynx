@@ -224,19 +224,15 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 }
 
 type jsonProcessStore struct {
-	mu        sync.Mutex
-	snapshots map[string]json.RawMessage
-	buildIDs  map[string]string
-	scopes    map[string]execution.TurnScope
-	usages    map[string]accounting.Snapshot
+	mu          sync.Mutex
+	snapshots   map[string]json.RawMessage
+	checkpoints map[string]execution.ProcessCheckpoint
 }
 
 func newJSONProcessStore() *jsonProcessStore {
 	return &jsonProcessStore{
-		snapshots: map[string]json.RawMessage{},
-		buildIDs:  map[string]string{},
-		scopes:    map[string]execution.TurnScope{},
-		usages:    map[string]accounting.Snapshot{},
+		snapshots:   map[string]json.RawMessage{},
+		checkpoints: map[string]execution.ProcessCheckpoint{},
 	}
 }
 
@@ -262,10 +258,8 @@ func (s *jsonProcessStore) SaveTree(_ context.Context, tree core.ProcessSnapshot
 	}
 	for id, raw := range prepared {
 		s.snapshots[id] = raw
-		s.buildIDs[id] = checkpoint.BuildID
 	}
-	s.scopes[tree.RootID] = checkpoint.Scope
-	s.usages[tree.RootID] = checkpoint.Usage
+	s.checkpoints[tree.RootID] = checkpoint
 	return nil
 }
 
@@ -276,7 +270,6 @@ func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (core.ProcessS
 	if !ok {
 		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("json process store: load %q: %w", id, execution.ErrProcessSnapshotNotFound)
 	}
-	buildID := s.buildIDs[id]
 	children := make(map[string][]string)
 	decoded := make(map[string]core.ProcessSnapshot, len(s.snapshots))
 	for processID, raw := range s.snapshots {
@@ -296,7 +289,7 @@ func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (core.ProcessS
 		}
 	}
 	collect(id)
-	checkpoint := execution.ProcessCheckpoint{BuildID: buildID, Scope: s.scopes[id], Usage: s.usages[id]}
+	checkpoint := s.checkpoints[id]
 	return core.ProcessSnapshotTree{RootID: id, Snapshots: snapshots}, checkpoint, nil
 }
 
@@ -335,9 +328,7 @@ func (s *jsonProcessStore) deleteTree(rootID string) error {
 	var remove func(string)
 	remove = func(id string) {
 		delete(s.snapshots, id)
-		delete(s.buildIDs, id)
-		delete(s.scopes, id)
-		delete(s.usages, id)
+		delete(s.checkpoints, id)
 		for _, childID := range children[id] {
 			remove(childID)
 		}

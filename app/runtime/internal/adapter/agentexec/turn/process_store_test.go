@@ -9,23 +9,18 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 )
 
 type memoryProcessStore struct {
-	mu        sync.Mutex
-	snapshots map[string]json.RawMessage
-	buildIDs  map[string]string
-	scopes    map[string]execution.TurnScope
-	usages    map[string]accounting.Snapshot
+	mu          sync.Mutex
+	snapshots   map[string]json.RawMessage
+	checkpoints map[string]execution.ProcessCheckpoint
 }
 
 func newMemoryProcessStore() *memoryProcessStore {
 	return &memoryProcessStore{
-		snapshots: make(map[string]json.RawMessage),
-		buildIDs:  make(map[string]string),
-		scopes:    make(map[string]execution.TurnScope),
-		usages:    make(map[string]accounting.Snapshot),
+		snapshots:   make(map[string]json.RawMessage),
+		checkpoints: make(map[string]execution.ProcessCheckpoint),
 	}
 }
 
@@ -51,10 +46,8 @@ func (s *memoryProcessStore) SaveTree(_ context.Context, tree core.ProcessSnapsh
 	}
 	for id, data := range prepared {
 		s.snapshots[id] = data
-		s.buildIDs[id] = checkpoint.BuildID
 	}
-	s.scopes[tree.RootID] = checkpoint.Scope
-	s.usages[tree.RootID] = checkpoint.Usage
+	s.checkpoints[tree.RootID] = checkpoint
 	return nil
 }
 
@@ -64,7 +57,6 @@ func (s *memoryProcessStore) LoadTree(_ context.Context, rootID string) (core.Pr
 	if _, ok := s.snapshots[rootID]; !ok {
 		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("%w: %s", execution.ErrProcessSnapshotNotFound, rootID)
 	}
-	buildID := s.buildIDs[rootID]
 	children := make(map[string][]string)
 	decoded := make(map[string]core.ProcessSnapshot, len(s.snapshots))
 	for id, data := range s.snapshots {
@@ -84,7 +76,7 @@ func (s *memoryProcessStore) LoadTree(_ context.Context, rootID string) (core.Pr
 		}
 	}
 	collect(rootID)
-	checkpoint := execution.ProcessCheckpoint{BuildID: buildID, Scope: s.scopes[rootID], Usage: s.usages[rootID]}
+	checkpoint := s.checkpoints[rootID]
 	return core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}, checkpoint, nil
 }
 
@@ -122,9 +114,7 @@ func (s *memoryProcessStore) deleteTree(rootID string) error {
 	var remove func(string)
 	remove = func(id string) {
 		delete(s.snapshots, id)
-		delete(s.buildIDs, id)
-		delete(s.scopes, id)
-		delete(s.usages, id)
+		delete(s.checkpoints, id)
 		for _, childID := range children[id] {
 			remove(childID)
 		}

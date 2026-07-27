@@ -154,6 +154,10 @@ func (e *Engine) RestoreTree(
 		releaseProcessDeployments(processes)
 		return nil, fmt.Errorf("runtime.Engine.RestoreTree: %w", err)
 	}
+	if err := root.budget.restoreAuthority(root.Usage()); err != nil {
+		releaseProcessDeployments(processes)
+		return nil, fmt.Errorf("runtime.Engine.RestoreTree: restore budget authority: %w", err)
+	}
 	releaseMutation, err := e.processMutations.acquire(
 		normalizeContext(ctx),
 		root.ID(),
@@ -178,6 +182,9 @@ func (e *Engine) restoreSnapshotSubtree(
 	children map[string][]core.ProcessSnapshot,
 	processes *[]*Process,
 ) (*Process, error) {
+	if parent != nil && options.Budget != (core.Budget{}) {
+		return nil, errors.New("restored child budget must be configured on the root process")
+	}
 	process, err := e.buildProcessSnapshot(snapshot, options)
 	if err != nil {
 		return nil, fmt.Errorf("rebuild process %q: %w", snapshot.ID, err)
@@ -291,15 +298,6 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 		failure := *snapshot.Failure
 		process.state.restoreFailure(&failure)
 	}
-	for _, run := range snapshot.History {
-		process.state.recordActionRun(ActionRun{
-			ActionName: run.ActionName,
-			StartedAt:  run.StartedAt,
-			Duration:   run.Duration,
-			Status:     run.Status,
-		})
-	}
-
 	process.budget.restore(snapshot.OwnUsage)
 
 	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)

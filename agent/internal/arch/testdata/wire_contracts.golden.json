@@ -3,7 +3,7 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 9,
+    "schema_version": 10,
     "id": "process-1",
     "parent_id": "process-root",
     "depth": 1,
@@ -15,7 +15,7 @@
     "started_at": "2026-07-15T08:30:00.123Z",
     "status": "waiting",
     "suspension": {
-      "schema_version": 2,
+      "schema_version": 3,
       "id": "approval-1",
       "kind": "tool",
       "prompt": {
@@ -33,18 +33,11 @@
       "created_at": "2026-07-15T08:34:00.123Z"
     },
     "goal_name": "answer-question",
-    "history": [
-      {
-        "action": "lookup",
-        "started_at": "2026-07-15T08:31:00.123Z",
-        "duration_ns": 250000000,
-        "status": "succeeded"
-      }
-    ],
     "own_usage": {
       "cost": 0.0125,
       "tokens": 321,
-      "model_calls": 2
+      "model_calls": 2,
+      "actions": 1
     },
     "blackboard": {
       "answer": {

@@ -43,12 +43,14 @@ func (s TurnScope) Validate() error {
 
 // ProcessCheckpoint is the application-owned metadata committed atomically
 // with an Agent process tree. Agent owns executable continuation state; Runtime
-// owns the executable build identity, host scope, and accounting projection
-// required to resume it correctly.
+// owns the executable build identity, host scope, provider identity, execution
+// budget, and accounting projection required to resume it correctly.
 type ProcessCheckpoint struct {
-	BuildID string
-	Scope   TurnScope
-	Usage   accounting.Snapshot
+	BuildID  string
+	Scope    TurnScope
+	Provider string
+	Budget   accounting.Budget
+	Usage    accounting.Snapshot
 }
 
 // Validate verifies every application-owned continuation invariant.
@@ -58,6 +60,12 @@ func (c ProcessCheckpoint) Validate() error {
 	}
 	if err := c.Scope.Validate(); err != nil {
 		return err
+	}
+	if c.Provider != strings.TrimSpace(c.Provider) {
+		return errors.New("execution: process checkpoint provider has surrounding whitespace")
+	}
+	if err := c.Budget.Validate(); err != nil {
+		return fmt.Errorf("execution: process checkpoint budget: %w", err)
 	}
 	if err := c.Usage.Validate(); err != nil {
 		return fmt.Errorf("execution: process checkpoint usage: %w", err)

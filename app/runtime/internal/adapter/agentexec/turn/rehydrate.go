@@ -70,6 +70,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
 		SessionID:     request.SessionID,
+		Provider:      request.ModelSelection.Provider(),
 		Observer:      observer,
 		EventListener: eventListener,
 		ChatClient:    client,

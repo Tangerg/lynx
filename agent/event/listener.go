@@ -108,7 +108,8 @@ func (l *NamedListener) OnEvent(ctx context.Context, event Event) {
 
 // Multicast is a concurrent-safe fan-out. A delivery uses the subscription
 // snapshot captured when it began, so cancellation never interrupts an event
-// already being delivered.
+// already being delivered. Event types carrying mutable protocol containers
+// provide an isolated value for each listener.
 type Multicast struct {
 	mu            sync.RWMutex
 	nextID        uint64
@@ -169,8 +170,19 @@ func (m *Multicast) OnEvent(ctx context.Context, event Event) {
 	m.mu.RUnlock()
 
 	for _, listener := range listeners {
-		m.deliver(ctx, listener, event)
+		m.deliver(ctx, listener, cloneForDelivery(event))
 	}
+}
+
+type deliveryCloner interface {
+	cloneEvent() Event
+}
+
+func cloneForDelivery(value Event) Event {
+	if cloner, ok := value.(deliveryCloner); ok {
+		return cloner.cloneEvent()
+	}
+	return value
 }
 
 func (m *Multicast) deliver(ctx context.Context, listener Listener, event Event) {

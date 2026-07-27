@@ -125,8 +125,11 @@ func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T)
 			boundaries = append(boundaries, boundary)
 		}
 	})
-	a := managedInteractionAgent(t, "managed-events", model, registry, interaction.Limits{})
-	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
+	a := managedInteractionAgent(t, "managed-events", registry, interaction.Limits{})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat:       core.ChatCapability{Model: model},
+		Extensions: []core.Extension{listener},
+	})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
@@ -171,10 +174,10 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	model := &managedConcurrentModel{}
-	a := managedInteractionAgent(t, "managed-concurrency-limit", model, registry, interaction.Limits{
+	a := managedInteractionAgent(t, "managed-concurrency-limit", registry, interaction.Limits{
 		MaxConcurrentToolCalls: 2,
 	})
-	engine := agent.MustNewEngine(runtime.Config{})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 
 	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -208,10 +211,10 @@ func TestManagedInteractionRejectsNegativeConcurrentToolCallLimit(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := managedInteractionAgent(t, "managed-negative-concurrency", model, registry, interaction.Limits{
+	a := managedInteractionAgent(t, "managed-negative-concurrency", registry, interaction.Limits{
 		MaxConcurrentToolCalls: -1,
 	})
-	engine := agent.MustNewEngine(runtime.Config{})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -241,14 +244,17 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 		t.Fatal(err)
 	}
 	registry, _ := tools.NewRegistry(tool)
-	a := managedInteractionAgent(t, "managed-resume", model, registry, interaction.Limits{})
+	a := managedInteractionAgent(t, "managed-resume", registry, interaction.Limits{})
 	var boundaries []interaction.EventKind
 	listener := event.NewNamedListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
 		if boundary, ok := value.(event.InteractionBoundary); ok {
 			boundaries = append(boundaries, boundary.Boundary.Kind)
 		}
 	})
-	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{listener}})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat:       core.ChatCapability{Model: model},
+		Extensions: []core.Extension{listener},
+	})
 	mustDeploy(t, engine, a)
 
 	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -313,8 +319,8 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
 	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
 	registry, _ := tools.NewRegistry(tool)
-	a := managedInteractionAgent(t, "managed-steps", model, registry, interaction.Limits{MaxSteps: 1})
-	engine := agent.MustNewEngine(runtime.Config{})
+	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxSteps: 1})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
@@ -329,10 +335,12 @@ func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T)
 	model := &managedModel{}
 	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
 	registry, _ := tools.NewRegistry(tool)
-	a := managedInteractionAgent(t, "managed-model-calls", model, registry, interaction.Limits{MaxModelCalls: 1})
-	engine := agent.MustNewEngine(runtime.Config{})
+	a := managedInteractionAgent(t, "managed-model-calls", registry, interaction.Limits{})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
-	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{
+		Budget: core.Budget{ModelCallLimit: 1},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -362,6 +370,36 @@ func (m *managedFinalModel) Calls() int {
 	return m.calls
 }
 
+type managedInteractionExtension struct {
+	name    string
+	cost    func(*chat.Response) (float64, error)
+	observe func(interaction.Event) error
+}
+
+func (e managedInteractionExtension) Name() string { return e.name }
+
+func (e managedInteractionExtension) ProjectInteractionCost(
+	_ context.Context,
+	_ core.ProcessView,
+	response *chat.Response,
+) (float64, error) {
+	if e.cost == nil {
+		return 0, nil
+	}
+	return e.cost(response)
+}
+
+func (e managedInteractionExtension) ObserveInteraction(
+	_ context.Context,
+	_ core.ProcessView,
+	boundary interaction.Event,
+) error {
+	if e.observe == nil {
+		return nil
+	}
+	return e.observe(boundary)
+}
+
 func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T) {
 	model := &managedFinalModel{}
 	registry, err := tools.NewRegistry()
@@ -374,15 +412,21 @@ func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T
 		if err != nil {
 			return "", err
 		}
-		_, err = pc.Interact(ctx, core.Interaction{Model: model, Request: request, Tools: registry, Observe: func(_ context.Context, boundary interaction.Event) error {
-			if boundary.Kind == interaction.EventModelResponse {
-				return observerErr
-			}
-			return nil
-		}})
+		_, err = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
 		return "", err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
-	engine := agent.MustNewEngine(runtime.Config{})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat: core.ChatCapability{Model: model},
+		Extensions: []core.Extension{managedInteractionExtension{
+			name: "observer-failure",
+			observe: func(boundary interaction.Event) error {
+				if boundary.Kind == interaction.EventModelResponse {
+					return observerErr
+				}
+				return nil
+			},
+		}},
+	})
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -410,23 +454,27 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 			return "", err
 		}
 		result, err := pc.Interact(ctx, core.Interaction{
-			Model:   model,
 			Request: request,
 			Tools:   registry,
-			Cost:    func(*chat.Response) float64 { return 0.25 },
-			Observe: func(_ context.Context, boundary interaction.Event) error {
-				if boundary.Kind == interaction.EventModelResponse {
-					observedCost = boundary.Cost
-				}
-				return nil
-			},
 		})
 		if err != nil {
 			return "", err
 		}
 		return result.Final.Response.Text(), nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
-	engine := agent.MustNewEngine(runtime.Config{})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat: core.ChatCapability{Model: model},
+		Extensions: []core.Extension{managedInteractionExtension{
+			name: "cost-projection",
+			cost: func(*chat.Response) (float64, error) { return 0.25, nil },
+			observe: func(boundary interaction.Event) error {
+				if boundary.Kind == interaction.EventModelResponse {
+					observedCost = boundary.Cost
+				}
+				return nil
+			},
+		}},
+	})
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -438,37 +486,108 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 	}
 }
 
-func TestManagedInteractionContainsCostFunctionPanic(t *testing.T) {
+func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
+	model := &managedFinalModel{}
+	registry, err := tools.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observedModel string
+	a := agent.New(agent.AgentConfig{Name: "managed-isolated-projections", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
+		if err != nil {
+			return "", err
+		}
+		result, err := pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
+		if err != nil {
+			return "", err
+		}
+		return result.Final.Response.Model, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat: core.ChatCapability{Model: model},
+		Extensions: []core.Extension{
+			managedInteractionExtension{
+				name: "mutating-projection",
+				cost: func(response *chat.Response) (float64, error) {
+					response.Model = "projector-mutated"
+					return 0.25, nil
+				},
+				observe: func(boundary interaction.Event) error {
+					if boundary.Kind == interaction.EventModelResponse {
+						boundary.Response.Model = "observer-mutated"
+					}
+					return nil
+				},
+			},
+			managedInteractionExtension{
+				name: "recording-observer",
+				observe: func(boundary interaction.Event) error {
+					if boundary.Kind == interaction.EventModelResponse {
+						observedModel = boundary.Response.Model
+					}
+					return nil
+				},
+			},
+		},
+	})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, ok := agent.Result[string](proc)
+	if !ok || result != "managed-final" || observedModel != "managed-final" {
+		t.Fatalf("result=%q/%v observed=%q, want isolated managed-final values", result, ok, observedModel)
+	}
+	if usage := proc.Usage(); usage.Cost != 0.25 {
+		t.Fatalf("usage cost=%v, want 0.25", usage.Cost)
+	}
+}
+
+func TestManagedInteractionContainsCostProjectorPanic(t *testing.T) {
 	model := &managedFinalModel{}
 	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
 	cause := errors.New("pricing failed")
+	var observedResponse bool
 	a := agent.New(agent.AgentConfig{Name: "managed-cost-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
 		}
-		_, err = pc.Interact(ctx, core.Interaction{
-			Model:   model,
-			Request: request,
-			Tools:   registry,
-			Cost: func(*chat.Response) float64 {
-				panic(cause)
-			},
-		})
+		_, err = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
 		return "", err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
-	engine := agent.MustNewEngine(runtime.Config{})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat: core.ChatCapability{Model: model},
+		Extensions: []core.Extension{managedInteractionExtension{
+			name: "cost-panic",
+			cost: func(*chat.Response) (float64, error) {
+				panic(cause)
+			},
+			observe: func(boundary interaction.Event) error {
+				if boundary.Kind == interaction.EventModelResponse {
+					observedResponse = true
+				}
+				return nil
+			},
+		}},
+	})
 	mustDeploy(t, engine, a)
 
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil || proc == nil || proc.Status() != core.StatusFailed || !errors.Is(proc.Failure(), cause) {
 		t.Fatalf("process=%v error=%v, want failed process wrapping cause", proc, err)
 	}
-	if usage := proc.Usage(); usage.Usage != (core.Usage{}) {
-		t.Fatalf("resource usage after rejected cost = %+v, want zero", usage.Usage)
+	if usage := proc.Usage(); usage.ModelCalls != 1 || usage.Tokens != 0 || usage.Cost != 0 {
+		t.Fatalf("resource usage after rejected cost = %+v, want one known model call at unknown cost", usage)
+	}
+	if !observedResponse {
+		t.Fatal("executed model response was hidden after cost projection failed")
 	}
 }
 
@@ -535,8 +654,8 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := managedInteractionAgent(t, "managed-crash-restore", model, registry, interaction.Limits{})
-	engine1 := agent.MustNewEngine(runtime.Config{})
+	a := managedInteractionAgent(t, "managed-crash-restore", registry, interaction.Limits{})
+	engine1 := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine1, a)
 
 	segment, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -560,7 +679,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	if err := json.Unmarshal(body, &snapshot); err != nil {
 		t.Fatalf("unmarshal crash snapshot: %v", err)
 	}
-	engine2 := agent.MustNewEngine(runtime.Config{})
+	engine2 := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine2, a)
 	restored := restoreRoot(t, engine2, snapshot, core.ProcessOptions{})
 	if err := engine2.Resume(t.Context(), restored.ID(), "approval-crash", true); err != nil {
@@ -586,15 +705,19 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 		if err != nil {
 			return "", err
 		}
-		_, err = pc.Interact(ctx, core.Interaction{Model: model, Request: request, Tools: registry, Observe: func(_ context.Context, boundary interaction.Event) error {
-			if boundary.Kind == interaction.EventModelRequest {
-				cancel()
-			}
-			return nil
-		}})
+		_, err = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
 		return "", err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
-	engine := agent.MustNewEngine(runtime.Config{})
+	cancelListener := event.NewNamedListener("cancel-at-request", func(_ context.Context, value event.Event) {
+		if boundary, ok := value.(event.InteractionBoundary); ok &&
+			boundary.Boundary.Kind == interaction.EventModelRequest {
+			cancel()
+		}
+	})
+	engine := agent.MustNewEngine(runtime.Config{
+		Chat:       core.ChatCapability{Model: model},
+		Extensions: []core.Extension{cancelListener},
+	})
 	mustDeploy(t, engine, a)
 
 	segment, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
@@ -614,11 +737,11 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	}
 }
 
-func managedInteractionAgent(t *testing.T, name string, model chat.Model, registry *tools.Registry, limits interaction.Limits) *core.Agent {
+func managedInteractionAgent(t *testing.T, name string, registry *tools.Registry, limits interaction.Limits) *core.Agent {
 	t.Helper()
 	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("run"))}, Tools: registry.Definitions()}
-		result, err := pc.Interact(ctx, core.Interaction{Model: model, Request: request, Tools: registry, Limits: limits})
+		result, err := pc.Interact(ctx, core.Interaction{Request: request, Tools: registry, Limits: limits})
 		if err != nil {
 			return "", err
 		}

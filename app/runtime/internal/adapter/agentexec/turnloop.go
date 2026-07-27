@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"strings"
 	"sync"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/tools"
@@ -97,30 +97,36 @@ func modelStreamContext(parent context.Context, idle time.Duration) (ctx context
 		}
 }
 
-// streamingModel retains provider streaming for the UI while presenting the
-// complete response required by the framework's synchronous interaction port.
-type streamingModel struct {
-	streamer    chat.Streamer
-	chunk       func(*chat.Response)
-	idleTimeout time.Duration
-}
-
-func (m streamingModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-	// The framework owns stream accumulation and delta forwarding; this adapter
-	// only layers the host's idle-stall policy over it. keepAlive resets the
-	// idle timer on every delta; stop maps an idle/parent cancellation to its
-	// cause so it wins over the raw stream error.
-	streamCtx, keepAlive, stop := modelStreamContext(ctx, m.idleTimeout)
-	response, err := interaction.StreamCall(streamCtx, m.streamer, request, func(delta *chat.Response) {
-		keepAlive()
-		if m.chunk != nil {
-			m.chunk(delta)
-		}
-	})
-	if cause := stop(); cause != nil {
-		return nil, cause
+// streamIdleMiddleware keeps the product's stream-stall policy in the chat
+// pipeline. Agent still owns stream accumulation, interaction events, and
+// resource accounting.
+func streamIdleMiddleware(idle time.Duration) chat.StreamMiddleware {
+	return func(next chat.Streamer) chat.Streamer {
+		return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+			return func(yield func(*chat.Response, error) bool) {
+				streamCtx, keepAlive, stop := modelStreamContext(ctx, idle)
+				var streamErr error
+				for response, err := range next.Stream(streamCtx, request) {
+					if err != nil {
+						streamErr = err
+						break
+					}
+					keepAlive()
+					if !yield(response, nil) {
+						_ = stop()
+						return
+					}
+				}
+				if cause := stop(); cause != nil {
+					yield(nil, cause)
+					return
+				}
+				if streamErr != nil {
+					yield(nil, streamErr)
+				}
+			}
+		})
 	}
-	return response, err
 }
 
 // deferredToolProvider is implemented by a meta-tool (search_tools) that keeps
@@ -133,7 +139,6 @@ type deferredToolProvider interface {
 }
 
 type preparedTurn struct {
-	streamer chat.Streamer
 	registry *tools.Registry
 	request  *chat.Request
 }
@@ -174,7 +179,7 @@ func advertisedTools(actionTools []tools.Tool, registry *tools.Registry) []chat.
 // framework-managed interaction boundary. Agent owns tool iteration,
 // checkpointing, suspension, aggregate resource counters, and limit
 // enforcement; Runtime owns the model-level accounting projection.
-func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
+func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, options *chat.Options) (TurnOutput, error) {
 	ledger, err := usageLedgerFrom(pc.Dependencies())
 	if err != nil {
 		return TurnOutput{}, err
@@ -184,74 +189,38 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		return TurnOutput{}, err
 	}
 
-	observation := observationFrom(pc.Dependencies())
 	var observer toolObserver
-	if observation != nil {
+	if observation := observationFrom(pc.Dependencies()); observation != nil {
 		observer = observation.target
 	}
 	// partial retains only the text needed when the framework deliberately
 	// stops before a tagged final response (budget / step limit). Normal
 	// completion always reads result.Final below.
 	var partial strings.Builder
-	model := streamingModel{
-		streamer:    prepared.streamer,
-		idleTimeout: e.modelStreamIdleTimeout,
-		chunk: func(response *chat.Response) {
-			choice := response.First()
-			if choice == nil || choice.Message == nil {
-				return
-			}
-			for _, part := range choice.Message.Parts {
-				switch part.Kind {
-				case chat.PartReasoning:
-					if observer != nil && part.Text != "" {
-						observer.OnReasoningDelta(processRef(pc.Process()), part.Text)
-					}
-				case chat.PartText:
-					partial.WriteString(part.Text)
-					if observer != nil {
-						observer.OnMessageDelta(processRef(pc.Process()), part.Text)
-					}
+	stream := func(response *chat.Response) {
+		choice := response.First()
+		if choice == nil || choice.Message == nil {
+			return
+		}
+		for _, part := range choice.Message.Parts {
+			switch part.Kind {
+			case chat.PartReasoning:
+				if observer != nil && part.Text != "" {
+					observer.OnReasoningDelta(processRef(pc.Process()), part.Text)
+				}
+			case chat.PartText:
+				partial.WriteString(part.Text)
+				if observer != nil {
+					observer.OnMessageDelta(processRef(pc.Process()), part.Text)
 				}
 			}
-		},
+		}
 	}
 
 	result, err := pc.Interact(ctx, core.Interaction{
-		Model:   model,
 		Request: prepared.request,
 		Tools:   prepared.registry,
-		Limits: agent.InteractionLimits{
-			MaxTokens:     budget.MaxTokens,
-			MaxCost:       budget.MaxCostUSD,
-			MaxModelCalls: budget.MaxSteps,
-		},
-		Cost: e.modelCost(provider),
-		Observe: func(_ context.Context, boundary agent.InteractionEvent) error {
-			if observation != nil {
-				switch boundary.Kind {
-				case agent.InteractionEventToolCall:
-					if boundary.ToolCall != nil {
-						observation.begin(pc.Process(), boundary.Round, *boundary.ToolCall)
-					}
-				case agent.InteractionEventToolResult:
-					if boundary.ToolResult != nil {
-						observation.result(pc.Process(), boundary.Round, *boundary.ToolResult)
-					}
-				}
-			}
-			if boundary.Kind == agent.InteractionEventModelResponse {
-				if err := ledger.record(boundary.Response, boundary.Cost); err != nil {
-					return err
-				}
-				if observer != nil &&
-					(boundary.Response.Usage.TotalTokens() != 0 || boundary.Response.Model != "") {
-					cumulative, cumulativeCost := ledger.totals()
-					observer.OnUsage(processRef(pc.Process()), cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
-				}
-			}
-			return nil
-		},
+		Stream:  stream,
 	})
 	if err != nil {
 		return TurnOutput{}, err
@@ -260,13 +229,6 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 }
 
 func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, options *chat.Options) (preparedTurn, error) {
-	capability, err := pc.Chat()
-	if err != nil {
-		return preparedTurn{}, err
-	}
-	if capability.Streamer == nil {
-		return preparedTurn{}, errors.New("agentexec: configured chat capability does not support streaming")
-	}
 	actionTools, err := pc.ActionTools(ctx)
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: resolve action tools: %w", err)
@@ -298,7 +260,7 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err := request.Validate(); err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: turn request: %w", err)
 	}
-	return preparedTurn{streamer: capability.Streamer, registry: registry, request: request}, nil
+	return preparedTurn{registry: registry, request: request}, nil
 }
 
 func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, partial string) (TurnOutput, error) {

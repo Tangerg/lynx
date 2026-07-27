@@ -62,8 +62,7 @@ core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
-core: const BudgetPolicyName = "budget-policy"
-core: const ProcessSnapshotSchemaVersion uint16 = 9
+core: const ProcessSnapshotSchemaVersion uint16 = 10
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -121,25 +120,19 @@ core: func (k DependencyKey[T]) Name() string
 core: func (m *ChatMiddleware) Empty() bool
 core: func (m ActionMetadata) Applicable(state ConditionSet) bool
 core: func (m ActionMetadata) RunCondition() string
-core: func (p BudgetPolicy) Check(process ProcessView) (bool, string)
-core: func (p BudgetPolicy) Name() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard
-core: func (pc *ProcessContext) Chat() (ChatCapability, error)
 core: func (pc *ProcessContext) Dependencies() *Dependencies
 core: func (pc *ProcessContext) ForParallelBranch() (*ProcessContext, error)
 core: func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error)
 core: func (pc *ProcessContext) Process() ProcessView
 core: func (pc *ProcessContext) Prompt(ctx context.Context, text string, config PromptConfig) (string, error)
-core: func (pc *ProcessContext) RecordUsage(ctx context.Context, usage Usage) error
 core: func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
 core: func (pc *ProcessContext) TerminateAction(reason string) error
 core: func (pc *ProcessContext) TerminateAgent(reason string) error
 core: func (pc *ProcessContext) TerminateToolCall() error
 core: func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc)
-core: func (r *ActionRunSnapshot) UnmarshalJSON(data []byte) error
 core: func (r *ReplanRequest) Error() string
-core: func (r ActionRunSnapshot) MarshalJSON() ([]byte, error)
 core: func (r DeploymentRef) String() string
 core: func (r DeploymentRef) Validate() error
 core: func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error
@@ -196,7 +189,6 @@ core: type ActionConfig struct { Description string Preconditions []string Effec
 core: type ActionFunc[In, Out any] func(ctx context.Context, process *ProcessContext, input In) (Out, error)
 core: type ActionMetadata struct { Name string Description string Inputs []Binding Outputs []Binding Preconditions ConditionSet Effects ConditionSet Repeatable bool ToolGroups []string Cost ScoreFunc Value ScoreFunc ClearWorkingState bool }
 core: type ActionMiddleware interface { Extension RunAction( ctx context.Context, process ProcessView, action Action, next func() (ActionStatus, error), ) (ActionStatus, error) }
-core: type ActionRunSnapshot struct { ActionName string `json:"action"` StartedAt time.Time `json:"started_at"` Duration time.Duration `json:"duration_ns"` Status ActionStatus `json:"-"` }
 core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition SnapshotState []Binding PlannerName string }
@@ -206,8 +198,7 @@ core: type Bindings struct { }
 core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() Blackboard ClearWorkingState() }
 core: type BlackboardReader interface { ID() string Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) Inspect(verbose bool) string }
 core: type BlackboardWriter interface { Store(key string, value any) StoreTransient(key string, value any) Add(value any) AddTransient(value any) Bind(value any) BindTransient(value any) StoreAll(bindings Bindings) Hide(target any) StoreCondition(key string, value bool) }
-core: type Budget struct { CostLimit float64 ActionLimit int TokenLimit int }
-core: type BudgetPolicy struct { Budget Budget }
+core: type Budget struct { CostLimit float64 ActionLimit int ModelCallLimit int TokenLimit int64 }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
 core: type ChatMiddleware struct { CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware }
 core: type ChatProvider interface { Extension Chat(process ProcessView) ChatCapability }
@@ -226,21 +217,21 @@ core: type Goal struct { }
 core: type GoalApprover interface { Extension Approve(process ProcessView, goal *Goal) bool }
 core: type GoalConfig struct { Name string Description string Preconditions []string Inputs []Binding Value ScoreFunc Tags []string Examples []string }
 core: type IDGenerator interface { Extension Next() string }
-core: type Interaction struct { ID string Model chat.Model Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Observe interaction.Observer Cost InteractionCostFunc }
-core: type InteractionCostFunc func(response *chat.Response) float64
+core: type Interaction struct { ID string Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Stream func(*chat.Response) }
+core: type InteractionCostProjector interface { Extension ProjectInteractionCost( ctx context.Context, process ProcessView, response *chat.Response, ) (float64, error) }
+core: type InteractionObserver interface { Extension ObserveInteraction( ctx context.Context, process ProcessView, boundary interaction.Event, ) error }
 core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
-core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Usage UsageRecorder Blackboard Blackboard Dependencies *Dependencies Chat func() (ChatCapability, error) MaxToolRounds int ActionTools func(context.Context, []string) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []string }
+core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Blackboard Blackboard Dependencies *Dependencies MaxToolRounds int ActionTools func(context.Context, []string) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []string }
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` History []ActionRunSnapshot `json:"history,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
-core: type ProcessUsage struct { Usage Actions int }
-core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() ProcessUsage }
+core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
 core: type PromptCondition struct { }
-core: type PromptConditionConfig struct { Name string Model chat.Model Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
+core: type PromptConditionConfig struct { Name string Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
 core: type PromptConfig struct { System string Options *chat.Options Tools []tools.Tool DisableActionTools bool MaxToolRounds int }
 core: type PromptFunc func(context.Context, *ConditionEnv) string
 core: type ReplanRequest struct { Reason string Update func(Blackboard) }
@@ -257,8 +248,7 @@ core: type ToolGroupResolver interface { Extension Resolve(ctx context.Context, 
 core: type ToolMiddleware interface { Extension WrapTool( process ProcessView, action Action, tool tools.Tool, ) tools.Tool }
 core: type Truth int8
 core: type UUIDGenerator struct{}
-core: type Usage struct { Cost float64 `json:"cost"` Tokens int `json:"tokens"` ModelCalls int `json:"model_calls"` }
-core: type UsageRecorder interface { RecordUsage(ctx context.Context, usage Usage) error }
+core: type Usage struct { Cost float64 `json:"cost"` Tokens int64 `json:"tokens"` ModelCalls int `json:"model_calls"` Actions int `json:"actions"` }
 core: type WorldState interface { Conditions() ConditionSet Timestamp() time.Time Key() string Apply(effects ConditionSet) WorldState }
 core: var ( ErrInvalidDependencyKey = errors.New("agent: invalid dependency key") ErrDependencyNotFound = errors.New("agent: dependency not found") ErrDependencyTypeMismatch = errors.New("agent: dependency type mismatch") ErrDependencyExists = errors.New("agent: dependency already registered") ErrDependenciesFrozen = errors.New("agent: dependencies are frozen") ErrNilDependency = errors.New("agent: nil dependency") )
 core: var ( ErrSnapshotSchema = errors.New("process snapshot: unsupported schema") ErrInvalidSnapshot = errors.New("process snapshot: invalid") )
@@ -266,7 +256,6 @@ core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidUsage = errors.New("usage: invalid")
 core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
-core: var ErrUsageUnavailable = errors.New("agent: process usage recorder is unavailable")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" )
 event: func (*NamedSubtreeListener) ObserveSubtree()
 event: func (ActionFinished) Kind() Kind
@@ -326,9 +315,10 @@ hitl: func IsInterrupt(err error) bool
 interaction: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
 interaction: const ( StopNone StopReason = "" StopBudget StopReason = "budget" StopSteps StopReason = "steps" )
 interaction: const ( SuspensionHuman SuspensionKind = "human" SuspensionTool SuspensionKind = "tool" )
-interaction: const SuspensionSchemaVersion uint16 = 2
+interaction: const SuspensionSchemaVersion uint16 = 3
 interaction: func (e *SuspendedError) Error() string
 interaction: func (e *SuspendedError) Unwrap() error
+interaction: func (e Event) Clone() Event
 interaction: func (e Event) Validate() error
 interaction: func (k EventKind) Valid() bool
 interaction: func (k SuspensionKind) Valid() bool
@@ -345,13 +335,12 @@ interaction: func StreamCall(ctx context.Context, streamer chat.Streamer, req *c
 interaction: func ValidateID(id string) error
 interaction: type Event struct { Kind EventKind Round int Final bool Cost float64 Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Suspension *Suspension Resume *Resume }
 interaction: type EventKind string
-interaction: type Limits struct { MaxRounds int MaxConcurrentToolCalls int MaxSteps int MaxModelCalls int MaxTokens int64 MaxCost float64 }
-interaction: type Observer func(context.Context, Event) error
+interaction: type Limits struct { MaxRounds int MaxConcurrentToolCalls int MaxSteps int }
 interaction: type Result struct { Final *Event StopReason StopReason }
 interaction: type Resume struct { ID string Input json.RawMessage }
 interaction: type StopReason string
 interaction: type SuspendedError struct { Suspension Suspension }
-interaction: type Suspension struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Kind SuspensionKind `json:"kind"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` Payload json.RawMessage `json:"payload,omitempty"` FrameworkState json.RawMessage `json:"framework_state,omitempty"` Response json.RawMessage `json:"response,omitempty"` CreatedAt time.Time `json:"created_at"` RespondedAt time.Time `json:"responded_at,omitzero"` }
+interaction: type Suspension struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Kind SuspensionKind `json:"kind"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` Payload json.RawMessage `json:"payload,omitempty"` FrameworkState json.RawMessage `json:"framework_state,omitempty"` Response json.RawMessage `json:"response,omitempty"` CreatedAt time.Time `json:"created_at"` }
 interaction: type SuspensionKind string
 interaction: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
 interaction: var ( ErrInvalidEvent = errors.New("interaction: invalid event") ErrInvalidID = errors.New("interaction: invalid ID") )
@@ -484,14 +473,13 @@ runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) Failure() error
 runtime: func (p *Process) Goal() *core.Goal
-runtime: func (p *Process) History() []ActionRun
 runtime: func (p *Process) ID() string
 runtime: func (p *Process) ParentID() string
 runtime: func (p *Process) StartedAt() time.Time
 runtime: func (p *Process) Status() core.ProcessStatus
 runtime: func (p *Process) Suspension() *interaction.Suspension
 runtime: func (p *Process) TerminalError() error
-runtime: func (p *Process) Usage() core.ProcessUsage
+runtime: func (p *Process) Usage() core.Usage
 runtime: func (p *Process) WorldState() core.WorldState
 runtime: func (s *Segment) Await(ctx context.Context) (RunCompletion, error)
 runtime: func (s *Segment) Process() *Process
@@ -500,7 +488,6 @@ runtime: func MustNew(config Config) *Engine
 runtime: func New(config Config) (*Engine, error)
 runtime: func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tools.Tool, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
-runtime: type ActionRun struct { ActionName string StartedAt time.Time Duration time.Duration Status core.ActionStatus }
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
 runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }

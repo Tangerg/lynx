@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -138,6 +139,21 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 			name:     "negative action budget",
 			options:  core.ProcessOptions{Budget: core.Budget{ActionLimit: -1}},
 			contains: "action limit must not be negative",
+		},
+		{
+			name:     "negative model-call budget",
+			options:  core.ProcessOptions{Budget: core.Budget{ModelCallLimit: -1}},
+			contains: "model-call limit must not be negative",
+		},
+		{
+			name:     "negative token budget",
+			options:  core.ProcessOptions{Budget: core.Budget{TokenLimit: -1}},
+			contains: "token limit must not be negative",
+		},
+		{
+			name:     "non-finite cost budget",
+			options:  core.ProcessOptions{Budget: core.Budget{CostLimit: math.Inf(1)}},
+			contains: "cost limit must be finite",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {

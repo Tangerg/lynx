@@ -5,9 +5,6 @@ import (
 	"strconv"
 )
 
-// BudgetPolicyName is the built-in budget policy's extension identifier.
-const BudgetPolicyName = "budget-policy"
-
 // StuckPolicy is invoked when the planner returns no plan. The default is to
 // transition to StatusStuck; a policy may update the blackboard and request a
 // new planning pass.
@@ -48,38 +45,11 @@ type StuckResult struct {
 }
 
 // StopPolicy decides whether a running process should terminate at the current
-// tick boundary. Registered policies are checked alongside the implicit
-// budget-derived policy. A policy panic fails the process rather than escaping
-// the runtime or being interpreted as a termination decision. Valid at engine
-// and process scope.
+// tick boundary. A policy panic fails the process rather than escaping the
+// runtime or being interpreted as a termination decision. Valid at engine and
+// process scope. Tree budgets are runtime admission controls, not extensions.
 type StopPolicy interface {
 	Extension
 
 	Check(process ProcessView) (stop bool, reason string)
-}
-
-// BudgetPolicy terminates a process whose subtree usage reaches a configured
-// cost, token, or action ceiling.
-type BudgetPolicy struct {
-	Budget Budget
-}
-
-// Name is the extension identifier for the built-in budget policy.
-func (p BudgetPolicy) Name() string { return BudgetPolicyName }
-
-// Check enforces non-zero cost, token, and action ceilings.
-func (p BudgetPolicy) Check(process ProcessView) (bool, string) {
-	if process == nil {
-		return false, ""
-	}
-	usage := process.Usage()
-	switch {
-	case p.Budget.CostLimit > 0 && usage.Cost >= p.Budget.CostLimit:
-		return true, "cost budget exceeded"
-	case p.Budget.TokenLimit > 0 && usage.Tokens >= p.Budget.TokenLimit:
-		return true, "token budget exceeded"
-	case p.Budget.ActionLimit > 0 && usage.Actions >= p.Budget.ActionLimit:
-		return true, "action budget exceeded"
-	}
-	return false, ""
 }
