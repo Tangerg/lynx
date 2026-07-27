@@ -272,11 +272,31 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	if err := runtime.ValidateResumableSnapshot(snapshot); err != nil {
 		t.Fatalf("ValidateResumableSnapshot: %v", err)
 	}
-	invalid := snapshot
-	invalid.Suspension = snapshot.Suspension.Clone()
-	invalid.Suspension.FrameworkState = json.RawMessage(`{}`)
-	if err := runtime.ValidateResumableSnapshot(invalid); err == nil {
-		t.Fatal("ValidateResumableSnapshot accepted a malformed managed checkpoint")
+	// A managed checkpoint that no longer describes its own snapshot is as
+	// unrestorable as a malformed one, and a host recovery policy tells all of
+	// these apart from an infrastructural failure by one sentinel.
+	corrupt := map[string]func(*core.ProcessSnapshot){
+		"malformed checkpoint envelope": func(s *core.ProcessSnapshot) {
+			s.Suspension.FrameworkState = json.RawMessage(`{}`)
+		},
+		"checkpoint belongs to another deployment": func(s *core.ProcessSnapshot) {
+			s.Deployment = core.DeploymentRef{Name: "someone-else", Digest: s.Deployment.Digest}
+		},
+		"checkpoint answers another suspension": func(s *core.ProcessSnapshot) {
+			s.Suspension.ID = "a-different-pending-call"
+		},
+	}
+	for name, corruption := range corrupt {
+		invalid := snapshot
+		invalid.Suspension = snapshot.Suspension.Clone()
+		corruption(&invalid)
+		err := runtime.ValidateResumableSnapshot(invalid)
+		if err == nil {
+			t.Fatalf("ValidateResumableSnapshot accepted a checkpoint that %s", name)
+		}
+		if !errors.Is(err, core.ErrInvalidSnapshot) {
+			t.Fatalf("%s: error = %v, want it to report ErrInvalidSnapshot", name, err)
+		}
 	}
 	if model.Calls() != 1 || attempts != 1 {
 		t.Fatalf("before resume model=%d tool=%d", model.Calls(), attempts)

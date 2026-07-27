@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -291,4 +292,70 @@ func snapshotByID(t *testing.T, tree core.ProcessSnapshotTree, id string) core.P
 	}
 	t.Fatalf("snapshot %q is missing", id)
 	return core.ProcessSnapshot{}
+}
+
+// TestUnrestorableSnapshotIsAlwaysClassifiable pins the contract a host recovery
+// policy depends on: ValidateResumableSnapshot is a pure check over captured
+// state, so every way it can fail has to report ErrInvalidSnapshot. Otherwise a
+// host has to enumerate which failures mean "this capture is unusable", and a
+// check added later silently falls outside that set — the parked run then
+// surfaces as an internal error instead of being recovered as lost.
+func TestUnrestorableSnapshotIsAlwaysClassifiable(t *testing.T) {
+	source := agent.MustNewEngine(runtime.Config{})
+	definition := restoreGateAgent("restore-classifiable")
+	mustDeploy(t, source, definition)
+
+	segment, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completion := awaitSegment(t, segment); completion.Error() != nil {
+		t.Fatal(completion.Error())
+	}
+	tree, err := source.SnapshotTree(t.Context(), segment.Process().ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	resumable := snapshotByID(t, tree, segment.Process().ID())
+	if err := runtime.ValidateResumableSnapshot(resumable); err != nil {
+		t.Fatalf("captured snapshot is not resumable: %v", err)
+	}
+
+	corrupt := map[string]func(*core.ProcessSnapshot){
+		// A snapshot has to stay internally consistent to get past
+		// ProcessSnapshot.Validate, so this drops the suspension along with the
+		// status — otherwise the generic check fires first and the resumability
+		// check is never reached.
+		"terminal, with no continuation to resume": func(s *core.ProcessSnapshot) {
+			s.Status = core.StatusCompleted
+			s.Suspension = nil
+		},
+		"framework state is not JSON": func(s *core.ProcessSnapshot) {
+			s.Suspension.FrameworkState = json.RawMessage(`{`)
+		},
+		"framework state has an unknown schema": func(s *core.ProcessSnapshot) {
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":9999}`)
+		},
+		"framework state has an unknown field": func(s *core.ProcessSnapshot) {
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":2,"invented":true}`)
+		},
+		"framework state has a trailing value": func(s *core.ProcessSnapshot) {
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":2,"kind":"interaction"} {}`)
+		},
+	}
+	for name, corruption := range corrupt {
+		t.Run(name, func(t *testing.T) {
+			snapshot := resumable
+			snapshot.Suspension = resumable.Suspension.Clone()
+			corruption(&snapshot)
+
+			err := runtime.ValidateResumableSnapshot(snapshot)
+			if err == nil {
+				t.Fatal("a snapshot that cannot be restored validated cleanly")
+			}
+			if !errors.Is(err, core.ErrInvalidSnapshot) {
+				t.Fatalf("error = %v, want it to report ErrInvalidSnapshot", err)
+			}
+		})
+	}
 }

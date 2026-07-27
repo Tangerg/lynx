@@ -14,12 +14,16 @@ import (
 // continuation the runtime can safely restore. Both an unanswered suspension
 // awaiting Resume and an answered suspension awaiting Continue are valid. It
 // interprets only FrameworkState and performs no external I/O.
+//
+// Every failure reports [core.ErrInvalidSnapshot], so a host deciding between
+// "this capture is unusable, recover the run as lost" and "something else went
+// wrong" has one question to ask rather than a set of errors to enumerate.
 func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 	if err := snapshot.Validate(); err != nil {
 		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w", err)
 	}
 	if snapshot.Status != core.StatusWaiting || snapshot.Suspension == nil {
-		return fmt.Errorf("runtime.ValidateResumableSnapshot: process %q is not waiting on a suspension", snapshot.ID)
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w: process %q is not waiting on a suspension", core.ErrInvalidSnapshot, snapshot.ID)
 	}
 	suspension := snapshot.Suspension
 	checkpoint, err := decodeSuspensionCheckpoint(suspension.FrameworkState)
@@ -33,10 +37,10 @@ func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error {
 		return nil
 	}
 	if checkpoint.Deployment != snapshot.Deployment {
-		return errors.New("runtime.ValidateResumableSnapshot: tool checkpoint deployment does not match snapshot deployment")
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w: tool checkpoint deployment does not match snapshot deployment", core.ErrInvalidSnapshot)
 	}
 	if checkpoint.Checkpoint.ID != suspension.ID {
-		return fmt.Errorf("runtime.ValidateResumableSnapshot: tool checkpoint ID %q does not match suspension ID %q", checkpoint.Checkpoint.ID, suspension.ID)
+		return fmt.Errorf("runtime.ValidateResumableSnapshot: %w: tool checkpoint ID %q does not match suspension ID %q", core.ErrInvalidSnapshot, checkpoint.Checkpoint.ID, suspension.ID)
 	}
 	return nil
 }
@@ -66,9 +70,10 @@ func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) error {
 		}
 		if snapshot.Status == core.StatusWaiting {
 			if err := ValidateResumableSnapshot(snapshot); err != nil {
+				// The classification travels with the validator's own error; adding
+				// it again here would be a second owner of the same judgement.
 				return fmt.Errorf(
-					"runtime.Engine.ValidateRestoreTree: %w: process %q continuation: %w",
-					core.ErrInvalidSnapshot,
+					"runtime.Engine.ValidateRestoreTree: process %q continuation: %w",
 					snapshot.ID,
 					err,
 				)

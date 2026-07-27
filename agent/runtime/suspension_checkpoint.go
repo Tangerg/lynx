@@ -139,10 +139,21 @@ func encodeSuspensionCheckpoint(checkpoint suspensionCheckpoint) (json.RawMessag
 }
 
 // decodeSuspensionCheckpoint decodes the framework-owned continuation state.
+// Every failure below is a statement about captured state, so this is where
+// that classification is applied — once, rather than on each leaf check, so a
+// validation error added later cannot reach a caller unmarked.
 func decodeSuspensionCheckpoint(state json.RawMessage) (*suspensionCheckpoint, error) {
 	if len(state) == 0 {
 		return nil, nil
 	}
+	checkpoint, err := parseSuspensionCheckpoint(state)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", core.ErrInvalidSnapshot, err)
+	}
+	return checkpoint, nil
+}
+
+func parseSuspensionCheckpoint(state json.RawMessage) (*suspensionCheckpoint, error) {
 	var checkpoint suspensionCheckpoint
 	decoder := json.NewDecoder(bytes.NewReader(state))
 	decoder.DisallowUnknownFields()
