@@ -27,25 +27,6 @@ type turnInput struct {
 	Options *chat.Options
 }
 
-// StopReason identifies why an otherwise successful turn stopped before or at
-// its final interaction boundary. It is adapter-owned; framework values are
-// translated at the managed-interaction boundary.
-type StopReason string
-
-const (
-	// StopReasonNone means the interaction reached a tagged final event.
-	StopReasonNone StopReason = ""
-	// StopReasonBudget means token or cost limits stopped continuation.
-	StopReasonBudget StopReason = "budget"
-	// StopReasonSteps means the delegation-tree model-call limit stopped
-	// continuation.
-	StopReasonSteps StopReason = "steps"
-)
-
-func (r StopReason) Valid() bool {
-	return r == StopReasonNone || r == StopReasonBudget || r == StopReasonSteps
-}
-
 // TurnOutput is the typed output of one turn. Reply is the assistant's
 // final text. Usage / UsageByModel / CostUSD are read back from the
 // application-owned usage projection rather than a query back into Agent:
@@ -66,11 +47,12 @@ type TurnOutput struct {
 	// don't return a dollar figure on the chat path); see [Config.Pricing].
 	CostUSD float64
 
-	// StopReason is empty on normal completion, "budget" when token or cost
-	// limits stopped continuation, and "steps" when the delegation-tree
-	// model-call limit stopped continuation. Reply holds partial streamed text
-	// for the two artificial-stop cases.
-	StopReason StopReason
+	// StopReason is the framework's own account of which configured bound ended
+	// the interaction, carried through rather than re-labelled: the values are
+	// identical and only the domain [execution.Outcome] mapping is Runtime's to
+	// make. Empty on normal completion; otherwise Reply holds whatever text
+	// streamed before the bound was reached.
+	StopReason agent.InteractionStopReason
 }
 
 // buildTurnAgent constructs the chat agent owned by this Engine.

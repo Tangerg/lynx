@@ -66,6 +66,13 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	}()
 	for boundary, runErr := range sequence {
 		if runErr != nil {
+			// The runner reports its own round bound as an error because an event
+			// sequence has no other channel. A managed interaction does have one,
+			// and the bound came from the host, so it is reported as the outcome
+			// it is instead of failing the process.
+			if errors.Is(runErr, toolloop.ErrRoundLimit) {
+				return interaction.Result{StopReason: interaction.StopSteps}, nil
+			}
 			return interaction.Result{}, runErr
 		}
 		if boundary.Kind == toolloop.EventModelRequest {
@@ -75,9 +82,6 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			}
 			if err := ctx.Err(); err != nil {
 				return interaction.Result{}, err
-			}
-			if stop := interactionStopReason(boundary.Round, input.Limits); stop != interaction.StopNone {
-				return interaction.Result{StopReason: stop}, nil
 			}
 			reservation.release()
 			var stop interaction.StopReason
@@ -286,13 +290,6 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 	}
 	sum := sha256.Sum256(data)
 	return derivedInteractionIDPrefix + hex.EncodeToString(sum[:]), nil
-}
-
-func interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
-	if limits.MaxSteps > 0 && round-1 >= limits.MaxSteps {
-		return interaction.StopSteps
-	}
-	return interaction.StopNone
 }
 
 // recordInteractionUsage commits the reservation admitted for this model call

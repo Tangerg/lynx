@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
@@ -386,17 +387,17 @@ func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
 	tests := []struct {
 		name       string
 		request    TurnRequest
-		wantReason StopReason
+		wantReason agent.InteractionStopReason
 	}{
 		{
 			name:       "budget",
 			request:    TurnRequest{Message: "go", MaxBudget: 10},
-			wantReason: StopReasonBudget,
+			wantReason: agent.InteractionStopBudget,
 		},
 		{
 			name:       "steps",
 			request:    TurnRequest{Message: "go", MaxSteps: 1},
-			wantReason: StopReasonSteps,
+			wantReason: agent.InteractionStopSteps,
 		},
 	}
 	for _, test := range tests {

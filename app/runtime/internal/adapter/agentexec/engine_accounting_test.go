@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -158,7 +159,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testin
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if output.StopReason != StopReasonBudget || output.Usage.Total() != 2 {
+	if output.StopReason != agent.InteractionStopBudget || output.Usage.Total() != 2 {
 		t.Fatalf("stop/usage = %q/%d, want budget/2", output.StopReason, output.Usage.Total())
 	}
 	if model.Calls() != 1 {
@@ -191,7 +192,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if output.StopReason != StopReasonBudget || output.CostUSD != 1 {
+	if output.StopReason != agent.InteractionStopBudget || output.CostUSD != 1 {
 		t.Fatalf("stop/cost = %q/%v, want budget/1", output.StopReason, output.CostUSD)
 	}
 	if model.Calls() != 1 {
@@ -212,7 +213,7 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if output.StopReason != StopReasonSteps {
+	if output.StopReason != agent.InteractionStopSteps {
 		t.Fatalf("StopReason = %q, want steps", output.StopReason)
 	}
 	if model.Calls() != 2 {
@@ -222,7 +223,7 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 
 // TestEngine_RunChat_StopsOnBudget verifies the per-turn token
 // ceiling halts the tool loop at a round boundary before the next
-// LLM call and reports the partial result with StopReasonBudget set.
+// LLM call and reports the partial result with agent.InteractionStopBudget set.
 // Round 1 (tool call) spends 15 tokens; with MaxBudget=10 the loop
 // must stop there and never run round 2.
 func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
@@ -240,8 +241,8 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if out.StopReason != StopReasonBudget {
-		t.Errorf("StopReason = %q, want %q", out.StopReason, StopReasonBudget)
+	if out.StopReason != agent.InteractionStopBudget {
+		t.Errorf("StopReason = %q, want %q", out.StopReason, agent.InteractionStopBudget)
 	}
 	if got := out.Usage.Total(); got != 15 {
 		t.Errorf("usage total = %d, want 15 (round 2 must not run)", got)
@@ -270,21 +271,10 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if out.StopReason != StopReasonBudget {
-		t.Errorf("StopReason = %q, want %q", out.StopReason, StopReasonBudget)
+	if out.StopReason != agent.InteractionStopBudget {
+		t.Errorf("StopReason = %q, want %q", out.StopReason, agent.InteractionStopBudget)
 	}
 	if out.CostUSD != 15 {
 		t.Errorf("CostUSD = %v, want 15 (round 2 must not run)", out.CostUSD)
-	}
-}
-
-func TestStopReason_Valid(t *testing.T) {
-	for _, reason := range []StopReason{StopReasonNone, StopReasonBudget, StopReasonSteps} {
-		if !reason.Valid() {
-			t.Errorf("%q.Valid() = false, want true", reason)
-		}
-	}
-	if invalid := StopReason("budget+steps"); invalid.Valid() {
-		t.Errorf("%q.Valid() = true, want false", invalid)
 	}
 }

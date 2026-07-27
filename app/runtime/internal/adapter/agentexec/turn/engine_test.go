@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -194,7 +194,7 @@ func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 // completion, so clients can tell "stopped at the ceiling" apart from
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
-	stub := &stubEngine{runReply: "partial answer", stopReason: agentexec.StopReasonBudget}
+	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopBudget}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
@@ -220,10 +220,43 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	t.Fatal("no TurnEnd within 2s")
 }
 
+// TestStubEngineStepStop — the same treatment for a step stop. This covers the
+// turn's own tool-round guardrail as well as a caller's MaxSteps, because both
+// arrive as InteractionStopSteps: reaching either is a real outcome carrying the
+// partial reply, never an error with a client-facing problem attached.
+func TestStubEngineStepStop(t *testing.T) {
+	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopSteps}
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+
+	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+		SessionID: "s",
+		Message:   "go",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	events, _ := dispatcher.Events(ctx, handle)
+
+	for ev := range events {
+		if end, ok := ev.(runs.TurnEnd); ok {
+			if end.Reason != execution.OutcomeMaxSteps {
+				t.Fatalf("TurnEnd reason = %v, want max steps", end.Reason)
+			}
+			if end.Problem != nil {
+				t.Fatalf("TurnEnd problem = %+v, want none for a bounded stop", end.Problem)
+			}
+			return
+		}
+	}
+	t.Fatal("no TurnEnd within 2s")
+}
+
 func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	stub := &stubEngine{
 		runReply:   "invalid",
-		stopReason: agentexec.StopReason("budget+steps"),
+		stopReason: agent.InteractionStopReason("budget+steps"),
 	}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
 

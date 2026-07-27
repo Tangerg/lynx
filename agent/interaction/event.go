@@ -186,37 +186,43 @@ type ToolResolver interface {
 	Resolve(name string) (tools.Tool, bool)
 }
 
-// Limits are checked before each continuation model call. Zero leaves a
-// dimension unbounded; negative values are invalid.
+// Limits bound one managed interaction. Zero leaves a dimension unbounded and
+// negative values are invalid, so the framework never picks a number on the
+// host's behalf.
 type Limits struct {
+	// MaxRounds caps the model rounds of this interaction. Reaching it ends the
+	// interaction with StopSteps rather than an error: a bound the host asked
+	// for is an expected outcome, not a fault.
 	MaxRounds int
 	// MaxConcurrentToolCalls caps conflict-free tool calls executing at once
-	// in one model round. Zero selects the tool-loop default. Exclusive tools
-	// and calls sharing a non-empty resource key still serialize.
+	// in one model round. Zero runs them one at a time. Exclusive tools and
+	// calls sharing a non-empty resource key still serialize.
 	MaxConcurrentToolCalls int
-	// MaxSteps caps model rounds in this one managed interaction.
-	MaxSteps int
 }
 
 // ErrInvalidLimits identifies malformed managed-interaction limits.
 var ErrInvalidLimits = errors.New("interaction limits: invalid")
 
-// Validate checks that every configured limit is finite and non-negative.
-// Zero leaves the dimension unbounded, except MaxConcurrentToolCalls where it
-// selects the tool-loop default.
+// Validate checks that every configured limit is non-negative.
 func (l Limits) Validate() error {
-	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 || l.MaxSteps < 0 {
+	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 {
 		return fmt.Errorf("%w: integer limits must not be negative", ErrInvalidLimits)
 	}
 	return nil
 }
 
+// StopReason names the bound that ended an interaction before it reached a
+// final model or tool boundary. Every value describes an outcome the host asked
+// for by configuring a limit, so none of them is an error.
 type StopReason string
 
 const (
-	StopNone   StopReason = ""
+	StopNone StopReason = ""
+	// StopBudget reports that the tree's cost or token budget is exhausted.
 	StopBudget StopReason = "budget"
-	StopSteps  StopReason = "steps"
+	// StopSteps reports that a step bound stopped continuation: either the
+	// tree's model-call budget or this interaction's Limits.MaxRounds.
+	StopSteps StopReason = "steps"
 )
 
 // Valid reports whether r is a framework-defined interaction stop reason.

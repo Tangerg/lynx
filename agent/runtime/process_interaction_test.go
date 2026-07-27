@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -320,7 +319,7 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
 	tool, _ := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) { return "ok", nil })
 	registry, _ := tools.NewRegistry(tool)
-	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxSteps: 1})
+	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxRounds: 1})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -329,6 +328,9 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	}
 	if model.Calls() != 1 || proc.Status() != core.StatusCompleted {
 		t.Fatalf("model calls=%d status=%s", model.Calls(), proc.Status())
+	}
+	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopSteps) {
+		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopSteps)
 	}
 }
 
@@ -853,7 +855,9 @@ func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The interaction states no limit of its own, so the process limit governs
-	// it — the framework never substitutes a round count of its own.
+	// it — the framework never substitutes a round count of its own. Reaching a
+	// limit the host configured is an outcome, so the interaction reports
+	// StopSteps and the process completes instead of failing.
 	a := managedInteractionAgent(t, "managed-process-rounds", registry, interaction.Limits{})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -862,8 +866,11 @@ func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !errors.Is(proc.Failure(), toolloop.ErrRoundLimit) {
-		t.Fatalf("failure = %v, want ErrRoundLimit", proc.Failure())
+	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
+		t.Fatalf("status = %s, failure = %v; want completed without failure", proc.Status(), proc.Failure())
+	}
+	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopSteps) {
+		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopSteps)
 	}
 	if model.Calls() != 1 {
 		t.Fatalf("model calls = %d, want the process limit to stop the loop after one round", model.Calls())

@@ -122,7 +122,6 @@ func TestLimitsValidateRejectsNegativeLocalLimits(t *testing.T) {
 	for _, limits := range []interaction.Limits{
 		{MaxRounds: -1},
 		{MaxConcurrentToolCalls: -1},
-		{MaxSteps: -1},
 	} {
 		if err := limits.Validate(); !errors.Is(err, interaction.ErrInvalidLimits) {
 			t.Fatalf("Validate(%+v) error = %v, want ErrInvalidLimits", limits, err)

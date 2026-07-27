@@ -139,7 +139,7 @@ type stubEngine struct {
 	runTurnCalls     atomic.Int32
 	restoreCalls     atomic.Int32
 	runReply         string
-	stopReason       agentexec.StopReason
+	stopReason       agent.InteractionStopReason
 	restoreResumeErr error
 	discardErr       error
 	completionStatus core.ProcessStatus

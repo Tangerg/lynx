@@ -52,6 +52,13 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 	if err != nil {
 		return "", err
 	}
+	// Prompt's whole contract is the final text, so it has nowhere to report a
+	// partial result: a stop that the caller's own limits asked for still has to
+	// come back as an error, but it names the bound instead of looking like a
+	// missing event. Callers that want the partial work use Interact directly.
+	if result.StopReason != interaction.StopNone {
+		return "", fmt.Errorf("agent: prompt stopped before a final event: %s", result.StopReason)
+	}
 	if result.Final == nil {
 		return "", errors.New("agent: prompt ended without a final event")
 	}

@@ -235,14 +235,13 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 }
 
 func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, partial string) (TurnOutput, error) {
-	switch result.StopReason {
-	case agent.InteractionStopBudget:
-		return ledger.output(partial, StopReasonBudget), nil
-	case agent.InteractionStopSteps:
-		return ledger.output(partial, StopReasonSteps), nil
-	case agent.InteractionStopNone:
-	default:
+	if !result.StopReason.Valid() {
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)
+	}
+	if result.StopReason != agent.InteractionStopNone {
+		// A bounded stop has no final boundary, so the reply is whatever streamed
+		// before the bound was reached.
+		return ledger.output(partial, result.StopReason), nil
 	}
 	if result.Final == nil {
 		return TurnOutput{}, errors.New("agentexec: managed interaction ended without a final event")
@@ -252,12 +251,12 @@ func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, p
 		if result.Final.Response == nil {
 			return TurnOutput{}, errors.New("agentexec: final model response event has no response")
 		}
-		return ledger.output(result.Final.Response.Text(), StopReasonNone), nil
+		return ledger.output(result.Final.Response.Text(), agent.InteractionStopNone), nil
 	case agent.InteractionEventToolResult:
 		if result.Final.ToolResult == nil {
 			return TurnOutput{}, errors.New("agentexec: final tool result event has no result")
 		}
-		return ledger.output(result.Final.ToolResult.Result, StopReasonNone), nil
+		return ledger.output(result.Final.ToolResult.Result, agent.InteractionStopNone), nil
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}

@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
@@ -160,7 +161,7 @@ func (l *usageLedger) snapshot() accounting.Snapshot {
 	return snapshot
 }
 
-func (l *usageLedger) output(reply string, stopReason StopReason) TurnOutput {
+func (l *usageLedger) output(reply string, stopReason agent.InteractionStopReason) TurnOutput {
 	snapshot, total := l.state()
 	return TurnOutput{
 		Reply:        reply,

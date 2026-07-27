@@ -330,7 +330,7 @@ interaction: func StreamCall(ctx context.Context, streamer chat.Streamer, req *c
 interaction: func ValidateID(id string) error
 interaction: type Event struct { Kind EventKind Round int Final bool Cost float64 Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Suspension *Suspension Resume *Resume }
 interaction: type EventKind string
-interaction: type Limits struct { MaxRounds int MaxConcurrentToolCalls int MaxSteps int }
+interaction: type Limits struct { MaxRounds int MaxConcurrentToolCalls int }
 interaction: type Result struct { Final *Event StopReason StopReason }
 interaction: type Resume struct { ID string Input json.RawMessage }
 interaction: type StopReason string

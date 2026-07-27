@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -204,15 +205,16 @@ func failurePlan(err error) turnEndPlan {
 	return turnEndPlan{reason: execution.OutcomeError, errMsg: err.Error(), problem: &problem}
 }
 
-// completedPlan maps a cleanly-completed turn's output to its reason: a budget
-// stop is its own reason, otherwise a plain completion.
+// completedPlan maps a cleanly-completed turn's output to its reason. This is
+// the one place the framework's account of which bound stopped the interaction
+// becomes Runtime's own run outcome.
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	switch out.StopReason {
-	case agentexec.StopReasonSteps:
+	case agent.InteractionStopSteps:
 		return turnEndPlan{reason: execution.OutcomeMaxSteps, withUsage: true}
-	case agentexec.StopReasonBudget:
+	case agent.InteractionStopBudget:
 		return turnEndPlan{reason: execution.OutcomeMaxBudget, withUsage: true}
-	case agentexec.StopReasonNone:
+	case agent.InteractionStopNone:
 		return turnEndPlan{reason: execution.OutcomeCompleted, withUsage: true}
 	default:
 		problem := internalRunProblem()
