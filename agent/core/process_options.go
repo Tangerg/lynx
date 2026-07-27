@@ -84,9 +84,10 @@ type ProcessOptions struct {
 	// context before shared middleware executes.
 	ChatMiddleware *ChatMiddleware
 
-	// MaxToolRounds bounds Prompt tool execution for this process. Zero uses
-	// the engine default, which itself may be zero to select the interaction
-	// runner default.
+	// MaxToolRounds bounds the tool rounds of every managed interaction this
+	// process runs, including Prompt. Zero uses the engine default; zero at both
+	// levels leaves each interaction bounded only by what it states itself and by
+	// the tree Budget.
 	MaxToolRounds int
 }
 

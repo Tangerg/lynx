@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -837,4 +838,34 @@ func managedInteractionAgent(t *testing.T, name string, registry *tools.Registry
 
 func managedInput() core.Bindings {
 	return core.Input(struct{}{})
+}
+
+func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
+	model := &managedModel{}
+	tool, err := tools.New[struct{}, string](tools.Config{Name: "approval"}, func(context.Context, struct{}) (string, error) {
+		return "approved", nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	registry, err := tools.NewRegistry(tool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The interaction states no limit of its own, so the process limit governs
+	// it — the framework never substitutes a round count of its own.
+	a := managedInteractionAgent(t, "managed-process-rounds", registry, interaction.Limits{})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{MaxToolRounds: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !errors.Is(proc.Failure(), toolloop.ErrRoundLimit) {
+		t.Fatalf("failure = %v, want ErrRoundLimit", proc.Failure())
+	}
+	if model.Calls() != 1 {
+		t.Fatalf("model calls = %d, want the process limit to stop the loop after one round", model.Calls())
+	}
 }

@@ -70,8 +70,9 @@ type Config struct {
 	// global quota. Optional — nil / empty means "no global wrapping".
 	ChatMiddleware *core.ChatMiddleware
 
-	// MaxToolRounds bounds Prompt tool execution by default. Zero selects the
-	// interaction runner default; a process may override it.
+	// MaxToolRounds bounds the tool rounds of every managed interaction by
+	// default; a process may override it. Zero leaves interactions bounded only
+	// by what each states itself and by the tree Budget.
 	MaxToolRounds int
 
 	// MaxChildDepth limits recursive child-process delegation. Zero uses

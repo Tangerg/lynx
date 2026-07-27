@@ -46,7 +46,9 @@ func TestRunnerExecutesIndependentCallsConcurrentlyAndPublishesInCallOrder(t *te
 		}
 		return runnerTextResponse("done"), nil
 	}}
-	runner := newRunner(t, model, toolloop.Config{})
+	// This test is about overlap, so it states the concurrency it needs: an
+	// unset limit executes one call at a time.
+	runner := newRunner(t, model, toolloop.Config{MaxConcurrentCalls: 2})
 
 	type runResult struct {
 		events []toolloop.Event

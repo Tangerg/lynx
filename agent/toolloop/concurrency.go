@@ -8,11 +8,6 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// DefaultMaxConcurrentCalls bounds one round's concurrency-safe tool calls.
-// The limit prevents a model-generated fan-out from stampeding providers or
-// local resources while still allowing useful parallel I/O.
-const DefaultMaxConcurrentCalls = 8
-
 // ConcurrentTool is the optional capability Runner consumes to schedule
 // non-conflicting calls from one model response concurrently. It deliberately
 // lives in the consumer package rather than tools: a tool may provide this

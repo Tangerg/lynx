@@ -32,8 +32,9 @@ func newAgentRuntime(
 	}
 
 	return agent.NewEngine(agentruntime.Config{
-		Chat:       core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
-		Extensions: extensions,
+		Chat:          core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
+		Extensions:    extensions,
+		MaxToolRounds: turnMaxToolRounds,
 	})
 }
 

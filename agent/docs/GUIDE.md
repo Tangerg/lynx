@@ -376,8 +376,11 @@ join。需要独立暂停/终止能力的并行单元应使用 Child Process。
 
 ToolLoop 的并发是另一层语义：工具默认独占，实现 `toolloop.ConcurrentTool` 后可按
 resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Runner，
-`interaction.Limits.MaxConcurrentToolCalls` 控制托管 Interaction。执行完成顺序不影响
-可观察顺序：ToolResult、continuation 和 checkpoint 始终按模型原始 tool-call 顺序提交。
+`interaction.Limits.MaxConcurrentToolCalls` 控制托管 Interaction。两个限额都不带 framework
+默认值：未设并发即逐个执行，未设轮数上限即跑到模型不再请求工具为止。轮数上限未在
+Interaction 上给出时继承进程的 `MaxToolRounds`，因此宿主有一处就能约束全部托管交互；跑多久、
+容忍多少本地扇出属于产品决定，框架不替宿主选数字。执行完成顺序不影响可观察顺序：ToolResult、
+continuation 和 checkpoint 始终按模型原始 tool-call 顺序提交。
 
 工具需要实现幂等键、审计关联或下游 trace 关联时，可通过
 `agent.ToolCallFromContext(ctx)` 读取当前模型请求的 `chat.ToolCall`。该访问器只读且按

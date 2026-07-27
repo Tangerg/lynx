@@ -34,8 +34,16 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	if err != nil {
 		return interaction.Result{}, err
 	}
+	// An interaction that states no round limit of its own inherits the process
+	// limit, which is where a host bounds every managed interaction at once.
+	// Unset at both levels means the loop runs until the model stops asking for
+	// tools — the framework does not pick a number on the host's behalf.
+	rounds := input.Limits.MaxRounds
+	if rounds == 0 {
+		rounds = p.effectiveMaxToolRounds()
+	}
 	runner, err := toolloop.NewRunner(model, toolloop.Config{
-		MaxRounds:          input.Limits.MaxRounds,
+		MaxRounds:          rounds,
 		MaxConcurrentCalls: input.Limits.MaxConcurrentToolCalls,
 	})
 	if err != nil {

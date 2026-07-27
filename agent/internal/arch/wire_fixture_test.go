@@ -47,7 +47,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 		ID:                 "approval-1",
 		Round:              2,
 		MaxRounds:          50,
-		MaxConcurrentCalls: toolloop.DefaultMaxConcurrentCalls,
+		MaxConcurrentCalls: 8,
 		ToolsetDigest:      "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
 		Request:            request,
 		Response:           response,

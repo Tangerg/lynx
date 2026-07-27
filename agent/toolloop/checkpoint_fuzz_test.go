@@ -36,7 +36,7 @@ func FuzzCheckpointJSON(f *testing.F) {
 		ID:                 "approval-1",
 		Round:              1,
 		MaxRounds:          4,
-		MaxConcurrentCalls: DefaultMaxConcurrentCalls,
+		MaxConcurrentCalls: 8,
 		ToolsetDigest:      digest,
 		Request:            request,
 		Response:           response,

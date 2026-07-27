@@ -43,7 +43,7 @@ type ProcessContextConfig struct {
 	Blackboard   Blackboard
 	Dependencies *Dependencies
 
-	// MaxToolRounds is the resolved process-level Prompt limit.
+	// MaxToolRounds is the resolved process-level tool-round limit.
 	MaxToolRounds int
 
 	// ActionTools backs [ProcessContext.ActionTools]. The runtime supplies a

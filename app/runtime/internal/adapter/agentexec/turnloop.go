@@ -19,6 +19,16 @@ import (
 
 const llmIdleTimeout = 5 * time.Minute
 
+// Tool-loop policy. The Agent framework deliberately supplies no numbers here:
+// an unset round limit runs until the model stops asking for tools, and an unset
+// concurrency limit executes one call at a time. Both figures are product
+// decisions about how long a turn may iterate and how much local fan-out the
+// host tolerates, so Runtime states them.
+const (
+	turnMaxToolRounds          = 50
+	turnMaxConcurrentToolCalls = 8
+)
+
 var (
 	errModelStreamIdleTimeout = errors.New("agentexec: model stream idle timeout")
 	errModelStreamCompleted   = errors.New("agentexec: model stream completed")
@@ -221,6 +231,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, message s
 		Request: prepared.request,
 		Tools:   prepared.registry,
 		Stream:  stream,
+		Limits:  interaction.Limits{MaxConcurrentToolCalls: turnMaxConcurrentToolCalls},
 	})
 	if err != nil {
 		return TurnOutput{}, err

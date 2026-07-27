@@ -512,8 +512,6 @@ runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity"
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
 toolloop: const ( EventModelRequest = interaction.EventModelRequest EventModelResponse = interaction.EventModelResponse EventToolCall = interaction.EventToolCall EventToolResult = interaction.EventToolResult EventPause = interaction.EventPause EventResume = interaction.EventResume )
 toolloop: const CheckpointSchemaVersion uint16 = 2
-toolloop: const DefaultMaxConcurrentCalls = 8
-toolloop: const DefaultMaxRounds = 50
 toolloop: func (c *Checkpoint) ToolCalls() ([]chat.ToolCall, error)
 toolloop: func (c *Checkpoint) UnmarshalJSON(data []byte) error
 toolloop: func (c *Checkpoint) Validate() error

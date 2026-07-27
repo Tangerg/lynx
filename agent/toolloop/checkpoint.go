@@ -150,11 +150,12 @@ func (c *Checkpoint) Validate() error {
 	if c.Round < 1 {
 		return fmt.Errorf("%w: round must be positive", ErrInvalidCheckpoint)
 	}
-	if c.MaxRounds < 1 || c.Round > c.MaxRounds {
+	// Zero carries the same meaning as in Config: unbounded rounds, serial calls.
+	if c.MaxRounds < 0 || (c.MaxRounds > 0 && c.Round > c.MaxRounds) {
 		return fmt.Errorf("%w: round policy is inconsistent", ErrInvalidCheckpoint)
 	}
-	if c.MaxConcurrentCalls < 1 {
-		return fmt.Errorf("%w: max concurrent calls must be positive", ErrInvalidCheckpoint)
+	if c.MaxConcurrentCalls < 0 {
+		return fmt.Errorf("%w: max concurrent calls must not be negative", ErrInvalidCheckpoint)
 	}
 	if c.Request == nil {
 		return fmt.Errorf("%w: request must not be nil", ErrInvalidCheckpoint)

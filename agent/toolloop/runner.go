@@ -16,9 +16,6 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// DefaultMaxRounds bounds a tool loop when Config.MaxRounds is unset.
-const DefaultMaxRounds = 50
-
 var (
 	// ErrInvalidConfig reports an invalid model or Config.
 	ErrInvalidConfig = errors.New("toolloop: invalid config")
@@ -29,8 +26,10 @@ var (
 	ErrRoundLimit = errors.New("toolloop: round limit reached")
 )
 
-// Config controls bounded loop policy. Zero values select framework defaults.
-// Negative values are invalid. Runner never retries model or tool calls.
+// Config controls loop policy. Both limits belong to whoever drives the loop,
+// so Runner never substitutes a value of its own: zero MaxRounds runs until the
+// model stops requesting tools, and zero MaxConcurrentCalls executes one call at
+// a time. Negative values are invalid. Runner never retries model or tool calls.
 type Config struct {
 	MaxRounds          int
 	MaxConcurrentCalls int
@@ -57,18 +56,10 @@ func NewRunner(model chat.Model, config Config) (*Runner, error) {
 	if config.MaxConcurrentCalls < 0 {
 		return nil, fmt.Errorf("%w: max concurrent calls must not be negative", ErrInvalidConfig)
 	}
-	maxRounds := config.MaxRounds
-	if maxRounds == 0 {
-		maxRounds = DefaultMaxRounds
-	}
-	maxConcurrentCalls := config.MaxConcurrentCalls
-	if maxConcurrentCalls == 0 {
-		maxConcurrentCalls = DefaultMaxConcurrentCalls
-	}
 	return &Runner{
 		model:              model,
-		maxRounds:          maxRounds,
-		maxConcurrentCalls: maxConcurrentCalls,
+		maxRounds:          config.MaxRounds,
+		maxConcurrentCalls: config.MaxConcurrentCalls,
 	}, nil
 }
 
@@ -186,7 +177,7 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 }
 
 func (r *Runner) validateContext(ctx context.Context) error {
-	if r == nil || valueIsNil(r.model) || r.maxRounds < 1 || r.maxConcurrentCalls < 1 {
+	if r == nil || valueIsNil(r.model) || r.maxRounds < 0 || r.maxConcurrentCalls < 0 {
 		return fmt.Errorf("%w: uninitialized runner", ErrInvalidInput)
 	}
 	if ctx == nil {
@@ -204,7 +195,7 @@ func (r *Runner) execute(ctx context.Context, state *runnerState, yield func(Eve
 	ctx = withPromotions(ctx, &state.promotions)
 	for {
 		if len(state.calls) == 0 {
-			if state.round >= r.maxRounds {
+			if r.maxRounds > 0 && state.round >= r.maxRounds {
 				yield(Event{}, fmt.Errorf("%w: limit %d", ErrRoundLimit, r.maxRounds))
 				return
 			}
@@ -372,7 +363,9 @@ func (r *Runner) runSegment(
 
 	outcomes := make([]toolOutcome, end-start)
 	group, groupContext := errgroup.WithContext(ctx)
-	group.SetLimit(r.maxConcurrentCalls)
+	// Unset concurrency means one call at a time, which is also the floor: the
+	// scheduler never runs zero goroutines.
+	group.SetLimit(max(1, r.maxConcurrentCalls))
 	for index := start; index < end; index++ {
 		group.Go(func() error {
 			result, pending, err := invokeTool(groupContext, state.calls[index], plans[index].tool, nil)
