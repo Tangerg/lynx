@@ -75,7 +75,6 @@ func withClientResolver(resolver interface {
 type stubTurnProcess struct {
 	id         string
 	status     atomic.Int32 // core.ProcessStatus
-	failure    error
 	output     agentexec.TurnOutput
 	done       chan error
 	onCancel   func()
@@ -103,7 +102,6 @@ func (cp *stubTurnProcess) Await() agentexec.TurnCompletion {
 		Status:    core.ProcessStatus(cp.status.Load()),
 		Output:    cp.output,
 		HasOutput: true,
-		Failure:   cp.failure,
 		Err:       runErr,
 	}
 }

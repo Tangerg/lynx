@@ -175,7 +175,7 @@ type turnEndPlan struct {
 // Every status is handled explicitly; an internally inconsistent completion is
 // an error rather than an implicit success.
 func planTurnEnd(completion agentexec.TurnCompletion) turnEndPlan {
-	completionErr := completion.Error()
+	completionErr := completion.Err
 	switch completion.Status {
 	case core.StatusCompleted:
 		if completionErr != nil {

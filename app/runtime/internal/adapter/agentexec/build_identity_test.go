@@ -102,8 +102,8 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	if completion := process.Await(); completion.Error() != nil {
-		t.Fatalf("initial turn: %v", completion.Error())
+	if completion := process.Await(); completion.Err != nil {
+		t.Fatalf("initial turn: %v", completion.Err)
 	}
 
 	store.mu.Lock()
@@ -156,8 +156,8 @@ func TestWaitingSnapshotCommitFailureDoesNotRewriteAgentState(t *testing.T) {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	completion := process.Await()
-	if !errors.Is(completion.Error(), want) {
-		t.Fatalf("completion error = %v, want snapshot failure", completion.Error())
+	if !errors.Is(completion.Err, want) {
+		t.Fatalf("completion error = %v, want snapshot failure", completion.Err)
 	}
 	if completion.Status != core.StatusWaiting {
 		t.Fatalf("process status = %s, want waiting", completion.Status)
@@ -165,8 +165,8 @@ func TestWaitingSnapshotCommitFailureDoesNotRewriteAgentState(t *testing.T) {
 	if store.saves.Load() == 0 {
 		t.Fatal("process never attempted a segment-boundary snapshot")
 	}
-	if errors.Is(completion.Error(), ErrProcessSnapshotLost) {
-		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Error())
+	if errors.Is(completion.Err, ErrProcessSnapshotLost) {
+		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Err)
 	}
 }
 
@@ -189,7 +189,7 @@ func TestTerminalSegmentDoesNotPersistUnresumableSnapshot(t *testing.T) {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	completion := process.Await()
-	if err := completion.Error(); err != nil {
+	if err := completion.Err; err != nil {
 		t.Fatalf("terminal completion: %v", err)
 	}
 	if completion.Status != core.StatusCompleted {

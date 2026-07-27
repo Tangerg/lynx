@@ -106,7 +106,7 @@ func (e *Engine) runTurnSync(ctx context.Context, req TurnRequest) (TurnOutput, 
 		return TurnOutput{}, fmt.Errorf("engine: start turn: %w", err)
 	}
 	completion := proc.Await()
-	if err := completion.Error(); err != nil {
+	if err := completion.Err; err != nil {
 		return TurnOutput{}, fmt.Errorf("engine: run turn: %w", err)
 	}
 	if !completion.HasOutput {

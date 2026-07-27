@@ -17,28 +17,16 @@ import (
 
 // TurnCompletion is the typed application projection of one Agent runtime
 // segment completion.
+//
+// A segment reports its process failure and its own driving error separately,
+// and how those two combine is the framework's rule — not something to restate
+// here. Err is what that rule produced, with Runtime's own terminal work (the
+// waiting checkpoint) appended.
 type TurnCompletion struct {
 	Status    core.ProcessStatus
 	Output    TurnOutput
 	HasOutput bool
-	Failure   error
 	Err       error
-}
-
-func (c TurnCompletion) Error() error {
-	if c.Failure == nil {
-		return c.Err
-	}
-	if c.Err == nil {
-		return c.Failure
-	}
-	if errors.Is(c.Err, c.Failure) {
-		return c.Err
-	}
-	if errors.Is(c.Failure, c.Err) {
-		return c.Failure
-	}
-	return errors.Join(c.Failure, c.Err)
 }
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
@@ -111,9 +99,8 @@ func (p *turnProcess) Await() TurnCompletion {
 	}
 	p.segment = nil
 	completion := TurnCompletion{
-		Status:  segmentCompletion.Status,
-		Failure: segmentCompletion.Failure,
-		Err:     segmentCompletion.Err,
+		Status: segmentCompletion.Status,
+		Err:    segmentCompletion.Error(),
 	}
 	if output, ok := runtime.CompletionResult[TurnOutput](segmentCompletion); ok {
 		completion.Output = output

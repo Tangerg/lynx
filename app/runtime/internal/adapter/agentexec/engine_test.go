@@ -658,7 +658,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		t.Fatalf("Resume: %v", err)
 	}
 	resumed := restored.Await()
-	if err := resumed.Error(); err != nil {
+	if err := resumed.Err; err != nil {
 		t.Fatalf("resumed run: %v", err)
 	}
 	if !resumed.HasOutput {
@@ -718,8 +718,8 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	if completion := process.Await(); completion.Error() != nil {
-		t.Fatalf("initial turn: %v", completion.Error())
+	if completion := process.Await(); completion.Err != nil {
+		t.Fatalf("initial turn: %v", completion.Err)
 	}
 	tree, checkpoint, err := store.LoadTree(t.Context(), process.ID())
 	if err != nil {

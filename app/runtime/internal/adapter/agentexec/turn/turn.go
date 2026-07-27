@@ -93,7 +93,7 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	completion := process.Await()
 
 	if completion.Status == core.StatusWaiting {
-		if err := completion.Error(); err != nil {
+		if err := completion.Err; err != nil {
 			recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
 			recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), err))
 			return
@@ -105,7 +105,7 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	// Drain steering into history BEFORE maintenance so the compactor /
 	// extractor see it as part of the conversation they summarize.
 	s.flushSteering(st.ctx, st, st.handle.SessionID)
-	if completion.Status == core.StatusCompleted && completion.Error() == nil && st.handle.SessionID != "" {
+	if completion.Status == core.StatusCompleted && completion.Err == nil && st.handle.SessionID != "" {
 		s.postTurnMaintenance(st.ctx, st, st.handle.SessionID)
 	}
 	// MessageDelta events already streamed through the observer — no
