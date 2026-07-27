@@ -93,7 +93,59 @@ func TestProcessDependenciesMustBelongToEngine(t *testing.T) {
 		core.Input(dependencyInput{Value: 1}),
 		core.ProcessOptions{Dependencies: unrelated},
 	)
-	if err == nil || !strings.Contains(err.Error(), "immediate child") {
-		t.Fatalf("Run error = %v, want scope-parent validation", err)
+	if err == nil || !strings.Contains(err.Error(), "must descend from engine dependencies") {
+		t.Fatalf("Run error = %v, want scope-ancestry validation", err)
+	}
+}
+
+// TestProcessDependenciesMayNestHostLayers pins that only ancestry is required:
+// how a host layers its own scopes between the engine and a process is its
+// composition, and lookups still resolve through every layer.
+func TestProcessDependenciesMayNestHostLayers(t *testing.T) {
+	shared := core.MustDependencyKey[string]("nested-shared")
+	sessionScoped := core.MustDependencyKey[string]("nested-session")
+
+	agentDefinition := agent.New(agent.AgentConfig{Name: "dependency-scope-nesting", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, processContext *core.ProcessContext, input dependencyInput) (dependencyOutput, error) {
+		value, err := core.LookupDependency(processContext.Dependencies(), shared)
+		if err != nil || value != "process" {
+			return dependencyOutput{}, errors.New("process layer did not shadow the engine registration")
+		}
+		session, err := core.LookupDependency(processContext.Dependencies(), sessionScoped)
+		if err != nil || session != "session" {
+			return dependencyOutput{}, errors.New("intermediate host layer did not resolve")
+		}
+		return dependencyOutput{Value: input.Value + 1}, nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[dependencyOutput](core.GoalConfig{Description: "done"})}})
+
+	engine := agent.MustNewEngine(runtime.Config{})
+	if err := core.RegisterDependency(engine.Dependencies(), shared, "engine"); err != nil {
+		t.Fatalf("RegisterDependency engine: %v", err)
+	}
+	hostLayer := engine.Dependencies().Child()
+	if err := core.RegisterDependency(hostLayer, sessionScoped, "session"); err != nil {
+		t.Fatalf("RegisterDependency host layer: %v", err)
+	}
+	processDependencies := hostLayer.Child()
+	if err := core.RegisterDependency(processDependencies, shared, "process"); err != nil {
+		t.Fatalf("RegisterDependency process: %v", err)
+	}
+	mustDeploy(t, engine, agentDefinition)
+
+	process, err := engine.Run(
+		t.Context(),
+		agentDefinition,
+		core.Input(dependencyInput{Value: 1}),
+		core.ProcessOptions{Dependencies: processDependencies},
+	)
+	if err != nil {
+		t.Fatalf("Run with nested host scopes: %v", err)
+	}
+	if result, ok := core.Result[dependencyOutput](process); !ok || result.Value != 2 {
+		t.Fatalf("result = %+v (present=%t), failure=%v", result, ok, process.Failure())
+	}
+	// Every layer up to the engine is closed, so nothing can change what a
+	// running process resolves.
+	if err := core.RegisterDependency(hostLayer, core.MustDependencyKey[string]("late"), "value"); err == nil {
+		t.Fatal("intermediate host layer stayed open after the process started")
 	}
 }

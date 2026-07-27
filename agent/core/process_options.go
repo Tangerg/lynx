@@ -55,14 +55,15 @@ type ProcessOptions struct {
 	// second Budget; tree-wide limits belong on the root ProcessOptions.
 	Budget Budget
 
-	// Dependencies is an optional process scope created from
-	// [runtime.Engine.Dependencies] by calling [Dependencies.Child]. The runtime
-	// freezes it when the process starts and creates a fresh action child for
-	// each execution. nil creates an empty process scope over the engine
-	// dependencies automatically.
+	// Dependencies is an optional process scope descending from
+	// [runtime.Engine.Dependencies]. The runtime freezes it — and every scope
+	// between it and the engine — when the process starts, then creates a fresh
+	// action child for each execution. nil creates an empty process scope over
+	// the engine dependencies automatically.
 	//
-	// The parent relationship is validated at runtime so an unrelated dependency
-	// tree cannot silently bypass engine composition.
+	// Ancestry is validated at runtime so an unrelated dependency tree cannot
+	// silently bypass engine composition. Intermediate layers are the host's own
+	// composition and are not constrained.
 	Dependencies *Dependencies
 
 	// Extensions are process-scoped plug-ins active for the lifetime of

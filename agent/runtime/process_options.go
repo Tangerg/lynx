@@ -61,15 +61,36 @@ func cloneChatMiddleware(middleware *core.ChatMiddleware) *core.ChatMiddleware {
 	return &snapshot
 }
 
-// prepareProcessDependencies closes engine composition, validates an optional
-// host-built process scope, and closes that scope before execution begins.
+// prepareProcessDependencies closes engine composition, validates that an
+// optional host-built process scope descends from it, and closes every scope on
+// that path before execution begins.
+//
+// The runtime needs the scope to resolve engine registrations, which requires
+// ancestry and nothing more: how many layers a host stacks in between — shared
+// services, then a per-session scope, then this process — is the host's own
+// composition to decide. Every layer up to the engine is frozen, because a
+// scope left open could change what an already-running process resolves.
 func (e *Engine) prepareProcessDependencies(configured *core.Dependencies) (*core.Dependencies, error) {
 	e.dependencies.Freeze()
 	if configured == nil {
 		configured = e.dependencies.Child()
-	} else if configured.Parent() != e.dependencies {
-		return nil, errors.New("process dependencies must be an immediate child of engine dependencies")
+		configured.Freeze()
+		return configured, nil
 	}
-	configured.Freeze()
+	if !dependencyScopeDescendsFrom(configured, e.dependencies) {
+		return nil, errors.New("process dependencies must descend from engine dependencies")
+	}
+	for scope := configured; scope != e.dependencies; scope = scope.Parent() {
+		scope.Freeze()
+	}
 	return configured, nil
+}
+
+func dependencyScopeDescendsFrom(scope, ancestor *core.Dependencies) bool {
+	for current := scope; current != nil; current = current.Parent() {
+		if current == ancestor {
+			return true
+		}
+	}
+	return false
 }
