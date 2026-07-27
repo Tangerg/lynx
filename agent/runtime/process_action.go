@@ -52,7 +52,7 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 
 	p.publishEvent(ctx, event.ActionStarted{
 		Header:    p.eventHeader(),
-		Action:    action,
+		Action:    metadata,
 		StartedAt: startedAt,
 	})
 
@@ -101,7 +101,7 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 
 	p.publishEvent(ctx, event.ActionFinished{
 		Header:   p.eventHeader(),
-		Action:   action,
+		Action:   metadata,
 		Status:   status,
 		Duration: duration,
 		Err:      lastErr,

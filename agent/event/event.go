@@ -169,19 +169,22 @@ type ReplanRequested struct {
 
 func (ReplanRequested) Kind() Kind { return KindReplanRequested }
 
-// ActionStarted fires before an action is invoked.
+// ActionStarted fires before an action is invoked. Listeners receive the
+// action's description, not the action: an observation channel has no business
+// handing out something executable.
 type ActionStarted struct {
 	Header
-	Action    core.Action
+	Action    core.ActionMetadata
 	StartedAt time.Time
 }
 
 func (ActionStarted) Kind() Kind { return KindActionStarted }
 
-// ActionFinished fires after an action invocation terminates.
+// ActionFinished fires after an action invocation terminates. Action carries the
+// description for the same reason as [ActionStarted].
 type ActionFinished struct {
 	Header
-	Action   core.Action
+	Action   core.ActionMetadata
 	Status   core.ActionStatus
 	Duration time.Duration
 	Err      error

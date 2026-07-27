@@ -285,8 +285,8 @@ event: func NewHeader(processID string) Header
 event: func NewMulticast() *Multicast
 event: func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener
 event: func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener
-event: type ActionFinished struct { Header Action core.Action Status core.ActionStatus Duration time.Duration Err error }
-event: type ActionStarted struct { Header Action core.Action StartedAt time.Time }
+event: type ActionFinished struct { Header Action core.ActionMetadata Status core.ActionStatus Duration time.Duration Err error }
+event: type ActionStarted struct { Header Action core.ActionMetadata StartedAt time.Time }
 event: type AgentDeployed struct { Header Deployment core.DeploymentRef }
 event: type AgentUndeployed struct { Header Deployment core.DeploymentRef }
 event: type Event interface { Timestamp() time.Time ProcessID() string Kind() Kind }
