@@ -21,9 +21,9 @@ type GoalConfig struct {
 	// fills [FixedScore](1.0) when left nil.
 	Value ScoreFunc
 
-	// Tags are short keywords surfaced to model-driven goal selectors
-	// (such as routing.ModelRanker) so the model has a richer signal
-	// than just Name + Description. Typical: ["coding", "refactor"]
+	// Tags are short keywords a model-driven goal selector can surface —
+	// a host implementation of routing.Ranker — so the model has a richer
+	// signal than just Name + Description. Typical: ["coding", "refactor"]
 	// or ["sentiment", "review"]. Optional; planner ignores them.
 	Tags []string
 
