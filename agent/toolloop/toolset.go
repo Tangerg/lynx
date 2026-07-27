@@ -8,17 +8,17 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
 
-// ToolResolver resolves the executable tool advertised by a model request.
-// Resolve must return a non-nil Tool whenever ok is true. Resolver panics are
-// returned as runner errors attributed to the requested tool name.
-type ToolResolver interface {
-	Resolve(name string) (tools.Tool, bool)
-}
+// ToolResolver is [interaction.ToolResolver]. The port belongs to the protocol
+// package alongside the event and resume shapes; Runner is one driver that
+// consumes it, so it reuses the type rather than keeping a parallel copy that
+// could drift.
+type ToolResolver = interaction.ToolResolver
 
 var _ ToolResolver = (*tools.Registry)(nil)
 

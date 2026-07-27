@@ -182,6 +182,10 @@ func (e Event) wrongPayload() error {
 	return fmt.Errorf("%w: payload does not match kind %q", ErrInvalidEvent, e.Kind)
 }
 
+// ToolResolver resolves the executable tool advertised by a model request.
+// Resolve must return a non-nil Tool whenever ok is true. A driver reports a
+// resolver panic as an execution error attributed to the requested tool name,
+// so an implementation may fail without unwinding the loop.
 type ToolResolver interface {
 	Resolve(name string) (tools.Tool, bool)
 }
