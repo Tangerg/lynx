@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"slices"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
 
 func mutationPaths(tool tools.Tool, arguments string) []string {
 	var paths []string
-	if reporter, ok := tool.(tools.FileMutationReporter); ok {
+	if reporter, ok := toolloop.Capability[tools.FileMutationReporter](tool); ok {
 		reported, err := reporter.MutationPaths(arguments)
 		if err == nil {
 			paths = append(paths, reported...)

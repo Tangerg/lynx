@@ -1,0 +1,50 @@
+package agentexec
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
+)
+
+type deferringSearchTool struct{}
+
+func (deferringSearchTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: "search_tools", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (deferringSearchTool) Call(context.Context, string) (string, error) { return "", nil }
+
+func (deferringSearchTool) DeferredToolNames() []string { return []string{"catalog_a"} }
+
+type catalogTool struct{ name string }
+
+func (c catalogTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: c.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (catalogTool) Call(context.Context, string) (string, error) { return "", nil }
+
+// TestDeferredManifestSurvivesObservation pins the real seam: every resolved
+// tool reaches the turn already wrapped for observation, so a manifest built
+// from those wrappers must still withhold what the search tool defers. Losing
+// it would advertise the whole catalog the deferral exists to hide, silently.
+func TestDeferredManifestSurvivesObservation(t *testing.T) {
+	middleware := &toolObserverMiddleware{observation: newToolObservation(noopObserver{}, nil, 0)}
+	observed := []tools.Tool{
+		middleware.WrapTool(nil, nil, deferringSearchTool{}),
+		middleware.WrapTool(nil, nil, catalogTool{name: "catalog_a"}),
+		middleware.WrapTool(nil, nil, catalogTool{name: "read"}),
+	}
+
+	var advertised []string
+	for _, definition := range toolloop.Advertise(observed) {
+		advertised = append(advertised, definition.Name)
+	}
+	if len(advertised) != 2 || advertised[0] != "read" || advertised[1] != "search_tools" {
+		t.Fatalf("advertised = %v, want the deferred catalog tool withheld", advertised)
+	}
+}

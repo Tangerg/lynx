@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
@@ -73,7 +74,7 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 	workdir := t.TempDir()
 	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)), newPathLocker(), workdir)
-	policy, ok := tool.(concurrencyKeyer)
+	policy, ok := toolloop.Capability[concurrencyKeyer](tool)
 	if !ok {
 		t.Fatal("path-locked apply_patch does not expose concurrency policy")
 	}
@@ -85,7 +86,7 @@ func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 
 func concurrentKey(t *testing.T, tool tools.Tool, arguments string) string {
 	t.Helper()
-	policy, ok := tool.(concurrencyKeyer)
+	policy, ok := toolloop.Capability[concurrencyKeyer](tool)
 	if !ok {
 		t.Fatalf("tool %q does not expose concurrency policy", tool.Definition().Name)
 	}

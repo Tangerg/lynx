@@ -49,27 +49,11 @@ var _ tools.FileMutationReporter = (*observedTool)(nil)
 
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
 
-// ReturnsDirect forwards the wrapped tool's return-direct declaration. This
-// decorator wraps every resolved tool, so dropping the marker would turn
-// return-direct tools into regular continuation tools.
-func (o *observedTool) ReturnsDirect() bool {
-	if direct, ok := o.inner.(interface{ ReturnsDirect() bool }); ok {
-		return direct.ReturnsDirect()
-	}
-	return false
-}
-
-// ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
-// Observation is per-call and concurrency-safe; wrapping a read-only or
-// resource-keyed tool must not silently downgrade it to exclusive execution.
-func (o *observedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if capability, ok := o.inner.(interface {
-		ConcurrencyKey(string) (string, bool)
-	}); ok {
-		return capability.ConcurrencyKey(arguments)
-	}
-	return "", false
-}
+// Unwrap exposes the observed tool, which is how its optional declarations —
+// scheduling keys, withheld tool names, anything the loop learns to ask about
+// later — survive observation. Observation is per-call and concurrency-safe, so
+// this decorator changes none of them.
+func (o *observedTool) Unwrap() tools.Tool { return o.inner }
 
 // MutationPaths keeps observation transparent to file-aware outer middleware.
 // Lifecycle reporting itself consumes the same method after a successful call.

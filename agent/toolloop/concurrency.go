@@ -55,7 +55,7 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 			return nil, false, fmt.Errorf("tool %q: %w", call.Name, err)
 		}
 		plan := callPlan{tool: tool, direct: direct}
-		if concurrent, ok := tool.(ConcurrentTool); ok {
+		if concurrent, ok := Capability[ConcurrentTool](tool); ok {
 			plan.key, plan.concurrent, err = concurrencyKey(concurrent, call.Name, call.Arguments)
 			if err != nil {
 				return nil, false, err

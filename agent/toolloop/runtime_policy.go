@@ -14,9 +14,9 @@ type returnDirectMarker interface {
 
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
-// It preserves the tool-loop scheduling declaration but does not proxy
-// host-specific optional interfaces; hosts must compose those capabilities
-// outside this control-flow decorator.
+// It reports itself as a [WrappingTool], so every optional capability of the
+// tool it wraps — scheduling, deferral, a host's own — stays discoverable
+// through it.
 // Nil input remains nil and is rejected by tools.Registry or Runner.Run.
 func Direct(tool tools.Tool) tools.Tool {
 	if valueIsNil(tool) {
@@ -31,18 +31,12 @@ type directRuntimeTool struct {
 
 func (directRuntimeTool) ReturnsDirect() bool { return true }
 
-// ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
-// A policy decorator must not accidentally turn an isolated/read-only tool
-// into an exclusive one.
-func (t directRuntimeTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	if capability, ok := t.Tool.(ConcurrentTool); ok {
-		return capability.ConcurrencyKey(arguments)
-	}
-	return "", false
-}
+// Unwrap exposes the decorated tool so its optional capabilities remain
+// discoverable; this decorator overrides only the direct-return marker.
+func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
 
 func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
-	marker, ok := tool.(returnDirectMarker)
+	marker, ok := Capability[returnDirectMarker](tool)
 	if !ok {
 		return false, nil
 	}

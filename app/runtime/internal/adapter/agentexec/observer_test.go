@@ -11,11 +11,11 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // noopObserver satisfies toolObserver. ConcurrencyKey forwarding never touches
@@ -108,35 +108,32 @@ func (mutatingTool) MutationPaths(string) ([]string, error) {
 	return []string{"b.go", "", "a.go", "b.go"}, nil
 }
 
-func TestObservedToolForwardsReturnsDirect(t *testing.T) {
+// TestObservedToolStandsInForTheToolItObserves pins why observation is
+// transparent: the loop finds a tool's optional declarations through the
+// wrapping chain, so wrapping must not change what a tool declares — nor invent
+// declarations for a tool that has none.
+func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	observation := newToolObservation(noopObserver{}, nil, 0)
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
-	direct, ok := tools.Tool(keyed).(interface{ ReturnsDirect() bool })
+
+	direct, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](keyed)
+	if !ok || !direct.ReturnsDirect() {
+		t.Fatal("the observed tool's return-direct marker is unreachable")
+	}
+	concurrent, ok := toolloop.Capability[toolloop.ConcurrentTool](keyed)
 	if !ok {
-		t.Fatal("observedTool must satisfy the return-direct marker when inner does")
+		t.Fatal("the observed tool's scheduling capability is unreachable")
 	}
-	if !direct.ReturnsDirect() {
-		t.Fatal("ReturnsDirect marker was not forwarded")
-	}
-
-	plain := &observedTool{inner: plainTool{}, observation: observation}
-	if plain.ReturnsDirect() {
-		t.Fatal("plain tool must not become return-direct")
-	}
-}
-
-func TestObservedToolForwardsConcurrencyKey(t *testing.T) {
-	observation := newToolObservation(noopObserver{}, nil, 0)
-	keyed := &observedTool{inner: keyedTool{}, observation: observation}
-	key, concurrent := keyed.ConcurrencyKey(`{}`)
-	if key != "resource" || !concurrent {
-		t.Fatalf("keyed concurrency = %q, %v", key, concurrent)
+	if key, allowed := concurrent.ConcurrencyKey(`{}`); key != "resource" || !allowed {
+		t.Fatalf("keyed concurrency = %q, %v; want resource, true", key, allowed)
 	}
 
 	plain := &observedTool{inner: plainTool{}, observation: observation}
-	key, concurrent = plain.ConcurrencyKey(`{}`)
-	if key != "" || concurrent {
-		t.Fatalf("plain concurrency = %q, %v", key, concurrent)
+	if _, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](plain); ok {
+		t.Fatal("a plain tool became return-direct through observation")
+	}
+	if _, ok := toolloop.Capability[toolloop.ConcurrentTool](plain); ok {
+		t.Fatal("a plain tool gained a scheduling declaration through observation")
 	}
 }
 

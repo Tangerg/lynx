@@ -516,6 +516,7 @@ toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, r
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (s CallStatus) Valid() bool
 toolloop: func Advertise(candidates []tools.Tool) []chat.ToolDefinition
+toolloop: func Capability[T any](tool tools.Tool) (T, bool)
 toolloop: func Direct(tool tools.Tool) tools.Tool
 toolloop: func NewRunner(model chat.Model, config Config) (*Runner, error)
 toolloop: func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition)
@@ -535,6 +536,7 @@ toolloop: type PendingCall struct { ID string `json:"id"` Reason string `json:"r
 toolloop: type Resume = interaction.Resume
 toolloop: type Runner struct { }
 toolloop: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
+toolloop: type WrappingTool interface { Unwrap() tools.Tool }
 toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint") ErrAmbiguousToolCalls = errors.New("toolloop: ambiguous tool calls") )
 toolloop: var ( ErrInvalidConfig = errors.New("toolloop: invalid config") ErrInvalidInput = errors.New("toolloop: invalid input") ErrRoundLimit = errors.New("toolloop: round limit reached") )
 toolloop: var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")

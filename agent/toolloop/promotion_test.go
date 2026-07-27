@@ -180,3 +180,33 @@ func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
 		t.Fatalf("manifest = %+v, want both tools in name order", manifest)
 	}
 }
+
+type wrappingAdvertiseTool struct{ inner tools.Tool }
+
+func (w wrappingAdvertiseTool) Definition() chat.ToolDefinition { return w.inner.Definition() }
+
+func (w wrappingAdvertiseTool) Call(ctx context.Context, arguments string) (string, error) {
+	return w.inner.Call(ctx, arguments)
+}
+
+func (w wrappingAdvertiseTool) Unwrap() tools.Tool { return w.inner }
+
+// TestAdvertiseSeesThroughDecorators pins the reason WrappingTool exists: a host
+// decorates every resolved tool, and a decorator that re-implements nothing must
+// not cost the inner tool its deferral — losing it would advertise the catalog
+// the deferral exists to withhold, with no error anywhere.
+func TestAdvertiseSeesThroughDecorators(t *testing.T) {
+	manifest := toolloop.Advertise([]tools.Tool{
+		wrappingAdvertiseTool{inner: advertiseTool{name: "search_tools", deferred: []string{"catalog_a"}}},
+		wrappingAdvertiseTool{inner: advertiseTool{name: "catalog_a"}},
+		wrappingAdvertiseTool{inner: advertiseTool{name: "read"}},
+	})
+
+	var names []string
+	for _, definition := range manifest {
+		names = append(names, definition.Name)
+	}
+	if len(names) != 2 || names[0] != "read" || names[1] != "search_tools" {
+		t.Fatalf("manifest = %v, want the deferral honored through the decorator", names)
+	}
+}

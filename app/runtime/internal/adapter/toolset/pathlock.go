@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -112,9 +113,10 @@ func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, er
 }
 
 func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
-	capability, ok := t.inner.(interface {
-		ConcurrencyKey(string) (string, bool)
-	})
+	// Read the declaration through the wrapping chain: the tool underneath is
+	// itself decorated, and a one-level look would silently make every guarded
+	// file tool exclusive.
+	capability, ok := toolloop.Capability[toolloop.ConcurrentTool](t.inner)
 	if !ok {
 		return "", false
 	}
@@ -137,7 +139,7 @@ func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurren
 }
 
 func (t *pathLockedTool) ReturnsDirect() bool {
-	if direct, ok := t.inner.(interface{ ReturnsDirect() bool }); ok {
+	if direct, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](t.inner); ok {
 		return direct.ReturnsDirect()
 	}
 	return false

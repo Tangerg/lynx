@@ -108,7 +108,7 @@ type DeferredTool interface {
 func Advertise(candidates []tools.Tool) []chat.ToolDefinition {
 	var withheld map[string]struct{}
 	for _, candidate := range candidates {
-		deferring, ok := candidate.(DeferredTool)
+		deferring, ok := Capability[DeferredTool](candidate)
 		if !ok {
 			continue
 		}
