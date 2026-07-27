@@ -108,7 +108,7 @@ func (t *agentTool) continueNestedChild(
 	if child.Status() == core.StatusWaiting {
 		suspension := child.Suspension()
 		if suspension == nil || !suspension.Responded() {
-			return "", fmt.Errorf("%w: nested child suspension %q has no response", interaction.ErrSuspensionStale, relation.SuspensionID)
+			return "", fmt.Errorf("%w: nested child %q has no answered suspension", interaction.ErrSuspensionStale, child.ID())
 		}
 		if err := t.engine.Continue(ctx, child.ID()); err != nil {
 			cleanupErr := t.abortNestedChild(ctx, child)

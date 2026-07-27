@@ -35,7 +35,7 @@ func (s *nestedChildState) stage(processID string, relation *nestedChildRelation
 		}
 		return fmt.Errorf("%w: process %q already staged tool call %q", interaction.ErrSuspensionConflict, processID, relation.ToolCallID)
 	}
-	if current := s.pending[relation.ToolCallID]; current != nil && !current.sameInvocation(relation) {
+	if current := s.pending[relation.ToolCallID]; current != nil && !current.same(relation) {
 		return fmt.Errorf("%w: process %q tool call %q changed nested child identity", interaction.ErrSuspensionConflict, processID, relation.ToolCallID)
 	}
 	for callID, current := range s.pending {
@@ -146,6 +146,27 @@ func (p *Process) nestedChildrenForCheckpoint(
 		return nil, nil, err
 	}
 	return relations, active, nil
+}
+
+// nestedChildSuspension reads what a related child is waiting on from the child
+// itself. The relation records only which child serves which tool call, so this
+// is the one place that resolves the suspension behind it.
+func (p *Process) nestedChildSuspension(relation *nestedChildRelation) (*interaction.Suspension, error) {
+	if p == nil || p.engine == nil || relation == nil {
+		return nil, errors.New("runtime: cannot resolve nested child suspension")
+	}
+	child, ok := p.engine.Process(relation.ChildID)
+	if !ok {
+		return nil, fmt.Errorf("%w: nested child process %q is missing", interaction.ErrSuspensionStale, relation.ChildID)
+	}
+	if err := relation.validateProcess(p, child); err != nil {
+		return nil, err
+	}
+	suspension := child.Suspension()
+	if suspension == nil || suspension.Responded() {
+		return nil, fmt.Errorf("%w: nested child %q has no unanswered suspension", interaction.ErrSuspensionStale, child.ID())
+	}
+	return suspension, nil
 }
 
 func (p *Process) prepareNestedSuspension(suspension interaction.Suspension) (nestedChildCheckpoint, error) {

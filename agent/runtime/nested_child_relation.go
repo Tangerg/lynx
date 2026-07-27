@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,32 +8,30 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/internal/toolcall"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 const (
-	nestedChildRelationSchemaVersion uint16 = 2
+	nestedChildRelationSchemaVersion uint16 = 3
 	directNestedToolCallIDPrefix            = "direct:"
 )
 
+// nestedChildRelation records which child process serves which parent tool
+// call. It deliberately says nothing about what that child is waiting on: the
+// child's own snapshot is the single source of truth for its suspension, and a
+// capture always covers the complete process tree, so a copy here would only
+// be a second version of the same fact to keep in agreement.
 type nestedChildRelation struct {
-	SchemaVersion       uint16                     `json:"schema_version"`
-	ToolCallID          string                     `json:"tool_call_id"`
-	ChildID             string                     `json:"child_id"`
-	Deployment          core.DeploymentRef         `json:"deployment"`
-	SuspensionID        string                     `json:"suspension_id"`
-	SuspensionKind      interaction.SuspensionKind `json:"suspension_kind"`
-	SuspensionCreatedAt time.Time                  `json:"suspension_created_at"`
-	Prompt              json.RawMessage            `json:"prompt"`
-	ResumeSchema        json.RawMessage            `json:"resume_schema"`
-	ToolName            string                     `json:"tool_name"`
-	ArgumentsDigest     string                     `json:"arguments_digest"`
+	SchemaVersion   uint16             `json:"schema_version"`
+	ToolCallID      string             `json:"tool_call_id"`
+	ChildID         string             `json:"child_id"`
+	Deployment      core.DeploymentRef `json:"deployment"`
+	ToolName        string             `json:"tool_name"`
+	ArgumentsDigest string             `json:"arguments_digest"`
 }
 
 func cloneNestedChildRelations(relations []*nestedChildRelation) []*nestedChildRelation {
@@ -53,8 +50,6 @@ func (r *nestedChildRelation) clone() *nestedChildRelation {
 		return nil
 	}
 	cloned := *r
-	cloned.Prompt = bytes.Clone(r.Prompt)
-	cloned.ResumeSchema = bytes.Clone(r.ResumeSchema)
 	return &cloned
 }
 
@@ -78,17 +73,6 @@ func (r *nestedChildRelation) validate() error {
 	if err != nil || len(digest) != sha256.Size {
 		return errors.New("runtime: nested child relation has invalid arguments digest")
 	}
-	candidate := interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            r.SuspensionID,
-		Kind:          r.SuspensionKind,
-		Prompt:        r.Prompt,
-		ResumeSchema:  r.ResumeSchema,
-		CreatedAt:     r.SuspensionCreatedAt,
-	}
-	if err := candidate.Validate(); err != nil {
-		return fmt.Errorf("runtime: nested child suspension: %w", err)
-	}
 	return nil
 }
 
@@ -97,20 +81,6 @@ func (r *nestedChildRelation) same(other *nestedChildRelation) bool {
 		return r == other
 	}
 	return r.SchemaVersion == other.SchemaVersion &&
-		r.ToolCallID == other.ToolCallID &&
-		r.ChildID == other.ChildID &&
-		r.Deployment == other.Deployment &&
-		r.SuspensionID == other.SuspensionID &&
-		r.SuspensionKind == other.SuspensionKind &&
-		r.SuspensionCreatedAt.Equal(other.SuspensionCreatedAt) &&
-		bytes.Equal(r.Prompt, other.Prompt) &&
-		bytes.Equal(r.ResumeSchema, other.ResumeSchema) &&
-		r.ToolName == other.ToolName &&
-		r.ArgumentsDigest == other.ArgumentsDigest
-}
-
-func (r *nestedChildRelation) sameInvocation(other *nestedChildRelation) bool {
-	return r != nil && other != nil &&
 		r.ToolCallID == other.ToolCallID &&
 		r.ChildID == other.ChildID &&
 		r.Deployment == other.Deployment &&
@@ -123,22 +93,6 @@ func (r *nestedChildRelation) matchesCall(call chat.ToolCall) bool {
 		r.ToolCallID == call.ID &&
 		r.ToolName == call.Name &&
 		r.ArgumentsDigest == nestedArgumentsDigest(call.Arguments)
-}
-
-func (r *nestedChildRelation) matchesPending(pending toolloop.PendingCall) bool {
-	return r != nil &&
-		r.SuspensionID == pending.ID &&
-		bytes.Equal(r.Prompt, pending.Prompt) &&
-		bytes.Equal(r.ResumeSchema, pending.ResumeSchema)
-}
-
-func (r *nestedChildRelation) matchesSuspension(suspension *interaction.Suspension) bool {
-	return r != nil && suspension != nil &&
-		r.SuspensionID == suspension.ID &&
-		r.SuspensionKind == suspension.Kind &&
-		r.SuspensionCreatedAt.Equal(suspension.CreatedAt) &&
-		bytes.Equal(r.Prompt, suspension.Prompt) &&
-		bytes.Equal(r.ResumeSchema, suspension.ResumeSchema)
 }
 
 func (r *nestedChildRelation) matchesToolCall(
@@ -208,17 +162,12 @@ func nestedRelationForChild(
 		return nil, nil, errors.New("runtime: nested child has no unanswered suspension")
 	}
 	relation := &nestedChildRelation{
-		SchemaVersion:       nestedChildRelationSchemaVersion,
-		ToolCallID:          toolCallID,
-		ChildID:             child.ID(),
-		Deployment:          child.Deployment(),
-		SuspensionID:        suspension.ID,
-		SuspensionKind:      suspension.Kind,
-		SuspensionCreatedAt: suspension.CreatedAt,
-		Prompt:              bytes.Clone(suspension.Prompt),
-		ResumeSchema:        bytes.Clone(suspension.ResumeSchema),
-		ToolName:            toolName,
-		ArgumentsDigest:     nestedArgumentsDigest(arguments),
+		SchemaVersion:   nestedChildRelationSchemaVersion,
+		ToolCallID:      toolCallID,
+		ChildID:         child.ID(),
+		Deployment:      child.Deployment(),
+		ToolName:        toolName,
+		ArgumentsDigest: nestedArgumentsDigest(arguments),
 	}
 	if err := relation.validate(); err != nil {
 		return nil, nil, err
@@ -235,18 +184,12 @@ func (r *nestedChildRelation) validateProcess(parent, child *Process) error {
 		child.Deployment() != r.Deployment {
 		return fmt.Errorf("%w: nested child process identity does not match relation", interaction.ErrSuspensionStale)
 	}
-	if child.StartedAt().Before(parent.StartedAt()) ||
-		r.SuspensionCreatedAt.Before(child.StartedAt()) {
-		return fmt.Errorf("%w: nested child process timestamps do not match relation", interaction.ErrSuspensionStale)
+	if child.StartedAt().Before(parent.StartedAt()) {
+		return fmt.Errorf("%w: nested child started before its parent", interaction.ErrSuspensionStale)
 	}
 	if child.Status() == core.StatusWaiting {
-		suspension := child.Suspension()
-		if suspension == nil || suspension.ID != r.SuspensionID ||
-			suspension.Kind != r.SuspensionKind ||
-			!suspension.CreatedAt.Equal(r.SuspensionCreatedAt) ||
-			!bytes.Equal(suspension.Prompt, r.Prompt) ||
-			!bytes.Equal(suspension.ResumeSchema, r.ResumeSchema) {
-			return fmt.Errorf("%w: nested child suspension does not match relation", interaction.ErrSuspensionStale)
+		if child.Suspension() == nil {
+			return fmt.Errorf("%w: waiting nested child %q has no suspension", interaction.ErrSuspensionStale, child.ID())
 		}
 		return nil
 	}
@@ -262,28 +205,14 @@ func (r *nestedChildRelation) validateSnapshot(parent, child core.ProcessSnapsho
 	}
 	if child.ID != r.ChildID ||
 		child.ParentID != parent.ID ||
-		child.Deployment != r.Deployment ||
-		child.Depth != parent.Depth+1 {
+		child.Deployment != r.Deployment {
 		return fmt.Errorf("%w: nested child snapshot identity does not match relation", core.ErrInvalidSnapshot)
 	}
-	if child.StartedAt.Before(parent.StartedAt) ||
-		r.SuspensionCreatedAt.Before(child.StartedAt) {
-		return fmt.Errorf("%w: nested child snapshot timestamps do not match relation", core.ErrInvalidSnapshot)
+	if child.StartedAt.Before(parent.StartedAt) {
+		return fmt.Errorf("%w: nested child snapshot started before its parent", core.ErrInvalidSnapshot)
 	}
 	if child.Status == core.StatusWaiting {
-		if err := ValidateResumableSnapshot(child); err != nil {
-			return err
-		}
-		suspension := child.Suspension
-		if suspension == nil ||
-			suspension.ID != r.SuspensionID ||
-			suspension.Kind != r.SuspensionKind ||
-			!suspension.CreatedAt.Equal(r.SuspensionCreatedAt) ||
-			!bytes.Equal(suspension.Prompt, r.Prompt) ||
-			!bytes.Equal(suspension.ResumeSchema, r.ResumeSchema) {
-			return fmt.Errorf("%w: nested child snapshot suspension does not match relation", core.ErrInvalidSnapshot)
-		}
-		return nil
+		return ValidateResumableSnapshot(child)
 	}
 	if !child.Status.IsTerminal() {
 		return fmt.Errorf("%w: nested child snapshot is %s", core.ErrInvalidSnapshot, child.Status)

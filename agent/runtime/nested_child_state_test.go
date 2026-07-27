@@ -1,40 +1,12 @@
 package runtime
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 )
-
-func TestNestedChildStateOwnsRelationCopies(t *testing.T) {
-	var state nestedChildState
-	relation := testNestedChildRelation("call-1", "child-1")
-	wantPrompt := bytes.Clone(relation.Prompt)
-	wantSchema := bytes.Clone(relation.ResumeSchema)
-
-	if err := state.stage("parent-1", relation); err != nil {
-		t.Fatalf("stage: %v", err)
-	}
-	relation.Prompt[0] = '['
-	relation.ResumeSchema[0] = '['
-
-	first := state.relations()[relation.ToolCallID]
-	if !bytes.Equal(first.Prompt, wantPrompt) || !bytes.Equal(first.ResumeSchema, wantSchema) {
-		t.Fatalf("stored relation aliases caller: prompt=%s schema=%s", first.Prompt, first.ResumeSchema)
-	}
-	first.Prompt[0] = '['
-	first.ResumeSchema[0] = '['
-
-	second := state.relations()[relation.ToolCallID]
-	if !bytes.Equal(second.Prompt, wantPrompt) || !bytes.Equal(second.ResumeSchema, wantSchema) {
-		t.Fatalf("relation snapshot aliases state: prompt=%s schema=%s", second.Prompt, second.ResumeSchema)
-	}
-}
 
 func TestNestedChildStateRejectsConflictingOwnership(t *testing.T) {
 	var state nestedChildState
@@ -67,16 +39,11 @@ func TestNestedChildStateRejectsConflictingOwnership(t *testing.T) {
 
 func testNestedChildRelation(toolCallID, childID string) *nestedChildRelation {
 	return &nestedChildRelation{
-		SchemaVersion:       nestedChildRelationSchemaVersion,
-		ToolCallID:          toolCallID,
-		ChildID:             childID,
-		Deployment:          core.DeploymentRef{Name: "child-agent", Digest: "digest"},
-		SuspensionID:        "suspension-" + childID,
-		SuspensionKind:      interaction.SuspensionHuman,
-		SuspensionCreatedAt: time.Unix(1, 0).UTC(),
-		Prompt:              json.RawMessage(`{"question":"continue?"}`),
-		ResumeSchema:        json.RawMessage(`{"type":"boolean"}`),
-		ToolName:            "delegate",
-		ArgumentsDigest:     nestedArgumentsDigest(`{"task":"work"}`),
+		SchemaVersion:   nestedChildRelationSchemaVersion,
+		ToolCallID:      toolCallID,
+		ChildID:         childID,
+		Deployment:      core.DeploymentRef{Name: "child-agent", Digest: "digest"},
+		ToolName:        "delegate",
+		ArgumentsDigest: nestedArgumentsDigest(`{"task":"work"}`),
 	}
 }

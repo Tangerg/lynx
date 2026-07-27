@@ -344,8 +344,8 @@ func (e *Engine) collectResume(
 		if err := relation.validateProcess(process, child); err != nil {
 			return err
 		}
-		if child.Status() == core.StatusWaiting {
-			if err := e.collectResume(admission, child, relation.SuspensionID, response, visited); err != nil {
+		if childSuspension := child.Suspension(); childSuspension != nil && child.Status() == core.StatusWaiting {
+			if err := e.collectResume(admission, child, childSuspension.ID, response, visited); err != nil {
 				return err
 			}
 		}

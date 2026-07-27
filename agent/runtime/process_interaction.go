@@ -205,10 +205,20 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 	if err != nil {
 		return fmt.Errorf("runtime: correlate nested child checkpoint: %w", err)
 	}
-	if activeNested != nil && (activeNested.SuspensionID != boundary.Pause.ID ||
-		!bytes.Equal(activeNested.Prompt, boundary.Pause.Prompt) ||
-		!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
-		return fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
+	// When the paused call is served by a child, the two subsystems must agree on
+	// what is being waited for. The child owns that fact, so the comparison reads
+	// its live suspension rather than a copy kept beside the relation.
+	var activeChild *interaction.Suspension
+	if activeNested != nil {
+		activeChild, err = p.nestedChildSuspension(activeNested)
+		if err != nil {
+			return err
+		}
+		if activeChild.ID != boundary.Pause.ID ||
+			!bytes.Equal(activeChild.Prompt, boundary.Pause.Prompt) ||
+			!bytes.Equal(activeChild.ResumeSchema, boundary.Pause.ResumeSchema) {
+			return fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
+		}
 	}
 	frameworkState, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
 		SchemaVersion:  suspensionCheckpointSchemaVersion,
@@ -223,9 +233,9 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 	}
 	kind := interaction.SuspensionTool
 	createdAt := time.Now()
-	if activeNested != nil {
-		kind = activeNested.SuspensionKind
-		createdAt = activeNested.SuspensionCreatedAt
+	if activeChild != nil {
+		kind = activeChild.Kind
+		createdAt = activeChild.CreatedAt
 	}
 	suspension := interaction.Suspension{
 		SchemaVersion:  interaction.SuspensionSchemaVersion,

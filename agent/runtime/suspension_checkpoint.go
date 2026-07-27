@@ -116,9 +116,6 @@ func validateCheckpointNestedChildren(
 		if !relation.matchesCall(call) {
 			return nil, fmt.Errorf("runtime: nested child relation does not match tool call %q", call.ID)
 		}
-		if !relation.matchesPending(*state.Pending) {
-			return nil, fmt.Errorf("runtime: nested child relation does not match pending call %q", call.ID)
-		}
 		if callIndex == checkpoint.NextResult {
 			active = relation
 		}
@@ -206,9 +203,6 @@ func nestedChildrenFromSuspension(suspension *interaction.Suspension) (nestedChi
 			!bytes.Equal(suspension.ResumeSchema, pending.ResumeSchema) {
 			return nestedChildCheckpoint{}, fmt.Errorf("%w: tool-loop checkpoint does not match parent suspension", interaction.ErrSuspensionStale)
 		}
-	}
-	if result.active != nil && !result.active.matchesSuspension(suspension) {
-		return nestedChildCheckpoint{}, fmt.Errorf("%w: active nested child does not match parent suspension", interaction.ErrSuspensionStale)
 	}
 	return result, nil
 }
