@@ -590,3 +590,85 @@ func moduleRoot(t *testing.T) string {
 		dir = parent
 	}
 }
+
+// TestFrameworkWritesNoModelFacingCopy keeps prompt content out of the
+// framework. Two instances of that leak reached main — a JSON instruction
+// concatenated inside PromptJSON and a routing classifier's system prompt with
+// a scoring rubric — and neither was caught by reading. The checks are narrow on
+// purpose, so they never fire on an error message: a literal handed straight to
+// a chat message constructor, and a multi-line raw string, which is what a
+// prompt looks like and what a diagnostic never does. Framework code composes
+// messages from caller-supplied text; whoever owns the product owns the wording.
+func TestFrameworkWritesNoModelFacingCopy(t *testing.T) {
+	messageConstructors := map[string]struct{}{
+		"NewSystemMessage":    {},
+		"NewUserMessage":      {},
+		"NewAssistantMessage": {},
+		"NewTextPart":         {},
+	}
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == "vendor" || name == "examples" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		relativePath, _ := filepath.Rel(root, path)
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch value := node.(type) {
+			case *ast.BasicLit:
+				if value.Kind == token.STRING && strings.HasPrefix(value.Value, "`") &&
+					strings.Contains(value.Value, "\n") {
+					t.Errorf("Agent production code owns a multi-line string literal, which is prompt-shaped: %s", relativePath)
+				}
+			case *ast.CallExpr:
+				selector, ok := value.Fun.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				if _, ok := messageConstructors[selector.Sel.Name]; !ok {
+					return true
+				}
+				for _, argument := range value.Args {
+					if containsStringLiteral(argument) {
+						t.Errorf("Agent production code builds a model message from its own text: %s (%s)", relativePath, selector.Sel.Name)
+					}
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent production code: %v", walkErr)
+	}
+}
+
+// containsStringLiteral reports whether expression is a string literal or a
+// concatenation containing one — the shape a prompt takes when it is spliced
+// into caller text.
+func containsStringLiteral(expression ast.Expr) bool {
+	switch value := expression.(type) {
+	case *ast.BasicLit:
+		return value.Kind == token.STRING
+	case *ast.BinaryExpr:
+		return containsStringLiteral(value.X) || containsStringLiteral(value.Y)
+	case *ast.ParenExpr:
+		return containsStringLiteral(value.X)
+	default:
+		return false
+	}
+}
