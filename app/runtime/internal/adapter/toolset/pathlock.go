@@ -101,6 +101,12 @@ type pathLockedTool struct {
 
 func (t *pathLockedTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
+// Unwrap exposes the locked tool so everything it declares — where its edits
+// land, whether it ends the round — stays reachable through the lock. Only the
+// scheduling key below is this wrapper's own, and declaring it here is what
+// makes it win over the inner tool's.
+func (t *pathLockedTool) Unwrap() tools.Tool { return t.inner }
+
 func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, error) {
 	for _, path := range resolvedMutationPaths(t.inner, arguments, t.workdir) {
 		release, err := t.locker.acquire(ctx, path)
@@ -136,18 +142,4 @@ func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurren
 		// contract.
 		return "", false
 	}
-}
-
-func (t *pathLockedTool) ReturnsDirect() bool {
-	if direct, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](t.inner); ok {
-		return direct.ReturnsDirect()
-	}
-	return false
-}
-
-func (t *pathLockedTool) MutationPaths(arguments string) ([]string, error) {
-	if reporter, ok := t.inner.(tools.FileMutationReporter); ok {
-		return reporter.MutationPaths(arguments)
-	}
-	return nil, nil
 }

@@ -8,7 +8,16 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-type returnDirectMarker interface {
+// DirectTool is the optional capability a tool implements to end the round it
+// completes: a round consisting entirely of direct tools returns its final
+// ToolResult instead of making another model call.
+//
+// Like [ConcurrentTool] and [DeferredTool] it is named here so a tool — or a
+// host asking what a tool declared — states the intent without depending on a
+// particular loop driver, and a driver that ignores the advice stays correct.
+// [Direct] wraps a tool to declare it; implementing this reports the same thing
+// directly.
+type DirectTool interface {
 	ReturnsDirect() bool
 }
 
@@ -36,7 +45,7 @@ func (directRuntimeTool) ReturnsDirect() bool { return true }
 func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
 
 func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
-	marker, ok := Capability[returnDirectMarker](tool)
+	marker, ok := Capability[DirectTool](tool)
 	if !ok {
 		return false, nil
 	}

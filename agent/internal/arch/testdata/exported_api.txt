@@ -528,6 +528,7 @@ toolloop: type Checkpoint struct { SchemaVersion uint16 `json:"schema_version"` 
 toolloop: type ConcurrentTool interface { ConcurrencyKey(arguments string) (key string, concurrent bool) }
 toolloop: type Config struct { MaxRounds int MaxConcurrentCalls int }
 toolloop: type DeferredTool interface { DeferredToolNames() []string }
+toolloop: type DirectTool interface { ReturnsDirect() bool }
 toolloop: type Event struct { Kind EventKind Round int Final bool Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Pause *Pause Resume *Resume }
 toolloop: type EventKind = interaction.EventKind
 toolloop: type Pause struct { ID string Reason string Prompt json.RawMessage ResumeSchema json.RawMessage Checkpoint *Checkpoint }

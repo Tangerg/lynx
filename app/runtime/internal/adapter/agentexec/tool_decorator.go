@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
@@ -45,8 +46,6 @@ type observedTool struct {
 	observation *toolObservation
 }
 
-var _ tools.FileMutationReporter = (*observedTool)(nil)
-
 func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definition() }
 
 // Unwrap exposes the observed tool, which is how its optional declarations —
@@ -55,15 +54,6 @@ func (o *observedTool) Definition() chat.ToolDefinition { return o.inner.Definit
 // this decorator changes none of them.
 func (o *observedTool) Unwrap() tools.Tool { return o.inner }
 
-// MutationPaths keeps observation transparent to file-aware outer middleware.
-// Lifecycle reporting itself consumes the same method after a successful call.
-func (o *observedTool) MutationPaths(arguments string) ([]string, error) {
-	if reporter, ok := o.inner.(tools.FileMutationReporter); ok {
-		return reporter.MutationPaths(arguments)
-	}
-	return nil, nil
-}
-
 func (o *observedTool) Call(ctx context.Context, arguments string) (string, error) {
 	name := o.inner.Definition().Name
 	call, bound := o.observation.invocation(ctx, name, arguments)
@@ -71,9 +61,12 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		call = &observedModelCall{id: "direct:" + rand.Text(), process: processRefFromContext(ctx), name: name, arguments: arguments}
 	}
 
-	mutations, _ := o.inner.(tools.FileMutationReporter)
+	// Both lookups walk the wrapping chain: the resolved tool arrives already
+	// decorated, so a one-level look would hand the approval gate an empty
+	// target for exactly the tools whose blast radius matters most.
+	mutations, _ := toolloop.Capability[tools.FileMutationReporter](o.inner)
 	target := ToolApprovalTarget{FileMutations: mutations}
-	if identity, ok := o.inner.(mcpToolIdentity); ok {
+	if identity, ok := toolloop.Capability[mcpToolIdentity](o.inner); ok {
 		server, remote := identity.MCPToolIdentity()
 		if server != "" && remote != "" {
 			target.MCP = mcpserver.ToolRef{Server: server, Tool: remote}
@@ -120,7 +113,11 @@ func (o *observedTool) successfulMutationPaths(arguments string, callErr error) 
 	if callErr != nil {
 		return nil
 	}
-	paths, err := o.MutationPaths(arguments)
+	reporter, ok := toolloop.Capability[tools.FileMutationReporter](o.inner)
+	if !ok {
+		return nil
+	}
+	paths, err := reporter.MutationPaths(arguments)
 	if err != nil {
 		return nil
 	}

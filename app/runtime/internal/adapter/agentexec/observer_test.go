@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // noopObserver satisfies toolObserver. ConcurrencyKey forwarding never touches
@@ -116,7 +117,7 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	observation := newToolObservation(noopObserver{}, nil, 0)
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
 
-	direct, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](keyed)
+	direct, ok := toolloop.Capability[toolloop.DirectTool](keyed)
 	if !ok || !direct.ReturnsDirect() {
 		t.Fatal("the observed tool's return-direct marker is unreachable")
 	}
@@ -128,9 +129,21 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 		t.Fatalf("keyed concurrency = %q, %v; want resource, true", key, allowed)
 	}
 
+	mutating := &observedTool{inner: mutatingTool{}, observation: observation}
+	reporter, ok := toolloop.Capability[tools.FileMutationReporter](mutating)
+	if !ok {
+		t.Fatal("the observed tool's file-mutation report is unreachable")
+	}
+	if paths, err := reporter.MutationPaths(`{}`); err != nil || len(paths) == 0 {
+		t.Fatalf("MutationPaths = %v, %v; want the observed tool's own paths", paths, err)
+	}
+
 	plain := &observedTool{inner: plainTool{}, observation: observation}
-	if _, ok := toolloop.Capability[interface{ ReturnsDirect() bool }](plain); ok {
+	if _, ok := toolloop.Capability[toolloop.DirectTool](plain); ok {
 		t.Fatal("a plain tool became return-direct through observation")
+	}
+	if _, ok := toolloop.Capability[tools.FileMutationReporter](plain); ok {
+		t.Fatal("a plain tool gained a file-mutation report through observation")
 	}
 	if _, ok := toolloop.Capability[toolloop.ConcurrentTool](plain); ok {
 		t.Fatal("a plain tool gained a scheduling declaration through observation")

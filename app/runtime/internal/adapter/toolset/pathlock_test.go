@@ -13,10 +13,6 @@ import (
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
-type concurrencyKeyer interface {
-	ConcurrencyKey(arguments string) (key string, concurrent bool)
-}
-
 func TestPathLockUsesCanonicalConcurrencyKey(t *testing.T) {
 	workdir := t.TempDir()
 	realPath := filepath.Join(workdir, "real.txt")
@@ -74,7 +70,7 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 	workdir := t.TempDir()
 	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)), newPathLocker(), workdir)
-	policy, ok := toolloop.Capability[concurrencyKeyer](tool)
+	policy, ok := toolloop.Capability[toolloop.ConcurrentTool](tool)
 	if !ok {
 		t.Fatal("path-locked apply_patch does not expose concurrency policy")
 	}
@@ -84,9 +80,43 @@ func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 	}
 }
 
+// TestAssembledFileToolStillReportsWhatItMutates pins the wrapping chain
+// through the real stack. A guarded mutation tool is six wrappers deep, and
+// everything above it asks the OUTERMOST tool what the call will touch — the
+// approval gate renders that blast radius, and the tool-end event reports the
+// paths that changed. A layer that stops being a WrappingTool ends the chain and
+// silently answers "nothing", which reads as a safe tool rather than a broken
+// lookup.
+func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
+	workdir := t.TempDir()
+	target := filepath.Join(workdir, "real.txt")
+	if err := os.WriteFile(target, []byte("content"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	assembled := editMutationTool(
+		fs.NewEditTool(fs.NewLocalExecutor(workdir)),
+		nil,
+		editguardstate.NewTracker(),
+		newPathLocker(),
+		workdir,
+	)
+
+	reporter, ok := toolloop.Capability[tools.FileMutationReporter](assembled)
+	if !ok {
+		t.Fatal("the assembled edit tool no longer reports its file mutations")
+	}
+	paths, err := reporter.MutationPaths(pathArguments("real.txt"))
+	if err != nil {
+		t.Fatalf("MutationPaths: %v", err)
+	}
+	if len(paths) != 1 || filepath.Base(paths[0]) != "real.txt" {
+		t.Fatalf("MutationPaths = %v, want the edited file", paths)
+	}
+}
+
 func concurrentKey(t *testing.T, tool tools.Tool, arguments string) string {
 	t.Helper()
-	policy, ok := toolloop.Capability[concurrencyKeyer](tool)
+	policy, ok := toolloop.Capability[toolloop.ConcurrentTool](tool)
 	if !ok {
 		t.Fatalf("tool %q does not expose concurrency policy", tool.Definition().Name)
 	}

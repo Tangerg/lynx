@@ -30,13 +30,7 @@ func (d *decoratedTool) Call(ctx context.Context, arguments string) (string, err
 }
 
 // Unwrap exposes the wrapped tool so its optional tool-loop declarations — a
-// keyed file tool's per-path conflict class, a return-direct policy — survive
-// the whole decorator stack. Only Call is overridden here.
+// keyed file tool's per-path conflict class, where its edits land, a
+// return-direct policy — survive the whole decorator stack. Only Call is
+// overridden here.
 func (d *decoratedTool) Unwrap() tools.Tool { return d.inner }
-
-func (d *decoratedTool) MutationPaths(arguments string) ([]string, error) {
-	if reporter, ok := d.inner.(tools.FileMutationReporter); ok {
-		return reporter.MutationPaths(arguments)
-	}
-	return nil, nil
-}
