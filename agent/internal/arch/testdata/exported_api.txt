@@ -513,6 +513,7 @@ toolloop: func (p PendingCall) Validate() error
 toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (s CallStatus) Valid() bool
+toolloop: func Advertise(candidates []tools.Tool) []chat.ToolDefinition
 toolloop: func Direct(tool tools.Tool) tools.Tool
 toolloop: func NewRunner(model chat.Model, config Config) (*Runner, error)
 toolloop: func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition)
@@ -523,6 +524,7 @@ toolloop: type CallStatus string
 toolloop: type Checkpoint struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Round int `json:"round"` ToolsetDigest string `json:"toolset_digest"` Request *chat.Request `json:"request"` Response *chat.Response `json:"response"` CallStates []CallCheckpoint `json:"call_states"` NextResult int `json:"next_result"` }
 toolloop: type ConcurrentTool interface { ConcurrencyKey(arguments string) (key string, concurrent bool) }
 toolloop: type Config struct { MaxRounds int MaxConcurrentCalls int }
+toolloop: type DeferredTool interface { DeferredToolNames() []string }
 toolloop: type Event struct { Kind EventKind Round int Final bool Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Pause *Pause Resume *Resume }
 toolloop: type EventKind = interaction.EventKind
 toolloop: type Pause struct { ID string Reason string Prompt json.RawMessage ResumeSchema json.RawMessage Checkpoint *Checkpoint }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // TestPromoteToolsAdvertisesWithheldToolMidLoop drives the full seam: a
@@ -131,4 +132,51 @@ func hasToolResult(events []toolloop.Event, name, result string) bool {
 		}
 	}
 	return false
+}
+
+type advertiseTool struct {
+	name     string
+	deferred []string
+}
+
+func (t advertiseTool) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: t.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (advertiseTool) Call(context.Context, string) (string, error) { return "", nil }
+
+func (t advertiseTool) DeferredToolNames() []string { return t.deferred }
+
+// TestAdvertiseWithholdsDeferredNames pins the half of promotion that decides
+// what the model sees first: a deferring tool keeps its names out of the
+// manifest while they stay resolvable, and everything else is advertised in
+// name order.
+func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
+	search := advertiseTool{name: "search_tools", deferred: []string{"catalog_b", "catalog_a", "absent"}}
+	manifest := toolloop.Advertise([]tools.Tool{
+		advertiseTool{name: "read"},
+		advertiseTool{name: "catalog_a"},
+		advertiseTool{name: "catalog_b"},
+		search,
+	})
+
+	var names []string
+	for _, definition := range manifest {
+		names = append(names, definition.Name)
+	}
+	if len(names) != 2 || names[0] != "read" || names[1] != "search_tools" {
+		t.Fatalf("manifest = %v, want [read search_tools] in name order", names)
+	}
+}
+
+// TestAdvertiseKeepsEveryToolWithoutDeferral pins that the projection is
+// transparent when no tool withholds anything.
+func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
+	manifest := toolloop.Advertise([]tools.Tool{
+		advertiseTool{name: "write"},
+		advertiseTool{name: "read"},
+	})
+	if len(manifest) != 2 || manifest[0].Name != "read" || manifest[1].Name != "write" {
+		t.Fatalf("manifest = %+v, want both tools in name order", manifest)
+	}
 }

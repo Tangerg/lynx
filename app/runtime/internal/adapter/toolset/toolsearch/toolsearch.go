@@ -103,9 +103,11 @@ func New(withheld []tools.Tool) *Tool {
 	return t
 }
 
-// DeferredToolNames reports the withheld tools this search surface owns. The
-// turn manifest projection reads it to exclude these from the initial advertised
-// toolset while keeping them resolvable for promotion.
+// DeferredToolNames implements [toolloop.DeferredTool]: the framework's manifest
+// projection excludes these from the initial advertised toolset while keeping
+// them resolvable, so this tool can promote the ones the model picked.
+var _ toolloop.DeferredTool = (*Tool)(nil)
+
 func (t *Tool) DeferredToolNames() []string {
 	if t == nil {
 		return nil

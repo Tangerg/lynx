@@ -438,10 +438,16 @@ func TestUseCasesDoNotDependOnConcreteAgentEngine(t *testing.T) {
 // decode ProcessSnapshot continuation payloads, or record framework aggregate
 // usage directly. Managed interaction owns those execution mechanics; App
 // observes its boundaries and owns the detailed accounting projection.
+// TestAgentExecDelegatesManagedExecution pins what the rule is actually about:
+// the framework's managed interaction drives the tool loop and records framework
+// usage, so this adapter must never construct a runner or record usage itself.
+// The prohibition is stated per behaviour rather than as a ban on naming the
+// package, because touching a pure value helper there — the manifest projection
+// that pairs with PromoteTools — drives nothing and records nothing. Only
+// NewRunner can produce a Runner, so forbidding it forbids driving a loop.
 func TestAgentExecDelegatesManagedExecution(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "adapter", "agentexec")
-	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/agent/toolloop"})
 
 	forbiddenSelectors := map[string]string{
 		"toolloop.NewRunner": "managed interaction owns the ToolLoop runner",

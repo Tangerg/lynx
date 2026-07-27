@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/tools"
@@ -139,50 +140,9 @@ func streamIdleMiddleware(idle time.Duration) chat.StreamMiddleware {
 	}
 }
 
-// deferredToolProvider is implemented by a meta-tool (search_tools) that keeps
-// some resolvable tools out of the model's initial manifest and surfaces them on
-// demand. The turn withholds these names from the advertised toolset while the
-// registry keeps them executable, so the meta-tool can promote a chosen tool
-// mid-loop (agent/toolloop PromoteTools) and the model calls it directly next round.
-type deferredToolProvider interface {
-	DeferredToolNames() []string
-}
-
 type preparedTurn struct {
 	registry *tools.Registry
 	request  *chat.Request
-}
-
-// advertisedTools projects the executable registry into the model-facing tool
-// manifest, excluding every tool a deferred-tool provider withholds. The
-// withheld tools stay in the registry (resolvable) so a mid-loop promotion can
-// advertise them; they are simply absent from the initial round's schema.
-func advertisedTools(actionTools []tools.Tool, registry *tools.Registry) []chat.ToolDefinition {
-	definitions := registry.Definitions()
-	var deferred map[string]struct{}
-	for _, tool := range actionTools {
-		provider, ok := tool.(deferredToolProvider)
-		if !ok {
-			continue
-		}
-		for _, name := range provider.DeferredToolNames() {
-			if deferred == nil {
-				deferred = make(map[string]struct{})
-			}
-			deferred[name] = struct{}{}
-		}
-	}
-	if len(deferred) == 0 {
-		return definitions
-	}
-	advertised := definitions[:0]
-	for _, def := range definitions {
-		if _, hidden := deferred[def.Name]; hidden {
-			continue
-		}
-		advertised = append(advertised, def)
-	}
-	return advertised
 }
 
 // runTurn supplies app-specific streaming and pricing adapters to the
@@ -263,7 +223,7 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	messages = append(messages, chat.NewUserMessage(parts...))
 	request := &chat.Request{
 		Messages: messages,
-		Tools:    advertisedTools(actionTools, registry),
+		Tools:    toolloop.Advertise(actionTools),
 	}
 	if options != nil {
 		request.Options = options.Clone()

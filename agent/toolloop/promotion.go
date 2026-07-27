@@ -2,9 +2,12 @@ package toolloop
 
 import (
 	"context"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // toolPromotions collects the tool definitions a running tool asked the loop to
@@ -52,6 +55,9 @@ func withPromotions(ctx context.Context, sink *toolPromotions) context.Context {
 // pause/resume because the runner folds them into the request before it snapshots
 // the checkpoint.
 //
+// [Advertise] is the matching half: it builds the initial manifest that leaves
+// deferred tools out.
+//
 // Each definition must name a tool the interaction's [ToolResolver] can resolve
 // to a matching definition (advertised ⊆ resolvable, unadvertised until
 // promoted). The runner only advertises; it never registers executables, so a
@@ -72,4 +78,61 @@ func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition) {
 		return
 	}
 	sink.add(defs)
+}
+
+// DeferredTool is the optional capability a tool implements to keep other
+// resolvable tools out of the model's initial manifest. It is the withholding
+// half of [PromoteTools]: the named tools stay executable through the
+// interaction's [ToolResolver], but the model does not see them until this tool
+// promotes the ones it picked.
+//
+// Like [ConcurrentTool] it lives here rather than in tools, so a tool can state
+// the intent without depending on a particular loop driver, and a driver that
+// ignores the advice stays correct — it simply advertises everything up front.
+type DeferredTool interface {
+	// DeferredToolNames reports the tool names this tool withholds. Names that
+	// do not appear among the candidates are ignored.
+	DeferredToolNames() []string
+}
+
+// Advertise returns the initial manifest for candidates: one definition per
+// tool, minus every name a [DeferredTool] among them withholds. Withheld tools
+// are absent from the manifest but still resolvable, which is what makes a
+// mid-loop [PromoteTools] meaningful — advertising is the only thing promotion
+// changes.
+//
+// Definitions are cloned and ordered by name, so one candidate set yields one
+// manifest regardless of iteration order. Callers that want to advertise a
+// different subset can build the manifest themselves; this is the projection
+// that matches promotion.
+func Advertise(candidates []tools.Tool) []chat.ToolDefinition {
+	var withheld map[string]struct{}
+	for _, candidate := range candidates {
+		deferring, ok := candidate.(DeferredTool)
+		if !ok {
+			continue
+		}
+		for _, name := range deferring.DeferredToolNames() {
+			if withheld == nil {
+				withheld = make(map[string]struct{})
+			}
+			withheld[name] = struct{}{}
+		}
+	}
+
+	manifest := make([]chat.ToolDefinition, 0, len(candidates))
+	for _, candidate := range candidates {
+		if valueIsNil(candidate) {
+			continue
+		}
+		definition := candidate.Definition()
+		if _, hidden := withheld[definition.Name]; hidden {
+			continue
+		}
+		manifest = append(manifest, definition.Clone())
+	}
+	slices.SortFunc(manifest, func(left, right chat.ToolDefinition) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	return manifest
 }
