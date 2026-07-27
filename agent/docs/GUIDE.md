@@ -259,9 +259,10 @@ if err := engine.Continue(ctx, process.ID()); err != nil {
 `Engine.Continue` 逐层完成原 continuation。
 
 `Resume` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
-Suspension 协议。ToolLoop 和 nested child checkpoint 只进入 `FrameworkState`，不使用私有
-Blackboard key；等待方决策所需的一切走 `Prompt`。Framework 不从 Suspension kind 或任何载荷
-内容猜测 owner：只有 `FrameworkState` 里的 continuation 属于 Runtime。
+Suspension 协议，且 Suspension 不区分"谁来回答"：Framework 从不据此分支，等待方决策所需
+的一切走 `Prompt`，需要自己的 interrupt 分类就在 Prompt 里表达。ToolLoop 和 nested child
+checkpoint 只进入 `FrameworkState`，不使用私有 Blackboard key：只有 `FrameworkState` 里的
+continuation 属于 Runtime。
 
 ## 7. Snapshot 与 Host 边界
 

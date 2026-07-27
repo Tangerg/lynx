@@ -52,7 +52,6 @@ func Interrupt[R any](ctx context.Context, key string, prompt any) (R, error) {
 	suspension := interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            key,
-		Kind:          interaction.SuspensionHuman,
 		Prompt:        promptJSON,
 		ResumeSchema:  json.RawMessage(schema),
 		CreatedAt:     time.Now(),

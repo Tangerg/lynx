@@ -84,7 +84,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 		Suspension: &interaction.Suspension{
 			SchemaVersion:  interaction.SuspensionSchemaVersion,
 			ID:             checkpoint.ID,
-			Kind:           interaction.SuspensionTool,
 			Prompt:         prompt,
 			ResumeSchema:   resumeSchema,
 			FrameworkState: json.RawMessage(`{"owner":"framework-fixture"}`),

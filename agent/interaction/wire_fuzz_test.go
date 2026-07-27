@@ -17,7 +17,6 @@ func FuzzSuspensionJSON(f *testing.F) {
 	valid, err := json.Marshal(interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            "approval-1",
-		Kind:          interaction.SuspensionHuman,
 		Prompt:        json.RawMessage(`{"message":"approve?"}`),
 		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 		CreatedAt:     time.Unix(1_752_568_200, 0).UTC(),

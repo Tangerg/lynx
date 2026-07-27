@@ -207,7 +207,6 @@ func producerToolSuspensionAgent() *core.Agent {
 				return restoreGateOutput{}, &interaction.SuspendedError{Suspension: interaction.Suspension{
 					SchemaVersion: interaction.SuspensionSchemaVersion,
 					ID:            "producer-tool",
-					Kind:          interaction.SuspensionTool,
 					Prompt:        json.RawMessage(`"continue?"`),
 					ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 					CreatedAt:     time.Now(),

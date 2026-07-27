@@ -11,7 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const SuspensionSchemaVersion uint16 = 4
+const SuspensionSchemaVersion uint16 = 5
 
 var (
 	ErrInvalidSuspension  = errors.New("interaction: invalid suspension")
@@ -20,27 +20,15 @@ var (
 	ErrSuspensionStale    = errors.New("interaction: stale suspension")
 )
 
-// SuspensionKind identifies who owns the resumable boundary.
-type SuspensionKind string
-
-const (
-	SuspensionHuman SuspensionKind = "human"
-	SuspensionTool  SuspensionKind = "tool"
-)
-
-func (k SuspensionKind) Valid() bool {
-	return k == SuspensionHuman || k == SuspensionTool
-}
-
 // Suspension is the complete JSON-safe state exposed when a process waits for
-// external input. FrameworkState is opaque execution state owned exclusively by
+// external input. It does not classify who must answer: the framework never
+// branches on that, and the waiting side's own Prompt says what is being asked. FrameworkState is opaque execution state owned exclusively by
 // the Agent runtime. Prompt and ResumeSchema are host-facing protocol values:
 // whatever the waiting side needs to decide travels in Prompt, so a suspension
 // carries no second, framework-defined slot for producer metadata.
 type Suspension struct {
 	SchemaVersion  uint16          `json:"schema_version"`
 	ID             string          `json:"id"`
-	Kind           SuspensionKind  `json:"kind"`
 	Prompt         json.RawMessage `json:"prompt"`
 	ResumeSchema   json.RawMessage `json:"resume_schema"`
 	FrameworkState json.RawMessage `json:"framework_state,omitempty"`
@@ -54,9 +42,6 @@ func (s Suspension) Validate() error {
 	}
 	if err := ValidateID(s.ID); err != nil {
 		return fmt.Errorf("%w: ID: %w", ErrInvalidSuspension, err)
-	}
-	if !s.Kind.Valid() {
-		return fmt.Errorf("%w: unknown kind %q", ErrInvalidSuspension, s.Kind)
 	}
 	if s.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: created_at must not be zero", ErrInvalidSuspension)

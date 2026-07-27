@@ -14,7 +14,6 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 	suspension := interaction.Suspension{
 		SchemaVersion:  interaction.SuspensionSchemaVersion,
 		ID:             "approval-1",
-		Kind:           interaction.SuspensionHuman,
 		Prompt:         json.RawMessage(`{"message":"approve?"}`),
 		ResumeSchema:   json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
 		FrameworkState: json.RawMessage(`{"owner":"framework"}`),
@@ -52,7 +51,6 @@ func TestSuspensionRejectsSchemaMismatchAndInvalidWire(t *testing.T) {
 	suspension := interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            "approval-1",
-		Kind:          interaction.SuspensionHuman,
 		Prompt:        json.RawMessage(`"approve?"`),
 		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 		CreatedAt:     time.Now(),

@@ -40,7 +40,6 @@ type (
 	ToolGroupResolver = core.ToolGroupResolver
 
 	Suspension            = interaction.Suspension
-	SuspensionKind        = interaction.SuspensionKind
 	InteractionEvent      = interaction.Event
 	InteractionEventKind  = interaction.EventKind
 	InteractionLimits     = interaction.Limits
@@ -76,8 +75,6 @@ const (
 
 const (
 	SuspensionSchemaVersion = interaction.SuspensionSchemaVersion
-	SuspensionHuman         = interaction.SuspensionHuman
-	SuspensionTool          = interaction.SuspensionTool
 
 	InteractionEventModelRequest  = interaction.EventModelRequest
 	InteractionEventModelResponse = interaction.EventModelResponse

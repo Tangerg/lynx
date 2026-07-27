@@ -66,7 +66,6 @@ func TestEventCloneOwnsNestedProtocolValues(t *testing.T) {
 		Suspension: &interaction.Suspension{
 			SchemaVersion: interaction.SuspensionSchemaVersion,
 			ID:            "pause-1",
-			Kind:          interaction.SuspensionHuman,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     time.Unix(1, 0),

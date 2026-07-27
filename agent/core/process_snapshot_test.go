@@ -131,8 +131,8 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	waitingWithFailure.Status = core.StatusWaiting
 	waitingWithFailure.Suspension = &interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval", Kind: interaction.SuspensionHuman,
-		Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
+		ID:            "approval",
+		Prompt:        json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
 	}
 	waitingWithFailure.Failure = &core.ProcessFailure{Message: "must not survive"}
 	if err := waitingWithFailure.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {

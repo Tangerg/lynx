@@ -14,9 +14,8 @@
     "started_at": "2026-07-15T08:30:00.123Z",
     "status": "waiting",
     "suspension": {
-      "schema_version": 4,
+      "schema_version": 5,
       "id": "approval-1",
-      "kind": "tool",
       "prompt": {
         "message": "operator approval required"
       },

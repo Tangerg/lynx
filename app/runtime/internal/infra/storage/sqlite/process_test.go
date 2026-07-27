@@ -48,7 +48,6 @@ func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnaps
 		snapshot.Suspension = &agent.Suspension{
 			SchemaVersion: agent.SuspensionSchemaVersion,
 			ID:            "suspension-" + id,
-			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     started,

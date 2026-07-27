@@ -266,7 +266,7 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 		t.Fatal(completion.Error())
 	}
 	proc := segment.Process()
-	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil || proc.Suspension().Kind != interaction.SuspensionTool {
+	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil {
 		t.Fatalf("parked process = status %s suspension %#v", proc.Status(), proc.Suspension())
 	}
 	snapshot := snapshotRoot(t, engine, proc)

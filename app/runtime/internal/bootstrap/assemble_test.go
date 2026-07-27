@@ -430,7 +430,6 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		Suspension: &agent.Suspension{
 			SchemaVersion: agent.SuspensionSchemaVersion,
 			ID:            "suspension-park",
-			Kind:          agent.SuspensionHuman,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     parkedAt,

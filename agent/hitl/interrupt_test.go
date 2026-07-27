@@ -15,7 +15,6 @@ func TestIsInterruptUsesUnifiedSuspensionSignal(t *testing.T) {
 	interrupt := &interaction.SuspendedError{Suspension: interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            "approval",
-		Kind:          interaction.SuspensionHuman,
 		Prompt:        json.RawMessage(`"approve?"`),
 		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 		CreatedAt:     time.Now(),

@@ -231,16 +231,15 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 	if err != nil {
 		return fmt.Errorf("runtime: encode interaction checkpoint: %w", err)
 	}
-	kind := interaction.SuspensionTool
+	// A promoted child suspension keeps the child's creation time so the parent
+	// exposes when the wait actually began.
 	createdAt := time.Now()
 	if activeChild != nil {
-		kind = activeChild.Kind
 		createdAt = activeChild.CreatedAt
 	}
 	suspension := interaction.Suspension{
 		SchemaVersion:  interaction.SuspensionSchemaVersion,
 		ID:             boundary.Pause.ID,
-		Kind:           kind,
 		Prompt:         boundary.Pause.Prompt,
 		ResumeSchema:   boundary.Pause.ResumeSchema,
 		FrameworkState: frameworkState,

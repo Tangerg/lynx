@@ -87,7 +87,6 @@ func testSuspension(id string) interaction.Suspension {
 	return interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            id,
-		Kind:          interaction.SuspensionHuman,
 		Prompt:        json.RawMessage(`"approve?"`),
 		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 		CreatedAt:     time.Now(),
