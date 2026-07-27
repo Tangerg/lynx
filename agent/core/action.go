@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 )
 
 // Action is the agent's smallest planning unit. Implementations are
@@ -35,7 +36,7 @@ type ActionMetadata struct {
 	Preconditions ConditionSet
 	Effects       ConditionSet
 	Repeatable    bool
-	ToolGroups    []ToolGroupRequirement
+	ToolGroups    []string
 
 	// Cost defaults to [FixedScore](1.0) so the planner doesn't pick
 	// "free" actions over ones with real work.
@@ -52,20 +53,8 @@ func (m ActionMetadata) clone() ActionMetadata {
 	m.Outputs = slices.Clone(m.Outputs)
 	m.Preconditions = maps.Clone(m.Preconditions)
 	m.Effects = maps.Clone(m.Effects)
-	m.ToolGroups = cloneToolGroupRequirements(m.ToolGroups)
+	m.ToolGroups = slices.Clone(m.ToolGroups)
 	return m
-}
-
-func cloneToolGroupRequirements(requirements []ToolGroupRequirement) []ToolGroupRequirement {
-	if requirements == nil {
-		return nil
-	}
-	cloned := make([]ToolGroupRequirement, len(requirements))
-	for i, requirement := range requirements {
-		cloned[i] = requirement
-		cloned[i].AllowedPermissions = slices.Clone(requirement.AllowedPermissions)
-	}
-	return cloned
 }
 
 // ActionRunConditionPrefix prefixes the conventional "this action has run"
@@ -105,9 +94,12 @@ func (m ActionMetadata) validate() error {
 	if err := m.Effects.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("effects: %w", err))
 	}
-	for index, requirement := range m.ToolGroups {
-		if err := requirement.Validate(); err != nil {
-			problems = append(problems, fmt.Errorf("tool group %d (%q): %w", index, requirement.Role, err))
+	for index, role := range m.ToolGroups {
+		switch {
+		case role == "":
+			problems = append(problems, fmt.Errorf("tool group %d: role is empty", index))
+		case strings.TrimSpace(role) != role:
+			problems = append(problems, fmt.Errorf("tool group %d: role has surrounding whitespace", index))
 		}
 	}
 	return errors.Join(problems...)
@@ -144,11 +136,10 @@ type ActionConfig struct {
 	// Value is the per-tick planning value probe; nil means [FixedScore](0).
 	Value ScoreFunc
 
-	// ToolGroups declares the abstract tool requirements (role
-	// names) — the resolver translates these to concrete tools at
-	// execution time. Action bodies fetch the resolved tools via
+	// ToolGroups declares abstract tool roles — the resolver translates them
+	// to concrete tools at execution time. Action bodies fetch the resolved tools via
 	// [ProcessContext.ActionTools].
-	ToolGroups []ToolGroupRequirement
+	ToolGroups []string
 
 	// Inputs replaces the default single-input binding with the
 	// supplied list. Use [NewBinding] to assign a non-default name or
@@ -164,10 +155,4 @@ type ActionConfig struct {
 	// before binding the output. Protected ambient entries remain available.
 	// Useful for state-machine transitions.
 	ClearWorkingState bool
-}
-
-// RequireToolGroup declares one role and the permissions an action is willing
-// to grant it. Omitting permissions keeps the requirement unprivileged.
-func RequireToolGroup(role string, allowed ...ToolGroupPermission) ToolGroupRequirement {
-	return ToolGroupRequirement{Role: role, AllowedPermissions: slices.Clone(allowed)}
 }

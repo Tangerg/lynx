@@ -1,51 +1,25 @@
 package runtime
 
 import (
-	"errors"
 	"fmt"
 	"slices"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
 )
 
-// Snapshot captures the process's state into a portable
-// [core.ProcessSnapshot] suitable for handing to a [core.ProcessStore].
-// It rejects an active run instead of blocking behind arbitrary action,
-// extension, or model code. Successful capture owns one stable process
-// boundary and does not mutate external state.
-//
-// Blackboard capture is strict: the blackboard must expose
-// [BlackboardSnapshotter], every durable value must be declared and JSON-safe,
-// and invalid durable state returns an error.
-func (p *Process) Snapshot() (core.ProcessSnapshot, error) {
-	if p == nil {
-		return core.ProcessSnapshot{}, errors.New("runtime.Process.Snapshot: nil process")
-	}
-	if err := p.state.claimCheckpoint(false); err != nil {
-		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
-	}
-	defer p.state.releaseCheckpoint()
-	return p.snapshotClaimed()
-}
-
 func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
-	state := p.captureDurableState()
+	state := p.captureSnapshotState()
 	snapshot := core.ProcessSnapshot{
-		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
-		ID:                p.ID(),
-		ParentID:          p.ParentID(),
-		Depth:             p.depth,
-		Deployment:        p.Deployment(),
-		StartedAt:         p.StartedAt(),
-		CapturedAt:        time.Now(),
-		Status:            state.status,
-		Suspension:        state.suspension,
-		OwnCost:           state.ownCost,
-		OwnTokens:         state.ownTokens,
-		OwnModelCalls:     state.modelCalls,
-		OwnEmbeddingCalls: state.embeddingCalls,
+		SchemaVersion: core.ProcessSnapshotSchemaVersion,
+		ID:            p.ID(),
+		ParentID:      p.ParentID(),
+		Depth:         p.depth,
+		Deployment:    p.Deployment(),
+		StartedAt:     p.StartedAt(),
+		Status:        state.status,
+		Suspension:    state.suspension,
+		OwnUsage:      state.ownUsage,
 	}
 
 	if goal := state.goal; goal != nil {
@@ -69,47 +43,41 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 
 	blackboardState, err := snapshotBlackboard(p.blackboard)
 	if err != nil {
-		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: capture blackboard: %w", err)
+		return core.ProcessSnapshot{}, fmt.Errorf("capture blackboard: %w", err)
 	}
 	snapshot.Blackboard, snapshot.Objects, err = p.agent().EncodeBlackboard(blackboardState.Bindings, blackboardState.Objects)
 	if err != nil {
-		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: encode blackboard: %w", err)
+		return core.ProcessSnapshot{}, fmt.Errorf("encode blackboard: %w", err)
 	}
 	snapshot.Conditions = blackboardState.Conditions
 	if err := snapshot.Validate(); err != nil {
-		return core.ProcessSnapshot{}, fmt.Errorf("runtime.Process.Snapshot: %w", err)
+		return core.ProcessSnapshot{}, err
 	}
 	return snapshot, nil
 }
 
-type durableProcessState struct {
-	status         core.ProcessStatus
-	goal           *core.Goal
-	failure        error
-	suspension     *interaction.Suspension
-	history        []ActionRun
-	ownCost        float64
-	ownTokens      int
-	modelCalls     []core.ModelCall
-	embeddingCalls []core.EmbeddingCall
+type processCaptureState struct {
+	status     core.ProcessStatus
+	goal       *core.Goal
+	failure    error
+	suspension *interaction.Suspension
+	history    []ActionRun
+	ownUsage   core.Usage
 }
 
-func (p *Process) captureDurableState() durableProcessState {
+func (p *Process) captureSnapshotState() processCaptureState {
 	p.state.mu.RLock()
 	defer p.state.mu.RUnlock()
 	var suspension *interaction.Suspension
 	if p.state.pendingSuspension != nil {
 		suspension = p.state.pendingSuspension.Clone()
 	}
-	return durableProcessState{
-		status:         p.state.currentStatus,
-		goal:           p.state.currentGoal,
-		failure:        p.state.runErr,
-		suspension:     suspension,
-		history:        slices.Clone(p.state.history),
-		ownCost:        p.budget.ownCost,
-		ownTokens:      p.budget.ownTokens,
-		modelCalls:     slices.Clone(p.budget.modelCalls),
-		embeddingCalls: slices.Clone(p.budget.embeddingCalls),
+	return processCaptureState{
+		status:     p.state.currentStatus,
+		goal:       p.state.currentGoal,
+		failure:    p.state.runErr,
+		suspension: suspension,
+		history:    slices.Clone(p.state.history),
+		ownUsage:   p.budget.own,
 	}
 }

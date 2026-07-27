@@ -14,6 +14,9 @@ type returnDirectMarker interface {
 
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
+// It preserves the tool-loop scheduling declaration but does not proxy
+// host-specific optional interfaces; hosts must compose those capabilities
+// outside this control-flow decorator.
 // Nil input remains nil and is rejected by tools.Registry or Runner.Run.
 func Direct(tool tools.Tool) tools.Tool {
 	if valueIsNil(tool) {
@@ -26,8 +29,6 @@ type directRuntimeTool struct {
 	tools.Tool
 }
 
-var _ tools.FileMutationReporter = directRuntimeTool{}
-
 func (directRuntimeTool) ReturnsDirect() bool { return true }
 
 // ConcurrencyKey preserves the wrapped tool's optional scheduling contract.
@@ -38,16 +39,6 @@ func (t directRuntimeTool) ConcurrencyKey(arguments string) (key string, concurr
 		return capability.ConcurrencyKey(arguments)
 	}
 	return "", false
-}
-
-// MutationPaths preserves file-side-effect metadata through the control-flow
-// decorator. Direct changes only what ends the loop; it must not hide which
-// resources the underlying call may mutate.
-func (t directRuntimeTool) MutationPaths(arguments string) ([]string, error) {
-	if reporter, ok := t.Tool.(tools.FileMutationReporter); ok {
-		return reporter.MutationPaths(arguments)
-	}
-	return nil, nil
 }
 
 func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {

@@ -29,15 +29,8 @@ type ProcessView interface {
 	// WorldState returns the most recent state observed by the planner.
 	WorldState() WorldState
 
-	// Usage returns subtree-aggregated cost, token, and action totals.
-	Usage() (cost float64, tokens int, actions int)
-
-	// ModelCalls returns a defensive copy of subtree LLM history.
-	ModelCalls() []ModelCall
-
-	// EmbeddingCalls returns a defensive copy of subtree embedding
-	// history.
-	EmbeddingCalls() []EmbeddingCall
+	// Usage returns subtree-aggregated execution resource totals.
+	Usage() ProcessUsage
 }
 
 // ProcessControl is the lifecycle mutation capability installed privately on
@@ -54,36 +47,18 @@ type ProcessControl interface {
 	// a no-op.
 	TerminateToolCall()
 
-	// Suspend parks durable, JSON-safe continuation state until an external
+	// Suspend parks JSON-safe continuation state until an external
 	// caller responds through runtime.Engine.Resume.
 	Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
 }
 
-// UsageRecorder is the accounting mutation capability installed privately on
-// a ProcessContext. It remains available to isolated parallel branches because
-// budget aggregation is concurrency-safe and append-only.
+// UsageRecorder is the execution-resource mutation capability installed
+// privately on a ProcessContext. It remains available to isolated parallel
+// branches because aggregation is concurrency-safe and append-only.
 type UsageRecorder interface {
-	// RecordUsage attributes a flat (cost, tokens) pair to this
-	// process for callers that don't care about per-invocation
-	// detail. Equivalent to [UsageRecorder.RecordModelCall] with an
-	// ModelCall whose only populated fields are Cost and
-	// PromptTokens (PromptTokens stands in for the lumped token
-	// count). Prefer the typed Record* methods when per-call audit
-	// is required. Invalid or overflowing usage is rejected without
-	// mutating the ledger.
-	RecordUsage(ctx context.Context, cost float64, tokens int) error
-
-	// RecordModelCall appends an LLM call to this process's
-	// invocation history and contributes to subtree budget
-	// aggregation. Integration code (chat middleware, per-vendor
-	// adapter) calls this once per LLM response. A zero Timestamp is
-	// populated at the recording boundary before validation.
-	RecordModelCall(ctx context.Context, call ModelCall) error
-
-	// RecordEmbeddingCall appends an embedding call to this
-	// process's history. Mirrors RecordModelCall for the
-	// embeddings path. A zero Timestamp is populated before validation.
-	RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error
+	// RecordUsage attributes one aggregate delta to this process. Invalid or
+	// overflowing usage is rejected without mutating runtime state.
+	RecordUsage(ctx context.Context, usage Usage) error
 }
 
 // processViewCtxKey is the unexported context key for embedding a read-only

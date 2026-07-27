@@ -174,9 +174,9 @@ func TestDomainHooksStayPure(t *testing.T) {
 // TestDomainStaysFrameworkFree keeps every bounded context free of frameworks +
 // heavy runtime coupling (§19 "domain 不引入 I/O/framework"): no filesystem or
 // process I/O, network, database driver, or external SDK/storage library
-// (including the reusable chathistory adapter contract). The single agent-SDK
-// edge (accounting reads core.ModelCall token counts, a value type) is a
-// deliberate, documented exception and stays allowed.
+// (including the reusable chathistory adapter contract). Domain has no Agent
+// SDK exception: agentexec projects framework values into application-owned
+// domain values at the boundary.
 func TestDomainStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	// componentPkg is banned here (not in frameworkImports) because application
@@ -240,6 +240,46 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 			"github.com/Tangerg/lynx/agent",
 			"github.com/Tangerg/lynx/chatclient",
 		}, frameworkImports...))
+}
+
+// TestAppDoesNotInterpretAgentContinuationState preserves the consumer
+// boundary: App stores the Agent snapshot as an opaque value, while only the
+// Agent runtime may decode Suspension.FrameworkState.
+func TestAppDoesNotInterpretAgentContinuationState(t *testing.T) {
+	root := moduleRoot(t)
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			name := entry.Name()
+			if name == "vendor" || (strings.HasPrefix(name, ".") && path != root) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			identifier, ok := node.(*ast.Ident)
+			if !ok || identifier.Name != "FrameworkState" {
+				return true
+			}
+			relativePath, _ := filepath.Rel(root, path)
+			t.Errorf("App production code interprets Agent Suspension.FrameworkState: %s", relativePath)
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk App runtime: %v", walkErr)
+	}
 }
 
 // TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
@@ -395,19 +435,18 @@ func TestUseCasesDoNotDependOnConcreteAgentEngine(t *testing.T) {
 // TestAgentExecDelegatesManagedExecution locks the Framework/Host ownership
 // boundary. The agent adapter may supply product prompts, pricing, observers,
 // tools, and responses, but it must not rebuild the framework's ToolLoop,
-// decode ProcessSnapshot continuation payloads, or record framework usage
-// directly. Those concerns belong to agent/runtime's managed interaction and
-// persistence coordinator.
+// decode ProcessSnapshot continuation payloads, or record framework aggregate
+// usage directly. Managed interaction owns those execution mechanics; App
+// observes its boundaries and owns the detailed accounting projection.
 func TestAgentExecDelegatesManagedExecution(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "adapter", "agentexec")
 	forbidExternalImports(t, dir, []string{"github.com/Tangerg/lynx/agent/toolloop"})
 
 	forbiddenSelectors := map[string]string{
-		"core.ProcessSnapshot": "Host adapters must treat process snapshots as framework-owned persistence",
-		"toolloop.NewRunner":   "managed interaction owns the ToolLoop runner",
-		"pc.RecordModelCall":   "managed interaction owns framework usage recording",
-		"proc.RecordModelCall": "managed interaction owns framework usage recording",
+		"toolloop.NewRunner": "managed interaction owns the ToolLoop runner",
+		"pc.RecordUsage":     "managed interaction owns framework usage recording",
+		"proc.RecordUsage":   "managed interaction owns framework usage recording",
 	}
 	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {

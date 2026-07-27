@@ -34,7 +34,7 @@ type ShutdownResource interface {
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
 	// Engine is the Agent execution adapter's construction config. The runtime
-	// fills its SessionStore, ProcessStore, Provider, Todos, and ToolResolver.
+	// fills its ProcessStore, Provider, Todos, and ToolResolver.
 	Engine agentexec.Config
 
 	// SkillsGlobalDir is the user-scope Agent Skills directory. Tool resolution

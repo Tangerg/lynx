@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -60,24 +60,8 @@ func activeGoal(session string) goal.Goal {
 	return g
 }
 
-// fake ProcessView / blackboard: just enough for turnctx.TurnSession off ctx.
-type fakeBlackboard struct {
-	core.BlackboardReader
-	vals map[string]any
-}
-
-func (b fakeBlackboard) Load(key string) (any, bool) { v, ok := b.vals[key]; return v, ok }
-
-type fakeProcessView struct {
-	core.ProcessView
-	bb core.BlackboardReader
-}
-
-func (p fakeProcessView) Blackboard() core.BlackboardReader { return p.bb }
-
 func sessionCtx(session string) context.Context {
-	bb := fakeBlackboard{vals: map[string]any{turnctx.SessionBindingKey: session}}
-	return core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
+	return turnctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
 func newTool(t *testing.T, store goals.Store) *tool {
@@ -150,7 +134,7 @@ func TestUpdateGoal_NonActiveGoalNotTouched(t *testing.T) {
 }
 
 // TestUpdateGoal_SupersededStampRefused verifies the race-#4 guard: a run
-// stamped with an OLD goal incarnation (turnctx.GoalLeaseBindingKey) must not
+// stamped with an OLD goal incarnation must not
 // signal the current goal, which a fresh Start gave a new lease.
 func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 	store := newMemStore()
@@ -159,11 +143,10 @@ func TestUpdateGoal_SupersededStampRefused(t *testing.T) {
 	store.put(current)
 
 	// The run carries the lease it was launched under, since superseded.
-	bb := fakeBlackboard{vals: map[string]any{
-		turnctx.SessionBindingKey:   "s1",
-		turnctx.GoalLeaseBindingKey: "lease-stale",
-	}}
-	ctx := core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
+	ctx := turnctx.WithScope(context.Background(), execution.TurnScope{
+		SessionID:   "s1",
+		GoalLeaseID: "lease-stale",
+	})
 
 	out, err := newTool(t, store).update(ctx, updateArgs{Status: "complete"})
 	if err != nil {

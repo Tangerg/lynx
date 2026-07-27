@@ -137,10 +137,10 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 	defer runAdmission.Release()
 
-	// Resume inherits isolation from the parked turn: a live turn still carries
-	// the copy cwd + isolation on its blackboard, so no execution-cwd resolution
-	// here. A rehydrate (process gone) of an isolated run is refused as lost —
-	// see prepareTurn — because the sandbox copy died with the process.
+	// Resume inherits the copy cwd + isolation from the parked turn's Runtime
+	// scope, so no execution-cwd resolution is needed here. A rehydrate (process
+	// gone) of an isolated run is refused as lost — see prepareTurn — because the
+	// sandbox copy died with the process.
 	turn, err := c.prepareTurn(ctx, pending, sess.Cwd, sess.Isolated)
 	if err != nil {
 		if errors.Is(err, ErrTurnStateLost) {

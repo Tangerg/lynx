@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
@@ -102,13 +101,10 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 	}
 }
 
-func TestRepeatUntilAcceptable_AutoSnapshotPreservesState(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	engine := agent.MustNewEngine(runtime.Config{
-		BuildID: "acceptable-snapshot", ProcessStore: store, AutoSnapshot: true,
-	})
+func TestRepeatUntilAcceptable_SnapshotTreePreservesState(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name: "durable-acceptable", MaxIterations: 2, AcceptableScore: 0.9,
+		Name: "snapshot-acceptable", MaxIterations: 2, AcceptableScore: 0.9,
 		Task: func(_ context.Context, _ *core.ProcessContext, input ruaIn, history *workflow.History[ruaOut]) (ruaOut, error) {
 			return ruaOut{Draft: input.Topic + string(rune('1'+history.Count()))}, nil
 		},
@@ -124,10 +120,14 @@ func TestRepeatUntilAcceptable_AutoSnapshotPreservesState(t *testing.T) {
 	if err != nil || process.Status() != core.StatusCompleted {
 		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
 	}
-	if _, err := engine.Prune(t.Context()); err != nil {
-		t.Fatalf("Prune before Restore: %v", err)
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("SnapshotTree: %v", err)
 	}
-	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
+		t.Fatalf("RemoveTree before restore: %v", err)
+	}
+	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,6 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/agent/planning/goap"
-	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 type mutableDeploymentAction struct {
@@ -70,23 +69,22 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	pre := []string{"finish"}
 	tags := []string{"writing"}
 	examples := []string{"write a post"}
-	export := core.NewGoalTool[struct{ Topic string }](core.GoalToolConfig{Standalone: true})
 	goal := core.NewGoal(core.GoalConfig{
-		Name: "complete", Preconditions: pre, Tags: tags, Examples: examples, Tool: export,
+		Name: "complete", Preconditions: pre, Tags: tags, Examples: examples,
 	})
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
-	durableState := []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")}
+	snapshotState := []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")}
 	config := core.AgentConfig{
-		Name:         "writer",
-		Description:  "original",
-		Version:      "1.2.3",
-		PlannerName:  "goap",
-		Actions:      actions,
-		Goals:        goals,
-		Conditions:   conditions,
-		DurableState: durableState,
+		Name:          "writer",
+		Description:   "original",
+		Version:       "1.2.3",
+		PlannerName:   "goap",
+		Actions:       actions,
+		Goals:         goals,
+		Conditions:    conditions,
+		SnapshotState: snapshotState,
 	}
 	source := core.NewAgent(config)
 
@@ -102,14 +100,13 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
-	durableState[0].Name = "mutated"
+	snapshotState[0].Name = "mutated"
 	pre[0] = "mutated"
 	tags[0] = "mutated"
 	examples[0] = "mutated"
-	export.Description = "mutated"
 	action.metadata.Inputs[0].Name = "mutated"
 	action.metadata.Effects["finish"] = core.False
-	action.metadata.ToolGroups[0].AllowedPermissions[0] = core.ToolGroupInternetAccess
+	action.metadata.ToolGroups[0] = "mutated"
 	condition.name = "mutated"
 	condition.cost = 99
 
@@ -124,28 +121,25 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	if metadata.Inputs[0].Name != "input" || metadata.Effects["finish"] != core.True {
 		t.Fatalf("frozen metadata was mutated: %#v", metadata)
 	}
-	if metadata.ToolGroups[0].AllowedPermissions[0] != core.ToolGroupHostAccess {
-		t.Fatalf("frozen permissions = %v", metadata.ToolGroups[0].AllowedPermissions)
+	if metadata.ToolGroups[0] != "filesystem" {
+		t.Fatalf("frozen tool groups = %v", metadata.ToolGroups)
 	}
 	frozenGoal := frozen.Goals()[0]
 	if frozenGoal.RequiredConditions()[0] != "finish" || frozenGoal.Tags()[0] != "writing" || frozenGoal.Examples()[0] != "write a post" {
 		t.Fatalf("frozen goal was mutated: %#v", frozenGoal)
 	}
-	if frozenGoal.Tool().Description != "" {
-		t.Fatalf("frozen goal export description = %q", frozenGoal.Tool().Description)
-	}
 	if frozen.Conditions()[0].Name() != "ready" || frozen.Conditions()[0].Cost() != 2.5 {
 		t.Fatalf("frozen condition = %q/%v", frozen.Conditions()[0].Name(), frozen.Conditions()[0].Cost())
 	}
-	if state := frozen.DurableState(); len(state) != 1 || state[0].Name != "draft_state" {
-		t.Fatalf("frozen durable state = %#v", state)
+	if state := frozen.SnapshotState(); len(state) != 1 || state[0].Name != "draft_state" {
+		t.Fatalf("frozen snapshot state = %#v", state)
 	}
 
 	// Metadata access itself must remain defensive.
 	metadata.Effects["finish"] = core.False
-	metadata.ToolGroups[0].AllowedPermissions[0] = core.ToolGroupInternetAccess
+	metadata.ToolGroups[0] = "mutated"
 	again := frozen.Actions()[0].Metadata()
-	if again.Effects["finish"] != core.True || again.ToolGroups[0].AllowedPermissions[0] != core.ToolGroupHostAccess {
+	if again.Effects["finish"] != core.True || again.ToolGroups[0] != "filesystem" {
 		t.Fatalf("metadata accessor leaked deployment state: %#v", again)
 	}
 }
@@ -206,17 +200,10 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 
 	first := deploymentFixtureWith("writer", firstEffects, func(*core.ProcessContext) core.ActionStatus {
 		return core.ActionSucceeded
-	}, []string{"finish", "ready"}, "goap", []core.ToolGroupPermission{
-		core.ToolGroupHostAccess,
-		core.ToolGroupInternetAccess,
-	})
+	}, []string{"finish", "ready"}, "goap")
 	second := deploymentFixtureWith("writer", secondEffects, func(*core.ProcessContext) core.ActionStatus {
 		return core.ActionFailed
-	}, []string{"ready", "finish", "finish"}, "", []core.ToolGroupPermission{
-		core.ToolGroupInternetAccess,
-		core.ToolGroupHostAccess,
-		core.ToolGroupHostAccess,
-	}) // empty and explicit goap are semantically equal
+	}, []string{"ready", "finish", "finish"}, "") // empty and explicit goap are semantically equal
 
 	compiledFirst, err := (deploymentCompiler{}).compile(first)
 	if err != nil {
@@ -243,65 +230,10 @@ func TestCompiledDefinitionDigestIsDeterministicAndSemantic(t *testing.T) {
 	}
 
 	// Different function bodies intentionally do not affect the digest. This
-	// pins the honest contract: callers must change semantic Version or supply
-	// a Host BuildID when executable behavior changes.
+	// pins the honest contract: callers must change semantic Version when
+	// executable behavior changes.
 	if compiledFirst.ref.Digest != compiledSecond.ref.Digest {
 		t.Fatal("function implementation unexpectedly entered deterministic digest")
-	}
-}
-
-func TestBuildIDParticipatesInDeploymentIdentity(t *testing.T) {
-	source := deploymentFixture("writer", core.ConditionSet{"finish": core.True}, nil)
-	first, err := (deploymentCompiler{buildID: "build-a"}).compile(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := (deploymentCompiler{buildID: "build-b"}).compile(source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first.Ref().Digest == second.Ref().Digest {
-		t.Fatal("different BuildID values produced the same deployment digest")
-	}
-	if first.Ref().Version != "1.0.0" || second.Ref().Version != "1.0.0" {
-		t.Fatalf("semantic versions = %q, %q", first.Ref().Version, second.Ref().Version)
-	}
-}
-
-func TestDurableEngineRequiresAgentVersionOrBuildID(t *testing.T) {
-	source := reconfigureAgent(deploymentFixture("durable", core.ConditionSet{"finish": core.True}, nil), func(config *core.AgentConfig) {
-		config.Version = ""
-	})
-	store := storetest.NewMemoryProcessStore()
-
-	withoutIdentity := MustNew(Config{
-		ProcessStore: store,
-		Extensions:   []core.Extension{goap.NewPlanner()},
-	})
-	if _, err := withoutIdentity.Deploy(t.Context(), source); !errors.Is(err, ErrDurableIdentityRequired) {
-		t.Fatalf("Deploy error = %v, want ErrDurableIdentityRequired", err)
-	}
-
-	withBuild := MustNew(Config{
-		BuildID:      "durable-test-build",
-		ProcessStore: store,
-		Extensions:   []core.Extension{goap.NewPlanner()},
-	})
-	deployment, err := withBuild.Deploy(t.Context(), source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if deployment.Ref().Version != "" {
-		t.Fatalf("unversioned deployment Version = %q, want empty", deployment.Ref().Version)
-	}
-
-	versioned := deploymentFixture("versioned", core.ConditionSet{"finish": core.True}, nil)
-	withVersion := MustNew(Config{
-		ProcessStore: store,
-		Extensions:   []core.Extension{goap.NewPlanner()},
-	})
-	if _, err := withVersion.Deploy(t.Context(), versioned); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -313,21 +245,11 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 			{Name: "", Type: "example.Topic"},
 			{Name: "context", Type: "example.Context"},
 		},
-		Outputs:       []core.Binding{{Name: "report", Type: "example.Report"}},
-		Preconditions: core.ConditionSet{"authorized": core.True, "blocked": core.False, "reviewed": core.Unknown},
-		Effects:       core.ConditionSet{"complete": core.True, "stale": core.False},
-		Repeatable:    true,
-		ToolGroups: []core.ToolGroupRequirement{
-			{
-				Role: "search",
-				AllowedPermissions: []core.ToolGroupPermission{
-					core.ToolGroupInternetAccess,
-					core.ToolGroupHostAccess,
-					core.ToolGroupInternetAccess,
-				},
-			},
-			{Role: "memory"},
-		},
+		Outputs:           []core.Binding{{Name: "report", Type: "example.Report"}},
+		Preconditions:     core.ConditionSet{"authorized": core.True, "blocked": core.False, "reviewed": core.Unknown},
+		Effects:           core.ConditionSet{"complete": core.True, "stale": core.False},
+		Repeatable:        true,
+		ToolGroups:        []string{"search", "memory"},
 		Cost:              core.FixedScore(2.5),
 		Value:             core.FixedScore(7),
 		ClearWorkingState: true,
@@ -340,10 +262,10 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		StuckPolicy: deploymentGoldenStuckPolicy{},
 		Actions:     []core.Action{&mutableDeploymentAction{metadata: actionMetadata}},
 		Goals: []*core.Goal{
-			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11), Tags: []string{"research", "report"}, Examples: []string{"Research Go releases", "Compare runtime designs"}, Tool: core.NewGoalTool[deploymentGoldenInput](core.GoalToolConfig{Standalone: true, Description: "produce an evidence-backed report"})}),
+			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11), Tags: []string{"research", "report"}, Examples: []string{"Research Go releases", "Compare runtime designs"}}),
 		},
-		Conditions:   []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
-		DurableState: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
+		Conditions:    []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
+		SnapshotState: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
 	})
 
 	compiled, err := (deploymentCompiler{}).compile(source)
@@ -357,7 +279,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 	if !bytes.Equal(compiled.definition, bytes.TrimSpace(want)) {
 		t.Fatalf("canonical definition changed\nwant:\n%s\ngot:\n%s", bytes.TrimSpace(want), compiled.definition)
 	}
-	const wantDigest = "7d16780b9aba11cd649f195525298a6c63ab3ab026f2cbdaa964657bf1d5a3d2"
+	const wantDigest = "9c4e3c095834c2a28d62ade6552484714285dd8b56c5618fde6b582e04e5faaa"
 	if compiled.ref.Digest != wantDigest {
 		t.Fatalf("definition digest = %s, want %s", compiled.ref.Digest, wantDigest)
 	}
@@ -365,28 +287,22 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 
 func TestCanonicalDefinitionFieldInventory(t *testing.T) {
 	// This test is intentionally explicit. A new exported declaration field can
-	// affect planning, tool exposure, or durable restore identity; allowing it to
+	// affect planning, tool exposure, or snapshot restore identity; allowing it to
 	// bypass the digest silently is more dangerous than making the author
 	// classify it as canonical data or implementation identity.
 	assertExportedFields(t, reflect.TypeFor[core.AgentConfig](), []string{
-		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "DurableState", "PlannerName",
+		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "SnapshotState", "PlannerName",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Agent](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.ActionMetadata](), []string{
 		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "ToolGroups", "Cost", "Value", "ClearWorkingState",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.GoalConfig](), []string{
-		"Name", "Description", "Preconditions", "Inputs", "Value", "Tags", "Examples", "Tool",
+		"Name", "Description", "Preconditions", "Inputs", "Value", "Tags", "Examples",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Goal](), nil)
-	assertExportedFields(t, reflect.TypeFor[core.GoalTool](), []string{
-		"Standalone", "Description",
-	})
 	assertExportedFields(t, reflect.TypeFor[core.Binding](), []string{
 		"Name", "Type",
-	})
-	assertExportedFields(t, reflect.TypeFor[core.ToolGroupRequirement](), []string{
-		"Role", "AllowedPermissions",
 	})
 }
 
@@ -552,6 +468,51 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 	}
 }
 
+func TestForgetDeploymentRequiresInactiveUnreferencedDefinition(t *testing.T) {
+	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
+	first := deploymentRun("first", 1)
+	firstDeployment, err := engine.Deploy(t.Context(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := engine.Run(
+		t.Context(),
+		first,
+		core.Input(deploymentRunInput{Value: 1}),
+		core.ProcessOptions{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second := deploymentRun("second", 2)
+	secondDeployment, err := engine.Replace(t.Context(), second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := engine.ForgetDeployment(firstDeployment.Ref()); !errors.Is(err, ErrDeploymentInUse) {
+		t.Fatalf("forget referenced deployment error = %v, want ErrDeploymentInUse", err)
+	}
+	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.ForgetDeployment(firstDeployment.Ref()); err != nil {
+		t.Fatalf("forget historical deployment: %v", err)
+	}
+	if _, ok := engine.Deployment(firstDeployment.Ref()); ok {
+		t.Fatal("forgotten deployment remains in the catalog")
+	}
+	if err := engine.ForgetDeployment(secondDeployment.Ref()); !errors.Is(err, ErrDeploymentActive) {
+		t.Fatalf("forget active deployment error = %v, want ErrDeploymentActive", err)
+	}
+	if err := engine.Undeploy(t.Context(), second.Name()); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.ForgetDeployment(secondDeployment.Ref()); err != nil {
+		t.Fatalf("forget undeployed definition: %v", err)
+	}
+}
+
 func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 	const deploymentCount = 32
 	deployments := make([]*Deployment, deploymentCount)
@@ -605,9 +566,9 @@ func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 		t.Fatalf("active deployments = %d, want %d", len(listed), deploymentCount)
 	}
 	for _, deployment := range deployments {
-		got, ok := registry.forSource(deployment.source)
+		got, ok := registry.lookup(deployment.Ref())
 		if !ok || got != deployment {
-			t.Fatalf("source lookup for %q = %p, %v; want %p", deployment.agent.Name(), got, ok, deployment)
+			t.Fatalf("ref lookup for %q = %p, %v; want %p", deployment.agent.Name(), got, ok, deployment)
 		}
 	}
 }
@@ -658,10 +619,11 @@ func TestDeployedDefinitionAccessorMutationDoesNotChangeRun(t *testing.T) {
 	if process.deployment != deployment {
 		t.Fatal("process did not retain the catalog deployment handle")
 	}
-	snapshot, err := process.Snapshot()
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
+	snapshot := tree.Snapshots[0]
 	if snapshot.Deployment != deployment.Ref() {
 		t.Fatalf("snapshot identity drifted with source mutation: %#v", snapshot)
 	}
@@ -691,14 +653,14 @@ func TestRunCatalogsDefinitionForExactRestore(t *testing.T) {
 	if process.deployment != deployment || process.Deployment() != deployment.Ref() {
 		t.Fatalf("process deployment = %s, want catalog deployment %s", process.Deployment(), deployment.Ref())
 	}
-	snapshot, err := process.Snapshot()
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.Remove(t.Context(), process.ID()); err != nil {
+	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := engine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{})
+	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("restore run-created deployment: %v", err)
 	}
@@ -730,14 +692,6 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 			_, err := engine.RunChild(ctx, foreign, nil)
 			return err
 		}},
-		{"RunChildIsolated", func() error {
-			_, err := engine.RunChildIsolated(ctx, foreign, nil)
-			return err
-		}},
-		{"StartChild", func() error {
-			_, err := engine.StartChild(ctx, foreign, nil)
-			return err
-		}},
 		{"RunDeployment", func() error {
 			_, err := engine.RunDeployment(t.Context(), foreign, core.Bindings{}, core.ProcessOptions{})
 			return err
@@ -752,7 +706,7 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 	}
 }
 
-func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
+func TestChildSpawnBindsCompiledDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	parentDef := deploymentFixture("parent", core.ConditionSet{"finish": core.True}, nil)
 	childDef := deploymentFixture("child", core.ConditionSet{"finish": core.True}, nil)
@@ -763,15 +717,14 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	}
 	childDeployment := existingDeployment(t, engine, childDef)
 
-	parentSession := core.NewSession("parent-session", "user-1", parentDef.Name())
-	parent := createProcessForTest(t, engine, parentDef, core.Bindings{}, core.ProcessOptions{Session: &parentSession})
+	parent := createProcessForTest(t, engine, parentDef, core.Bindings{}, core.ProcessOptions{})
 	if started, err := parent.beginRun(); err != nil || !started {
 		t.Fatalf("begin parent run = (%v, %v)", started, err)
 	}
 	defer parent.state.endRun()
 
 	// Child execution takes the immutable deployment handle; accessor snapshots
-	// cannot affect execution or derived session identity.
+	// cannot affect execution.
 	childActions := childDef.Actions()
 	childGoals := childDef.Goals()
 	childActions[0] = nil
@@ -781,7 +734,7 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 		ctx:        core.WithProcessView(t.Context(), parent),
 		engine:     engine,
 		deployment: childDeployment,
-		mode:       childCopiesAmbientState,
+		mode:       childStartsClean,
 	}).admit()
 	if err != nil {
 		t.Fatal(err)
@@ -792,18 +745,9 @@ func TestChildSpawnBindsCompiledDeploymentAndSessionIdentity(t *testing.T) {
 	if got := child.agent().Name(); got != "child" {
 		t.Fatalf("child definition name = %q, want frozen name", got)
 	}
-	if child.options.session == nil {
-		t.Fatal("child session was not linked")
-	}
-	if got := child.options.session.AgentName; got != "child" {
-		t.Fatalf("child session AgentName = %q, want frozen name", got)
-	}
-	if got := child.options.session.ParentID; got != parentSession.ID {
-		t.Fatalf("child session ParentID = %q, want %q", got, parentSession.ID)
-	}
 }
 
-func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
+func TestRunBindsCompiledDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	source := deploymentRun("session-deployment", 1)
 	if _, err := engine.Deploy(t.Context(), source); err != nil {
@@ -813,11 +757,9 @@ func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 
 	actions := source.Actions()
 	actions[0] = nil
-	session := core.NewSession("session-1", "", "")
-	process, err := engine.RunInSession(
+	process, err := engine.Run(
 		t.Context(),
 		source,
-		session,
 		core.Input(deploymentRunInput{Value: 20}),
 		core.ProcessOptions{},
 	)
@@ -825,10 +767,7 @@ func TestRunInSessionBindsCompiledDeploymentIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	if process.deployment != deployment {
-		t.Fatal("session process did not bind the catalog deployment")
-	}
-	if got := process.options.session.AgentName; got != "replaceable" {
-		t.Fatalf("process session AgentName = %q, want frozen deployment name", got)
+		t.Fatal("process did not bind the catalog deployment")
 	}
 }
 
@@ -844,7 +783,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	}
 	firstDeployment := existingDeployment(t, engine, first)
 
-	tool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, "replaceable")
+	tool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, firstDeployment)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -856,7 +795,8 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		t.Fatal("tool did not bind the active deployment at construction")
 	}
 
-	if _, err := engine.Replace(t.Context(), second); err != nil {
+	secondDeployment, err := engine.Replace(t.Context(), second)
+	if err != nil {
 		t.Fatal(err)
 	}
 	parent := createProcessForTest(t, engine, parentDef, core.Bindings{}, core.ProcessOptions{})
@@ -864,8 +804,10 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		t.Fatalf("begin parent run = (%v, %v)", started, err)
 	}
 	defer parent.state.endRun()
-	child, err := boundTool.run(
+	child, err := runChildDeployment(
 		core.WithProcessView(t.Context(), parent),
+		boundTool.engine,
+		boundTool.deployment,
 		deploymentRunInput{Value: 20},
 	)
 	if err != nil {
@@ -879,7 +821,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		t.Fatalf("old tool result = %#v, %v; want first deployment", result, ok)
 	}
 
-	replacementTool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, "replaceable")
+	replacementTool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, secondDeployment)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -888,24 +830,20 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	}
 }
 
-func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
+func TestAgentToolBindsOneActiveDeployment(t *testing.T) {
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
 	source := deploymentRun("tool-deployment", 3)
-	if _, err := engine.Deploy(t.Context(), source); err != nil {
+	deployment, err := engine.Deploy(t.Context(), source)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	tool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, "replaceable")
+	tool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 	boundTool := tool.(*agentTool)
 	boundDeployment := boundTool.deployment
-
-	startTool, _, err := NewAgentTaskTools[deploymentRunInput, deploymentRunOutput](engine, "replaceable")
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	// Tool construction resolves the active route once. Mutating accessor
 	// snapshots cannot change the frozen definition.
@@ -916,10 +854,6 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 	if got := tool.Definition().Name; got != "replaceable" {
 		t.Fatalf("tool definition name = %q, want frozen name", got)
 	}
-	if got := startTool.Definition().Name; got != "replaceable_start" {
-		t.Fatalf("background tool definition name = %q, want frozen name", got)
-	}
-
 	parentDef := deploymentFixture("direct-tool-parent", core.ConditionSet{"finish": core.True}, nil)
 	parent := createProcessForTest(t, engine, parentDef, core.Bindings{}, core.ProcessOptions{})
 	if started, err := parent.beginRun(); err != nil || !started {
@@ -928,7 +862,7 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 	defer parent.state.endRun()
 	ctx := core.WithProcessView(t.Context(), parent)
 
-	child, err := boundTool.run(ctx, deploymentRunInput{Value: 20})
+	child, err := runChildDeployment(ctx, boundTool.engine, boundTool.deployment, deploymentRunInput{Value: 20})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -940,27 +874,6 @@ func TestAgentToolsBindOneActiveDeployment(t *testing.T) {
 		t.Fatalf("tool result = %#v, %v; want frozen implementation", result, ok)
 	}
 
-	startResult, err := startTool.Call(ctx, `{"Value":20}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var task struct {
-		TaskID string `json:"task_id"`
-	}
-	if err := json.Unmarshal([]byte(startResult), &task); err != nil {
-		t.Fatal(err)
-	}
-	backgroundChild, ok := engine.Process(task.TaskID)
-	if !ok {
-		t.Fatalf("background child %q was not registered", task.TaskID)
-	}
-	backgroundDeployment := backgroundChild.deployment
-	if backgroundDeployment == nil || backgroundDeployment.agent.Name() != "replaceable" {
-		t.Fatalf("background child deployment = %#v, want frozen identity", backgroundDeployment)
-	}
-	if backgroundDeployment != boundDeployment {
-		t.Fatal("background tool drifted from the active deployment captured at construction")
-	}
 }
 
 func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
@@ -976,13 +889,15 @@ func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
 	}
 	started := time.Now().Add(-time.Second)
 
-	restored, err := engine.RestoreSnapshot(t.Context(), core.ProcessSnapshot{
+	snapshot := core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "restored-deployment-process",
 		Deployment:    deployment.Ref(),
 		StartedAt:     started,
-		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
+	}
+	restored, err := engine.RestoreTree(t.Context(), core.ProcessSnapshotTree{
+		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
 	}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -993,13 +908,15 @@ func TestRestoreBindsExactHistoricalDeployment(t *testing.T) {
 
 	tampered := deployment.Ref()
 	tampered.Digest = "different"
-	_, err = engine.RestoreSnapshot(t.Context(), core.ProcessSnapshot{
+	snapshot = core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "mismatched-deployment-process",
 		Deployment:    tampered,
 		StartedAt:     started,
-		CapturedAt:    time.Now(),
 		Status:        core.StatusCompleted,
+	}
+	_, err = engine.RestoreTree(t.Context(), core.ProcessSnapshotTree{
+		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
 	}, core.ProcessOptions{})
 	if !errors.Is(err, ErrDeploymentNotFound) {
 		t.Fatalf("mismatched restore error = %v, want ErrDeploymentNotFound", err)
@@ -1022,7 +939,7 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 	if _, err := engine.Replace(t.Context(), second); err != nil {
 		t.Fatal(err)
 	}
-	active, ok := engine.catalog.forSource(second)
+	active, ok := engine.ActiveDeployment(second.Name())
 	if !ok || active.ref.Digest == firstDigest {
 		t.Fatalf("active replacement = %#v, %v", active, ok)
 	}
@@ -1048,11 +965,21 @@ func TestReplaceDoesNotChangeExistingProcessDefinition(t *testing.T) {
 	if !ok || secondResult.Value != 22 {
 		t.Fatalf("replacement result = %#v, %v", secondResult, ok)
 	}
+
+	_, err = engine.Run(
+		t.Context(),
+		first,
+		core.Input(deploymentRunInput{Value: 20}),
+		core.ProcessOptions{},
+	)
+	if !errors.Is(err, ErrDeploymentConflict) {
+		t.Fatalf("run superseded definition error = %v, want ErrDeploymentConflict", err)
+	}
 }
 
 func existingDeployment(t *testing.T, engine *Engine, source *core.Agent) *Deployment {
 	t.Helper()
-	deployment, ok := engine.catalog.forSource(source)
+	deployment, ok := engine.ActiveDeployment(source.Name())
 	if !ok {
 		t.Fatalf("deployment for %q not found", source.Name())
 	}
@@ -1083,7 +1010,6 @@ func deploymentFixture(name string, effects core.ConditionSet, run func(*core.Pr
 		run,
 		[]string{"finish"},
 		"goap",
-		[]core.ToolGroupPermission{core.ToolGroupHostAccess},
 	)
 }
 
@@ -1093,11 +1019,9 @@ func deploymentFixtureWith(
 	run func(*core.ProcessContext) core.ActionStatus,
 	pre []string,
 	planner string,
-	permissions []core.ToolGroupPermission,
 ) *core.Agent {
 	metadata := deploymentActionMetadata("finish")
 	metadata.Effects = effects
-	metadata.ToolGroups[0].AllowedPermissions = permissions
 	return core.NewAgent(core.AgentConfig{
 		Name:        name,
 		Description: "fixture",
@@ -1130,11 +1054,8 @@ func deploymentActionMetadata(effect string) core.ActionMetadata {
 		Outputs:       []core.Binding{{Name: "output", Type: "string"}},
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Effects:       core.ConditionSet{effect: core.True},
-		ToolGroups: []core.ToolGroupRequirement{{
-			Role:               "filesystem",
-			AllowedPermissions: []core.ToolGroupPermission{core.ToolGroupHostAccess},
-		}},
-		Cost:  core.FixedScore(1),
-		Value: core.FixedScore(2),
+		ToolGroups:    []string{"filesystem"},
+		Cost:          core.FixedScore(1),
+		Value:         core.FixedScore(2),
 	}
 }

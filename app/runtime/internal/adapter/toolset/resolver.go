@@ -23,17 +23,17 @@ import (
 	"github.com/Tangerg/lynx/tools/httpreq"
 )
 
-// The per-turn blackboard seam (cwd / session / chat-mode keys + readers) lives
-// in package turnctx — the resolver, the per-tool packages, and the engine's
-// prompt composition all read it inward without coupling to each other.
+// The per-turn application-context seam (cwd, session, isolation, goal lease)
+// lives in package turnctx — the resolver, per-tool packages, and prompt
+// composition all read it inward without coupling to each other.
 
 // Resolver is the engine-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
 // providers, MCP servers, the `task` delegation tool) are built once at
 // engine construction and captured here; the filesystem + shell tools are
 // rebuilt per resolution against the working directory the resolving
-// process carries on its blackboard ([CwdBindingKey]), falling back to
-// defaultWorkdir. That is what lets a single engine serve many sessions —
+// turn carries in application context, falling back to defaultWorkdir. That is
+// what lets a single engine serve many sessions —
 // each running its tools in its own project directory — without a
 // per-session engine.
 type Resolver struct {
@@ -346,10 +346,10 @@ func mcpToolRef(tool tools.Tool) (mcpserver.ToolRef, bool) {
 
 func (*Resolver) Name() string { return "coding-tools" }
 
-func (r *Resolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
-	switch requirement.Role {
+func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
+	switch role {
 	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
-		return &toolGroup{resolver: r, role: requirement.Role}, true, nil
+		return &toolGroup{resolver: r, role: role}, true, nil
 	default:
 		return nil, false, nil // unknown role — the runtime skips to the next resolver
 	}
@@ -371,10 +371,6 @@ func (r *Resolver) workdirTools(workdir string) []tools.Tool {
 type toolGroup struct {
 	resolver *Resolver
 	role     string
-}
-
-func (g *toolGroup) Info() core.ToolGroupInfo {
-	return core.ToolGroupInfo{Role: g.role}
 }
 
 func (g *toolGroup) Tools(ctx context.Context) ([]tools.Tool, error) {

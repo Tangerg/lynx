@@ -43,14 +43,6 @@ func TestValidateIDRejectsUnstableIdentity(t *testing.T) {
 	}
 }
 
-func TestEventUnmarshalRejectsUnknownFields(t *testing.T) {
-	body := []byte(`{"kind":"resume","round":1,"resume":{"id":"approval-1","input":true},"future":true}`)
-	var event interaction.Event
-	if err := json.Unmarshal(body, &event); !errors.Is(err, interaction.ErrInvalidEvent) {
-		t.Fatalf("Unmarshal error = %v", err)
-	}
-}
-
 func TestStopReasonValid(t *testing.T) {
 	for _, reason := range []interaction.StopReason{interaction.StopNone, interaction.StopBudget, interaction.StopSteps} {
 		if !reason.Valid() {
@@ -64,7 +56,7 @@ func TestStopReasonValid(t *testing.T) {
 
 func TestLimitsValidateRejectsNonFiniteCost(t *testing.T) {
 	for _, cost := range []float64{-1, math.NaN(), math.Inf(1)} {
-		if err := (interaction.Limits{MaxCostUSD: cost}).Validate(); !errors.Is(err, interaction.ErrInvalidLimits) {
+		if err := (interaction.Limits{MaxCost: cost}).Validate(); !errors.Is(err, interaction.ErrInvalidLimits) {
 			t.Fatalf("Validate cost %v error = %v, want ErrInvalidLimits", cost, err)
 		}
 	}

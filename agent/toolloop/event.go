@@ -1,11 +1,9 @@
 package toolloop
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -37,11 +35,11 @@ const (
 
 // Pause identifies a resumable checkpoint and explains why execution stopped.
 type Pause struct {
-	ID           string          `json:"id"`
-	Reason       string          `json:"reason"`
-	Prompt       json.RawMessage `json:"prompt"`
-	ResumeSchema json.RawMessage `json:"resume_schema"`
-	Checkpoint   *Checkpoint     `json:"checkpoint"`
+	ID           string
+	Reason       string
+	Prompt       json.RawMessage
+	ResumeSchema json.RawMessage
+	Checkpoint   *Checkpoint
 }
 
 // Validate verifies checkpoint identity and diagnostic context.
@@ -70,18 +68,18 @@ func (p Pause) Validate() error {
 // Resume is the shared interaction continuation payload.
 type Resume = interaction.Resume
 
-// Event is a serializable tagged value for model, tool, pause, and resume
+// Event is an in-memory tagged value for model, tool, pause, and resume
 // boundaries. Kind selects exactly one payload field.
 type Event struct {
-	Kind       EventKind        `json:"kind"`
-	Round      int              `json:"round"`
-	Final      bool             `json:"final,omitempty"`
-	Request    *chat.Request    `json:"request,omitempty"`
-	Response   *chat.Response   `json:"response,omitempty"`
-	ToolCall   *chat.ToolCall   `json:"tool_call,omitempty"`
-	ToolResult *chat.ToolResult `json:"tool_result,omitempty"`
-	Pause      *Pause           `json:"pause,omitempty"`
-	Resume     *Resume          `json:"resume,omitempty"`
+	Kind       EventKind
+	Round      int
+	Final      bool
+	Request    *chat.Request
+	Response   *chat.Response
+	ToolCall   *chat.ToolCall
+	ToolResult *chat.ToolResult
+	Pause      *Pause
+	Resume     *Resume
 }
 
 // Validate verifies the discriminator, payload exclusivity, and active nested
@@ -169,37 +167,4 @@ func (e Event) payloadCount() int {
 
 func (e Event) wrongPayload() error {
 	return fmt.Errorf("%w: payload does not match kind %q", ErrInvalidEvent, e.Kind)
-}
-
-// MarshalJSON validates Event before writing its tagged representation.
-func (e Event) MarshalJSON() ([]byte, error) {
-	if err := e.Validate(); err != nil {
-		return nil, err
-	}
-	type wireEvent Event
-	return json.Marshal(wireEvent(e))
-}
-
-// UnmarshalJSON decodes and validates an Event before replacing the receiver.
-func (e *Event) UnmarshalJSON(data []byte) error {
-	if e == nil {
-		return fmt.Errorf("%w: nil receiver", ErrInvalidEvent)
-	}
-	type wireEvent Event
-	var decoded wireEvent
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decoded); err != nil {
-		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: trailing JSON value", ErrInvalidEvent)
-	}
-	candidate := Event(decoded)
-	if err := candidate.Validate(); err != nil {
-		return err
-	}
-	*e = candidate
-	return nil
 }

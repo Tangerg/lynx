@@ -17,7 +17,7 @@ var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 
 // admitProcessRun builds a fresh process, claims its first run, then registers
 // it. ProcessCreated is deliberately published by the caller only after this
-// transaction: a synchronous event listener can observe or kill the process,
+// admission completes: a synchronous event listener can observe or kill the process,
 // but can never steal its first run with Continue.
 func (e *Engine) admitProcessRun(
 	deployment *Deployment,
@@ -30,13 +30,16 @@ func (e *Engine) admitProcessRun(
 	}
 	started, err := process.beginRun()
 	if err != nil {
+		process.releaseDeployment()
 		return nil, core.Bindings{}, err
 	}
 	if !started {
+		process.releaseDeployment()
 		return nil, core.Bindings{}, errors.New("runtime.Engine.admitProcessRun: fresh process rejected its first run")
 	}
 	if !e.processes.insert(process) {
-		process.state.endRun()
+		_, _ = process.state.endRun()
+		process.releaseDeployment()
 		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.admitProcessRun: %w: duplicate ID %q", ErrProcessIdentity, process.id)
 	}
 	return process, eventBindings, nil
@@ -50,6 +53,19 @@ func (e *Engine) buildProcessFromDeployment(
 	if deployment == nil || deployment.agent == nil {
 		return nil, core.Bindings{}, errors.New("runtime.Engine.buildProcessFromDeployment: deployment is nil")
 	}
+	if !e.catalog.retain(deployment) {
+		return nil, core.Bindings{}, fmt.Errorf(
+			"runtime.Engine.buildProcessFromDeployment: %w: %s",
+			ErrDeploymentNotFound,
+			deployment.Ref(),
+		)
+	}
+	retained := true
+	defer func() {
+		if retained {
+			e.catalog.release(deployment)
+		}
+	}()
 	agent := deployment.agent
 	processOptions, err := snapshotProcessOptions(options)
 	if err != nil {
@@ -83,6 +99,8 @@ func (e *Engine) buildProcessFromDeployment(
 		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
+	process.deploymentRetained = true
+	retained = false
 
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
@@ -91,13 +109,11 @@ func (e *Engine) buildProcessFromDeployment(
 }
 
 func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*Deployment, error) {
-	if deployment, ok := e.catalog.forSource(agent); ok {
-		return deployment, nil
-	}
-	// Standard Run/Start accept a definition for convenience, but execution
-	// must never bind an uncataloged deployment: its snapshot would carry an
-	// DeploymentRef that Restore cannot resolve. Deploy is idempotent for the
-	// same ref and preserves the explicit conflict/replace semantics.
+	// Run and Start cross the same immutable compilation boundary as Deploy.
+	// The canonical DeploymentRef, rather than caller pointer identity, decides
+	// whether this is the active definition. This keeps replacement semantics
+	// deterministic and guarantees that every executable process can later be
+	// restored from the catalog.
 	return e.Deploy(ctx, agent)
 }
 
@@ -137,13 +153,16 @@ func (e *Engine) createChild(
 	}
 	started, err := child.beginRun()
 	if err != nil {
+		child.releaseDeployment()
 		return nil, core.Bindings{}, err
 	}
 	if !started {
+		child.releaseDeployment()
 		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: fresh child rejected its first run")
 	}
 	if err := e.attachChild(parent, child); err != nil {
-		child.state.endRun()
+		_, _ = child.state.endRun()
+		child.releaseDeployment()
 		return nil, core.Bindings{}, err
 	}
 	return child, eventBindings, nil

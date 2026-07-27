@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
@@ -37,14 +38,24 @@ type MemorySearcher interface {
 	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
+// ProcessStore is the execution adapter's durable checkpoint boundary.
+// Storage atomically owns the process tree, application usage projection,
+// build compatibility metadata, replacement, and deletion semantics; the
+// Agent runtime knows only how to capture and rebuild the supplied tree value.
+type ProcessStore interface {
+	SaveTree(ctx context.Context, tree core.ProcessSnapshotTree, checkpoint execution.ProcessCheckpoint) error
+	LoadTree(ctx context.Context, rootID string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error)
+	DeleteTrees(ctx context.Context, rootIDs []string) error
+}
+
 // Config is the engine construction-time bundle. ChatClient is the
 // only hard requirement (New errors without it); the rest are
 // optional — a nil/empty field disables or defaults the corresponding
 // feature, per-field docs below.
 type Config struct {
-	// BuildID is the SHA-256 identity of the running host executable. Durable
-	// runtimes require the exact "sha256:<hex>" value so process snapshots
-	// cannot be restored against different executable behavior.
+	// BuildID is the SHA-256 identity of the running host executable. Process
+	// checkpoints carry it as application metadata so a continuation cannot be
+	// restored against different executable behavior.
 	BuildID string
 
 	// ChatClient is the LLM client used by every action. Built from
@@ -105,20 +116,10 @@ type Config struct {
 	// ambiguous across providers). Empty when no default is configured.
 	Provider string
 
-	// ProcessStore, when non-nil, makes the engine auto-snapshot every
-	// agent process per tick to a durable backend (audit trail + the
-	// foundation for resuming a paused turn across restart). nil = no
-	// persistence (no per-tick disk churn). The snapshot is process-level
-	// (status / blackboard / history / budget), so for a single-action
-	// turn it captures the turn boundary, not mid-LLM-loop state.
-	ProcessStore core.ProcessStore
-
-	// ChildSessionStore, when non-nil, is handed to the engine so the runtime
-	// persists a sub-agent's session when it spawns one (the `task`
-	// delegation). It is distinct from root multi-turn session persistence;
-	// Lyra owns root session CRUD directly. nil keeps delegation lineage only
-	// in process snapshots.
-	ChildSessionStore core.SessionStore
+	// ProcessStore persists complete process trees at turn-segment boundaries.
+	// nil keeps execution in memory. The application adapter, rather than the
+	// Agent framework, owns durable commit and failure policy.
+	ProcessStore ProcessStore
 
 	// ToolResultStore backs tool-result eviction: a single tool output larger
 	// than ToolResultThreshold is offloaded here and replaced in history by a

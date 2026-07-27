@@ -47,19 +47,6 @@ func (l *readyPanicListener) OnEvent(_ context.Context, e event.Event) {
 	}
 }
 
-type modelCallPanicListener struct {
-	done atomic.Bool
-}
-
-func (*modelCallPanicListener) Name() string { return "model-call-panic-listener" }
-
-func (l *modelCallPanicListener) OnEvent(_ context.Context, e event.Event) {
-	ev, ok := e.(event.ModelCallRecorded)
-	if ok && ev.Call.Model == "ctx-model" && l.done.CompareAndSwap(false, true) {
-		panic("model call listener failed")
-	}
-}
-
 type waitingPanicListener struct {
 	done atomic.Bool
 }
@@ -204,41 +191,6 @@ func TestProcessContextSuspendKeepsActionTrace(t *testing.T) {
 	}
 	if proc.Status() != core.StatusWaiting {
 		t.Fatalf("process status = %s, want %s", proc.Status(), core.StatusWaiting)
-	}
-
-	for _, span := range exp.GetSpans() {
-		if span.Name != "agent.listener.panic" {
-			continue
-		}
-		if span.SpanContext.TraceID() != parentTrace {
-			t.Fatalf("panic span trace = %s, want run trace %s", span.SpanContext.TraceID(), parentTrace)
-		}
-		return
-	}
-	t.Fatal("missing agent.listener.panic span")
-}
-
-func TestProcessContextRecordModelCallKeepsActionTrace(t *testing.T) {
-	exp := installRuntimeTraceCapture(t)
-
-	a := agent.New(agent.AgentConfig{Name: "model-call-event-trace", Actions: []agent.Action{agent.NewAction("record", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
-		if err := pc.RecordModelCall(ctx, core.ModelCall{Model: "ctx-model", Provider: "test", PromptTokens: int64(len(in.Text))}); err != nil {
-			return wordCount{}, err
-		}
-		return wordCount{Count: len(in.Text)}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
-
-	engine := agent.MustNewEngine(runtime.Config{
-		Extensions: []core.Extension{&modelCallPanicListener{}},
-	})
-	mustDeploy(t, engine, a)
-
-	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
-	parentTrace := parent.SpanContext().TraceID()
-	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
-	parent.End()
-	if err != nil {
-		t.Fatalf("Run: %v", err)
 	}
 
 	for _, span := range exp.GetSpans() {

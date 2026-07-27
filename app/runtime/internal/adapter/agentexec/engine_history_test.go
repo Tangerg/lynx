@@ -4,20 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-// TestEngine_RunChat_PersistsProcessSnapshot verifies the persistence
-// conduit: when a ProcessStore is configured, the engine auto-snapshots
-// the turn's agent process, and the persisted snapshot reflects the
-// completed turn. No store means no persistence (covered by every other test
-// constructing the engine without one).
-func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
+// TestEngine_RunChat_DoesNotPersistTerminalSnapshot verifies that persistence
+// is a restart-checkpoint concern, not an execution audit log. Completed turns
+// have no continuation to restore and therefore leave no process rows behind.
+func TestEngine_RunChat_DoesNotPersistTerminalSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
 	client, _ := chatclient.New(stub)
-	store := storetest.NewMemoryProcessStore()
+	store := newJSONProcessStore()
 	eng, err := New(context.Background(), Config{ChatClient: client, ProcessStore: store, BuildID: testBuildID})
 	if err != nil {
 		t.Fatal(err)
@@ -32,15 +28,8 @@ func TestEngine_RunChat_PersistsProcessSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) == 0 {
-		t.Fatal("expected the turn's process snapshot to be persisted")
-	}
-	snap, err := store.Load(context.Background(), ids[0])
-	if err != nil {
-		t.Fatal(err)
-	}
-	if snap.Status != core.StatusCompleted {
-		t.Errorf("snapshot status = %v, want completed", snap.Status)
+	if len(ids) != 0 {
+		t.Fatalf("terminal turn persisted unresumable snapshots: %v", ids)
 	}
 }
 

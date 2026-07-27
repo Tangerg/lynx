@@ -10,15 +10,8 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// GoalToolProvider supplies the exact sub-agent tools a Supervisor exposes.
-// Keeping this port local avoids coupling orchestration configuration to the
-// complete runtime Engine.
-type GoalToolProvider interface {
-	GoalToolsFor(names ...string) ([]tools.Tool, error)
-}
-
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
-// that delegates to other deployed agents.
+// that delegates through explicitly supplied tools.
 //
 // Unlike the planner-driven default (where a GOAP plan sequences actions),
 // a supervisor hands the chosen agents to a model as tools and lets it
@@ -31,9 +24,9 @@ type SupervisorConfig[In, Out any] struct {
 	Name        string
 	Description string
 
-	// Agents names the deployments exposed to the orchestrating model as tools.
-	// Each agent must expose at least one goal tool.
-	Agents []string
+	// Tools are the exact delegates exposed to the orchestrating model. Use
+	// runtime.NewAgentTool to bind deployments as child-process tools.
+	Tools []tools.Tool
 
 	// Instructions is the system prompt steering the orchestration (e.g.
 	// "delegate research to research-agent, then summarize-agent").
@@ -51,33 +44,28 @@ type SupervisorConfig[In, Out any] struct {
 	MaxToolRounds int
 }
 
-// Supervisor compiles an LLM-orchestration agent over the named sub-agents.
+// Supervisor compiles an LLM-orchestration agent over explicit delegate tools.
 // The compiled agent has one action that asks the configured chat client to
-// achieve the goal using the sub-agent tools, then parses the final reply
+// achieve the goal using those tools, then parses the final reply
 // into Out. Sub-agents run as child processes, so their cost rolls up into
-// the supervisor's budget.
+// the supervisor's budget when built with runtime.NewAgentTool.
 //
 // At execution, the compiled agent requires a chat capability on its runtime.
-// Returns an error on invalid config or an un-callable sub-agent (not deployed
-// or no exported goal).
-func Supervisor[In, Out any](provider GoalToolProvider, config SupervisorConfig[In, Out]) (*core.Agent, error) {
-	if provider == nil {
-		return nil, errors.New("workflow.Supervisor: goal tool provider must not be nil")
-	}
+// Returns an error when the static workflow configuration is invalid.
+func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.Supervisor: Name must not be empty")
 	}
-	if len(config.Agents) == 0 {
-		return nil, errors.New("workflow.Supervisor: Agents must not be empty")
+	if len(config.Tools) == 0 {
+		return nil, errors.New("workflow.Supervisor: Tools must not be empty")
 	}
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
-
-	tools, err := provider.GoalToolsFor(config.Agents...)
-	if err != nil {
-		return nil, fmt.Errorf("workflow.Supervisor: %w", err)
+	if _, err := tools.NewRegistry(config.Tools...); err != nil {
+		return nil, fmt.Errorf("workflow.Supervisor: Tools: %w", err)
 	}
+	delegates := append([]tools.Tool(nil), config.Tools...)
 
 	render := config.Render
 	if render == nil {
@@ -100,7 +88,7 @@ func Supervisor[In, Out any](provider GoalToolProvider, config SupervisorConfig[
 			}
 			text, err := process.Prompt(ctx, prompt, core.PromptConfig{
 				System:        config.Instructions,
-				Tools:         tools,
+				Tools:         delegates,
 				MaxToolRounds: config.MaxToolRounds,
 			})
 			if err != nil {

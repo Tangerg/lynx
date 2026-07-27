@@ -1,12 +1,10 @@
 package interaction
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"strings"
 
@@ -47,10 +45,10 @@ func (k EventKind) Valid() bool {
 	}
 }
 
-// Resume is the JSON-safe input attached to a continued suspension.
+// Resume is the structured input attached to a continued suspension.
 type Resume struct {
-	ID    string          `json:"id"`
-	Input json.RawMessage `json:"input"`
+	ID    string
+	Input json.RawMessage
 }
 
 // Validate checks the continuation identity and input payload.
@@ -66,17 +64,18 @@ func (r Resume) Validate() error {
 
 // Event is the framework-level model/tool boundary. Runtime publishes every
 // value with process and deployment ownership; drivers may have richer private
-// checkpoint events, but must project them onto this stable shape.
+// checkpoint events, but project them onto this shared in-memory shape.
 type Event struct {
-	Kind       EventKind        `json:"kind"`
-	Round      int              `json:"round"`
-	Final      bool             `json:"final,omitempty"`
-	Request    *chat.Request    `json:"request,omitempty"`
-	Response   *chat.Response   `json:"response,omitempty"`
-	ToolCall   *chat.ToolCall   `json:"tool_call,omitempty"`
-	ToolResult *chat.ToolResult `json:"tool_result,omitempty"`
-	Suspension *Suspension      `json:"suspension,omitempty"`
-	Resume     *Resume          `json:"resume,omitempty"`
+	Kind       EventKind
+	Round      int
+	Final      bool
+	Cost       float64
+	Request    *chat.Request
+	Response   *chat.Response
+	ToolCall   *chat.ToolCall
+	ToolResult *chat.ToolResult
+	Suspension *Suspension
+	Resume     *Resume
 }
 
 func (e Event) Validate() error {
@@ -91,6 +90,12 @@ func (e Event) Validate() error {
 	}
 	if e.Final && e.Kind != EventModelResponse && e.Kind != EventToolResult {
 		return fmt.Errorf("%w: only model responses and tool results may be final", ErrInvalidEvent)
+	}
+	if math.IsNaN(e.Cost) || math.IsInf(e.Cost, 0) || e.Cost < 0 {
+		return fmt.Errorf("%w: cost must be finite and non-negative", ErrInvalidEvent)
+	}
+	if e.Cost != 0 && e.Kind != EventModelResponse {
+		return fmt.Errorf("%w: only model responses may carry cost", ErrInvalidEvent)
 	}
 	switch e.Kind {
 	case EventModelRequest:
@@ -153,37 +158,6 @@ func (e Event) wrongPayload() error {
 	return fmt.Errorf("%w: payload does not match kind %q", ErrInvalidEvent, e.Kind)
 }
 
-func (e Event) MarshalJSON() ([]byte, error) {
-	if err := e.Validate(); err != nil {
-		return nil, err
-	}
-	type wire Event
-	return json.Marshal(wire(e))
-}
-
-func (e *Event) UnmarshalJSON(data []byte) error {
-	if e == nil {
-		return fmt.Errorf("%w: nil receiver", ErrInvalidEvent)
-	}
-	type wire Event
-	var decoded wire
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&decoded); err != nil {
-		return fmt.Errorf("%w: decode: %w", ErrInvalidEvent, err)
-	}
-	var extra any
-	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return fmt.Errorf("%w: trailing JSON value", ErrInvalidEvent)
-	}
-	candidate := Event(decoded)
-	if err := candidate.Validate(); err != nil {
-		return err
-	}
-	*e = candidate
-	return nil
-}
-
 type ToolResolver interface {
 	Resolve(name string) (tools.Tool, bool)
 }
@@ -206,7 +180,7 @@ type Limits struct {
 	// interaction semantics.
 	MaxModelCalls int
 	MaxTokens     int64
-	MaxCostUSD    float64
+	MaxCost       float64
 }
 
 // ErrInvalidLimits identifies malformed managed-interaction limits.
@@ -220,7 +194,7 @@ func (l Limits) Validate() error {
 		l.MaxModelCalls < 0 || l.MaxTokens < 0 {
 		return fmt.Errorf("%w: integer limits must not be negative", ErrInvalidLimits)
 	}
-	if math.IsNaN(l.MaxCostUSD) || math.IsInf(l.MaxCostUSD, 0) || l.MaxCostUSD < 0 {
+	if math.IsNaN(l.MaxCost) || math.IsInf(l.MaxCost, 0) || l.MaxCost < 0 {
 		return fmt.Errorf("%w: cost limit must be finite and non-negative", ErrInvalidLimits)
 	}
 	return nil

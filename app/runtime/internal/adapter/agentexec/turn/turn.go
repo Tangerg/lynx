@@ -28,7 +28,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	if request.ModelSelection.Configured() && s.resolver != nil {
 		c, err := s.resolver.ResolveClient(st.ctx, request.ModelSelection)
 		if err != nil {
-			s.finishExecutionError(st, problemFromError(err), err)
+			recordTurnCleanupError(st, s.finishExecutionError(st, problemFromError(err), err))
 			return
 		}
 		client = c
@@ -60,12 +60,12 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		Steer: s.steerSource(st),
 	})
 	if err != nil {
-		s.finishExecutionError(st, internalRunProblem(), err)
+		recordTurnCleanupError(st, s.finishExecutionError(st, internalRunProblem(), err))
 		return
 	}
 	if process == nil {
 		err := errors.New("turn: engine returned a nil process")
-		s.finishExecutionError(st, internalRunProblem(), err)
+		recordTurnCleanupError(st, s.finishExecutionError(st, internalRunProblem(), err))
 		return
 	}
 	if subagents != nil {
@@ -73,7 +73,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 			st.setProcess(process)
 			st.cancel()
 			recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-			s.finishExecutionError(st, internalRunProblem(), err)
+			recordTurnCleanupError(st, s.finishExecutionError(st, internalRunProblem(), err))
 			return
 		}
 	}
@@ -93,6 +93,11 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	completion := process.Await()
 
 	if completion.Status == core.StatusWaiting {
+		if err := completion.Error(); err != nil {
+			recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
+			recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), err))
+			return
+		}
 		s.handleWaiting(st, process)
 		return
 	}
@@ -105,9 +110,9 @@ func (s *memoryDispatcher) drive(st *turnState) {
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
-	s.completeTurn(st, func() {
+	recordTurnCleanupError(st, s.completeTurn(st, func() {
 		s.emitTurnEnd(st, completion, time.Since(st.startedAt))
-	})
+	}))
 }
 
 // handleWaiting decides what to do when the process parks at StatusWaiting. If
@@ -123,7 +128,7 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 	// will answer — terminate the suspended process and emit the terminal.
 	if st.ctx.Err() != nil {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.finishTurn(st, execution.OutcomeCanceled)
+		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
 		return
 	}
 	suspension := process.Suspension()
@@ -150,18 +155,18 @@ func (s *memoryDispatcher) emitInterrupt(st *turnState, process agentexec.TurnPr
 		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
 		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.finishTurn(st, execution.OutcomeCanceled)
+		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
 		return
 	}
 	if suspension == nil {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process is waiting without a suspension"))
+		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process is waiting without a suspension")))
 		return
 	}
 	pending, ok := typedInterrupt(suspension)
 	if !ok {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process returned an unsupported interrupt payload"))
+		recordTurnCleanupError(st, s.finishFailedTurn(st, internalRunProblem(), errors.New("agent process returned an unsupported interrupt payload")))
 		return
 	}
 	recordInterruptMetric(st.ctx, string(pending.Kind))

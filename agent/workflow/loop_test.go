@@ -8,12 +8,11 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
 // Domain types for the loop test. The body is a sub-agent — under
-// RunChildIsolated semantics each iteration runs with a clean blackboard
+// RunChild semantics ensure each iteration runs with a clean blackboard
 // seeded only with the typed input, so the body itself cannot read its
 // own prior outputs. iteration progress is observable via a closure-
 // tracked counter (the realistic shape: a sub-agent whose state lives
@@ -117,15 +116,12 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	}
 }
 
-func TestLoop_AutoSnapshotPreservesWorkflowState(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	engine := agent.MustNewEngine(runtime.Config{
-		BuildID: "loop-snapshot", ProcessStore: store, AutoSnapshot: true,
-	})
+func TestLoop_SnapshotTreePreservesWorkflowState(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
 	body, _ := makeIncrementingBody()
 	mustDeploy(t, engine, body)
 	wf, err := workflow.Loop[loopIn, loopOut](t.Context(), engine, workflow.LoopConfig[loopIn, loopOut]{
-		Name: "durable-loop", MaxIterations: 2, Body: body,
+		Name: "snapshot-loop", MaxIterations: 2, Body: body,
 		Until: func(context.Context, loopIn, loopOut) bool { return false },
 	})
 	if err != nil {
@@ -136,10 +132,14 @@ func TestLoop_AutoSnapshotPreservesWorkflowState(t *testing.T) {
 	if err != nil || process.Status() != core.StatusCompleted {
 		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
 	}
-	if _, err := engine.Prune(t.Context()); err != nil {
-		t.Fatalf("Prune before Restore: %v", err)
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("SnapshotTree: %v", err)
 	}
-	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
+		t.Fatalf("RemoveTree before restore: %v", err)
+	}
+	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}

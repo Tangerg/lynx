@@ -12,13 +12,14 @@ import (
 
 func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 	suspension := interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval-1",
-		Kind:          interaction.SuspensionHuman,
-		Prompt:        json.RawMessage(`{"message":"approve?"}`),
-		ResumeSchema:  json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
-		Payload:       json.RawMessage(`{"owner":"test"}`),
-		CreatedAt:     time.Now().UTC(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             "approval-1",
+		Kind:           interaction.SuspensionHuman,
+		Prompt:         json.RawMessage(`{"message":"approve?"}`),
+		ResumeSchema:   json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
+		Payload:        json.RawMessage(`{"owner":"producer"}`),
+		FrameworkState: json.RawMessage(`{"owner":"framework"}`),
+		CreatedAt:      time.Now().UTC(),
 	}
 	response, err := suspension.ValidateResponse(map[string]any{"approved": true})
 	if err != nil {
@@ -37,12 +38,6 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 	}
 	if !reflect.DeepEqual(decoded, suspension) {
 		t.Fatalf("round trip = %#v, want %#v", decoded, suspension)
-	}
-	if !decoded.SameResponse(json.RawMessage(`{ "approved": true }`)) {
-		t.Fatal("semantic JSON equality was not idempotent")
-	}
-	if decoded.SameResponse(map[string]any{"approved": false}) {
-		t.Fatal("different response was treated as idempotent")
 	}
 
 	unknown := append(append([]byte(nil), body[:len(body)-1]...), []byte(`,"future":true}`)...)
@@ -68,7 +63,7 @@ func TestSuspensionRejectsSchemaMismatchAndInvalidWire(t *testing.T) {
 		t.Fatal("string response unexpectedly matched boolean schema")
 	}
 	invalid := suspension
-	invalid.SchemaVersion = 0
+	invalid.SchemaVersion = interaction.SuspensionSchemaVersion - 1
 	if _, err := json.Marshal(invalid); !errors.Is(err, interaction.ErrInvalidSuspension) {
 		t.Fatalf("invalid Marshal error = %v", err)
 	}
@@ -86,5 +81,11 @@ func TestSuspensionRejectsSchemaMismatchAndInvalidWire(t *testing.T) {
 	respondedBeforeCreation.RespondedAt = suspension.CreatedAt.Add(-time.Second)
 	if err := respondedBeforeCreation.Validate(); !errors.Is(err, interaction.ErrInvalidSuspension) {
 		t.Fatalf("responded-before-created error = %v", err)
+	}
+
+	invalidFrameworkState := suspension
+	invalidFrameworkState.FrameworkState = json.RawMessage(`{`)
+	if err := invalidFrameworkState.Validate(); !errors.Is(err, interaction.ErrInvalidSuspension) {
+		t.Fatalf("invalid framework state error = %v", err)
 	}
 }

@@ -47,8 +47,8 @@ task is ambiguous, ask one focused question rather than guess.`
 //	                   (~/.lyra, ~/.agents), then project root → cwd)
 //
 // The project side anchors to the TURN's working directory — the
-// session cwd seeded on the process blackboard ([turnCwd]), the same
-// seam the fs/shell/skill tools follow — so a session opened on
+// session cwd carried in application context ([turnctx.TurnCwd]), the same seam
+// the fs/shell/skill tools follow — so a session opened on
 // project A briefs the model about project A regardless of where the runtime
 // server process was started.
 //

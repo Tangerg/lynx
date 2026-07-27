@@ -20,7 +20,7 @@ const (
 	suspensionCheckpointNestedChild   suspensionCheckpointKind = "nested_child"
 )
 
-// suspensionCheckpoint is the private durable payload carried by framework
+// suspensionCheckpoint is the private continuation state carried by framework
 // suspensions. Managed interactions own a ToolLoop checkpoint and an ordered
 // subset of its paused calls may own synchronous children. Direct AgentTool
 // calls use the nested_child form with exactly one relation.
@@ -134,40 +134,33 @@ func encodeSuspensionCheckpoint(checkpoint suspensionCheckpoint) (json.RawMessag
 	if err := checkpoint.validate(); err != nil {
 		return nil, err
 	}
-	payload, err := json.Marshal(checkpoint)
+	state, err := json.Marshal(checkpoint)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: encode suspension checkpoint: %w", err)
 	}
-	return payload, nil
+	return state, nil
 }
 
-// decodeSuspensionCheckpoint recognizes only the framework's discriminated
-// private payload. Arbitrary application suspension payloads return
-// (nil, false, nil) and remain owned by their action.
-func decodeSuspensionCheckpoint(payload json.RawMessage) (*suspensionCheckpoint, bool, error) {
-	var header struct {
-		Kind suspensionCheckpointKind `json:"kind"`
-	}
-	if len(payload) == 0 || json.Unmarshal(payload, &header) != nil {
-		return nil, false, nil
-	}
-	if header.Kind != suspensionCheckpointInteraction && header.Kind != suspensionCheckpointNestedChild {
-		return nil, false, nil
+// decodeSuspensionCheckpoint decodes the framework-owned continuation state.
+// Producer-owned Suspension.Payload never reaches this boundary.
+func decodeSuspensionCheckpoint(state json.RawMessage) (*suspensionCheckpoint, error) {
+	if len(state) == 0 {
+		return nil, nil
 	}
 	var checkpoint suspensionCheckpoint
-	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder := json.NewDecoder(bytes.NewReader(state))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&checkpoint); err != nil {
-		return nil, true, fmt.Errorf("runtime: decode suspension checkpoint: %w", err)
+		return nil, fmt.Errorf("runtime: decode suspension checkpoint: %w", err)
 	}
 	var extra any
 	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, true, errors.New("runtime: decode suspension checkpoint: trailing JSON value")
+		return nil, errors.New("runtime: decode suspension checkpoint: trailing JSON value")
 	}
 	if err := checkpoint.validate(); err != nil {
-		return nil, true, err
+		return nil, err
 	}
-	return &checkpoint, true, nil
+	return &checkpoint, nil
 }
 
 type nestedChildCheckpoint struct {
@@ -188,11 +181,11 @@ func nestedChildrenFromSuspension(suspension *interaction.Suspension) (nestedChi
 	if suspension == nil {
 		return nestedChildCheckpoint{}, nil
 	}
-	checkpoint, recognized, err := decodeSuspensionCheckpoint(suspension.Payload)
+	checkpoint, err := decodeSuspensionCheckpoint(suspension.FrameworkState)
 	if err != nil {
 		return nestedChildCheckpoint{}, err
 	}
-	if !recognized {
+	if checkpoint == nil {
 		return nestedChildCheckpoint{}, nil
 	}
 

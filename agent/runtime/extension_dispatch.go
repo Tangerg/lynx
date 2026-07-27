@@ -309,20 +309,13 @@ func approveGoalWith(approver extensionCapability[core.GoalApprover], process co
 // runToolGroupResolvers walks resolvers in order; the first resolver
 // reporting ok=true wins. A resolver returning (ok=false) means "I don't know
 // this role, ask the next one"; any error short-circuits.
-//
-// Resolved groups are rejected when their declared permissions exceed
-// what the requirement grants — a sandboxed action can't pick up a
-// resolver implementation that quietly upgrades the privilege set.
 func runToolGroupResolvers(
 	ctx context.Context,
 	resolvers []extensionCapability[core.ToolGroupResolver],
-	requirement core.ToolGroupRequirement,
+	role string,
 ) (core.ToolGroup, bool, error) {
-	if err := requirement.Validate(); err != nil {
-		return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: invalid requirement: %w", err)
-	}
 	for _, resolver := range resolvers {
-		group, ok, err := resolveToolGroupWith(ctx, resolver.value, requirement, resolver.name)
+		group, ok, err := resolveToolGroupWith(ctx, resolver.value, role, resolver.name)
 		if err != nil {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", resolver.name, err)
 		}
@@ -333,21 +326,7 @@ func runToolGroupResolvers(
 			continue
 		}
 		if valueIsNil(group) {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.name, requirement.Role)
-		}
-		info, err := toolGroupInfo(group, resolver.name)
-		if err != nil {
-			return nil, false, err
-		}
-		if err := info.Validate(); err != nil {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned invalid group info: %w", resolver.name, err)
-		}
-		if info.Role != requirement.Role {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with group role %q", resolver.name, requirement.Role, info.Role)
-		}
-		if !requirement.Allows(info.Permissions) {
-			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: tool group %q requires permissions %v, allowed %v",
-				resolver.name, info.Role, info.Permissions, requirement.AllowedPermissions)
+			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.name, role)
 		}
 		return group, true, nil
 	}
@@ -357,7 +336,7 @@ func runToolGroupResolvers(
 func resolveToolGroupWith(
 	ctx context.Context,
 	resolver core.ToolGroupResolver,
-	requirement core.ToolGroupRequirement,
+	role string,
 	name string,
 ) (group core.ToolGroup, ok bool, err error) {
 	defer func() {
@@ -365,16 +344,7 @@ func resolveToolGroupWith(
 			err = panicerr.New(fmt.Sprintf("tool group resolver %q panicked", name), recovered)
 		}
 	}()
-	return resolver.Resolve(ctx, requirement)
-}
-
-func toolGroupInfo(group core.ToolGroup, resolverName string) (info core.ToolGroupInfo, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool group from resolver %q Info panicked", resolverName), recovered)
-		}
-	}()
-	return group.Info(), nil
+	return resolver.Resolve(ctx, role)
 }
 
 // addEventListenerExtensions adds every extension implementing

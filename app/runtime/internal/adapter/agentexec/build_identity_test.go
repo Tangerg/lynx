@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -66,18 +69,111 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.RestoreTurn(t.Context(), "missing", RestoreTurnRequest{})
-	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, core.ErrSnapshotNotFound) {
+	if process != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping not found", process, err)
 	}
 }
 
-func TestAutoSnapshotFailureRemainsExecutionFailure(t *testing.T) {
+func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
+	model := newOptionToolStub()
+	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
+	if err != nil {
+		t.Fatalf("chatclient.New: %v", err)
+	}
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	cleanupBuiltTools(t, built)
+	store := newJSONProcessStore()
+	engine, err := New(t.Context(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		ProcessStore: store,
+		BuildID:      testBuildID,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	process, err := engine.StartTurn(t.Context(), TurnRequest{
+		Message:  "pause for approval",
+		Observer: &hitlApprovalObserver{},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	if completion := process.Await(); completion.Error() != nil {
+		t.Fatalf("initial turn: %v", completion.Error())
+	}
+
+	store.mu.Lock()
+	corrupt := store.usages[process.ID()]
+	corrupt.Models = append([]accounting.ModelUsage(nil), corrupt.Models...)
+	corrupt.Models[0].Calls++
+	store.usages[process.ID()] = corrupt
+	store.mu.Unlock()
+
+	if resumable, err := engine.ResumableProcess(t.Context(), process.ID()); err != nil || resumable {
+		t.Fatalf("ResumableProcess = %v, %v; want false, nil", resumable, err)
+	}
+	restored, err := engine.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{
+		Observer: &hitlApprovalObserver{},
+	})
+	if restored != nil || !errors.Is(err, ErrProcessSnapshotLost) || !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("RestoreTurn = (%T, %v), want snapshot loss wrapping ErrInvalidSnapshot", restored, err)
+	}
+}
+
+func TestWaitingSnapshotCommitFailureDoesNotRewriteAgentState(t *testing.T) {
+	model := newOptionToolStub()
+	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
+	if err != nil {
+		t.Fatalf("chatclient.New: %v", err)
+	}
+	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	if err != nil {
+		t.Fatalf("toolset.Build: %v", err)
+	}
+	cleanupBuiltTools(t, built)
+	want := errors.New("snapshot unavailable")
+	store := &failingProcessStore{err: want}
+	engine, err := New(t.Context(), Config{
+		ChatClient:   client,
+		ToolResolver: built.Resolver,
+		ProcessStore: store,
+		BuildID:      testBuildID,
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	process, err := engine.StartTurn(t.Context(), TurnRequest{
+		Message:  "pause for approval",
+		Observer: &hitlApprovalObserver{},
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	completion := process.Await()
+	if !errors.Is(completion.Error(), want) {
+		t.Fatalf("completion error = %v, want snapshot failure", completion.Error())
+	}
+	if completion.Status != core.StatusWaiting {
+		t.Fatalf("process status = %s, want waiting", completion.Status)
+	}
+	if store.saves.Load() == 0 {
+		t.Fatal("process never attempted a segment-boundary snapshot")
+	}
+	if errors.Is(completion.Error(), ErrProcessSnapshotLost) {
+		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Error())
+	}
+}
+
+func TestTerminalSegmentDoesNotPersistUnresumableSnapshot(t *testing.T) {
 	client, err := chatclient.New(newStreamingStubModel("done"))
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
-	want := errors.New("snapshot unavailable")
-	store := &failingProcessStore{err: want}
+	store := &failingProcessStore{err: errors.New("must not be called")}
 	engine, err := New(t.Context(), Config{
 		ChatClient:   client,
 		ProcessStore: store,
@@ -91,17 +187,14 @@ func TestAutoSnapshotFailureRemainsExecutionFailure(t *testing.T) {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	completion := process.Await()
-	if !errors.Is(completion.Error(), want) {
-		t.Fatalf("completion error = %v, want snapshot failure", completion.Error())
+	if err := completion.Error(); err != nil {
+		t.Fatalf("terminal completion: %v", err)
 	}
-	if completion.Status != core.StatusFailed {
-		t.Fatalf("process status = %s, want failed", completion.Status)
+	if completion.Status != core.StatusCompleted {
+		t.Fatalf("process status = %s, want completed", completion.Status)
 	}
-	if store.saves.Load() == 0 {
-		t.Fatal("process never attempted an automatic snapshot")
-	}
-	if errors.Is(completion.Error(), ErrProcessSnapshotLost) {
-		t.Fatalf("active snapshot write failure was misclassified as restore loss: %v", completion.Error())
+	if got := store.saves.Load(); got != 0 {
+		t.Fatalf("terminal snapshot saves = %d, want 0", got)
 	}
 }
 
@@ -110,13 +203,13 @@ type failingProcessStore struct {
 	err   error
 }
 
-func (s *failingProcessStore) Apply(context.Context, core.ProcessSnapshotChange) error {
+func (s *failingProcessStore) SaveTree(context.Context, core.ProcessSnapshotTree, execution.ProcessCheckpoint) error {
 	s.saves.Add(1)
 	return s.err
 }
 
-func (*failingProcessStore) Load(context.Context, string) (core.ProcessSnapshot, error) {
-	return core.ProcessSnapshot{}, core.ErrSnapshotNotFound
+func (*failingProcessStore) LoadTree(context.Context, string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
+	return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, execution.ErrProcessSnapshotNotFound
 }
 
-func (*failingProcessStore) List(context.Context) ([]string, error) { return nil, nil }
+func (*failingProcessStore) DeleteTrees(context.Context, []string) error { return nil }

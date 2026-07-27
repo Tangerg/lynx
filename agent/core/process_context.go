@@ -20,39 +20,32 @@ type ChatCapability struct {
 	Streamer chat.Streamer
 }
 
-// ModelAttribution enriches framework-owned usage records with information the
-// provider-neutral response cannot know. Tokens, model, action, duration, and
-// timestamp remain runtime-owned.
-type ModelAttribution struct {
-	Provider string
-	CostUSD  float64
-}
-
-type ModelAttributionFunc func(response *chat.Response) ModelAttribution
+// InteractionCostFunc projects a provider response onto the host's chosen
+// non-negative cost unit. nil records zero cost.
+type InteractionCostFunc func(response *chat.Response) float64
 
 // Interaction is one framework-managed model/tool exchange. ID is optional;
 // runtime derives a stable owner from the process, action, and request when it
 // is empty.
 type Interaction struct {
-	ID        string
-	Model     chat.Model
-	Request   *chat.Request
-	Tools     interaction.ToolResolver
-	Limits    interaction.Limits
-	Observe   interaction.Observer
-	Attribute ModelAttributionFunc
+	ID      string
+	Model   chat.Model
+	Request *chat.Request
+	Tools   interaction.ToolResolver
+	Limits  interaction.Limits
+	Observe interaction.Observer
+	Cost    InteractionCostFunc
 }
 
-// ProcessContextConfig is the narrow bridge used by the sibling runtime
-// package to assemble one action capability object. It is not general user
-// configuration; fields mirror the runtime-owned process scope and callbacks
-// without exporting secondary hook-bundle types.
+// ProcessContextConfig is the runtime SPI for assembling one action capability
+// object. Runtime implementations and action tests provide only the
+// capabilities they support; application execution policy does not belong
+// here.
 type ProcessContextConfig struct {
 	Process      ProcessView
 	Control      ProcessControl
 	Usage        UsageRecorder
 	Blackboard   Blackboard
-	Session      *Session
 	Dependencies *Dependencies
 
 	// Chat resolves the process-scoped model/stream capabilities. nil means no
@@ -64,7 +57,7 @@ type ProcessContextConfig struct {
 
 	// ActionTools backs [ProcessContext.ActionTools]. The runtime supplies a
 	// closure backed by the engine's [ToolGroupResolver].
-	ActionTools func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
+	ActionTools func(context.Context, []string) ([]tools.Tool, error)
 
 	// RunInteraction executes framework-managed model/tool control flow.
 	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
@@ -75,9 +68,9 @@ type ProcessContextConfig struct {
 	ToolCallCancel func(context.CancelFunc) (release func())
 
 	// ActionToolGroups carries the currently-executing action's declared
-	// [ToolGroupRequirement]s, so [ProcessContext.ActionTools] can
+	// abstract tool roles, so [ProcessContext.ActionTools] can
 	// resolve them without the action body having to re-state role names.
-	ActionToolGroups []ToolGroupRequirement
+	ActionToolGroups []string
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -92,21 +85,19 @@ type ProcessContext struct {
 	process      ProcessView
 	blackboard   Blackboard
 	dependencies *Dependencies
-	session      SessionInfo
-	hasSession   bool
 
 	// Engine-wired hooks. Private so action bodies go through
 	// the typed methods instead
 	// of touching the underlying client / closure directly.
 	chat           func() (ChatCapability, error)
 	maxToolRounds  int
-	actionTools    func(context.Context, []ToolGroupRequirement) ([]tools.Tool, error)
+	actionTools    func(context.Context, []string) ([]tools.Tool, error)
 	runInteraction func(context.Context, Interaction) (interaction.Result, error)
 	toolCallCancel func(context.CancelFunc) (release func())
 	control        ProcessControl
 	usage          UsageRecorder
 
-	actionToolGroups []ToolGroupRequirement
+	actionToolGroups []string
 
 	// suspended flips when the action calls [Suspend]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
@@ -116,22 +107,19 @@ type ProcessContext struct {
 	parallelBranch bool
 }
 
-// NewProcessContext assembles a ProcessContext from config. Used by the
-// runtime once per tick; users don't construct ProcessContexts themselves.
+// NewProcessContext assembles a ProcessContext for a runtime tick or an
+// isolated action test.
 func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 	dependencies := config.Dependencies
 	if dependencies == nil {
 		dependencies = NewDependencies()
 	}
-	session, hasSession := config.Session.info()
 	return &ProcessContext{
 		process:          config.Process,
 		control:          config.Control,
 		usage:            config.Usage,
 		blackboard:       config.Blackboard,
 		dependencies:     dependencies,
-		session:          session,
-		hasSession:       hasSession,
 		chat:             config.Chat,
 		maxToolRounds:    config.MaxToolRounds,
 		actionToolGroups: config.ActionToolGroups,
@@ -163,16 +151,6 @@ func (pc *ProcessContext) Dependencies() *Dependencies {
 		return nil
 	}
 	return pc.dependencies
-}
-
-// Session returns an immutable identity/audit snapshot for the process's
-// multi-turn session. ok is false for an ordinary process run. Host-owned
-// mutable Session.Metadata is intentionally not exposed to actions.
-func (pc *ProcessContext) Session() (session SessionInfo, ok bool) {
-	if pc == nil || !pc.hasSession {
-		return SessionInfo{}, false
-	}
-	return pc.session, true
 }
 
 // ForParallelBranch returns a sibling-safe copy of pc for a goroutine running
@@ -253,7 +231,7 @@ func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (inte
 	return pc.runInteraction(contextOrBackground(ctx), input)
 }
 
-// Suspend parks one durable continuation on the current process.
+// Suspend parks one snapshot-compatible continuation on the current process.
 func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) {
 	control, err := pc.lifecycleControl()
 	if err != nil {
@@ -334,29 +312,13 @@ func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Conte
 	}
 }
 
-// RecordUsage attributes aggregate model usage to the running process. It
-// returns [ErrUsageUnavailable] when the context has no accounting owner.
-func (pc *ProcessContext) RecordUsage(ctx context.Context, cost float64, tokens int) error {
+// RecordUsage attributes one resource-consumption delta to the running process.
+// It returns [ErrUsageUnavailable] when the context has no accounting owner.
+func (pc *ProcessContext) RecordUsage(ctx context.Context, usage Usage) error {
 	if pc == nil || pc.usage == nil {
 		return ErrUsageUnavailable
 	}
-	return pc.usage.RecordUsage(contextOrBackground(ctx), cost, tokens)
-}
-
-// RecordModelCall attributes one validated model call to the running process.
-func (pc *ProcessContext) RecordModelCall(ctx context.Context, call ModelCall) error {
-	if pc == nil || pc.usage == nil {
-		return ErrUsageUnavailable
-	}
-	return pc.usage.RecordModelCall(contextOrBackground(ctx), call)
-}
-
-// RecordEmbeddingCall attributes one validated embedding call to the running process.
-func (pc *ProcessContext) RecordEmbeddingCall(ctx context.Context, call EmbeddingCall) error {
-	if pc == nil || pc.usage == nil {
-		return ErrUsageUnavailable
-	}
-	return pc.usage.RecordEmbeddingCall(contextOrBackground(ctx), call)
+	return pc.usage.RecordUsage(contextOrBackground(ctx), usage)
 }
 
 func contextOrBackground(ctx context.Context) context.Context {

@@ -1,18 +1,14 @@
 package runtime
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"iter"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
-
-var errNilConversationContext = errors.New("runtime: BindConversation returned a nil context")
 
 func (p *Process) engineChat() core.ChatCapability {
 	if p.engine == nil {
@@ -57,23 +53,17 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 	if valueIsNil(capability.Model) {
 		return core.ChatCapability{}, nil
 	}
-	guardrails := p.effectiveGuardrails()
-	bindConversation := p.engineConversationBinder()
-	callCapacity, streamCapacity := 1, 1
-	if guardrails != nil {
-		callCapacity += len(guardrails.CallMiddlewares)
-		streamCapacity += len(guardrails.StreamMiddlewares)
+	middleware := p.effectiveChatMiddleware()
+	callCapacity, streamCapacity := 0, 0
+	if middleware != nil {
+		callCapacity += len(middleware.CallMiddlewares)
+		streamCapacity += len(middleware.StreamMiddlewares)
 	}
 	callMiddleware := make([]chat.CallMiddleware, 0, callCapacity)
 	streamMiddleware := make([]chat.StreamMiddleware, 0, streamCapacity)
-	conversationID := p.conversationID()
-	if conversationID != "" && bindConversation != nil {
-		callMiddleware = append(callMiddleware, bindCallConversation(conversationID, bindConversation))
-		streamMiddleware = append(streamMiddleware, bindStreamConversation(conversationID, bindConversation))
-	}
-	if !guardrails.Empty() {
-		callMiddleware = append(callMiddleware, guardrails.CallMiddlewares...)
-		streamMiddleware = append(streamMiddleware, guardrails.StreamMiddlewares...)
+	if !middleware.Empty() {
+		callMiddleware = append(callMiddleware, middleware.CallMiddlewares...)
+		streamMiddleware = append(streamMiddleware, middleware.StreamMiddlewares...)
 	}
 	options := []chatclient.Option{chatclient.WithCallMiddleware(callMiddleware...)}
 	if !valueIsNil(capability.Streamer) {
@@ -93,49 +83,38 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 	return result, nil
 }
 
-func bindCallConversation(id string, bind func(context.Context, string) context.Context) chat.CallMiddleware {
-	return func(next chat.Model) chat.Model {
-		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-			ctx = bind(ctx, id)
-			if ctx == nil {
-				return nil, errNilConversationContext
-			}
-			return next.Call(ctx, request)
-		})
+func (p *Process) effectiveChatMiddleware() *core.ChatMiddleware {
+	var process, engine *core.ChatMiddleware
+	if p.options != nil {
+		process = p.options.chatMiddleware
+	}
+	if p.engine != nil {
+		engine = p.engine.chatMiddleware
+	}
+	if process == nil {
+		return engine
+	}
+	if engine == nil {
+		return process
+	}
+	return &core.ChatMiddleware{
+		CallMiddlewares: append(
+			slices.Clone(process.CallMiddlewares),
+			engine.CallMiddlewares...,
+		),
+		StreamMiddlewares: append(
+			slices.Clone(process.StreamMiddlewares),
+			engine.StreamMiddlewares...,
+		),
 	}
 }
 
-func bindStreamConversation(id string, bind func(context.Context, string) context.Context) chat.StreamMiddleware {
-	return func(next chat.Streamer) chat.Streamer {
-		return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-			ctx = bind(ctx, id)
-			if ctx == nil {
-				return func(yield func(*chat.Response, error) bool) {
-					yield(nil, errNilConversationContext)
-				}
-			}
-			return next.Stream(ctx, request)
-		})
+func (p *Process) effectiveMaxToolRounds() int {
+	if p.options != nil && p.options.maxToolRounds != 0 {
+		return p.options.maxToolRounds
 	}
-}
-
-func (p *Process) engineGuardrails() *core.ChatGuardrails {
-	if p.engine == nil {
-		return nil
+	if p.engine != nil {
+		return p.engine.maxToolRounds
 	}
-	return p.engine.guardrails
-}
-
-func (p *Process) engineConversationBinder() func(context.Context, string) context.Context {
-	if p == nil || p.engine == nil {
-		return nil
-	}
-	return p.engine.bindConversation
-}
-
-func (p *Process) effectiveGuardrails() *core.ChatGuardrails {
-	if p.options != nil && p.options.guardrails != nil {
-		return p.options.guardrails
-	}
-	return p.engineGuardrails()
+	return 0
 }

@@ -18,53 +18,37 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	firstExtension := &constructorExtension{name: "first"}
 	secondExtension := &constructorExtension{name: "second"}
 	extensions := []core.Extension{firstExtension}
-	session := core.NewSession("session-1", "user-1", "agent-1")
-	if err := session.Metadata.Set("host", map[string]any{"mutable": true}); err != nil {
-		t.Fatal(err)
-	}
 	callMiddleware := func(next chat.Model) chat.Model { return next }
 	streamMiddleware := func(next chat.Streamer) chat.Streamer { return next }
-	guardrails := &core.ChatGuardrails{
+	middleware := &core.ChatMiddleware{
 		CallMiddlewares:   []chat.CallMiddleware{callMiddleware},
 		StreamMiddlewares: []chat.StreamMiddleware{streamMiddleware},
-		MaxToolRounds:     4,
 	}
 
 	snapshot, err := snapshotProcessOptions(core.ProcessOptions{
-		Session:    &session,
-		Extensions: extensions,
-		Guardrails: guardrails,
+		Extensions:     extensions,
+		ChatMiddleware: middleware,
+		MaxToolRounds:  4,
 	})
 	if err != nil {
 		t.Fatalf("snapshotProcessOptions: %v", err)
 	}
 
 	extensions[0] = secondExtension
-	session.ID = "mutated"
-	if err := session.Metadata.Set("later", true); err != nil {
-		t.Fatal(err)
-	}
-	guardrails.CallMiddlewares[0] = nil
-	guardrails.StreamMiddlewares[0] = nil
-	guardrails.MaxToolRounds = 99
+	middleware.CallMiddlewares[0] = nil
+	middleware.StreamMiddlewares[0] = nil
 
 	if len(snapshot.extensions) != 1 || snapshot.extensions[0].value != firstExtension {
 		t.Fatalf("extensions = %#v, want original extension", snapshot.extensions)
 	}
-	if snapshot.session == nil || snapshot.session.ID != "session-1" {
-		t.Fatalf("session = %#v, want session-1 snapshot", snapshot.session)
+	if snapshot.chatMiddleware == nil || snapshot.maxToolRounds != 4 {
+		t.Fatalf("chat config = %#v/%d, want middleware and MaxToolRounds 4", snapshot.chatMiddleware, snapshot.maxToolRounds)
 	}
-	if !snapshot.session.Metadata.IsZero() {
-		t.Fatalf("process retained host-owned session metadata: %#v", snapshot.session.Metadata)
+	if snapshot.chatMiddleware.CallMiddlewares[0] == nil || snapshot.chatMiddleware.StreamMiddlewares[0] == nil {
+		t.Fatal("chat middleware slices alias caller storage")
 	}
-	if snapshot.guardrails == nil || snapshot.guardrails.MaxToolRounds != 4 {
-		t.Fatalf("guardrails = %#v, want MaxToolRounds 4", snapshot.guardrails)
-	}
-	if snapshot.guardrails.CallMiddlewares[0] == nil || snapshot.guardrails.StreamMiddlewares[0] == nil {
-		t.Fatal("guardrail middleware slices alias caller storage")
-	}
-	if snapshot.budget != core.DefaultBudget() {
-		t.Fatalf("budget = %#v, want default %#v", snapshot.budget, core.DefaultBudget())
+	if snapshot.budget != (core.Budget{}) {
+		t.Fatalf("budget = %#v, want unbounded zero value", snapshot.budget)
 	}
 }
 
@@ -72,16 +56,11 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 	firstExtension := &constructorExtension{name: "first"}
 	secondExtension := &constructorExtension{name: "second"}
 	extensions := []core.Extension{firstExtension}
-	session := core.NewSession("session-1", "user-1", "agent-1")
-	guardrails := &core.ChatGuardrails{
+	middleware := &core.ChatMiddleware{
 		CallMiddlewares: []chat.CallMiddleware{func(next chat.Model) chat.Model { return next }},
-		MaxToolRounds:   2,
 	}
-	snapshot, err := snapshotProcessOptions(core.ProcessOptions{
-		Session:    &session,
-		Extensions: extensions,
-		Guardrails: guardrails,
-	})
+	options := core.ProcessOptions{Extensions: extensions, ChatMiddleware: middleware, MaxToolRounds: 2}
+	snapshot, err := snapshotProcessOptions(options)
 	if err != nil {
 		t.Fatalf("snapshotProcessOptions: %v", err)
 	}
@@ -92,24 +71,22 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 		defer group.Done()
 		for index := range 1_000 {
 			extensions[0] = secondExtension
-			session.ID = "mutated"
-			guardrails.MaxToolRounds = index
-			guardrails.CallMiddlewares[0] = nil
+			options.MaxToolRounds = index
+			middleware.CallMiddlewares[0] = nil
 		}
 	}()
 	go func() {
 		defer group.Done()
 		for range 1_000 {
 			_ = snapshot.extensions[0].value
-			_ = snapshot.session.ID
-			_ = snapshot.guardrails.MaxToolRounds
-			_ = snapshot.guardrails.CallMiddlewares[0]
+			_ = snapshot.maxToolRounds
+			_ = snapshot.chatMiddleware.CallMiddlewares[0]
 		}
 	}()
 	group.Wait()
 
-	if snapshot.extensions[0].value != firstExtension || snapshot.session.ID != "session-1" ||
-		snapshot.guardrails.MaxToolRounds != 2 || snapshot.guardrails.CallMiddlewares[0] == nil {
+	if snapshot.extensions[0].value != firstExtension ||
+		snapshot.maxToolRounds != 2 || snapshot.chatMiddleware.CallMiddlewares[0] == nil {
 		t.Fatalf("snapshot changed with caller state: %#v", snapshot)
 	}
 }
@@ -153,10 +130,8 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 			contains: "engine-only capabilities: AgentValidator",
 		},
 		{
-			name: "negative tool rounds",
-			options: core.ProcessOptions{Guardrails: &core.ChatGuardrails{
-				MaxToolRounds: -1,
-			}},
+			name:     "negative tool rounds",
+			options:  core.ProcessOptions{MaxToolRounds: -1},
 			contains: "MaxToolRounds must not be negative",
 		},
 		{
@@ -174,31 +149,29 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 	}
 }
 
-func TestNewSnapshotsEngineGuardrails(t *testing.T) {
+func TestNewSnapshotsEngineChatMiddleware(t *testing.T) {
 	callMiddleware := func(next chat.Model) chat.Model { return next }
-	guardrails := &core.ChatGuardrails{
+	middleware := &core.ChatMiddleware{
 		CallMiddlewares: []chat.CallMiddleware{callMiddleware},
-		MaxToolRounds:   3,
 	}
-	engine, err := New(Config{Guardrails: guardrails})
+	engine, err := New(Config{ChatMiddleware: middleware, MaxToolRounds: 3})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
-	guardrails.CallMiddlewares[0] = nil
-	guardrails.MaxToolRounds = 9
-	if engine.guardrails == nil || engine.guardrails.MaxToolRounds != 3 {
-		t.Fatalf("engine guardrails = %#v, want independent snapshot", engine.guardrails)
+	middleware.CallMiddlewares[0] = nil
+	if engine.chatMiddleware == nil || engine.maxToolRounds != 3 {
+		t.Fatalf("engine chat config = %#v/%d, want independent snapshot", engine.chatMiddleware, engine.maxToolRounds)
 	}
-	if engine.guardrails.CallMiddlewares[0] == nil {
-		t.Fatal("engine guardrails retained caller middleware slice")
+	if engine.chatMiddleware.CallMiddlewares[0] == nil {
+		t.Fatal("engine chat middleware retained caller slice")
 	}
 }
 
-func TestNewRejectsNegativeEngineGuardrailRounds(t *testing.T) {
-	engine, err := New(Config{Guardrails: &core.ChatGuardrails{MaxToolRounds: -1}})
+func TestNewRejectsNegativeEngineToolRounds(t *testing.T) {
+	engine, err := New(Config{MaxToolRounds: -1})
 	if engine != nil || err == nil || !strings.Contains(err.Error(), "MaxToolRounds must not be negative") {
-		t.Fatalf("New = %#v, %v; want nil engine and guardrail error", engine, err)
+		t.Fatalf("New = %#v, %v; want nil engine and tool-round error", engine, err)
 	}
 }
 

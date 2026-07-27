@@ -7,7 +7,6 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/agent/workflow"
 )
 
@@ -150,13 +149,10 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	}
 }
 
-func TestRepeatUntil_AutoSnapshotRoundTrip(t *testing.T) {
-	store := storetest.NewMemoryProcessStore()
-	engine := agent.MustNewEngine(runtime.Config{
-		BuildID: "repeat-until-snapshot", ProcessStore: store, AutoSnapshot: true,
-	})
+func TestRepeatUntil_SnapshotTreeRoundTrip(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
-		Name: "durable-repeat", MaxIterations: 3,
+		Name: "snapshot-repeat", MaxIterations: 3,
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, history *workflow.History[ruOut]) (ruOut, error) {
 			return ruOut{Value: history.Count() + 1}, nil
 		},
@@ -170,10 +166,14 @@ func TestRepeatUntil_AutoSnapshotRoundTrip(t *testing.T) {
 	if err != nil || process.Status() != core.StatusCompleted {
 		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
 	}
-	if _, err := engine.Prune(t.Context()); err != nil {
-		t.Fatalf("Prune before Restore: %v", err)
+	tree, err := engine.SnapshotTree(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("SnapshotTree: %v", err)
 	}
-	restored, err := engine.Restore(t.Context(), process.ID(), core.ProcessOptions{})
+	if err := engine.RemoveTree(t.Context(), process.ID()); err != nil {
+		t.Fatalf("RemoveTree before Restore: %v", err)
+	}
+	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Restore: %v", err)
 	}

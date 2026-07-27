@@ -113,7 +113,7 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 		stateBinding:      historyState,
 		newState:          func() *AttemptHistory[Out] { return &AttemptHistory[Out]{} },
 		count:             (*AttemptHistory[Out]).Count,
-		durableState:      []core.Binding{feedbackState},
+		snapshotState:     []core.Binding{feedbackState},
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history *AttemptHistory[Out]) (Out, error) {
 			var zero Out
 

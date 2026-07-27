@@ -51,10 +51,13 @@ Engine scope，但同名并不是跨作用域冲突，而是显式 override。�
 | `runtime.EventListener` | Engine / Process | Engine scope 观察全部 Process；Process scope 仅观察本 Process | 局部观测与投影 |
 | `runtime.SubtreeEventListener` | Process | 显式沿委派子树传播 | 子树观测与投影 |
 
-`ProcessStore`、root `SessionStore`、`ChildSessionStore`、默认 Chat、`ChatGuardrails` 和
-snapshot policy 是 `runtime.Config` 的稳定构造依赖，不因为“可替换”就进入 Extension
-registry。root multi-turn 与 delegated child 是不同生命周期；只有同一 backend 确实拥有
-两者时才显式复用。动态领域依赖使用 typed `core.Dependencies`，也不伪装成行为扩展。
+默认 Chat、`ChatMiddleware`、Prompt tool-round limit 和 child-depth limit 是
+`runtime.Config` 的稳定执行配置，不因为“可替换”就进入 Extension registry。动态领域依赖
+使用 typed `core.Dependencies`，也不伪装成行为扩展。
+
+存储、事务、产品 Session、幂等、重试和 snapshot 提交策略不属于 Config 或 Extension。
+Agent 只生产和消费 `ProcessSnapshot` / `ProcessSnapshotTree` 值；Host 在自己的消费边界定义
+最小存储接口。
 
 ## 4. Middleware 边界
 
@@ -69,19 +72,20 @@ framework-managed interaction。
 Chat 横切行为直接使用 `core/chat.CallMiddleware` 与 `StreamMiddleware`，由 Runtime 在
 选定 ChatCapability 后组合。不要再为同一调用边界增加 Advisor/Hook/Interceptor 的平行链。
 
-## 5. ToolGroupResolver 与权限
+## 5. ToolGroupResolver
 
-Action 通过 `ToolGroupRequirement` 只声明抽象 role 和允许权限。Resolver 返回 `ToolGroup`；
+Action 通过 `ActionConfig.ToolGroups []string` 只声明抽象 role。
+`ToolGroupResolver.Resolve(ctx, role)` 返回 `ToolGroup`；
 Runtime 在调用 `Tools` 前校验：
 
 1. group 非 nil；
-2. `Info().Role` 与 requirement 匹配；
-3. group 所需权限是 `AllowedPermissions` 的子集；
-4. 返回工具均非 nil 且定义有效。
+2. 返回工具均非 nil 且定义有效。
 
 Resolver 与 ToolGroup 的实现属于装配层：静态列表、远程 registry、plugin catalog 或 MCP
 session 各自决定发现、缓存、重试、并发和连接生命周期。Framework 不提供带 map 或
-`sync.Once` 策略的默认实现。可执行 Tool 不进入 provider wire DTO。
+`sync.Once` 策略的默认实现。权限、沙箱、审批和产品策略由 Host 选择 resolver、筛选工具或
+安装 `ToolMiddleware` 时实现；这些策略不进入 Agent 声明与 deployment digest。可执行 Tool
+不进入 provider wire DTO。
 
 ## 6. ChatProvider
 
@@ -90,8 +94,9 @@ session 各自决定发现、缓存、重试、并发和连接生命周期。Fra
 - `Model` 为 nil 表示 defer 到下一个 provider；
 - `Streamer` 可选，但不能在没有 Model 时单独返回；
 - 全部 defer 时回退到 `runtime.Config.Chat`；
-- Runtime 应用 Host 提供的 ChatGuardrails，并通过 `runtime.Config.BindConversation` 独立投影 conversation ID；
-  history store 与 middleware 的选择完全属于 Host。
+- Runtime 只组合 Host 提供的 ChatMiddleware；产品 conversation 的 context 投影、history store
+  与 middleware 选择完全属于 Host。middleware 可从 context 的 `core.ProcessViewFrom` 取得当前
+  进程标识。
 
 Provider adapter 只需实现 `core/chat.Model` 和可选 `Streamer`，不应依赖 Agent、Blackboard、
 history 或 Extension registry。
@@ -109,16 +114,12 @@ history 或 Extension registry。
 只为单一内部实现造接口、使用字符串注册行为、把 SDK client 放进协议 DTO，或创建与现有
 middleware 重叠的扩展链，都不接受。
 
-## 8. 外部实现验证
+## 8. 外部状态边界
 
-外部 `ProcessStore` 不需要复制仓库 internal fixture，应在自己的 adapter test 中运行：
+需要恢复能力的 Host 应先从自己的 backend 加载完整树，再调用
+`Engine.ValidateRestoreTree` / `Engine.RestoreTree`。捕获路径调用 `Engine.SnapshotTree` 后，
+由 Host 决定是否以及如何提交。Agent 不提供 store conformance package，因为接口、事务和失败
+策略都应由真实消费方拥有并测试。
 
-```go
-if err := storetest.TestProcessStore(t.Context(), store); err != nil {
-    t.Fatal(err)
-}
-```
-
-`storetest` 故意是公共 contract package，角色与标准库 `fstest`、`slogtest` 一致。ChatProvider
-与 ToolGroupResolver 的 shape 会在真实 dispatch 边界 fail closed 校验；目前不额外暴露只为
-测试而存在的 provider contract package。
+ChatProvider 与 ToolGroupResolver 的 shape 会在真实 dispatch 边界 fail closed 校验；目前不
+额外暴露只为测试而存在的 provider contract package。

@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/storetest"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
@@ -235,7 +233,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	const buildID = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	cwd := t.TempDir()
-	store := storetest.NewMemoryProcessStore()
+	store := newMemoryProcessStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-restart"},
@@ -353,7 +351,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 
 func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	const buildID = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-	store := storetest.NewMemoryProcessStore()
+	store := newMemoryProcessStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-cancel"},
 		childTool:      "shell",
@@ -409,7 +407,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 
 func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	const buildID = "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-	store := storetest.NewMemoryProcessStore()
+	store := newMemoryProcessStore()
 	historyStore := history.NewInMemoryStore()
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-missing"},
@@ -456,7 +454,7 @@ func TestRehydrateRejectsMissingChildSnapshot(t *testing.T) {
 	if childID == "" {
 		t.Fatalf("parked tree snapshots = %v, want root + child", ids)
 	}
-	if err := store.Apply(t.Context(), core.ProcessSnapshotChange{DeleteRoots: []string{childID}}); err != nil {
+	if err := store.DeleteTrees(t.Context(), []string{childID}); err != nil {
 		t.Fatalf("delete child snapshot: %v", err)
 	}
 
@@ -598,7 +596,7 @@ func buildB8PersistentDispatcher(
 		SetMode(context.Context, approval.Mode) error
 	},
 	hookResolver staticHookResolver,
-	store core.ProcessStore,
+	store agentexec.ProcessStore,
 	historyStore history.Store,
 	buildID string,
 ) turnDriver {

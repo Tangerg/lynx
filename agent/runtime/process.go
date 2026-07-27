@@ -24,22 +24,23 @@ import (
 //   - signals  channel + atomic-based signaling primitives
 //     (terminate / toolCallCancel) — no
 //     shared lock, all built on lock-free primitives.
-//   - nested   nested-child ownership, suspension staging, and deferred
-//     cleanup; owns a separate mutex because sibling AgentTools may update it
+//   - nested   nested-child ownership and suspension staging; owns a separate
+//     mutex because sibling AgentTools may update it
 //     concurrently.
 //
 // processState checkpoint ownership serializes suspension transitions and
-// durable capture without holding a mutex across extension callbacks or store
-// I/O. The other top-level fields are construction-time wiring (id /
+// portable capture without holding a mutex across extension callbacks. The
+// other top-level fields are assembled before registry publication (id /
 // deployment / options / blackboard / state reader / planner / domain /
-// engine) — immutable after newProcess returns.
+// engine). deploymentRetained is released only with complete-tree removal.
 type Process struct {
-	id         string
-	parentID   string
-	depth      int // delegation depth: 0 at top level, parent+1 for a child
-	deployment *Deployment
-	options    *processOptions
-	startedAt  time.Time
+	id                 string
+	parentID           string
+	depth              int // delegation depth: 0 at top level, parent+1 for a child
+	deployment         *Deployment
+	deploymentRetained bool
+	options            *processOptions
+	startedAt          time.Time
 
 	state   processState
 	budget  processBudget
@@ -58,6 +59,14 @@ type Process struct {
 	// wireRuntimeDeps on every construction path (createProcess +
 	// Restore); publishEvent still nil-guards it for safety.
 	processEvents *event.Multicast
+}
+
+func (p *Process) releaseDeployment() {
+	if p == nil || !p.deploymentRetained || p.engine == nil {
+		return
+	}
+	p.engine.catalog.release(p.deployment)
+	p.deploymentRetained = false
 }
 
 // ActionRun is one row of the per-process history.
@@ -114,7 +123,7 @@ func (p *Process) agent() *core.Agent {
 // the per-process event multicast (subscribing process-scope
 // EventListener extensions). Split out of newProcess because both
 // fields close over the assembled pointer, and shared by every path
-// that builds a process — createProcess for fresh runs, Restore
+// that builds a process — createProcess for fresh runs, restore
 // for snapshots re-entering the tick loop. A restored process that
 // skips this panics on its first observe (nil state reader).
 func (p *Process) wireRuntimeDeps(extensions []extensionEntry) {
@@ -137,30 +146,6 @@ func (p *Process) Deployment() core.DeploymentRef {
 		return core.DeploymentRef{}
 	}
 	return p.deployment.Ref()
-}
-
-// conversationID returns the chat history partition for this process: the
-// session id for a multi-turn run, otherwise the process id.
-func (p *Process) conversationID() string {
-	if p == nil {
-		return ""
-	}
-	if p.options != nil && p.options.session != nil && p.options.session.ID != "" {
-		return p.options.session.ID
-	}
-	return p.id
-}
-
-// userID returns the principal this process runs as, inherited by child
-// sessions so audit trails span the delegation subtree.
-func (p *Process) userID() string {
-	if p == nil {
-		return ""
-	}
-	if p.options != nil && p.options.session != nil {
-		return p.options.session.UserID
-	}
-	return ""
 }
 
 func (p *Process) Status() core.ProcessStatus  { return p.state.status() }

@@ -25,9 +25,8 @@ type AgentConfig struct {
 	Description string
 
 	// Version is an optional canonical MAJOR.MINOR.PATCH semantic version.
-	// Empty means the definition is unversioned; durable runtimes then require
-	// a Host BuildID. Validation is owned by Agent so callers do not need semver
-	// types in configuration.
+	// Empty means the definition is unversioned. Validation is owned by Agent so
+	// callers do not need semver types in configuration.
 	Version string
 
 	// StuckPolicy is the recovery hook fired when the planner
@@ -44,11 +43,11 @@ type AgentConfig struct {
 	// determiner can evaluate alongside the auto-derived ones.
 	Conditions []Condition
 
-	// DurableState declares additional typed blackboard values owned by the
+	// SnapshotState declares additional typed blackboard values owned by the
 	// agent but not represented by action inputs or outputs. Generated workflows
 	// use it for loop checkpoints and history. Every entry must be constructed
 	// with NewBinding so snapshots can reconstruct its exact Go type.
-	DurableState []Binding
+	SnapshotState []Binding
 
 	// PlannerName selects which planner the runtime uses for this
 	// agent. It must match the [Extension.Name] of a planner
@@ -79,7 +78,7 @@ func (c AgentConfig) clone() AgentConfig {
 	c.Actions = slices.Clone(c.Actions)
 	c.Goals = slices.Clone(c.Goals)
 	c.Conditions = slices.Clone(c.Conditions)
-	c.DurableState = slices.Clone(c.DurableState)
+	c.SnapshotState = slices.Clone(c.SnapshotState)
 	return c
 }
 
@@ -139,13 +138,13 @@ func (a *Agent) Conditions() []Condition {
 	return slices.Clone(a.config.Conditions)
 }
 
-// DurableState returns a snapshot of the agent-owned blackboard schema that is
+// SnapshotState returns a snapshot of the agent-owned blackboard schema that is
 // independent of action inputs and outputs.
-func (a *Agent) DurableState() []Binding {
+func (a *Agent) SnapshotState() []Binding {
 	if a == nil {
 		return nil
 	}
-	return slices.Clone(a.config.DurableState)
+	return slices.Clone(a.config.SnapshotState)
 }
 
 // PlannerName returns the requested planner extension name. Empty means the
@@ -242,19 +241,19 @@ func (a *Agent) Validate() error {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), condition.Name(), cost))
 		}
 	}
-	seenState := make(map[string]struct{}, len(a.config.DurableState))
-	for index, binding := range a.config.DurableState {
+	seenState := make(map[string]struct{}, len(a.config.SnapshotState))
+	for index, binding := range a.config.SnapshotState {
 		if err := binding.Validate(); err != nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: durable state[%d]: %w", a.Name(), index, err))
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot state[%d]: %w", a.Name(), index, err))
 			continue
 		}
 		if binding.goType == nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: durable state[%d] %s must be constructed with NewBinding", a.Name(), index, binding))
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot state[%d] %s must be constructed with NewBinding", a.Name(), index, binding))
 			continue
 		}
 		key := binding.String()
 		if _, duplicate := seenState[key]; duplicate {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate durable state %s", a.Name(), binding))
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate snapshot state %s", a.Name(), binding))
 			continue
 		}
 		seenState[key] = struct{}{}

@@ -36,17 +36,25 @@ func (p *Process) failProcess(err error) {
 	p.state.fail(err)
 }
 
-// markCancelled records context cancellation as a kill. Publishes ProcessKilled
-// only if it won the terminal transition — an external Kill racing the
-// ctx-cancel path must not double-publish (transition is the first-terminal-wins
-// gate).
+// markCancelled records context cancellation as a subtree kill. Descendants
+// are terminated before the parent run publishes its completion, so a terminal
+// root never leaves an active child behind. ProcessKilled is published only if
+// this call won the terminal transition.
 func (p *Process) markCancelled(ctx context.Context, err error) {
-	if won, _ := p.state.markKilled(err); won {
-		p.publishEvent(ctx, event.ProcessKilled{
-			Header: p.eventHeader(),
-			Reason: err.Error(),
-		})
+	if !p.state.markKilled(err) {
+		return
 	}
+	if p.engine != nil {
+		// The run context is already canceled; descendant termination is a
+		// bounded in-memory lifecycle transition and must still complete.
+		if _, killErr := p.engine.KillChildren(context.WithoutCancel(normalizeContext(ctx)), p.ID()); killErr != nil {
+			p.state.joinFailure(fmt.Errorf("cancel descendants: %w", killErr))
+		}
+	}
+	p.publishEvent(ctx, event.ProcessKilled{
+		Header: p.eventHeader(),
+		Reason: err.Error(),
+	})
 }
 
 // checkStopPolicies asks every applicable [core.StopPolicy]

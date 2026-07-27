@@ -1,16 +1,16 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P16 运行边界诚实性硬化完成，130/130）
+> 状态：持续开发（P22 framework/application tool boundary 收口完成）
 > 建立日期：2026-07-15
-> 最后更新：2026-07-21
+> 最后更新：2026-07-27
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
 
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
-P0–P15 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P16、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+P0–P21 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
+旧标识符只说明当时被删除的设计。当前合同以 P22、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -99,8 +99,8 @@ Agent 特有能力默认留在 Agent，不向 Core 倾倒。
 | HITL | 已有 | JSON-safe Suspension、typed Interrupt、Waiting/Resume | 保持 Human/Tool 两类统一恢复协议 |
 | workflow | 已有 | Sequence、Parallel、Loop、Supervisor 等编译回 Agent | 保持“组合回核” |
 | agent-as-tool/child process | 已有 | Engine 子进程与 tool adapters | 绑定 DeploymentRef 和父子预算 |
-| 基础 snapshot | 部分成立 | ProcessSnapshot、ProcessStore、AutoSnapshot | 加强为严格、并发安全的持久化契约 |
-| session/history | 已有 | SessionStore、chathistory middleware | 保持为独立外圈能力 |
+| portable snapshot | 已成立 | ProcessSnapshot/Tree、SnapshotTree、ValidateRestoreTree、RestoreTree | 只负责捕获、验证、重建；无 Store/I/O |
+| session/history | 外圈能力 | Agent 不定义 conversation/session identity；Host middleware 从 ProcessView 投影 | 产品 Session、history、存储与 turn admission 全部归 Host |
 | OTel | 已有 | runtime/planner/event 直接使用官方 API | 保持 vendor-neutral，不进入根 Core |
 
 ### 3.2 当前质量基线
@@ -314,7 +314,7 @@ Engine 可以拥有：
 - managed interaction；
 - extension registry；
 - event multicast；
-- persistence coordinator。
+- portable snapshot capture/validation/restore。
 
 Engine 不直接实现每个子系统的全部算法，也不把内部子系统无条件暴露成公共 API。
 
@@ -323,16 +323,18 @@ Engine 不直接实现每个子系统的全部算法，也不把内部子系统�
 - 公开可插拔能力继续统一实现 `Extension{Name() string}`。
 - capability interface 由消费它的 package 定义。
 - 多值扩展必须有确定顺序；singleton 扩展必须有明确优先级。
-- 稳定构造依赖（ProcessStore、SessionStore、Chat capability）可以留在 EngineConfig，不为“可替换”全部塞进 Extension。
+- 稳定执行配置（Chat capability、ChatMiddleware、Prompt limit、child depth）可以留在
+  EngineConfig，不为“可替换”全部塞进 Extension。产品 conversation 投影、Store 与 Session
+  不进入 Agent Config。
 - 不新增与 Extension 重叠的 Plugin/Hook/Advisor/Interceptor 注册体系。
 
-### 7.4 持久化状态必须说真话
+### 7.4 Snapshot 与持久化必须分层
 
 - Blackboard 默认代表可恢复的 Process 状态，不允许静默丢弃值。
-- 不可持久化对象必须放到 Dependencies、Context 或显式 transient scope，而不是混入 durable Blackboard。
-- Snapshot 必须标明 schema、revision、deployment identity 和 suspension。
+- 不可编码对象必须放到 Dependencies、Context 或显式 transient scope，而不是混入 snapshot Blackboard。
+- Snapshot 必须标明 schema、deployment identity 和 suspension。
 - 恢复必须精确验证，不以“尽量恢复”掩盖定义漂移。
-- 跨节点语义必须由 CAS/lease 证明；否则文档只能宣称单节点重启恢复。
+- Agent 不定义 Store、事务、幂等或跨节点语义；Host 必须用真实 backend contract 证明这些能力。
 
 ### 7.5 默认不重试任意副作用
 
@@ -351,7 +353,8 @@ Engine 不直接实现每个子系统的全部算法，也不把内部子系统�
 
 ### 7.7 workflow 必须编译回 Agent
 
-Sequence、Parallel、Loop、Supervisor、routing 等高阶能力最终产生普通 Agent 或调用普通 Engine/Process，不建立第二套 runtime、状态机、event bus 或 persistence。
+Sequence、Parallel、Loop、Supervisor、routing 等高阶能力最终产生普通 Agent 或调用普通
+Engine/Process，不建立第二套 runtime、状态机或 event bus。
 
 ---
 
@@ -784,7 +787,7 @@ sequenceDiagram
 | `runtime.runInteraction` | 消费 leaf Runner 完整事件并投影稳定 framework boundary | Managed Interaction | 返回完整 terminal event/stop reason/Suspension |
 | `core.InteractionRunner` | process-aware port | ProcessContext capability | request、resolver、limits、observer、attribution 显式输入 |
 | app `agentexec.runTurn` | 构造 request、observer 和 pricing attribution | Host adapter | 不创建 Runner、不保存 checkpoint、不累计 framework usage |
-| Process Suspension payload | Tool checkpoint 与 owner/deployment identity 的 opaque envelope | Persistence Coordinator | Suspension 已纳入 ProcessSnapshot |
+| Process Suspension continuation | Producer Payload 与 framework execution state 共用一个字段会发生 owner 猜测和 shape 冲突 | Agent Runtime | `Payload` 只归 producer；ToolLoop/nested checkpoint 独占 `FrameworkState`，两者随 Suspension 进入 ProcessSnapshot |
 | app interrupt projection | 将 Suspension prompt 映射成产品 approval/question | Host delivery | 不保存 executable callback 或框架 continuation |
 | name-keyed agentRegistry | redeploy 漂移 | Deployment Catalog | DeploymentRef + explicit replace |
 | Restore 只按 AgentName | 版本字段形同虚设 | Persistence Coordinator | 精确 DeploymentRef 校验 |
@@ -1122,7 +1125,7 @@ app 当前两个 LLM action 已显式 `MaxAttempts:1`，迁移后可删除冗余
 | Retry rename/default | 7 | 1 | 0 | Agent action config/executor；app 两个显式 no-retry action |
 | 并发策略 | 8 | 0 | 0 | Agent executor/tests；blog example 注释/显式 sequential |
 
-MCP 和 A2A module 当前没有直接 import Agent Framework，因此没有生产编译迁移；`agent/examples/mcpagent` 作为 example 跟随 Engine/Deployment 新签名。后续 adapter contract test 仍需证明 MCP tool 暴露、child Agent 和 Suspension 不泄漏 runtime pointer。
+MCP 和 A2A module 当前没有直接 import Agent Framework，因此没有生产编译迁移；跨模块 MCP 示例独立在 `examples/mcp` module，避免传输 SDK 进入 Agent 的依赖图。后续 adapter contract test 仍需证明 MCP tool 暴露、child Agent 和 Suspension 不泄漏 runtime pointer。
 
 app SQLite 的重点不是简单改接口：`ProcessStore.Save` 必须使用单条原子 CAS SQL；旧 snapshot 的处置必须只影响 process snapshot/non-terminal run，不能借 schema bump 清空 Session 或其他历史数据。
 
@@ -1407,7 +1410,7 @@ golden 456 行。Agent/app 全量 build/vet/test、选定 race、两模块 tidy 
   - 结果：所有示例 build/test 全绿；supervisor 经 `ProcessContext.Prompt → Interact` 进入托管路径；toolloop 示例明确标为 leaf protocol，不能作为 Host 自建 Agent loop 的模板。
 - [x] **P6-04 迁移 workflow/routing/agent-as-tool**（完成：2026-07-16）
   - 统一 DeploymentRef、usage、budget、suspension 和 child inheritance。
-  - 结果：child/RunFresh/CreateChildProcess 高级 API 统一接受同 Engine 的 exact `*Deployment`；workflow 构造时部署并捕获 handle；agent tool 等待态不再被 defer 清除；routing candidate/ranker/run 保持 exact DeploymentRef；Blackboard、Session、budget、listener、dependency/extension 继承矩阵已文档化并有测试。
+  - 结果：child 高级 API 统一接受同 Engine 的 exact `*Deployment`；workflow 构造时部署并捕获 handle；agent tool 等待态不再被 defer 清除；routing candidate/ranker/run 保持 exact DeploymentRef；Blackboard 只有默认干净/显式全量两种语义，宿主 session/cwd/isolation/lease 由 App context 传播；budget、listener、dependency/extension 继承矩阵已文档化并有测试。
 - [x] **P6-05 审计 MCP/A2A adapters**（完成：2026-07-16）
   - adapter 只依赖公开窄能力；Agent runtime 不 import transport SDK。
   - 结果：Agent 生产包无 MCP/A2A SDK；App transport SDK 只在 `internal/infra`；A2A 不再 alias/re-export `lynxa2a.Endpoint`；新增 adapter transport-import fitness test。
@@ -1553,7 +1556,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
   - 删除无真实生产职责的公开 Counter generator；reference store list 保持确定顺序。
 - [x] **P9-08 重构 agent-as-tool API 与文件职责**（完成：2026-07-16）
   - `NewAgentTool`、`NewStandaloneAgentTool`、`NewAgentTaskTools`、`GoalToolsFor` 明确同步、独立、后台和 goal fan-out 语义。
-  - child API 统一为 `RunChildWithState/RunChild/RunChildIsolated/StartChild`，参数使用 `input`。
+  - child API 统一为 `RunChildWithState/RunChild/StartChild`，参数使用 `input`；默认 child 黑板干净，只有 `RunChildWithState` 显式复制完整工作状态。
   - task tool 文件重命名为 `agent_task_tools.go`，测试文件同步角色命名。
 - [x] **P9-09 让 Engine Chat 配置接受协议能力**（完成：2026-07-16）
   - `runtime.Config.Chat` 接受 `core.ChatCapability{Model, Streamer}`，不要求调用方传具体 `*chatclient.Client`。
@@ -1804,6 +1807,103 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 退出标准：运行锁不跨外部代码或 I/O；扩展 identity 与 listener scope 不漂移；持久化失败不被
 报告为成功；snapshot 只承诺真实可恢复的信息；无 alias、旧 decoder、wrapper 或 dual path。
 
+### P17：Execution / Application ownership 收口
+
+- [x] 删除 Agent 的 Store、Session、自动快照与持久化失败策略。
+- [x] 以 `SnapshotTree` / `ValidateRestoreTree` / `RestoreTree` 建立纯值、无 I/O 的恢复边界。
+- [x] 在 App consumer side 定义完整树存储接口，并把 SQLite replacement 与 subtask lineage
+  纳入真实事务。
+- [x] 只提交 Waiting checkpoint；终态不写不可恢复快照。
+- [x] Waiting checkpoint 写失败时 fail closed，不发布不可恢复 interrupt。
+- [x] 直接迁移全部 consumer、测试、文档、API/wire baseline，不保留兼容层。
+
+退出标准：Agent 生产代码与公共面不存在 Store/Repository、产品 Session、事务、幂等、重试、
+retention 或 backend failure policy；App 的 parked Run 恢复、丢失分类和原子清理完整闭环。
+
+### P18：Product identity boundary 收口
+
+- [x] 从 Agent 删除 `ProcessOptions.ConversationID`、`ProcessContext.ConversationID` 与
+  `runtime.Config.BindConversation`，不再以改名方式保留产品 Session 概念。
+- [x] App 以普通 Call/Stream middleware 读取 `core.ProcessViewFrom(ctx)`，顶层映射产品
+  conversation，子进程按 Process ID 隔离 history。
+- [x] 将 Agent 的 `DurableState`/`durable_state` 直接改为
+  `SnapshotState`/`snapshot_state`，统一纯 snapshot 语言，不保留兼容字段。
+- [x] SQLite tree commit 在无产品 conversation 时不生成孤立 subtask；显式 conversation
+  缺失时整笔 tree/lineage transaction 回滚。
+- [x] API/wire/deployment golden、架构 guard、consumer、测试与文档同步迁移。
+
+退出标准：Agent 公开面和生产路径不含产品 conversation/session 标识或绑定钩子；snapshot
+协议只描述可捕获执行状态；产品 history 与 lineage 只在 App owner 边界出现。
+
+### P19：Host checkpoint metadata boundary 收口
+
+- [x] 从 Agent `ProcessSnapshot` 删除不参与执行或恢复的 `CapturedAt`，snapshot wire 直接升级
+  为 v6；App 在完整树提交边界生成单一事务时间。
+- [x] 从 Agent `runtime.Config`、deployment compiler 和 canonical digest 删除 Host
+  `BuildID`；Agent digest 只描述 Agent 声明。
+- [x] App `ProcessStore` 独立保存并加载 BuildID，恢复前在 App 比对；SQLite 使用
+  `build_id` + `committed_at` 元数据，schema 直接升级为 v26。
+- [x] 扩展 Agent 全生产代码架构守卫，禁止私有标识符重新引入 Session、Conversation、
+  persistence、transaction、Host BuildID 或提交时间元数据，并补齐 wire/storage/build
+  mismatch 测试。
+
+退出标准：Agent snapshot 只含重建执行所需状态，deployment identity 只含 Agent 声明；
+checkpoint 的宿主兼容判断、提交时间、事务和清理策略完整归 App Runtime。
+
+### P20：Accounting ownership boundary 收口
+
+- [x] 从 Agent 删除 `ModelCall`、`EmbeddingCall`、provider/model/CostUSD 调用明细、对应
+  event 与 snapshot ledger；只保留预算执行需要的通用 `Usage` 聚合。
+- [x] App `agentexec` 建立并发安全、按 model ID 确定排序的 per-model USD ledger，通过
+  managed-interaction model-response boundary 投影，不反向写 Agent 明细。
+- [x] App `ProcessStore` 在同一 Waiting checkpoint transaction 中保存 process tree、
+  application usage snapshot 与 BuildID；恢复前校验两份聚合一致，SQLite schema 直接升级 v27。
+- [x] 删除 Agent 带美元语义的隐式默认 Budget；零值明确无限制，cost 单位与阈值由 Host
+  决定；Host cost callback panic 被 Agent 可执行边界收敛为普通失败。
+- [x] 补齐子树/跨模型溢出保护、strict usage codec、恢复累计、漂移拒绝、竞态测试、
+  architecture guard、API/wire baseline 与文档。
+
+退出标准：Agent 不拥有产品计费、provider/model invocation history、embedding/audit ledger
+或产品默认预算；App 账本与 Agent 通用执行计数各自单 owner，并在 durable commit 边界证明一致。
+
+### P21：完整进程树与稳定 checkpoint 契约收口
+
+- [x] 删除单节点 `Process.Snapshot` / `RestoreSnapshot` 与局部 `Remove` / `Prune`，只保留完整
+  根树 `SnapshotTree` / `RestoreTree` / `RemoveTree`。
+- [x] 同步 AgentTool 子进程不再从 registry 提前摘除，注册树、预算树与 snapshot 树统一为同一
+  生命周期事实源，恢复前后 subtree Usage/Actions 保持一致。
+- [x] snapshot wire 升级 v8，拒绝 `NotStarted` / `Running` 等不稳定执行状态；Host 只能从
+  framework 实际产生的稳定 checkpoint 恢复。
+- [x] 删除无法与可恢复进程树共存的 `StartChild` / `NewAgentTaskTools` 后台子进程双轨语义；
+  child 始终在父 action 生命周期内结构化 join。
+- [x] 将 Chat middleware 与 `MaxToolRounds` 拆成正交配置，进程 middleware 显式组合在引擎
+  middleware 外层，不再通过整体覆盖丢失共享安全链。
+- [x] 增加 `ForgetDeployment` 安全原语；Host 决定 retention，framework 仅拒绝 active 或仍被
+  注册进程树引用的定义，并清理重复 suspension response 路径与 exactly-once 文档暗示。
+
+退出标准：Agent 的捕获、恢复、资源聚合和释放只认完整根进程树；不存在不稳定状态重放、
+后台 child 双生命周期、局部树摘除或隐式永久 deployment retention。
+
+### P22：Framework/Application 工具边界收口
+
+- [x] Goal 回归纯规划目标，删除工具发布配置、Standalone 标记、输入反射类型和 deployment
+  canonical tool schema；Goal 不再承担 Host projection。
+- [x] AgentTool 只保留显式 exact Deployment、typed、父进程内 child 调用；删除自动 Goal
+  扫描、active-name 隐式查找、顶层独立调用和 Host-facing waiting JSON，Waiting child 只通过
+  framework suspension 提升。
+- [x] ToolGroup 收敛为 Action 的 role 字符串、resolver 与 `Tools`；删除单字段
+  `ToolGroupRequirement`/`RequireToolGroup`、权限枚举、provider/version 坐标和重复的
+  `ToolGroupInfo`。沙箱、审批与权限选择完整归 Host 装配边界。
+- [x] `workflow.Supervisor` 改为接收显式 `[]tools.Tool`；删除 `agent/toolpolicy` 的 Once/Gate
+  产品策略包，App 继续拥有自己的审批、禁用、幂等、事务和补偿实现。
+- [x] 直接迁移 App、examples、tests、GoDoc、Guide、deployment/API golden；新增 Host projection
+  forbidden identifiers 与 runtime named-JSON execution-state guard。Agent/App build、vet、普通
+  test、lint、Agent full race、App 高风险 race 与两模块 tidy 全绿。
+
+退出标准：Agent Goal/definition/digest 不含发布策略；ToolGroup 不声明宿主权限或发行坐标；
+Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy；应用策略只在 Host
+组合根和 App Runtime 中出现。
+
 ---
 
 ## 15. 当前进度
@@ -1813,7 +1913,7 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | 阶段 | 状态 | 完成 | 说明 |
 |---|---|---:|---|
 | P0 基线与决策 | 完成 | 8/8 | Core/Agent/app 审计、治理与 Agent API/wire baseline 完成；BB-01 至 BB-08 已全部授权 |
-| P1 Deployment 身份 | 完成 | 7/7 | DeploymentRef/Deployment、canonical digest、显式 Version/BuildID、历史 catalog、exact restore、原子 Engine 构造和 workspace consumer 迁移完成 |
+| P1 Deployment 身份 | 完成 | 7/7 | DeploymentRef/Deployment、声明 canonical digest、显式 Version、历史 catalog、exact declaration restore 与原子 Engine 构造完成；Host BuildID 后由 P19 迁出 |
 | P2 Managed Interaction | 完成 | 9/9 | Framework 托管完整事件、usage/budget、统一 Suspension 与跨 crash checkpoint resume；app 只保留 Host policy/projection |
 | P3 Durable Process | 完成 | 8/8 | strict durable/transient snapshot、明确 autosnapshot policy、精确恢复与 implementation-owned store contract 完成 |
 | P4 执行语义 | 完成 | 8/8 | 单次 Action 调用、结构化并发、窄 Process capability、core 边界和 typed dependency scope 完成 |
@@ -1824,21 +1924,26 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | P9 Go API 语义化收口 | 完成 | 15/15 | 代码、consumer、文档、API/wire/deployment baseline 与完整 Agent/App gate 全部统一 |
 | P10 Owner Receiver 精修 | 完成 | 7/7 | 公私有 owner method、deployment compiler、文件职责、API/文档与完整 Agent/App gate 全部完成 |
 | P11 确定性并发与恢复 | 完成 | 7/7 | 并发、恢复、snapshot、GOAP、consumer、文档与完整门禁全部收口 |
-| P12 构造所有权与 Session store | 完成 | 4/4 | 私有 process options、Guardrails/extension snapshot、typed-nil guard、Session metadata defensive store 与完整门禁全部完成 |
+| P12 构造所有权与 Session store | 完成 | 4/4 | 私有 process options、ChatMiddleware/extension snapshot、typed-nil guard、Session metadata defensive store 与完整门禁全部完成 |
 | P13 Session 生命周期与持久化边界 | 完成 | 5/5 | Session self-validation、root/child ownership、typed App round-trip、SQLite v5 与完整门禁全部完成 |
 | P14 单机 Framework 边界收正 | 完成 | 4/4 | ProcessStore/Snapshot、Action execution、Session ordering 与 App SQLite adapter 全部按 implementation-owned 边界收口 |
 | P15 纯能力抽象收口 | 完成 | 6/6 | 完整 persistence change、extension ownership、原始错误、ToolGroup 与 history adapter 边界全部收口 |
 | P16 运行边界诚实性硬化 | 完成 | 7/7 | checkpoint、顺序、conversation、观察 scope、冻结 identity 与 durable failure 合同全部收口 |
-| **总计** | **完成** | **130/130（100%）** | **P0–P16 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
+| P17 Execution/Application ownership | 完成 | 6/6 | Agent 纯 snapshot runtime；App 接管 store、事务、Session lineage 与失败策略 |
+| P18 Product identity boundary | 完成 | 5/5 | Agent 删除 conversation/session 投影与 durable 命名；App middleware/transaction 完整接管 |
+| P19 Host checkpoint metadata boundary | 完成 | 4/4 | Agent 删除 Host BuildID/CapturedAt；App checkpoint 独立拥有 build compatibility 与 commit metadata |
+| P20 Accounting ownership boundary | 完成 | 5/5 | Agent 只保留通用执行计数；App 独立拥有 per-model USD ledger、事务提交与恢复一致性 |
+| P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
+| P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
+| **总计** | **完成** | **161/161（100%）** | **P0–P22 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P16 运行边界诚实性硬化，7/7，已关闭。
+- 当前阶段：P22 Framework/Application 工具边界收口，5/5，已关闭。
 - 下一任务：继续按开发期节奏审计真实新问题；本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：checkpoint 外部工作移出临界区、进程树持久化本机有序、conversation projection
-  独立、listener scope 显式、extension identity 冻结，以及 ProcessSnapshot v5 message-only
-  failure 合同。
+- 最近完成：Goal 发布元数据、standalone/waiting Host projection、ToolGroup 权限/发行坐标和
+  Agent toolpolicy 全部移出 Framework；Supervisor 改为显式工具装配。
 
 ### 15.3 进度更新规则
 
@@ -1847,10 +1952,9 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 1. 文档头部状态和完成计数；
 2. 第 14 节任务 checkbox、完成日期和证据；
 3. 第 15.1 节阶段表；
-4. 第 15.2 节当前焦点；
-5. 第 18 节变更日志；
-6. 第 19 节执行日志；
-7. 如改变架构方向，先更新第 17 节 ADR。
+4. 第 18 节变更日志；
+5. 第 19 节执行日志；
+6. 如改变架构方向，先更新第 17 节 ADR。
 
 没有测试/迁移证据的任务不得标记完成。commit 存在但工作树未验证，也不得标记完成。
 
@@ -1865,9 +1969,9 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 | Suspension 设计过度抽象 | 引入新的通用工作流引擎 | 只覆盖已存在 approval/question/tool pause；无消费者不扩展 |
 | Managed Interaction 变成 god object | 吸入 prompt/pricing/UI | 严格遵守第 10.4 分工；产品策略以 port/hook 留在 Host |
 | Deployment digest 不稳定 | 相同定义无法跨进程匹配 | canonical encoding；排除函数地址/map 顺序；golden/property test |
-| Digest 无法识别函数实现变化 | 同 shape 的新二进制错误恢复旧进程 | durable deployment 要求显式语义 Version 或 Host BuildID；文档禁止把默认 1.0.0 当安全保证 |
+| Digest 无法识别函数实现变化 | 同 shape 的新二进制错误恢复旧进程 | Agent 声明 digest 不伪装成二进制身份；App checkpoint 独立保存并验证可执行文件 BuildID，其他 Host 自行拥有兼容策略 |
 | 误以为 Framework 能恢复任意 Go 调用栈 | 为保存 closure/goroutine 引入不可行设计 | Suspension 只保存数据；普通 action 从入口重入；需要细粒度 continuation 时显式建模状态机 |
-| adapter 误把 Framework 当作存储协调层 | 持久化语义与真实 backend 脱节 | ProcessStore 只表达能力；事务、CAS、幂等和分布式策略留给 adapter |
+| adapter 误把 Framework 当作存储协调层 | 持久化语义与真实 backend 脱节 | Agent 完全不定义 Store；App consumer 拥有接口、事务、幂等和失败策略 |
 | 重开 process-wide 并发 | 重新引入共享写非确定性或过早事务系统 | 当前只保留结构化 fan-out；有真实消费者后另开 ADR |
 | façade 过度 re-export | 根包膨胀、API 难稳定 | 只覆盖 80% 标准路径；API baseline；高级包保留 |
 | Extension 能力继续增长 | 隐式 DI 和顺序复杂 | 新 capability 门槛；稳定依赖留 config；一个机制 |
@@ -1882,8 +1986,10 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 ### ADR-AF-001：Agent 是 Framework，Core 是 Library
 
 - 状态：已接受。
-- 决策：Core 保持 provider-neutral 协议库；Agent 拥有 deployment/process/interaction/persistence 生命周期。
-- 理由：正确恢复和状态迁移必须由一个 owner 统一保证，仅靠若干独立 helper 会把控制流泄漏给 Host。
+- 决策：Core 保持 provider-neutral 协议库；Agent 拥有 deployment/process/interaction 生命周期，
+  以及 portable process snapshot 的捕获、验证和重建。应用持久化生命周期由 Host 拥有。
+- 理由：执行状态迁移必须由 Agent 统一保证；真实事务、幂等、Run/Session 与 backend 语义必须
+  由掌握产品不变量的消费方统一保证。
 - 限制：Framework 仍显式装配、可嵌入、无扫描、无全局单例。
 
 ### ADR-AF-002：Engine 保持公共框架容器
@@ -1929,15 +2035,14 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
   实现 `ConcurrentTool` 才可重叠，同 resource key 串行，结果仍按模型调用顺序提交。
   未来并行提交 action 必须另开 snapshot/patch ADR。
 
-### ADR-AF-009：持久化先说真话，再扩展能力
+### ADR-AF-009：Snapshot 只表达执行状态，不表达存储协议
 
-- 状态：已接受并实现。
-- 决策：Snapshot v5 删除 revision，并以 `ProcessFailure{Message}` 明确限定可持久化错误信息；
-  `ProcessStore.Apply` 以 `ProcessSnapshotChange` 表达一次
-  完整逻辑变更，读取使用 `Load`，列表拆为可选 `ProcessLister`。CAS、事务、幂等和分布式
-  协调属于 adapter，不进入 Framework 合同。
-  Snapshot 只保存当前 Process 的 direct ledger，聚合由恢复后的 child linkage 计算。
-  不可序列化 durable state 必须失败，transient state 必须显式标记。
+- 状态：已由 ADR-AF-017 收紧并实现。
+- 决策：Snapshot v5 以 `ProcessFailure{Message}` 明确限定 portable error 信息；Agent 只定义
+  `ProcessSnapshot` / `ProcessSnapshotTree` 值及捕获、验证、重建 API，不定义 Store、
+  Repository、change-set、删除、列表或失败策略。Snapshot 只保存当前 Process 的 direct
+  ledger，聚合由恢复后的 child linkage 计算。不可序列化 snapshot state 必须失败，
+  transient state 必须显式标记。
 
 ### ADR-AF-010：根 agent 是用户门面，内部 DAG 保留
 
@@ -1978,19 +2083,107 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 - 状态：已接受并在 P11 实现。
 - 决策：ToolLoop 可以并发执行显式声明安全的调用，但 ToolResult event、下一轮 model
   request、checkpoint cursor 和 nested child relation 必须按模型原始 tool-call 顺序提交。
-  同一 model round 的 AgentTool child 用 exact `ToolCall.ID` 关联并持久化为有序 forest。
+  同一 model round 的 AgentTool child 用 exact `ToolCall.ID` 关联并记录为有序 snapshot forest。
 - 理由：goroutine 完成顺序受调度和外部延迟影响，若直接写入 history/cache/checkpoint，
   同一请求会产生不稳定 cache key、不可复现 replay 和错误的 child resume 关联。
 - 限制：有序提交不等于外部副作用有序。工具若对同一资源存在顺序依赖，必须保持独占
   或返回同一 resource key；框架不伪造 exactly-once。
 
-### ADR-AF-016：Session turn 顺序器是本机实现细节
+### ADR-AF-016：产品 Session 顺序不属于 Agent
+
+- 状态：已由 ADR-AF-018 取代。
+- 决策：Agent 不再拥有 Session 实体或 turn sequencer。`ConversationID` 只是模型历史的
+  Host-owned partition；同 Session admission、FIFO、跨节点 ownership/fencing 由 App runtime
+  决定。
+
+### ADR-AF-017：Execution snapshot 与 Application persistence 彻底分层
+
+- 状态：已接受并实现，产品 identity 边界由 ADR-AF-018 进一步收紧。
+- 决策：删除 Agent 的 `ProcessStore`、Session stores、自动快照、持久化失败 policy、
+  `RunInSession`、store fixtures 和 change-set。Agent 只提供 `Snapshot` / `SnapshotTree` /
+  `ValidateRestoreTree` / `RestoreTree` / `RemoveTree`。`app/runtime` 在 consumer side 定义
+  `ProcessStore`，只在 Waiting segment 提交完整树，并在同一 SQLite transaction 中维护
+  snapshot replacement 与产品 subtask lineage。
+- 失败语义：Waiting checkpoint 提交失败时 App 不发布 interrupt，而是终止并失败收口 Run；
+  terminal segment 不生成无意义快照。恢复缺失、损坏或 deployment 不兼容由 App 分类为
+  `run_lost`。
+- 边界：Agent 内不得重新出现 Store/Repository、事务、幂等、重试、retention、产品 Session
+  或 backend error policy。运行时内部为保证 Resume 原子性的临界区不是持久化事务。
+
+### ADR-AF-018：产品 identity 与 history partition 不进入 Agent
+
+- 状态：已接受并实现，Host checkpoint metadata 边界由 ADR-AF-019 继续收紧。
+- 决策：删除 Agent 的 `ConversationID` 与 `BindConversation` 公共面。Agent 只把当前
+  `ProcessView` 放入 action/model-call context，并执行 Host 提供的普通 Chat middleware；
+  App middleware 自行把 root process 映射到产品 conversation、把 child process 映射到独立
+  history partition。
+- snapshot 语言：Agent 定义的是可捕获执行状态，因此 `DurableState` 和 canonical
+  `durable_state` 直接改为 `SnapshotState` / `snapshot_state`。不提供旧字段 reader、alias 或
+  双 digest。
+- App 不变量：没有产品 conversation 的执行只提交 process tree，不生成产品 subtask lineage；
+  显式 conversation 不存在则在同一 SQLite transaction 中回滚 tree 与 lineage。
+- 守卫：Agent architecture test 禁止重新公开 Session/ConversationID/BindConversation、
+  Store/Repository/Transaction 与历史持久化配置。
+
+### ADR-AF-019：宿主构建与 checkpoint 提交元数据不进入 Agent
 
 - 状态：已接受并实现。
-- 决策：同一 Engine 内相同 Session 的 turn 按 FIFO 串行，不同 Session 并行；删除公开
-  `SessionTurnSequencer` 及其 Config 注入点。
-- 理由：这是保护本机 conversation/cache 顺序的内部机制。公开可替换端口会错误暗示 Framework
-  提供跨节点 ownership/fencing，而该项目的定位只是单机能力整合层。
+- 决策：Agent deployment digest 只编码 Agent 声明，不编码宿主 `BuildID`；Agent
+  `ProcessSnapshot` 只携带重建执行状态所需字段，不携带存储提交时间。
+- App ownership：App `ProcessStore` 在 Waiting checkpoint 事务中保存完整 process tree、
+  可执行文件 BuildID 和单一 `committed_at`。恢复前由 App 比较 BuildID；不匹配按
+  `ErrProcessSnapshotLost` 收口，不把宿主兼容策略伪装成 Agent deployment mismatch。
+- wire/schema：Agent snapshot 直接升级 v6 并拒绝旧 `captured_at`；SQLite schema 直接升级
+  v26，以独立 `build_id`/`committed_at` 列保存应用元数据，不做旧 shape 兼容。
+- 守卫：Agent 全生产代码 AST guard 同时覆盖公开与私有标识符，禁止 Host BuildID、提交
+  时间、Session/Conversation、Store/Repository/Transaction/persistence 概念重新进入。
+
+### ADR-AF-020：Framework 只拥有执行资源聚合，产品账本归 Host
+
+- 状态：已接受并实现。
+- 决策：Agent 删除 provider/model invocation、embedding、USD、duration/timestamp/action
+  audit 明细，只保留 opaque cost、tokens、model calls 与 actions 的通用直接/子树聚合。
+- Budget：Agent 不再选择 `$2 / 50 actions / 1M tokens` 等产品默认值；零值全部无限制，
+  Host 显式选择单位和阈值。Managed interaction 仍是模型调用计数和 token/cost limit 的
+  唯一 framework owner。
+- App ownership：`agentexec` 观察 model-response boundary 并维护 per-model USD ledger；
+  Waiting checkpoint 将该 ledger、Agent process tree 与 BuildID 在 App transaction 中提交，
+  恢复前比较 cost/token/call 聚合，任一漂移按 snapshot loss fail closed。
+- wire/schema：Agent snapshot 升级 v7，以 `OwnUsage` 替代详细调用数组；SQLite schema
+  升级 v27，以 infra-owned strict snake_case codec 保存 App usage，不读旧 shape。
+- 守卫：Agent AST guard 禁止 detailed accounting 类型、USD、usage ledger 与产品默认
+  Budget 重新进入；App Domain 不保留 Agent SDK 例外。
+
+### ADR-AF-021：Process tree 是捕获、恢复、聚合与释放的唯一生命周期单位
+
+- 状态：已接受并实现。
+- 决策：Agent 只捕获、恢复和释放完整根进程树。单节点 snapshot/restore、局部 remove/prune
+  和后台 child 会制造彼此不一致的 registry、budget、checkpoint 生命周期，因此直接删除，
+  不提供兼容入口。
+- checkpoint：snapshot v8 只接受 Waiting、Paused 和终态等稳定边界；Running/NotStarted
+  不可持久化。崩溃后是否重新发起未提交应用工作由 Host 根据幂等、事务、租约或补偿语义决定。
+- child：同步 AgentTool 与 workflow child 始终保留在父树中，直到 Host 释放完整根树。父级
+  Usage/Actions 由同一树递归聚合，capture/restore 前后保持一致。
+- retention：immutable deployment catalog 提供 `ForgetDeployment`，仅负责 active/live
+  reference 安全性；Host 根据外部 snapshot 保留期决定调用时机。
+- chat：`ChatMiddleware` 与 `MaxToolRounds` 分离，进程 middleware 位于引擎 middleware
+  外层，既能绑定 process context，也不会整体覆盖共享安全链。
+
+### ADR-AF-022：Goal 与 ToolGroup 只表达 Framework 执行语义
+
+- 状态：已接受并实现。
+- Goal：只表达目标、前置条件、typed input binding、价值与 routing hint；外部工具名、schema、
+  transport、standalone lifecycle 和 Host wire 不进入 Goal 或 deployment digest。
+- AgentTool：Framework 只提供父进程内 exact Deployment + typed child 组合，并拥有
+  suspension/checkpoint/usage 树语义；顶层 MCP/HTTP 发布和 waiting response projection 由
+  Host adapter 实现。
+- ToolGroup：Action 直接声明 role 字符串，Resolver 的 `(group, ok, err)` 是唯一匹配合同，
+  不保留单字段 requirement DTO；`ToolGroup` 只加载 tools。权限、沙箱、provider/version
+  catalog 和审批属于应用装配。
+- policy：删除 Agent Once/Gate policy；Framework 保留 ToolMiddleware 与当前 ToolCall identity
+  原语，但不实现幂等、once-only、事务、补偿或产品授权。
+- guard：架构测试禁止删除的 Host projection/policy 标识重新进入生产 Agent，并要求 runtime
+  新增 named JSON struct 必须被审查为 Framework execution state。
 
 ---
 
@@ -1998,6 +2191,12 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-27 | 完成 P22：Goal 回归纯规划抽象；删除 Goal tool fan-out、standalone AgentTool/Host waiting JSON、ToolGroup 单字段 requirement/权限/发行坐标/Info 重复合同和 agent/toolpolicy；Supervisor 改为显式 tools；App/示例/基线/架构守卫与完整门禁直接迁移 | Codex |
+| 2026-07-27 | 完成 P21：删除单节点 snapshot/restore、局部 remove/prune 和后台 child 双轨 API；完整根树统一 registry/budget/checkpoint 生命周期，snapshot v8 拒绝不稳定状态；ChatMiddleware 与 Prompt limit 拆分组合；新增安全 deployment forget 原语并清理 exactly-once 文档暗示 | Codex |
+| 2026-07-27 | 完成 P20：Agent 删除 ModelCall/EmbeddingCall/CostUSD 明细与隐式产品预算，只保留通用 Usage；App 建立 per-model USD ledger，与 process tree/BuildID 原子提交并校验恢复一致性；snapshot v7、SQLite v27、strict codec、溢出/竞态/架构守卫与 consumer 直接迁移完成 | Codex |
+| 2026-07-27 | 完成 P19：Agent 删除 Host `BuildID` 与 snapshot `CapturedAt`，deployment digest 只编码声明；snapshot wire 升级 v6。App checkpoint 独立保存/校验 build identity，并以 SQLite v26 `build_id` + `committed_at` 原子提交整棵树；全生产代码架构 guard、consumer 与测试直接迁移 | Codex |
+| 2026-07-27 | 完成 P18：删除 Agent `ConversationID`/`BindConversation` 与 durable 命名残留；App chat middleware 接管 root/child history 分区；无 conversation 不写 product lineage，缺失 conversation 整笔 SQLite tree commit 回滚；API/wire/deployment golden、架构 guard、consumer 与文档直接迁移 | Codex |
+| 2026-07-27 | 完成 P17：Agent 删除全部 Store/Session/auto-snapshot/persistence policy；App consumer 接管完整树提交、SQLite 事务、subtask lineage、run_lost 分类与清理；只持久化 Waiting checkpoint，提交失败不暴露不可恢复 interrupt；breaking migration、API/wire/docs 与门禁收口 | Codex |
 | 2026-07-21 | 完成 P16：checkpoint 锁不再跨 extension/Store I/O；Save/Discard 本机有序；conversation projection 与 Guardrails 解耦；EventListener scope、Store 暴露与 Extension identity 收紧；ProcessSnapshot v5 使用确定的 message-only failure；consumer、合同与完整门禁收口，不封版 | Codex |
 | 2026-07-21 | 完成 P15：ProcessStore 使用完整领域变更；Extension scope/并发所有权显式化；删除 committed/retry 伪事务协议与 ToolGroup lazy/static 实现；chat history Store/middleware 完全移至 Host；消费者、API baseline、独立依赖和完整门禁收口 | Codex |
 | 2026-07-21 | 完成 P14：Framework 收正为单机能力整合层；移除 Snapshot CAS、Action retry 与公开 Session sequencer；ProcessStore 最小化，App SQLite v15 使用 parent_id + 递归 CTE；Agent/App 独立门禁与竞态验证全绿 | Codex |
@@ -2046,6 +2245,10 @@ Process/Session 顺序保持确定；App adapter 独立实现并验证自己的 
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-27 | P22 Framework/Application tool boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/toolset/bootstrap/arch 高风险 race、golangci-lint、tidy 与旧符号/diff 扫描全绿。Agent API baseline 605 行/root 53，SHA-256 `81297fbf849289df6be03d4120cb352c76b52583ab5c7a3d73d26832e7a63e9c`；wire fixture 156 行且语义不变；deployment digest `9c4e3c095834c2a28d62ade6552484714285dd8b56c5618fde6b582e04e5faaa` 只编码 role 字符串等纯规划/执行声明 | 161/161 关闭；不提交、不 push、不 tag/release |
+| 2026-07-27 | P20 Accounting ownership boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/SQLite/bootstrap/runsegment/arch race、golangci-lint、tidy 与 diff check 全绿；恢复累计、usage 漂移、strict codec、跨 child/model overflow 与 cost callback panic 测试通过。Agent API baseline 658 行，SHA-256 `d9f5583c4e406ca60a8f3e51b9758285e9ef99d17e44bdbf08b9ca56a722902f`；wire golden 453 行，SHA-256 `d74ab364cb693123620aaf7e0a8a1d296e8c56d0d12e7e37be8377c1a251293a` | 150/150 关闭；不提交、不 push、不 tag/release |
+| 2026-07-27 | P19 Host checkpoint metadata 收口 | Agent/App 全量 build、vet、普通 test、完整 race、golangci-lint、tidy 与 diff check 全绿；snapshot v6、SQLite v26、BuildID mismatch、整树单一 committed_at 与 AST boundary guard 测试通过。Agent API baseline 672 行，SHA-256 `887567263812e5dce811ce90cf6971095d661fa9c7d5be49ae1837e827ba117f`；wire golden 474 行，SHA-256 `9dbb7d1a83c1c497041fcc502a11ef2dd3fb4d36d91fb23fa30f73994f9ba4fa` | 145/145 关闭；不提交、不 push、不 tag/release |
+| 2026-07-27 | P17/P18 最终收口 | Agent 与 App 普通全量测试、完整 race、build、vet、golangci-lint、tidy 与 diff check 全绿；终态/等待提交和 child approve/cancel 高风险竞态复跑通过。Agent API baseline 672 行，SHA-256 `ea7cce75a601d36a5fadef7b9895ed3ec7e3752e890dbb82ca7053ef9b9d8dcf`；wire golden 475 行，SHA-256 `61993acf26c200166c14ec9eef18acec2173ba705eea31fb263da371c4d302fa`；生产代码 forbidden-symbol/import 扫描无结果 | 141/141 关闭；不提交、不 push、不 tag/release |
 | 2026-07-21 | P16-01 至 P16-07 | 分批提交 checkpoint/本机顺序、runtime boundary 与 durable failure；ProcessSnapshot schema v5、16 个 JSON struct/490 行 wire、707 declaration/root 47 baseline；Agent build/vet/test/lint 与 full race、App 全量普通门禁和 agentexec/runsegment/SQLite/bootstrap/arch race、两个模块 tidy、workspace `all green (84 checks)`、diff audit 全绿 | 130/130 当前计划项关闭；继续开发期审计，不封版、不 tag/release |
 | 2026-07-21 | P14-01 至 P14-04 | Agent 全量 test/vet/tidy、full race、API/wire/arch/deployment golden；App 全量 test/vet/tidy、高风险 race，并以 `GOWORK=off` 固定 Agent `v0.0.0-20260721053458-338f7a625fed` 全量验证；`git diff --check` 通过 | 无；117/117 关闭，不创建 tag/release |
 | 2026-07-17 | P13-05 | Agent `build/vet/test/lint` 与 full race；App `build/vet/test/lint`、agentexec/toolset/runsegment/SQLite/bootstrap/arch 高风险 race；两模块 tidy；API 654/root 48、wire 490、arch/diff；workspace 两次 `all green (105 checks)` | 无；113/113 关闭。当前批独立 commit/push，不 tag/release |

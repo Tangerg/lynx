@@ -13,24 +13,20 @@ import (
 	"github.com/Tangerg/lynx/tools"
 )
 
-// ChatGuardrails carries model middleware and the bounded tool-loop policy used
-// by Prompt. Runtime constructors snapshot the value and both middleware slices
-// before retaining it.
-type ChatGuardrails struct {
+// ChatMiddleware carries model middleware applied to process-scoped chat
+// capabilities. Runtime constructors snapshot the value and both slices before
+// retaining it.
+type ChatMiddleware struct {
 	CallMiddlewares   []chat.CallMiddleware
 	StreamMiddlewares []chat.StreamMiddleware
-
-	// MaxToolRounds bounds Prompt tool execution. Zero selects the runner
-	// default.
-	MaxToolRounds int
 }
 
-// Empty reports whether g changes chat execution.
-func (g *ChatGuardrails) Empty() bool {
-	if g == nil {
+// Empty reports whether m changes chat execution.
+func (m *ChatMiddleware) Empty() bool {
+	if m == nil {
 		return true
 	}
-	return len(g.CallMiddlewares) == 0 && len(g.StreamMiddlewares) == 0 && g.MaxToolRounds == 0
+	return len(m.CallMiddlewares) == 0 && len(m.StreamMiddlewares) == 0
 }
 
 // PromptConfig configures one framework-managed model interaction. Its zero

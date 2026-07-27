@@ -5,10 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
@@ -25,24 +24,8 @@ func (f *fakeStore) Fetch(_ context.Context, session string, id resultoffload.ID
 	return f.body, f.found, f.err
 }
 
-// fake ProcessView / blackboard: just enough for turnctx.TurnSession off ctx.
-type fakeBlackboard struct {
-	core.BlackboardReader
-	vals map[string]any
-}
-
-func (b fakeBlackboard) Load(key string) (any, bool) { v, ok := b.vals[key]; return v, ok }
-
-type fakeProcessView struct {
-	core.ProcessView
-	bb core.BlackboardReader
-}
-
-func (p fakeProcessView) Blackboard() core.BlackboardReader { return p.bb }
-
 func sessionCtx(session string) context.Context {
-	bb := fakeBlackboard{vals: map[string]any{turnctx.SessionBindingKey: session}}
-	return core.WithProcessView(context.Background(), fakeProcessView{bb: bb})
+	return turnctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
 func TestNew_NilStoreOmitted(t *testing.T) {

@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -24,16 +23,16 @@ func (p *Process) beginRun() (bool, error) {
 
 func (p *Process) runOwned(ctx context.Context) error {
 	runErr := p.driveOwned(ctx)
-	runErr = p.finalizeOwnedRun(ctx, runErr)
-	p.state.endRun()
+	p.finishRunLoop(ctx)
+	_, _ = p.state.endRun()
 	return runErr
 }
 
-// runOwnedSegment publishes exactly one immutable completion after final
-// durability and observability work has crossed into the publishing phase.
+// runOwnedSegment publishes exactly one immutable completion after runtime
+// observability work has completed.
 func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeCompletion func(error)) {
 	runErr := p.driveOwned(ctx)
-	runErr = p.finalizeOwnedRun(ctx, runErr)
+	p.finishRunLoop(ctx)
 	if beforeCompletion != nil {
 		beforeCompletion(runErr)
 	}
@@ -45,23 +44,6 @@ func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeC
 		Err:     runErr,
 		results: results,
 	})
-}
-
-// finalizeOwnedRun persists the final state and atomically closes the driver's
-// snapshot-responsibility window. A kill that lands while the snapshot is in
-// flight changes killRevision, forcing one new capture of the killed state.
-// Once the transition succeeds, a later Kill snapshots itself.
-func (p *Process) finalizeOwnedRun(ctx context.Context, runErr error) error {
-	var snapshotErr error
-	for {
-		revision := p.state.observedKillRevision()
-		snapshotErr = errors.Join(snapshotErr, p.maybeAutoSnapshot(ctx))
-		if p.state.beginPublishing(revision) {
-			break
-		}
-	}
-	p.finishRunLoop(ctx)
-	return errors.Join(runErr, snapshotErr)
 }
 
 func (p *Process) driveOwned(ctx context.Context) error {
@@ -106,11 +88,6 @@ func (p *Process) driveOwned(ctx context.Context) error {
 			return nil
 		}
 
-		// Persist progress between running ticks. The last tick is captured by
-		// finalizeOwnedRun, which also closes Kill's snapshot-ownership race.
-		if err := p.maybeAutoSnapshot(ctx); err != nil {
-			return err
-		}
 	}
 }
 

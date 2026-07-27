@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
@@ -18,13 +19,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func waitingProcessSnapshot(id string, started, captured time.Time) core.ProcessSnapshot {
+const checkpointBuildID = "test-build"
+
+func waitingProcessSnapshot(id string, started, parked time.Time) core.ProcessSnapshot {
 	return core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            id,
 		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
 		StartedAt:     started,
-		CapturedAt:    captured,
 		Status:        core.StatusWaiting,
 		Suspension: &agent.Suspension{
 			SchemaVersion: agent.SuspensionSchemaVersion,
@@ -32,8 +34,8 @@ func waitingProcessSnapshot(id string, started, captured time.Time) core.Process
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"checkpoint":true}`),
-			CreatedAt:     captured,
+			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
+			CreatedAt:     parked,
 		},
 	}
 }
@@ -243,11 +245,15 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 		t.Fatalf("admit: %v", err)
 	}
 	snapshot := waitingProcessSnapshot("proc_1", createdAt, parkedAt)
-	change := core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+	tree := core.ProcessSnapshotTree{
 		RootID:    snapshot.ID,
 		Snapshots: []core.ProcessSnapshot{snapshot},
-	}}
-	if err := sqlite.NewProcessStore(db).Apply(ctx, change); err != nil {
+	}
+	if err := sqlite.NewProcessStore(db).SaveTree(ctx, tree, execution.ProcessCheckpoint{
+		BuildID: checkpointBuildID,
+		Scope:   execution.TurnScope{SessionID: "ses_1"},
+		Usage:   accounting.Snapshot{},
+	}); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	question := &transcript.Question{Prompt: "Continue?"}

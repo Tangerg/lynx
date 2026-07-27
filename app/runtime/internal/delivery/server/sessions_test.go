@@ -110,7 +110,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	now := time.Now().UTC()
 	if _, err := svc.SaveSubtask(ctx, session.Subtask{
 		ID: "ses_subtask", ParentID: id, StartedAt: now, UpdatedAt: now,
-	}, []byte(`{"agent":"subtask"}`)); err != nil {
+	}); err != nil {
 		t.Fatalf("seed subtask: %v", err)
 	}
 	fork, err := svc.Fork(ctx, id)

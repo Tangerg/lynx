@@ -38,9 +38,9 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 	if got != want {
 		t.Errorf("usage = %+v, want %+v", got, want)
 	}
-	// Usage is read back from the process invocation ledger, and the
-	// per-model breakdown rolls up to the same total under the one
-	// served model.
+	// Usage is read back from the application-owned projection, whose
+	// per-model breakdown rolls up to the same total under the one served
+	// model.
 	if len(out.UsageByModel) != 1 ||
 		out.UsageByModel[0].Model != "stub-usage-model" ||
 		out.UsageByModel[0].TokenUsage != want {
@@ -52,7 +52,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 // Pricing hook configured, each round's cost is recorded on its
 // invocation and rolls up to TurnOutput.CostUSD + per-model cost. The
 // rate table itself is the caller's; here a stub rate of $0.01/token makes
-// cost equal $0.42 while remaining below the process's default $2 ceiling.
+// cost equal $0.42.
 func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 	reasoning := int64(3)
 	stub := newUsageStubModel(

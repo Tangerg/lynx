@@ -18,7 +18,7 @@ type fakeCondition struct {
 	cost float64
 }
 
-type durableStateSample struct{ Value string }
+type snapshotStateSample struct{ Value string }
 
 func (c fakeCondition) Name() string                                          { return c.name }
 func (c fakeCondition) Cost() float64                                         { return c.cost }
@@ -78,29 +78,29 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidDurableState(t *testing.T) {
+func TestValidateRejectsInvalidSnapshotState(t *testing.T) {
 	base := core.AgentConfig{
-		Name:    "durable-state",
+		Name:    "snapshot-state",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
 		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	}
-	base.DurableState = []core.Binding{{Name: "state", Type: "example.State"}}
+	base.SnapshotState = []core.Binding{{Name: "state", Type: "example.State"}}
 	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "must be constructed with NewBinding") {
-		t.Fatalf("literal durable state error = %v", err)
+		t.Fatalf("literal snapshot state error = %v", err)
 	}
-	binding := core.NewBinding[durableStateSample]("state")
-	base.DurableState = []core.Binding{binding, binding}
-	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate durable state") {
-		t.Fatalf("duplicate durable state error = %v", err)
+	binding := core.NewBinding[snapshotStateSample]("state")
+	base.SnapshotState = []core.Binding{binding, binding}
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate snapshot state") {
+		t.Fatalf("duplicate snapshot state error = %v", err)
 	}
 }
 
-func TestValidateRejectsInvalidToolGroupRequirement(t *testing.T) {
+func TestValidateRejectsInvalidToolGroupRole(t *testing.T) {
 	config := core.AgentConfig{
 		Name: "tool-policy",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
 			Name:       "act",
-			ToolGroups: []core.ToolGroupRequirement{{Role: " research "}},
+			ToolGroups: []string{" research "},
 		}}},
 		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	}
@@ -174,15 +174,15 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
-	durableState := []core.Binding{core.NewBinding[durableStateSample]("state")}
+	snapshotState := []core.Binding{core.NewBinding[snapshotStateSample]("state")}
 	config := core.AgentConfig{
-		Name:         "owned",
-		Description:  "original",
-		Version:      "1.2.3",
-		Actions:      actions,
-		Goals:        goals,
-		Conditions:   conditions,
-		DurableState: durableState,
+		Name:          "owned",
+		Description:   "original",
+		Version:       "1.2.3",
+		Actions:       actions,
+		Goals:         goals,
+		Conditions:    conditions,
+		SnapshotState: snapshotState,
 	}
 
 	agent := core.NewAgent(config)
@@ -191,12 +191,12 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
-	durableState[0].Name = "mutated"
+	snapshotState[0].Name = "mutated"
 
 	returnedActions := agent.Actions()
 	returnedGoals := agent.Goals()
 	returnedConditions := agent.Conditions()
-	returnedState := agent.DurableState()
+	returnedState := agent.SnapshotState()
 	returnedActions[0] = nil
 	returnedGoals[0] = nil
 	returnedConditions[0] = nil
@@ -208,7 +208,7 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	if agent.Actions()[0] == nil || agent.Goals()[0] != goal || agent.Conditions()[0] != condition {
 		t.Fatal("Agent leaked caller or accessor slice storage")
 	}
-	if state := agent.DurableState(); len(state) != 1 || state[0].Name != "state" {
-		t.Fatalf("Agent leaked durable state storage: %#v", state)
+	if state := agent.SnapshotState(); len(state) != 1 || state[0].Name != "state" {
+		t.Fatalf("Agent leaked snapshot state storage: %#v", state)
 	}
 }

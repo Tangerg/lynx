@@ -5,151 +5,88 @@ import (
 	"math"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// newTestBudget produces an isolated processBudget with its own
-// mutex so the call-history methods can be exercised without
-// the surrounding Process setup.
 func newTestBudget() *processBudget {
 	return &processBudget{lock: new(sync.RWMutex)}
 }
 
-func TestProcessBudgetRecordModelCallAggregatesCostAndTokens(t *testing.T) {
-	b := newTestBudget()
-	now := time.Now()
-
-	b.recordModelCall(core.ModelCall{
-		Timestamp:        now,
-		Model:            "claude-sonnet-4-5",
-		Provider:         "anthropic",
-		CostUSD:          0.012,
-		PromptTokens:     1000,
-		CompletionTokens: 500,
-	})
-	b.recordModelCall(core.ModelCall{
-		Timestamp:        now,
-		Model:            "gpt-4o",
-		Provider:         "openai",
-		CostUSD:          0.008,
-		PromptTokens:     400,
-		CompletionTokens: 200,
-	})
-
-	cost, tokens, actions := b.usage(0)
-	if cost-0.020 > 1e-9 || cost-0.020 < -1e-9 {
-		t.Errorf("cost: want ~0.020, got %.6f", cost)
-	}
-	if tokens != 2100 { // 1500 + 600
-		t.Errorf("tokens: want 2100, got %d", tokens)
-	}
-	if actions != 0 {
-		t.Errorf("actions: want 0, got %d", actions)
+func TestProcessBudgetAggregatesResourceUsage(t *testing.T) {
+	budget := newTestBudget()
+	for _, usage := range []core.Usage{
+		{Cost: 0.012, Tokens: 1500, ModelCalls: 1},
+		{Cost: 0.008, Tokens: 600, ModelCalls: 1},
+	} {
+		if err := budget.record(usage); err != nil {
+			t.Fatalf("record(%+v): %v", usage, err)
+		}
 	}
 
-	history := b.modelCallHistory()
-	if len(history) != 2 {
-		t.Fatalf("history: want 2 entries, got %d", len(history))
+	got := budget.usage(3)
+	if math.Abs(got.Cost-0.020) > 1e-9 {
+		t.Fatalf("cost = %.6f, want 0.020", got.Cost)
 	}
-	if history[0].Model != "claude-sonnet-4-5" || history[1].Model != "gpt-4o" {
-		t.Errorf("history order or content wrong: %#v", history)
+	if got.Tokens != 2100 || got.ModelCalls != 2 || got.Actions != 3 {
+		t.Fatalf("usage = %+v, want tokens=2100 modelCalls=2 actions=3", got)
 	}
 }
 
-func TestProcessBudgetRecordEmbeddingCall(t *testing.T) {
-	b := newTestBudget()
-	now := time.Now()
-
-	b.recordEmbeddingCall(core.EmbeddingCall{
-		Timestamp:   now,
-		Model:       "voyage-3",
-		Provider:    "voyage",
-		CostUSD:     0.001,
-		InputTokens: 800,
-		InputCount:  10,
-	})
-	b.recordEmbeddingCall(core.EmbeddingCall{
-		Timestamp:   now,
-		Model:       "text-embedding-3-small",
-		Provider:    "openai",
-		CostUSD:     0.0005,
-		InputTokens: 400,
-		InputCount:  5,
-	})
-
-	history := b.embeddingCallHistory()
-	if len(history) != 2 {
-		t.Fatalf("history len = %d, want 2", len(history))
+func TestProcessBudgetRejectsInvalidAndOverflowingUsageAtomically(t *testing.T) {
+	budget := newTestBudget()
+	if err := budget.record(core.Usage{Tokens: -1}); !errors.Is(err, core.ErrInvalidUsage) {
+		t.Fatalf("invalid usage error = %v, want ErrInvalidUsage", err)
 	}
-
-	cost, tokens, _ := b.usage(0)
-	if cost-0.0015 > 1e-9 || cost-0.0015 < -1e-9 {
-		t.Errorf("cost: want ~0.0015, got %.6f", cost)
+	if err := budget.record(core.Usage{Cost: math.MaxFloat64, Tokens: math.MaxInt, ModelCalls: math.MaxInt}); err != nil {
+		t.Fatalf("record maxima: %v", err)
 	}
-	if tokens != 1200 {
-		t.Errorf("tokens: want 1200 (sum of InputTokens), got %d", tokens)
+	before := budget.usage(0)
+	for name, delta := range map[string]core.Usage{
+		"cost":        {Cost: math.MaxFloat64},
+		"tokens":      {Tokens: 1},
+		"model_calls": {ModelCalls: 1},
+	} {
+		if err := budget.record(delta); err == nil {
+			t.Errorf("%s overflow was accepted", name)
+		}
+		if got := budget.usage(0); got != before {
+			t.Errorf("%s overflow mutated usage: got %+v, want %+v", name, got, before)
+		}
 	}
 }
 
-func TestProcessBudgetRecordUsageAppendsToModelCallHistory(t *testing.T) {
-	// The flat RecordUsage(cost, tokens) shape (now routed through
-	// Process.RecordUsage → recordModelCall) appends a stub
-	// ModelCall so per-call audit code sees a record even when the
-	// integration layer doesn't know model / provider.
-	b := newTestBudget()
-	b.recordModelCall(core.ModelCall{Timestamp: time.Now(), CostUSD: 0.005, PromptTokens: 250})
-
-	history := b.modelCallHistory()
-	if len(history) != 1 {
-		t.Fatalf("history len = %d, want 1", len(history))
+func TestUsageTokenCountRejectsInvalidAndOverflowingValues(t *testing.T) {
+	if _, err := usageTokenCount(-1); err == nil {
+		t.Fatal("negative token count was accepted")
 	}
-	if history[0].CostUSD != 0.005 || history[0].PromptTokens != 250 {
-		t.Errorf("stub model call: got %#v", history[0])
+	if _, err := usageTokenCount(int64(math.MaxInt), 1); err == nil {
+		t.Fatal("overflowing token count was accepted")
 	}
-	if history[0].Model != "" || history[0].Provider != "" {
-		t.Errorf("stub model call should have empty model/provider, got %#v", history[0])
+	if got, err := usageTokenCount(10, 5); err != nil || got != 15 {
+		t.Fatalf("usageTokenCount = %d, %v, want 15, nil", got, err)
 	}
 }
 
-func TestProcessBudgetPreservesModelCallTimestamp(t *testing.T) {
-	// Timestamp defaulting lives in Process.RecordModelCall
-	// (covered by TestModelCallsPublishEvents); the budget
-	// layer stores whatever it receives verbatim.
-	b := newTestBudget()
+func TestProcessUsageSaturatesSubtreeAggregation(t *testing.T) {
+	parent := &Process{state: newProcessState()}
+	parent.budget.lock = &parent.state.mu
+	child := &Process{state: newProcessState()}
+	child.budget.lock = &child.state.mu
+	if err := parent.budget.record(core.Usage{
+		Cost:       math.MaxFloat64,
+		Tokens:     math.MaxInt,
+		ModelCalls: math.MaxInt,
+	}); err != nil {
+		t.Fatalf("record parent maxima: %v", err)
+	}
+	if err := child.budget.record(core.Usage{Cost: 1, Tokens: 1, ModelCalls: 1}); err != nil {
+		t.Fatalf("record child usage: %v", err)
+	}
+	parent.budget.addChild(child)
 
-	explicit := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
-	b.recordModelCall(core.ModelCall{Timestamp: explicit, CostUSD: 0.001})
-
-	history := b.modelCallHistory()
-	if !history[0].Timestamp.Equal(explicit) {
-		t.Errorf("explicit timestamp not preserved: got %v", history[0].Timestamp)
-	}
-}
-
-func TestProcessBudgetRejectsInvalidAndOverflowingUsage(t *testing.T) {
-	b := newTestBudget()
-	now := time.Now()
-	if err := b.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: -1}); !errors.Is(err, core.ErrInvalidModelCall) {
-		t.Fatalf("invalid call error = %v, want ErrInvalidModelCall", err)
-	}
-	if err := b.recordModelCall(core.ModelCall{Timestamp: now, CostUSD: math.MaxFloat64}); err != nil {
-		t.Fatalf("first cost: %v", err)
-	}
-	if err := b.recordModelCall(core.ModelCall{Timestamp: now, CostUSD: math.MaxFloat64}); err == nil {
-		t.Fatal("overflowing cost was accepted")
-	}
-	if calls := b.modelCallHistory(); len(calls) != 1 {
-		t.Fatalf("model call history length = %d, want one recorded call", len(calls))
-	}
-
-	tokens := newTestBudget()
-	maxInt := int64(math.MaxInt)
-	if err := tokens.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: maxInt}); err != nil {
-		t.Fatalf("max token count: %v", err)
-	}
-	if err := tokens.recordModelCall(core.ModelCall{Timestamp: now, PromptTokens: 1}); err == nil {
-		t.Fatal("overflowing token total was accepted")
+	usage := parent.Usage()
+	if usage.Cost != math.MaxFloat64 || usage.Tokens != math.MaxInt || usage.ModelCalls != math.MaxInt {
+		t.Fatalf("subtree usage = %+v, want saturated maxima", usage)
 	}
 }

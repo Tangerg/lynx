@@ -21,12 +21,12 @@ var (
 	ErrAmbiguousToolCalls = errors.New("toolloop: ambiguous tool calls")
 )
 
-// CheckpointSchemaVersion is the durable tool-loop checkpoint schema accepted
+// CheckpointSchemaVersion is the portable tool-loop checkpoint schema accepted
 // by this version of the runner. The framework intentionally accepts exactly
 // one schema: callers must not guess how to resume obsolete execution state.
 const CheckpointSchemaVersion uint16 = 2
 
-// CallStatus identifies the durable state of one model-requested tool call.
+// CallStatus identifies the checkpoint state of one model-requested tool call.
 // Running is deliberately absent: Runner reaches a checkpoint only after every
 // call started in the current concurrency segment has settled.
 type CallStatus string
@@ -47,7 +47,7 @@ func (s CallStatus) Valid() bool {
 	}
 }
 
-// PendingCall is the durable control state of one tool call that has paused.
+// PendingCall is the checkpoint state of one tool call that has paused.
 // It intentionally excludes executable runtime state; the matching Resume is
 // attached to the tool's context when that call is continued.
 type PendingCall struct {
@@ -71,7 +71,7 @@ func (p PendingCall) Validate() error {
 	return nil
 }
 
-// CallCheckpoint is the durable state of one response tool call. Result and
+// CallCheckpoint is the portable state of one response tool call. Result and
 // Pending are mutually exclusive and selected by Status.
 type CallCheckpoint struct {
 	Status  CallStatus       `json:"status"`
@@ -114,10 +114,10 @@ func (c CallCheckpoint) Validate() error {
 // the first result not yet published to observers or appended to the
 // continuation message; it always points at the currently exposed pause.
 // Calls after it may already be completed or paused internally, but their
-// externally visible commit waits for every earlier call. This stable ordering
-// is required for deterministic cache inputs.
+// ordered publication waits for every earlier call. This stable ordering is
+// required for deterministic continuation inputs.
 //
-// MaxRounds and MaxConcurrentCalls are part of the persisted execution policy.
+// MaxRounds and MaxConcurrentCalls are part of the captured execution policy.
 // Resume rejects a Runner configured differently instead of silently changing
 // the schedule of work that remains queued.
 //
@@ -229,7 +229,7 @@ func (c *Checkpoint) Validate() error {
 }
 
 // ToolCalls returns the checkpoint's canonical response calls in model order.
-// The returned slice is independent of the durable checkpoint.
+// The returned slice is independent of the checkpoint.
 func (c *Checkpoint) ToolCalls() ([]chat.ToolCall, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err

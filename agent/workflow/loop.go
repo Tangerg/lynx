@@ -13,7 +13,7 @@ const DefaultLoopIterations = 5
 
 // LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
-// iteration runs Body via [runtime.RunChildIsolated] — a child process
+// iteration runs Body via [runtime.Engine.RunChild] — a child process
 // with a CLEAN blackboard seeded only with the typed input. This
 // branch isolation is essential: without it, the orchestrator's
 // accumulated Out bindings would leak into the body's blackboard, and
@@ -116,7 +116,7 @@ func Loop[In, Out any](
 		count:             (*History[Out]).Count,
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
 			var zero Out
-			child, err := childRuntime.RunChildIsolated(ctx, bodyDeployment, input)
+			child, err := childRuntime.RunChild(ctx, bodyDeployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}

@@ -171,10 +171,14 @@ func advertisedTools(actionTools []tools.Tool, registry *tools.Registry) []chat.
 }
 
 // runTurn supplies app-specific streaming and pricing adapters to the
-// framework-managed interaction boundary. The Agent framework owns tool
-// iteration, checkpointing, suspension, usage recording, and budget/step
-// enforcement.
+// framework-managed interaction boundary. Agent owns tool iteration,
+// checkpointing, suspension, aggregate resource counters, and limit
+// enforcement; Runtime owns the model-level accounting projection.
 func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider, message string, images []*media.Media, options *chat.Options, budget accounting.Budget) (TurnOutput, error) {
+	ledger, err := usageLedgerFrom(pc.Dependencies())
+	if err != nil {
+		return TurnOutput{}, err
+	}
 	prepared, err := e.prepareTurn(ctx, pc, message, images, options)
 	if err != nil {
 		return TurnOutput{}, err
@@ -219,10 +223,10 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 		Tools:   prepared.registry,
 		Limits: agent.InteractionLimits{
 			MaxTokens:     budget.MaxTokens,
-			MaxCostUSD:    budget.MaxCostUSD,
+			MaxCost:       budget.MaxCostUSD,
 			MaxModelCalls: budget.MaxSteps,
 		},
-		Attribute: e.modelAttribution(provider),
+		Cost: e.modelCost(provider),
 		Observe: func(_ context.Context, boundary agent.InteractionEvent) error {
 			if observation != nil {
 				switch boundary.Kind {
@@ -236,15 +240,15 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 					}
 				}
 			}
-			if observer != nil && boundary.Kind == agent.InteractionEventModelResponse &&
-				(boundary.Response.Usage.TotalTokens() != 0 || boundary.Response.Model != "") {
-				var cumulative accounting.TokenUsage
-				var cumulativeCost float64
-				for _, invocation := range pc.Process().ModelCalls() {
-					cumulative.Add(tokenUsageOf(invocation))
-					cumulativeCost += invocation.CostUSD
+			if boundary.Kind == agent.InteractionEventModelResponse {
+				if err := ledger.record(boundary.Response, boundary.Cost); err != nil {
+					return err
 				}
-				observer.OnUsage(processRef(pc.Process()), cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
+				if observer != nil &&
+					(boundary.Response.Usage.TotalTokens() != 0 || boundary.Response.Model != "") {
+					cumulative, cumulativeCost := ledger.totals()
+					observer.OnUsage(processRef(pc.Process()), cumulative, cumulativeCost, boundary.Response.Usage.InputTokens)
+				}
 			}
 			return nil
 		},
@@ -252,7 +256,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, provider,
 	if err != nil {
 		return TurnOutput{}, err
 	}
-	return turnOutputFromInteraction(pc, result, partial.String())
+	return turnOutputFromInteraction(ledger, result, partial.String())
 }
 
 func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, message string, images []*media.Media, options *chat.Options) (preparedTurn, error) {
@@ -297,12 +301,12 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	return preparedTurn{streamer: capability.Streamer, registry: registry, request: request}, nil
 }
 
-func turnOutputFromInteraction(pc *core.ProcessContext, result interaction.Result, partial string) (TurnOutput, error) {
+func turnOutputFromInteraction(ledger *usageLedger, result interaction.Result, partial string) (TurnOutput, error) {
 	switch result.StopReason {
 	case agent.InteractionStopBudget:
-		return turnOutput(pc, partial, StopReasonBudget), nil
+		return ledger.output(partial, StopReasonBudget), nil
 	case agent.InteractionStopSteps:
-		return turnOutput(pc, partial, StopReasonSteps), nil
+		return ledger.output(partial, StopReasonSteps), nil
 	case agent.InteractionStopNone:
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected interaction stop reason %q", result.StopReason)
@@ -315,12 +319,12 @@ func turnOutputFromInteraction(pc *core.ProcessContext, result interaction.Resul
 		if result.Final.Response == nil {
 			return TurnOutput{}, errors.New("agentexec: final model response event has no response")
 		}
-		return turnOutput(pc, result.Final.Response.Text(), StopReasonNone), nil
+		return ledger.output(result.Final.Response.Text(), StopReasonNone), nil
 	case agent.InteractionEventToolResult:
 		if result.Final.ToolResult == nil {
 			return TurnOutput{}, errors.New("agentexec: final tool result event has no result")
 		}
-		return turnOutput(pc, result.Final.ToolResult.Result, StopReasonNone), nil
+		return ledger.output(result.Final.ToolResult.Result, StopReasonNone), nil
 	default:
 		return TurnOutput{}, fmt.Errorf("agentexec: unexpected final interaction event %q", result.Final.Kind)
 	}

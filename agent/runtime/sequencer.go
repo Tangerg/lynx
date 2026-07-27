@@ -5,11 +5,9 @@ import (
 	"sync"
 )
 
-// localSequencer grants FIFO, single-owner access per opaque key within one
-// Engine. It backs session turns plus the separate process-tree mutation and
-// durable-commit queues; the key is a session id or process-tree root id
-// depending on the caller.
-type localSequencer struct {
+// processTreeSequencer grants FIFO, single-owner access to in-memory lifecycle
+// mutations for each process-tree root within one Engine.
+type processTreeSequencer struct {
 	mu    sync.Mutex
 	gates map[string]*sequenceGate
 }
@@ -22,11 +20,11 @@ type sequenceWaiter struct {
 	ready chan struct{}
 }
 
-func newLocalSequencer() *localSequencer {
-	return &localSequencer{gates: make(map[string]*sequenceGate)}
+func newProcessTreeSequencer() *processTreeSequencer {
+	return &processTreeSequencer{gates: make(map[string]*sequenceGate)}
 }
 
-func (s *localSequencer) acquire(ctx context.Context, key string) (func(), error) {
+func (s *processTreeSequencer) acquire(ctx context.Context, key string) (func(), error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,7 +59,7 @@ func (s *localSequencer) acquire(ctx context.Context, key string) (func(), error
 
 // enqueue defines arrival order at the sequencer's mutex boundary. A nil
 // waiter means the caller acquired an idle key immediately.
-func (s *localSequencer) enqueue(key string) (*sequenceGate, *sequenceWaiter) {
+func (s *processTreeSequencer) enqueue(key string) (*sequenceGate, *sequenceWaiter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -76,7 +74,7 @@ func (s *localSequencer) enqueue(key string) (*sequenceGate, *sequenceWaiter) {
 	return gate, waiter
 }
 
-func (s *localSequencer) cancelWaiter(key string, gate *sequenceGate, target *sequenceWaiter) bool {
+func (s *processTreeSequencer) cancelWaiter(key string, gate *sequenceGate, target *sequenceWaiter) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -94,14 +92,14 @@ func (s *localSequencer) cancelWaiter(key string, gate *sequenceGate, target *se
 	return false
 }
 
-func (s *localSequencer) releaseFunc(key string, gate *sequenceGate) func() {
+func (s *processTreeSequencer) releaseFunc(key string, gate *sequenceGate) func() {
 	var once sync.Once
 	return func() {
 		once.Do(func() { s.release(key, gate) })
 	}
 }
 
-func (s *localSequencer) release(key string, gate *sequenceGate) {
+func (s *processTreeSequencer) release(key string, gate *sequenceGate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

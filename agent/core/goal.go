@@ -31,16 +31,6 @@ type GoalConfig struct {
 	// few-shot anchors for LLM rankers. Optional; planner ignores
 	// them. Typical: ["Refactor this Go file", "Rename the Foo type"].
 	Examples []string
-
-	// Tool, when non-nil, makes this goal available to runtime tool adapters.
-	// Runtime helpers walk deployed agents and build tools for these goals.
-	// Nil means "internal only; not auto-exposed". The framework's
-	// reader is on the runtime side (`runtime.Engine.GoalTools` /
-	// `runtime.Engine.StandaloneGoalTools`); leaving Tool non-nil without those
-	// callers wired is harmless but also means nothing happens — the
-	// field exists to drive user-facing fan-out, not to gate planner
-	// behavior.
-	Tool *GoalTool
 }
 
 // Goal is an immutable target state. The planner finds an action sequence
@@ -53,7 +43,6 @@ type Goal struct {
 	value         ScoreFunc
 	tags          []string
 	examples      []string
-	tool          *GoalTool
 }
 
 // NewGoal constructs an immutable goal from config.
@@ -66,16 +55,7 @@ func NewGoal(config GoalConfig) *Goal {
 		value:         config.Value,
 		tags:          slices.Clone(config.Tags),
 		examples:      slices.Clone(config.Examples),
-		tool:          config.Tool.clone(),
 	}
-}
-
-func (t *GoalTool) clone() *GoalTool {
-	if t == nil {
-		return nil
-	}
-	cloned := *t
-	return &cloned
 }
 
 func (g *Goal) Name() string {
@@ -142,77 +122,12 @@ func (g *Goal) Examples() []string {
 	return slices.Clone(g.examples)
 }
 
-// Tool returns a defensive copy of the optional tool configuration.
-func (g *Goal) Tool() *GoalTool {
-	if g == nil {
-		return nil
-	}
-	return g.tool.clone()
-}
-
 // Value evaluates the goal value in worldState. An unconfigured value is zero.
 func (g *Goal) Value(worldState WorldState) float64 {
 	if g == nil || g.value == nil {
 		return 0
 	}
 	return g.value(worldState)
-}
-
-// GoalTool carries the metadata `runtime.Engine.GoalTools` and
-// `runtime.Engine.StandaloneGoalTools` need to compile a goal into a
-// `tools.Tool`. Build via [NewGoalTool] so the input type's
-// schema is captured for the LLM tool definition.
-type GoalTool struct {
-	// Standalone, when true, makes the goal eligible for top-level
-	// publishing (no parent process required) — typically MCP server
-	// export. When false, only the in-process supervisor variant
-	// (parent's LLM tool loop) picks it up.
-	Standalone bool
-
-	// Description overrides Goal.Description when surfacing the goal
-	// as an externally-facing tool. Useful when the internal
-	// description is too implementation-flavored for an LLM caller.
-	// Empty falls back to Goal.Description.
-	Description string
-
-	inputType reflect.Type
-}
-
-// InputType returns the logical input type captured by [NewGoalTool].
-func (t *GoalTool) InputType() reflect.Type {
-	if t == nil {
-		return nil
-	}
-	return t.inputType
-}
-
-// GoalToolConfig configures how a goal is exposed as a tool.
-type GoalToolConfig struct {
-	Standalone  bool
-	Description string
-}
-
-// NewGoalTool constructs publication metadata and captures a
-// zero-value of In so tooling can derive the tool's JSON schema and
-// drive a typed unmarshal at call time without the user passing a
-// loose `any` value.
-//
-// Example:
-//
-//	core.NewOutputGoal[BlogPost](core.GoalConfig{
-//	    Description: "Produce a blog post about a topic",
-//	    Tool: core.NewGoalTool[Topic](core.GoalToolConfig{Standalone: true}),
-//	})
-//
-// In is the agent's logical input type (the type the first action
-// consumes), NOT the goal's output type — the goal already encodes
-// its output type via [NewOutputGoal].
-func NewGoalTool[In any](config GoalToolConfig) *GoalTool {
-	return &GoalTool{
-		Standalone:  config.Standalone,
-		Description: config.Description,
-		inputType:   reflect.TypeFor[In](),
-	}
 }
 
 // Preconditions merges the configured condition keys and typed inputs into a

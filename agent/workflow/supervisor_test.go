@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/workflow"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type toolCallingModel struct{}
@@ -54,12 +55,24 @@ func (m *renderGuardModel) Call(context.Context, *chat.Request) (*chat.Response,
 func makeSubAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "worker", Actions: []agent.Action{agent.NewAction("work", func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
 		return supAnswer{Text: "did " + in.Title}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[supAnswer](core.GoalConfig{Name: "worker-goal", Tool: core.NewGoalTool[supTopic](core.GoalToolConfig{Description: "do work on a topic"})})}})
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[supAnswer](core.GoalConfig{Name: "worker-goal"})}})
+}
+
+func deploySubAgent(t *testing.T, engine *runtime.Engine) *runtime.Deployment {
+	t.Helper()
+	deployment, err := engine.Deploy(t.Context(), makeSubAgent())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deployment
 }
 
 func TestSupervisor_Validation(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	mustDeploy(t, engine, makeSubAgent())
+	worker, err := runtime.NewAgentTool[supTopic, supAnswer](engine, deploySubAgent(t, engine))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	parse := func(s string) (supAnswer, error) { return supAnswer{Text: s}, nil }
 
@@ -67,13 +80,13 @@ func TestSupervisor_Validation(t *testing.T) {
 		name   string
 		config workflow.SupervisorConfig[supTopic, supAnswer]
 	}{
-		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Agents: []string{"worker"}, Parse: parse}},
-		{"no agents", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
-		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Agents: []string{"worker"}}},
-		{"unknown agent", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Agents: []string{"ghost"}, Parse: parse}},
+		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Tools: []tools.Tool{worker}, Parse: parse}},
+		{"no tools", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
+		{"nil tool", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tools.Tool{nil}, Parse: parse}},
+		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tools.Tool{worker}}},
 	}
 	for _, test := range cases {
-		if _, err := workflow.Supervisor(engine, test.config); err == nil {
+		if _, err := workflow.Supervisor(test.config); err == nil {
 			t.Errorf("%s: expected error, got nil", test.name)
 		}
 	}
@@ -89,12 +102,15 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	}
 
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: client, Streamer: client}})
-	mustDeploy(t, engine, makeSubAgent())
+	worker, err := runtime.NewAgentTool[supTopic, supAnswer](engine, deploySubAgent(t, engine))
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	supervisor, err := workflow.Supervisor(engine, workflow.SupervisorConfig[supTopic, supAnswer]{
+	supervisor, err := workflow.Supervisor(workflow.SupervisorConfig[supTopic, supAnswer]{
 		Name:         "supervisor",
 		Description:  "orchestrate the worker",
-		Agents:       []string{"worker"},
+		Tools:        []tools.Tool{worker},
 		Instructions: "Use the worker tool, then reply.",
 		Parse:        func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
 	})
@@ -125,11 +141,14 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 func TestSupervisor_DefaultRenderPropagatesJSONError(t *testing.T) {
 	model := new(renderGuardModel)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
-	mustDeploy(t, engine, makeSubAgent())
-	supervisor, err := workflow.Supervisor(engine, workflow.SupervisorConfig[unrenderableInput, supAnswer]{
-		Name:   "render-error",
-		Agents: []string{"worker"},
-		Parse:  func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
+	worker, err := runtime.NewAgentTool[supTopic, supAnswer](engine, deploySubAgent(t, engine))
+	if err != nil {
+		t.Fatal(err)
+	}
+	supervisor, err := workflow.Supervisor(workflow.SupervisorConfig[unrenderableInput, supAnswer]{
+		Name:  "render-error",
+		Tools: []tools.Tool{worker},
+		Parse: func(text string) (supAnswer, error) { return supAnswer{Text: text}, nil },
 	})
 	if err != nil {
 		t.Fatal(err)

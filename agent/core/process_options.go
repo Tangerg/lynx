@@ -18,10 +18,10 @@ type ChildOptionsFunc func(
 	child *Agent,
 ) (ProcessOptions, error)
 
-// ProcessOptions is the per-process configuration bundle. Pass a zero
-// ProcessOptions{} when defaults suffice; the runtime normalizes unset fields
-// and snapshots its container fields before retaining them. Callers may reuse
-// or mutate the Session, Extensions slice, and Guardrails value after process
+// ProcessOptions is the per-process configuration bundle. Its zero value is
+// unbounded and uses no optional capabilities. The runtime validates and
+// snapshots its container fields before retaining them. Callers may reuse
+// or mutate the Extensions slice and ChatMiddleware value after process
 // construction without changing the running process; the capability objects
 // stored inside those containers must themselves remain safe for their declared
 // lifetime.
@@ -48,8 +48,8 @@ type ProcessOptions struct {
 	// and explicitly subtree-scoped event listeners.
 	ChildOptions ChildOptionsFunc
 
-	// Budget caps cumulative LLM spend (USD), action invocations, and
-	// total tokens for this process. The runtime always checks a
+	// Budget caps cumulative host-defined cost, action invocations, and total
+	// tokens for this process. The runtime always checks a
 	// Budget-derived [BudgetPolicy] implicitly each tick; additional
 	// [StopPolicy] extensions can be registered via
 	// Extensions (OR semantics — any policy triggers termination).
@@ -65,14 +65,6 @@ type ProcessOptions struct {
 	// tree cannot silently bypass engine composition.
 	Dependencies *Dependencies
 
-	// Session optionally binds this process to a multi-turn conversation. The
-	// runtime passes [Session.ID] to its host-owned conversation projection
-	// without serializing runtime scope into chat.Request.
-	//
-	// Typically set via [Engine.RunInSession]; the runtime fills
-	// the field and refreshes [Session.UpdatedAt] on every dispatch.
-	Session *Session
-
 	// Extensions are process-scoped plug-ins active for the lifetime of
 	// this single process. They merge with engine-scoped extensions at
 	// dispatch time — process extensions take inner / higher priority; for
@@ -87,19 +79,22 @@ type ProcessOptions struct {
 	// Names — that's the explicit override mechanism.
 	Extensions []Extension
 
-	// Guardrails, when non-nil, overrides the engine-level guardrails
-	// for this process. nil means "use the engine default". Set it to
-	// inject per-process chat middleware (tool loop, history) so agent/core
-	// doesn't need to import middleware implementations.
-	Guardrails *ChatGuardrails
+	// ChatMiddleware is composed outside the engine-level middleware for this
+	// process. The process layer runs first, allowing it to bind request-scoped
+	// context before shared middleware executes.
+	ChatMiddleware *ChatMiddleware
+
+	// MaxToolRounds bounds Prompt tool execution for this process. Zero uses
+	// the engine default, which itself may be zero to select the interaction
+	// runner default.
+	MaxToolRounds int
 }
 
-// Budget caps cumulative LLM spend (USD), action invocations, and total
-// tokens for one process. Budget is enforced via [BudgetPolicy], which
-// the runtime checks implicitly each tick — so a zero-options caller
-// gets the [DefaultBudget] limits automatically. Additional policies
-// (DLP, rate-limit, custom guardrails) can be registered as
-// [StopPolicy] extensions; all are OR-composed.
+// Budget caps cumulative host-defined cost, action invocations, and total
+// tokens for one process. Budget is enforced via [BudgetPolicy], which the
+// runtime checks implicitly each tick. Zero leaves every dimension unbounded;
+// choosing units and limits is host policy. Additional policies can be
+// registered as [StopPolicy] extensions; all are OR-composed.
 type Budget struct {
 	CostLimit   float64
 	ActionLimit int
@@ -110,8 +105,7 @@ type Budget struct {
 var ErrInvalidBudget = errors.New("budget: invalid")
 
 // Validate checks that every configured limit is finite and non-negative.
-// Zero leaves that dimension unbounded; the all-zero Budget selects runtime
-// defaults at the ProcessOptions boundary.
+// Zero leaves that dimension unbounded.
 func (b Budget) Validate() error {
 	if math.IsNaN(b.CostLimit) || math.IsInf(b.CostLimit, 0) || b.CostLimit < 0 {
 		return fmt.Errorf("%w: cost limit must be finite and non-negative", ErrInvalidBudget)
@@ -123,21 +117,4 @@ func (b Budget) Validate() error {
 		return fmt.Errorf("%w: token limit must not be negative", ErrInvalidBudget)
 	}
 	return nil
-}
-
-const (
-	DefaultBudgetCostLimit   = 2.0
-	DefaultBudgetActionLimit = 50
-	DefaultBudgetTokenLimit  = 1_000_000
-)
-
-// DefaultBudget is the baseline that applies when callers don't supply one —
-// ~$2 cap, 50 actions, 1M tokens. The numbers are deliberately generous;
-// production deployments tune them per-tenant.
-func DefaultBudget() Budget {
-	return Budget{
-		CostLimit:   DefaultBudgetCostLimit,
-		ActionLimit: DefaultBudgetActionLimit,
-		TokenLimit:  DefaultBudgetTokenLimit,
-	}
 }

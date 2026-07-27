@@ -10,18 +10,17 @@ import (
 func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 	var calls int
 	pc := &ProcessContext{
-		actionTools: func(ctx context.Context, requirements []ToolGroupRequirement) ([]tools.Tool, error) {
+		actionTools: func(ctx context.Context, roles []string) ([]tools.Tool, error) {
 			if ctx == nil {
 				t.Fatal("resolver received nil context")
 			}
 			calls++
 			return nil, nil
 		},
-		actionToolGroups: []ToolGroupRequirement{{Role: "action-tools"}},
+		actionToolGroups: []string{"action-tools"},
 	}
 
-	//lint:ignore SA1012 The nil argument is the contract under test.
-	if _, err := pc.ActionTools(nil); err != nil {
+	if _, err := pc.ActionTools(nil); err != nil { //nolint:staticcheck // nil normalization is the contract under test.
 		t.Fatalf("ActionTools: %v", err)
 	}
 	if calls != 1 {
@@ -40,8 +39,7 @@ func TestProcessContextToolCallContextNormalizesNilParent(t *testing.T) {
 		},
 	}
 
-	//lint:ignore SA1012 The nil argument is the contract under test.
-	ctx, cancel := pc.ToolCallContext(nil)
+	ctx, cancel := pc.ToolCallContext(nil) //nolint:staticcheck // nil normalization is the contract under test.
 	if ctx == nil {
 		t.Fatal("ToolCallContext returned nil context")
 	}

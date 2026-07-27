@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -26,6 +27,8 @@ import (
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
+const bootstrapCheckpointBuildID = "test-build"
+
 func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 	started := time.Date(2026, time.July, 16, 8, 0, 0, 0, time.UTC)
 	return core.ProcessSnapshot{
@@ -33,7 +36,6 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 		ID:            id,
 		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
 		StartedAt:     started,
-		CapturedAt:    started.Add(time.Second),
 		Status:        core.StatusWaiting,
 		Suspension: &agent.Suspension{
 			SchemaVersion: agent.SuspensionSchemaVersion,
@@ -41,17 +43,25 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"checkpoint":true}`),
+			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
 			CreatedAt:     started,
 		},
 	}
 }
 
-func bootstrapSnapshotChange(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
-	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
+func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotTree {
+	return core.ProcessSnapshotTree{
 		RootID:    rootID,
 		Snapshots: snapshots,
-	}}
+	}
+}
+
+func bootstrapCheckpoint(sessionID string, usage accounting.Snapshot) execution.ProcessCheckpoint {
+	return execution.ProcessCheckpoint{
+		BuildID: bootstrapCheckpointBuildID,
+		Scope:   execution.TurnScope{SessionID: sessionID},
+		Usage:   usage,
+	}
 }
 
 // sessionStores keeps the real durable collaborators visible to this integration
@@ -104,11 +114,26 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 	return ss, runs, ints
 }
 
-func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore, processes *sqlite.ProcessStore, sessionID, runID string) string {
+func park(
+	t *testing.T,
+	sessions *sqlite.SessionStore,
+	runs *sqlite.RunStateStore,
+	ints *sqlite.InterruptStore,
+	processes *sqlite.ProcessStore,
+	sessionID, runID string,
+) string {
 	t.Helper()
 	ctx := context.Background()
+	startedAt := time.Unix(0, 0).UTC()
+	if _, err := sessions.Ensure(ctx, session.Session{
+		ID:        sessionID,
+		StartedAt: startedAt,
+		UpdatedAt: startedAt,
+	}); err != nil {
+		t.Fatalf("ensure session: %v", err)
+	}
 	processID := "proc_" + runID
-	if err := processes.Apply(ctx, bootstrapSnapshotChange(processID, bootstrapWaitingSnapshot(processID))); err != nil {
+	if err := processes.SaveTree(ctx, bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID)), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -128,11 +153,15 @@ func park(t *testing.T, runs *sqlite.RunStateStore, ints *sqlite.InterruptStore,
 func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange(child.ID, child)); err != nil {
+	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+		processID,
+		bootstrapWaitingSnapshot(processID),
+		child,
+	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeCanceled
@@ -148,10 +177,10 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
 	}
-	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after cancel = %v, want not found", err)
 	}
-	if _, err := ss.processes.Load(ctx, child.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
@@ -167,11 +196,15 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
-	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
 	child.Depth = 1
-	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange(child.ID, child)); err != nil {
+	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+		processID,
+		bootstrapWaitingSnapshot(processID),
+		child,
+	), bootstrapCheckpoint("ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("save child process snapshot: %v", err)
 	}
 	outcome := execution.OutcomeError
@@ -189,10 +222,10 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived run_lost: %+v", open)
 	}
-	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after run_lost = %v, want not found", err)
 	}
-	if _, err := ss.processes.Load(ctx, child.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
@@ -210,7 +243,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
-	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "future work", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
@@ -232,7 +265,7 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
 	}
-	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after rollback = %v, want not found", err)
 	}
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
@@ -283,7 +316,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	processID := park(t, runs, ints, ss.processes, "ses_A", "run_1")
+	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
 		t.Fatalf("seed todos: %v", err)
 	}
@@ -297,7 +330,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived delete: %+v", open)
 	}
-	if _, err := ss.processes.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
@@ -376,14 +409,17 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	now := time.Now().UTC()
 	child, err := ss.sessions.SaveSubtask(ctx, session.Subtask{
 		ID: "ses_child", ParentID: parent.ID, StartedAt: now, UpdatedAt: now,
-	}, []byte(`{"agent":"subtask"}`))
+	})
 	if err != nil {
 		t.Fatalf("create child: %v", err)
 	}
 	if err := ss.history.Seed(ctx, child.ID, []chat.Message{chat.NewUserMessage(chat.NewTextPart("preserve on rollback"))}); err != nil {
 		t.Fatalf("seed child history: %v", err)
 	}
-	if err := ss.processes.Apply(ctx, bootstrapSnapshotChange("proc_preserve", bootstrapWaitingSnapshot("proc_preserve"))); err != nil {
+	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
+		"proc_preserve",
+		bootstrapWaitingSnapshot("proc_preserve"),
+	), bootstrapCheckpoint(parent.ID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("seed process snapshot: %v", err)
 	}
 
@@ -401,7 +437,7 @@ func TestApplyRollbackDeletesSubtaskSetAtomically(t *testing.T) {
 	if err != nil || len(messages) != 1 {
 		t.Fatalf("child history after rollback = %+v, %v", messages, err)
 	}
-	if _, err := ss.processes.Load(ctx, "proc_preserve"); err != nil {
+	if _, _, err := ss.processes.LoadTree(ctx, "proc_preserve"); err != nil {
 		t.Fatalf("process snapshot delete was not rolled back: %v", err)
 	}
 }

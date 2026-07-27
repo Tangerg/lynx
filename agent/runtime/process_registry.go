@@ -32,14 +32,8 @@ func (r *processRegistry) insert(process *Process) bool {
 	return true
 }
 
-// registerNew never replaces an existing identity. Restoring a new generation
-// requires the caller to remove or discard the old generation explicitly.
-func (r *processRegistry) registerNew(process *Process) bool {
-	return r.registerTree([]*Process{process})
-}
-
 // registerTree publishes a completely rebuilt process tree in one registry
-// transaction. No node is visible unless every identity is new.
+// registration. No node is visible unless every identity is new.
 func (r *processRegistry) registerTree(processes []*Process) bool {
 	unique := make(map[string]struct{}, len(processes))
 	for _, process := range processes {
@@ -63,19 +57,6 @@ func (r *processRegistry) registerTree(processes []*Process) bool {
 		r.slots[process.id] = &processSlot{process: process}
 	}
 	return true
-}
-
-func (r *processRegistry) unregister(process *Process) {
-	if process == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	slot := r.slots[process.id]
-	if slot == nil || slot.reserved || slot.process != process {
-		return
-	}
-	delete(r.slots, process.id)
 }
 
 func (r *processRegistry) reserveProcesses(processes []*Process) bool {
@@ -125,25 +106,6 @@ func (r *processRegistry) available(process *Process) bool {
 	defer r.mu.RUnlock()
 	slot := r.slots[process.id]
 	return slot != nil && !slot.reserved && slot.process == process
-}
-
-func (r *processRegistry) unregisterReservedLeaf(process *Process) (found, hasChildren bool) {
-	if process == nil {
-		return false, false
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	slot := r.slots[process.id]
-	if slot == nil || !slot.reserved || slot.process != process {
-		return false, false
-	}
-	for _, candidate := range r.slots {
-		if candidate.process != nil && candidate.process.parentID == process.id {
-			return true, true
-		}
-	}
-	delete(r.slots, process.id)
-	return true, false
 }
 
 func (r *processRegistry) unregisterReservedTree(processes []*Process) bool {

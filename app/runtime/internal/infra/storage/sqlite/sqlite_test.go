@@ -431,7 +431,7 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 // only the current shape is supported, including for an unversioned non-empty
 // database. No old version receives a compatibility path.
 func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
-	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 8, 9} {
+	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 8, 9, 25} {
 		t.Run(fmt.Sprintf("version_%d", staleVersion), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "stale.db")
 			stale, err := sql.Open("sqlite", path)
@@ -457,8 +457,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 24 {
-				t.Fatalf("schema version = %d, err=%v, want 24", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 28 {
+				t.Fatalf("schema version = %d, err=%v, want 28", version, err)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {
@@ -475,8 +475,7 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 // TestSessionSubtaskLineage covers the delegation-lineage recording: a
 // subtask child is stored under a caller-supplied id, inherits the parent's
 // cwd, is marked KindSubtask, is hidden from List, yet is reachable via
-// Children and Get. Re-saving may update opaque continuation data but not
-// product identity.
+// Children and Get. Re-saving may update audit data but not product identity.
 func TestSessionSubtaskLineage(t *testing.T) {
 	ctx := context.Background()
 	svc := newTempDB(t)
@@ -493,7 +492,7 @@ func TestSessionSubtaskLineage(t *testing.T) {
 		StartedAt: now,
 		UpdatedAt: now,
 	}
-	child, err := svc.SaveSubtask(ctx, subtask, []byte(`{"agent":"v1"}`))
+	child, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil {
 		t.Fatalf("SaveSubtask: %v", err)
 	}
@@ -509,18 +508,14 @@ func TestSessionSubtaskLineage(t *testing.T) {
 	if child.Cwd != "/work/proj" {
 		t.Errorf("child Cwd = %q, want inherited /work/proj", child.Cwd)
 	}
-	// Re-saving the same identity updates audit and opaque continuation state without
+	// Re-saving the same identity updates audit state without
 	// losing product-owned title/cwd enrichment.
 	subtask.UpdatedAt = now.Add(time.Second)
-	again, err := svc.SaveSubtask(ctx, subtask, []byte(`{"agent":"v2"}`))
+	again, err := svc.SaveSubtask(ctx, subtask)
 	if err != nil || again.ID != child.ID ||
 		again.Title != child.Title || again.Cwd != child.Cwd || again.Kind != child.Kind ||
 		!again.UpdatedAt.Equal(subtask.UpdatedAt) {
 		t.Fatalf("SaveSubtask update = (%#v, %v)", again, err)
-	}
-	_, state, err := svc.LoadSubtask(ctx, subtask.ID)
-	if err != nil || string(state) != `{"agent":"v2"}` {
-		t.Fatalf("LoadSubtask state = %q, %v", state, err)
 	}
 	for name, mutate := range map[string]func(*session.Subtask){
 		"parent": func(s *session.Subtask) { s.ParentID = "other-parent" },
@@ -529,7 +524,7 @@ func TestSessionSubtaskLineage(t *testing.T) {
 		t.Run("conflicting "+name, func(t *testing.T) {
 			conflict := subtask
 			mutate(&conflict)
-			if _, err := svc.SaveSubtask(ctx, conflict, []byte(`{"agent":"v3"}`)); !errors.Is(err, session.ErrSubtaskConflict) {
+			if _, err := svc.SaveSubtask(ctx, conflict); !errors.Is(err, session.ErrSubtaskConflict) {
 				t.Fatalf("SaveSubtask conflict = %v, want ErrSubtaskConflict", err)
 			}
 		})

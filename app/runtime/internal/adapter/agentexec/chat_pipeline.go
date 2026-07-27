@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"iter"
 	"slices"
@@ -16,61 +17,50 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-type chatGuardrailsBuilder func(
+type chatMiddlewareBuilder func(
 	history.Store,
 	func(context.Context) []chat.Message,
-) (*core.ChatGuardrails, error)
+) (*core.ChatMiddleware, error)
 
-func newAgentRuntime(config Config, resolver toolport.ToolResolver) (*agentruntime.Engine, error) {
-	guardrails, err := newChatGuardrails(config)
-	if err != nil {
-		return nil, err
-	}
-
+func newAgentRuntime(
+	config Config,
+	resolver toolport.ToolResolver,
+) (*agentruntime.Engine, error) {
 	extensions := make([]core.Extension, 0, 1)
 	if resolver != nil {
 		extensions = append(extensions, resolver)
 	}
 
 	return agent.NewEngine(agentruntime.Config{
-		BuildID:          config.BuildID,
-		Chat:             core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
-		BindConversation: history.WithConversationID,
-		Extensions:       extensions,
-		Guardrails:       guardrails,
-		ProcessStore:     config.ProcessStore,
-		AutoSnapshot:     config.ProcessStore != nil,
-		// A durable Runtime must never continue after losing snapshot durability,
-		// so the failure policy is fixed rather than exposed as a knob.
-		SnapshotFailurePolicy: agentruntime.SnapshotFailureFailProcess,
-		ChildSessionStore:     config.ChildSessionStore,
+		Chat:       core.ChatCapability{Model: config.ChatClient, Streamer: config.ChatClient},
+		Extensions: extensions,
 	})
 }
 
-// newChatGuardrails composes the shared history pipeline for every top-level
+// newChatMiddleware composes the shared history pipeline for every top-level
 // turn and subtask. Managed interaction remains framework-owned; the
 // model-adjacent history middleware persists only genuinely new messages for
 // the current conversation id.
-func newChatGuardrails(config Config) (*core.ChatGuardrails, error) {
-	return newChatGuardrailsWithBeforeRound(config.HistoryStore, nil)
+func newChatMiddleware(config Config) (*core.ChatMiddleware, error) {
+	return newChatMiddlewareWithBeforeRound(config.HistoryStore, nil)
 }
 
-func newChatGuardrailsWithBeforeRound(
+func newChatMiddlewareWithBeforeRound(
 	historyStore history.Store,
 	beforeRound func(context.Context) []chat.Message,
-) (*core.ChatGuardrails, error) {
+) (*core.ChatMiddleware, error) {
 	middleware, err := historymw.New(historyStore)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: build chat history middleware: %w", err)
 	}
-	guardrails := &core.ChatGuardrails{
+	middlewarePipeline := &core.ChatMiddleware{
 		CallMiddlewares: []chat.CallMiddleware{middleware.Call},
 		StreamMiddlewares: []chat.StreamMiddleware{
 			middleware.Stream,
 		},
 	}
 	if beforeRound == nil {
-		return guardrails, nil
+		return middlewarePipeline, nil
 	}
 	var rounds atomic.Uint64
 	continuationMessages := func(ctx context.Context) []chat.Message {
@@ -79,9 +69,77 @@ func newChatGuardrailsWithBeforeRound(
 		}
 		return beforeRound(ctx)
 	}
-	guardrails.CallMiddlewares = append([]chat.CallMiddleware{beforeRoundCall(continuationMessages)}, guardrails.CallMiddlewares...)
-	guardrails.StreamMiddlewares = append([]chat.StreamMiddleware{beforeRoundStream(continuationMessages)}, guardrails.StreamMiddlewares...)
-	return guardrails, nil
+	middlewarePipeline.CallMiddlewares = append([]chat.CallMiddleware{beforeRoundCall(continuationMessages)}, middlewarePipeline.CallMiddlewares...)
+	middlewarePipeline.StreamMiddlewares = append([]chat.StreamMiddleware{beforeRoundStream(continuationMessages)}, middlewarePipeline.StreamMiddlewares...)
+	return middlewarePipeline, nil
+}
+
+// scopeHistory binds model calls to the application conversation selected for
+// the active process. The Agent runtime sees only ordinary chat middleware:
+// product conversation identity and child-history partitioning stay entirely
+// inside this adapter.
+func scopeHistory(base *core.ChatMiddleware, rootConversationID string) (*core.ChatMiddleware, error) {
+	if rootConversationID != "" {
+		if err := history.ValidateConversationID(rootConversationID); err != nil {
+			return nil, fmt.Errorf("agentexec: scope chat history: %w", err)
+		}
+	}
+	scoped := &core.ChatMiddleware{}
+	if base != nil {
+		*scoped = *base
+		scoped.CallMiddlewares = slices.Clone(base.CallMiddlewares)
+		scoped.StreamMiddlewares = slices.Clone(base.StreamMiddlewares)
+	}
+	scoped.CallMiddlewares = append(
+		[]chat.CallMiddleware{bindHistoryCall(rootConversationID)},
+		scoped.CallMiddlewares...,
+	)
+	scoped.StreamMiddlewares = append(
+		[]chat.StreamMiddleware{bindHistoryStream(rootConversationID)},
+		scoped.StreamMiddlewares...,
+	)
+	return scoped, nil
+}
+
+func bindHistoryCall(rootConversationID string) chat.CallMiddleware {
+	return func(next chat.Model) chat.Model {
+		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+			bound, err := bindHistoryContext(ctx, rootConversationID)
+			if err != nil {
+				return nil, err
+			}
+			return next.Call(bound, request)
+		})
+	}
+}
+
+func bindHistoryStream(rootConversationID string) chat.StreamMiddleware {
+	return func(next chat.Streamer) chat.Streamer {
+		return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+			bound, err := bindHistoryContext(ctx, rootConversationID)
+			if err != nil {
+				return func(yield func(*chat.Response, error) bool) {
+					yield(nil, err)
+				}
+			}
+			return next.Stream(bound, request)
+		})
+	}
+}
+
+func bindHistoryContext(ctx context.Context, rootConversationID string) (context.Context, error) {
+	process := core.ProcessViewFrom(ctx)
+	if process == nil {
+		return nil, errors.New("agentexec: scope chat history: process is missing from context")
+	}
+	conversationID := process.ID()
+	if process.ParentID() == "" && rootConversationID != "" {
+		conversationID = rootConversationID
+	}
+	if err := history.ValidateConversationID(conversationID); err != nil {
+		return nil, fmt.Errorf("agentexec: scope chat history: process %q: %w", process.ID(), err)
+	}
+	return history.WithConversationID(ctx, conversationID), nil
 }
 
 func beforeRoundCall(source func(context.Context) []chat.Message) chat.CallMiddleware {

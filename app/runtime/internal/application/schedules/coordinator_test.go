@@ -103,7 +103,7 @@ func TestCreateOwnsScheduleAdmission(t *testing.T) {
 	}
 }
 
-func TestUpdateOwnsPatchAndPreservesDurableState(t *testing.T) {
+func TestUpdateOwnsPatchAndPreservesSnapshotState(t *testing.T) {
 	lastRun := time.Date(2026, 7, 18, 9, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
 	registry := &runNowRegistry{schedule: schedule.Schedule{

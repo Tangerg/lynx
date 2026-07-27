@@ -17,10 +17,13 @@ var ErrDeploymentConflict = errors.New("deployment conflict")
 // could not be satisfied.
 var ErrDeploymentNotFound = errors.New("deployment not found")
 
-// ErrDurableIdentityRequired reports that a persistent Engine cannot prove
-// executable identity because both Agent.Version and Config.BuildID
-// are empty.
-var ErrDurableIdentityRequired = errors.New("durable deployment requires Agent.Version or Config.BuildID")
+// ErrDeploymentActive reports an attempt to forget the deployment currently
+// routed for its agent name.
+var ErrDeploymentActive = errors.New("deployment is active")
+
+// ErrDeploymentInUse reports an attempt to forget a deployment referenced by
+// a registered process tree.
+var ErrDeploymentInUse = errors.New("deployment is in use")
 
 // DeploymentConflictError describes the active and candidate identities that
 // collided. It unwraps to ErrDeploymentConflict for errors.Is and retains both
@@ -60,7 +63,8 @@ func (e *Engine) Deploy(ctx context.Context, agent *core.Agent) (*Deployment, er
 }
 
 // Replace explicitly changes an existing active deployment while retaining
-// the previous definition in the historical catalog. It returns
+// the previous definition in the historical catalog until
+// [Engine.ForgetDeployment]. It returns
 // ErrDeploymentNotFound when no active route exists for the candidate name.
 func (e *Engine) Replace(ctx context.Context, agent *core.Agent) (*Deployment, error) {
 	return e.deploy(normalizeContext(ctx), agent, true)
@@ -90,7 +94,7 @@ func (e *Engine) deploy(ctx context.Context, agent *core.Agent, replace bool) (*
 }
 
 // validateForDeploy validates the exact frozen definition that execution and
-// durable identity will use, then runs every host extension validator against
+// snapshot identity will use, then runs every host extension validator against
 // that same snapshot.
 func (e *Engine) validateForDeploy(agent *core.Agent) error {
 	if agent == nil {
@@ -133,6 +137,23 @@ func (e *Engine) Deployment(ref core.DeploymentRef) (*Deployment, bool) {
 	return e.catalog.lookup(ref)
 }
 
+// ForgetDeployment removes one inactive historical deployment from the
+// catalog. It rejects active deployments and definitions still referenced by a
+// registered process tree. Hosts decide when their external snapshots no
+// longer require the exact definition.
+func (e *Engine) ForgetDeployment(ref core.DeploymentRef) error {
+	if e == nil {
+		return errors.New("runtime.Engine.ForgetDeployment: nil Engine")
+	}
+	if err := ref.Validate(); err != nil {
+		return fmt.Errorf("runtime.Engine.ForgetDeployment: %w", err)
+	}
+	if err := e.catalog.forget(ref); err != nil {
+		return fmt.Errorf("runtime.Engine.ForgetDeployment: %w", err)
+	}
+	return nil
+}
+
 // ownedDeployment validates that deployment is one of this Engine's exact
 // active or historical catalog entries. Advanced execution helpers use it to
 // reject handles from another Engine instead of silently running a
@@ -151,8 +172,8 @@ func (e *Engine) ownedDeployment(operation string, deployment *Deployment) (*Dep
 	return owned, nil
 }
 
-// Deployments returns the complete active and historical catalog in stable
-// Name, Version, Digest order. Deployment values are immutable.
+// Deployments returns the complete active and retained historical catalog in
+// stable Name, Version, Digest order. Deployment values are immutable.
 func (e *Engine) Deployments() []*Deployment { return e.catalog.listAll() }
 
 // ActiveDeployments returns current routes in stable agent-name order.

@@ -15,7 +15,6 @@ type messageEnvironment struct {
 
 func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, error) {
 	ecfg := cfg.Engine
-	ecfg.ChildSessionStore = agentexec.NewChildSessionStore(cfg.SessionStore)
 	ecfg.ProcessStore = cfg.ProcessStore
 	ecfg.Provider = cfg.Provider
 	// These runtime-wide stores have one composition-root source of truth. The

@@ -95,32 +95,32 @@ func mergeExtensions(first, second []extensionEntry) []extensionEntry {
 // toolResolverFor builds the action-scoped resolver exposed by ProcessContext.
 // Process extensions resolve first, while middleware wraps engine-first so the
 // process-scoped decorator is outermost.
-func (p *Process) toolResolverFor(action core.Action) func(context.Context, []core.ToolGroupRequirement) ([]tools.Tool, error) {
+func (p *Process) toolResolverFor(action core.Action) func(context.Context, []string) ([]tools.Tool, error) {
 	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
 	middleware := collectExtensions[core.ToolMiddleware](p.combinedExtensions())
 	if len(resolvers) == 0 {
 		return nil
 	}
-	return func(ctx context.Context, requirements []core.ToolGroupRequirement) ([]tools.Tool, error) {
+	return func(ctx context.Context, roles []string) ([]tools.Tool, error) {
 		var resolved []tools.Tool
 
-		for _, requirement := range requirements {
-			group, found, err := runToolGroupResolvers(ctx, resolvers, requirement)
+		for _, role := range roles {
+			group, found, err := runToolGroupResolvers(ctx, resolvers, role)
 			if err != nil {
-				return nil, fmt.Errorf("resolve tools for role %q: %w", requirement.Role, err)
+				return nil, fmt.Errorf("resolve tools for role %q: %w", role, err)
 			}
 			if !found {
 				continue
 			}
 
-			groupTools, err := loadToolGroup(ctx, group, requirement.Role)
+			groupTools, err := loadToolGroup(ctx, group, role)
 			if err != nil {
-				return nil, fmt.Errorf("load tools for role %q: %w", requirement.Role, err)
+				return nil, fmt.Errorf("load tools for role %q: %w", role, err)
 			}
 			for _, tool := range groupTools {
 				wrapped, err := p.wrapTool(middleware, action, tool)
 				if err != nil {
-					return nil, fmt.Errorf("wrap tool for role %q: %w", requirement.Role, err)
+					return nil, fmt.Errorf("wrap tool for role %q: %w", role, err)
 				}
 				resolved = append(resolved, wrapped)
 			}

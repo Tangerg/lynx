@@ -132,8 +132,8 @@ func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if model.Calls() != 2 || len(proc.ModelCalls()) != 2 {
-		t.Fatalf("model calls = %d, invocations = %d", model.Calls(), len(proc.ModelCalls()))
+	if usage := proc.Usage(); model.Calls() != 2 || usage.ModelCalls != 2 {
+		t.Fatalf("model calls = %d, recorded calls = %d", model.Calls(), usage.ModelCalls)
 	}
 	if len(boundaries) != 6 {
 		t.Fatalf("interaction boundaries = %d, want 6", len(boundaries))
@@ -262,16 +262,13 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil || proc.Suspension().Kind != interaction.SuspensionTool {
 		t.Fatalf("parked process = status %s suspension %#v", proc.Status(), proc.Suspension())
 	}
-	snapshot, err := proc.Snapshot()
-	if err != nil {
-		t.Fatalf("snapshot waiting interaction: %v", err)
-	}
+	snapshot := snapshotRoot(t, engine, proc)
 	if err := runtime.ValidateResumableSnapshot(snapshot); err != nil {
 		t.Fatalf("ValidateResumableSnapshot: %v", err)
 	}
 	invalid := snapshot
 	invalid.Suspension = snapshot.Suspension.Clone()
-	invalid.Suspension.Payload = json.RawMessage(`{}`)
+	invalid.Suspension.FrameworkState = json.RawMessage(`{}`)
 	if err := runtime.ValidateResumableSnapshot(invalid); err == nil {
 		t.Fatal("ValidateResumableSnapshot accepted a malformed managed checkpoint")
 	}
@@ -339,8 +336,8 @@ func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if model.Calls() != 1 || len(proc.ModelCalls()) != 1 || proc.Status() != core.StatusCompleted {
-		t.Fatalf("provider calls=%d recorded calls=%d status=%s", model.Calls(), len(proc.ModelCalls()), proc.Status())
+	if usage := proc.Usage(); model.Calls() != 1 || usage.ModelCalls != 1 || proc.Status() != core.StatusCompleted {
+		t.Fatalf("provider calls=%d recorded calls=%d status=%s", model.Calls(), usage.ModelCalls, proc.Status())
 	}
 }
 
@@ -397,6 +394,81 @@ func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T
 	}
 	if model.Calls() != 1 {
 		t.Fatalf("model calls = %d, want one action execution", model.Calls())
+	}
+}
+
+func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
+	model := &managedFinalModel{}
+	registry, err := tools.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var observedCost float64
+	a := agent.New(agent.AgentConfig{Name: "managed-cost", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
+		if err != nil {
+			return "", err
+		}
+		result, err := pc.Interact(ctx, core.Interaction{
+			Model:   model,
+			Request: request,
+			Tools:   registry,
+			Cost:    func(*chat.Response) float64 { return 0.25 },
+			Observe: func(_ context.Context, boundary interaction.Event) error {
+				if boundary.Kind == interaction.EventModelResponse {
+					observedCost = boundary.Cost
+				}
+				return nil
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		return result.Final.Response.Text(), nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usage := proc.Usage(); usage.Cost != 0.25 || usage.ModelCalls != 1 || observedCost != 0.25 {
+		t.Fatalf("usage=%+v observed cost=%v, want one call costing 0.25", usage, observedCost)
+	}
+}
+
+func TestManagedInteractionContainsCostFunctionPanic(t *testing.T) {
+	model := &managedFinalModel{}
+	registry, err := tools.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("pricing failed")
+	a := agent.New(agent.AgentConfig{Name: "managed-cost-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
+		if err != nil {
+			return "", err
+		}
+		_, err = pc.Interact(ctx, core.Interaction{
+			Model:   model,
+			Request: request,
+			Tools:   registry,
+			Cost: func(*chat.Response) float64 {
+				panic(cause)
+			},
+		})
+		return "", err
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
+	if err != nil || proc == nil || proc.Status() != core.StatusFailed || !errors.Is(proc.Failure(), cause) {
+		t.Fatalf("process=%v error=%v, want failed process wrapping cause", proc, err)
+	}
+	if usage := proc.Usage(); usage.Usage != (core.Usage{}) {
+		t.Fatalf("resource usage after rejected cost = %+v, want zero", usage.Usage)
 	}
 }
 
@@ -464,8 +536,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 		t.Fatal(err)
 	}
 	a := managedInteractionAgent(t, "managed-crash-restore", model, registry, interaction.Limits{})
-	const buildID = "managed-crash-fixture"
-	engine1 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
+	engine1 := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine1, a)
 
 	segment, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -480,10 +551,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 		t.Fatalf("before crash status=%s model=%d completed=%d approval=%d", proc.Status(), model.Calls(), completedCalls, approvalAttempts)
 	}
 
-	captured, err := proc.Snapshot()
-	if err != nil {
-		t.Fatalf("capture crash snapshot: %v", err)
-	}
+	captured := snapshotRoot(t, engine1, proc)
 	body, err := json.Marshal(captured)
 	if err != nil {
 		t.Fatalf("marshal crash snapshot: %v", err)
@@ -492,12 +560,9 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	if err := json.Unmarshal(body, &snapshot); err != nil {
 		t.Fatalf("unmarshal crash snapshot: %v", err)
 	}
-	engine2 := agent.MustNewEngine(runtime.Config{BuildID: buildID})
+	engine2 := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine2, a)
-	restored, err := engine2.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{})
-	if err != nil {
-		t.Fatalf("restore after crash: %v", err)
-	}
+	restored := restoreRoot(t, engine2, snapshot, core.ProcessOptions{})
 	if err := engine2.Resume(t.Context(), restored.ID(), "approval-crash", true); err != nil {
 		t.Fatalf("resume after crash: %v", err)
 	}

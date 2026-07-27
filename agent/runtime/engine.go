@@ -3,24 +3,12 @@ package runtime
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
-	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
 
 const (
-	// DefaultSessionFinalizeTimeout bounds the durable session write performed
-	// after a turn finishes. It is independent of request cancellation.
-	DefaultSessionFinalizeTimeout = 10 * time.Second
-
-	// DefaultSnapshotFinalizeTimeout bounds each automatic process snapshot.
-	// Automatic durability is independent of request cancellation so a canceled
-	// caller cannot prevent the runtime from recording the resulting state.
-	DefaultSnapshotFinalizeTimeout = 10 * time.Second
-
 	// DefaultMaxChildDepth limits recursive delegation. A root process has
 	// depth zero, so this value permits eight nested child levels.
 	DefaultMaxChildDepth = 8
@@ -43,35 +31,24 @@ const (
 //   - engine.go         — struct + constructor + small accessors
 //   - engine_deploy.go  — Deploy / Undeploy + reachability check +
 //     extension-resolution fallbacks
-//   - engine_run.go     — Run / Start / Continue / Resume / ResumeAsync / Kill /
-//     Remove / Prune
+//   - engine_run.go     — Run / Start / Continue / Resume / ResumeAsync / Kill
 //   - engine_process.go — process construction + dependency wiring
 //   - process_capture.go — snapshot serialization
-//   - process_save.go    — snapshot persistence + tree cleanup
-//   - process_restore.go — snapshot load + process restoration
+//   - process_snapshot_tree.go — stable tree capture and removal
+//   - process_restore.go — caller-supplied snapshot restoration
 type Engine struct {
 	catalog   deploymentRegistry // immutable deployments and active routes
 	processes processRegistry    // created and restored processes
 
 	extensions extensionRegistry // engine-scoped extensions
 
-	events                  *event.Multicast     // populated from EventListener extensions
-	dependencies            *core.Dependencies   // typed engine dependency scope
-	chat                    core.ChatCapability  // optional shared model and streamer
-	guardrails              *core.ChatGuardrails // optional global chat middlewares
-	bindConversation        func(context.Context, string) context.Context
-	processStore            core.ProcessStore // optional snapshot backend
-	sessionStore            core.SessionStore // optional root-session persistence
-	childSessionStore       core.SessionStore // optional delegated-session persistence
-	sessionTurns            *localSequencer   // sequences turns sharing a session ID
-	processMutations        *localSequencer   // linearizes state and registry changes per process tree
-	processWrites           *localSequencer   // preserves durable commit order per process tree
-	sessionFinalizeTimeout  time.Duration     // bounds the post-dispatch session write
-	autoSnapshot            bool              // snapshot every tick when a store is configured
-	snapshotFinalizeTimeout time.Duration     // bounds each request-independent automatic snapshot
-	snapshotFailurePolicy   SnapshotFailurePolicy
-	maxChildDepth           int
-	buildID                 string // stable host build identity included in deployment digests
+	events           *event.Multicast      // populated from EventListener extensions
+	dependencies     *core.Dependencies    // typed engine dependency scope
+	chat             core.ChatCapability   // optional shared model and streamer
+	chatMiddleware   *core.ChatMiddleware  // optional shared chat middlewares
+	maxToolRounds    int                   // default Prompt tool-round limit
+	processMutations *processTreeSequencer // linearizes state and registry changes per process tree
+	maxChildDepth    int
 }
 
 // Config is the construction-time configuration for
@@ -80,11 +57,6 @@ type Engine struct {
 // The root agent package's constructor additionally installs its default
 // planners.
 type Config struct {
-	// BuildID is a stable host/application build identity included in every
-	// deployment digest. An engine with ProcessStore requires each Agent to
-	// provide an explicit semantic Version or this field to be non-empty.
-	BuildID string
-
 	// Chat is the shared model capability every action body reaches through
 	// [core.ProcessContext.Chat] or [core.ProcessContext.Prompt]. Model is
 	// optional; Streamer may only be set when Model is also set. Hosts can pass
@@ -93,66 +65,16 @@ type Config struct {
 	// synchronization required by mutable provider state.
 	Chat core.ChatCapability
 
-	// Guardrails are engine-wide chat middlewares applied to every
+	// ChatMiddleware is applied to every
 	// LLM call action bodies issue through [core.ProcessContext.Chat]
 	// or [core.ProcessContext.Prompt]. Typical uses:
 	// content safeguard, request/response logging, global quota.
 	// Optional — nil / empty means "no global wrapping".
-	Guardrails *core.ChatGuardrails
+	ChatMiddleware *core.ChatMiddleware
 
-	// BindConversation projects a process conversation ID into the model-call
-	// context understood by Host middleware. It is engine infrastructure rather
-	// than a guardrail, so per-process Guardrails cannot replace it.
-	BindConversation func(context.Context, string) context.Context
-
-	// ProcessStore persists [Process] snapshots so a process
-	// can survive a runtime restart or be audited after termination. The store
-	// implementation owns its write coordination and failure semantics.
-	// Optional — nil means in-memory-only execution.
-	// See [Process.Snapshot] / [Engine.Restore] /
-	// [Engine.RestoreSnapshot] for the surface.
-	ProcessStore core.ProcessStore
-
-	// AutoSnapshot, when true and a ProcessStore is configured, makes the
-	// runtime persist a snapshot after every tick (and on terminal /
-	// early-termination transitions) — automatic persistence, instead of
-	// requiring an explicit [Engine.Save] call. Snapshot failures
-	// follow SnapshotFailurePolicy. Ignored when ProcessStore is nil.
-	AutoSnapshot bool
-
-	// SnapshotFinalizeTimeout bounds each automatic snapshot write. The write is
-	// detached from request cancellation so the final killed/terminal state can
-	// still be persisted, but an earlier caller deadline remains authoritative.
-	// Zero uses [DefaultSnapshotFinalizeTimeout]; negative values are rejected.
-	// The value is only used when AutoSnapshot is true.
-	SnapshotFinalizeTimeout time.Duration
-
-	// SnapshotFailurePolicy decides what an automatic snapshot failure does.
-	// The zero value fails the run. Pause keeps a non-terminal process locally
-	// resumable and returns the write error so the Host cannot mistake it for a
-	// durable checkpoint. ReportOnly emits a degradation event and continues
-	// explicitly non-durable.
-	SnapshotFailurePolicy SnapshotFailurePolicy
-
-	// SessionStore persists multi-turn [core.Session] records so
-	// conversations survive runtime restart and dispatch can pick
-	// the right agent on subsequent turns. Optional — without it
-	// [Engine.RunInSession] still works, but the session is not
-	// saved between turns.
-	SessionStore core.SessionStore
-
-	// SessionFinalizeTimeout bounds the post-dispatch SessionStore write. That
-	// write is detached from request cancellation so audit state can survive a
-	// canceled request, but it must not hold the session turn forever. Zero uses
-	// [DefaultSessionFinalizeTimeout]; negative values are rejected.
-	SessionFinalizeTimeout time.Duration
-
-	// ChildSessionStore persists sessions created for delegated child
-	// processes. It is separate from SessionStore because hosts may use a
-	// product-specific lineage backend that must never receive root-session
-	// writes. Configure the same backend in both fields when one store owns both
-	// lifecycles.
-	ChildSessionStore core.SessionStore
+	// MaxToolRounds bounds Prompt tool execution by default. Zero selects the
+	// interaction runner default; a process may override it.
+	MaxToolRounds int
 
 	// MaxChildDepth limits recursive child-process delegation. Zero uses
 	// [DefaultMaxChildDepth]; negative values are rejected.
@@ -182,74 +104,32 @@ type Config struct {
 // which installs the built-in goap/reactive planners; call New directly only to
 // supply your own.
 func New(config Config) (*Engine, error) {
-	if config.BuildID != strings.TrimSpace(config.BuildID) {
-		return nil, errors.New("runtime.New: BuildID must not have leading or trailing whitespace")
-	}
-	if config.AutoSnapshot && valueIsNil(config.ProcessStore) {
-		return nil, errors.New("runtime.New: AutoSnapshot requires ProcessStore")
-	}
-	if !config.SnapshotFailurePolicy.Valid() {
-		return nil, errors.New("runtime.New: invalid SnapshotFailurePolicy")
-	}
-	if config.SnapshotFinalizeTimeout < 0 {
-		return nil, errors.New("runtime.New: SnapshotFinalizeTimeout must not be negative")
-	}
-	if config.ProcessStore != nil && valueIsNil(config.ProcessStore) {
-		return nil, errors.New("runtime.New: ProcessStore is typed nil")
-	}
-	if config.SessionStore != nil && valueIsNil(config.SessionStore) {
-		return nil, errors.New("runtime.New: SessionStore is typed nil")
-	}
-	if config.SessionFinalizeTimeout < 0 {
-		return nil, errors.New("runtime.New: SessionFinalizeTimeout must not be negative")
-	}
-	if config.ChildSessionStore != nil && valueIsNil(config.ChildSessionStore) {
-		return nil, errors.New("runtime.New: ChildSessionStore is typed nil")
-	}
 	if config.MaxChildDepth < 0 {
 		return nil, errors.New("runtime.New: MaxChildDepth must not be negative")
+	}
+	if config.MaxToolRounds < 0 {
+		return nil, errors.New("runtime.New: MaxToolRounds must not be negative")
 	}
 	if valueIsNil(config.Chat.Model) && !valueIsNil(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
-	guardrails, err := snapshotChatGuardrails("runtime.New: Guardrails", config.Guardrails)
-	if err != nil {
-		return nil, err
-	}
-	finalizeTimeout := config.SessionFinalizeTimeout
-	if finalizeTimeout == 0 {
-		finalizeTimeout = DefaultSessionFinalizeTimeout
-	}
-	snapshotFinalizeTimeout := config.SnapshotFinalizeTimeout
-	if snapshotFinalizeTimeout == 0 {
-		snapshotFinalizeTimeout = DefaultSnapshotFinalizeTimeout
-	}
+	chatMiddleware := cloneChatMiddleware(config.ChatMiddleware)
 	maxChildDepth := config.MaxChildDepth
 	if maxChildDepth == 0 {
 		maxChildDepth = DefaultMaxChildDepth
 	}
 
 	engine := &Engine{
-		catalog:                 newDeploymentRegistry(),
-		processes:               newProcessRegistry(),
-		extensions:              newExtensionRegistry(),
-		events:                  event.NewMulticast(),
-		dependencies:            core.NewDependencies(),
-		chat:                    config.Chat,
-		guardrails:              guardrails,
-		bindConversation:        config.BindConversation,
-		processStore:            config.ProcessStore,
-		sessionStore:            config.SessionStore,
-		childSessionStore:       config.ChildSessionStore,
-		sessionTurns:            newLocalSequencer(),
-		processMutations:        newLocalSequencer(),
-		processWrites:           newLocalSequencer(),
-		sessionFinalizeTimeout:  finalizeTimeout,
-		autoSnapshot:            config.AutoSnapshot,
-		snapshotFinalizeTimeout: snapshotFinalizeTimeout,
-		snapshotFailurePolicy:   config.SnapshotFailurePolicy,
-		maxChildDepth:           maxChildDepth,
-		buildID:                 config.BuildID,
+		catalog:          newDeploymentRegistry(),
+		processes:        newProcessRegistry(),
+		extensions:       newExtensionRegistry(),
+		events:           event.NewMulticast(),
+		dependencies:     core.NewDependencies(),
+		chat:             config.Chat,
+		chatMiddleware:   chatMiddleware,
+		maxToolRounds:    config.MaxToolRounds,
+		processMutations: newProcessTreeSequencer(),
+		maxChildDepth:    maxChildDepth,
 	}
 	for _, extension := range config.Extensions {
 		if err := engine.extensions.register("Config.Extensions", extension); err != nil {
@@ -286,23 +166,6 @@ func (e *Engine) Dependencies() *core.Dependencies { return e.dependencies }
 // [core.Blackboard.Clone]. It returns an error when a registered prototype
 // panics or violates the Clone contract.
 func (e *Engine) NewBlackboard() (core.Blackboard, error) { return e.resolveBlackboard(nil) }
-
-// findDeployment looks the active deployment up by name for agent-as-tool constructors
-// ([NewAgentTool] / [NewStandaloneAgentTool]). Returns an error when the engine is
-// nil, name is empty, or the agent isn't registered.
-func (e *Engine) findDeployment(label string, name string) (*Deployment, error) {
-	if e == nil {
-		return nil, fmt.Errorf("runtime.%s: engine must not be nil", label)
-	}
-	if name == "" {
-		return nil, fmt.Errorf("runtime.%s: agentName must not be empty", label)
-	}
-	deployment, ok := e.catalog.activeDeployment(name)
-	if !ok {
-		return nil, fmt.Errorf("runtime.%s: agent %q not registered on engine", label, name)
-	}
-	return deployment, nil
-}
 
 func (e *Engine) Process(id string) (*Process, bool) { return e.processes.get(id) }
 

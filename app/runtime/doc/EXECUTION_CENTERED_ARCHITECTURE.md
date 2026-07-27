@@ -115,11 +115,13 @@ Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup
 - model/tool iteration；
 - pending tool checkpoint；
 - suspension/resume continuation；
-- model-call usage ledger；
-- token/cost/model-call limit；
+- provider-neutral 的 token/cost/model-call 聚合计数与 limit；
 - tagged final event。
 
-Runtime 只供应 model stream wrapper、`tools.Registry`、limits、attribution 和 observer。
+Runtime 供应 model stream wrapper、`tools.Registry`、limits、cost projection 和 observer；
+observer 从 model-response boundary 建立 application-owned per-model USD 账本。该账本不进入
+Agent snapshot，而是与 process tree 一起由 App `ProcessStore` 原子提交、恢复并做聚合一致性
+校验。
 正常完成直接读取 framework tagged `Final`；只有 budget/step 提前停止才保留局部 partial
 文本。模型空闲 timeout 只包围一次 provider stream，长工具执行不进入该计时。
 
@@ -147,14 +149,24 @@ Runtime 只供应 model stream wrapper、`tools.Registry`、limits、attribution
 
 ### 3.3 Snapshot 与 Build identity
 
-Process checkpoint 的结构、deployment compatibility 和 nested relation 都由
-Agent framework 解释。Runtime 只按 process ID 调用 `Resumable` / `RestoreResumable`，
-不读取 checkpoint payload 来推断可恢复性。
+Process checkpoint 的执行状态、Agent 声明 compatibility 和 nested relation 由
+Agent framework 解释；Agent 不拥有 backend、宿主 build identity 或应用计费明细。
+`adapter/agentexec` 在 Waiting 段边界调用 `SnapshotTree`，再通过消费侧
+`ProcessStore.SaveTree` 提交完整树、App usage snapshot 和 App BuildID。启动恢复先由
+`ProcessStore.LoadTree` 加载并在 App 校验 BuildID 与两份 usage 聚合一致性，再调用 Agent
+的 `ValidateRestoreTree` / `ValidateResumableSnapshot` / `RestoreTree`。SQLite 的提交时间、
+替换、删除、产品 subtask lineage 和事务全部留在 App。
 
-`cmd/lyra` 在 bootstrap 前计算运行二进制内容的 `sha256:<hex>` BuildID；启用
-ProcessStore 时 BuildID 必填，SnapshotFailurePolicy 固定为 `fail_process`。snapshot
-写失败立即使 Process/Run 失败；build 不兼容、snapshot 缺失或损坏确定性转为
-`run_lost` 并清理 process tree，不做 migration 或旧 shape 兼容。
+Waiting snapshot 可以处于未回答或已回答待继续阶段。Agent 只校验和重建这两种 execution
+state；App 决定是否把 response、请求幂等记录和 checkpoint 放入同一事务。恢复后未回答
+状态进入 `Resume`，已回答状态直接进入 `Continue`，不在 App 重放或解释 Agent checkpoint。
+
+`cmd/lyra` 在 bootstrap 前计算运行二进制内容的 `sha256:<hex>` BuildID；配置 App
+ProcessStore 时 BuildID 必填，并作为 checkpoint 行元数据保存，不进入 Agent deployment
+digest 或 snapshot wire。只有 Waiting 段拥有可恢复 continuation，因此终态不写 process
+snapshot。Waiting checkpoint 提交失败时 App 不暴露 interrupt，而是终止并失败收口该 Run；
+build 不兼容、snapshot 缺失或损坏确定性转为 `run_lost` 并清理 process tree，不做 migration
+或旧 shape 兼容。
 
 ### 3.4 Tool、MCP 与 maintenance
 

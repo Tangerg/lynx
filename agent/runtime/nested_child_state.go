@@ -20,7 +20,6 @@ type nestedChildState struct {
 	mu      sync.Mutex
 	staged  map[string]*nestedChildRelation
 	pending map[string]*nestedChildRelation
-	cleanup []string
 }
 
 func (s *nestedChildState) stage(processID string, relation *nestedChildRelation) error {
@@ -65,7 +64,7 @@ func (s *nestedChildState) relations() map[string]*nestedChildRelation {
 	}
 	for callID, relation := range s.staged {
 		// A child may pause again while resuming the same ToolCall. Its staged
-		// relation is the continuation the next checkpoint must persist.
+		// relation is the continuation the next snapshot must contain.
 		current[callID] = relation.clone()
 	}
 	return current
@@ -114,33 +113,6 @@ func (s *nestedChildState) takeStagedChildIDs() []string {
 	s.staged = nil
 	slices.Sort(childIDs)
 	return childIDs
-}
-
-func (s *nestedChildState) queueCleanup(childID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if !slices.Contains(s.cleanup, childID) {
-		s.cleanup = append(s.cleanup, childID)
-	}
-}
-
-func (s *nestedChildState) cleanupSnapshot() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.cleanup)
-}
-
-func (s *nestedChildState) acknowledgeCleanup(childIDs []string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	for _, childID := range childIDs {
-		s.cleanup = slices.DeleteFunc(s.cleanup, func(candidate string) bool {
-			return candidate == childID
-		})
-	}
-	if len(s.cleanup) == 0 {
-		s.cleanup = nil
-	}
 }
 
 func (p *Process) stageNestedChild(relation *nestedChildRelation) error {
@@ -242,29 +214,9 @@ func (p *Process) abortStagedNestedChildren(ctx context.Context) (int, error) {
 	}
 	var cleanupErrs []error
 	for _, childID := range childIDs {
-		if err := p.engine.Discard(ctx, childID); err != nil {
-			cleanupErrs = append(cleanupErrs, fmt.Errorf("discard staged child %q: %w", childID, err))
+		if err := p.engine.Kill(ctx, childID); err != nil {
+			cleanupErrs = append(cleanupErrs, fmt.Errorf("kill staged child %q: %w", childID, err))
 		}
 	}
 	return len(childIDs), errors.Join(cleanupErrs...)
-}
-
-func (p *Process) deferNestedChildCleanup(childID string) {
-	if p == nil || childID == "" {
-		return
-	}
-	p.nested.queueCleanup(childID)
-}
-
-func (p *Process) nestedChildCleanupSnapshot() []string {
-	if p == nil {
-		return nil
-	}
-	return p.nested.cleanupSnapshot()
-}
-
-func (p *Process) acknowledgeNestedChildCleanup(childIDs []string) {
-	if p != nil {
-		p.nested.acknowledgeCleanup(childIDs)
-	}
 }

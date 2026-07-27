@@ -22,11 +22,10 @@ const agentExportedAPIBaseline = "testdata/exported_api.txt"
 
 // agentRootFacadeBudget caps the curated root-package surface so the facade
 // stays a discoverable common-path entry point, not a mirror of every
-// sub-package. Raised from 50 to cover the common tool-using-agent authoring
-// path end to end (Chat, RequireToolGroup + ToolGroup* declaration/resolution,
-// Get, RequireType) so a typical agent needs only the `agent` import; advanced
-// SPI (tool-group permissions, Objects/Last) deliberately stays in core.
-const agentRootFacadeBudget = 58
+// sub-package. Tool roles are ordinary strings in ActionConfig, so the facade
+// only needs to surface the ToolGroup capabilities themselves; advanced SPI
+// (Objects/Last) deliberately stays in core.
+const agentRootFacadeBudget = 55
 
 // agentPublicPackages is the complete non-internal, non-example surface of the
 // Agent module. One module has one SemVer contract: planners, workflows,
@@ -45,9 +44,7 @@ var agentPublicPackages = map[string]struct{}{
 	"planning/utility":  {},
 	"runtime":           {},
 	"routing":           {},
-	"storetest":         {},
 	"toolloop":          {},
-	"toolpolicy":        {},
 	"workflow":          {},
 }
 

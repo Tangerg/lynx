@@ -13,7 +13,7 @@ import (
 
 // deploymentRegistry holds every immutable deployment an Engine has accepted and
 // one active route per agent name. Historical definitions remain addressable
-// by exact DeploymentRef after replacement or undeploy.
+// by exact DeploymentRef until the host explicitly forgets them.
 //
 // Concurrency: a single RWMutex protects the map; deploys / undeploys
 // are exclusive, lookups are shared. Used as a named field on Engine;
@@ -22,14 +22,14 @@ type deploymentRegistry struct {
 	mu          sync.RWMutex
 	active      map[string]core.DeploymentRef
 	deployments map[core.DeploymentRef]*Deployment
-	sources     map[*core.Agent]core.DeploymentRef
+	references  map[core.DeploymentRef]int
 }
 
 func newDeploymentRegistry() deploymentRegistry {
 	return deploymentRegistry{
 		active:      map[string]core.DeploymentRef{},
 		deployments: map[core.DeploymentRef]*Deployment{},
-		sources:     map[*core.Agent]core.DeploymentRef{},
+		references:  map[core.DeploymentRef]int{},
 	}
 }
 
@@ -57,7 +57,6 @@ func (r *deploymentRegistry) activate(candidate *Deployment, replace bool) (*Dep
 	}
 	if active && activeRef == ref {
 		existing := r.deployments[ref]
-		r.sources[candidate.source] = ref
 		return existing, false, nil
 	}
 
@@ -68,8 +67,6 @@ func (r *deploymentRegistry) activate(candidate *Deployment, replace bool) (*Dep
 		r.deployments[ref] = deployment
 	}
 	r.active[ref.Name] = ref
-	r.sources[candidate.source] = ref
-	r.sources[deployment.agent] = ref
 	return deployment, true, nil
 }
 
@@ -128,21 +125,6 @@ func (r *deploymentRegistry) activeDeployment(name string) (*Deployment, bool) {
 	return deployment, ok
 }
 
-func (r *deploymentRegistry) forSource(source *core.Agent) (*Deployment, bool) {
-	if source == nil {
-		return nil, false
-	}
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	key, ok := r.sources[source]
-	if !ok {
-		return nil, false
-	}
-	deployment, ok := r.deployments[key]
-	return deployment, ok
-}
-
 // lookup resolves an exact historical definition.
 func (r *deploymentRegistry) lookup(ref core.DeploymentRef) (*Deployment, bool) {
 	r.mu.RLock()
@@ -150,6 +132,52 @@ func (r *deploymentRegistry) lookup(ref core.DeploymentRef) (*Deployment, bool) 
 
 	deployment, ok := r.deployments[ref]
 	return deployment, ok
+}
+
+func (r *deploymentRegistry) retain(deployment *Deployment) bool {
+	if deployment == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ref := deployment.Ref()
+	if r.deployments[ref] != deployment {
+		return false
+	}
+	r.references[ref]++
+	return true
+}
+
+func (r *deploymentRegistry) release(deployment *Deployment) {
+	if deployment == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	ref := deployment.Ref()
+	switch references := r.references[ref]; {
+	case references > 1:
+		r.references[ref] = references - 1
+	case references == 1:
+		delete(r.references, ref)
+	}
+}
+
+func (r *deploymentRegistry) forget(ref core.DeploymentRef) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.deployments[ref] == nil {
+		return fmt.Errorf("%w: %s", ErrDeploymentNotFound, ref)
+	}
+	if r.active[ref.Name] == ref {
+		return fmt.Errorf("%w: %s", ErrDeploymentActive, ref)
+	}
+	if r.references[ref] != 0 {
+		return fmt.Errorf("%w: %s", ErrDeploymentInUse, ref)
+	}
+	delete(r.deployments, ref)
+	delete(r.references, ref)
+	return nil
 }
 
 func compareDeploymentRef(a, b core.DeploymentRef) int {

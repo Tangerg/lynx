@@ -19,6 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -77,7 +78,7 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 
 func codingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	group, ok, err := resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
@@ -225,52 +226,78 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 type jsonProcessStore struct {
 	mu        sync.Mutex
 	snapshots map[string]json.RawMessage
+	buildIDs  map[string]string
+	scopes    map[string]execution.TurnScope
+	usages    map[string]accounting.Snapshot
 }
 
 func newJSONProcessStore() *jsonProcessStore {
-	return &jsonProcessStore{snapshots: map[string]json.RawMessage{}}
+	return &jsonProcessStore{
+		snapshots: map[string]json.RawMessage{},
+		buildIDs:  map[string]string{},
+		scopes:    map[string]execution.TurnScope{},
+		usages:    map[string]accounting.Snapshot{},
+	}
 }
 
-func (s *jsonProcessStore) Apply(_ context.Context, change core.ProcessSnapshotChange) error {
-	if err := change.Validate(); err != nil {
+func (s *jsonProcessStore) SaveTree(_ context.Context, tree core.ProcessSnapshotTree, checkpoint execution.ProcessCheckpoint) error {
+	if err := tree.Validate(); err != nil {
 		return err
 	}
-	prepared := make(map[string]json.RawMessage)
-	if change.Tree != nil {
-		prepared = make(map[string]json.RawMessage, len(change.Tree.Snapshots))
-		for _, snapshot := range change.Tree.Snapshots {
-			raw, err := json.Marshal(snapshot)
-			if err != nil {
-				return err
-			}
-			prepared[snapshot.ID] = raw
+	if err := checkpoint.Validate(); err != nil {
+		return err
+	}
+	prepared := make(map[string]json.RawMessage, len(tree.Snapshots))
+	for _, snapshot := range tree.Snapshots {
+		raw, err := json.Marshal(snapshot)
+		if err != nil {
+			return err
 		}
+		prepared[snapshot.ID] = raw
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.deleteTree(tree.RootID); err != nil {
+		return err
+	}
 	for id, raw := range prepared {
 		s.snapshots[id] = raw
+		s.buildIDs[id] = checkpoint.BuildID
 	}
-	for _, rootID := range change.DeleteRoots {
-		if err := s.deleteTree(rootID); err != nil {
-			return err
-		}
-	}
+	s.scopes[tree.RootID] = checkpoint.Scope
+	s.usages[tree.RootID] = checkpoint.Usage
 	return nil
 }
 
-func (s *jsonProcessStore) Load(_ context.Context, id string) (core.ProcessSnapshot, error) {
+func (s *jsonProcessStore) LoadTree(_ context.Context, id string) (core.ProcessSnapshotTree, execution.ProcessCheckpoint, error) {
 	s.mu.Lock()
-	raw, ok := s.snapshots[id]
-	s.mu.Unlock()
+	defer s.mu.Unlock()
+	_, ok := s.snapshots[id]
 	if !ok {
-		return core.ProcessSnapshot{}, fmt.Errorf("json process store: load %q: %w", id, core.ErrSnapshotNotFound)
+		return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, fmt.Errorf("json process store: load %q: %w", id, execution.ErrProcessSnapshotNotFound)
 	}
-	var snapshot core.ProcessSnapshot
-	if err := json.Unmarshal(raw, &snapshot); err != nil {
-		return core.ProcessSnapshot{}, err
+	buildID := s.buildIDs[id]
+	children := make(map[string][]string)
+	decoded := make(map[string]core.ProcessSnapshot, len(s.snapshots))
+	for processID, raw := range s.snapshots {
+		var snapshot core.ProcessSnapshot
+		if err := json.Unmarshal(raw, &snapshot); err != nil {
+			return core.ProcessSnapshotTree{}, execution.ProcessCheckpoint{}, err
+		}
+		decoded[processID] = snapshot
+		children[snapshot.ParentID] = append(children[snapshot.ParentID], processID)
 	}
-	return snapshot, nil
+	var snapshots []core.ProcessSnapshot
+	var collect func(string)
+	collect = func(processID string) {
+		snapshots = append(snapshots, decoded[processID])
+		for _, childID := range children[processID] {
+			collect(childID)
+		}
+	}
+	collect(id)
+	checkpoint := execution.ProcessCheckpoint{BuildID: buildID, Scope: s.scopes[id], Usage: s.usages[id]}
+	return core.ProcessSnapshotTree{RootID: id, Snapshots: snapshots}, checkpoint, nil
 }
 
 func (s *jsonProcessStore) List(context.Context) ([]string, error) {
@@ -281,6 +308,17 @@ func (s *jsonProcessStore) List(context.Context) ([]string, error) {
 		ids = append(ids, id)
 	}
 	return ids, nil
+}
+
+func (s *jsonProcessStore) DeleteTrees(_ context.Context, rootIDs []string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, rootID := range rootIDs {
+		if err := s.deleteTree(rootID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *jsonProcessStore) deleteTree(rootID string) error {
@@ -297,6 +335,9 @@ func (s *jsonProcessStore) deleteTree(rootID string) error {
 	var remove func(string)
 	remove = func(id string) {
 		delete(s.snapshots, id)
+		delete(s.buildIDs, id)
+		delete(s.scopes, id)
+		delete(s.usages, id)
 		for _, childID := range children[id] {
 			remove(childID)
 		}

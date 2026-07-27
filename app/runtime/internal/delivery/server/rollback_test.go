@@ -148,7 +148,7 @@ func TestRollbackSession_DropAll(t *testing.T) {
 	now := time.Now().UTC()
 	child, _ := rt.sess.SaveSubtask(ctx, session.Subtask{
 		ID: "ses_child", ParentID: sess.ID, StartedAt: now, UpdatedAt: now,
-	}, []byte(`{"agent":"subtask"}`))
+	})
 	rt.history[sess.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1"))}
 	rt.history[child.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("sub"))}
 	putRun(t, rt, sess.ID, "run_1", 100, 2)

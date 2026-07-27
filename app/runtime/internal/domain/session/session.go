@@ -116,8 +116,8 @@ type Session struct {
 }
 
 // Subtask is the product lineage and audit projection of a delegated
-// conversation. Agent-runtime continuation state is persisted at the Bootstrap
-// boundary as an opaque sidecar, so this domain never learns agent SDK fields.
+// conversation. Agent execution state stays in the process-snapshot store, so
+// this domain never learns Agent SDK fields.
 type Subtask struct {
 	ID        string
 	ParentID  string
@@ -125,8 +125,7 @@ type Subtask struct {
 	UpdatedAt time.Time
 }
 
-// Validate checks the identity and audit invariants required for a resumable
-// delegated conversation.
+// Validate checks delegated conversation identity and audit invariants.
 func (s Subtask) Validate() error {
 	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
 		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSubtask)

@@ -38,16 +38,14 @@ type processView struct {
 	id string
 }
 
-func (p processView) ID() string                         { return p.id }
-func (processView) ParentID() string                     { return "" }
-func (processView) Deployment() core.DeploymentRef       { return core.DeploymentRef{} }
-func (processView) StartedAt() time.Time                 { return time.Time{} }
-func (processView) Status() core.ProcessStatus           { return core.StatusRunning }
-func (processView) Goal() *core.Goal                     { return nil }
-func (processView) Blackboard() core.BlackboardReader    { return nil }
-func (processView) Failure() error                       { return nil }
-func (processView) Suspension() *interaction.Suspension  { return nil }
-func (processView) WorldState() core.WorldState          { return nil }
-func (processView) Usage() (float64, int, int)           { return 0, 0, 0 }
-func (processView) ModelCalls() []core.ModelCall         { return nil }
-func (processView) EmbeddingCalls() []core.EmbeddingCall { return nil }
+func (p processView) ID() string                        { return p.id }
+func (processView) ParentID() string                    { return "" }
+func (processView) Deployment() core.DeploymentRef      { return core.DeploymentRef{} }
+func (processView) StartedAt() time.Time                { return time.Time{} }
+func (processView) Status() core.ProcessStatus          { return core.StatusRunning }
+func (processView) Goal() *core.Goal                    { return nil }
+func (processView) Blackboard() core.BlackboardReader   { return nil }
+func (processView) Failure() error                      { return nil }
+func (processView) Suspension() *interaction.Suspension { return nil }
+func (processView) WorldState() core.WorldState         { return nil }
+func (processView) Usage() core.ProcessUsage            { return core.ProcessUsage{} }

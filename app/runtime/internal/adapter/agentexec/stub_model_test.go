@@ -178,9 +178,9 @@ const (
 // across its OWN tool-loop rounds. The tool loop hands the model only each
 // round's new (assistant, tool result) delta — the original user prompt is
 // reconstructed by the history middleware, which only fires when the request
-// carries a conversation id. A subtask runs without an externally-supplied
-// session, so this exercises the runtime's process-id fallback: without it
-// the subtask's round 2 loses the secret and reports subtaskContextLost.
+// carries a conversation id. A subtask has no product session, so this
+// exercises the adapter's process-ID partition: without it the subtask's round
+// 2 loses the secret and reports subtaskContextLost.
 //
 // Turn dispatch (main turn vs sub-agent turn, round 1 vs round 2) keys off
 // which tool call is on the wire, since user messages are stripped between
@@ -523,12 +523,7 @@ type fixedToolResolver struct {
 }
 
 type fixedToolGroup struct {
-	role string
 	tool tools.Tool
-}
-
-func (g fixedToolGroup) Info() core.ToolGroupInfo {
-	return core.ToolGroupInfo{Role: g.role}
 }
 
 func (g fixedToolGroup) Tools(context.Context) ([]tools.Tool, error) {
@@ -539,10 +534,10 @@ func (*fixedToolResolver) Name() string { return "agentexec-test-tools" }
 
 func (*fixedToolResolver) UseTaskTool(tools.Tool) {}
 
-func (r *fixedToolResolver) Resolve(_ context.Context, requirement core.ToolGroupRequirement) (core.ToolGroup, bool, error) {
-	switch requirement.Role {
+func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
+	switch role {
 	case toolport.ToolRoleCoding, toolport.ToolRoleSubtask:
-		return fixedToolGroup{role: requirement.Role, tool: r.tool}, true, nil
+		return fixedToolGroup{tool: r.tool}, true, nil
 	default:
 		return nil, false, nil
 	}

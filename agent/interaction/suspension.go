@@ -11,7 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const SuspensionSchemaVersion uint16 = 1
+const SuspensionSchemaVersion uint16 = 2
 
 var (
 	ErrInvalidSuspension  = errors.New("interaction: invalid suspension")
@@ -33,18 +33,21 @@ func (k SuspensionKind) Valid() bool {
 }
 
 // Suspension is the complete JSON-safe state exposed when a process waits for
-// external input. Payload is framework-owned opaque continuation state;
-// Prompt and ResumeSchema are host-facing protocol values.
+// external input. Payload is opaque metadata owned by the suspension producer
+// and is never interpreted by the framework. FrameworkState is opaque execution
+// state owned exclusively by the Agent runtime. Prompt and ResumeSchema are
+// host-facing protocol values.
 type Suspension struct {
-	SchemaVersion uint16          `json:"schema_version"`
-	ID            string          `json:"id"`
-	Kind          SuspensionKind  `json:"kind"`
-	Prompt        json.RawMessage `json:"prompt"`
-	ResumeSchema  json.RawMessage `json:"resume_schema"`
-	Payload       json.RawMessage `json:"payload,omitempty"`
-	Response      json.RawMessage `json:"response,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
-	RespondedAt   time.Time       `json:"responded_at,omitzero"`
+	SchemaVersion  uint16          `json:"schema_version"`
+	ID             string          `json:"id"`
+	Kind           SuspensionKind  `json:"kind"`
+	Prompt         json.RawMessage `json:"prompt"`
+	ResumeSchema   json.RawMessage `json:"resume_schema"`
+	Payload        json.RawMessage `json:"payload,omitempty"`
+	FrameworkState json.RawMessage `json:"framework_state,omitempty"`
+	Response       json.RawMessage `json:"response,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	RespondedAt    time.Time       `json:"responded_at,omitzero"`
 }
 
 func (s Suspension) Validate() error {
@@ -68,6 +71,9 @@ func (s Suspension) Validate() error {
 	}
 	if len(s.Payload) > 0 && !validJSON(s.Payload) {
 		return fmt.Errorf("%w: payload must be valid JSON", ErrInvalidSuspension)
+	}
+	if len(s.FrameworkState) > 0 && !validJSON(s.FrameworkState) {
+		return fmt.Errorf("%w: framework_state must be valid JSON", ErrInvalidSuspension)
 	}
 	if len(s.Response) == 0 {
 		if !s.RespondedAt.IsZero() {
@@ -97,6 +103,7 @@ func (s Suspension) Clone() *Suspension {
 	cloned.Prompt = bytes.Clone(s.Prompt)
 	cloned.ResumeSchema = bytes.Clone(s.ResumeSchema)
 	cloned.Payload = bytes.Clone(s.Payload)
+	cloned.FrameworkState = bytes.Clone(s.FrameworkState)
 	cloned.Response = bytes.Clone(s.Response)
 	return &cloned
 }
@@ -153,21 +160,7 @@ func (s Suspension) ValidateResponse(response any) (json.RawMessage, error) {
 	return canonical, nil
 }
 
-// SameResponse reports semantic JSON equality, independent of object key order
-// and insignificant whitespace.
-func (s Suspension) SameResponse(response any) bool {
-	if !s.Responded() {
-		return false
-	}
-	want, _, err := canonicalJSON(s.Response)
-	if err != nil {
-		return false
-	}
-	got, _, err := canonicalJSON(response)
-	return err == nil && bytes.Equal(want, got)
-}
-
-// SuspendedError transports only durable suspension data across action and
+// SuspendedError transports only snapshot-compatible suspension data across action and
 // tool boundaries. It contains no callback, handler, or executable state.
 type SuspendedError struct {
 	Suspension Suspension

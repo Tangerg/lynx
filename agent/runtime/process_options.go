@@ -14,11 +14,11 @@ import (
 // Blackboard and Dependencies are prepared into dedicated Process fields and
 // therefore do not appear here.
 type processOptions struct {
-	childOptions core.ChildOptionsFunc
-	budget       core.Budget
-	session      *core.Session
-	extensions   []extensionEntry
-	guardrails   *core.ChatGuardrails
+	childOptions   core.ChildOptionsFunc
+	budget         core.Budget
+	extensions     []extensionEntry
+	chatMiddleware *core.ChatMiddleware
+	maxToolRounds  int
 }
 
 // snapshotProcessOptions validates the external composition boundary and
@@ -33,49 +33,32 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 	if err != nil {
 		return processOptions{}, err
 	}
-	guardrails, err := snapshotChatGuardrails("ProcessOptions.Guardrails", options.Guardrails)
-	if err != nil {
-		return processOptions{}, err
+	chatMiddleware := cloneChatMiddleware(options.ChatMiddleware)
+	if options.MaxToolRounds < 0 {
+		return processOptions{}, errors.New("ProcessOptions.MaxToolRounds must not be negative")
 	}
 	budget := options.Budget
-	if budget == (core.Budget{}) {
-		budget = core.DefaultBudget()
-	}
 	if err := budget.Validate(); err != nil {
 		return processOptions{}, fmt.Errorf("ProcessOptions.Budget: %w", err)
 	}
 
-	var session *core.Session
-	if options.Session != nil {
-		sessionSnapshot := *options.Session
-		// ProcessContext exposes only SessionInfo. Opaque host metadata belongs
-		// to SessionStore and must not become mutable execution-aggregate state.
-		sessionSnapshot.Metadata = core.SessionMetadata{}
-		session = &sessionSnapshot
-	}
-
 	return processOptions{
-		childOptions: options.ChildOptions,
-		budget:       budget,
-		session:      session,
-		extensions:   extensions,
-		guardrails:   guardrails,
+		childOptions:   options.ChildOptions,
+		budget:         budget,
+		extensions:     extensions,
+		chatMiddleware: chatMiddleware,
+		maxToolRounds:  options.MaxToolRounds,
 	}, nil
 }
 
-// snapshotChatGuardrails validates and detaches the mutable config containers.
-// label identifies the public boundary in the returned error.
-func snapshotChatGuardrails(label string, guardrails *core.ChatGuardrails) (*core.ChatGuardrails, error) {
-	if guardrails == nil {
-		return nil, nil
+func cloneChatMiddleware(middleware *core.ChatMiddleware) *core.ChatMiddleware {
+	if middleware == nil {
+		return nil
 	}
-	if guardrails.MaxToolRounds < 0 {
-		return nil, fmt.Errorf("%s.MaxToolRounds must not be negative", label)
-	}
-	snapshot := *guardrails
-	snapshot.CallMiddlewares = slices.Clone(guardrails.CallMiddlewares)
-	snapshot.StreamMiddlewares = slices.Clone(guardrails.StreamMiddlewares)
-	return &snapshot, nil
+	snapshot := *middleware
+	snapshot.CallMiddlewares = slices.Clone(middleware.CallMiddlewares)
+	snapshot.StreamMiddlewares = slices.Clone(middleware.StreamMiddlewares)
+	return &snapshot
 }
 
 // prepareProcessDependencies closes engine composition, validates an optional

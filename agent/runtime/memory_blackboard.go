@@ -23,21 +23,19 @@ const inMemoryBlackboardName = "in-memory-blackboard"
 type inMemoryBlackboard struct {
 	id string
 
-	mu             sync.RWMutex
-	named          core.Bindings
-	transientNamed map[string]struct{}
-	protected      map[string]struct{}
-	objects        []any
-	durableObjects []bool
-	hidden         []any // intentionally a slice — Hide() must accept unhashable values too
-	conditions     map[string]bool
+	mu              sync.RWMutex
+	named           core.Bindings
+	transientNamed  map[string]struct{}
+	objects         []any
+	snapshotObjects []bool
+	hidden          []any // intentionally a slice — Hide() must accept unhashable values too
+	conditions      map[string]bool
 }
 
 func newInMemoryBlackboard() *inMemoryBlackboard {
 	return &inMemoryBlackboard{
 		id:             uuid.NewString(),
 		transientNamed: map[string]struct{}{},
-		protected:      map[string]struct{}{},
 		conditions:     map[string]bool{},
 	}
 }
@@ -60,7 +58,7 @@ func (b *inMemoryBlackboard) Store(key string, value any) {
 	b.named.Set(key, value)
 	delete(b.transientNamed, key)
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, true)
+	b.snapshotObjects = append(b.snapshotObjects, true)
 }
 
 func (b *inMemoryBlackboard) StoreTransient(key string, value any) {
@@ -69,7 +67,7 @@ func (b *inMemoryBlackboard) StoreTransient(key string, value any) {
 	b.named.Set(key, value)
 	b.transientNamed[key] = struct{}{}
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, false)
+	b.snapshotObjects = append(b.snapshotObjects, false)
 }
 
 func (b *inMemoryBlackboard) Load(key string) (any, bool) {
@@ -85,14 +83,14 @@ func (b *inMemoryBlackboard) Add(value any) {
 	defer b.mu.Unlock()
 
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, true)
+	b.snapshotObjects = append(b.snapshotObjects, true)
 }
 
 func (b *inMemoryBlackboard) AddTransient(value any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, false)
+	b.snapshotObjects = append(b.snapshotObjects, false)
 }
 
 func (b *inMemoryBlackboard) Objects() []any {
@@ -116,7 +114,7 @@ func (b *inMemoryBlackboard) Bind(value any) {
 		delete(b.transientNamed, derivedKey)
 	}
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, true)
+	b.snapshotObjects = append(b.snapshotObjects, true)
 }
 
 func (b *inMemoryBlackboard) BindTransient(value any) {
@@ -129,7 +127,7 @@ func (b *inMemoryBlackboard) BindTransient(value any) {
 		b.transientNamed[derivedKey] = struct{}{}
 	}
 	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, false)
+	b.snapshotObjects = append(b.snapshotObjects, false)
 }
 
 func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) {
@@ -140,21 +138,8 @@ func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) {
 		b.named.Set(key, value)
 		delete(b.transientNamed, key)
 		b.objects = append(b.objects, value)
-		b.durableObjects = append(b.durableObjects, true)
+		b.snapshotObjects = append(b.snapshotObjects, true)
 	}
-}
-
-// StoreProtected stores the value AND records the key as protected so a
-// subsequent Clone() carries it onto the child blackboard.
-func (b *inMemoryBlackboard) StoreProtected(key string, value any) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.named.Set(key, value)
-	delete(b.transientNamed, key)
-	b.protected[key] = struct{}{}
-	b.objects = append(b.objects, value)
-	b.durableObjects = append(b.durableObjects, true)
 }
 
 func (b *inMemoryBlackboard) Hide(target any) {
@@ -184,8 +169,8 @@ func (b *inMemoryBlackboard) Inspect(verbose bool) string {
 }
 
 // Clone produces a child blackboard inheriting the parent's full state: named
-// keys, protected entries, conditions, the objects list, and the hidden
-// markers. Visibility is part of the inherited state for live child processes.
+// keys, conditions, the objects list, and the hidden markers. Visibility is
+// part of the inherited state for live child processes.
 func (b *inMemoryBlackboard) Clone() core.Blackboard {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -193,30 +178,22 @@ func (b *inMemoryBlackboard) Clone() core.Blackboard {
 	child := newInMemoryBlackboard()
 	child.named = b.named.Clone()
 	maps.Copy(child.transientNamed, b.transientNamed)
-	maps.Copy(child.protected, b.protected)
 	maps.Copy(child.conditions, b.conditions)
 	child.objects = append(child.objects, b.objects...)
-	child.durableObjects = append(child.durableObjects, b.durableObjects...)
+	child.snapshotObjects = append(child.snapshotObjects, b.snapshotObjects...)
 	child.hidden = append(child.hidden, b.hidden...)
 	return child
 }
 
-// ClearWorkingState removes ordinary state while preserving protected entries.
+// ClearWorkingState removes all planner/action working state.
 func (b *inMemoryBlackboard) ClearWorkingState() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	var preserved core.Bindings
-	for key := range b.protected {
-		if value, ok := b.named.Get(key); ok {
-			preserved.Set(key, value)
-		}
-	}
-
-	b.named = preserved
+	b.named = core.Bindings{}
 	clear(b.transientNamed)
 	b.objects = b.objects[:0]
-	b.durableObjects = b.durableObjects[:0]
+	b.snapshotObjects = b.snapshotObjects[:0]
 	b.hidden = b.hidden[:0]
 	clear(b.conditions)
 }

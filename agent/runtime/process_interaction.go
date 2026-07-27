@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -42,13 +43,12 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		return interaction.Result{}, err
 	}
 
-	modelStarted := map[int]time.Time{}
 	for boundary, runErr := range sequence {
 		if runErr != nil {
 			return interaction.Result{}, runErr
 		}
 		if boundary.Kind == toolloop.EventModelRequest {
-			frameworkEvent := projectInteractionEvent(boundary, nil)
+			frameworkEvent := projectInteractionEvent(boundary, nil, 0)
 			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
 				return interaction.Result{}, err
 			}
@@ -58,13 +58,14 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			if stop := p.interactionStopReason(boundary.Round, input.Limits); stop != interaction.StopNone {
 				return interaction.Result{StopReason: stop}, nil
 			}
-			modelStarted[boundary.Round] = time.Now()
 			continue
 		}
 
+		var recordedUsage core.Usage
 		switch boundary.Kind {
 		case toolloop.EventModelResponse:
-			if err := p.recordInteractionUsage(ctx, actionName, boundary.Response, time.Since(modelStarted[boundary.Round]), input.Attribute); err != nil {
+			recordedUsage, err = p.recordInteractionUsage(ctx, boundary.Response, input.Cost)
+			if err != nil {
 				return interaction.Result{}, fmt.Errorf("runtime: record interaction usage: %w", err)
 			}
 		case toolloop.EventToolResult:
@@ -78,7 +79,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			return interaction.Result{}, p.pauseInteraction(ctx, boundary, owner, input.Observe)
 		}
 
-		frameworkEvent := projectInteractionEvent(boundary, nil)
+		frameworkEvent := projectInteractionEvent(boundary, nil, recordedUsage.Cost)
 		if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, input.Observe); err != nil {
 			return interaction.Result{}, err
 		}
@@ -96,18 +97,19 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 // resolveInteractionSequence starts a fresh tool loop, or resumes the pending
 // one when this process was suspended inside a managed interaction. resuming is
 // true only on the resume path, so the caller can drop the responded suspension
-// once the pending tool result arrives. A suspension whose checkpoint is not a
-// recognized interaction checkpoint starts fresh rather than failing.
+// once the pending tool result arrives. Empty framework state and nested-child
+// state belong to other continuation paths and start a fresh interaction;
+// malformed framework state fails closed.
 func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toolloop.Runner, input core.Interaction, owner string) (iter.Seq2[toolloop.Event, error], bool, error) {
 	suspension := p.Suspension()
 	if suspension == nil {
 		return runner.Run(ctx, input.Request, input.Tools), false, nil
 	}
-	checkpoint, recognized, err := decodeSuspensionCheckpoint(suspension.Payload)
+	checkpoint, err := decodeSuspensionCheckpoint(suspension.FrameworkState)
 	if err != nil {
 		return nil, false, err
 	}
-	if !recognized || checkpoint.Kind != suspensionCheckpointInteraction {
+	if checkpoint == nil || checkpoint.Kind != suspensionCheckpointInteraction {
 		return runner.Run(ctx, input.Request, input.Tools), false, nil
 	}
 	if !suspension.Responded() {
@@ -123,7 +125,7 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 	return runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, resume), true, nil
 }
 
-// pauseInteraction persists the tool-loop checkpoint as a process suspension,
+// pauseInteraction records the tool-loop checkpoint as a process suspension,
 // publishes the pause boundary, and returns the SuspendedError that unwinds the
 // action. It reconciles the tool-loop pause with an active nested-child pause so
 // the two cannot disagree on suspension identity, prompt, or schema.
@@ -140,7 +142,7 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 		!bytes.Equal(activeNested.ResumeSchema, boundary.Pause.ResumeSchema)) {
 		return fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
 	}
-	payload, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
+	frameworkState, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
 		SchemaVersion:  suspensionCheckpointSchemaVersion,
 		Kind:           suspensionCheckpointInteraction,
 		Owner:          owner,
@@ -158,15 +160,15 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 		createdAt = activeNested.SuspensionCreatedAt
 	}
 	suspension := interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            boundary.Pause.ID,
-		Kind:          kind,
-		Prompt:        boundary.Pause.Prompt,
-		ResumeSchema:  boundary.Pause.ResumeSchema,
-		Payload:       payload,
-		CreatedAt:     createdAt,
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             boundary.Pause.ID,
+		Kind:           kind,
+		Prompt:         boundary.Pause.Prompt,
+		ResumeSchema:   boundary.Pause.ResumeSchema,
+		FrameworkState: frameworkState,
+		CreatedAt:      createdAt,
 	}
-	frameworkEvent := projectInteractionEvent(boundary, &suspension)
+	frameworkEvent := projectInteractionEvent(boundary, &suspension, 0)
 	if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent, observe); err != nil {
 		return err
 	}
@@ -213,15 +215,15 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 }
 
 func (p *Process) interactionStopReason(round int, limits interaction.Limits) interaction.StopReason {
-	cost, tokens, _ := p.Usage()
+	usage := p.Usage()
 	processBudget := p.options.budget
-	if (processBudget.TokenLimit > 0 && tokens >= processBudget.TokenLimit) ||
-		(processBudget.CostLimit > 0 && cost >= processBudget.CostLimit) ||
-		(limits.MaxTokens > 0 && int64(tokens) >= limits.MaxTokens) ||
-		(limits.MaxCostUSD > 0 && cost >= limits.MaxCostUSD) {
+	if (processBudget.TokenLimit > 0 && usage.Tokens >= processBudget.TokenLimit) ||
+		(processBudget.CostLimit > 0 && usage.Cost >= processBudget.CostLimit) ||
+		(limits.MaxTokens > 0 && int64(usage.Tokens) >= limits.MaxTokens) ||
+		(limits.MaxCost > 0 && usage.Cost >= limits.MaxCost) {
 		return interaction.StopBudget
 	}
-	if limits.MaxModelCalls > 0 && len(p.ModelCalls()) >= limits.MaxModelCalls {
+	if limits.MaxModelCalls > 0 && usage.ModelCalls >= limits.MaxModelCalls {
 		return interaction.StopSteps
 	}
 	if limits.MaxSteps > 0 && round-1 >= limits.MaxSteps {
@@ -230,40 +232,42 @@ func (p *Process) interactionStopReason(round int, limits interaction.Limits) in
 	return interaction.StopNone
 }
 
-func (p *Process) recordInteractionUsage(ctx context.Context, actionName string, response *chat.Response, duration time.Duration, attributionFunc core.ModelAttributionFunc) error {
+func (p *Process) recordInteractionUsage(ctx context.Context, response *chat.Response, costFunc core.InteractionCostFunc) (core.Usage, error) {
 	if response == nil {
-		return nil
+		return core.Usage{}, nil
 	}
-	usage := response.Usage
-	call := core.ModelCall{
-		Model:            response.Model,
-		PromptTokens:     usage.InputTokens,
-		CompletionTokens: usage.OutputTokens,
-		Duration:         duration,
-		ActionName:       actionName,
+	tokens, err := usageTokenCount(response.Usage.InputTokens, response.Usage.OutputTokens)
+	if err != nil {
+		return core.Usage{}, err
 	}
-	if usage.ReasoningTokens != nil {
-		call.ReasoningTokens = *usage.ReasoningTokens
+	usage := core.Usage{Tokens: tokens, ModelCalls: 1}
+	if costFunc != nil {
+		usage.Cost, err = evaluateInteractionCost(costFunc, response)
+		if err != nil {
+			return core.Usage{}, err
+		}
 	}
-	if usage.CacheReadInputTokens != nil {
-		call.CacheReadInputTokens = *usage.CacheReadInputTokens
+	if err := (processUsage{process: p}).RecordUsage(ctx, usage); err != nil {
+		return core.Usage{}, err
 	}
-	if usage.CacheWriteInputTokens != nil {
-		call.CacheWriteInputTokens = *usage.CacheWriteInputTokens
-	}
-	if attributionFunc != nil {
-		attribution := attributionFunc(response)
-		call.Provider = attribution.Provider
-		call.CostUSD = attribution.CostUSD
-	}
-	return processUsage{process: p}.RecordModelCall(ctx, call)
+	return usage, nil
 }
 
-func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Suspension) interaction.Event {
+func evaluateInteractionCost(costFunc core.InteractionCostFunc, response *chat.Response) (cost float64, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New("runtime: interaction cost function panicked", recovered)
+		}
+	}()
+	return costFunc(response), nil
+}
+
+func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Suspension, cost float64) interaction.Event {
 	event := interaction.Event{
 		Kind:       boundary.Kind,
 		Round:      boundary.Round,
 		Final:      boundary.Final,
+		Cost:       cost,
 		Request:    boundary.Request,
 		Response:   boundary.Response,
 		ToolCall:   boundary.ToolCall,

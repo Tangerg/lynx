@@ -18,8 +18,8 @@ import (
 //
 // The analyzer is working-directory independent — it keys servers by workspace
 // root internally — so these tools are built ONCE and read the turn's cwd off
-// the process blackboard at call time (the per-session-cwd seam shared with
-// fs / shell). Positions are 1-based at the tool boundary (what a human/LLM reads
+// application context at call time (the per-session-cwd seam shared with fs /
+// shell). Positions are 1-based at the tool boundary (what a human/LLM reads
 // off a file); the analyzer converts to the LSP 0-based wire form and folds an
 // unsupported file type into a plain reply.
 func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]tools.Tool, error) {

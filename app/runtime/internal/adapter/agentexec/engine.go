@@ -23,21 +23,24 @@ type Engine struct {
 	runtime      *runtime.Engine
 	agent        *core.Agent
 	dependencies *core.Dependencies
+	processStore ProcessStore
+	buildID      string
 
-	historyStore history.Store
-	knowledge    KnowledgeReader
-	memory       AgentMemoryReader
-	memorySearch MemorySearcher
-	todos        TodoReader
-	workdir      string
-	pricing      accounting.Pricing
+	historyStore   history.Store
+	chatMiddleware *core.ChatMiddleware
+	knowledge      KnowledgeReader
+	memory         AgentMemoryReader
+	memorySearch   MemorySearcher
+	todos          TodoReader
+	workdir        string
+	pricing        accounting.Pricing
 
 	toolResultStore     toolResultOffloader
 	toolResultThreshold int
 
 	defaultProvider        string
 	modelStreamIdleTimeout time.Duration
-	guardrailsBuilder      chatGuardrailsBuilder
+	chatMiddlewareBuilder  chatMiddlewareBuilder
 }
 
 // New constructs an execution engine. It rejects missing required dependencies
@@ -55,6 +58,10 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	if config.HistoryStore == nil {
 		config.HistoryStore = history.NewInMemoryStore()
 	}
+	chatMiddleware, err := newChatMiddleware(config)
+	if err != nil {
+		return nil, err
+	}
 
 	resolver := config.ToolResolver
 	agentRuntime, err := newAgentRuntime(config, resolver)
@@ -69,21 +76,25 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		memory:                 config.AgentMemory,
 		memorySearch:           config.MemorySearch,
 		historyStore:           config.HistoryStore,
+		chatMiddleware:         chatMiddleware,
 		todos:                  config.Todos,
 		workdir:                config.Workdir,
 		pricing:                config.Pricing,
+		processStore:           config.ProcessStore,
+		buildID:                config.BuildID,
 		toolResultStore:        config.ToolResultStore,
 		toolResultThreshold:    config.ToolResultThreshold,
 		defaultProvider:        config.Provider,
 		modelStreamIdleTimeout: llmIdleTimeout,
-		guardrailsBuilder:      newChatGuardrailsWithBeforeRound,
+		chatMiddlewareBuilder:  newChatMiddlewareWithBeforeRound,
 	}
 
 	if resolver != nil {
-		if _, err := agentRuntime.Deploy(ctx, engine.buildSubtaskAgent()); err != nil {
+		taskDeployment, err := agentRuntime.Deploy(ctx, engine.buildSubtaskAgent())
+		if err != nil {
 			return nil, fmt.Errorf("engine: deploy task agent: %w", err)
 		}
-		taskTool, err := runtime.NewAgentTool[taskInput, string](agentRuntime, "task")
+		taskTool, err := runtime.NewAgentTool[taskInput, string](agentRuntime, taskDeployment)
 		if err != nil {
 			return nil, fmt.Errorf("engine: build task tool: %w", err)
 		}

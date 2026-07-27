@@ -76,8 +76,7 @@ func putParkedState(t *testing.T, transcripts *sqlite.TranscriptStore, ints *sql
 	}
 	snapshot := validStoredSnapshot("proc_"+runID, core.StatusWaiting)
 	snapshot.StartedAt = createdAt
-	snapshot.CapturedAt = parkedAt
-	if err := processes.Apply(t.Context(), storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
+	if err := processes.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint(sessionID, storedBuildID, storedUsage())); err != nil {
 		t.Fatalf("put parked process snapshot: %v", err)
 	}
 }
@@ -367,7 +366,7 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 		t.Fatalf("suspend: %v", err)
 	}
 	putParkedState(t, transcripts, ints, processes, "run_park", "ses_park")
-	if err := processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{"proc_run_park"}}); err != nil {
+	if err := processes.DeleteTrees(ctx, []string{"proc_run_park"}); err != nil {
 		t.Fatalf("delete process snapshot: %v", err)
 	}
 
@@ -464,7 +463,10 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	}); err != nil {
 		t.Fatalf("put transcript: %v", err)
 	}
-	if err := processStore.Apply(ctx, storedSnapshotChange("proc_stale", validStoredSnapshot("proc_stale", core.StatusWaiting))); err != nil {
+	if err := processStore.SaveTree(ctx, storedSnapshotTree(
+		"proc_stale",
+		validStoredSnapshot("proc_stale", core.StatusWaiting),
+	), storedCheckpoint("ses_1", storedBuildID, storedUsage())); err != nil {
 		t.Fatalf("put stale process snapshot: %v", err)
 	}
 	if err := interruptStore.Put(ctx, interrupts.Pending{RunID: "run_stale", SessionID: "ses_1", ProcessID: "proc_stale", CreatedAt: time.Unix(0, 0)}); err != nil {
@@ -476,7 +478,7 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	if pending, err := interruptStore.List(ctx, "ses_1"); err != nil || len(pending) != 0 {
 		t.Fatalf("stale interrupts after reconcile = (%+v, %v), want none", pending, err)
 	}
-	if _, err := processStore.Load(ctx, "proc_stale"); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := processStore.LoadTree(ctx, "proc_stale"); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("stale process snapshot after reconcile = %v, want not found", err)
 	}
 }
@@ -606,7 +608,7 @@ func TestReconcileOrphansTerminalizesExecutorIncompatibleSnapshot(t *testing.T) 
 	if _, found, err := ints.Get(ctx, "run_park"); err != nil || found {
 		t.Fatalf("interrupt after incompatible snapshot = found:%v err:%v, want removed", found, err)
 	}
-	if _, err := processes.Load(ctx, "proc_run_park"); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := processes.LoadTree(ctx, "proc_run_park"); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("snapshot after incompatible recovery = %v, want not found", err)
 	}
 	_, runs, err := transcripts.List(ctx, "ses_park")

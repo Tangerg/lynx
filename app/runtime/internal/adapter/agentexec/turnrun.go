@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -24,12 +26,10 @@ type SteerSource func() []chat.Message
 // Observer is non-nil to receive streaming notifications.
 type TurnRequest struct {
 	// SessionID anchors the turn to a chat history conversation. The
-	// runtime stamps it onto each request under the chat conversation-id key,
-	// which the history middleware reads to pull prior history before the
-	// model call and save the new round afterwards. Empty string runs the
-	// turn unattached (the runtime falls back to the process id, so a
-	// single multi-round turn still keeps context, but nothing persists
-	// across turns).
+	// adapter's chat middleware projects it onto root-process model calls, then
+	// loads prior history and saves the new round. Empty runs unattached: the
+	// middleware uses the process ID, so one multi-round turn still keeps
+	// context but nothing is shared across turns.
 	SessionID string
 
 	// Message is the user's input for this turn.
@@ -44,23 +44,18 @@ type TurnRequest struct {
 	// user message as UserMessage.Media. Nil for a text-only turn.
 	Media []*media.Media
 
-	// Cwd is the working directory the turn's filesystem + shell tools run
-	// in — the session's project directory. The chat action binds it onto
-	// the process blackboard (turnctx.CwdBindingKey) as a protected entry so
-	// the tool resolver anchors the tools there, and so `task` sub-agents
-	// inherit it: Blackboard.Clone copies protected entries to children and
-	// the action's ClearWorkingState policy preserves them. Empty falls back to
-	// the engine's default workdir.
+	// Cwd is the working directory the turn's filesystem + shell tools run in.
+	// Runtime carries it in application context across the complete delegation
+	// tree. Empty falls back to the engine's default workdir.
 	Cwd string
 
 	// Isolated marks a turn running in an isolated session: Cwd is a sandbox
-	// copy and the shell must be OS-jailed. The chat action binds it protected
-	// (turnctx.IsolatedBindingKey) so tools and task sub-agents see the isolation.
+	// copy and the shell must be OS-jailed.
 	Isolated bool
 
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation.
-	// The chat action binds it protected (turnctx.GoalLeaseBindingKey) so
-	// update_goal only signals that goal. Empty for ordinary runs.
+	// update_goal uses it to signal only that incarnation. Empty for ordinary
+	// runs.
 	GoalLeaseID string
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
@@ -138,17 +133,28 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	input := turnInput{Message: request.Message, Provider: request.ModelSelection.Provider(), Media: request.Media, Cwd: request.Cwd, Isolated: request.Isolated, GoalLeaseID: request.GoalLeaseID, SessionID: request.SessionID, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
-
-	guardrails, err := e.steeringGuardrails(request.Steer)
-	if err != nil {
-		return nil, fmt.Errorf("engine: build steering guardrails: %w", err)
+	scope := execution.TurnScope{
+		SessionID:   request.SessionID,
+		Cwd:         request.Cwd,
+		Isolated:    request.Isolated,
+		GoalLeaseID: request.GoalLeaseID,
 	}
-	processOptions, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, guardrails)
+	if err := scope.Validate(); err != nil {
+		return nil, fmt.Errorf("engine: start chat: %w", err)
+	}
+	runCtx := turnctx.WithScope(ctx, scope)
+	input := turnInput{Message: request.Message, Provider: request.ModelSelection.Provider(), Media: request.Media, MaxBudget: request.MaxBudget, MaxCostUSD: request.MaxCostUSD, MaxSteps: request.MaxSteps, Options: request.Options}
+	usage := emptyUsageLedger()
+
+	middleware, err := e.steeringChatMiddleware(request.Steer)
+	if err != nil {
+		return nil, fmt.Errorf("engine: build steering chat middleware: %w", err)
+	}
+	processOptions, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, middleware, usage)
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
-	segment, err := e.runtime.Start(ctx, e.agent,
+	segment, err := e.runtime.Start(runCtx, e.agent,
 		core.Input(input),
 		processOptions,
 	)
@@ -158,34 +164,60 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if segment == nil || segment.Process() == nil {
 		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
 	}
-	return &turnProcess{process: segment.Process(), segment: segment, engine: e.runtime, runCtx: ctx}, nil
+	return &turnProcess{
+		process: segment.Process(),
+		segment: segment,
+		owner:   e,
+		scope:   scope,
+		runCtx:  runCtx,
+		usage:   usage,
+	}, nil
 }
 
-// turnProcessOptions assembles per-process wiring: the chat history Session
-// binding, the observer decorator, lifecycle listener, and per-run model
-// client. Shared chat guardrails are built once in [New] and can be overridden
-// per turn when mid-run steering is enabled. The runtime stamps each request's
-// conversation id from this Session, so one shared history chain can still
-// serve both this turn and spawned subtasks unless explicitly overridden.
-func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, guardrails *core.ChatGuardrails) (core.ProcessOptions, error) {
+// turnProcessOptions assembles per-process wiring: app-owned chat-history
+// scoping, the observer decorator, lifecycle listener, and per-run model
+// client. Shared chat middleware is built once in [New] and can be replaced
+// per turn when mid-run steering is enabled.
+func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, listener core.Extension, client *chatclient.Client, middleware *core.ChatMiddleware, usage *usageLedger) (core.ProcessOptions, error) {
 	dependencies := e.dependencies
-	options := core.ProcessOptions{}
-	if dependencies != nil {
-		options.ChildOptions = childOptions(dependencies, client, observer, e.toolResultStore, e.toolResultThreshold)
+	if dependencies == nil {
+		return core.ProcessOptions{}, errors.New("agentexec: engine dependencies are required")
 	}
-	if sessionID != "" {
-		options.Session = &core.Session{ID: sessionID}
+	if usage == nil {
+		return core.ProcessOptions{}, errors.New("agentexec: usage ledger is required")
 	}
+	scope := dependencies.Child()
+	if err := core.RegisterDependency(scope, usageLedgerKey, usage); err != nil {
+		return core.ProcessOptions{}, fmt.Errorf("agentexec: register usage ledger: %w", err)
+	}
+	options := core.ProcessOptions{Dependencies: scope}
+	baseMiddleware := e.chatMiddleware
+	if middleware != nil {
+		baseMiddleware = middleware
+	}
+	scopedMiddleware, err := scopeHistory(baseMiddleware, sessionID)
+	if err != nil {
+		return core.ProcessOptions{}, err
+	}
+	childMiddleware, err := scopeHistory(e.chatMiddleware, sessionID)
+	if err != nil {
+		return core.ProcessOptions{}, err
+	}
+	options.ChatMiddleware = scopedMiddleware
+	options.ChildOptions = childOptions(
+		dependencies,
+		client,
+		observer,
+		e.toolResultStore,
+		e.toolResultThreshold,
+		childMiddleware,
+		usage,
+	)
 	if observer != nil {
-		if dependencies == nil {
-			return core.ProcessOptions{}, errors.New("agentexec: dependencies are required when a tool observer is configured")
-		}
 		observation := newToolObservation(observer, e.toolResultStore, e.toolResultThreshold)
-		scope := dependencies.Child()
 		if err := core.RegisterDependency(scope, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observation dependency: %w", err)
 		}
-		options.Dependencies = scope
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
 	}
 	if listener != nil {
@@ -194,21 +226,18 @@ func (e *Engine) turnProcessOptions(sessionID string, observer toolObserver, lis
 	if client != nil {
 		options.Extensions = append(options.Extensions, perRunChatClient{client: client})
 	}
-	if guardrails != nil {
-		options.Guardrails = guardrails
-	}
 	return options, nil
 }
 
-func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, error) {
+func (e *Engine) steeringChatMiddleware(steer SteerSource) (*core.ChatMiddleware, error) {
 	if steer == nil {
 		return nil, nil
 	}
-	if e.guardrailsBuilder == nil {
-		return nil, errors.New("engine: steering guardrails builder is nil")
+	if e.chatMiddlewareBuilder == nil {
+		return nil, errors.New("engine: steering chat middleware builder is nil")
 	}
 
-	guardrails, err := e.guardrailsBuilder(
+	middleware, err := e.chatMiddlewareBuilder(
 		e.historyStore,
 		func(_ context.Context) []chat.Message {
 			return steer()
@@ -217,7 +246,7 @@ func (e *Engine) steeringGuardrails(steer SteerSource) (*core.ChatGuardrails, er
 	if err != nil {
 		return nil, err
 	}
-	return guardrails, nil
+	return middleware, nil
 }
 
 // perRunChatClient is a [core.ChatProvider] carrying one resolved
@@ -229,14 +258,12 @@ func (p perRunChatClient) Chat(core.ProcessView) core.ChatCapability {
 	return core.ChatCapability{Model: p.client, Streamer: p.client}
 }
 
-// RestoreTurnRequest carries the per-process wiring to re-attach to a
-// turn rebuilt from a snapshot — the same Observer + Session a fresh turn
-// gets from [Engine.StartTurn], so the resumed continuation streams and
-// keys chat history to the right conversation.
+// RestoreTurnRequest carries the live collaborators to re-attach to a turn
+// rebuilt from a checkpoint. Durable host scope comes from that checkpoint.
 type RestoreTurnRequest struct {
-	// SessionID rebinds the restored process to its chat history
-	// conversation (so the continuation's LLM round loads + saves the
-	// right history). Empty runs unattached.
+	// SessionID is the expected owner supplied by the application Run. It must
+	// exactly match the checkpoint (including the empty unattached scope), so a
+	// continuation can never cross product-session boundaries.
 	SessionID string
 
 	// Observer receives the continuation's streaming tool-call + text
@@ -263,26 +290,85 @@ type RestoreTurnRequest struct {
 // Errors when no ProcessStore is configured, the snapshot is missing, the
 // agent is not deployed under the snapshot's name, or the re-tick fails.
 func (e *Engine) RestoreTurn(ctx context.Context, processID string, request RestoreTurnRequest) (TurnProcess, error) {
+	if request.Observer != nil && toolObserverIsNil(request.Observer) {
+		return nil, fmt.Errorf("engine: configure restored chat process: observer: %w", core.ErrNilDependency)
+	}
 	// The restored continuation runs against request.ChatClient — the per-run model
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
-	options, err := e.turnProcessOptions(request.SessionID, request.Observer, request.EventListener, request.ChatClient, nil)
-	if err != nil {
-		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
-	}
 	if e.runtime == nil {
 		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}
-	process, err := e.runtime.RestoreResumable(ctx, processID, options)
+	if e.processStore == nil {
+		return nil, errors.New("engine: restore chat: ProcessStore is required")
+	}
+	tree, checkpoint, err := e.processStore.LoadTree(ctx, processID)
 	if err != nil {
-		if errors.Is(err, agentruntime.ErrResumableSnapshotLost) {
+		if isProcessSnapshotLoss(err) {
 			return nil, processSnapshotLost("restore", err)
 		}
-		return nil, fmt.Errorf("engine: restore chat: %w", err)
+		return nil, fmt.Errorf("engine: load process tree: %w", err)
+	}
+	if err := checkpoint.Validate(); err != nil {
+		return nil, processSnapshotLost("restore metadata", err)
+	}
+	if checkpoint.BuildID != e.buildID {
+		return nil, processSnapshotLost(
+			"restore",
+			fmt.Errorf("checkpoint build %q does not match runtime build %q", checkpoint.BuildID, e.buildID),
+		)
+	}
+	if request.SessionID != checkpoint.Scope.SessionID {
+		return nil, processSnapshotLost(
+			"restore",
+			fmt.Errorf("checkpoint session %q does not match run session %q", checkpoint.Scope.SessionID, request.SessionID),
+		)
+	}
+	if err := validateCheckpointUsage(tree, checkpoint.Usage); err != nil {
+		return nil, processSnapshotLost("restore usage", err)
+	}
+	usage, err := newUsageLedger(checkpoint.Usage)
+	if err != nil {
+		return nil, processSnapshotLost("restore usage", err)
+	}
+	options, err := e.turnProcessOptions(checkpoint.Scope.SessionID, request.Observer, request.EventListener, request.ChatClient, nil, usage)
+	if err != nil {
+		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
+	}
+	root, ok := processTreeRoot(tree)
+	if !ok {
+		return nil, processSnapshotLost("restore", core.ErrInvalidSnapshot)
+	}
+	if err := agentruntime.ValidateResumableSnapshot(root); err != nil {
+		return nil, processSnapshotLost("restore", err)
+	}
+	runCtx := turnctx.WithScope(ctx, checkpoint.Scope)
+	process, err := e.runtime.RestoreTree(runCtx, tree, options)
+	if err != nil {
+		if isProcessSnapshotLoss(err) {
+			return nil, processSnapshotLost("restore", err)
+		}
+		return nil, fmt.Errorf("engine: restore process tree: %w", err)
 	}
 	if process == nil {
 		return nil, errors.New("engine: restore chat: agent runtime returned nil process without an error")
 	}
-	return &turnProcess{process: process, engine: e.runtime, runCtx: ctx}, nil
+	return &turnProcess{process: process, owner: e, scope: checkpoint.Scope, runCtx: runCtx, usage: usage}, nil
+}
+
+func processTreeRoot(tree core.ProcessSnapshotTree) (core.ProcessSnapshot, bool) {
+	for _, snapshot := range tree.Snapshots {
+		if snapshot.ID == tree.RootID {
+			return snapshot, true
+		}
+	}
+	return core.ProcessSnapshot{}, false
+}
+
+func isProcessSnapshotLoss(err error) bool {
+	return errors.Is(err, execution.ErrProcessSnapshotNotFound) ||
+		errors.Is(err, core.ErrSnapshotSchema) ||
+		errors.Is(err, core.ErrInvalidSnapshot) ||
+		errors.Is(err, agentruntime.ErrDeploymentNotFound)
 }

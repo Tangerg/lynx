@@ -24,20 +24,15 @@ const (
 // buildProcessContext assembles the action-scoped capabilities exposed to one
 // execution. A fresh value keeps tool requirements and interaction state from
 // leaking between actions.
-func (p *Process) buildProcessContext(actionToolGroups []core.ToolGroupRequirement, action core.Action) *core.ProcessContext {
-	maxToolRounds := 0
-	if guardrails := p.effectiveGuardrails(); guardrails != nil {
-		maxToolRounds = guardrails.MaxToolRounds
-	}
+func (p *Process) buildProcessContext(actionToolGroups []string, action core.Action) *core.ProcessContext {
 	config := core.ProcessContextConfig{
 		Process:       p,
 		Control:       processControl{process: p},
 		Usage:         processUsage{process: p},
 		Blackboard:    p.blackboard,
-		Session:       p.options.session,
 		Dependencies:  p.dependencies.Child(),
 		Chat:          p.effectiveChat,
-		MaxToolRounds: maxToolRounds,
+		MaxToolRounds: p.effectiveMaxToolRounds(),
 		ActionTools:   p.toolResolverFor(action),
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
 			return p.runInteraction(ctx, action.Metadata().Name, input)

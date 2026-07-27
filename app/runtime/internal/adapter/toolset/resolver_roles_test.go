@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -55,7 +54,7 @@ func TestSubtaskRoleCanAskAndExitPlanWithoutDelegating(t *testing.T) {
 		}
 	})
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleSubtask})
+	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleSubtask)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(subtask) = %v, %v", ok, err)
 	}
@@ -86,7 +85,7 @@ func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing
 		}
 		closeBuiltToolset(t, built)
 
-		group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+		group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 		if err != nil || !ok {
 			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 		}
@@ -114,7 +113,7 @@ func TestToolGroupDistinguishesUnavailableCodebaseFromResolverFailure(t *testing
 		}
 		closeBuiltToolset(t, built)
 
-		group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+		group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 		if err != nil || !ok {
 			t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 		}
@@ -135,7 +134,7 @@ func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

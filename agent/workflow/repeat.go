@@ -24,11 +24,11 @@ type repeatWorkflowConfig[In, Out, State any] struct {
 	run          func(context.Context, *core.ProcessContext, In, State) (Out, error)
 	stop         func(context.Context, In, State) bool
 
-	durableState []core.Binding
+	snapshotState []core.Binding
 }
 
 // compileRepeatWorkflow compiles the repeated-action lifecycle once: retain
-// the original input, restore or initialize durable iteration state, execute
+// the original input, restore or initialize snapshot iteration state, execute
 // one iteration, and expose a computed terminal condition to the planner.
 func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, Out, State]) *core.Agent {
 	inputState := core.NewBinding[loopInput[In]](config.name + inputStateSuffix)
@@ -73,16 +73,16 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 		},
 	)
 
-	durableState := make([]core.Binding, 0, 2+len(config.durableState))
-	durableState = append(durableState, config.stateBinding, inputState)
-	durableState = append(durableState, config.durableState...)
+	snapshotState := make([]core.Binding, 0, 2+len(config.snapshotState))
+	snapshotState = append(snapshotState, config.stateBinding, inputState)
+	snapshotState = append(snapshotState, config.snapshotState...)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:         config.name,
-		Description:  config.description,
-		Actions:      []core.Action{action},
-		Conditions:   []core.Condition{doneCondition},
-		DurableState: durableState,
+		Name:          config.name,
+		Description:   config.description,
+		Actions:       []core.Action{action},
+		Conditions:    []core.Condition{doneCondition},
+		SnapshotState: snapshotState,
 		Goals: []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{
 			Name:          config.name,
 			Description:   config.goalDescription,

@@ -9,24 +9,27 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-type conversationContextKey struct{}
+type requestContextKey struct{}
 
-func TestProcessChatProjectsConversationThroughHostBinder(t *testing.T) {
-	const conversationID = "conversation-1"
-	binder := func(ctx context.Context, id string) context.Context {
-		return context.WithValue(ctx, conversationContextKey{}, id)
+func TestProcessChatAppliesConfiguredCallMiddleware(t *testing.T) {
+	const requestScope = "request-1"
+	middleware := func(next chat.Model) chat.Model {
+		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+			return next.Call(context.WithValue(ctx, requestContextKey{}, requestScope), request)
+		})
 	}
 	model := chat.ModelFunc(func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
-		if got, _ := ctx.Value(conversationContextKey{}).(string); got != conversationID {
-			return nil, errors.New("model call did not receive the conversation identity")
+		if got, _ := ctx.Value(requestContextKey{}).(string); got != requestScope {
+			return nil, errors.New("model call did not receive middleware context")
 		}
 		message := chat.NewAssistantMessage(chat.NewTextPart("answer"))
 		return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 	})
 	process := &Process{
-		id:      conversationID,
-		engine:  &Engine{bindConversation: binder},
-		options: &processOptions{guardrails: &core.ChatGuardrails{MaxToolRounds: 3}},
+		id: requestScope,
+		options: &processOptions{chatMiddleware: &core.ChatMiddleware{
+			CallMiddlewares: []chat.CallMiddleware{middleware},
+		}, maxToolRounds: 3},
 	}
 
 	scoped, err := process.scopeChat(core.ChatCapability{Model: model})
@@ -42,15 +45,35 @@ func TestProcessChatProjectsConversationThroughHostBinder(t *testing.T) {
 	}
 }
 
-func TestProcessChatRejectsNilBoundContext(t *testing.T) {
-	process := &Process{
-		id:      "conversation-1",
-		engine:  &Engine{bindConversation: func(context.Context, string) context.Context { return nil }},
-		options: &processOptions{},
+func TestProcessChatComposesProcessMiddlewareOutsideEngineMiddleware(t *testing.T) {
+	type key struct{}
+	bind := func(next chat.Model) chat.Model {
+		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+			return next.Call(context.WithValue(ctx, key{}, "bound"), request)
+		})
 	}
-	scoped, err := process.scopeChat(core.ChatCapability{Model: chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
-		return nil, nil
-	})})
+	requireBound := func(next chat.Model) chat.Model {
+		return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+			if ctx.Value(key{}) != "bound" {
+				return nil, errors.New("engine middleware ran before process context binding")
+			}
+			return next.Call(ctx, request)
+		})
+	}
+	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		message := chat.NewAssistantMessage(chat.NewTextPart("answer"))
+		return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	})
+	process := &Process{
+		engine: &Engine{chatMiddleware: &core.ChatMiddleware{
+			CallMiddlewares: []chat.CallMiddleware{requireBound},
+		}},
+		options: &processOptions{chatMiddleware: &core.ChatMiddleware{
+			CallMiddlewares: []chat.CallMiddleware{bind},
+		}},
+	}
+
+	scoped, err := process.scopeChat(core.ChatCapability{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,7 +81,7 @@ func TestProcessChatRejectsNilBoundContext(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := scoped.Model.Call(t.Context(), request); err == nil {
-		t.Fatal("nil bound context was accepted")
+	if _, err := scoped.Model.Call(t.Context(), request); err != nil {
+		t.Fatal(err)
 	}
 }

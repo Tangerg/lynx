@@ -1,7 +1,7 @@
 // Package memorysearch provides the memory_search tool — keyword + semantic
 // search over the agent's own curated memory for the current project. One tool,
 // one package. It is working-directory scoped (it searches the turn's project,
-// read from the blackboard) but cwd-independent to build, so a single instance
+// read from application context) but cwd-independent to build, so a single instance
 // serves every session. It is offered whenever agent memory is enabled; keyword
 // search works even when no embedding model is configured.
 package memorysearch

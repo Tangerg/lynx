@@ -58,7 +58,9 @@
 - Embabel 的 ToolLoop 现在是公开、框架无关的 SPI,不能再描述成完全埋在 `LlmOperations` 内部。
 - lynx `utility.GoalFirst` 与 Embabel `HybridUtilityPlanner` 的核心语义已经对应:先检查业务目标是否完成,未完成时选择高效用 action。双方的 `Supervisor` 仍不是同一层概念:Embabel 是 planner 路径,lynx 是 workflow 编译器。
 - lynx 已删除框架级 Action retry 及 `RetrySafety` 元数据;旧的“lynx retry safety 更强”应改为“lynx 不替未知副作用做重放”。
-- lynx 已增加 `PromoteTools`、`interaction.StreamCall`、版本化 ToolLoop checkpoint、原子进程树持久化、root/child session ownership 与同 session FIFO;旧对比不能再把这些列为缺口。
+- lynx 已增加 `PromoteTools`、`interaction.StreamCall`、版本化 ToolLoop checkpoint；进程树持久化、
+  产品 Session ownership 与同 Session admission 属于 `app/runtime`，不再由 Agent Framework
+  冒充应用协调层。
 
 ---
 
@@ -75,7 +77,7 @@
 | `embabel-agent-rag`(pipeline + `ToolishRag`) | **独立 `rag` 模块**(不在 agent) | RAG 是 agent 消费的能力,不焊进 runtime |
 | `embabel-agent-autoconfigure`(Spring Boot 自动装配) | **无对应 —— 显式装配** | Engine 由组合根显式构造,见 §8 |
 | `embabel-agent-shell`(Spring Shell) | app 层(lyra runtime / desktop) | agent 只是执行内核,不含 shell |
-| `AgentProcessRepository` / `ProcessOptions.contextId` | `agent/core` `ProcessStore`/`SessionStore` + snapshot codec | 见 §9 |
+| `AgentProcessRepository` / `ProcessOptions.contextId` | Agent 的 portable `ProcessSnapshotTree` + Host 自定义 store；产品 context/history 分区由 Host chat middleware 投影 | 见 §9 |
 | `@Agent`/`@Action`/`@Condition`/`@AchievesGoal` 注解 | `NewAgent`/`NewAction[In,Out]`/`NewCondition`/`NewOutputGoal[T]` 构造器 + 泛型 | 见 §3 |
 
 ---
@@ -198,7 +200,7 @@ interface Blackboard : Bindable, MayHaveLastResult {
 ```go
 // agent/core
 type BlackboardReader interface { ID() string; Load(key)(any,bool); Lookup(var,typeName)(any,bool); HasValue(...); Objects()[]any; Condition(key)(bool,bool); Inspect(verbose) string }
-type BlackboardWriter interface { Store; StoreTransient; Add; AddTransient; Bind; BindTransient; StoreProtected; Hide; StoreCondition; ... }
+type BlackboardWriter interface { Store; StoreTransient; Add; AddTransient; Bind; BindTransient; Hide; StoreCondition; ... }
 type Blackboard interface { Extension; BlackboardReader; BlackboardWriter; Clone() Blackboard; ClearWorkingState() }
 func Get[T any](bb BlackboardReader, name string) (T, bool)   // 顶层泛型(Go 方法不能带类型参数)
 ```
@@ -206,10 +208,10 @@ func Get[T any](bb BlackboardReader, name string) (T, bool)   // 顶层泛型(Go
 **取舍与理由**:
 
 - **reader/writer 分离是结构性 ISP**。`ConditionEnv.Blackboard` 只给 `BlackboardReader` —— 编译器保证 condition 在 OBSERVE 阶段**不能 mutate** 状态。Embabel 的 condition 拿到的是完整 `Blackboard`,约束靠约定。
-- **transient 变体(`StoreTransient`/`BindTransient`/`AddTransient`)**:参与实时 lookup 但**排除出持久 snapshot**——给 handle/client/channel 等运行时状态用。Embabel 无此区分(它靠 `AgentProcessRepository` 整体持久化)。这是 lynx durable resume 的基础(见 §9)。
+- **transient 变体(`StoreTransient`/`BindTransient`/`AddTransient`)**:参与实时 lookup 但**排除出 process snapshot**——给 handle/client/channel 等运行时状态用。Embabel 无此区分(它靠 `AgentProcessRepository` 整体持久化)。这是 lynx continuation snapshot 的基础(见 §9)。
 - **无 SpEL / 无表达式语言**。Embabel 用 SpEL(`LogicalExpressionParser`)做逻辑条件求值。lynx 的 condition 是 **Go 函数**(`ConditionFunc`)或 `PromptCondition`(LLM 驱动)—— 不引入嵌入式表达式语言(KISS + 无隐藏求值面)。逻辑组合是 `And/Or/Not` composite condition,纯 Go。
 - **Blackboard 是 Extension + prototype 模式**:注册一个,运行时用 `Clone()` 给每个进程一份隔离实例。Embabel 用 `spawn()`。语义近似,但 lynx 用 Extension 注册统一入口。
-- **`StoreProtected` 存活 `ClearWorkingState()`**,对应 Embabel `bindProtected`——收敛。
+- **`ClearWorkingState()` 清空全部 planner/action 工作状态**。宿主的 session、cwd、isolation、lease 等请求上下文通过 Go `context.Context` 传播，不借 Blackboard 偷渡，也不进入 Agent snapshot。Embabel 的 `bindProtected` 在 lynx 中没有对应能力。
 
 ---
 
@@ -251,14 +253,18 @@ internal interface LlmOperations { createObject/generate/doTransform(messages, L
 // agent/runtime —— 行为插件机制是 core.Extension 注册表
 // 一个泛型 collector 在 dispatch 时按接口类型断言收集:event listener、action/tool middleware、
 // AgentValidator、GoalApprover、tool-group resolver、id generator、blackboard prototype、planner …
-// per-process Extension 与 engine-scope 合并;稳定依赖(chat/ProcessStore/root+child SessionStore/snapshot policy)是 Config 字段,不进注册表
+// per-process Extension 与 engine-scope 合并;稳定执行配置(chat/guardrails/
+// conversation projection/child depth)是 Config 字段,不进注册表
 ```
 
 **取舍与理由**(这是**根本结构差异**):
 
 - **agent 是可嵌入 framework,不是需要容器的应用**。Embabel 的默认完整使用路径采用 Spring 容器、组件扫描、Boot 自动装配与 Environment 机制。lynx agent 由组合根显式 `New(Config)` 构造,能被 lyra 后端当库嵌进去跑一次 chat turn。要得到一个不依赖容器生命周期的完整 runtime,Go 移植必须重新设计而非逐类翻译 —— lynx 就重新设计了。
 - **类型分发,不是 string-key 注册**(模块反向不变量:❌ 用 string-key 注册 Extension)。加能力 = 实现某个 Extension 子接口并注册,运行时按类型断言自动收集 —— 不改任何 dispatch loop(OCP)。Embabel 靠 Spring bean 类型 + `@ConditionalOnMissingBean`,lynx 靠 Go 接口类型断言 + 显式注册。
-- **稳定依赖显式,不藏进注册表**:`chat`、`ProcessStore`、root/child `SessionStore`、snapshot policy 是 `Config` 的具名字段。root multi-turn 与 delegated child 是两个生命周期；同一后端可以显式承担两者，但只懂 subtask lineage 的 adapter 不能冒充 root store。Embabel 把一切(含 repository、ranker、eventListener)都走 `@Bean` + 构造注入。lynx 只把「可替换的跨切面」放 Extension,「稳定构造依赖」留 Config 字段 —— 区分「装配」与「扩展」。
+- **执行配置显式,外部状态不回流**:`chat`、guardrails、conversation projection 与 child depth 是
+  `Config` 的具名字段；Store、事务、幂等、产品 Session 和 checkpoint 提交策略由 Host 的
+  消费侧接口拥有。Embabel 把一切(含 repository、ranker、eventListener)都走 `@Bean` + 构造
+  注入。lynx 只把「可替换的执行横切面」放 Extension，并把应用协调留在外圈。
 - **model provider 无 `registerSingleton` 魔法**:provider 适配在 `models` 模块,组合根显式装配进来;不做 YAML 读表 + 命令式 bean 注册那套。
 
 ---
@@ -291,11 +297,17 @@ type Ranker interface { /* 给定 user input,对每个候选 goal 打 [0,1] */ }
 
 **Embabel**(见 §6 普查):`.imports` + `@ComponentScan` 发现 agent,`DefaultAgentPlatform` 14 参构造注入,`AgentPlatformConfiguration` ~16 个 `@Bean`,4 个 `EnvironmentPostProcessor` 早期改环境(注日志主题、排除 Spring AI 的 MCP autoconfig、shell 强制 `web-application-type=none`)。
 
-**lynx**:`runtime.Engine` 由**组合根 `New(Config)` 显式构造**;`Config` 具名字段带 chat/store/snapshot policy;Extension 显式注册;per-process Extension 在 `ProcessOptions.Extensions` 里合并。无 `.imports`、无 EPP、无 bean 图。
+**lynx**:`runtime.Engine` 由**组合根 `New(Config)` 显式构造**;`Config` 只携带 chat、
+guardrails、conversation projection 等执行配置；Extension 显式注册；per-process Extension
+在 `ProcessOptions.Extensions` 里合并。存储与产品 Session 留在 Host。无 `.imports`、无 EPP、
+无 bean 图。
 
 **取舍与理由**:这是 lynx 定位的直接结果 ——「Agent 是 framework,不是小库;但框架仍**显式装配、可嵌入**,不引入扫描、注解或全局 DI 容器」。好处:启动无反射扫描、无容器生命周期、可在任意组合根(含测试)一行构造、可作为库嵌入 lyra。代价:用户要显式列出 actions/goals/extensions —— 但这正是 lynx 想要的透明度(所有装配在代码里可见、可 diff、可 review),而不是散在注解 + classpath + YAML + EPP 里的隐式魔法。
 
-lynx 还把部署身份写进 durable contract:`DeploymentRef{Name,Version,Digest}` 随 snapshot 持久化,恢复时能校验精确部署版本。Embabel `DefaultAgentPlatform.deploy` 的核心仍是按 agent name 更新平台注册表,process 持有 Agent 对象,没有等价的不可变 digest/version pin。对 crash recovery、replay 和滚动升级而言,这是 lynx 运行时契约上的重要优势。
+lynx 还把部署身份写进 portable snapshot contract：`DeploymentRef{Name,Version,Digest}` 随
+snapshot 编码，恢复时能校验精确部署版本。Embabel `DefaultAgentPlatform.deploy` 的核心仍是按
+agent name 更新平台注册表，process 持有 Agent 对象，没有等价的不可变 digest/version pin。
+对 crash recovery、replay 和滚动升级而言，这是 lynx 运行时契约上的重要优势。
 
 ---
 
@@ -303,14 +315,24 @@ lynx 还把部署身份写进 durable contract:`DeploymentRef{Name,Version,Diges
 
 **Embabel**:`AgentProcess` 状态机(`RUNNING/WAITING/PAUSED/STUCK/COMPLETED/...`),`AgentProcessRepository`(默认 in-memory,持久版 = 跨重启可恢复),每 tick `repository.update`;`ProcessOptions.contextId` 从 `ContextRepository` rehydrate 黑板;`ephemeral=true` 契约 = 从不持久、无 wait state、不能派生子进程;`ThreadLocal<AgentProcess>` 传当前进程;`Budget` 早终止(maxActions/maxTokens/cost)。HITL 靠 `ProcessWaitingException` + `Awaitable`(`ConfirmationRequest`/`FormBindingRequest`)。
 
-**lynx**:`Engine` + `Deployment` + process registry;`StatusWaiting` 是一等状态;`Resume`/`Continue` 记录回复后**从精确挂起点重入**;durable 靠 `ProcessStore`、分离的 root/child `SessionStore` + **type-tagged snapshot codec**;当前 `ProcessSnapshot` schema 为 v5、ToolLoop checkpoint 为 v2;budget 树跨子进程;`stop_policy`/`stuck_policy`/`termination` 分文件。
+**lynx**:`Engine` + `Deployment` + process registry;`StatusWaiting` 是一等状态;`Resume`/`Continue`
+记录回复后**从精确挂起点重入**。Agent 提供 type-tagged `ProcessSnapshot` /
+`ProcessSnapshotTree` 的捕获、验证与重建，但不定义 Store。Host 负责存储、事务和产品
+Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、ToolLoop checkpoint
+为 v2；budget 树跨子进程；`stop_policy`/`stuck_policy`/`termination` 分文件。
 
 **取舍与理由**:
 
-- **durable resume 更精细**。Embabel 每 tick 整体 `repository.update`,持久 repo 即可跨重启续跑 —— 粒度是「整个进程状态」。lynx 用 **type-tagged snapshot**(chatInput round-trips、`LastWorld json:"-"` 派生、protected 在 re-run 时 re-bind、HITL park/interrupt 靠 atomic `Consume` 幂等 `DELETE...RETURNING`),且 **HITL resume 在 pending tool call 处续跑,跳过已完成的模型轮和工具**([[project_durable_resume_design]] + [[project_hitl_resume_at_pending_call]])。这是 lyra 生产级 chat turn 恢复的需求,比 Embabel 的整体 update 更外科手术。
+- **durable resume 更精细**。Embabel 每 tick 整体 `repository.update`,持久 repo 即可跨重启续跑 —— 粒度是「整个进程状态」。lynx 用 **type-tagged snapshot** 捕获完整 process tree；`Suspension.Payload` 始终归 producer，框架 continuation 独占 `FrameworkState`，两者不靠内容猜 owner。未回答 Waiting 恢复后进入 `Resume`，已回答 Waiting 恢复后直接 `Continue`；ToolLoop 在 pending tool call 处续跑并跳过已完成的模型轮和工具。产品 interrupt、幂等消费和数据库事务完全由 App 管理。这是 lyra 生产级 chat turn 恢复的需求,比 Embabel 的整体 update 更外科手术。
 - **transient 状态显式排除持久化**(§4)——handle/client/channel 不进 snapshot,对应 Embabel 的 `ephemeral` 但粒度到单个 binding。
-- **Session identity 是领域合同而不是 `contextId` 字符串**。Session 校验 ID/parent/Agent/audit time；child adapter 必须 round-trip UserID、AgentName、时间与 metadata。同一 child ID 不能静默换 parent/user/Agent。Embabel 的 `ProcessOptions.contextId` 负责 rehydrate context，但没有这层 root/child persistence ownership 分离。
-- **同一 root session 的 turn 显式 FIFO**。同 session 不会并行改写历史,不同 session 仍可并发;root session 与 delegated child session 的存储合同分离。Embabel 有 context/process identity,但没有等价明确的 session-turn serialization 与 child lifecycle ownership 边界。
+- **产品 identity 完全不进入 Agent**。App 通过普通 chat middleware 从当前
+  `ProcessView` 投影根 conversation 与子进程 history partition；Session 的
+  ID/parent/audit/lineage 由 App domain 和 storage 维护。Embabel 的
+  `ProcessOptions.contextId` 同时承担 context rehydrate，而 lynx 不把产品实体塞回 execution
+  core。
+- **同一 Session admission 与写入顺序属于 App**。`app/runtime` 保护一个产品 Session 的 Run
+  生命周期并把 process checkpoint、interrupt、transcript 纳入真实 SQLite write-set；Agent
+  不接收 conversation ID，也不承诺数据库或跨节点顺序。
 - **嵌套 AgentTool 的暂停是父子树的一部分**。lynx 以原始 `tool_call_id` 关联 child,child 暂停会把 suspension 推进父进程的 managed interaction,恢复时继续原 child。Embabel Subagent 遇到等待状态时主要把等待信息返回为工具文本,另走 process/callback 机制继续,没有同样透明的父调用栈续跑。
 - **`context.Context` 传进程,不用 `ThreadLocal`**。Go 无 ThreadLocal;进程/取消/trace 靠 `ctx` 显式传递,脱钩后台 goroutine 用 `context.WithoutCancel` 保 span。
 - **HITL 是显式 suspension + 幂等 Consume**,不是抛 `ProcessWaitingException`。lynx `hitl.Interrupt` 产出 suspension,`Engine.Resume` 记录 response 到精确 suspension,`Continue` 重入 —— park/interrupt 幂等。
@@ -334,7 +356,9 @@ lynx 还把部署身份写进 durable contract:`DeploymentRef{Name,Version,Diges
 - **插件失败被限制在工具边界**。工具 `Call` panic 被转换为当前位置的 recoverable error ToolResult,不会从并发 goroutine 击穿 Host;同批 sibling 的结果仍按调用顺序提交。
 - **AgentTool 是并发安全的子进程能力**。每个调用拥有隔离 child process,通过精确 `tool_call_id` 关联;同名、同参数的多个调用不会混淆。多个 child 同时暂停时,parent 对外仍只暴露 call-order 中最早的 suspension,其余 suspension 已持久化但不越序可见。
 - **workflow 组合器做显式 fan-out**:`scatter-gather`/`parallel`/`repeat-until-acceptable`/`loop`/`sequence`/`consensus`/`supervisor` —— 每个分支拿 `Clone()` 黑板,mutation 在确定性 join 前丢弃(不共享写)。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。
-- `StartChild` 支持显式异步 child process;`workflow.Parallel` / `ScatterGather` 支持有界并发与按输入顺序稳定 join。普通模型一次返回多个 AgentTool call 时也会并发启动独立子 Agent。
+- AgentTool child 只在父 tool batch 内并发，并在父 action 前进前结构化收敛；
+  `workflow.Parallel` / `ScatterGather` 支持有界并发与按输入顺序稳定 join。框架不提供脱离父
+  process tree 生命周期的后台 child。
 - process tick 刻意只执行 plan 首步。旧的 process-wide action 并发已删除,因为多个 action 共享父黑板且完成顺序会改变 world state;这一删除与 tool-round 并发回归不是同一件事。
 
 **判断**:保留串行 process tick 是正确的确定性取舍;tool-round / child-process 并发则已恢复到正确层级。此次修正不是简单搬回 goroutine,而是同步完成“有界资源键调度 + 按原 call 顺序稳定提交 + 多 pending call checkpoint + child forest save/restore + active-branch Resume”。因此并发提高吞吐,却不让共享黑板、cache key、durable replay 受完成时序支配。

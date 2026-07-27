@@ -16,8 +16,8 @@ func TestProcessStateSuspensionLifecycle(t *testing.T) {
 	if err := state.parkSuspension(first); err != nil {
 		t.Fatalf("park first: %v", err)
 	}
-	if err := state.parkSuspension(first); err != nil {
-		t.Fatalf("idempotent park: %v", err)
+	if err := state.parkSuspension(first); !errors.Is(err, interaction.ErrSuspensionConflict) {
+		t.Fatalf("duplicate pending park error = %v", err)
 	}
 	if err := state.parkSuspension(testSuspension("other")); !errors.Is(err, interaction.ErrSuspensionConflict) {
 		t.Fatalf("second pending park error = %v", err)
@@ -25,18 +25,30 @@ func TestProcessStateSuspensionLifecycle(t *testing.T) {
 
 	state.transition(core.StatusWaiting)
 	answeredAt := time.Now()
-	if err := state.respondToSuspension("first", true, answeredAt); err != nil {
+	if err := state.claimCheckpoint(false); err != nil {
+		t.Fatal(err)
+	}
+	response, err := first.ValidateResponse(true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := state.installClaimedSuspensionResponse("first", response, answeredAt); err != nil {
 		t.Fatalf("respond: %v", err)
 	}
-	if err := state.respondToSuspension("first", true, answeredAt); err != nil {
-		t.Fatalf("idempotent response: %v", err)
+	if _, err := state.installClaimedSuspensionResponse("first", response, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
+		t.Fatalf("duplicate response error = %v", err)
 	}
-	if err := state.respondToSuspension("first", false, answeredAt); !errors.Is(err, interaction.ErrSuspensionConflict) {
+	different, err := first.ValidateResponse(false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := state.installClaimedSuspensionResponse("first", different, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("different response error = %v", err)
 	}
-	if err := state.respondToSuspension("other", true, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if _, err := state.installClaimedSuspensionResponse("other", response, answeredAt); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("stale response error = %v", err)
 	}
+	state.releaseCheckpoint()
 
 	second := testSuspension("second")
 	if err := state.parkSuspension(second); err != nil {
@@ -52,13 +64,8 @@ func TestProcessStateSuspensionLifecycle(t *testing.T) {
 	}
 }
 
-func TestProcessStateSuspensionValidatesResponseSchema(t *testing.T) {
-	state := newProcessState()
-	if err := state.parkSuspension(testSuspension("approval")); err != nil {
-		t.Fatal(err)
-	}
-	state.transition(core.StatusWaiting)
-	if err := state.respondToSuspension("approval", "yes", time.Now()); err == nil {
+func TestSuspensionValidatesResponseSchema(t *testing.T) {
+	if _, err := testSuspension("approval").ValidateResponse("yes"); err == nil {
 		t.Fatal("string response unexpectedly matched boolean schema")
 	}
 }
@@ -69,11 +76,7 @@ func TestProcessStateTerminalTransitionClearsSuspension(t *testing.T) {
 		t.Fatal(err)
 	}
 	state.transition(core.StatusWaiting)
-	state.pauseDurability()
-	if state.status() != core.StatusWaiting || state.suspension() == nil {
-		t.Fatalf("durability pause changed waiting continuation: status=%s suspension=%#v", state.status(), state.suspension())
-	}
-	if won, _ := state.markKilled(nil); !won {
+	if !state.markKilled(nil) {
 		t.Fatal("kill did not win waiting process")
 	}
 	if state.suspension() != nil {

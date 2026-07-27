@@ -48,7 +48,7 @@ func TestProcessState_FirstTerminalWins(t *testing.T) {
 	}
 
 	// markKilled is the same gate (external Kill side).
-	if won, _ := s.markKilled(nil); won {
+	if s.markKilled(nil) {
 		t.Fatal("markKilled over an existing terminal should report won=false")
 	}
 }
@@ -59,7 +59,7 @@ func TestProcessStateLosingTerminalDoesNotChangeFailure(t *testing.T) {
 		t.Fatal("completion did not win")
 	}
 	cause := errors.New("late cancellation")
-	if won, _ := state.markKilled(cause); won {
+	if state.markKilled(cause) {
 		t.Fatal("late kill replaced completion")
 	}
 	if failure := state.failure(); failure != nil {
@@ -72,8 +72,8 @@ func TestProcessStateCannotBeRemovedBeforeRunReleasesOwnership(t *testing.T) {
 	if started, err := state.beginRun(); err != nil || !started {
 		t.Fatalf("beginRun = (%v, %v)", started, err)
 	}
-	if won, owned := state.markKilled(nil); !won || !owned {
-		t.Fatalf("markKilled = (%v, %v), want winning run-owned kill", won, owned)
+	if !state.markKilled(nil) {
+		t.Fatal("markKilled did not win")
 	}
 	if state.removable() {
 		t.Fatal("terminal process remained removable while its run owned finalization")
@@ -90,22 +90,24 @@ func TestProcessRegistryNeverReplacesAnExistingIdentity(t *testing.T) {
 	if started, err := existing.state.beginRun(); err != nil || !started {
 		t.Fatalf("beginRun = (%v, %v)", started, err)
 	}
-	if won, _ := existing.state.markKilled(nil); !won {
+	if !existing.state.markKilled(nil) {
 		t.Fatal("kill did not win")
 	}
 	if !registry.insert(existing) {
 		t.Fatal("insert existing process")
 	}
 	replacement := &Process{id: existing.id, state: newProcessState()}
-	if registry.registerNew(replacement) {
+	if registry.registerTree([]*Process{replacement}) {
 		t.Fatal("registry replaced a terminal process before its run finalized")
 	}
 	existing.state.endRun()
-	if registry.registerNew(replacement) {
+	if registry.registerTree([]*Process{replacement}) {
 		t.Fatal("registry replaced a terminal process after finalization")
 	}
-	registry.unregister(existing)
-	if !registry.registerNew(replacement) {
+	if !registry.reserveProcesses([]*Process{existing}) || !registry.unregisterReservedTree([]*Process{existing}) {
+		t.Fatal("remove existing process tree")
+	}
+	if !registry.registerTree([]*Process{replacement}) {
 		t.Fatal("registry rejected identity after explicit removal")
 	}
 }
@@ -200,20 +202,6 @@ func TestProcessState_NonTerminalTransitions(t *testing.T) {
 	if got := s.status(); got != core.StatusRunning {
 		t.Fatalf("status = %v, want Running", got)
 	}
-}
-
-func TestProcessState_RestoredRunningAcquiresFreshOwnership(t *testing.T) {
-	s := newProcessState()
-	if !s.transition(core.StatusRunning) {
-		t.Fatal("restore Running transition should succeed")
-	}
-	if started, err := s.beginRun(); err != nil || !started {
-		t.Fatalf("beginRun from restored Running = (%v, %v), want (true, nil)", started, err)
-	}
-	if started, err := s.beginRun(); started || !errors.Is(err, ErrProcessRunning) {
-		t.Fatalf("overlapping beginRun = (%v, %v), want ErrProcessRunning", started, err)
-	}
-	s.endRun()
 }
 
 func TestProcessStateWaitRunPrefersObservableCompletion(t *testing.T) {

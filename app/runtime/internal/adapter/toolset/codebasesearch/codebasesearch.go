@@ -1,7 +1,7 @@
 // Package codebasesearch provides the codebase_search tool — semantic search
 // over the project's code via the @codebase index. One tool, one package. It is
-// working-directory scoped (it searches the turn's cwd, read from the
-// blackboard) but cwd-independent to build, so a single instance serves every
+// working-directory scoped (it searches the turn's cwd from application
+// context) but cwd-independent to build, so a single instance serves every
 // session; it's offered only when an embedding model is configured.
 package codebasesearch
 

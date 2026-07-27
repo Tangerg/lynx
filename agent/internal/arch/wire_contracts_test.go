@@ -22,29 +22,24 @@ var updateAgentWireFixtures = flag.Bool(
 )
 
 // agentWireFixtureCoverage maps every exported JSON-tagged struct in the
-// durable core/interaction/toolloop protocol packages to the representative
+// portable core/interaction/toolloop protocol packages to the representative
 // root that exercises it.
 var agentWireFixtureCoverage = map[string]string{
 	"core.DeploymentRef":      "process_snapshot",
-	"core.EmbeddingCall":      "process_snapshot",
-	"core.ModelCall":          "process_snapshot",
 	"core.ProcessFailure":     "process_failure",
 	"core.ProcessSnapshot":    "process_snapshot",
-	"core.Session":            "session",
+	"core.Usage":              "process_snapshot",
 	"core.ActionRunSnapshot":  "process_snapshot",
 	"core.TaggedValue":        "process_snapshot",
-	"interaction.Event":       "interaction_events",
-	"interaction.Resume":      "interaction_events",
 	"interaction.Suspension":  "process_snapshot",
 	"toolloop.CallCheckpoint": "toolloop_checkpoint",
 	"toolloop.Checkpoint":     "toolloop_checkpoint",
-	"toolloop.Event":          "toolloop_events",
-	"toolloop.Pause":          "toolloop_events",
 	"toolloop.PendingCall":    "toolloop_checkpoint",
 }
 
 var agentWirePackages = map[string]struct{}{
 	"core":        {},
+	"event":       {},
 	"interaction": {},
 	"toolloop":    {},
 }

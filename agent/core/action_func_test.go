@@ -68,10 +68,7 @@ func TestTypedActionReportsInputTypeMismatch(t *testing.T) {
 func TestTypedActionMetadataIsDefensive(t *testing.T) {
 	inputs := []core.Binding{{Name: "source", Type: "string"}}
 	outputs := []core.Binding{{Name: "result", Type: "int"}}
-	groups := []core.ToolGroupRequirement{{
-		Role:               "filesystem",
-		AllowedPermissions: []core.ToolGroupPermission{core.ToolGroupHostAccess},
-	}}
+	groups := []string{"filesystem"}
 	action := core.NewAction[string, int](
 		"defensive",
 		func(context.Context, *core.ProcessContext, string) (int, error) { return 1, nil },
@@ -80,26 +77,23 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 
 	inputs[0].Name = "mutated"
 	outputs[0].Name = "mutated"
-	groups[0].Role = "mutated"
-	groups[0].AllowedPermissions[0] = core.ToolGroupInternetAccess
+	groups[0] = "mutated"
 
 	metadata := action.Metadata()
 	if metadata.Inputs[0].Name != "source" || metadata.Outputs[0].Name != "result" {
 		t.Fatalf("constructor retained caller slices: %#v", metadata)
 	}
-	if metadata.ToolGroups[0].Role != "filesystem" || metadata.ToolGroups[0].AllowedPermissions[0] != core.ToolGroupHostAccess {
+	if metadata.ToolGroups[0] != "filesystem" {
 		t.Fatalf("constructor retained caller tool groups: %#v", metadata.ToolGroups)
 	}
 
 	metadata.Inputs[0].Name = "leaked"
 	metadata.Effects[metadata.Outputs[0].String()] = core.False
-	metadata.ToolGroups[0].AllowedPermissions[0] = core.ToolGroupInternetAccess
+	metadata.ToolGroups[0] = "leaked"
 	again := action.Metadata()
-	if again.Inputs[0].Name != "source" || again.Effects[again.Outputs[0].String()] != core.True {
+	if again.Inputs[0].Name != "source" || again.Effects[again.Outputs[0].String()] != core.True ||
+		again.ToolGroups[0] != "filesystem" {
 		t.Fatalf("Metadata leaked stored maps/slices: %#v", again)
-	}
-	if again.ToolGroups[0].AllowedPermissions[0] != core.ToolGroupHostAccess {
-		t.Fatalf("Metadata leaked nested permissions: %#v", again.ToolGroups)
 	}
 }
 
@@ -133,7 +127,6 @@ func (f fakeBlackboard) AddTransient(any)              {}
 func (f fakeBlackboard) Bind(any)                      {}
 func (f fakeBlackboard) BindTransient(any)             {}
 func (f fakeBlackboard) StoreAll(core.Bindings)        {}
-func (f fakeBlackboard) StoreProtected(string, any)    {}
 func (f fakeBlackboard) Hide(any)                      {}
 func (f fakeBlackboard) StoreCondition(string, bool)   {}
 func (f fakeBlackboard) Clone() core.Blackboard {

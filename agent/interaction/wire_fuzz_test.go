@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/core/chat"
 )
 
 type interactionProtocolValue interface {
@@ -31,23 +30,6 @@ func FuzzSuspensionJSON(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, data []byte) {
 		assertInteractionJSONFixedPoint[interaction.Suspension](t, data)
-	})
-}
-
-func FuzzInteractionEventJSON(f *testing.F) {
-	request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hello")))
-	if err != nil {
-		f.Fatal(err)
-	}
-	valid, err := json.Marshal(interaction.Event{Kind: interaction.EventModelRequest, Round: 1, Request: request})
-	if err != nil {
-		f.Fatal(err)
-	}
-	for _, seed := range [][]byte{valid, []byte(`{}`), []byte(`{"kind":"future","round":1}`), []byte(`null`)} {
-		f.Add(seed)
-	}
-	f.Fuzz(func(t *testing.T, data []byte) {
-		assertInteractionJSONFixedPoint[interaction.Event](t, data)
 	})
 }
 

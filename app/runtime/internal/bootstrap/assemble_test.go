@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -420,12 +421,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}
-	if err := cfg.ProcessStore.Apply(ctx, bootstrapSnapshotChange(processID, core.ProcessSnapshot{
+	if err := cfg.ProcessStore.SaveTree(ctx, bootstrapSnapshotTree(processID, core.ProcessSnapshot{
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            processID,
 		Deployment:    core.DeploymentRef{Name: "chat-agent", Digest: "different-build"},
 		StartedAt:     createdAt,
-		CapturedAt:    parkedAt,
 		Status:        core.StatusWaiting,
 		Suspension: &agent.Suspension{
 			SchemaVersion: agent.SuspensionSchemaVersion,
@@ -435,7 +435,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
 			CreatedAt:     parkedAt,
 		},
-	})); err != nil {
+	}), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
 
@@ -449,7 +449,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
 	}
-	if _, err := cfg.ProcessStore.Load(ctx, processID); !errors.Is(err, core.ErrSnapshotNotFound) {
+	if _, _, err := cfg.ProcessStore.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after assemble = %v, want not found", err)
 	}
 	_, runs, err := cfg.TranscriptStore.List(ctx, sessionID)

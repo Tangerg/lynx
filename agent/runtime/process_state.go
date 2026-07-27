@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -34,7 +35,6 @@ type processState struct {
 	pendingSuspension  *interaction.Suspension
 	runPhase           processRunPhase
 	runDone            chan struct{}
-	killRevision       uint64
 	checkpointOwned    bool
 }
 
@@ -43,7 +43,6 @@ type processRunPhase uint8
 const (
 	runIdle processRunPhase = iota
 	runDriving
-	runPublishing
 )
 
 // newProcessState returns a fresh state block ready for the
@@ -100,45 +99,9 @@ func (s *processState) parkSuspension(candidate interaction.Suspension) error {
 		return fmt.Errorf("%w: process is terminal", interaction.ErrSuspensionStale)
 	}
 	if current := s.pendingSuspension; current != nil && !current.Responded() {
-		if current.ID == candidate.ID && suspensionEqual(*current, candidate) {
-			return nil
-		}
 		return fmt.Errorf("%w: suspension %q is already pending", interaction.ErrSuspensionConflict, current.ID)
 	}
 	s.pendingSuspension = candidate.Clone()
-	return nil
-}
-
-func (s *processState) respondToSuspension(id string, response any, now time.Time) error {
-	s.mu.RLock()
-	current := s.pendingSuspension
-	status := s.currentStatus
-	if current != nil {
-		current = current.Clone()
-	}
-	s.mu.RUnlock()
-	if status != core.StatusWaiting || current == nil || current.ID != id {
-		return fmt.Errorf("%w: process has no pending suspension %q", interaction.ErrSuspensionStale, id)
-	}
-	canonical, err := current.ValidateResponse(response)
-	if err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	current = s.pendingSuspension
-	if s.currentStatus != core.StatusWaiting || current == nil || current.ID != id {
-		return fmt.Errorf("%w: suspension %q changed before response", interaction.ErrSuspensionStale, id)
-	}
-	if current.Responded() {
-		if current.SameResponse(canonical) {
-			return nil
-		}
-		return fmt.Errorf("%w: suspension %q already has a different response", interaction.ErrSuspensionConflict, id)
-	}
-	current.Response = bytes.Clone(canonical)
-	current.RespondedAt = now
 	return nil
 }
 
@@ -146,26 +109,23 @@ func (s *processState) installClaimedSuspensionResponse(
 	id string,
 	response json.RawMessage,
 	now time.Time,
-) (*interaction.Suspension, bool, error) {
+) (*interaction.Suspension, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !s.checkpointOwned {
-		return nil, false, ErrProcessCheckpointBusy
+		return nil, ErrProcessCheckpointBusy
 	}
 	current := s.pendingSuspension
 	if s.currentStatus != core.StatusWaiting || current == nil || current.ID != id {
-		return nil, false, fmt.Errorf("%w: process has no pending suspension %q", interaction.ErrSuspensionStale, id)
+		return nil, fmt.Errorf("%w: process has no pending suspension %q", interaction.ErrSuspensionStale, id)
 	}
 	if current.Responded() {
-		if current.SameResponse(response) {
-			return nil, false, nil
-		}
-		return nil, false, fmt.Errorf("%w: suspension %q already has a different response", interaction.ErrSuspensionConflict, id)
+		return nil, fmt.Errorf("%w: suspension %q has already been answered", interaction.ErrSuspensionStale, id)
 	}
 	previous := current.Clone()
 	current.Response = bytes.Clone(response)
 	current.RespondedAt = now
-	return previous, true, nil
+	return previous, nil
 }
 
 func (s *processState) restoreClaimedSuspension(value *interaction.Suspension) {
@@ -195,16 +155,6 @@ func (s *processState) restoreSuspension(value *interaction.Suspension) error {
 	defer s.mu.Unlock()
 	s.pendingSuspension = value.Clone()
 	return nil
-}
-
-func suspensionEqual(a, b interaction.Suspension) bool {
-	a.CreatedAt = b.CreatedAt
-	left, err := json.Marshal(a)
-	if err != nil {
-		return false
-	}
-	right, err := json.Marshal(b)
-	return err == nil && bytes.Equal(left, right)
 }
 
 // historySnapshot returns a clone so callers can iterate without racing
@@ -264,6 +214,15 @@ func (s *processState) restoreFailure(err error) {
 	s.runErr = err
 }
 
+func (s *processState) joinFailure(err error) {
+	if err == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runErr = errors.Join(s.runErr, err)
+}
+
 func (s *processState) fail(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -273,18 +232,6 @@ func (s *processState) fail(err error) {
 	s.runErr = err
 	s.currentStatus = core.StatusFailed
 	s.pendingSuspension = nil
-}
-
-func (s *processState) pauseDurability() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.currentStatus.IsTerminal() {
-		return
-	}
-	if s.currentStatus == core.StatusWaiting || s.currentStatus == core.StatusPaused {
-		return
-	}
-	s.currentStatus = core.StatusPaused
 }
 
 func (s *processState) recordActionRun(run ActionRun) {
@@ -333,8 +280,7 @@ func (s *processState) snapshotExclusions() planning.Exclusions {
 }
 
 // beginRun acquires transient ownership of the run loop and advances a
-// resumable lifecycle to StatusRunning. A durable Running snapshot has no live
-// owner after restore and is therefore resumable; a live owner is rejected.
+// resumable stable lifecycle to StatusRunning.
 func (s *processState) beginRun() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -366,29 +312,6 @@ func (s *processState) beginRunLocked(fromCheckpoint bool) (bool, error) {
 	s.runDone = make(chan struct{})
 	s.currentStatus = core.StatusRunning
 	return true, nil
-}
-
-// beginPublishing closes the final-snapshot ownership window. The caller
-// captures killRevision before its snapshot; if a kill wins before this
-// transition, the changed revision forces a new snapshot. Once publishing
-// begins, a later Kill owns its own snapshot.
-func (s *processState) beginPublishing(killRevision uint64) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.runPhase != runDriving {
-		panic("runtime: run left driving phase before publication")
-	}
-	if s.killRevision != killRevision {
-		return false
-	}
-	s.runPhase = runPublishing
-	return true
-}
-
-func (s *processState) observedKillRevision() uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.killRevision
 }
 
 // endRun releases the complete run boundary and returns one lock-consistent
@@ -479,19 +402,17 @@ func (s *processState) removable() bool {
 // terminal, reporting whether THIS call performed the transition — the external
 // kill ([Engine.Kill]) side of the shared "first terminal wins" gate.
 // A kill racing a natural completion (or vice versa) cannot clobber the
-// existing terminal. The winning transition clears any continuation and
-// reports whether the driving phase still owns final snapshot responsibility.
-func (s *processState) markKilled(err error) (won, driverWillSnapshot bool) {
+// existing terminal. The winning transition clears any continuation.
+func (s *processState) markKilled(err error) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.currentStatus.IsTerminal() {
-		return false, s.runPhase == runDriving
+		return false
 	}
 	s.currentStatus = core.StatusKilled
 	s.pendingSuspension = nil
-	s.killRevision++
 	if err != nil {
 		s.runErr = err
 	}
-	return true, s.runPhase == runDriving
+	return true
 }

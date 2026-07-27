@@ -12,7 +12,6 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/Tangerg/lynx/agent/core"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tools"
 
@@ -31,7 +30,7 @@ const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
 
 func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []tools.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	group, ok, err := resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

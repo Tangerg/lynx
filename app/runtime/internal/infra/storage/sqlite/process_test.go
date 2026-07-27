@@ -1,7 +1,9 @@
 package sqlite_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"path/filepath"
@@ -10,18 +12,28 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/storetest"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func newProcessStore(t *testing.T) *sqlite.ProcessStore {
+const storedBuildID = "test-build"
+
+func newProcessStorage(t *testing.T) (*sql.DB, *sqlite.ProcessStore) {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewProcessStore(db)
+	return db, sqlite.NewProcessStore(db)
+}
+
+func newProcessStore(t *testing.T) *sqlite.ProcessStore {
+	t.Helper()
+	_, store := newProcessStorage(t)
+	return store
 }
 
 func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnapshot {
@@ -31,7 +43,6 @@ func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnaps
 		ID:            id,
 		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
 		StartedAt:     started,
-		CapturedAt:    started.Add(time.Second),
 		Status:        status,
 	}
 	if status == core.StatusWaiting {
@@ -41,182 +52,397 @@ func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnaps
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"checkpoint":true}`),
+			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
 			CreatedAt:     started,
 		}
 	}
 	return snapshot
 }
 
-func storedSnapshotChange(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotChange {
-	return core.ProcessSnapshotChange{Tree: &core.ProcessSnapshotTree{
-		RootID:    rootID,
-		Snapshots: snapshots,
-	}}
+func storedSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotTree {
+	return core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}
 }
 
-func TestProcessStoreApplyLoadReplacement(t *testing.T) {
-	ctx := context.Background()
+func storedUsage() accounting.Snapshot { return accounting.Snapshot{} }
+
+func storedCheckpoint(sessionID, buildID string, usage accounting.Snapshot) execution.ProcessCheckpoint {
+	return execution.ProcessCheckpoint{
+		BuildID: buildID,
+		Scope:   execution.TurnScope{SessionID: sessionID},
+		Usage:   usage,
+	}
+}
+
+func TestProcessStoreSaveLoadReplacement(t *testing.T) {
 	store := newProcessStore(t)
 	snapshot := validStoredSnapshot("proc-1", core.StatusWaiting)
 	snapshot.Conditions = map[string]bool{"k": true}
-
-	if err := store.Apply(ctx, storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
-		t.Fatalf("first Apply: %v", err)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("conversation-1", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("first SaveTree: %v", err)
 	}
 	snapshot.Status = core.StatusCompleted
 	snapshot.Suspension = nil
-	if err := store.Apply(ctx, storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
-		t.Fatalf("second Apply: %v", err)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("conversation-1", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("second SaveTree: %v", err)
 	}
-
-	got, err := store.Load(ctx, snapshot.ID)
-	if err != nil || got.Status != core.StatusCompleted || !got.Conditions["k"] {
-		t.Fatalf("Load = %+v, err %v", got, err)
+	tree, checkpoint, err := store.LoadTree(t.Context(), snapshot.ID)
+	if err != nil || len(tree.Snapshots) != 1 ||
+		tree.Snapshots[0].Status != core.StatusCompleted ||
+		!tree.Snapshots[0].Conditions["k"] ||
+		checkpoint.BuildID != storedBuildID {
+		t.Fatalf("LoadTree = %+v, checkpoint %+v, err %v", tree, checkpoint, err)
 	}
 }
 
-func TestProcessStoreContract(t *testing.T) {
-	if err := storetest.TestProcessStore(t.Context(), newProcessStore(t)); err != nil {
-		t.Fatal(err)
+func TestProcessStoreRoundTripsSuspensionStateWithoutInterpretingIt(t *testing.T) {
+	store := newProcessStore(t)
+	snapshot := validStoredSnapshot("proc-opaque-suspension", core.StatusWaiting)
+	snapshot.Suspension.Payload = json.RawMessage(`{"producer":"approval-adapter"}`)
+	snapshot.Suspension.FrameworkState = json.RawMessage(`{"opaque":"agent-runtime-state"}`)
+
+	if err := store.SaveTree(
+		t.Context(),
+		storedSnapshotTree(snapshot.ID, snapshot),
+		storedCheckpoint("conversation-1", storedBuildID, accounting.Snapshot{}),
+	); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	tree, _, err := store.LoadTree(t.Context(), snapshot.ID)
+	if err != nil {
+		t.Fatalf("LoadTree: %v", err)
+	}
+	if len(tree.Snapshots) != 1 || tree.Snapshots[0].Suspension == nil {
+		t.Fatalf("loaded tree = %+v", tree)
+	}
+	loaded := tree.Snapshots[0].Suspension
+	if !bytes.Equal(loaded.Payload, snapshot.Suspension.Payload) {
+		t.Fatalf("producer payload = %s, want %s", loaded.Payload, snapshot.Suspension.Payload)
+	}
+	if !bytes.Equal(loaded.FrameworkState, snapshot.Suspension.FrameworkState) {
+		t.Fatalf("framework state = %s, want %s", loaded.FrameworkState, snapshot.Suspension.FrameworkState)
 	}
 }
 
 func TestProcessStoreLoadMissingIsSentinel(t *testing.T) {
 	store := newProcessStore(t)
-	if _, err := store.Load(context.Background(), "nope"); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Fatalf("Load(missing) err = %v", err)
+	if _, _, err := store.LoadTree(t.Context(), "nope"); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+		t.Fatalf("LoadTree(missing) err = %v", err)
 	}
 }
 
 func TestProcessStoreLoadCorruptSnapshotIsInvalidSentinel(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store := sqlite.NewProcessStore(db)
+	db, store := newProcessStorage(t)
 	snapshot := validStoredSnapshot("proc-corrupt", core.StatusCompleted)
-	if err := store.Apply(t.Context(), storedSnapshotChange(snapshot.ID, snapshot)); err != nil {
-		t.Fatalf("Apply: %v", err)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("SaveTree: %v", err)
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, snapshot.ID); err != nil {
 		t.Fatalf("corrupt stored snapshot: %v", err)
 	}
-	if _, err := store.Load(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("Load(corrupt) err = %v, want ErrInvalidSnapshot", err)
+	if _, _, err := store.LoadTree(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("LoadTree(corrupt) err = %v, want ErrInvalidSnapshot", err)
+	}
+}
+
+func TestProcessStorePersistsApplicationUsageWithRoot(t *testing.T) {
+	db, store := newProcessStorage(t)
+	snapshot := validStoredSnapshot("proc-usage", core.StatusCompleted)
+	usage := accounting.Snapshot{Models: []accounting.ModelUsage{{
+		Model:      "served-model",
+		TokenUsage: accounting.TokenUsage{PromptTokens: 8, CompletionTokens: 3, ReasoningTokens: 1},
+		CostUSD:    0.75,
+		Calls:      2,
+	}}}
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("", storedBuildID, usage)); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	_, checkpoint, err := store.LoadTree(t.Context(), snapshot.ID)
+	if err != nil {
+		t.Fatalf("LoadTree: %v", err)
+	}
+	if len(checkpoint.Usage.Models) != 1 || checkpoint.Usage.Models[0] != usage.Models[0] {
+		t.Fatalf("usage = %+v, want %+v", checkpoint.Usage, usage)
+	}
+
+	for name, data := range map[string]string{
+		"malformed":      `{`,
+		"unknown field":  `{"models":[],"future":true}`,
+		"null models":    `{"models":null}`,
+		"trailing value": `{"models":[]} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("", storedBuildID, usage)); err != nil {
+				t.Fatalf("restore valid tree: %v", err)
+			}
+			if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET usage = ? WHERE id = ?`, data, snapshot.ID); err != nil {
+				t.Fatalf("corrupt usage: %v", err)
+			}
+			if _, _, err := store.LoadTree(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+				t.Fatalf("LoadTree(corrupt usage) err = %v, want ErrInvalidSnapshot", err)
+			}
+		})
+	}
+}
+
+func TestProcessStorePersistsApplicationTurnScopeWithRoot(t *testing.T) {
+	db, store := newProcessStorage(t)
+	snapshot := validStoredSnapshot("proc-scope", core.StatusCompleted)
+	want := execution.TurnScope{
+		SessionID:   "session-scope",
+		Cwd:         "/workspace/scope",
+		Isolated:    true,
+		GoalLeaseID: "goal-lease-scope",
+	}
+	checkpoint := storedCheckpoint(want.SessionID, storedBuildID, accounting.Snapshot{})
+	checkpoint.Scope = want
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), checkpoint); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	_, got, err := store.LoadTree(t.Context(), snapshot.ID)
+	if err != nil {
+		t.Fatalf("LoadTree: %v", err)
+	}
+	if got.Scope != want {
+		t.Fatalf("scope = %+v, want %+v", got.Scope, want)
+	}
+
+	for name, data := range map[string]string{
+		"malformed":         `{`,
+		"unknown field":     `{"session_id":"","cwd":"","isolated":false,"goal_lease_id":"","future":true}`,
+		"unstable identity": `{"session_id":" session","cwd":"","isolated":false,"goal_lease_id":""}`,
+		"trailing value":    `{"session_id":"","cwd":"","isolated":false,"goal_lease_id":""} {}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), checkpoint); err != nil {
+				t.Fatalf("restore valid tree: %v", err)
+			}
+			if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET scope = ? WHERE id = ?`, data, snapshot.ID); err != nil {
+				t.Fatalf("corrupt scope: %v", err)
+			}
+			if _, _, err := store.LoadTree(t.Context(), snapshot.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+				t.Fatalf("LoadTree(corrupt scope) err = %v, want ErrInvalidSnapshot", err)
+			}
+		})
+	}
+}
+
+func TestProcessStoreRejectsMixedBuildIdentity(t *testing.T) {
+	db, store := newProcessStorage(t)
+	root := validStoredSnapshot("mixed-build-root", core.StatusCompleted)
+	child := validStoredSnapshot("mixed-build-child", core.StatusCompleted)
+	child.ParentID, child.Depth = root.ID, 1
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	if _, err := db.ExecContext(
+		t.Context(),
+		`UPDATE process_snapshots SET build_id = ? WHERE id = ?`,
+		"other-build",
+		child.ID,
+	); err != nil {
+		t.Fatalf("corrupt child build identity: %v", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), root.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+		t.Fatalf("LoadTree(mixed build) error = %v, want ErrInvalidSnapshot", err)
+	}
+}
+
+func TestProcessStoreRejectsMissingBuildIdentityBeforeMutation(t *testing.T) {
+	store := newProcessStore(t)
+	snapshot := validStoredSnapshot("missing-build", core.StatusCompleted)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("", "", accounting.Snapshot{})); err == nil {
+		t.Fatal("SaveTree accepted an empty build identity")
+	}
+	if _, _, err := store.LoadTree(t.Context(), snapshot.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+		t.Fatalf("LoadTree after rejected save = %v, want ErrProcessSnapshotNotFound", err)
 	}
 }
 
 func TestProcessStoreDeleteIgnoresUnrelatedCorruptSnapshot(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
-	if err != nil {
-		t.Fatalf("Open: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store := sqlite.NewProcessStore(db)
+	db, store := newProcessStorage(t)
 	corrupt := validStoredSnapshot("corrupt", core.StatusCompleted)
 	target := validStoredSnapshot("target", core.StatusCompleted)
-	if err := store.Apply(t.Context(), storedSnapshotChange(corrupt.ID, corrupt)); err != nil {
-		t.Fatalf("Apply corrupt target: %v", err)
-	}
-	if err := store.Apply(t.Context(), storedSnapshotChange(target.ID, target)); err != nil {
-		t.Fatalf("Apply delete target: %v", err)
+	for _, snapshot := range []core.ProcessSnapshot{corrupt, target} {
+		if err := store.SaveTree(t.Context(), storedSnapshotTree(snapshot.ID, snapshot), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := db.ExecContext(t.Context(), `UPDATE process_snapshots SET snapshot = ? WHERE id = ?`, `{`, corrupt.ID); err != nil {
-		t.Fatalf("corrupt stored snapshot: %v", err)
+		t.Fatal(err)
 	}
-
-	if err := store.Apply(t.Context(), core.ProcessSnapshotChange{DeleteRoots: []string{target.ID}}); err != nil {
-		t.Fatalf("Delete target: %v", err)
+	if err := store.DeleteTrees(t.Context(), []string{target.ID}); err != nil {
+		t.Fatalf("DeleteTrees: %v", err)
 	}
-	if _, err := store.Load(t.Context(), target.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Fatalf("Load deleted target: %v", err)
+	if _, _, err := store.LoadTree(t.Context(), target.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+		t.Fatalf("LoadTree deleted target: %v", err)
 	}
-	if _, err := store.Load(t.Context(), corrupt.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
+	if _, _, err := store.LoadTree(t.Context(), corrupt.ID); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("unrelated corrupt snapshot changed: %v", err)
 	}
 }
 
-func TestProcessStoreListDelete(t *testing.T) {
-	ctx := context.Background()
+func TestProcessStoreReplaceRemovesStaleDescendants(t *testing.T) {
 	store := newProcessStore(t)
-	for _, id := range []string{"a", "b"} {
-		if err := store.Apply(ctx, storedSnapshotChange(id, validStoredSnapshot(id, core.StatusCompleted))); err != nil {
-			t.Fatal(err)
-		}
-	}
-	ids, err := store.List(ctx)
-	if err != nil || len(ids) != 2 {
-		t.Fatalf("List = %v, err %v", ids, err)
-	}
-	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{"a"}}); err != nil {
+	root := validStoredSnapshot("root", core.StatusCompleted)
+	child := validStoredSnapshot("child", core.StatusKilled)
+	child.ParentID, child.Depth = root.ID, 1
+	grandchild := validStoredSnapshot("grandchild", core.StatusKilled)
+	grandchild.ParentID, grandchild.Depth = child.ID, 2
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child, grandchild), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatal(err)
 	}
-	if ids, _ = store.List(ctx); len(ids) != 1 || ids[0] != "b" {
-		t.Fatalf("after delete List = %v", ids)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatal(err)
+	}
+	ids, err := store.List(t.Context())
+	if err != nil || len(ids) != 1 || ids[0] != root.ID {
+		t.Fatalf("List after replacement = %v, %v", ids, err)
+	}
+}
+
+func TestProcessStoreDoesNotCreateProductLineageWithoutConversation(t *testing.T) {
+	db, store := newProcessStorage(t)
+	root := validStoredSnapshot("root-unattached", core.StatusWaiting)
+	child := validStoredSnapshot("child-unattached", core.StatusWaiting)
+	child.ParentID, child.Depth = root.ID, 1
+
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	if _, err := sqlite.NewSessionStore(db).Get(t.Context(), child.ID); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("unattached child session lookup = %v, want ErrNotFound", err)
+	}
+}
+
+func TestProcessStoreMissingConversationRollsBackTreeAndLineage(t *testing.T) {
+	db, store := newProcessStorage(t)
+	root := validStoredSnapshot("root-missing-conversation", core.StatusWaiting)
+	child := validStoredSnapshot("child-missing-conversation", core.StatusWaiting)
+	child.ParentID, child.Depth = root.ID, 1
+
+	err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("missing-conversation", storedBuildID, accounting.Snapshot{}))
+	if !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("SaveTree error = %v, want ErrNotFound", err)
+	}
+	if _, _, err := store.LoadTree(t.Context(), root.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+		t.Fatalf("rolled-back process tree lookup = %v, want ErrProcessSnapshotNotFound", err)
+	}
+	if _, err := sqlite.NewSessionStore(db).Get(t.Context(), child.ID); !errors.Is(err, session.ErrNotFound) {
+		t.Fatalf("rolled-back child session lookup = %v, want ErrNotFound", err)
+	}
+}
+
+func TestProcessStorePersistsDelegationLineageInSameWrite(t *testing.T) {
+	db, store := newProcessStorage(t)
+	sessions := sqlite.NewSessionStore(db)
+	parent, err := sessions.Create(t.Context(), "Parent", "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := validStoredSnapshot("root", core.StatusWaiting)
+	child := validStoredSnapshot("child", core.StatusWaiting)
+	child.ParentID, child.Depth = root.ID, 1
+	leaf := validStoredSnapshot("leaf", core.StatusCompleted)
+	leaf.ParentID, leaf.Depth = child.ID, 2
+
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child, leaf), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	storedChild, err := sessions.Get(t.Context(), child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedChild.Kind != session.KindSubtask || storedChild.ParentID != parent.ID || storedChild.Cwd != parent.Cwd {
+		t.Fatalf("child lineage = %#v", storedChild)
+	}
+	storedLeaf, err := sessions.Get(t.Context(), leaf.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedLeaf.Kind != session.KindSubtask || storedLeaf.ParentID != child.ID {
+		t.Fatalf("leaf lineage = %#v", storedLeaf)
+	}
+}
+
+func TestProcessStoreOwnsCheckpointCaptureMetadata(t *testing.T) {
+	db, store := newProcessStorage(t)
+	sessions := sqlite.NewSessionStore(db)
+	parent, err := sessions.Create(t.Context(), "Parent", "/workspace")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := validStoredSnapshot("capture-root", core.StatusWaiting)
+	child := validStoredSnapshot("capture-child", core.StatusCompleted)
+	child.ParentID, child.Depth = root.ID, 1
+	beforeCommit := time.Now().UTC().Add(-time.Second)
+
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatalf("SaveTree: %v", err)
+	}
+	rows, err := db.QueryContext(t.Context(),
+		`SELECT snapshot, committed_at FROM process_snapshots WHERE id IN (?, ?) ORDER BY id`,
+		root.ID,
+		child.ID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+
+	var committedAt int64
+	for rows.Next() {
+		var body string
+		var committed int64
+		if err := rows.Scan(&body, &committed); err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal([]byte(body), &wire); err != nil {
+			t.Fatal(err)
+		}
+		if _, leaked := wire["captured_at"]; leaked {
+			t.Fatal("stored Agent snapshot contains application capture metadata")
+		}
+		if time.Unix(0, committed).Before(beforeCommit) {
+			t.Fatalf("committed_at = %s, want storage commit time", time.Unix(0, committed))
+		}
+		if committedAt != 0 && committedAt != committed {
+			t.Fatalf("one process-tree commit has timestamps %d and %d", committedAt, committed)
+		}
+		committedAt = committed
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if committedAt == 0 {
+		t.Fatal("process tree has no storage capture metadata")
+	}
+	storedChild, err := sessions.Get(t.Context(), child.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedChild.UpdatedAt.UnixNano() != committedAt {
+		t.Fatalf("subtask audit time = %s, want process-tree commit %s", storedChild.UpdatedAt, time.Unix(0, committedAt))
 	}
 }
 
 func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
-	ctx := t.Context()
 	store := newProcessStore(t)
 	root := validStoredSnapshot("root", core.StatusCompleted)
 	child := validStoredSnapshot("child", core.StatusKilled)
-	child.ParentID = root.ID
-	child.Depth = 1
-	grandchild := validStoredSnapshot("grandchild", core.StatusKilled)
-	grandchild.ParentID = child.ID
-	grandchild.Depth = 2
+	child.ParentID, child.Depth = root.ID, 1
 	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
-	if err := store.Apply(ctx, storedSnapshotChange(root.ID, root, child, grandchild)); err != nil {
-		t.Fatalf("Apply tree: %v", err)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatal(err)
 	}
-	if err := store.Apply(ctx, storedSnapshotChange(unrelated.ID, unrelated)); err != nil {
-		t.Fatalf("Apply unrelated: %v", err)
+	if err := store.SaveTree(t.Context(), storedSnapshotTree(unrelated.ID, unrelated), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
+		t.Fatal(err)
 	}
-
-	if err := store.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{root.ID}}); err != nil {
-		t.Fatalf("Delete: %v", err)
+	if err := store.DeleteTrees(t.Context(), []string{root.ID}); err != nil {
+		t.Fatal(err)
 	}
-	ids, err := store.List(ctx)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if len(ids) != 1 || ids[0] != unrelated.ID {
-		t.Fatalf("remaining snapshots = %v, want only unrelated", ids)
-	}
-}
-
-// A single change may re-capture a subtree while deleting an ancestor whose
-// recursive descendants still include it. The store must persist the capture:
-// deletes run before writes, so the cascade cannot remove a just-written node.
-func TestProcessStoreApplyKeepsWrittenTreeWhenDeletingAncestor(t *testing.T) {
-	ctx := t.Context()
-	store := newProcessStore(t)
-	ancestor := validStoredSnapshot("ancestor", core.StatusCompleted)
-	target := validStoredSnapshot("target", core.StatusCompleted)
-	target.ParentID = ancestor.ID
-	target.Depth = 1
-	if err := store.Apply(ctx, storedSnapshotChange(ancestor.ID, ancestor, target)); err != nil {
-		t.Fatalf("Apply seed tree: %v", err)
-	}
-
-	recaptured := validStoredSnapshot("target", core.StatusCompleted)
-	recaptured.ParentID = ancestor.ID
-	recaptured.Depth = 1
-	change := core.ProcessSnapshotChange{
-		Tree:        &core.ProcessSnapshotTree{RootID: recaptured.ID, Snapshots: []core.ProcessSnapshot{recaptured}},
-		DeleteRoots: []string{ancestor.ID},
-	}
-	if err := store.Apply(ctx, change); err != nil {
-		t.Fatalf("Apply recapture with ancestor delete: %v", err)
-	}
-
-	if _, err := store.Load(ctx, target.ID); err != nil {
-		t.Fatalf("recaptured target lost to ancestor cascade: %v", err)
-	}
-	if _, err := store.Load(ctx, ancestor.ID); !errors.Is(err, core.ErrSnapshotNotFound) {
-		t.Fatalf("Load ancestor after delete = %v, want ErrSnapshotNotFound", err)
+	ids, err := store.List(context.Background())
+	if err != nil || len(ids) != 1 || ids[0] != unrelated.ID {
+		t.Fatalf("remaining snapshots = %v, %v", ids, err)
 	}
 }

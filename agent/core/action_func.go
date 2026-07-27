@@ -69,15 +69,14 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 	// A handled suspension parks rather than completes. The returned output is
 	// unproduced zero value, so don't bind it. The runtime flips the
 	// process to StatusWaiting; on resume the action re-runs and (with
-	// the response now in durable Suspension state) takes the resumed path.
+	// the response now in Suspension state) takes the resumed path.
 	if process.suspended {
 		return ActionWaiting, nil
 	}
 
-	// ClearWorkingState resets working state (preserving protected entries)
-	// before binding the output so only the just-produced value
-	// survives. Used for state-machine transitions and looping flows
-	// that want a clean slate on success.
+	// ClearWorkingState resets working state before binding the output so only
+	// the just-produced value survives. Used for state-machine transitions and
+	// looping flows that want a clean slate on success.
 	if a.metadata.ClearWorkingState {
 		process.blackboard.ClearWorkingState()
 	}
@@ -161,7 +160,7 @@ func NewAction[In, Out any](
 		Inputs:            inputs,
 		Outputs:           outputs,
 		Repeatable:        config.Repeatable,
-		ToolGroups:        cloneToolGroupRequirements(config.ToolGroups),
+		ToolGroups:        slices.Clone(config.ToolGroups),
 		Cost:              cost,
 		Value:             value,
 		ClearWorkingState: config.ClearWorkingState,

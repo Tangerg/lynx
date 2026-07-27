@@ -16,53 +16,9 @@ var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 // owning parent's active run loop.
 var ErrChildParentInactive = errors.New("run child: parent process is not running")
 
-// StartChild starts a child Segment in the background and returns immediately.
-// Like [Engine.RunChild], it copies only the parent's protected ambient state.
-// The parent must be the active process attached to ctx; terminal, idle, and
-// foreign processes are rejected.
-//
-// The child outlives cancellation of the calling action. Callers own its
-// lifecycle through [Engine.Process], [Engine.Kill], or [Engine.KillChildren].
-func (e *Engine) StartChild(
-	ctx context.Context,
-	deployment *Deployment,
-	input any,
-) (*Segment, error) {
-	if e == nil {
-		return nil, errors.New("start child: engine is nil")
-	}
-	deployment, err := e.ownedDeployment("start child", deployment)
-	if err != nil {
-		return nil, err
-	}
-	return startChildDeployment(ctx, e, deployment, input)
-}
-
-func startChildDeployment(
-	ctx context.Context,
-	engine *Engine,
-	deployment *Deployment,
-	input any,
-) (*Segment, error) {
-	run := childRun{
-		ctx:        ctx,
-		engine:     engine,
-		deployment: deployment,
-		input:      input,
-		mode:       childCopiesAmbientState,
-	}
-	child, err := run.admit()
-	if err != nil {
-		return nil, err
-	}
-	segment := newSegment(child)
-	go child.runOwnedSegment(context.WithoutCancel(ctx), segment, nil)
-	return segment, nil
-}
-
 // RunChildWithState runs a child with a copy of the parent's entire blackboard.
 // Use it only when the child needs the parent's working state. For ordinary
-// delegation, prefer [Engine.RunChild], which copies ambient state only.
+// delegation, prefer [Engine.RunChild], which starts clean.
 func (e *Engine) RunChildWithState(
 	ctx context.Context,
 	deployment *Deployment,
@@ -77,10 +33,9 @@ func (e *Engine) RunChildWithState(
 	}.run()
 }
 
-// RunChild runs a child with a clean blackboard containing only the parent's
-// protected ambient state. This is the safe default for self-contained
-// delegation. The active parent process owned by this Engine must be attached
-// to ctx with [core.WithProcessView].
+// RunChild runs a child with clean working state. This is the safe default for
+// self-contained delegation. The active parent process owned by this Engine
+// must be attached to ctx with [core.WithProcessView].
 func (e *Engine) RunChild(
 	ctx context.Context,
 	deployment *Deployment,
@@ -91,7 +46,7 @@ func (e *Engine) RunChild(
 		engine:     e,
 		deployment: deployment,
 		input:      input,
-		mode:       childCopiesAmbientState,
+		mode:       childStartsClean,
 	}.run()
 }
 
@@ -106,24 +61,7 @@ func runChildDeployment(
 		engine:     engine,
 		deployment: deployment,
 		input:      input,
-		mode:       childCopiesAmbientState,
-	}.run()
-}
-
-// RunChildIsolated runs a child with a fresh blackboard seeded only with input.
-// Use it for loops, pipelines, and parallel branches that must not inherit even
-// ambient state.
-func (e *Engine) RunChildIsolated(
-	ctx context.Context,
-	deployment *Deployment,
-	input any,
-) (*Process, error) {
-	return childRun{
-		ctx:        ctx,
-		engine:     e,
-		deployment: deployment,
-		input:      input,
-		mode:       childStartsEmpty,
+		mode:       childStartsClean,
 	}.run()
 }
 
@@ -131,8 +69,7 @@ type childBlackboardMode uint8
 
 const (
 	childCopiesParentState childBlackboardMode = iota
-	childCopiesAmbientState
-	childStartsEmpty
+	childStartsClean
 )
 
 type childRun struct {
@@ -176,12 +113,6 @@ func (r childRun) admit() (*Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
-	if err := r.linkSession(child, parent); err != nil {
-		r.engine.processes.unregister(child)
-		parent.budget.removeChild(child)
-		child.state.endRun()
-		return nil, fmt.Errorf("run child %q: link session: %w", agentName, err)
-	}
 	child.publishCreated(r.ctx, eventBindings)
 	return child, nil
 }
@@ -224,14 +155,8 @@ func (r childRun) processOptions(parent *Process, deployment *Deployment) (core.
 			return core.ProcessOptions{}, err
 		}
 		options.Blackboard = blackboard
-	case childCopiesAmbientState:
-		blackboard, err := ambientBlackboard(parent.blackboard)
-		if err != nil {
-			return core.ProcessOptions{}, err
-		}
-		options.Blackboard = blackboard
-	case childStartsEmpty:
-		blackboard, err := r.engine.NewBlackboard()
+	case childStartsClean:
+		blackboard, err := cleanBlackboard(parent.blackboard)
 		if err != nil {
 			return core.ProcessOptions{}, err
 		}
@@ -265,8 +190,9 @@ func configureChildProcessOptions(
 	return configured, nil
 }
 
-// ambientBlackboard copies the parent's protected entries into a clean board.
-func ambientBlackboard(parent core.Blackboard) (blackboard core.Blackboard, err error) {
+// cleanBlackboard preserves the parent's implementation choice while removing
+// all planner/action state.
+func cleanBlackboard(parent core.Blackboard) (blackboard core.Blackboard, err error) {
 	blackboard, err = cloneBlackboard(parent)
 	if err != nil {
 		return nil, err
@@ -283,83 +209,4 @@ func ambientBlackboard(parent core.Blackboard) (blackboard core.Blackboard, err 
 	}()
 	blackboard.ClearWorkingState()
 	return blackboard, nil
-}
-
-// linkSession gives the child its own conversation while preserving delegation
-// lineage through ParentID. Explicitly pinned sessions are left untouched.
-func (r childRun) linkSession(child, parent *Process) error {
-	if child.options == nil || child.options.session != nil {
-		return nil
-	}
-	session, linked := bindChildSession(child, parent)
-	if !linked {
-		return nil
-	}
-
-	if r.engine.childSessionStore != nil {
-		if err := r.engine.childSessionStore.Save(r.ctx, session); err != nil {
-			return fmt.Errorf("save child session %q: %w", child.ID(), err)
-		}
-	}
-	return nil
-}
-
-func (r childRun) restoreSession(child, parent *Process) error {
-	if child == nil || parent == nil || child.options == nil || child.options.session != nil {
-		return nil
-	}
-	r.ctx = normalizeContext(r.ctx)
-	parentConversationID := parent.conversationID()
-	if parentConversationID == "" {
-		return nil
-	}
-	if r.engine == nil || r.engine.childSessionStore == nil {
-		bindChildSession(child, parent)
-		return nil
-	}
-	session, err := r.engine.childSessionStore.Load(r.ctx, child.ID())
-	if err != nil {
-		if errors.Is(err, core.ErrSessionNotFound) {
-			return &continuationStateError{
-				err: fmt.Errorf("load child session %q: %w", child.ID(), err),
-			}
-		}
-		return fmt.Errorf("load child session %q: %w", child.ID(), err)
-	}
-	if err := session.Validate(); err != nil {
-		return &continuationStateError{
-			err: fmt.Errorf("stored child session %q: %w", child.ID(), err),
-		}
-	}
-	if session.ID != child.ID() ||
-		session.ParentID != parentConversationID ||
-		session.UserID != parent.userID() ||
-		session.AgentName != child.agent().Name() {
-		return continuationStateErrorf(
-			"stored child session %q identity is parent=%q user=%q agent=%q; want parent=%q user=%q agent=%q",
-			session.ID,
-			session.ParentID,
-			session.UserID,
-			session.AgentName,
-			parentConversationID,
-			parent.userID(),
-			child.agent().Name(),
-		)
-	}
-	child.options.session = &session
-	return nil
-}
-
-func bindChildSession(child, parent *Process) (core.Session, bool) {
-	if child == nil || parent == nil || child.options == nil || child.options.session != nil {
-		return core.Session{}, false
-	}
-	parentConversationID := parent.conversationID()
-	if parentConversationID == "" {
-		return core.Session{}, false
-	}
-	session := core.NewSession(child.ID(), parent.userID(), child.agent().Name())
-	session.ParentID = parentConversationID
-	child.options.session = &session
-	return session, true
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
-// BlackboardState is the ownership-isolated state required to durably restore
+// BlackboardState is the ownership-isolated state required to restore
 // a blackboard. Conditions are explicit boolean facts, while Bindings and
 // Objects preserve the blackboard's named and insertion-ordered views.
 type BlackboardState struct {
@@ -19,8 +19,8 @@ type BlackboardState struct {
 }
 
 // BlackboardSnapshotter is the optional capture surface a custom
-// [core.Blackboard] implementation exposes so [Process.Snapshot] can persist
-// its full state.
+// [core.Blackboard] implementation exposes so [Engine.SnapshotTree] can
+// capture its full portable state.
 type BlackboardSnapshotter interface {
 	Snapshot() (BlackboardState, error)
 }
@@ -33,7 +33,7 @@ type BlackboardRestorer interface {
 func snapshotBlackboard(blackboard core.Blackboard) (state BlackboardState, err error) {
 	snapshotter, ok := blackboard.(BlackboardSnapshotter)
 	if !ok {
-		return BlackboardState{}, fmt.Errorf("blackboard %T does not support durable capture", blackboard)
+		return BlackboardState{}, fmt.Errorf("blackboard %T does not support snapshot capture", blackboard)
 	}
 	name, err := blackboardName(blackboard)
 	if err != nil {
@@ -51,7 +51,7 @@ func snapshotBlackboard(blackboard core.Blackboard) (state BlackboardState, err 
 func restoreBlackboard(blackboard core.Blackboard, state BlackboardState) (err error) {
 	restorer, ok := blackboard.(BlackboardRestorer)
 	if !ok {
-		return fmt.Errorf("blackboard %T does not support durable restore", blackboard)
+		return fmt.Errorf("blackboard %T does not support snapshot restore", blackboard)
 	}
 	name, err := blackboardName(blackboard)
 	if err != nil {
@@ -65,9 +65,8 @@ func restoreBlackboard(blackboard core.Blackboard, state BlackboardState) (err e
 	return restorer.Restore(state)
 }
 
-// Snapshot implements [BlackboardSnapshotter]. Hidden + protected markers are
-// deliberately omitted: protected re-applies naturally at restore time, and
-// Hide markers are a transient view filter with no portable wire form.
+// Snapshot implements [BlackboardSnapshotter]. Hide markers are deliberately
+// omitted because they are a transient view filter with no portable wire form.
 func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
@@ -79,7 +78,7 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	}
 	objects := make([]any, 0, len(b.objects))
 	for i, value := range b.objects {
-		if i < len(b.durableObjects) && b.durableObjects[i] {
+		if i < len(b.snapshotObjects) && b.snapshotObjects[i] {
 			objects = append(objects, value)
 		}
 	}
@@ -91,7 +90,7 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 }
 
 // Restore implements [BlackboardRestorer]. Existing bindings are cleared first;
-// protected / hidden markers are reset because they have no portable wire form.
+// hidden markers are reset because they have no portable wire form.
 func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -104,11 +103,10 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	clear(b.conditions)
 	maps.Copy(b.conditions, state.Conditions)
 	b.objects = slices.Clone(state.Objects)
-	b.durableObjects = make([]bool, len(state.Objects))
-	for i := range b.durableObjects {
-		b.durableObjects[i] = true
+	b.snapshotObjects = make([]bool, len(state.Objects))
+	for i := range b.snapshotObjects {
+		b.snapshotObjects[i] = true
 	}
 	b.hidden = b.hidden[:0]
-	clear(b.protected)
 	return nil
 }

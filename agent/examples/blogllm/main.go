@@ -52,7 +52,7 @@ func main() {
 			parsed.Summary = strings.TrimSpace(text)
 		}
 		return Brief{Topic: in.Title, Sources: parsed.Sources, Summary: parsed.Summary}, nil
-	}, agent.ActionConfig{ToolGroups: []agent.ToolGroupRequirement{agent.RequireToolGroup(researchToolRole)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolGroups: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Chat:       agent.Chat(chatClient),
@@ -144,8 +144,8 @@ type researchToolResolver struct {
 
 func (researchToolResolver) Name() string { return "research-tools" }
 
-func (r researchToolResolver) Resolve(_ context.Context, requirement agent.ToolGroupRequirement) (agent.ToolGroup, bool, error) {
-	if requirement.Role != researchToolRole {
+func (r researchToolResolver) Resolve(_ context.Context, role string) (agent.ToolGroup, bool, error) {
+	if role != researchToolRole {
 		return nil, false, nil
 	}
 	return r.group, true, nil
@@ -170,10 +170,6 @@ func newResearchToolGroup() *researchToolGroup {
 		panic(err)
 	}
 	return &researchToolGroup{tools: []tools.Tool{tool}}
-}
-
-func (g *researchToolGroup) Info() agent.ToolGroupInfo {
-	return agent.ToolGroupInfo{Role: researchToolRole}
 }
 
 func (g *researchToolGroup) Tools(_ context.Context) ([]tools.Tool, error) {

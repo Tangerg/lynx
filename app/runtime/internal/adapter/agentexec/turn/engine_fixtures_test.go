@@ -81,7 +81,7 @@ type stubTurnProcess struct {
 	onCancel   func()
 	resumeErr  error       // when set, Resume fails with it
 	discardErr error       // returned by Discard to verify teardown observability
-	discarded  atomic.Bool // set by Discard to assert terminal snapshot cleanup
+	discarded  atomic.Bool // set by Discard to assert terminal process cleanup
 }
 
 func newStubTurnProcess(id string, output agentexec.TurnOutput) *stubTurnProcess {
@@ -142,6 +142,8 @@ type stubEngine struct {
 	stopReason       agentexec.StopReason
 	restoreResumeErr error
 	discardErr       error
+	completionStatus core.ProcessStatus
+	completionErr    error
 
 	mu                   sync.Mutex
 	lastClient           *chatclient.Client
@@ -178,6 +180,14 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 		Reply:      s.runReply,
 		StopReason: s.stopReason,
 	})
+	if s.completionStatus != core.StatusNotStarted {
+		process.status.Store(int32(s.completionStatus))
+	}
+	if s.completionErr != nil {
+		process.done = make(chan error, 1)
+		process.done <- s.completionErr
+		close(process.done)
+	}
 	process.discardErr = s.discardErr
 	s.lastProcess.Store(process)
 	return process, nil

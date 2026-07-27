@@ -9,12 +9,12 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// ChildRuntime is the deployment and isolated-child execution surface used by
+// ChildRuntime is the deployment and clean-child execution surface used by
 // sub-agent workflows. The interface is defined by the consumer so workflow
-// builders do not depend on unrelated Engine lifecycle or persistence APIs.
+// builders do not depend on unrelated Engine lifecycle APIs.
 type ChildRuntime interface {
 	Deploy(context.Context, *core.Agent) (*runtime.Deployment, error)
-	RunChildIsolated(context.Context, *runtime.Deployment, any) (*runtime.Process, error)
+	RunChild(context.Context, *runtime.Deployment, any) (*runtime.Process, error)
 }
 
 // ParallelConfig configures a fan-out across N sub-agents that all
@@ -22,7 +22,7 @@ type ChildRuntime interface {
 // single Joiner consolidates the per-agent outputs into Result.
 //
 // Each parallel sub-agent runs as its own child process via
-// [runtime.RunChildIsolated]; child processes get an isolated blackboard
+// [runtime.Engine.RunChild]; child processes get a clean blackboard
 // seeded only with the input, so peer sub-agents cannot see each other's
 // intermediate writes during the parallel phase. This mirrors ADK's
 // ParallelAgent branch-isolation design (avoids LLM context
@@ -104,7 +104,7 @@ func Parallel[In, Element, Result any](
 		generators[index] = func(ctx context.Context, _ *core.ProcessContext, input In) (Element, error) {
 			var zero Element
 			name := deployment.Ref().Name
-			child, err := childRuntime.RunChildIsolated(ctx, deployment, input)
+			child, err := childRuntime.RunChild(ctx, deployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}

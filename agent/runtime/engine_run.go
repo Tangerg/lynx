@@ -25,8 +25,7 @@ var (
 	ErrProcessNotFound = errors.New("runtime: process not found")
 
 	// ErrProcessRunning reports that another caller currently owns the process
-	// run loop. The lifecycle may also be StatusRunning after durable restore;
-	// only transient run ownership makes this error true.
+	// run loop.
 	ErrProcessRunning = errors.New("runtime: process is already running")
 
 	// ErrProcessCheckpointBusy reports that another caller is capturing or
@@ -36,10 +35,6 @@ var (
 	// ErrProcessActive reports an attempt to remove a process before it reaches
 	// a terminal state. Call Kill first when active work must be discarded.
 	ErrProcessActive = errors.New("runtime: process is active")
-
-	// ErrProcessHasChildren reports that registry cleanup would detach a process
-	// from descendants that still belong to its execution tree.
-	ErrProcessHasChildren = errors.New("runtime: process still owns registered children")
 )
 
 // Run deploys/resolves the Agent definition, runs it synchronously, and returns
@@ -108,116 +103,6 @@ func finishAgentRunSpan(span trace.Span, process *Process, err error) {
 	if process != nil {
 		span.SetAttributes(attribute.String(attrProcessStatus, process.Status().String()))
 	}
-}
-
-// RunInSession runs the agent under a multi-turn session context.
-// The session is stamped onto [core.ProcessOptions.Session] so action
-// bodies' chat calls flow through chat history keyed by [core.Session.ID].
-// When a [core.SessionStore] is configured on the engine the session is
-// saved before dispatch (so a concurrent reader sees the active
-// turn) and re-saved with refreshed [core.Session.UpdatedAt] after the
-// dispatch completes — successful or failed.
-//
-// Calls sharing a session ID are ordered only within this Engine instance. The
-// framework makes no cross-process or distributed coordination guarantee;
-// hosts that need one must provide it outside the Engine boundary.
-//
-// The runtime takes an ownership-isolated copy of session. Build it via
-// [core.NewSession] (or load it from the configured store) before calling. If
-// agent is nil, the active deployment named by [core.Session.AgentName] is
-// used. If agent is non-nil, an empty AgentName is bound to its compiled
-// deployment and a conflicting name is rejected.
-//
-// Returns the same (*Process, error) shape as [Engine.Run].
-func (e *Engine) RunInSession(
-	ctx context.Context,
-	agent *core.Agent,
-	session core.Session,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (*Process, error) {
-	return e.runInSession(ctx, agent, session, bindings, options)
-}
-
-func (e *Engine) runInSession(
-	ctx context.Context,
-	agent *core.Agent,
-	session core.Session,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (process *Process, err error) {
-	session = session.Clone()
-	deployment, err := e.sessionDeployment(ctx, agent, session)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
-	}
-	sessionID := session.ID
-
-	ctx = normalizeContext(ctx)
-	release, err := e.sessionTurns.acquire(ctx, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: acquire session turn %q: %w", sessionID, err)
-	}
-	defer release()
-
-	if err := session.BindAgent(deployment.agent.Name()); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
-	}
-	if err := session.Validate(); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: %w", err)
-	}
-	options.Session = &session
-
-	// Pre-dispatch save so concurrent readers see the active turn
-	// (UpdatedAt = "now") even if dispatch is long-running.
-	if err := e.touchAndSaveSession(ctx, &session); err != nil {
-		return nil, fmt.Errorf("runtime.Engine.RunInSession: save before dispatch: %w", err)
-	}
-
-	process, runErr := e.runDeployment(ctx, deployment, bindings, options)
-
-	// Finalization must survive request cancellation so durable audit time still
-	// reflects a failed or canceled dispatch. Preserve context values and spans,
-	// but detach cancellation from the store write.
-	postContext, cancel := context.WithTimeout(context.WithoutCancel(ctx), e.sessionFinalizeTimeout)
-	defer cancel()
-	if saveErr := e.touchAndSaveSession(postContext, &session); saveErr != nil {
-		saveErr = fmt.Errorf("runtime.Engine.RunInSession: save after dispatch: %w", saveErr)
-		return process, errors.Join(runErr, saveErr)
-	}
-	return process, runErr
-}
-
-func (e *Engine) sessionDeployment(ctx context.Context, agent *core.Agent, session core.Session) (*Deployment, error) {
-	if agent != nil {
-		candidate := session
-		if err := candidate.BindAgent(agent.Name()); err != nil {
-			return nil, err
-		}
-		if err := candidate.Validate(); err != nil {
-			return nil, err
-		}
-		return e.deploymentForProcess(ctx, agent)
-	}
-	if err := session.Validate(); err != nil {
-		return nil, err
-	}
-	deployment, ok := e.catalog.activeDeployment(session.AgentName)
-	if !ok {
-		return nil, fmt.Errorf("%w: agent %q is not active", ErrDeploymentNotFound, session.AgentName)
-	}
-	return deployment, nil
-}
-
-// touchAndSaveSession refreshes UpdatedAt and persists when a
-// root SessionStore is configured. No-op when none is wired so callers
-// don't have to nil-check the store at every save site.
-func (e *Engine) touchAndSaveSession(ctx context.Context, session *core.Session) error {
-	session.Touch()
-	if e.sessionStore == nil {
-		return nil
-	}
-	return e.sessionStore.Save(ctx, *session)
 }
 
 // Start deploys/resolves the Agent definition and starts one background
@@ -347,12 +232,12 @@ func (e *Engine) Resume(ctx context.Context, id, suspensionID string, response a
 	if !e.processes.available(process) {
 		return processNotFoundError("resume process", id)
 	}
-	transaction, err := e.prepareResume(process, suspensionID, response)
+	admission, err := e.prepareResume(process, suspensionID, response)
 	if err != nil {
 		return fmt.Errorf("resume process %q: %w", id, err)
 	}
-	defer transaction.release()
-	if err := transaction.commit(false); err != nil {
+	defer admission.release()
+	if err := admission.apply(false); err != nil {
 		return fmt.Errorf("resume process %q: %w", id, err)
 	}
 	return nil
@@ -382,15 +267,15 @@ func (e *Engine) ResumeAsync(
 	if !e.processes.available(process) {
 		return nil, processNotFoundError("resume process asynchronously", id)
 	}
-	transaction, err := e.prepareResume(process, suspensionID, response)
+	admission, err := e.prepareResume(process, suspensionID, response)
 	if err != nil {
 		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
 	}
-	defer transaction.release()
-	if err := transaction.commit(true); err != nil {
+	defer admission.release()
+	if err := admission.apply(true); err != nil {
 		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
 	}
-	transaction.release()
+	admission.release()
 	segment := newSegment(process)
 	go process.runOwnedSegment(normalizeContext(runCtx), segment, nil)
 	return segment, nil
@@ -402,26 +287,26 @@ type resumeResponse struct {
 	response   json.RawMessage
 }
 
-type resumeTransaction struct {
+type resumeAdmission struct {
 	root      *Process
 	claims    []*processState
 	responses []resumeResponse
 }
 
-func (e *Engine) prepareResume(process *Process, suspensionID string, response any) (*resumeTransaction, error) {
-	transaction := &resumeTransaction{root: process}
-	if err := e.collectResume(transaction, process, suspensionID, response, map[string]struct{}{}); err != nil {
-		transaction.release()
+func (e *Engine) prepareResume(process *Process, suspensionID string, response any) (*resumeAdmission, error) {
+	admission := &resumeAdmission{root: process}
+	if err := e.collectResume(admission, process, suspensionID, response, map[string]struct{}{}); err != nil {
+		admission.release()
 		return nil, err
 	}
-	return transaction, nil
+	return admission, nil
 }
 
 // collectResume validates the complete active nested-child branch and claims
 // every process checkpoint before recording any response. Sibling children
-// remain parked. Claims are acquired root → leaf, matching save traversal.
+// remain parked. Claims are acquired root → leaf, matching snapshot traversal.
 func (e *Engine) collectResume(
-	transaction *resumeTransaction,
+	admission *resumeAdmission,
 	process *Process,
 	suspensionID string,
 	response any,
@@ -437,7 +322,7 @@ func (e *Engine) collectResume(
 	if err := process.state.claimCheckpoint(false); err != nil {
 		return err
 	}
-	transaction.claims = append(transaction.claims, &process.state)
+	admission.claims = append(admission.claims, &process.state)
 
 	suspension := process.Suspension()
 	if suspension == nil || process.Status() != core.StatusWaiting || suspension.ID != suspensionID {
@@ -461,12 +346,12 @@ func (e *Engine) collectResume(
 			return err
 		}
 		if child.Status() == core.StatusWaiting {
-			if err := e.collectResume(transaction, child, relation.SuspensionID, response, visited); err != nil {
+			if err := e.collectResume(admission, child, relation.SuspensionID, response, visited); err != nil {
 				return err
 			}
 		}
 	}
-	transaction.responses = append(transaction.responses, resumeResponse{
+	admission.responses = append(admission.responses, resumeResponse{
 		state:      &process.state,
 		suspension: suspensionID,
 		response:   canonical,
@@ -474,64 +359,59 @@ func (e *Engine) collectResume(
 	return nil
 }
 
-func (transaction *resumeTransaction) commit(start bool) error {
+func (admission *resumeAdmission) apply(start bool) error {
 	type appliedResponse struct {
 		state    *processState
 		previous *interaction.Suspension
 	}
 	var applied []appliedResponse
-	rollback := func() {
+	revert := func() {
 		for index := len(applied) - 1; index >= 0; index-- {
 			applied[index].state.restoreClaimedSuspension(applied[index].previous)
 		}
 	}
 	now := time.Now()
-	for _, prepared := range transaction.responses {
-		previous, changed, err := prepared.state.installClaimedSuspensionResponse(
+	for _, prepared := range admission.responses {
+		previous, err := prepared.state.installClaimedSuspensionResponse(
 			prepared.suspension,
 			prepared.response,
 			now,
 		)
 		if err != nil {
-			rollback()
+			revert()
 			return err
 		}
-		if changed {
-			applied = append(applied, appliedResponse{state: prepared.state, previous: previous})
-		}
+		applied = append(applied, appliedResponse{state: prepared.state, previous: previous})
 	}
 	if !start {
 		return nil
 	}
-	started, err := transaction.root.state.beginRunFromCheckpoint()
+	started, err := admission.root.state.beginRunFromCheckpoint()
 	if err != nil {
-		rollback()
+		revert()
 		return err
 	}
 	if !started {
-		rollback()
-		return fmt.Errorf("%w: process %q cannot continue from its terminal state", interaction.ErrSuspensionStale, transaction.root.ID())
+		revert()
+		return fmt.Errorf("%w: process %q cannot continue from its terminal state", interaction.ErrSuspensionStale, admission.root.ID())
 	}
 	return nil
 }
 
-func (transaction *resumeTransaction) release() {
-	if transaction == nil {
+func (admission *resumeAdmission) release() {
+	if admission == nil {
 		return
 	}
-	for index := len(transaction.claims) - 1; index >= 0; index-- {
-		transaction.claims[index].releaseCheckpoint()
+	for index := len(admission.claims) - 1; index >= 0; index-- {
+		admission.claims[index].releaseCheckpoint()
 	}
-	transaction.claims = nil
+	admission.claims = nil
 }
 
 // Kill terminates a process and its live descendants. It transitions the
 // target and descendants to [core.StatusKilled], cancels their active Run /
-// Continue contexts and current tool calls, completes any Kill-owned automatic
-// snapshots, then publishes [event.ProcessKilled]. When automatic snapshots
-// are enabled, Kill persists idle or completion-publishing targets itself; only
-// the driving phase owns the final snapshot. Kill returns any descendant or
-// snapshot failures. It is idempotent and safe on
+// Continue contexts and current tool calls, then publishes
+// [event.ProcessKilled]. It is idempotent and safe on
 // any process: an already-terminal one is left untouched, so a kill racing
 // natural completion cannot clobber a clean terminal state or publish a
 // duplicate event.
@@ -558,19 +438,18 @@ func (e *Engine) killProcess(ctx context.Context, id string) (bool, error) {
 		releaseMutation()
 		return false, fmt.Errorf("runtime.Engine.Kill: %w", err)
 	}
-	won, killed, snapshots := e.killSubtreeOwned(process)
+	won, killed := e.killSubtreeOwned(process)
 	releaseMutation()
-	snapshotErr := snapshotKilledProcesses(ctx, snapshots)
 	publishKilledProcesses(ctx, killed)
-	return won, snapshotErr
+	return won, nil
 }
 
 // killSubtreeOwned performs only internal state transitions while the caller
-// owns the process-tree mutation. Event listeners and stores are caller code;
-// they run after this transaction releases ownership so they may safely reenter
-// the Engine.
-func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process, []*Process) {
-	won, driverWillSnapshot := process.state.markKilled(nil)
+// owns the process-tree mutation. Event listeners are caller code; they run
+// after this critical section releases ownership so they may safely reenter the
+// Engine.
+func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process) {
+	won := process.state.markKilled(nil)
 	if won {
 		process.signals.fireRunCancel()
 		process.signals.fireToolCallCancel()
@@ -578,19 +457,14 @@ func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process, []*Proces
 
 	children := e.directChildren(process.ID())
 	var killed []*Process
-	var snapshots []*Process
 	if won {
 		killed = append(killed, process)
 	}
 	for _, child := range children {
-		_, childKilled, childSnapshots := e.killSubtreeOwned(child)
+		_, childKilled := e.killSubtreeOwned(child)
 		killed = append(killed, childKilled...)
-		snapshots = append(snapshots, childSnapshots...)
 	}
-	if won && !driverWillSnapshot {
-		snapshots = append(snapshots, process)
-	}
-	return won, killed, snapshots
+	return won, killed
 }
 
 func (e *Engine) ensureSubtreeMutationAvailable(process *Process) error {
@@ -614,74 +488,48 @@ func publishKilledProcesses(ctx context.Context, processes []*Process) {
 	}
 }
 
-func snapshotKilledProcesses(ctx context.Context, processes []*Process) error {
-	var errs []error
-	for _, process := range processes {
-		if err := process.maybeAutoSnapshot(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("snapshot killed process %q: %w", process.ID(), err))
-		}
-	}
-	return errors.Join(errs...)
-}
-
 // KillChildren terminates every non-terminal direct child whose ParentID
 // matches parentID and returns the ids it changed in lexical order. Each child
-// Kill recursively terminates its own descendants. The returned error joins
-// every descendant or snapshot failure without abandoning the remaining
-// children.
+// termination recursively includes its descendants. parentID must identify a
+// registered process in the same complete tree.
 func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error) {
 	ctx = normalizeContext(ctx)
-	if parent, ok := e.Process(parentID); ok {
-		releaseMutation, err := e.processMutations.acquire(ctx, e.processTreeRootID(parent))
-		if err != nil {
-			return nil, fmt.Errorf("runtime.Engine.KillChildren: acquire process tree: %w", err)
-		}
-		if !e.processes.available(parent) {
-			releaseMutation()
-			return nil, processNotFoundError("kill child processes", parentID)
-		}
-		for _, child := range e.directChildren(parentID) {
-			if err := e.ensureSubtreeMutationAvailable(child); err != nil {
-				releaseMutation()
-				return nil, fmt.Errorf("runtime.Engine.KillChildren: %w", err)
-			}
-		}
-		killed, events, snapshots := e.killChildrenOwned(parentID)
+	parent, ok := e.Process(parentID)
+	if !ok {
+		return nil, processNotFoundError("kill child processes", parentID)
+	}
+	releaseMutation, err := e.processMutations.acquire(ctx, e.processTreeRootID(parent))
+	if err != nil {
+		return nil, fmt.Errorf("runtime.Engine.KillChildren: acquire process tree: %w", err)
+	}
+	if !e.processes.available(parent) {
 		releaseMutation()
-		snapshotErr := snapshotKilledProcesses(ctx, snapshots)
-		publishKilledProcesses(ctx, events)
-		return killed, snapshotErr
+		return nil, processNotFoundError("kill child processes", parentID)
 	}
-
-	processes := e.directChildren(parentID)
-	var killed []string
-	var killErrs []error
-	for _, process := range processes {
-		won, err := e.killProcess(ctx, process.ID())
-		if err != nil {
-			killErrs = append(killErrs, fmt.Errorf("kill child process %q: %w", process.ID(), err))
-		}
-		if won {
-			killed = append(killed, process.ID())
+	for _, child := range e.directChildren(parentID) {
+		if err := e.ensureSubtreeMutationAvailable(child); err != nil {
+			releaseMutation()
+			return nil, fmt.Errorf("runtime.Engine.KillChildren: %w", err)
 		}
 	}
-	return killed, errors.Join(killErrs...)
+	killed, events := e.killChildrenOwned(parentID)
+	releaseMutation()
+	publishKilledProcesses(ctx, events)
+	return killed, nil
 }
 
-func (e *Engine) killChildrenOwned(parentID string) ([]string, []*Process, []*Process) {
+func (e *Engine) killChildrenOwned(parentID string) ([]string, []*Process) {
 	processes := e.directChildren(parentID)
 	var killed []string
 	var events []*Process
-	var snapshots []*Process
 	for _, process := range processes {
-		won, processEvents, processSnapshots := e.killSubtreeOwned(process)
+		won, processEvents := e.killSubtreeOwned(process)
 		events = append(events, processEvents...)
-		snapshots = append(snapshots, processSnapshots...)
 		if won {
 			killed = append(killed, process.ID())
 		}
 	}
-	return killed, events, snapshots
+	return killed, events
 }
 
 func (e *Engine) directChildren(parentID string) []*Process {
@@ -693,80 +541,6 @@ func (e *Engine) directChildren(parentID string) []*Process {
 		return cmp.Compare(left.ID(), right.ID())
 	})
 	return processes
-}
-
-// Remove deletes a terminal process from the registry so long-running hosts
-// can free work they have drained. Active processes must be killed and allowed
-// to finish first; rejecting their removal keeps cancellation, child ownership,
-// and durable cleanup reachable through the Engine.
-func (e *Engine) Remove(ctx context.Context, id string) error {
-	process, found := e.processes.get(id)
-	if !found {
-		return processNotFoundError("remove process", id)
-	}
-	releaseMutation, err := e.processMutations.acquire(normalizeContext(ctx), e.processTreeRootID(process))
-	if err != nil {
-		return fmt.Errorf("runtime.Engine.Remove: acquire process tree: %w", err)
-	}
-	defer releaseMutation()
-	if !e.processes.reserveProcesses([]*Process{process}) {
-		return processNotFoundError("remove process", id)
-	}
-	reserved := true
-	defer func() {
-		if reserved {
-			e.processes.releaseProcesses([]*Process{process})
-		}
-	}()
-	if !process.state.removable() {
-		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessActive)
-	}
-	found, hasChildren := e.processes.unregisterReservedLeaf(process)
-	if !found {
-		return processNotFoundError("remove process", id)
-	}
-	if hasChildren {
-		return fmt.Errorf("runtime.Engine.Remove: process %q: %w", id, ErrProcessHasChildren)
-	}
-	reserved = false
-	return nil
-}
-
-// Prune removes every registered process whose
-// status satisfies [core.ProcessStatus.IsTerminal] and returns
-// the removed ids. Convenient cleanup for long-lived hosts.
-func (e *Engine) Prune(ctx context.Context) ([]string, error) {
-	var removed []string
-	for {
-		processes := e.Processes()
-		slices.SortFunc(processes, func(left, right *Process) int {
-			return cmp.Or(
-				cmp.Compare(right.depth, left.depth),
-				cmp.Compare(left.id, right.id),
-			)
-		})
-		pruned := 0
-		for _, process := range processes {
-			if !process.Status().IsTerminal() {
-				continue
-			}
-			err := e.Remove(ctx, process.ID())
-			switch {
-			case err == nil:
-				removed = append(removed, process.ID())
-				pruned++
-			case errors.Is(err, ErrProcessActive),
-				errors.Is(err, ErrProcessHasChildren),
-				errors.Is(err, ErrProcessNotFound):
-				continue
-			default:
-				return removed, err
-			}
-		}
-		if pruned == 0 {
-			return removed, nil
-		}
-	}
 }
 
 type processNotFound struct {

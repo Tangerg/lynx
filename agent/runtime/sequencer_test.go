@@ -5,12 +5,11 @@ import (
 	"errors"
 	"testing"
 	"testing/synctest"
-	"time"
 )
 
 func TestLocalSequencerSerializesSameKey(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		sequencer := newLocalSequencer()
+		sequencer := newProcessTreeSequencer()
 		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 		if err != nil {
 			t.Fatal(err)
@@ -50,7 +49,7 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	}
 
 	synctest.Test(t, func(t *testing.T) {
-		sequencer := newLocalSequencer()
+		sequencer := newProcessTreeSequencer()
 		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 		if err != nil {
 			t.Fatal(err)
@@ -84,7 +83,7 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 }
 
 func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
-	sequencer := newLocalSequencer()
+	sequencer := newProcessTreeSequencer()
 	releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +98,7 @@ func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
 }
 
 func TestLocalSequencerRejectsCanceledIdleAcquire(t *testing.T) {
-	sequencer := newLocalSequencer()
+	sequencer := newProcessTreeSequencer()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -112,11 +111,5 @@ func TestLocalSequencerRejectsCanceledIdleAcquire(t *testing.T) {
 	}
 	if len(sequencer.gates) != 0 {
 		t.Fatalf("retained gates = %d, want no canceled acquisition state", len(sequencer.gates))
-	}
-}
-
-func TestNewRejectsNegativeSessionFinalizeTimeout(t *testing.T) {
-	if _, err := New(Config{SessionFinalizeTimeout: -time.Second}); err == nil {
-		t.Fatal("New succeeded, want validation error")
 	}
 }

@@ -11,6 +11,7 @@
 package arch
 
 import (
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
@@ -20,6 +21,14 @@ import (
 	"testing"
 )
 
+var forbiddenFrameworkModulePrefixes = []string{
+	"github.com/Tangerg/lynx/app",
+	"github.com/Tangerg/lynx/a2a",
+	"github.com/Tangerg/lynx/mcp",
+	"github.com/a2aproject/a2a-go",
+	"github.com/modelcontextprotocol/go-sdk",
+}
+
 // TestDependencyRule enforces the framework's dependency ladder: an inner rung
 // must not import an outer one.
 //
@@ -27,10 +36,9 @@ import (
 //
 //	core         core/, interaction/        pure primitives + public SPI (Action/Goal/Condition/Blackboard/Extension)
 //	strategy     planning/, event/,             strategy/protocol plug-ins that depend on core
-//	             hitl/, toolpolicy/, toolloop/
+//	             hitl/, toolloop/
 //	engine       runtime/, routing/              state machine and dispatch; consumes core + strategy
-//	combinator   ./, workflow/, storetest/       public convenience, high-level combinators,
-//	                                              and reusable store conformance tests
+//	combinator   ./, workflow/                    public convenience and high-level combinators
 //
 // Forbidden edges (an inner rung learning about an outer one):
 //
@@ -143,56 +151,7 @@ func TestEveryPublicProductionPackageIsClassified(t *testing.T) {
 	}
 }
 
-func TestAgentDoesNotImportApplicationModules(t *testing.T) {
-	const appPrefix = "github.com/Tangerg/lynx/app/"
-	root := moduleRoot(t)
-	fset := token.NewFileSet()
-
-	violations := 0
-	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			name := d.Name()
-			if name == "vendor" || name == "examples" || (strings.HasPrefix(name, ".") && path != root) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-
-		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
-		if err != nil {
-			return err
-		}
-		for _, imp := range f.Imports {
-			ip := strings.Trim(imp.Path.Value, `"`)
-			if strings.HasPrefix(ip, appPrefix) {
-				violations++
-				rel, _ := filepath.Rel(root, path)
-				t.Errorf("agent must not import application module %q: %s", ip, rel)
-			}
-		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk agent: %v", walkErr)
-	}
-	if violations == 0 {
-		t.Log("agent import boundary holds: no app/* imports found")
-	}
-}
-
-func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
-	forbiddenPrefixes := []string{
-		"github.com/Tangerg/lynx/a2a",
-		"github.com/Tangerg/lynx/mcp",
-		"github.com/a2aproject/a2a-go",
-		"github.com/modelcontextprotocol/go-sdk",
-	}
+func TestFrameworkDoesNotImportApplicationOrTransportModules(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -215,10 +174,10 @@ func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			for _, prefix := range forbiddenPrefixes {
-				if strings.HasPrefix(importPath, prefix) {
+			for _, prefix := range forbiddenFrameworkModulePrefixes {
+				if hasModulePrefix(importPath, prefix) {
 					rel, _ := filepath.Rel(root, path)
-					t.Errorf("Agent Framework production package imports transport SDK %q: %s", importPath, rel)
+					t.Errorf("Agent Framework production package imports application or transport module %q: %s", importPath, rel)
 				}
 			}
 		}
@@ -227,6 +186,25 @@ func TestFrameworkDoesNotImportTransportSDKs(t *testing.T) {
 	if walkErr != nil {
 		t.Fatalf("walk Agent Framework: %v", walkErr)
 	}
+}
+
+func TestFrameworkModuleDoesNotRequireApplicationOrTransportModules(t *testing.T) {
+	path := filepath.Join(moduleRoot(t), "go.mod")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read Agent go.mod: %v", err)
+	}
+	for _, field := range strings.Fields(string(data)) {
+		for _, prefix := range forbiddenFrameworkModulePrefixes {
+			if hasModulePrefix(field, prefix) {
+				t.Errorf("Agent module depends on application or transport module %q", field)
+			}
+		}
+	}
+}
+
+func hasModulePrefix(path, prefix string) bool {
+	return path == prefix || strings.HasPrefix(path, prefix+"/")
 }
 
 func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
@@ -277,8 +255,70 @@ func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
 	}
 }
 
-func TestStoretestIsOnlyImportedByTests(t *testing.T) {
-	const storetestPath = "github.com/Tangerg/lynx/agent/storetest"
+func TestFrameworkDoesNotOwnApplicationRuntimeConcerns(t *testing.T) {
+	forbiddenNames := map[string]struct{}{
+		"allowedpermissions":       {},
+		"autosnapshot":             {},
+		"bindconversation":         {},
+		"buildid":                  {},
+		"capturedat":               {},
+		"childsessionstore":        {},
+		"conversationid":           {},
+		"costusd":                  {},
+		"defaultbudget":            {},
+		"defaultbudgetactionlimit": {},
+		"defaultbudgetcostlimit":   {},
+		"defaultbudgettokenlimit":  {},
+		"embeddingcall":            {},
+		"goaltool":                 {},
+		"goaltoolconfig":           {},
+		"goaltools":                {},
+		"goaltoolsfor":             {},
+		"modelattribution":         {},
+		"modelcall":                {},
+		"newgoaltool":              {},
+		"newstandaloneagenttool":   {},
+		"owncost":                  {},
+		"ownembeddingcalls":        {},
+		"ownmodelcalls":            {},
+		"owntokens":                {},
+		"processsnapshotchange":    {},
+		"processstore":             {},
+		"recordembeddingcall":      {},
+		"recordmodelcall":          {},
+		"runinsession":             {},
+		"sameresponse":             {},
+		"session":                  {},
+		"sessionmetadata":          {},
+		"sessionstore":             {},
+		"snapshotfailurepolicy":    {},
+		"standalonegoaltools":      {},
+		"storeprotected":           {},
+		"suspensionequal":          {},
+		"toolgroupinfo":            {},
+		"toolgrouppermission":      {},
+		"toolgroupref":             {},
+		"toolgrouprequirement":     {},
+		"toolpolicy":               {},
+		"requiretoolgroup":         {},
+		"waitingprocessresult":     {},
+		"waitingtoolresult":        {},
+	}
+	forbiddenFragments := []string{
+		"billing",
+		"conversation",
+		"durable",
+		"idempot",
+		"journal",
+		"filemutation",
+		"persistence",
+		"persist",
+		"repository",
+		"retention",
+		"session",
+		"transaction",
+		"usageledger",
+	}
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -286,7 +326,9 @@ func TestStoretestIsOnlyImportedByTests(t *testing.T) {
 			return err
 		}
 		if entry.IsDir() {
-			if entry.Name() == "vendor" || strings.HasPrefix(entry.Name(), ".") && path != root {
+			name := entry.Name()
+			if name == "vendor" || name == "examples" ||
+				(strings.HasPrefix(name, ".") && path != root) {
 				return filepath.SkipDir
 			}
 			return nil
@@ -294,21 +336,195 @@ func TestStoretestIsOnlyImportedByTests(t *testing.T) {
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		file, err := parser.ParseFile(fset, path, nil, 0)
 		if err != nil {
 			return err
 		}
-		for _, imported := range file.Imports {
-			if strings.Trim(imported.Path.Value, `"`) == storetestPath {
+		ast.Inspect(file, func(node ast.Node) bool {
+			switch declaration := node.(type) {
+			case *ast.TypeSpec:
+				if strings.HasSuffix(strings.ToLower(declaration.Name.Name), "store") {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("Agent production code owns application runtime type %q: %s", declaration.Name.Name, rel)
+				}
+			case *ast.StructType:
+				for _, field := range declaration.Fields.List {
+					for _, name := range field.Names {
+						if strings.HasSuffix(strings.ToLower(name.Name), "store") {
+							rel, _ := filepath.Rel(root, path)
+							t.Errorf("Agent production code owns application runtime field %q: %s", name.Name, rel)
+						}
+					}
+				}
+			}
+			identifier, ok := node.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			name := identifier.Name
+			normalized := strings.ToLower(name)
+			_, forbidden := forbiddenNames[normalized]
+			if !forbidden {
+				for _, fragment := range forbiddenFragments {
+					if strings.Contains(normalized, fragment) {
+						forbidden = true
+						break
+					}
+				}
+			}
+			if forbidden {
 				rel, _ := filepath.Rel(root, path)
-				t.Errorf("test support package storetest imported by production file %s", rel)
+				t.Errorf("Agent production code owns application runtime identifier %q: %s", name, rel)
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent production code: %v", walkErr)
+	}
+}
+
+func TestRuntimeNamedJSONStructsAreExecutionState(t *testing.T) {
+	allowed := map[string]struct{}{
+		"canonicalAction":      {},
+		"canonicalBinding":     {},
+		"canonicalCondition":   {},
+		"canonicalDefinition":  {},
+		"canonicalGoal":        {},
+		"nestedChildRelation":  {},
+		"suspensionCheckpoint": {},
+	}
+	seen := make(map[string]struct{}, len(allowed))
+	root := filepath.Join(moduleRoot(t), "runtime")
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec := specification.(*ast.TypeSpec)
+				structure, ok := typeSpec.Type.(*ast.StructType)
+				if !ok || !agentHasJSONTag(structure) {
+					continue
+				}
+				if _, reviewed := allowed[typeSpec.Name.Name]; !reviewed {
+					rel, _ := filepath.Rel(root, path)
+					t.Errorf("runtime named JSON struct %q is not framework execution state: %s", typeSpec.Name.Name, rel)
+					continue
+				}
+				seen[typeSpec.Name.Name] = struct{}{}
 			}
 		}
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("walk Agent Framework: %v", walkErr)
+		t.Fatalf("walk Agent runtime JSON structs: %v", walkErr)
 	}
+	for name := range allowed {
+		if _, present := seen[name]; !present {
+			t.Errorf("runtime JSON struct allowlist contains stale entry %q", name)
+		}
+	}
+}
+
+// TestRuntimeDoesNotInterpretSuspensionProducerPayload keeps suspension
+// ownership structural. Runtime continuation data must use FrameworkState;
+// touching the producer-owned Payload field would reintroduce content-based
+// owner guessing.
+func TestRuntimeDoesNotInterpretSuspensionProducerPayload(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "runtime")
+	fset := token.NewFileSet()
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			identifier, ok := node.(*ast.Ident)
+			if !ok || identifier.Name != "Payload" {
+				return true
+			}
+			relativePath, _ := filepath.Rel(root, path)
+			t.Errorf("Agent runtime touches producer-owned Suspension.Payload: %s", relativePath)
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk Agent runtime: %v", walkErr)
+	}
+}
+
+func TestRuntimeEventsStayInMemory(t *testing.T) {
+	fset := token.NewFileSet()
+	for _, packageName := range []string{"event", "interaction", "toolloop"} {
+		root := filepath.Join(moduleRoot(t), packageName)
+		walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			file, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return err
+			}
+			if packageName == "event" {
+				for _, imported := range file.Imports {
+					if imported.Path.Value == `"encoding/json"` {
+						t.Errorf("Agent lifecycle events own an external JSON projection: %s", filepath.Base(path))
+					}
+				}
+			}
+			for _, declaration := range file.Decls {
+				function, ok := declaration.(*ast.FuncDecl)
+				if !ok || (function.Name.Name != "MarshalJSON" && function.Name.Name != "UnmarshalJSON") {
+					continue
+				}
+				if packageName == "event" || receiverTypeName(function) == "Event" {
+					t.Errorf("Agent runtime events own JSON method %s: %s", function.Name.Name, filepath.Base(path))
+				}
+			}
+			return nil
+		})
+		if walkErr != nil {
+			t.Fatalf("walk Agent %s events: %v", packageName, walkErr)
+		}
+	}
+}
+
+func receiverTypeName(function *ast.FuncDecl) string {
+	if function == nil || function.Recv == nil || len(function.Recv.List) != 1 {
+		return ""
+	}
+	receiver := function.Recv.List[0].Type
+	if pointer, ok := receiver.(*ast.StarExpr); ok {
+		receiver = pointer.X
+	}
+	if identifier, ok := receiver.(*ast.Ident); ok {
+		return identifier.Name
+	}
+	return ""
 }
 
 func TestToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
@@ -357,11 +573,11 @@ func rungOf(rel string) string {
 	switch first {
 	case "core", "interaction":
 		return rungCore
-	case "planning", "event", "hitl", "toolpolicy", "toolloop":
+	case "planning", "event", "hitl", "toolloop":
 		return rungStrategy
 	case "runtime", "routing":
 		return rungEngine
-	case "workflow", "storetest":
+	case "workflow":
 		return rungCombinator
 	default:
 		return ""

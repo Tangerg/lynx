@@ -8,10 +8,9 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-// DeploymentRef is the durable identity of one compiled agent definition. Name is
+// DeploymentRef is the portable identity of one compiled agent definition. Name is
 // the human routing key, Version is the caller-supplied semantic version (and
-// may be empty for non-durable in-memory use), and Digest identifies the exact
-// canonical declaration plus the host BuildID used at deployment.
+// may be empty), and Digest identifies the exact canonical declaration.
 //
 // DeploymentRef is a comparable value and is safe to use as a map key. It contains
 // no runtime pointers and is the identity carried by processes, snapshots, and
@@ -47,7 +46,7 @@ func (r DeploymentRef) Validate() error {
 }
 
 // String returns a compact diagnostic representation. It is not a wire
-// encoding; persist DeploymentRef through its JSON fields.
+// encoding; use DeploymentRef's JSON fields for snapshot encoding.
 func (r DeploymentRef) String() string {
 	if r.Version == "" {
 		return r.Name + "@" + r.Digest

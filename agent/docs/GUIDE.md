@@ -127,8 +127,8 @@ Binding 时，使用 `ActionConfig.Inputs`、`Outputs` 和 `core.NewBinding[T]`�
 - `Preconditions`、`Effects`：显式业务条件；
 - `Repeatable`：允许同一进程多次选择该 Action；
 - `Cost`、`Value`：Planner 评分函数；
-- `ToolGroups`：抽象工具能力及允许权限；
-- `ClearWorkingState`：成功后清理普通工作状态，保留 protected ambient state。
+- `ToolGroups`：抽象工具角色字符串；Resolver 在执行时把 role 解析为具体工具；
+- `ClearWorkingState`：成功后清理全部工作状态。
 
 Framework 对每次调度的 Action 只调用一次，不提供 Action 级自动 retry。需要重试的 provider、
 tool 或业务写入应由对应实现结合真实副作用语义处理；框架不会猜测幂等性、事务或补偿能力。
@@ -142,15 +142,23 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 - `Continue`：同步继续已存在的非终态 Process；
 - `ContinueAsync`：同步返回 admission error，成功后由 `Segment` 承载后台运行结果；
 - `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
-- `ResumeAsync`：在同一个树事务中记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
-- `Kill`、`Remove`、`Prune`：显式生命周期管理；
+- `ResumeAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
+- `Kill`：终止一棵进程子树；
 - `Process`、`Processes`：读取当前 registry 快照；
-- `Save`、`Discard`、`Restore`、`Resumable`、`RestoreResumable`、`RestoreSnapshot`：durable process 协调。
+- `Engine.SnapshotTree`：在稳定执行边界捕获完整根进程树；
+- `ValidateRestoreTree`、`RestoreTree`：验证并重建调用方提供的完整根进程树；
+- `RemoveTree`：整体释放已终止的根进程树。
 
-Restore 从不覆盖 registry 中已有的 Process ID。调用方必须先显式 `Remove` 或 `Discard`
-旧 generation，再恢复新 generation；framework 不提供隐式替换或兼容回退。
+Agent 不定义 Store，也不执行 I/O、事务、幂等、重试或保留策略。需要跨进程重启恢复的 Host
+应在外层加载完整 `ProcessSnapshotTree`，调用 `ValidateRestoreTree` / `RestoreTree`，并在
+成功释放内存树前自行完成存储删除。Restore 从不覆盖 registry 中已有的 Process ID；调用方
+必须先显式 `RemoveTree` 旧 generation，再恢复新 generation。
 
-`Continue`、`Resume`、`Kill` 或 `Remove` 指向已不存在的 Process 时，错误可通过
+`Undeploy` 只移除 active route；Host 确认外部 snapshot 不再引用某个历史定义后，可调用
+`ForgetDeployment`。Framework 会拒绝 active deployment 和仍被已注册进程树引用的定义，
+但不替 Host 选择保留期限。
+
+`Continue`、`Resume`、`Kill` 或 `RemoveTree` 指向已不存在的 Process 时，错误可通过
 `errors.Is(err, runtime.ErrProcessNotFound)` 稳定分类；调用方不得解析错误文本。
 
 同一 Engine 内，同一 Process 同时只能有一个 active run 驱动执行。这是本机生命周期不变量，
@@ -178,9 +186,10 @@ engine, err := agent.NewEngine(agent.EngineConfig{
 ```
 
 `Chat.Model` 可为空；`Streamer` 只能与 `Model` 一起配置。每进程模型覆盖通过
-`core.ChatProvider` extension 完成。Runtime 只应用 `ChatGuardrails` 中显式提供的 middleware，
-并通过可选 `runtime.Config.BindConversation` 把 conversation ID 交给 Host 定义的 context 协议；它不选择
-history store 或 middleware 实现。这些执行状态不会进入 provider Request/Response。
+`core.ChatProvider` extension 完成。Runtime 组合 `ChatMiddleware` 中显式提供的 middleware；
+history 分区、产品上下文和 backend 都由 Host middleware 决定。middleware 可从调用 context 的
+`core.ProcessViewFrom(ctx)` 取得当前进程标识，无需 Agent 定义产品 conversation/session 协议。
+这些执行状态不会进入 provider Request/Response。
 
 Action 内的常用调用入口是：
 
@@ -199,19 +208,21 @@ Runtime 记录 model call、usage、事件、限制和可恢复 tool checkpoint�
 `agent/toolloop.Runner` 是可独立复用的叶子执行器，不是第二套 Agent runtime。直接使用它的
 调用方自行负责 Process、usage、事件和持久化。
 
-Agent 可通过以下 helper 暴露为工具：
+Agent 只提供一个显式的工具组合入口：
 
-- `runtime.NewAgentTool[In, Out]`：父 Process 内同步调用一个子 Agent；
-- `runtime.NewStandaloneAgentTool[In, Out]`：无父 Process 的独立工具调用；
-- `runtime.NewAgentTaskTools[In, Out]`：后台 start/result 工具对；
-- `engine.GoalToolsFor(...)`：指定已部署 Agent 的 Goal 工具；
-- `engine.GoalTools()` / `engine.StandaloneGoalTools()`：按 GoalTool 元数据批量生成。
+- `runtime.NewAgentTool[In, Out](engine, deployment)`：父 Process 内同步调用一个精确
+  Deployment，构造后不随 active route 变化。
+
+`Goal` 只描述 planner 要达到的目标，不携带发布协议、外部描述或输入 schema。MCP/HTTP
+等顶层工具发布由 Host 自己适配：Host 明确选择 deployment、输入输出 wire、独立进程
+生命周期、鉴权和等待响应协议。`workflow.Supervisor` 同样接收显式 `[]tools.Tool`，不会扫描
+deployment 或 Goal 元数据。
 
 同步 `NewAgentTool` 的 child 若进入 Waiting，Runtime 会把同一个 suspension 提升到
 parent Process，并保存原 model round、已完成工具结果、pending tool call 和 exact child
 relation。Host 始终对 parent process 调用 `Resume` / `Continue`；child terminal 后原工具调用
-才提交结果，之前的 model/tool 副作用不会重放。`NewStandaloneAgentTool` 与后台 task result
-仍返回面向外部 host 的 `{"status":"waiting"}` JSON。
+才提交结果。恢复只跳过已经进入稳定 checkpoint 的模型轮次和已结算工具结果；工具外部副作用
+成功但结果尚未进入 checkpoint 的崩溃窗口，仍由工具或 Host 通过幂等、事务或补偿处理。
 
 ## 6. HITL 与统一 Suspension
 
@@ -242,65 +253,60 @@ if err := engine.Continue(ctx, process.ID()); err != nil {
 ```
 
 当 suspension 来自同步 AgentTool 的任意深度 child 时，仍使用 root/parent Process 的 ID。
-`Engine.Resume` 会沿 durable child relation 把同一响应写到最深 waiting child，再由
+`Engine.Resume` 会沿已捕获的 child relation 把同一响应写到最深 waiting child，再由
 `Engine.Continue` 逐层完成原 continuation。
 
 `Resume` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
-Suspension 协议，tool checkpoint 保存在 Suspension payload 内，不使用私有 Blackboard key。
+Suspension 协议。`Payload` 始终归 suspension producer，Framework 绝不解释；ToolLoop 和
+nested child checkpoint 只进入独立的 `FrameworkState`，不使用 Payload 或私有 Blackboard
+key。两者在类型和 wire 上分离，不能通过 Payload 内容或 Suspension kind 猜测 owner。
 
-## 7. Snapshot、Store 与 Session
+## 7. Snapshot 与 Host 边界
 
 `core.ProcessSnapshot` 使用严格 JSON 解码：未知 schema、未知字段、trailing value、无效 enum、
 DeploymentRef 不匹配或 checkpoint correlation 错误都会 fail closed。普通 Blackboard 值默认
-durable；运行时 handle、函数、channel、client 等必须通过以下 API 显式标记为 transient：
+进入 portable snapshot；运行时 handle、函数、channel、client 等必须通过以下 API 显式标记为
+transient：
 
 - `StoreTransient`
 - `BindTransient`
 - `AddTransient`
 
-当前 ProcessSnapshot schema 为 v5；v2 引入的 `OwnCost`、`OwnTokens`、`OwnModelCalls` 和
-`OwnEmbeddingCalls` 只记录该 Process 的直接 ledger。v5 用确定的
-`ProcessFailure{Message}` 对象替代裸 failure 字符串。任意 live error 的 sentinel 身份与 unwrap
+当前 ProcessSnapshot schema 为 v9，Suspension schema 为 v2。Waiting snapshot 同时允许
+“尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Resume`，后者恢复
+后直接 `Continue`。`OwnUsage` 只记录该 Process 的直接通用资源计数：
+Host 定义单位的 opaque cost、tokens 与 model-call count。它不记录 provider/model 明细、
+USD 账单、embedding 调用、时间线或审计数据；这些应用投影由 Host 从 managed-interaction
+event 建立，并在自己的事务边界持久化。v5 起使用确定的 `ProcessFailure{Message}` 对象替代
+裸 failure 字符串。任意 live error 的 sentinel 身份与 unwrap
 链不具备通用 wire 表达，因此恢复后的 `Process.Failure()` 是 message-only
 `*core.ProcessFailure`；需要识别时使用 `errors.As`，不要假定跨进程 `errors.Is`。
-Child 各自持久化自己的 ledger，Restore 通过父子关系重建聚合；读取完整委派树用量时使用
-`Process.Usage()`、`Process.ModelCalls()` 和 `Process.EmbeddingCalls()`。
+Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关系重建聚合；读取完整
+委派树用量时使用 `Process.Usage()`。
 
-`ProcessStore.Apply` 接收一个 `ProcessSnapshotChange`：可选的 `ProcessSnapshotTree` 明确根节点
-和无序快照集合，`DeleteRoots` 表达同一逻辑变更中应清理的旧树；管理面列表是可选
-`ProcessLister`。框架不携带 revision/CAS、事务、幂等或分布式语义，也不会把一个逻辑变更
-拆成多个 store 调用；adapter 自行选择覆盖写、事务、并发控制和失败策略。
+`ProcessSnapshotTree` 只是完整进程树的值协议。`Engine.SnapshotTree` 要求树内进程均处于
+可捕获边界，并一次返回 root 与全部已注册 descendants；`Engine.ValidateRestoreTree` 校验树
+结构、nested suspension relation 和当前 Deployment catalog；`Engine.RestoreTree` 在整棵树
+均可重建后才原子注册。以上 API 不读取或写入任何 backend。
 
-`core` 只定义 `ProcessStore` 和 `SessionStore` 能力接口，具体持久化由 Host 适配器实现。
-测试可使用 `storetest.NewMemoryProcessStore` 和 `storetest.NewMemorySessionStore`。
-外部 store 应运行对应的公开 contract suite：
+Host 自己定义消费侧存储接口，并决定：
 
-```go
-if err := storetest.TestProcessStore(t.Context(), store); err != nil {
-    t.Fatal(err)
-}
+- 何时捕获（例如只在可恢复的 Waiting 边界）；
+- 完整树如何原子替换，以及写失败如何影响产品 Run；
+- 删除、重试、幂等、事务、保留和跨节点 ownership；
+- 产品 Session、subtask lineage、history 与 process snapshot 是否需要同事务提交。
 
-if err := storetest.TestSessionStore(t.Context(), sessionStore); err != nil {
-    t.Fatal(err)
-}
-```
+`core.Budget{}` 的所有维度均为无限制。Agent 不选择货币、租户或产品层默认阈值；Host
+需要限制时显式传入 cost/token/action ceiling，且同一次执行中的 cost 单位必须一致。
 
-`ProcessOptions.Session` 与 `Engine.RunInSession` 管理多 turn identity；模型对话内容仍由
-Host 提供的 chat middleware 维护，不写进 Agent Blackboard 或 provider Response。Session 使用
-`Validate` / `BindAgent` 固定 identity；`RunInSession` 传 nil Agent 时按
-`Session.AgentName` 解析 active Deployment。
+Agent 不提供 conversation/session 标识或 context binder。Host 应通过 `ChatMiddleware` 安装普通
+Call/Stream middleware：顶层进程映射到产品 conversation，子进程可按
+`core.ProcessView.ID()` 建立独立历史分区。产品标识和分区规则因此不会进入 Process snapshot。
 
-`runtime.Config.SessionStore` 只拥有 root multi-turn Session；`ChildSessionStore` 只拥有
-委派生成的 child Session。一个 backend 同时负责两者时可配置到两个字段，但只保存 subtask
-lineage 的 adapter 不能冒充 root store。SessionStore 的最小合同只有 Save/Load；管理面按需
-实现 `SessionDeleter` 与 `SessionLister`。
-
-Engine 内部按到达顺序串行执行相同 Session 的 turn，不同 Session 仍可并发。该协调器是本机
-运行时实现细节，不是公开 SPI，也不表达跨节点执行语义。
-
-`Session.Metadata` 是零值可用的 `core.SessionMetadata`，不是运行时绑定 map。调用 `Set` 时值会
-立即验证并编码为自有 JSON；读取使用 `Decode`。因此函数、channel、循环引用等非法值在领域
-边界直接返回 `core.ErrInvalidSessionMetadata`，不会延迟到 SessionStore 提交时才失败。
+这是一次 breaking migration：`ProcessStore`、`Session`、`RunInSession`、
+`ProcessOptions.ConversationID`、`runtime.Config.BindConversation`、自动快照及相关失败策略
+已从 Agent 公共面删除，不提供 alias、shim 或双路径。旧调用方应把存储端口、产品上下文和事务
+编排移到自己的 adapter/application 层，只把加载后的 snapshot 值交给 Agent。
 
 ## 8. Extension 与 Dependencies
 
@@ -345,13 +351,11 @@ Child API 的状态继承是明确契约：
 | API | Blackboard | 使用场景 |
 |---|---|---|
 | `RunChildWithState` | 父 Blackboard 的完整副本 | 子任务确实需要父工作状态 |
-| `RunChild` | 仅 protected ambient state | 默认、安全的自包含委派 |
-| `RunChildIsolated` | 全新状态，仅绑定显式 input | loop、pipeline、parallel branch |
-| `StartChild` | 与 `RunChild` 相同，后台执行 | 可稍后读取结果的任务 |
+| `RunChild` | 干净状态，仅绑定显式 input | 默认、安全的自包含委派及 workflow branch |
 
-Child 使用精确 Deployment、独立 Session、父预算子树，并仅继承父 Process 显式注册的
+Child 使用精确 Deployment、父预算子树，并仅继承父 Process 显式注册的
 `SubtreeEventListener`；普通 `EventListener` 只观察注册它的 Process。其他 Process extension、
-guardrails 和 dependency override 不会被隐式复制。
+chat middleware、history partition 和 dependency override 都由 Host 的 `ChildOptions` 显式配置。
 
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。需要在构造期部署
@@ -370,7 +374,8 @@ Process 隔离；子进程不会继承父进程的调用身份。直接调用工
 自行伪造或重新绑定 ToolCall。
 
 同步 `runtime.NewAgentTool` 的每次调用拥有独立 child Process，因此同一 model round 的
-多个调用可以并发。Runtime 用 exact `ToolCall.ID` 关联并持久化有序 child forest；多个
+多个调用可以并发。Runtime 用 exact `ToolCall.ID` 关联并在 suspension checkpoint 中记录有序
+child forest；多个
 child 同时 waiting 时，parent 一次只暴露最早未提交的 suspension，恢复一个后再暴露下一个。
 
 ## 10. API 与 wire 治理
@@ -378,22 +383,20 @@ child 同时 waiting 时，parent 一次只暴露最早未提交的 suspension�
 Framework 使用两层自动门禁：
 
 - `internal/arch/testdata/exported_api.txt` 锁定所有公共 package 的 exported API；
-- wire fixture 锁定 ProcessSnapshot、Suspension、toolloop、event 等稳定 JSON shape。
+- wire fixture 只锁定可恢复执行所需的 ProcessSnapshot、Suspension 与 toolloop Checkpoint JSON shape。
 
 Agent 事件的 discriminator 使用 `event.Kind` 与 `event.KindProcessCreated` 等规范常量；listener
-不需要比较自由字符串。`event.Kind` 在 JSON 中仍编码为原有字符串，类型安全不会改变 wire。
+不需要比较自由字符串。生命周期事件与模型/工具边界都是进程内强类型值，不承担外部 JSON 投影。
 模型、工具、暂停和恢复边界的 discriminator 与 Resume payload 由 `interaction` 唯一拥有；
 `toolloop` 只复用同一类型，不再维护一份可能漂移的平行协议。
 Suspension、Pause、Checkpoint 与 Resume 的稳定 ID 统一通过 `interaction.ValidateID` 校验；
-相关 Event 解码严格拒绝未知字段和 trailing value，协议版本漂移不会被静默吞掉。
+真正持久化的 Suspension 与 Checkpoint 严格拒绝未知字段和 trailing value，协议版本漂移不会被静默吞掉。
 托管交互和 app/runtime 共享 `interaction.StopReason`，停止原因的值与 `Valid` 规则只有一个 owner。
 ProcessSnapshot 的 action history 同样在内存中保存 `core.ActionStatus`，只在 JSON 边界转换为
 稳定字符串；恢复路径不会再解析自由字符串或为未知值猜测降级状态。
-自动快照失败事件也携带 `core.SnapshotFailurePolicy`，只有 JSON adapter 输出规范字符串。
-
 开发阶段允许破坏性调整，但每次都要把调用方、examples、GoDoc、API baseline、wire fixture 和
-迁移文档一次性收口，不保留 alias/shim。`storetest` 是故意公开的外部实现 contract package，
-命名遵循标准库 `fstest`、`slogtest` 的惯例，不应移动到 `internal`。
+迁移文档一次性收口，不保留 alias/shim。存储 contract tests 属于定义该消费侧接口的 Host，
+不回流 Agent 模块。
 
 提交前至少运行：
 

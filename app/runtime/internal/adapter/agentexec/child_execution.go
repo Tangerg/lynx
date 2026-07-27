@@ -28,18 +28,30 @@ type childExecutionPolicy struct {
 	observer        toolObserver
 	toolResultStore toolResultOffloader
 	evictThreshold  int
+	chatMiddleware  *core.ChatMiddleware
+	usage           *usageLedger
 	root            core.ProcessView
 	provider        string
 	budget          accounting.Budget
 }
 
-func childOptions(dependencies *core.Dependencies, client *chatclient.Client, observer toolObserver, toolResultStore toolResultOffloader, evictThreshold int) core.ChildOptionsFunc {
+func childOptions(
+	dependencies *core.Dependencies,
+	client *chatclient.Client,
+	observer toolObserver,
+	toolResultStore toolResultOffloader,
+	evictThreshold int,
+	chatMiddleware *core.ChatMiddleware,
+	usage *usageLedger,
+) core.ChildOptionsFunc {
 	return (childExecutionPolicy{
 		dependencies:    dependencies,
 		client:          client,
 		observer:        observer,
 		toolResultStore: toolResultStore,
 		evictThreshold:  evictThreshold,
+		chatMiddleware:  chatMiddleware,
+		usage:           usage,
 	}).options
 }
 
@@ -62,6 +74,12 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 	}
 
 	dependencies := p.dependencies.Child()
+	if p.usage == nil {
+		return core.ProcessOptions{}, errors.New("agentexec: child execution requires usage ledger")
+	}
+	if err := core.RegisterDependency(dependencies, usageLedgerKey, p.usage); err != nil {
+		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child usage ledger: %w", err)
+	}
 	if err := core.RegisterDependency(dependencies, childExecutionKey, p.remaining()); err != nil {
 		return core.ProcessOptions{}, fmt.Errorf("agentexec: register child execution context: %w", err)
 	}
@@ -73,8 +91,9 @@ func (p childExecutionPolicy) options(_ context.Context, parent core.ProcessView
 		}
 	}
 	options := core.ProcessOptions{
-		Dependencies: dependencies,
-		ChildOptions: p.options,
+		Dependencies:   dependencies,
+		ChildOptions:   p.options,
+		ChatMiddleware: p.chatMiddleware,
 	}
 	if p.observer != nil {
 		options.Extensions = append(options.Extensions, &toolObserverMiddleware{observation: observation})
@@ -90,10 +109,10 @@ func (p childExecutionPolicy) remaining() childExecution {
 	if p.root == nil {
 		return execution
 	}
-	cost, tokens, _ := p.root.Usage()
+	usage := p.root.Usage()
 
 	if p.budget.MaxTokens > 0 {
-		remaining := p.budget.MaxTokens - int64(tokens)
+		remaining := p.budget.MaxTokens - int64(usage.Tokens)
 		if remaining <= 0 {
 			execution.StopReason = StopReasonBudget
 		} else {
@@ -101,7 +120,7 @@ func (p childExecutionPolicy) remaining() childExecution {
 		}
 	}
 	if p.budget.MaxCostUSD > 0 {
-		remaining := p.budget.MaxCostUSD - cost
+		remaining := p.budget.MaxCostUSD - usage.Cost
 		if remaining <= 0 {
 			execution.StopReason = StopReasonBudget
 		} else {
@@ -109,7 +128,7 @@ func (p childExecutionPolicy) remaining() childExecution {
 		}
 	}
 	if p.budget.MaxSteps > 0 {
-		remaining := p.budget.MaxSteps - len(p.root.ModelCalls())
+		remaining := p.budget.MaxSteps - usage.ModelCalls
 		if remaining <= 0 {
 			if execution.StopReason == StopReasonNone {
 				execution.StopReason = StopReasonSteps

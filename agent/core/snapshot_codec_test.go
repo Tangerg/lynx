@@ -21,10 +21,10 @@ func snapshotAgent() *core.Agent {
 		return snapshotOutput{Count: len(input.Text)}, nil
 	}, core.ActionConfig{})
 	return core.NewAgent(core.AgentConfig{
-		Name:         "snapshot",
-		Actions:      []core.Action{action},
-		Goals:        []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
-		DurableState: []core.Binding{core.NewBinding[*snapshotInput]("pointer_input")},
+		Name:          "snapshot",
+		Actions:       []core.Action{action},
+		Goals:         []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
+		SnapshotState: []core.Binding{core.NewBinding[*snapshotInput]("pointer_input")},
 	})
 }
 

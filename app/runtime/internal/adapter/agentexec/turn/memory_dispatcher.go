@@ -228,7 +228,7 @@ func (s *memoryDispatcher) BeginShutdown() {
 	})
 }
 
-// AwaitShutdown joins the turns cancelled by [BeginShutdown]. Its caller owns
+// AwaitShutdown joins the turns canceled by [BeginShutdown]. Its caller owns
 // the deadline, so a timeout remains visible and a later await can finish the
 // same shutdown rather than burying work behind a one-shot result.
 func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {

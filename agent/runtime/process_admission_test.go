@@ -21,7 +21,7 @@ func TestFreshProcessOwnsFirstRunBeforeCreatedEvent(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			engine := agent.MustNewEngine(runtime.Config{})
-			definition := autoSnapshotAgent()
+			definition := admissionAgent()
 			mustDeploy(t, engine, definition)
 
 			var attempted atomic.Bool

@@ -9,8 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 )
 
 // turnInput is the typed input to the chat turn agent — the user's message
@@ -27,26 +25,6 @@ type turnInput struct {
 	// user message as UserMessage.Media. Nil for a text-only turn (and for
 	// `task` sub-agents, whose prompt is text).
 	Media []*media.Media
-
-	// Cwd is the working directory the turn's filesystem + shell tools run
-	// in. The chat action binds it protected on the blackboard so
-	// the tool resolver anchors the tools there and `task` sub-agents inherit
-	// it. Empty falls back to the engine's default workdir.
-	Cwd string
-
-	// Isolated marks a turn in an isolated session (Cwd is a sandbox copy, its
-	// shell must be OS-jailed). Bound protected so tools + task sub-agents see it.
-	Isolated bool
-
-	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation.
-	// Bound protected so update_goal signals only that goal (empty = not a Goal-loop
-	// run, so the binding is omitted).
-	GoalLeaseID string
-
-	// SessionID anchors the turn to its session; the chat action binds it
-	// protected so the read/edit guards can key file-read state per session
-	// (same blackboard seam as Cwd). Empty for a sessionless smoke run.
-	SessionID string
 
 	// MaxBudget caps the total tokens (prompt + completion) the turn
 	// may spend across its tool-loop rounds. 0 means unlimited. When
@@ -92,9 +70,9 @@ func (r StopReason) Valid() bool {
 
 // TurnOutput is the typed output of one turn. Reply is the assistant's
 // final text. Usage / UsageByModel / CostUSD are read back from the
-// process budget — the agent framework's invocation ledger — rather
-// than a hand-rolled tally: managed interaction records each LLM round,
-// and these fields are the rolled-up view.
+// application-owned usage projection rather than a query back into Agent:
+// the observer projects each managed model-response boundary, and these fields
+// are the rolled-up view.
 type TurnOutput struct {
 	Reply string
 	Usage accounting.TokenUsage
@@ -138,20 +116,8 @@ type TurnOutput struct {
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "chat-agent", Description: "single-turn LLM chat with the default coding tool set", Actions: []agent.Action{agent.NewAction("chat", func(ctx context.Context, pc *core.ProcessContext, in turnInput) (TurnOutput, error) {
-		if in.Cwd != "" {
-			pc.Blackboard().StoreProtected(turnctx.CwdBindingKey, in.Cwd)
-		}
-		if in.SessionID != "" {
-			pc.Blackboard().StoreProtected(turnctx.SessionBindingKey, in.SessionID)
-		}
-		if in.Isolated {
-			pc.Blackboard().StoreProtected(turnctx.IsolatedBindingKey, true)
-		}
-		if in.GoalLeaseID != "" {
-			pc.Blackboard().StoreProtected(turnctx.GoalLeaseBindingKey, in.GoalLeaseID)
-		}
 		return e.runTurn(ctx, pc, in.Provider, in.Message, in.Media, in.Options, accounting.Budget{MaxTokens: in.MaxBudget, MaxCostUSD: in.MaxCostUSD, MaxSteps: in.MaxSteps})
-	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleCoding)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})
+	}, core.ActionConfig{ToolGroups: []string{toolport.ToolRoleCoding}})}, Goals: []*agent.Goal{agent.NewOutputGoal[TurnOutput](core.GoalConfig{Description: "single-turn reply produced"})}})
 }
 
 // taskInput is the argument schema the model fills to call the `task`
@@ -194,5 +160,5 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 			return "", err
 		}
 		return out.Reply, nil
-	}, core.ActionConfig{ToolGroups: []core.ToolGroupRequirement{core.RequireToolGroup(toolport.ToolRoleSubtask)}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "subtask answer produced"})}})
+	}, core.ActionConfig{ToolGroups: []string{toolport.ToolRoleSubtask}})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "subtask answer produced"})}})
 }

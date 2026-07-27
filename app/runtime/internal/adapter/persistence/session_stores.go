@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
@@ -170,7 +169,7 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollbac
 			}
 		}
 		if len(plan.ProcessIDs) > 0 {
-			if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: plan.ProcessIDs}); err != nil {
+			if err := s.processes.DeleteTrees(ctx, plan.ProcessIDs); err != nil {
 				return err
 			}
 		}
@@ -297,7 +296,7 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.Termina
 			return err
 		}
 		if plan.ProcessID != "" {
-			if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: []string{plan.ProcessID}}); err != nil {
+			if err := s.processes.DeleteTrees(ctx, []string{plan.ProcessID}); err != nil {
 				return err
 			}
 		}
@@ -330,7 +329,7 @@ func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) 
 		}
 	}
 	if len(processIDs) > 0 {
-		if err := s.processes.Apply(ctx, core.ProcessSnapshotChange{DeleteRoots: processIDs}); err != nil {
+		if err := s.processes.DeleteTrees(ctx, processIDs); err != nil {
 			return err
 		}
 	}

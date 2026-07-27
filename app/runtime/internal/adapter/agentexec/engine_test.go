@@ -15,7 +15,9 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turnctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
@@ -240,9 +242,8 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 // TestEngine_RunChat_SubtaskInheritsCwd proves the working directory reaches
 // `task` sub-agents: the main turn delegates, the sub-agent's shell creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
-// sub-agent runs on a fresh blackboard that keeps the parent's protected
-// entries (CloneProtectedOnly) — so it both does real work (its goal
-// isn't pre-satisfied by inherited state) and inherits the cwd binding.
+// sub-agent runs on a clean blackboard — so its goal is not pre-satisfied by
+// inherited planner state — while the App-owned context carries the cwd.
 func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()
 	stub := newCwdDelegatingStubModel()
@@ -268,9 +269,8 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 // TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds is the regression guard
 // for subtask chat-history continuity. A subtask runs its own multi-round
 // tool loop with no externally-supplied session; the tool loop strips the
-// original prompt between rounds, so round 2 only sees it if the child's
-// history middleware reconstructs it — which requires the runtime to stamp a
-// conversation id (here the child's process id) onto every request. The
+// original prompt between rounds, so round 2 only sees it if the app-owned
+// history middleware reconstructs it under the child's process ID. The
 // subtask is told a secret on round 1 and must echo it on round 2; if the
 // per-process keying regresses, the subtask reports subtaskContextLost and
 // the main turn surfaces it.
@@ -477,7 +477,7 @@ func TestEngine_StartTurn_PropagatesSteeringGuardrailConstructionError(t *testin
 		t.Fatal(err)
 	}
 	sentinel := errors.New("guardrail construction failed")
-	eng.guardrailsBuilder = func(history.Store, func(context.Context) []chat.Message) (*core.ChatGuardrails, error) {
+	eng.chatMiddlewareBuilder = func(history.Store, func(context.Context) []chat.Message) (*core.ChatMiddleware, error) {
 		return nil, sentinel
 	}
 
@@ -548,6 +548,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		ToolResolver: built.Resolver,
 		ProcessStore: store,
 		BuildID:      testBuildID,
+		Pricing:      func(string, string, *chat.Usage) float64 { return 0.25 },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -555,10 +556,20 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	temp := 0.42
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
+	wantScope := execution.TurnScope{
+		SessionID:   "session-restore",
+		Cwd:         "/workspace/restore",
+		Isolated:    true,
+		GoalLeaseID: "goal-lease-restore",
+	}
 
 	proc, err := eng.StartTurn(context.Background(), TurnRequest{
-		Message:  "echo lyra",
-		Observer: observer,
+		SessionID:   wantScope.SessionID,
+		Message:     "echo lyra",
+		Cwd:         wantScope.Cwd,
+		Isolated:    wantScope.Isolated,
+		GoalLeaseID: wantScope.GoalLeaseID,
+		Observer:    observer,
 		Options: &chat.Options{
 			Temperature: &temp,
 			MaxTokens:   &maxTokens,
@@ -581,16 +592,37 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		ToolResolver: built.Resolver,
 		ProcessStore: store,
 		BuildID:      testBuildID,
+		Pricing:      func(string, string, *chat.Usage) float64 { return 0.25 },
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, checkpoint, err := store.LoadTree(t.Context(), proc.ID()); err != nil {
+		t.Fatalf("load checkpoint metadata: %v", err)
+	} else if checkpoint.Scope != wantScope {
+		t.Fatalf("checkpoint scope = %+v, want %+v", checkpoint.Scope, wantScope)
+	}
+
+	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
+		SessionID: "another-session",
+		Observer:  observer,
+	}); mismatched != nil || !errors.Is(err, ErrProcessSnapshotLost) {
+		t.Fatalf("cross-session RestoreTurn = (%T, %v), want snapshot loss", mismatched, err)
+	}
 
 	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
-		Observer: observer,
+		SessionID: wantScope.SessionID,
+		Observer:  observer,
 	})
 	if err != nil {
 		t.Fatalf("RestoreTurn: %v", err)
+	}
+	restoredProcess, ok := restored.(*turnProcess)
+	if !ok {
+		t.Fatalf("restored process = %T, want *turnProcess", restored)
+	}
+	if scope, ok := turnctx.ScopeFrom(restoredProcess.runCtx); !ok || scope != wantScope {
+		t.Fatalf("restored run scope = (%+v, %v), want %+v", scope, ok, wantScope)
 	}
 	if err := restored.Resume(context.Background(), interrupts.Resolution{Approved: true}); err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -605,6 +637,10 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	out := resumed.Output
 	if out.Reply != "restored ok" {
 		t.Fatalf("reply = %q, want restored ok", out.Reply)
+	}
+	if out.CostUSD != 0.5 || len(out.UsageByModel) != 1 ||
+		out.UsageByModel[0].Model != "unknown" || out.UsageByModel[0].Calls != 2 {
+		t.Fatalf("restored usage = %+v cost=%v, want both pre-crash and resumed calls", out.UsageByModel, out.CostUSD)
 	}
 
 	got := stub.lastCapturedOptions()
@@ -655,9 +691,16 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	if completion := process.Await(); completion.Error() != nil {
 		t.Fatalf("initial turn: %v", completion.Error())
 	}
-	snapshot, err := store.Load(t.Context(), process.ID())
+	tree, checkpoint, err := store.LoadTree(t.Context(), process.ID())
 	if err != nil {
 		t.Fatalf("load snapshot: %v", err)
+	}
+	if checkpoint.BuildID != testBuildID {
+		t.Fatalf("checkpoint build = %q, want %q", checkpoint.BuildID, testBuildID)
+	}
+	snapshot, ok := processTreeRoot(tree)
+	if !ok {
+		t.Fatalf("snapshot tree has no root %q: %+v", process.ID(), tree)
 	}
 	if snapshot.Deployment.Version != "" {
 		t.Fatalf("snapshot display version = %q, want empty application agent version", snapshot.Deployment.Version)
@@ -667,6 +710,13 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	second, err := New(t.Context(), config)
 	if err != nil {
 		t.Fatalf("second New: %v", err)
+	}
+	resumable, err := second.ResumableProcess(t.Context(), process.ID())
+	if err != nil {
+		t.Fatalf("ResumableProcess: %v", err)
+	}
+	if resumable {
+		t.Fatal("checkpoint from another executable build reported resumable")
 	}
 
 	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{Observer: &hitlApprovalObserver{}})

@@ -3,7 +3,6 @@ package toolset
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/toolport"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -20,7 +19,7 @@ func resolveCodingTools(t *testing.T, mcpTools []tools.Tool) []tools.Tool {
 	closeBuiltToolset(t, built)
 	built.Resolver.SetMCPTools(mcpTools)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), core.ToolGroupRequirement{Role: toolport.ToolRoleCoding})
+	group, ok, err := built.Resolver.Resolve(t.Context(), toolport.ToolRoleCoding)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

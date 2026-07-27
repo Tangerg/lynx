@@ -13,6 +13,7 @@ use (
 	./documentreaders/markdown
 	./documentreaders/pdf
 	./embeddingclient
+	./examples/mcp
 	./mcp
 	./models
 	./otel

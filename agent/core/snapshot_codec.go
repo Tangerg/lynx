@@ -11,7 +11,7 @@ import (
 
 const nullJSON = "null"
 
-// TaggedValue is one durable blackboard value with the exact Go type needed
+// TaggedValue is one snapshot blackboard value with the exact Go type needed
 // to reconstruct it after a JSON round trip.
 type TaggedValue struct {
 	Type  string          `json:"t"`
@@ -29,7 +29,7 @@ func (tv TaggedValue) Validate() error {
 	return nil
 }
 
-// EncodeBlackboard converts durable values into their strict tagged wire form.
+// EncodeBlackboard converts snapshot values into their strict tagged wire form.
 // Every non-builtin concrete type must be declared by an action input/output
 // on this Agent. Callers should store undeclared runtime objects through the
 // Blackboard transient API instead.
@@ -37,7 +37,7 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 	if a == nil {
 		return nil, nil, errors.New("agent.Agent.EncodeBlackboard: agent is nil")
 	}
-	table := a.durableTypes()
+	table := a.snapshotTypes()
 	var taggedNamed map[string]TaggedValue
 	if bindings.Len() > 0 {
 		taggedNamed = make(map[string]TaggedValue, bindings.Len())
@@ -69,7 +69,7 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 	}
 	typeName := snapshotTypeName(reflect.TypeOf(value))
 	if _, ok := table[typeName]; !ok {
-		return TaggedValue{}, fmt.Errorf("type %q is not declared durable state", typeName)
+		return TaggedValue{}, fmt.Errorf("type %q is not declared snapshot state", typeName)
 	}
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -78,13 +78,13 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 	return TaggedValue{Type: typeName, Value: data}, nil
 }
 
-// DecodeBlackboard reconstructs strict durable values. Unknown tags and decode
+// DecodeBlackboard reconstructs strict snapshot values. Unknown tags and decode
 // failures are errors; restore never silently substitutes generic JSON objects.
 func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error) {
 	if a == nil {
 		return Bindings{}, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
 	}
-	table := a.durableTypes()
+	table := a.snapshotTypes()
 	var decodedNamed Bindings
 	if len(named) > 0 {
 		for key, tagged := range named {
@@ -121,7 +121,7 @@ func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any
 	}
 	typeValue, ok := table[tagged.Type]
 	if !ok || typeValue == nil {
-		return nil, fmt.Errorf("unknown durable type %q", tagged.Type)
+		return nil, fmt.Errorf("unknown snapshot type %q", tagged.Type)
 	}
 	pointer := reflect.New(typeValue)
 	if err := json.Unmarshal(tagged.Value, pointer.Interface()); err != nil {
@@ -130,9 +130,9 @@ func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any
 	return pointer.Elem().Interface(), nil
 }
 
-// durableTypes maps tagged state names to concrete action I/O and builtin
-// values accepted by this agent's durable blackboard.
-func (a *Agent) durableTypes() map[string]reflect.Type {
+// snapshotTypes maps tagged state names to concrete action I/O and builtin
+// values accepted by this agent's process snapshots.
+func (a *Agent) snapshotTypes() map[string]reflect.Type {
 	table := map[string]reflect.Type{}
 	for _, value := range []reflect.Type{
 		reflect.TypeFor[bool](),
@@ -150,7 +150,7 @@ func (a *Agent) durableTypes() map[string]reflect.Type {
 			}
 		}
 	}
-	register(a.DurableState())
+	register(a.SnapshotState())
 	for _, action := range a.Actions() {
 		if action == nil {
 			continue
@@ -162,7 +162,7 @@ func (a *Agent) durableTypes() map[string]reflect.Type {
 	return table
 }
 
-// snapshotTypeName is the durable identity of an exact Go type. Planner
+// snapshotTypeName is the snapshot identity of an exact Go type. Planner
 // bindings intentionally normalize pointers, while snapshots must distinguish
 // T from *T to restore values accepted by typed actions.
 func snapshotTypeName(typ reflect.Type) string {

@@ -68,7 +68,7 @@ type ToolMiddleware interface {
 
 // AgentValidator runs as the last [Engine.Deploy] validation step after
 // [Agent.Validate]. It receives the same frozen definition snapshot that the
-// runtime will execute and identify durably. A non-nil return rejects the
+// runtime will execute and identify in snapshots. A non-nil return rejects the
 // deployment, attributed to the validator's Name. Valid only at engine scope.
 type AgentValidator interface {
 	Extension

@@ -13,7 +13,7 @@ const minimumSequenceAgents = 2
 
 // Sequence compiles a deterministic chain a₁ → a₂ → ... → aₙ as a
 // single deployable agent. Each sub-agent runs as a child process via
-// [runtime.RunChildIsolated] in declared order; the typed output of step i
+// [runtime.Engine.RunChild] in declared order; the typed output of step i
 // flows onto step (i+1)'s child blackboard via [core.Blackboard.Bind],
 // so adjacent sub-agents resolve each other's outputs through the
 // standard dual-binding mechanism.
@@ -80,7 +80,7 @@ func Sequence[In, Out any](
 			var lastChild *runtime.Process
 			for index, deployment := range deployments {
 				agentName := deployment.Ref().Name
-				child, err := childRuntime.RunChildIsolated(ctx, deployment, current)
+				child, err := childRuntime.RunChild(ctx, deployment, current)
 				if err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", index, agentName, err)
 				}

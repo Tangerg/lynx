@@ -50,7 +50,7 @@ type BlackboardWriter interface {
 	Store(key string, value any)
 
 	// StoreTransient stores a runtime-only named value. It participates in live
-	// lookups but is excluded from durable snapshots and restored processes.
+	// lookups but is excluded from process snapshots and restored processes.
 	StoreTransient(key string, value any)
 
 	// Add appends without binding to a name. Used when an action wants
@@ -67,16 +67,12 @@ type BlackboardWriter interface {
 	Bind(value any)
 
 	// BindTransient applies Bind's lookup semantics without making the value
-	// durable. Use it for handles, clients, channels, and other runtime state.
+	// snapshot-compatible. Use it for handles, clients, channels, and other
+	// runtime-only state.
 	BindTransient(value any)
 
 	// StoreAll stores each binding — convenience for seeding.
 	StoreAll(bindings Bindings)
-
-	// StoreProtected marks a key so Clone() preserves it on child blackboards
-	// even when the rest of the state is forked. Useful for session tokens
-	// and other ambient context.
-	StoreProtected(key string, value any)
 
 	// Hide marks an object as not-discoverable via Lookup, without removing
 	// it from the historical record (Objects() still returns it).
@@ -114,8 +110,8 @@ type Blackboard interface {
 	// produce the per-process Blackboard at process start.
 	Clone() Blackboard
 
-	// ClearWorkingState removes ordinary bindings, objects, conditions, and
-	// hidden markers while retaining values stored with StoreProtected.
+	// ClearWorkingState removes bindings, objects, conditions, and hidden
+	// markers.
 	ClearWorkingState()
 }
 

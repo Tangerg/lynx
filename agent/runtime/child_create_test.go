@@ -3,86 +3,16 @@ package runtime_test
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
-
-// failingSessionStore fails after child creation reaches session persistence.
-type failingSessionStore struct{}
-
-var errChildSessionUnavailable = errors.New("session store unavailable")
-
-func (failingSessionStore) Save(context.Context, core.Session) error {
-	return errChildSessionUnavailable
-}
-func (failingSessionStore) Load(context.Context, string) (core.Session, error) {
-	return core.Session{}, core.ErrSessionNotFound
-}
-
-type processCreatedCounter struct {
-	mu    sync.Mutex
-	count int
-}
 
 type panickingChildExtension struct{ cause error }
 
 func (e panickingChildExtension) Name() string { panic(e.cause) }
-
-func (*processCreatedCounter) Name() string { return "process-created-counter" }
-
-func (c *processCreatedCounter) OnEvent(_ context.Context, value event.Event) {
-	if _, ok := value.(event.ProcessCreated); !ok {
-		return
-	}
-	c.mu.Lock()
-	c.count++
-	c.mu.Unlock()
-}
-
-func (c *processCreatedCounter) value() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.count
-}
-
-// TestRunChildRollsBackOnSessionLinkFailure verifies that session persistence
-// failure unregisters the half-created child.
-func TestRunChildRollsBackOnSessionLinkFailure(t *testing.T) {
-	created := &processCreatedCounter{}
-	engine := agent.MustNewEngine(runtime.Config{
-		ChildSessionStore: failingSessionStore{},
-		Extensions:        []core.Extension{created},
-	})
-	childDeployment, err := engine.Deploy(t.Context(), childAgent())
-	if err != nil {
-		t.Fatalf("deploy child: %v", err)
-	}
-	parentDef := agent.New(agent.AgentConfig{Name: "parent", Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
-		_, err := engine.RunChild(ctx, childDeployment, input)
-		return parentOutput{}, err
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
-	before := len(engine.Processes())
-	createdBefore := created.value()
-	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{})
-	if err != nil {
-		t.Fatalf("Run parent: %v", err)
-	}
-	if parent.Status() != core.StatusFailed || !errors.Is(parent.Failure(), errChildSessionUnavailable) {
-		t.Fatalf("parent status=%s failure=%v", parent.Status(), parent.Failure())
-	}
-
-	if after := len(engine.Processes()); after != before+1 {
-		t.Errorf("registry grew %d → %d, want only the parent", before, after)
-	}
-	if after := created.value(); after != createdBefore+1 {
-		t.Errorf("ProcessCreated count grew %d → %d, want only the parent event", createdBefore, after)
-	}
-}
 
 func TestRunChildReturnsExtensionNamePanic(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})

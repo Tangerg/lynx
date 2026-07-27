@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -119,11 +120,10 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	}
 }
 
-// TestDispatcher_DiscardsProcessOnTerminal verifies the turn discards its backing
-// process at terminal teardown (cleanupTurn → TurnProcess.Discard) — the seam that
-// deletes the auto-snapshot. Without it every run leaks one process_snapshot
-// row. Terminal event delivery is deliberately independent from cleanup, so the
-// test explicitly joins that cleanup before inspecting its postcondition.
+// TestDispatcher_DiscardsProcessOnTerminal verifies terminal teardown removes
+// the in-memory process tree and any previously parked checkpoint. Terminal
+// event delivery is deliberately independent from cleanup, so the test
+// explicitly joins that cleanup before inspecting its postcondition.
 func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	dispatcher := mustTurn(turn.New(turnDeps(stub)))
@@ -142,7 +142,50 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 		t.Fatal("stub engine never produced a process")
 	}
 	if !process.discarded.Load() {
-		t.Error("process not discarded at terminal teardown — snapshot would leak")
+		t.Error("process not discarded at terminal teardown")
+	}
+}
+
+func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
+	wantErr := errors.New("checkpoint commit failed")
+	stub := &stubEngine{
+		completionStatus: core.StatusWaiting,
+		completionErr:    wantErr,
+	}
+	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		SessionID: "s",
+		Message:   "hi",
+	})
+	if err != nil {
+		t.Fatalf("StartTurn: %v", err)
+	}
+	events, err := dispatcher.Events(t.Context(), handle)
+	if err != nil {
+		t.Fatalf("Events: %v", err)
+	}
+	var interrupted bool
+	var terminal *runs.TurnEnd
+	for event := range events {
+		switch event := event.(type) {
+		case runs.TurnInterrupted:
+			interrupted = true
+		case runs.TurnEnd:
+			value := event
+			terminal = &value
+		}
+	}
+	joinTurnCleanup(t, dispatcher, handle)
+	if interrupted {
+		t.Fatal("turn exposed an interrupt without a durable checkpoint")
+	}
+	if terminal == nil || terminal.Reason != execution.OutcomeError ||
+		terminal.Problem == nil || terminal.Problem.Kind != transcript.InternalProblem {
+		t.Fatalf("terminal = %+v, want internal error", terminal)
+	}
+	process := stub.lastProcess.Load()
+	if process == nil || !process.discarded.Load() {
+		t.Fatal("failed parked process was not discarded")
 	}
 }
 

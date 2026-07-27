@@ -41,7 +41,7 @@ func (c processControl) TerminateToolCall() {
 	c.process.signals.fireToolCallCancel()
 }
 
-// Suspension returns a defensive copy of the durable continuation currently
+// Suspension returns a defensive copy of the resumable continuation currently
 // owned by this process.
 func (p *Process) Suspension() *interaction.Suspension {
 	if p == nil {

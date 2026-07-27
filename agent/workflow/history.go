@@ -36,7 +36,7 @@ func (h *History[T]) Attempts() []T {
 	return slices.Clone(h.attempts)
 }
 
-// MarshalJSON persists the private attempt sequence without exposing mutable
+// MarshalJSON encodes the private attempt sequence without exposing mutable
 // framework state through the Go API.
 func (h History[T]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -116,7 +116,7 @@ func (h *AttemptHistory[Out]) Attempts() []Attempt[Out] {
 	return slices.Clone(h.attempts)
 }
 
-// MarshalJSON persists the private attempt sequence without exposing mutable
+// MarshalJSON encodes the private attempt sequence without exposing mutable
 // framework state through the Go API.
 func (h AttemptHistory[Out]) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {

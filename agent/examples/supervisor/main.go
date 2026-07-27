@@ -44,17 +44,19 @@ func main() {
 		return Summary{Text: fmt.Sprintf("Synthesized findings from %d sources: %s", len(in.URLs), strings.Join(in.URLs, ", "))}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Summary](agent.GoalConfig{Description: "summary produced"})}})
 
-	if _, err := engine.Deploy(context.Background(), research); err != nil {
+	researchDeployment, err := engine.Deploy(context.Background(), research)
+	if err != nil {
 		log.Fatal(err)
 	}
-	if _, err := engine.Deploy(context.Background(), summarize); err != nil {
+	summarizeDeployment, err := engine.Deploy(context.Background(), summarize)
+	if err != nil {
 		log.Fatal(err)
 	}
 
 	// ---- parent agent (the supervisor) -------------------------------
 	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
-		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, "research-agent")
-		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, "summarize-agent")
+		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
+		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, summarizeDeployment)
 		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, "+"then summarize-agent to synthesise. Reply with JSON: "+`{"sources":[...],"summary":"..."}`, in.Title)
 		text, err := pc.Prompt(ctx, prompt, agent.PromptConfig{
 			System: "You are a supervisor that delegates to specialised agents.",
@@ -91,14 +93,14 @@ func main() {
 		log.Fatalf("no Brief produced; status=%s; failure=%v", process.Status(), process.Failure())
 	}
 
-	cost, tokens, actions := process.Usage()
+	usage := process.Usage()
 
 	fmt.Println("\n--- result ---")
 	fmt.Printf("topic:   %s\n", brief.Topic)
 	fmt.Printf("sources: %v\n", brief.Sources)
 	fmt.Printf("summary: %s\n", brief.Text)
 	fmt.Printf("\n--- usage (parent + every sub-agent) ---\n")
-	fmt.Printf("cost: $%.4f  tokens: %d  actions: %d\n", cost, tokens, actions)
+	fmt.Printf("cost: $%.4f  tokens: %d  actions: %d\n", usage.Cost, usage.Tokens, usage.Actions)
 }
 
 // ============================================================================

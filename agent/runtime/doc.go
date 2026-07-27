@@ -9,19 +9,21 @@
 // — are Extensions that the Engine discovers by type
 // assertion at dispatch time. Per-process Extensions merge with the
 // Engine-scoped set when a process is created, so per-call
-// overrides remain idiomatic. Stable construction dependencies such as chat,
-// process persistence, root/child session persistence, and snapshot policy
-// remain explicit fields on [Config]; they are not hidden in the extension
-// registry.
+// overrides remain idiomatic. Stable execution dependencies such as chat,
+// chat middleware, Prompt limits, and child-depth limits remain explicit
+// fields on [Config]; they are not hidden in the extension registry. Product data management and
+// identity stay outside this package; runtime only captures and rebuilds
+// portable process values.
 //
 // Process lifecycle:
 //
 //	New → Deploy(agent) → immutable Deployment
 //	  → Run(ctx, agent, bindings, options)             // synchronous run
-//	  → Start / RunInSession                           // background / multi-turn variants
+//	  → Start                                          // background segment
 //	  → Resume(ctx, id, suspensionID, response) + Continue // record reply, re-enter loop
 //	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
-//	  → Kill / Remove / Prune
+//	  → SnapshotTree / RestoreTree                      // portable complete-tree state, no I/O
+//	  → Kill / RemoveTree
 //
 // HITL is a first-class state: when an action surfaces a suspension from
 // [hitl.Interrupt], the process waits in [core.StatusWaiting];
@@ -31,11 +33,11 @@
 // transitions atomically for asynchronous hosts. A synchronous AgentTool child that waits promotes
 // the same suspension to its parent and retains the exact child/tool-loop
 // checkpoint, so Resume/Continue finishes the original tool call without
-// replaying completed siblings. [Engine.RunChildWithState], [Engine.RunChild], and
-// [Engine.RunChildIsolated] bind an exact Deployment with explicit inheritance
+// replaying completed siblings. [Engine.RunChildWithState] and [Engine.RunChild]
+// bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
 // its process-scope [SubtreeEventListener] extensions. Other process extensions,
-// guardrails, and dependency overrides remain scoped to the declaring process.
+// chat middleware and dependency overrides remain scoped to the declaring process.
 //
 // OTel: every action invocation, planner replan, and engine run
 // produces a span under the `lynx/agent` tracer (planners use

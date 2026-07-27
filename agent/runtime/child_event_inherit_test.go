@@ -54,12 +54,13 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 // only — child events reached just the engine multicast.
 func TestChildEventsReachParentProcessListener(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
+	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
 	parent := agent.New(agent.AgentConfig{Name: "parent-observed", Description: "spawns a child while a process-scope listener watches", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")
+		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
 		args, _ := json.Marshal(in)
 		out, err := tool.Call(ctx, string(args))
 		if err != nil {

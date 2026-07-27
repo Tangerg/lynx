@@ -3,6 +3,6 @@
 //
 // The package contains data and narrow ports only. It does not run a process,
 // call a model, or execute a tool. Concrete drivers such as toolloop implement
-// the protocol, while runtime owns process identity, persistence, accounting,
-// and event publication.
+// the protocol, while runtime owns process identity, continuation state,
+// execution-resource counters, and event publication.
 package interaction

@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/planning/goap"
-	"github.com/Tangerg/lynx/agent/storetest"
 )
 
 func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
@@ -22,7 +21,10 @@ func TestMissingProcessErrorsHaveStableIdentity(t *testing.T) {
 		run  func() error
 	}{
 		{name: "kill", run: func() error { return engine.Kill(t.Context(), "proc_missing") }},
-		{name: "remove", run: func() error { return engine.Remove(t.Context(), "proc_missing") }},
+		{name: "kill children", run: func() error {
+			_, err := engine.KillChildren(t.Context(), "proc_missing")
+			return err
+		}},
 		{name: "resume", run: func() error { return engine.Resume(t.Context(), "proc_missing", "susp_1", true) }},
 	}
 	for _, test := range tests {
@@ -99,38 +101,6 @@ func TestResumeContextBoundsProcessTreeAdmission(t *testing.T) {
 	}
 }
 
-func TestKillChildrenUsesOrphanChildMutationBoundary(t *testing.T) {
-	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
-	child := createProcessForTest(
-		t,
-		engine,
-		deploymentFixture("orphan-child", core.ConditionSet{"finish": core.True}, nil),
-		core.Bindings{},
-		core.ProcessOptions{},
-	)
-	child.parentID = "missing-parent"
-	child.depth = 1
-
-	release, err := engine.processMutations.acquire(t.Context(), child.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	if killed, err := engine.KillChildren(ctx, child.ParentID()); len(killed) != 0 || !errors.Is(err, context.Canceled) {
-		t.Fatalf("KillChildren while child mutation is owned = (%v, %v), want cancellation", killed, err)
-	}
-	release()
-
-	killed, err := engine.KillChildren(t.Context(), child.ParentID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(killed) != 1 || killed[0] != child.ID() {
-		t.Fatalf("killed = %v, want [%s]", killed, child.ID())
-	}
-}
-
 func TestStartClaimsSegmentOwnershipBeforeReturning(t *testing.T) {
 	release := make(chan struct{})
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner()}})
@@ -167,8 +137,6 @@ func (e nameOnlyExtension) Name() string { return e.name }
 
 func TestNewEngineReturnsConfigErrors(t *testing.T) {
 	duplicate := &constructorExtension{name: "duplicate"}
-	var processStore *storetest.MemoryProcessStore
-	var sessionStore *storetest.MemorySessionStore
 	for _, test := range []struct {
 		name     string
 		config   Config
@@ -179,13 +147,7 @@ func TestNewEngineReturnsConfigErrors(t *testing.T) {
 		{name: "empty extension name", config: Config{Extensions: []core.Extension{&constructorExtension{}}}, contains: "empty Name"},
 		{name: "duplicate extension", config: Config{Extensions: []core.Extension{duplicate, duplicate}}, contains: "already registered"},
 		{name: "extension without capability", config: Config{Extensions: []core.Extension{nameOnlyExtension{name: "empty"}}}, contains: "no engine-scoped capability"},
-		{name: "whitespace build id", config: Config{BuildID: " build "}, contains: "BuildID"},
-		{name: "auto snapshot without store", config: Config{AutoSnapshot: true}, contains: "requires ProcessStore"},
-		{name: "negative snapshot finalize timeout", config: Config{SnapshotFinalizeTimeout: -1}, contains: "SnapshotFinalizeTimeout"},
 		{name: "negative child depth", config: Config{MaxChildDepth: -1}, contains: "MaxChildDepth"},
-		{name: "typed nil process store", config: Config{ProcessStore: processStore}, contains: "ProcessStore is typed nil"},
-		{name: "typed nil session store", config: Config{SessionStore: sessionStore}, contains: "SessionStore is typed nil"},
-		{name: "typed nil child session store", config: Config{ChildSessionStore: sessionStore}, contains: "ChildSessionStore is typed nil"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			engine, err := New(test.config)

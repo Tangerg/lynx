@@ -95,20 +95,15 @@ func (b *testBlackboard) Restore(state runtime.BlackboardState) error {
 	return b.Blackboard.(runtime.BlackboardRestorer).Restore(state)
 }
 
-func TestRestoreSnapshotBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T) {
+func TestRestoreTreeBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	definition := buildSnapshotAgent()
 	parent, err := engine.Run(t.Context(), definition, core.Input(ssWord{Text: "parent"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := parent.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot.ID = "restored-child"
-	snapshot.ParentID = parent.ID()
-	snapshot.Depth++
+	snapshot := snapshotRoot(t, engine, parent)
+	snapshot.ID = "restored-root"
 	sibling := snapshot
 	sibling.ID = "restored-sibling"
 
@@ -121,15 +116,19 @@ func TestRestoreSnapshotBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T
 		Blackboard: base,
 		name:       "reentrant-restore",
 		restore: func(state runtime.BlackboardState) error {
-			if _, err := engine.RestoreSnapshot(t.Context(), sibling, core.ProcessOptions{}); err != nil {
+			if _, err := engine.RestoreTree(t.Context(), core.ProcessSnapshotTree{
+				RootID: sibling.ID, Snapshots: []core.ProcessSnapshot{sibling},
+			}, core.ProcessOptions{}); err != nil {
 				return err
 			}
 			reentered = true
 			return base.(runtime.BlackboardRestorer).Restore(state)
 		},
 	}
-	if _, err := engine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{Blackboard: blackboard}); err != nil {
-		t.Fatalf("RestoreSnapshot: %v", err)
+	if _, err := engine.RestoreTree(t.Context(), core.ProcessSnapshotTree{
+		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+	}, core.ProcessOptions{Blackboard: blackboard}); err != nil {
+		t.Fatalf("RestoreTree: %v", err)
 	}
 	if !reentered {
 		t.Fatal("blackboard restore callback did not reenter the Engine")
@@ -393,7 +392,7 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if _, err := process.Snapshot(); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "snapshot-board" Snapshot panicked`) {
+	if _, err := baseEngine.SnapshotTree(t.Context(), process.ID()); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "snapshot-board" Snapshot panicked`) {
 		t.Fatalf("Snapshot error = %v, want attributed panic", err)
 	}
 
@@ -401,10 +400,7 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("valid Run: %v", err)
 	}
-	snapshot, err := validProcess.Snapshot()
-	if err != nil {
-		t.Fatalf("valid Snapshot: %v", err)
-	}
+	snapshot := snapshotRoot(t, baseEngine, validProcess)
 	restoreBoard := &testBlackboard{
 		Blackboard: base,
 		name:       "restore-board",
@@ -417,8 +413,10 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	if _, err := restoreEngine.Deploy(t.Context(), definition); err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	if _, err := restoreEngine.RestoreSnapshot(t.Context(), snapshot, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
-		t.Fatalf("RestoreSnapshot error = %v, want attributed panic", err)
+	if _, err := restoreEngine.RestoreTree(t.Context(), core.ProcessSnapshotTree{
+		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+	}, core.ProcessOptions{}); !errors.Is(err, cause) || !strings.Contains(err.Error(), `blackboard "restore-board" Restore panicked`) {
+		t.Fatalf("RestoreTree error = %v, want attributed panic", err)
 	}
 }
 
@@ -509,7 +507,7 @@ func TestActionMiddlewareShortCircuitProducesDurableHistory(t *testing.T) {
 	if history := process.History(); len(history) != 1 {
 		t.Fatalf("history = %#v, want one action run", history)
 	}
-	if _, err := process.Snapshot(); err != nil {
+	if _, err := engine.SnapshotTree(t.Context(), process.ID()); err != nil {
 		t.Fatalf("Snapshot after short circuit: %v", err)
 	}
 }

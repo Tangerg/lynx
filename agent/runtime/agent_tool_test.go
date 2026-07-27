@@ -3,6 +3,7 @@ package runtime_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -27,12 +28,13 @@ func childAgent() *core.Agent {
 // runs, output marshals back as JSON.
 func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
+	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
 	parent := agent.New(agent.AgentConfig{Name: "parent", Description: "calls the child", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")
+		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
 		args, _ := json.Marshal(in)
 		out, err := tool.Call(ctx, string(args))
 		if err != nil {
@@ -67,55 +69,101 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	if got.Final != 42 {
 		t.Fatalf("Final = %d, want 42", got.Final)
 	}
+	before := proc.Usage()
+	if before.Actions != 2 {
+		t.Fatalf("subtree actions = %d, want parent + child", before.Actions)
+	}
+	tree, err := engine.SnapshotTree(t.Context(), proc.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tree.Snapshots) != 2 {
+		t.Fatalf("snapshot count = %d, want complete parent-child tree", len(tree.Snapshots))
+	}
+	var childID string
+	for _, snapshot := range tree.Snapshots {
+		if snapshot.ParentID == proc.ID() {
+			childID = snapshot.ID
+		}
+	}
+	if childID == "" {
+		t.Fatal("snapshot tree has no child")
+	}
+	if _, err := engine.SnapshotTree(t.Context(), childID); err == nil || !strings.Contains(err.Error(), "not a process-tree root") {
+		t.Fatalf("SnapshotTree(child) error = %v", err)
+	}
+	if err := engine.RemoveTree(t.Context(), childID); err == nil || !strings.Contains(err.Error(), "not a process-tree root") {
+		t.Fatalf("RemoveTree(child) error = %v", err)
+	}
+	if err := engine.RemoveTree(t.Context(), proc.ID()); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := engine.RestoreTree(t.Context(), tree, core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after := restored.Usage(); after != before {
+		t.Fatalf("restored subtree usage = %#v, want %#v", after, before)
+	}
 }
 
 // TestAsChatTool_NoParentProcessInCtx verifies the helper rejects
 // callers without core.WithProcess in ctx.
 func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
+	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")
-	_, err := tool.Call(t.Context(), `{"Value":1}`)
+	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+	_, err = tool.Call(t.Context(), `{"Value":1}`)
 	if err == nil || !strings.Contains(err.Error(), "no parent process in ctx") {
 		t.Fatalf("expected no-parent-process error, got %v", err)
 	}
 }
 
-// TestAsMCPTool_RunsAgentWithoutParentProcess covers the top-level
-// MCP-host invocation: no parent process in ctx, NewStandaloneAgentTool spins up
-// a fresh process per call, returns the JSON-encoded result.
-func TestAsMCPTool_RunsAgentWithoutParentProcess(t *testing.T) {
+func TestAsChatTool_RejectsNilDeployment(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
-		t.Fatalf("deploy child: %v", err)
-	}
-
-	tool, _ := runtime.NewStandaloneAgentTool[subInput, subOutput](engine, "child-agent")
-	out, err := tool.Call(t.Context(), `{"Value":21}`)
-	if err != nil {
-		t.Fatalf("Call: %v", err)
-	}
-	var got subOutput
-	if err := json.Unmarshal([]byte(out), &got); err != nil {
-		t.Fatalf("unmarshal: %v", err)
-	}
-	if got.Doubled != 42 {
-		t.Fatalf("Doubled = %d, want 42", got.Doubled)
+	if _, err := runtime.NewAgentTool[subInput, subOutput](engine, nil); err == nil {
+		t.Fatal("expected error on nil deployment")
 	}
 }
 
-// TestAsMCPTool_DefinitionUsesAgentMetadata mirrors the NewAgentTool
-// equivalent so MCP hosts get the same agent name + description and
-// a JSON schema derived from In.
-func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
+func TestAsChatTool_RejectsForeignDeployment(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
+	other := agent.MustNewEngine(runtime.Config{})
+	deployment, err := other.Deploy(t.Context(), childAgent())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runtime.NewAgentTool[subInput, subOutput](engine, deployment); !errors.Is(err, runtime.ErrDeploymentNotFound) {
+		t.Fatalf("NewAgentTool foreign deployment error = %v, want ErrDeploymentNotFound", err)
+	}
+}
+
+func TestAsChatTool_RejectsInterfaceInput(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
+	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	tool, _ := runtime.NewStandaloneAgentTool[subInput, subOutput](engine, "child-agent")
+	if _, err := runtime.NewAgentTool[any, subOutput](engine, childDeployment); err == nil ||
+		!strings.Contains(err.Error(), "input type must be concrete") {
+		t.Fatalf("NewAgentTool interface input error = %v", err)
+	}
+}
+
+// TestAsChatTool_DefinitionUsesAgentMetadata verifies the tool surface
+// reflects the wrapped agent's name + description and a JSON schema
+// derived from In.
+func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	childDeployment, err := engine.Deploy(t.Context(), childAgent())
+	if err != nil {
+		t.Fatalf("deploy child: %v", err)
+	}
+	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
 	def := tool.Definition()
 	if def.Name != "child-agent" {
 		t.Fatalf("Name = %q, want child-agent", def.Name)
@@ -129,45 +177,5 @@ func TestAsMCPTool_DefinitionUsesAgentMetadata(t *testing.T) {
 	def.InputSchema[0] = '['
 	if got := tool.Definition().InputSchema[0]; got != '{' {
 		t.Fatalf("mutating returned definition changed agent tool schema prefix to %q", got)
-	}
-}
-
-// TestAsMCPTool_RejectsUnknownAgent matches NewAgentTool's fail-fast
-// boot-time behavior, surfaced as an error.
-func TestAsMCPTool_RejectsUnknownAgent(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := runtime.NewStandaloneAgentTool[subInput, subOutput](engine, "missing"); err == nil {
-		t.Fatal("expected error on unknown agent name")
-	}
-}
-
-// TestAsChatTool_RejectsUnknownAgent ensures construction fails fast
-// when the named agent isn't registered — programming errors should
-// surface at boot, not on the first LLM tool call.
-func TestAsChatTool_RejectsUnknownAgent(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := runtime.NewAgentTool[subInput, subOutput](engine, "missing"); err == nil {
-		t.Fatal("expected error on unknown agent name")
-	}
-}
-
-// TestAsChatTool_DefinitionUsesAgentMetadata verifies the tool surface
-// reflects the wrapped agent's name + description and a JSON schema
-// derived from In.
-func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), childAgent()); err != nil {
-		t.Fatalf("deploy child: %v", err)
-	}
-	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, "child-agent")
-	def := tool.Definition()
-	if def.Name != "child-agent" {
-		t.Fatalf("Name = %q, want child-agent", def.Name)
-	}
-	if def.Description != "doubles its input" {
-		t.Fatalf("Description = %q, want 'doubles its input'", def.Description)
-	}
-	if !strings.Contains(string(def.InputSchema), "Value") {
-		t.Fatalf("InputSchema should include In's field name; got %s", def.InputSchema)
 	}
 }

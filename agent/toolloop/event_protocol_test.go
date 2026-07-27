@@ -12,44 +12,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func TestEventJSONRoundTrip(t *testing.T) {
-	request := protocolRequest(t)
-	response := &chat.Response{Choices: []chat.Choice{{
-		Index:   0,
-		Message: messagePointer(chat.NewAssistantMessage(chat.NewTextPart("done"))),
-	}}}
-	call := &chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}
-	result := &chat.ToolResult{ID: "call-1", Name: "lookup", Result: "ok"}
-	checkpoint := protocolCheckpoint(t)
-	prompt := json.RawMessage(`"approve?"`)
-	schema := json.RawMessage(`{"type":"string"}`)
-
-	events := []toolloop.Event{
-		{Kind: toolloop.EventModelRequest, Round: 1, Request: request},
-		{Kind: toolloop.EventModelResponse, Round: 1, Response: response},
-		{Kind: toolloop.EventToolCall, Round: 1, ToolCall: call},
-		{Kind: toolloop.EventToolResult, Round: 1, ToolResult: result},
-		{Kind: toolloop.EventPause, Round: 1, Pause: &toolloop.Pause{ID: "approval-1", Reason: "approval required", Prompt: prompt, ResumeSchema: schema, Checkpoint: checkpoint}},
-		{Kind: toolloop.EventResume, Round: 1, Resume: &toolloop.Resume{ID: "approval-1", Input: json.RawMessage(`"approved"`)}},
-	}
-
-	for _, event := range events {
-		t.Run(string(event.Kind), func(t *testing.T) {
-			body, err := json.Marshal(event)
-			if err != nil {
-				t.Fatalf("Marshal: %v", err)
-			}
-			var decoded toolloop.Event
-			if err := json.Unmarshal(body, &decoded); err != nil {
-				t.Fatalf("Unmarshal: %v", err)
-			}
-			if !reflect.DeepEqual(decoded, event) {
-				t.Fatalf("round trip = %#v, want %#v", decoded, event)
-			}
-		})
-	}
-}
-
 func TestEventValidationRejectsAmbiguousOrInvalidPayload(t *testing.T) {
 	request := protocolRequest(t)
 	call := &chat.ToolCall{ID: "call-1", Name: "lookup"}
@@ -79,35 +41,7 @@ func TestEventValidationRejectsAmbiguousOrInvalidPayload(t *testing.T) {
 			if err := test.event.Validate(); !errors.Is(err, toolloop.ErrInvalidEvent) {
 				t.Fatalf("Validate error = %v", err)
 			}
-			if _, err := json.Marshal(test.event); !errors.Is(err, toolloop.ErrInvalidEvent) {
-				t.Fatalf("Marshal error = %v", err)
-			}
 		})
-	}
-}
-
-func TestEventUnmarshalDoesNotMutateOnFailure(t *testing.T) {
-	original := toolloop.Event{
-		Kind:  toolloop.EventPause,
-		Round: 1,
-		Pause: &toolloop.Pause{ID: "approval-1", Reason: "wait", Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"string"}`), Checkpoint: protocolCheckpoint(t)},
-	}
-	event := original
-	if err := json.Unmarshal([]byte(`{"kind":"resume","resume":{}}`), &event); !errors.Is(err, toolloop.ErrInvalidEvent) {
-		t.Fatalf("Unmarshal error = %v", err)
-	}
-	if !reflect.DeepEqual(event, original) {
-		t.Fatalf("failed Unmarshal mutated event to %#v", event)
-	}
-	if err := json.Unmarshal([]byte(`{`), &event); err == nil {
-		t.Fatalf("malformed Unmarshal error = %v", err)
-	}
-	if err := json.Unmarshal([]byte(`{"kind":"resume","round":1,"resume":{"id":"approval-1","input":true},"future":true}`), &event); !errors.Is(err, toolloop.ErrInvalidEvent) {
-		t.Fatalf("unknown field error = %v", err)
-	}
-	var nilEvent *toolloop.Event
-	if err := nilEvent.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, toolloop.ErrInvalidEvent) {
-		t.Fatalf("nil receiver error = %v", err)
 	}
 }
 

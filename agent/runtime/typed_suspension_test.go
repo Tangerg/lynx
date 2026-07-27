@@ -13,7 +13,7 @@ import (
 )
 
 // TestTypedActionSuspendsAndResumes proves a typed action
-// (NewAction[In,Out], whose fn returns (Out, error)) can park a durable
+// (NewAction[In,Out], whose fn returns (Out, error)) can park a snapshot-compatible
 // Suspension and resume to completion.
 //
 // Flow: first run → Interrupt → StatusWaiting. Resume validates and
@@ -63,10 +63,10 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 	if err := engine.Resume(t.Context(), proc.ID(), "approval", true); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	if err := engine.Resume(t.Context(), proc.ID(), "approval", true); err != nil {
-		t.Fatalf("idempotent resume: %v", err)
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", true); !errors.Is(err, interaction.ErrSuspensionStale) {
+		t.Fatalf("duplicate resume error = %v", err)
 	}
-	if err := engine.Resume(t.Context(), proc.ID(), "approval", false); !errors.Is(err, interaction.ErrSuspensionConflict) {
+	if err := engine.Resume(t.Context(), proc.ID(), "approval", false); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("conflicting resume error = %v", err)
 	}
 	if err := engine.Continue(ctx, proc.ID()); err != nil {

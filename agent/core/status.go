@@ -103,6 +103,16 @@ func (s ProcessStatus) valid() bool {
 	}
 }
 
+func (s ProcessStatus) snapshotStable() bool {
+	switch s {
+	case StatusCompleted, StatusFailed, StatusStuck, StatusWaiting,
+		StatusPaused, StatusTerminated, StatusKilled:
+		return true
+	default:
+		return false
+	}
+}
+
 // ReplanRequest tells the runtime that an action invalidated the current plan.
 // The runtime excludes that action for one tick, applies Update, and plans
 // again.

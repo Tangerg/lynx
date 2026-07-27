@@ -11,7 +11,7 @@ import (
 
 // Standard-path aliases keep Agent definition and lifecycle discoverable from
 // one package without copying types or hiding the advanced sub-packages. Tool,
-// planning, event, persistence, and provider protocols remain at their owning
+// planning, event, interaction, and provider protocols remain at their owning
 // package boundaries.
 type (
 	Agent            = core.Agent
@@ -34,13 +34,10 @@ type (
 	DeploymentRef    = core.DeploymentRef
 	ProcessStatus    = core.ProcessStatus
 	Extension        = core.Extension
-	Session          = core.Session
 	Bindings         = core.Bindings
 
-	ToolGroupRequirement = core.ToolGroupRequirement
-	ToolGroup            = core.ToolGroup
-	ToolGroupInfo        = core.ToolGroupInfo
-	ToolGroupResolver    = core.ToolGroupResolver
+	ToolGroup         = core.ToolGroup
+	ToolGroupResolver = core.ToolGroupResolver
 
 	Suspension            = interaction.Suspension
 	SuspensionKind        = interaction.SuspensionKind
@@ -133,11 +130,6 @@ func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string
 	return core.PromptJSON[T](ctx, process, text, config)
 }
 
-// NewSession returns a session initialized for a multi-turn Agent run.
-func NewSession(id, userID, agentName string) Session {
-	return core.NewSession(id, userID, agentName)
-}
-
 // Chat wires one model into a [ChatCapability], enabling streaming when the
 // model also implements [chat.Streamer] — the usual case for a single client.
 // Build the struct directly only to pair a distinct Model and Streamer.
@@ -147,13 +139,6 @@ func Chat(model chat.Model) ChatCapability {
 		capability.Streamer = streamer
 	}
 	return capability
-}
-
-// RequireToolGroup declares that an action needs the tool group bound to role,
-// optionally constrained to the given [core.ToolGroupPermission]s. Use it in
-// [ActionConfig].ToolGroups.
-func RequireToolGroup(role string, allowed ...core.ToolGroupPermission) ToolGroupRequirement {
-	return core.RequireToolGroup(role, allowed...)
 }
 
 // RequireType returns the precondition key for "a value of type T is present on
