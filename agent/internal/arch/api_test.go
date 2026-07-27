@@ -129,7 +129,7 @@ func TestRootFacadeBudget(t *testing.T) {
 	for _, required := range []string{
 		"Action", "ActionConfig", "Agent", "Process", "DeploymentRef",
 		"Deployment", "Engine", "EngineConfig", "Goal", "MustNewEngine", "New", "NewAction",
-		"NewEngine", "ProcessContext", "PromptConfig", "PromptJSON", "ChatCapability",
+		"NewEngine", "ProcessContext", "PromptConfig", "ChatCapability",
 		"ProcessOptions", "Result",
 	} {
 		if _, ok := names[required]; !ok {
@@ -140,6 +140,9 @@ func TestRootFacadeBudget(t *testing.T) {
 		"ActionQoS", "ChatClientProvider", "AgentProcess", "AgentProcessStatus",
 		"AgentRef", "ComputedCondition", "Determination", "GoalExport", "IOBinding",
 		"Platform", "PlatformConfig", "ProcessType", "ServiceProvider", "Config",
+		// Coaxing typed output out of a model is a provider-interaction concern
+		// that chatclient owns; the framework writes no prompt copy.
+		"PromptJSON",
 	} {
 		if _, ok := names[forbidden]; ok {
 			t.Errorf("removed or overly broad symbol %s returned to root agent façade", forbidden)

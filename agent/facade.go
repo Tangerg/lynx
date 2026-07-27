@@ -125,11 +125,6 @@ func CompletionResult[T any](completion RunCompletion) (T, bool) {
 	return runtime.CompletionResult[T](completion)
 }
 
-// PromptJSON requests JSON matching T through the process model and tool loop.
-func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error) {
-	return core.PromptJSON[T](ctx, process, text, config)
-}
-
 // Chat wires one model into a [ChatCapability], enabling streaming when the
 // model also implements [chat.Streamer] — the usual case for a single client.
 // Build the struct directly only to pair a distinct Model and Streamer.

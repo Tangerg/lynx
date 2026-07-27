@@ -201,8 +201,10 @@ answer, err := process.Prompt(ctx, prompt, agent.PromptConfig{
 })
 ```
 
-需要结构化结果时使用 `agent.PromptJSON[T]`。需要完全控制 Request、observer 或 budget 时，
-使用 `ProcessContext.Interact`。所有这些入口最终进入 framework-managed interaction，由
+需要结构化结果时，把格式约定和解码交给下层：`chatclient.JSON[T]` / `chatclient.JSONSchema[T]`
+提供 instructions 与 decoder，Action 把 instructions 拼进 prompt、再用 decoder 解一次
+`Prompt` 的返回文本。Framework 不写 prompt 文案，也不重复一份结构化解析。需要完全控制
+Request、observer 或 budget 时，使用 `ProcessContext.Interact`。所有这些入口最终进入 framework-managed interaction，由
 Runtime 记录 model call、usage、事件、限制和可恢复 tool checkpoint。
 
 `agent/toolloop.Runner` 是可独立复用的叶子执行器，不是第二套 Agent runtime。直接使用它的

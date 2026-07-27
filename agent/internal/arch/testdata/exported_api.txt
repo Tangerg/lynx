@@ -15,7 +15,6 @@
 .: func NewEngine(config EngineConfig) (*Engine, error)
 .: func NewGoal(config GoalConfig) *Goal
 .: func NewOutputGoal[T any](config GoalConfig) *Goal
-.: func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error)
 .: func RequireType[T any]() string
 .: func Result[T any](process ProcessView) (T, bool)
 .: func ToolCallFromContext(ctx context.Context) (chat.ToolCall, bool)
@@ -176,7 +175,6 @@ core: func Objects[T any](blackboard BlackboardReader) []T
 core: func Or(left, right Condition) Condition
 core: func ParseYesNo(text string) Truth
 core: func ProcessViewFrom(ctx context.Context) ProcessView
-core: func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error)
 core: func RegisterDependency[T any](dependencies *Dependencies, key DependencyKey[T], value T) error
 core: func Result[T any](process ProcessView) (T, bool)
 core: func TruthOf(value bool) Truth

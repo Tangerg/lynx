@@ -77,42 +77,6 @@ func TestPromptReturnsModelError(t *testing.T) {
 	}
 }
 
-func TestPromptJSONDecodesResponse(t *testing.T) {
-	type Brief struct {
-		Summary string   `json:"summary"`
-		Sources []string `json:"sources"`
-	}
-
-	model := newStubModel(`{"summary":"hi","sources":["a","b"]}`)
-	pc := newPromptContext(t, model)
-
-	brief, err := core.PromptJSON[Brief](t.Context(), pc, "brief me", core.PromptConfig{})
-	if err != nil {
-		t.Fatalf("PromptJSON: %v", err)
-	}
-	if brief.Summary != "hi" {
-		t.Fatalf("brief.Summary = %q, want hi", brief.Summary)
-	}
-	if len(brief.Sources) != 2 || brief.Sources[0] != "a" {
-		t.Fatalf("brief.Sources = %v, want [a b]", brief.Sources)
-	}
-
-	if !strings.Contains(model.gotPrompt, "brief me") {
-		t.Fatalf("user text missing from model prompt: %q", model.gotPrompt)
-	}
-	if !strings.Contains(model.gotPrompt, "JSON SCHEMA") {
-		t.Fatalf("JSON schema instructions missing from model prompt: %q", model.gotPrompt)
-	}
-}
-
-func TestPromptJSONRejectsNilContext(t *testing.T) {
-	type X struct{}
-	_, err := core.PromptJSON[X](t.Context(), nil, "anything", core.PromptConfig{})
-	if err == nil {
-		t.Fatal("expected error on nil runner")
-	}
-}
-
 func TestPromptAcceptsTools(t *testing.T) {
 	model := newStubModel("ok")
 	pc := newPromptContext(t, model)

@@ -2,14 +2,12 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
-	pkgjson "github.com/Tangerg/lynx/pkg/json"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -65,27 +63,6 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 	default:
 		return "", fmt.Errorf("agent: prompt ended with unexpected event %q", result.Final.Kind)
 	}
-}
-
-// PromptJSON requests JSON matching T and decodes the final response.
-func PromptJSON[T any](ctx context.Context, process *ProcessContext, text string, config PromptConfig) (T, error) {
-	var output T
-	if process == nil {
-		return output, errors.New("agent: prompt JSON: process context is nil")
-	}
-	schema, err := pkgjson.StringDefSchemaOf(output)
-	if err != nil {
-		return output, fmt.Errorf("agent: prompt JSON: derive schema: %w", err)
-	}
-	prompt := text + "\n\nReply with only JSON matching this JSON SCHEMA:\n" + schema
-	response, err := process.Prompt(ctx, prompt, config)
-	if err != nil {
-		return output, err
-	}
-	if err := json.Unmarshal([]byte(response), &output); err != nil {
-		return output, fmt.Errorf("agent: prompt JSON: decode response: %w", err)
-	}
-	return output, nil
 }
 
 type promptCall struct {
