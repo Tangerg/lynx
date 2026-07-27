@@ -2,7 +2,6 @@ package sqlite_test
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -296,9 +295,14 @@ func TestProcessStoreReplaceRemovesStaleDescendants(t *testing.T) {
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatal(err)
 	}
-	ids, err := store.List(t.Context())
-	if err != nil || len(ids) != 1 || ids[0] != root.ID {
-		t.Fatalf("List after replacement = %v, %v", ids, err)
+	tree, _, err := store.LoadTree(t.Context(), root.ID)
+	if err != nil || len(tree.Snapshots) != 1 || tree.Snapshots[0].ID != root.ID {
+		t.Fatalf("tree after replacement = %+v, %v", tree, err)
+	}
+	for _, stale := range []string{child.ID, grandchild.ID} {
+		if _, _, err := store.LoadTree(t.Context(), stale); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+			t.Fatalf("stale descendant %q survived replacement: %v", stale, err)
+		}
 	}
 }
 
@@ -443,8 +447,13 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	if err := store.DeleteTrees(t.Context(), []string{root.ID}); err != nil {
 		t.Fatal(err)
 	}
-	ids, err := store.List(context.Background())
-	if err != nil || len(ids) != 1 || ids[0] != unrelated.ID {
-		t.Fatalf("remaining snapshots = %v, %v", ids, err)
+	for _, deleted := range []string{root.ID, child.ID} {
+		if _, _, err := store.LoadTree(t.Context(), deleted); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
+			t.Fatalf("deleted process %q survived: %v", deleted, err)
+		}
+	}
+	tree, _, err := store.LoadTree(t.Context(), unrelated.ID)
+	if err != nil || len(tree.Snapshots) != 1 || tree.Snapshots[0].ID != unrelated.ID {
+		t.Fatalf("unrelated tree = %+v, %v", tree, err)
 	}
 }

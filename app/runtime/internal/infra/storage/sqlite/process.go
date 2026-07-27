@@ -407,29 +407,6 @@ func (s *ProcessStore) DeleteTrees(ctx context.Context, rootIDs []string) error 
 	})
 }
 
-// List returns every stored process id, most-recently-committed first.
-func (s *ProcessStore) List(ctx context.Context) ([]string, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT id FROM process_snapshots ORDER BY committed_at DESC, id DESC`)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite: list snapshots: %w", err)
-	}
-	defer rows.Close()
-
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("sqlite: scan snapshot id: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: list snapshots: %w", err)
-	}
-	return ids, nil
-}
-
 func (s *ProcessStore) deleteTree(ctx context.Context, rootID string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
 		`WITH RECURSIVE process_tree(id) AS (
