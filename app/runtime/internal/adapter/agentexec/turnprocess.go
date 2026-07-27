@@ -184,7 +184,7 @@ func (p *turnProcess) persistWaitingCheckpoint(status core.ProcessStatus) error 
 	if err != nil {
 		return fmt.Errorf("agentexec: capture process tree: %w", err)
 	}
-	root, ok := processTreeRoot(tree)
+	root, ok := tree.Root()
 	if !ok {
 		return fmt.Errorf("agentexec: capture process tree: %w", core.ErrInvalidSnapshot)
 	}

@@ -281,16 +281,9 @@ func validateCheckpointUsage(tree core.ProcessSnapshotTree, snapshot accounting.
 		return fmt.Errorf("%w: application usage: %w", core.ErrInvalidSnapshot, err)
 	}
 
-	var framework core.Usage
-	for _, process := range tree.Snapshots {
-		if process.OwnUsage.Cost > math.MaxFloat64-framework.Cost ||
-			process.OwnUsage.Tokens > math.MaxInt64-framework.Tokens ||
-			process.OwnUsage.ModelCalls > math.MaxInt-framework.ModelCalls {
-			return fmt.Errorf("%w: framework usage aggregate overflows", core.ErrInvalidSnapshot)
-		}
-		framework.Cost += process.OwnUsage.Cost
-		framework.Tokens += process.OwnUsage.Tokens
-		framework.ModelCalls += process.OwnUsage.ModelCalls
+	framework, err := tree.Usage()
+	if err != nil {
+		return err
 	}
 
 	var application accounting.ModelUsage

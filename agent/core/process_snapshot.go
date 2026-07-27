@@ -242,25 +242,17 @@ func (t ProcessSnapshotTree) Validate() error {
 	}
 
 	byID := make(map[string]ProcessSnapshot, len(t.Snapshots))
-	var aggregate Usage
 	for index, snapshot := range t.Snapshots {
 		if err := snapshot.Validate(); err != nil {
 			return fmt.Errorf("process snapshot tree: snapshots[%d]: %w", index, err)
 		}
-		if snapshot.OwnUsage.Cost > math.MaxFloat64-aggregate.Cost ||
-			snapshot.OwnUsage.Tokens > math.MaxInt64-aggregate.Tokens ||
-			snapshot.OwnUsage.ModelCalls > math.MaxInt-aggregate.ModelCalls ||
-			snapshot.OwnUsage.Actions > math.MaxInt-aggregate.Actions {
-			return fmt.Errorf("%w: process tree usage exceeds runtime capacity", ErrInvalidSnapshot)
-		}
-		aggregate.Cost += snapshot.OwnUsage.Cost
-		aggregate.Tokens += snapshot.OwnUsage.Tokens
-		aggregate.ModelCalls += snapshot.OwnUsage.ModelCalls
-		aggregate.Actions += snapshot.OwnUsage.Actions
 		if _, duplicate := byID[snapshot.ID]; duplicate {
 			return fmt.Errorf("%w: duplicate process ID %q", ErrInvalidSnapshot, snapshot.ID)
 		}
 		byID[snapshot.ID] = snapshot
+	}
+	if _, err := t.Usage(); err != nil {
+		return err
 	}
 
 	root, ok := byID[t.RootID]
@@ -280,6 +272,38 @@ func (t ProcessSnapshotTree) Validate() error {
 		}
 	}
 	return nil
+}
+
+// Root returns the snapshot the tree is rooted at. A tree that passed Validate
+// always has one; ok is false only for a tree that has not been checked.
+func (t ProcessSnapshotTree) Root() (ProcessSnapshot, bool) {
+	for _, snapshot := range t.Snapshots {
+		if snapshot.ID == t.RootID {
+			return snapshot, true
+		}
+	}
+	return ProcessSnapshot{}, false
+}
+
+// Usage reports what the captured tree consumed: the sum of every process's
+// direct counters, which is the same total the live tree reports through
+// ProcessView. It errors when the sum would exceed runtime capacity, and
+// Validate rejects such a tree, so a validated tree's total is exact.
+func (t ProcessSnapshotTree) Usage() (Usage, error) {
+	var total Usage
+	for _, snapshot := range t.Snapshots {
+		if snapshot.OwnUsage.Cost > math.MaxFloat64-total.Cost ||
+			snapshot.OwnUsage.Tokens > math.MaxInt64-total.Tokens ||
+			snapshot.OwnUsage.ModelCalls > math.MaxInt-total.ModelCalls ||
+			snapshot.OwnUsage.Actions > math.MaxInt-total.Actions {
+			return Usage{}, fmt.Errorf("%w: process tree usage exceeds runtime capacity", ErrInvalidSnapshot)
+		}
+		total.Cost += snapshot.OwnUsage.Cost
+		total.Tokens += snapshot.OwnUsage.Tokens
+		total.ModelCalls += snapshot.OwnUsage.ModelCalls
+		total.Actions += snapshot.OwnUsage.Actions
+	}
+	return total, nil
 }
 
 func parseProcessStatus(status string) (ProcessStatus, error) {

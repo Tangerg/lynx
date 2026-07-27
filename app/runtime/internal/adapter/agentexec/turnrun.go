@@ -401,7 +401,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure restored chat process: %w", err)
 	}
-	root, ok := processTreeRoot(tree)
+	root, ok := tree.Root()
 	if !ok {
 		return nil, processSnapshotLost("restore", core.ErrInvalidSnapshot)
 	}
@@ -428,15 +428,6 @@ func (e *Engine) RestoreTurn(ctx context.Context, processID string, request Rest
 		provider: checkpoint.Provider,
 		budget:   checkpoint.Budget,
 	}, nil
-}
-
-func processTreeRoot(tree core.ProcessSnapshotTree) (core.ProcessSnapshot, bool) {
-	for _, snapshot := range tree.Snapshots {
-		if snapshot.ID == tree.RootID {
-			return snapshot, true
-		}
-	}
-	return core.ProcessSnapshot{}, false
 }
 
 func isProcessSnapshotLoss(err error) bool {

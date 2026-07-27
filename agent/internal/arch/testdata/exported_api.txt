@@ -139,6 +139,8 @@ core: func (s ProcessSnapshot) Validate() error
 core: func (s ProcessStatus) IsTerminal() bool
 core: func (s ProcessStatus) String() string
 core: func (s TerminationScope) String() string
+core: func (t ProcessSnapshotTree) Root() (ProcessSnapshot, bool)
+core: func (t ProcessSnapshotTree) Usage() (Usage, error)
 core: func (t ProcessSnapshotTree) Validate() error
 core: func (t Truth) And(other Truth) Truth
 core: func (t Truth) Not() Truth

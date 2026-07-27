@@ -43,7 +43,7 @@ func (e *Engine) ResumableProcess(ctx context.Context, processID string) (bool, 
 		}
 		return false, fmt.Errorf("engine: validate process tree: %w", err)
 	}
-	root, ok := processTreeRoot(tree)
+	root, ok := tree.Root()
 	if !ok {
 		return false, nil
 	}

@@ -207,3 +207,34 @@ func TestProcessSnapshotTreeRejectsAggregateUsageOverflow(t *testing.T) {
 		})
 	}
 }
+
+// TestProcessSnapshotTreeReportsRootAndUsage pins the two facts a consumer would
+// otherwise re-derive from the tree's fields: which snapshot is the root, and
+// what the capture consumed in total.
+func TestProcessSnapshotTreeReportsRootAndUsage(t *testing.T) {
+	root := validSnapshot("root")
+	root.OwnUsage = core.Usage{Cost: 1.5, Tokens: 10, ModelCalls: 2, Actions: 3}
+	child := validSnapshot("child")
+	child.ParentID = root.ID
+	child.OwnUsage = core.Usage{Cost: 0.5, Tokens: 4, ModelCalls: 1, Actions: 1}
+	tree := core.ProcessSnapshotTree{RootID: root.ID, Snapshots: []core.ProcessSnapshot{child, root}}
+	if err := tree.Validate(); err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+
+	got, ok := tree.Root()
+	if !ok || got.ID != root.ID {
+		t.Fatalf("Root() = %q (present=%t), want %q", got.ID, ok, root.ID)
+	}
+	usage, err := tree.Usage()
+	if err != nil {
+		t.Fatalf("Usage: %v", err)
+	}
+	if usage != (core.Usage{Cost: 2, Tokens: 14, ModelCalls: 3, Actions: 4}) {
+		t.Fatalf("Usage() = %+v, want the sum of both processes", usage)
+	}
+
+	if _, ok := (core.ProcessSnapshotTree{RootID: "absent", Snapshots: []core.ProcessSnapshot{child}}).Root(); ok {
+		t.Fatal("Root() found a root in a tree that has none")
+	}
+}
