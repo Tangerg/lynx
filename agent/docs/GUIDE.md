@@ -8,7 +8,7 @@
 Lynx Agent 是一个可嵌入的 Go framework，不是 DI 容器，也不是 provider SDK。它分为三层：
 
 - `agent/core` 定义 Agent、Action、Goal、Condition、Blackboard、ProcessView 和扩展协议；
-- `agent/runtime` 的 `Engine` 拥有部署、进程、执行循环、挂起恢复、事件和持久化协调；
+- `agent/runtime` 的 `Engine` 拥有部署、进程、执行循环、挂起恢复、事件，以及进程树执行状态的捕获与重建；存储与事务归 Host；
 - 根 `agent` 包提供常用定义与生命周期的标准入口，高级能力留在具名子包。
 
 一次标准执行是：
@@ -279,8 +279,7 @@ Host 定义单位的 opaque cost、tokens、model-call 与 action count。Action
 只通过 Event/OTel 输出，不再作为可恢复执行状态保存。Suspension 是否已回答只由 Response
 是否存在决定，不再保存不参与恢复语义的响应时间。`OwnUsage` 不记录 provider/model 明细、
 USD 账单、embedding 调用、时间线或审计数据；这些应用投影由 Host 从 managed-interaction
-event 建立，并在自己的事务边界持久化。v5 起使用确定的 `ProcessFailure{Message}` 对象替代
-裸 failure 字符串。任意 live error 的 sentinel 身份与 unwrap
+event 建立，并在自己的事务边界持久化。任意 live error 的 sentinel 身份与 unwrap
 链不具备通用 wire 表达，因此恢复后的 `Process.Failure()` 是 message-only
 `*core.ProcessFailure`；需要识别时使用 `errors.As`，不要假定跨进程 `errors.Is`。
 Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关系重建聚合；读取完整
@@ -315,10 +314,9 @@ Agent 不提供 conversation/session 标识或 context binder。Host 应通过 `
 Call/Stream middleware：顶层进程映射到产品 conversation，子进程可按
 `core.ProcessView.ID()` 建立独立历史分区。产品标识和分区规则因此不会进入 Process snapshot。
 
-这是一次 breaking migration：`ProcessStore`、`Session`、`RunInSession`、
-`ProcessOptions.ConversationID`、`runtime.Config.BindConversation`、自动快照及相关失败策略
-已从 Agent 公共面删除，不提供 alias、shim 或双路径。旧调用方应把存储端口、产品上下文和事务
-编排移到自己的 adapter/application 层，只把加载后的 snapshot 值交给 Agent。
+Agent 公共面没有存储端口、产品 Session、自动快照或持久化失败策略，也不提供它们的 alias 与
+shim：Host 在自己的 adapter/application 层编排存储、产品上下文和事务，只把加载后的 snapshot
+值交给 Agent。
 
 ## 8. Extension 与 Dependencies
 

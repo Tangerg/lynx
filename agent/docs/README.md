@@ -16,26 +16,7 @@ Condition 和 Blackboard 组成，runtime 在每个 tick 重新观察状态并�
 provider-neutral Chat/Tool 上手入口见
 [`../../doc/CORE_GETTING_STARTED.md`](../../doc/CORE_GETTING_STARTED.md)。
 
-## 当前结构
-
-```text
-agent/
-├── core/                 Agent、Action、Goal、Condition、Blackboard、SPI
-├── planning/             Planner 契约、Domain、State 与 Plan
-│   ├── goap/             deterministic uniform-cost GOAP
-│   ├── htn/              hierarchical task network
-│   ├── reactive/         reactive planner
-│   └── utility/          utility-based planner
-├── routing/              prompt 到已部署 Agent/Goal 的选择
-├── runtime/              Engine、Deployment、Process 与生命周期协调
-├── event/                生命周期事件和 listener
-├── hitl/                 typed Interrupt helper
-├── interaction/          Framework 托管交互的稳定事件与挂起协议
-├── toolloop/             叶子 Event Runner、Checkpoint、Pause/Resume
-├── toolpolicy/           tools.Tool decorator
-├── workflow/             编译为普通 Agent 的高阶组合器
-└── examples/             可运行示例
-```
+包的划分与职责见 [`../CLAUDE.md`](../CLAUDE.md) 的「架构心智」与各包 godoc —— 这里不复制目录树，它只会在重构后变成误导。
 
 运行基础示例：
 
