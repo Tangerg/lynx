@@ -67,7 +67,9 @@ replan。Middleware 不得自行运行 Planner，也不能把错误改藏到 con
 
 `ToolMiddleware.WrapTool` 只包装已解析的 `tools.Tool`。鉴权、redaction、tracing 和明确的
 调用级 retry 可以放在这里；模型轮次、HITL、usage、checkpoint 与 tool-loop 终止属于
-framework-managed interaction。
+framework-managed interaction。包装器只需声明 `toolloop.WrappingTool`（`Unwrap`），被包装
+工具声明的全部可选能力即自动保留 —— 逐个重新实现只会漏掉忘记的那个；要刻意收窄调度或
+continuation 语义，就由包装器自己声明该能力（外层优先），或不声明 `Unwrap` 完全隐藏。
 
 Chat 横切行为直接使用 `core/chat.CallMiddleware` 与 `StreamMiddleware`，由 Runtime 在
 选定 ChatCapability 后组合。不要再为同一调用边界增加 Advisor/Hook/Interceptor 的平行链。

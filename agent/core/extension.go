@@ -53,10 +53,14 @@ type ActionMiddleware interface {
 // A panic or nil result makes tool resolution fail with an error attributed to
 // the middleware; it cannot leak into the host or silently remove a tool.
 //
-// Typical uses: per-call tracing, auth / scope checks, redaction,
-// transient-error retry. Transparent decorators should structurally forward
-// optional ConcurrencyKey and ReturnsDirect capabilities; stateful policies
-// may deliberately omit them to narrow scheduling or continuation semantics.
+// Typical uses: per-call tracing, auth / scope checks, redaction.
+//
+// A wrapper declares toolloop.WrappingTool and the tool it stands in for
+// keeps every optional capability it declared — one method, whatever the set of
+// capabilities grows to. Re-implementing them one by one is what silently drops
+// the ones a wrapper forgot. A policy that means to narrow scheduling or
+// continuation semantics declares the capability itself, which takes precedence
+// over the wrapped tool's, or omits Unwrap to hide the tool entirely.
 // Valid at engine and process scope.
 type ToolMiddleware interface {
 	Extension
