@@ -155,7 +155,6 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
-	child.Depth = 1
 	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
 		processID,
 		bootstrapWaitingSnapshot(processID),
@@ -198,7 +197,6 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
 	child := bootstrapWaitingSnapshot("child_" + processID)
 	child.ParentID = processID
-	child.Depth = 1
 	if err := ss.processes.SaveTree(ctx, bootstrapSnapshotTree(
 		processID,
 		bootstrapWaitingSnapshot(processID),

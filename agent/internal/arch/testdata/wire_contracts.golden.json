@@ -3,10 +3,9 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 11,
+    "schema_version": 12,
     "id": "process-1",
     "parent_id": "process-root",
-    "depth": 1,
     "deployment": {
       "name": "researcher",
       "version": "0.4.0-fixture",

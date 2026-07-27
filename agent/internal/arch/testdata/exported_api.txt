@@ -62,7 +62,7 @@ core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
-core: const ProcessSnapshotSchemaVersion uint16 = 11
+core: const ProcessSnapshotSchemaVersion uint16 = 12
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -226,7 +226,7 @@ core: type ProcessContextConfig struct { Process ProcessView Control ProcessCont
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Depth int `json:"depth,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
 core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }

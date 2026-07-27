@@ -74,7 +74,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 		SchemaVersion: agentcore.ProcessSnapshotSchemaVersion,
 		ID:            "process-1",
 		ParentID:      "process-root",
-		Depth:         1,
 		Deployment: agentcore.DeploymentRef{
 			Name:    "researcher",
 			Version: "0.4.0-fixture",

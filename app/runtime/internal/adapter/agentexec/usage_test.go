@@ -144,7 +144,6 @@ func TestValidateCheckpointUsageRequiresOneConsistentCommit(t *testing.T) {
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            "child",
 		ParentID:      root.ID,
-		Depth:         1,
 		Deployment:    core.DeploymentRef{Name: "subtask", Digest: "child-digest"},
 		StartedAt:     startedAt,
 		Status:        core.StatusCompleted,

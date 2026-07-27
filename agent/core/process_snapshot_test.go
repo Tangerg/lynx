@@ -117,16 +117,6 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	if err := invalid.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("waiting without suspension error = %v", err)
 	}
-	rootWithDepth := validSnapshot("root-with-depth")
-	rootWithDepth.Depth = 1
-	if err := rootWithDepth.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("root with depth error = %v", err)
-	}
-	childWithoutDepth := validSnapshot("child-without-depth")
-	childWithoutDepth.ParentID = "parent"
-	if err := childWithoutDepth.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
-		t.Fatalf("child without depth error = %v", err)
-	}
 	invalidUsage := validSnapshot("invalid-usage")
 	invalidUsage.OwnUsage.Tokens = -1
 	if err := invalidUsage.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {
@@ -154,14 +144,10 @@ func TestProcessSnapshotTreeValidatesBoundary(t *testing.T) {
 	root := validSnapshot("root")
 	child := validSnapshot("child")
 	child.ParentID = root.ID
-	child.Depth = root.Depth + 1
 	disconnected := child
 	disconnected.ParentID = "outside"
-	wrongDepth := child
-	wrongDepth.Depth++
 	rootWithParent := root
 	rootWithParent.ParentID = "outside"
-	rootWithParent.Depth = 1
 
 	tests := []struct {
 		name string
@@ -179,9 +165,6 @@ func TestProcessSnapshotTreeValidatesBoundary(t *testing.T) {
 		}},
 		{name: "external parent", tree: core.ProcessSnapshotTree{
 			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, disconnected},
-		}},
-		{name: "wrong depth", tree: core.ProcessSnapshotTree{
-			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, wrongDepth},
 		}},
 	}
 
@@ -213,7 +196,6 @@ func TestProcessSnapshotTreeRejectsAggregateUsageOverflow(t *testing.T) {
 			root.OwnUsage = usage
 			child := validSnapshot("child")
 			child.ParentID = root.ID
-			child.Depth = 1
 			child.OwnUsage = core.Usage{Cost: 1, Tokens: 1, ModelCalls: 1, Actions: 1}
 			tree := core.ProcessSnapshotTree{
 				RootID:    root.ID,

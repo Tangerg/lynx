@@ -13,7 +13,6 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 		SchemaVersion: core.ProcessSnapshotSchemaVersion,
 		ID:            p.ID(),
 		ParentID:      p.ParentID(),
-		Depth:         p.depth,
 		Deployment:    p.Deployment(),
 		StartedAt:     p.StartedAt(),
 		Status:        state.status,

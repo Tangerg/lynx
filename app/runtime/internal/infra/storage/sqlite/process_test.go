@@ -226,7 +226,7 @@ func TestProcessStoreRejectsMixedBuildIdentity(t *testing.T) {
 	db, store := newProcessStorage(t)
 	root := validStoredSnapshot("mixed-build-root", core.StatusCompleted)
 	child := validStoredSnapshot("mixed-build-child", core.StatusCompleted)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("SaveTree: %v", err)
 	}
@@ -281,9 +281,9 @@ func TestProcessStoreReplaceRemovesStaleDescendants(t *testing.T) {
 	store := newProcessStore(t)
 	root := validStoredSnapshot("root", core.StatusCompleted)
 	child := validStoredSnapshot("child", core.StatusKilled)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 	grandchild := validStoredSnapshot("grandchild", core.StatusKilled)
-	grandchild.ParentID, grandchild.Depth = child.ID, 2
+	grandchild.ParentID = child.ID
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child, grandchild), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatal(err)
 	}
@@ -305,7 +305,7 @@ func TestProcessStoreDoesNotCreateProductLineageWithoutConversation(t *testing.T
 	db, store := newProcessStorage(t)
 	root := validStoredSnapshot("root-unattached", core.StatusWaiting)
 	child := validStoredSnapshot("child-unattached", core.StatusWaiting)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("SaveTree: %v", err)
@@ -319,7 +319,7 @@ func TestProcessStoreMissingConversationRollsBackTreeAndLineage(t *testing.T) {
 	db, store := newProcessStorage(t)
 	root := validStoredSnapshot("root-missing-conversation", core.StatusWaiting)
 	child := validStoredSnapshot("child-missing-conversation", core.StatusWaiting)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 
 	err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("missing-conversation", storedBuildID, accounting.Snapshot{}))
 	if !errors.Is(err, session.ErrNotFound) {
@@ -342,9 +342,9 @@ func TestProcessStorePersistsDelegationLineageInSameWrite(t *testing.T) {
 	}
 	root := validStoredSnapshot("root", core.StatusWaiting)
 	child := validStoredSnapshot("child", core.StatusWaiting)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 	leaf := validStoredSnapshot("leaf", core.StatusCompleted)
-	leaf.ParentID, leaf.Depth = child.ID, 2
+	leaf.ParentID = child.ID
 
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child, leaf), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("SaveTree: %v", err)
@@ -374,7 +374,7 @@ func TestProcessStoreOwnsCheckpointCaptureMetadata(t *testing.T) {
 	}
 	root := validStoredSnapshot("capture-root", core.StatusWaiting)
 	child := validStoredSnapshot("capture-child", core.StatusCompleted)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 	beforeCommit := time.Now().UTC().Add(-time.Second)
 
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint(parent.ID, storedBuildID, accounting.Snapshot{})); err != nil {
@@ -431,7 +431,7 @@ func TestProcessStoreDeleteTreeRemovesDescendantsOnly(t *testing.T) {
 	store := newProcessStore(t)
 	root := validStoredSnapshot("root", core.StatusCompleted)
 	child := validStoredSnapshot("child", core.StatusKilled)
-	child.ParentID, child.Depth = root.ID, 1
+	child.ParentID = root.ID
 	unrelated := validStoredSnapshot("unrelated", core.StatusCompleted)
 	if err := store.SaveTree(t.Context(), storedSnapshotTree(root.ID, root, child), storedCheckpoint("", storedBuildID, accounting.Snapshot{})); err != nil {
 		t.Fatal(err)

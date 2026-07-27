@@ -16,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 11
+const ProcessSnapshotSchemaVersion uint16 = 12
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
@@ -49,7 +49,9 @@ func (f ProcessFailure) validate() error {
 }
 
 // ProcessSnapshot is the portable execution state owned by the framework for
-// one process. Restoring also requires ProcessOptions to reattach the host's
+// one process. Delegation depth is not stored: it follows from the parent links
+// inside the capture, and a second copy would only be a fact to keep in
+// agreement. Restoring also requires ProcessOptions to reattach the host's
 // live capabilities and execution policy. OwnUsage contains only this
 // process's direct execution-resource counters; descendants carry their own
 // snapshots, and runtime reconstructs aggregate usage through parent-child
@@ -60,7 +62,6 @@ type ProcessSnapshot struct {
 
 	ID       string `json:"id"`
 	ParentID string `json:"parent_id,omitempty"`
-	Depth    int    `json:"depth,omitempty"`
 
 	Deployment DeploymentRef `json:"deployment"`
 	StartedAt  time.Time     `json:"started_at"`
@@ -81,7 +82,6 @@ type processSnapshotWire struct {
 	SchemaVersion uint16                  `json:"schema_version"`
 	ID            string                  `json:"id"`
 	ParentID      string                  `json:"parent_id,omitempty"`
-	Depth         int                     `json:"depth,omitempty"`
 	Deployment    DeploymentRef           `json:"deployment"`
 	StartedAt     time.Time               `json:"started_at"`
 	Status        string                  `json:"status"`
@@ -97,7 +97,7 @@ type processSnapshotWire struct {
 func (s ProcessSnapshot) wire() processSnapshotWire {
 	return processSnapshotWire{
 		SchemaVersion: s.SchemaVersion,
-		ID:            s.ID, ParentID: s.ParentID, Depth: s.Depth,
+		ID:            s.ID, ParentID: s.ParentID,
 		Deployment: s.Deployment, StartedAt: s.StartedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
 		Failure: s.Failure, OwnUsage: s.OwnUsage,
@@ -112,7 +112,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 	}
 	return ProcessSnapshot{
 		SchemaVersion: w.SchemaVersion,
-		ID:            w.ID, ParentID: w.ParentID, Depth: w.Depth,
+		ID:            w.ID, ParentID: w.ParentID,
 		Deployment: w.Deployment, StartedAt: w.StartedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
 		Failure: w.Failure, OwnUsage: w.OwnUsage,
@@ -130,15 +130,6 @@ func (s ProcessSnapshot) Validate() error {
 	}
 	if s.ParentID != strings.TrimSpace(s.ParentID) || s.ParentID == s.ID {
 		return fmt.Errorf("%w: invalid parent_id", ErrInvalidSnapshot)
-	}
-	if s.Depth < 0 {
-		return fmt.Errorf("%w: depth must not be negative", ErrInvalidSnapshot)
-	}
-	if s.ParentID == "" && s.Depth != 0 {
-		return fmt.Errorf("%w: root snapshot depth must be zero", ErrInvalidSnapshot)
-	}
-	if s.ParentID != "" && s.Depth == 0 {
-		return fmt.Errorf("%w: child snapshot depth must be positive", ErrInvalidSnapshot)
 	}
 	if err := s.Deployment.Validate(); err != nil {
 		return fmt.Errorf("%w: deployment: %w", ErrInvalidSnapshot, err)
@@ -276,20 +267,16 @@ func (t ProcessSnapshotTree) Validate() error {
 	if !ok {
 		return fmt.Errorf("%w: tree root %q is missing", ErrInvalidSnapshot, t.RootID)
 	}
-	if root.ParentID != "" || root.Depth != 0 {
-		return fmt.Errorf("%w: tree root %q must have no parent and depth zero", ErrInvalidSnapshot, root.ID)
+	if root.ParentID != "" {
+		return fmt.Errorf("%w: tree root %q must have no parent", ErrInvalidSnapshot, root.ID)
 	}
 
 	for _, snapshot := range t.Snapshots {
 		if snapshot.ID == t.RootID {
 			continue
 		}
-		parent, found := byID[snapshot.ParentID]
-		if !found {
+		if _, found := byID[snapshot.ParentID]; !found {
 			return fmt.Errorf("%w: process %q has parent %q outside tree rooted at %q", ErrInvalidSnapshot, snapshot.ID, snapshot.ParentID, t.RootID)
-		}
-		if snapshot.Depth != parent.Depth+1 {
-			return fmt.Errorf("%w: process %q depth %d does not follow parent %q depth %d", ErrInvalidSnapshot, snapshot.ID, snapshot.Depth, parent.ID, parent.Depth)
 		}
 	}
 	return nil

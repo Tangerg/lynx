@@ -33,7 +33,6 @@ type encodedProcessSnapshot struct {
 	id        string
 	parentID  string
 	data      []byte
-	depth     int
 	startedAt int64
 }
 
@@ -103,12 +102,14 @@ func (s *ProcessStore) SaveTree(
 			id:        snapshot.ID,
 			parentID:  snapshot.ParentID,
 			data:      data,
-			depth:     snapshot.Depth,
 			startedAt: snapshot.StartedAt.UnixNano(),
 		}
 	}
+	// Process ID is a total order, which is all this needs: rows carry no
+	// referential constraint, so the sort exists to make one concurrent capture
+	// produce one byte-identical write sequence.
 	slices.SortFunc(encoded, func(left, right encodedProcessSnapshot) int {
-		return cmp.Or(cmp.Compare(left.depth, right.depth), cmp.Compare(left.id, right.id))
+		return cmp.Compare(left.id, right.id)
 	})
 
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
