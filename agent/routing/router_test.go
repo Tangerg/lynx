@@ -17,38 +17,6 @@ import (
 type chooseIn struct{ Topic string }
 type chooseOut struct{ Done bool }
 
-type replacingRuntime struct {
-	engine      *runtime.Engine
-	replacement *core.Agent
-	replaced    bool
-	replaceErr  error
-}
-
-func (r *replacingRuntime) ActiveDeployments() []*runtime.Deployment {
-	return r.engine.ActiveDeployments()
-}
-
-func (r *replacingRuntime) Deployment(ref core.DeploymentRef) (*runtime.Deployment, bool) {
-	deployment, ok := r.engine.Deployment(ref)
-	if ok && !r.replaced {
-		r.replaced = true
-		if _, err := r.engine.Replace(context.Background(), r.replacement); err != nil {
-			r.replaceErr = err
-			return nil, false
-		}
-	}
-	return deployment, ok
-}
-
-func (r *replacingRuntime) RunDeployment(
-	ctx context.Context,
-	deployment *runtime.Deployment,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (*runtime.Process, error) {
-	return r.engine.RunDeployment(ctx, deployment, bindings, options)
-}
-
 // stubRanker scores Candidates by a fixed map keyed on
 // "<agent>:<goal>". Missing entries score 0.
 type stubRanker struct {
@@ -118,71 +86,52 @@ func TestRouter_LowConfidenceReturnsError(t *testing.T) {
 	}
 }
 
-func TestRouter_RunInstallsTargetGoalApprover(t *testing.T) {
-	engine := agent.MustNewEngine(runtime.Config{})
-	if _, err := engine.Deploy(t.Context(), newAgent("alpha")); err != nil {
-		t.Fatalf("deploy: %v", err)
-	}
-
-	auto, _ := routing.New(engine, &stubRanker{
-		scores: map[string]float64{
-			"alpha:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 0.9,
-		},
-	}, routing.Config{})
-
-	choice, proc, err := auto.Run(t.Context(), "anything",
-		core.Input(chooseIn{Topic: "x"}),
-		core.ProcessOptions{},
-	)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	if choice.Agent().Name() != "alpha" {
-		t.Fatalf("Choose returned wrong agent: %s", choice.Agent().Name())
-	}
-	if proc == nil || proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %v; failure = %v", proc.Status(), proc.Failure())
-	}
-	if proc.Deployment() != choice.Deployment() {
-		t.Fatalf("process deployment = %s, chosen deployment = %s", proc.Deployment(), choice.Deployment())
-	}
-	got, ok := core.Result[chooseOut](proc)
-	if !ok || !got.Done {
-		t.Fatalf("expected Done=true, got %+v ok=%v", got, ok)
-	}
-}
-
-func TestRouterRunKeepsRankedDeploymentAcrossRouteReplacement(t *testing.T) {
+// TestRouterChoiceKeepsRankedDeploymentAcrossRouteReplacement pins that a
+// Choice is a snapshot of an exact immutable identity, not a name to resolve
+// later: replacing the active route afterwards does not retarget it.
+func TestRouterChoiceKeepsRankedDeploymentAcrossRouteReplacement(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	original, err := engine.Deploy(t.Context(), newAgent("stable"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	replacement := newAgent("stable")
-	replacement = agent.New(agent.AgentConfig{
-		Name: replacement.Name(), Description: "replacement",
-		Actions: replacement.Actions(), Goals: replacement.Goals(),
-	})
-	agentRuntime := &replacingRuntime{engine: engine, replacement: replacement}
-	router, err := routing.New(agentRuntime, &stubRanker{scores: map[string]float64{
+	router, err := routing.New(engine, &stubRanker{scores: map[string]float64{
 		"stable:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 1,
 	}}, routing.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	choice, process, err := router.Run(t.Context(), "anything", core.Input(chooseIn{Topic: "x"}), core.ProcessOptions{})
+	choice, err := router.Choose(t.Context(), "anything")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if agentRuntime.replaceErr != nil {
-		t.Fatal(agentRuntime.replaceErr)
+
+	replacement := agent.New(agent.AgentConfig{
+		Name: "stable", Description: "replacement",
+		Actions: newAgent("stable").Actions(), Goals: newAgent("stable").Goals(),
+	})
+	if _, err := engine.Replace(t.Context(), replacement); err != nil {
+		t.Fatal(err)
 	}
 	active, ok := engine.ActiveDeployment("stable")
 	if !ok || active.Ref() == original.Ref() {
-		t.Fatal("test runtime did not replace the active route")
+		t.Fatal("test did not replace the active route")
 	}
-	if choice.Deployment() != original.Ref() || process.Deployment() != original.Ref() {
-		t.Fatalf("choice/process deployment = %s/%s, want ranked %s", choice.Deployment(), process.Deployment(), original.Ref())
+	if choice.Deployment() != original.Ref() {
+		t.Fatalf("choice deployment = %s, want ranked %s", choice.Deployment(), original.Ref())
+	}
+	// The caller runs the identity it was given, so the replacement cannot
+	// retarget the work either.
+	deployment, ok := engine.Deployment(choice.Deployment())
+	if !ok {
+		t.Fatalf("ranked deployment %s is no longer resolvable", choice.Deployment())
+	}
+	process, err := engine.RunDeployment(t.Context(), deployment, core.Input(chooseIn{Topic: "x"}), core.ProcessOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if process.Deployment() != original.Ref() {
+		t.Fatalf("process deployment = %s, want ranked %s", process.Deployment(), original.Ref())
 	}
 }
 

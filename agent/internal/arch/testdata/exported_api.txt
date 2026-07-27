@@ -415,14 +415,13 @@ routing: func (c Candidate) Goal() *core.Goal
 routing: func (c Candidate) String() string
 routing: func (r *Router) Candidates() []Candidate
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
-routing: func (r *Router) Run( ctx context.Context, input string, bindings core.Bindings, options core.ProcessOptions, ) (Choice, *runtime.Process, error)
 routing: func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error)
 routing: type Candidate struct { }
 routing: type Choice struct { Candidate Confidence float64 Rationale string }
 routing: type Config struct { MinConfidence float64 AgentFilter func(*core.Agent) bool GoalFilter func(*core.Agent, *core.Goal) bool }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
-routing: type Runtime interface { ActiveDeployments() []*runtime.Deployment Deployment(core.DeploymentRef) (*runtime.Deployment, bool) RunDeployment(context.Context, *runtime.Deployment, core.Bindings, core.ProcessOptions) (*runtime.Process, error) }
+routing: type Runtime interface { ActiveDeployments() []*runtime.Deployment }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 runtime: const ( DefaultMaxChildDepth = 8 )
 runtime: func (c RunCompletion) Error() error

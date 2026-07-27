@@ -1,18 +1,17 @@
-// Package routing translates a natural-language user prompt into a
-// concrete (agent, goal) decision and runs it.
+// Package routing translates a natural-language prompt into a concrete
+// (agent, goal) decision.
 //
 // Two collaborating types:
 //
-//   - [Ranker] is the SPI: "given this user input, score each
-//     candidate goal in [0, 1]". Plug a [ModelRanker] for model-driven
-//     ranking, a regex/keyword ranker for cheap routing, or a hybrid.
-//   - [Router] is the orchestrator: it enumerates the engine's
-//     deployed agents × their goals, asks the Ranker, applies a
-//     confidence cutoff, and (via [Router.Run]) launches the
-//     winning agent with a per-process [core.GoalApprover] that
-//     locks the planner onto just the chosen goal.
+//   - [Ranker] is the SPI: "given this input, score each candidate goal in
+//     [0, 1]". Implement it with a model, with keywords, or with anything
+//     else — the prompt and the scoring rubric belong to whoever owns the
+//     product, so this package ships no implementation.
+//   - [Router] enumerates the engine's active deployments × their goals,
+//     asks the Ranker, and applies a confidence cutoff.
 //
-// [Router] + [Ranker] form the routing boundary. [ModelRanker] is the
-// model-backed implementation; users with simpler routing rules can implement
-// [Ranker] directly.
+// A [Choice] names an exact immutable deployment identity. Running it is the
+// caller's step — deciding what to run and driving it are different jobs, and
+// only the caller knows whether this selection should become a fresh process,
+// a child, or nothing at all.
 package routing

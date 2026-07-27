@@ -71,34 +71,32 @@ type Ranker interface {
 	Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error)
 }
 
-// Runtime is the execution surface Router consumes. Implementations enumerate
-// active immutable deployments, resolve the exact ranked identity, and run that
-// identity without reselecting by agent name.
+// Runtime is the deployment surface Router consumes: it enumerates the routes
+// currently active. Selection needs nothing else — a Choice names an exact
+// immutable identity, and running it is the caller's step, with
+// [runtime.Engine.RunDeployment] or however else it drives the engine.
 type Runtime interface {
 	ActiveDeployments() []*runtime.Deployment
-	Deployment(core.DeploymentRef) (*runtime.Deployment, bool)
-	RunDeployment(context.Context, *runtime.Deployment, core.Bindings, core.ProcessOptions) (*runtime.Process, error)
 }
 
-// ErrNoMatch is returned by [Router.Choose] / [Router.Run]
-// when the highest-scored candidate falls below
+// ErrNoMatch is returned by [Router.Choose] when the highest-scored candidate
+// falls below
 // [Config.MinConfidence]. Callers typically translate
 // this into a "I don't know how to help with that" response or fall
 // back to a default agent.
 var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 
-// Config knobs the orchestrator. Zero value is usable: cutoff
-// 0 (always pick the top score regardless of confidence), no agent
-// filter, no extra approvers.
+// Config knobs selection. Zero value is usable: cutoff 0 (always pick the top
+// score regardless of confidence) and no filtering.
 type Config struct {
 	// MinConfidence is the minimum confidence the top choice
 	// must clear; otherwise [Router.Choose] returns
 	// [ErrNoMatch]. 0 disables the gate.
 	MinConfidence float64
 
-	// AgentFilter, when non-nil, restricts the candidate pool to
-	// agents the predicate returns true for. Use for tenant
-	// isolation, role-based access, or hiding internal agents.
+	// AgentFilter, when non-nil, restricts the candidate pool to agents the
+	// predicate returns true for. Why a caller narrows the pool is its own
+	// concern; the router only applies the predicate.
 	AgentFilter func(*core.Agent) bool
 
 	// GoalFilter, when non-nil, restricts which goals on each
@@ -197,56 +195,4 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 
 func validConfidence(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0) && value >= minimumConfidence && value <= maximumConfidence
-}
-
-// Run picks the best candidate for userInput and runs the chosen
-// agent with bindings, locking the planner onto the chosen goal via
-// a per-process [core.GoalApprover]. Returns the resulting process
-// (terminal or waiting) and any error from Choose / Run.
-//
-// On [ErrNoMatch] the returned process is nil; the caller
-// can decide to fall back to a default agent or surface the failure
-// to the user.
-func (r *Router) Run(
-	ctx context.Context,
-	input string,
-	bindings core.Bindings,
-	options core.ProcessOptions,
-) (Choice, *runtime.Process, error) {
-	choice, err := r.Choose(ctx, input)
-	if err != nil {
-		return choice, nil, err
-	}
-
-	goal := choice.Goal()
-	options.Extensions = append(options.Extensions, &targetGoalApprover{
-		name:     fmt.Sprintf("routing-target:%s", goal.Name()),
-		goalName: goal.Name(),
-	})
-
-	deploymentRef := choice.Deployment()
-	deployment, ok := r.runtime.Deployment(deploymentRef)
-	if !ok {
-		return choice, nil, fmt.Errorf("routing: deployment %s is no longer available", deploymentRef)
-	}
-	process, err := r.runtime.RunDeployment(ctx, deployment, bindings, options)
-	if process != nil && process.Deployment() != deploymentRef {
-		return choice, process, fmt.Errorf("routing: process bound %s, want %s", process.Deployment(), deploymentRef)
-	}
-	return choice, process, err
-}
-
-// targetGoalApprover is the per-process [core.GoalApprover] Router
-// installs to lock the planner onto the chosen goal. The runtime
-// runs every approver on every goal-selection call; only the
-// target name is approved and everything else is rejected.
-type targetGoalApprover struct {
-	name     string
-	goalName string
-}
-
-func (a *targetGoalApprover) Name() string { return a.name }
-
-func (a *targetGoalApprover) Approve(_ core.ProcessView, goal *core.Goal) bool {
-	return goal != nil && goal.Name() == a.goalName
 }
