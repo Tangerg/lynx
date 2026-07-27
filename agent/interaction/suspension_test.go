@@ -17,7 +17,6 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 		Kind:           interaction.SuspensionHuman,
 		Prompt:         json.RawMessage(`{"message":"approve?"}`),
 		ResumeSchema:   json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
-		Payload:        json.RawMessage(`{"owner":"producer"}`),
 		FrameworkState: json.RawMessage(`{"owner":"framework"}`),
 		CreatedAt:      time.Now().UTC(),
 	}

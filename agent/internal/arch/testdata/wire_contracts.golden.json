@@ -3,7 +3,7 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 10,
+    "schema_version": 11,
     "id": "process-1",
     "parent_id": "process-root",
     "depth": 1,
@@ -15,7 +15,7 @@
     "started_at": "2026-07-15T08:30:00.123Z",
     "status": "waiting",
     "suspension": {
-      "schema_version": 3,
+      "schema_version": 4,
       "id": "approval-1",
       "kind": "tool",
       "prompt": {
@@ -23,9 +23,6 @@
       },
       "resume_schema": {
         "type": "string"
-      },
-      "payload": {
-        "owner": "producer-fixture"
       },
       "framework_state": {
         "owner": "framework-fixture"

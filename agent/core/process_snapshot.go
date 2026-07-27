@@ -16,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 10
+const ProcessSnapshotSchemaVersion uint16 = 11
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")

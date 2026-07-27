@@ -34,7 +34,6 @@ func waitingProcessSnapshot(id string, started, parked time.Time) core.ProcessSn
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
 			CreatedAt:     parked,
 		},
 	}

@@ -62,7 +62,7 @@ core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
-core: const ProcessSnapshotSchemaVersion uint16 = 10
+core: const ProcessSnapshotSchemaVersion uint16 = 11
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -315,7 +315,7 @@ hitl: func IsInterrupt(err error) bool
 interaction: const ( EventModelRequest EventKind = "model_request" EventModelResponse EventKind = "model_response" EventToolCall EventKind = "tool_call" EventToolResult EventKind = "tool_result" EventPause EventKind = "pause" EventResume EventKind = "resume" )
 interaction: const ( StopNone StopReason = "" StopBudget StopReason = "budget" StopSteps StopReason = "steps" )
 interaction: const ( SuspensionHuman SuspensionKind = "human" SuspensionTool SuspensionKind = "tool" )
-interaction: const SuspensionSchemaVersion uint16 = 3
+interaction: const SuspensionSchemaVersion uint16 = 4
 interaction: func (e *SuspendedError) Error() string
 interaction: func (e *SuspendedError) Unwrap() error
 interaction: func (e Event) Clone() Event
@@ -340,7 +340,7 @@ interaction: type Result struct { Final *Event StopReason StopReason }
 interaction: type Resume struct { ID string Input json.RawMessage }
 interaction: type StopReason string
 interaction: type SuspendedError struct { Suspension Suspension }
-interaction: type Suspension struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Kind SuspensionKind `json:"kind"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` Payload json.RawMessage `json:"payload,omitempty"` FrameworkState json.RawMessage `json:"framework_state,omitempty"` Response json.RawMessage `json:"response,omitempty"` CreatedAt time.Time `json:"created_at"` }
+interaction: type Suspension struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Kind SuspensionKind `json:"kind"` Prompt json.RawMessage `json:"prompt"` ResumeSchema json.RawMessage `json:"resume_schema"` FrameworkState json.RawMessage `json:"framework_state,omitempty"` Response json.RawMessage `json:"response,omitempty"` CreatedAt time.Time `json:"created_at"` }
 interaction: type SuspensionKind string
 interaction: type ToolResolver interface { Resolve(name string) (tools.Tool, bool) }
 interaction: var ( ErrInvalidEvent = errors.New("interaction: invalid event") ErrInvalidID = errors.New("interaction: invalid ID") )

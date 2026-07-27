@@ -11,7 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const SuspensionSchemaVersion uint16 = 3
+const SuspensionSchemaVersion uint16 = 4
 
 var (
 	ErrInvalidSuspension  = errors.New("interaction: invalid suspension")
@@ -33,17 +33,16 @@ func (k SuspensionKind) Valid() bool {
 }
 
 // Suspension is the complete JSON-safe state exposed when a process waits for
-// external input. Payload is opaque metadata owned by the suspension producer
-// and is never interpreted by the framework. FrameworkState is opaque execution
-// state owned exclusively by the Agent runtime. Prompt and ResumeSchema are
-// host-facing protocol values.
+// external input. FrameworkState is opaque execution state owned exclusively by
+// the Agent runtime. Prompt and ResumeSchema are host-facing protocol values:
+// whatever the waiting side needs to decide travels in Prompt, so a suspension
+// carries no second, framework-defined slot for producer metadata.
 type Suspension struct {
 	SchemaVersion  uint16          `json:"schema_version"`
 	ID             string          `json:"id"`
 	Kind           SuspensionKind  `json:"kind"`
 	Prompt         json.RawMessage `json:"prompt"`
 	ResumeSchema   json.RawMessage `json:"resume_schema"`
-	Payload        json.RawMessage `json:"payload,omitempty"`
 	FrameworkState json.RawMessage `json:"framework_state,omitempty"`
 	Response       json.RawMessage `json:"response,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -68,9 +67,6 @@ func (s Suspension) Validate() error {
 	if err := validateSchema(s.ResumeSchema); err != nil {
 		return fmt.Errorf("%w: resume_schema: %w", ErrInvalidSuspension, err)
 	}
-	if len(s.Payload) > 0 && !validJSON(s.Payload) {
-		return fmt.Errorf("%w: payload must be valid JSON", ErrInvalidSuspension)
-	}
 	if len(s.FrameworkState) > 0 && !validJSON(s.FrameworkState) {
 		return fmt.Errorf("%w: framework_state must be valid JSON", ErrInvalidSuspension)
 	}
@@ -92,7 +88,6 @@ func (s Suspension) Clone() *Suspension {
 	cloned := s
 	cloned.Prompt = bytes.Clone(s.Prompt)
 	cloned.ResumeSchema = bytes.Clone(s.ResumeSchema)
-	cloned.Payload = bytes.Clone(s.Payload)
 	cloned.FrameworkState = bytes.Clone(s.FrameworkState)
 	cloned.Response = bytes.Clone(s.Response)
 	return &cloned

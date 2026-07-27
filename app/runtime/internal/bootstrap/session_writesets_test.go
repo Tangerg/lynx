@@ -43,7 +43,6 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
 			CreatedAt:     started,
 		},
 	}

@@ -142,7 +142,6 @@ func encodeSuspensionCheckpoint(checkpoint suspensionCheckpoint) (json.RawMessag
 }
 
 // decodeSuspensionCheckpoint decodes the framework-owned continuation state.
-// Producer-owned Suspension.Payload never reaches this boundary.
 func decodeSuspensionCheckpoint(state json.RawMessage) (*suspensionCheckpoint, error) {
 	if len(state) == 0 {
 		return nil, nil

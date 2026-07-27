@@ -440,40 +440,6 @@ func TestRuntimeNamedJSONStructsAreExecutionState(t *testing.T) {
 	}
 }
 
-// TestRuntimeDoesNotInterpretSuspensionProducerPayload keeps suspension
-// ownership structural. Runtime continuation data must use FrameworkState;
-// touching the producer-owned Payload field would reintroduce content-based
-// owner guessing.
-func TestRuntimeDoesNotInterpretSuspensionProducerPayload(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "runtime")
-	fset := token.NewFileSet()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
-		ast.Inspect(file, func(node ast.Node) bool {
-			identifier, ok := node.(*ast.Ident)
-			if !ok || identifier.Name != "Payload" {
-				return true
-			}
-			relativePath, _ := filepath.Rel(root, path)
-			t.Errorf("Agent runtime touches producer-owned Suspension.Payload: %s", relativePath)
-			return true
-		})
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk Agent runtime: %v", walkErr)
-	}
-}
-
 func TestRuntimeEventsStayInMemory(t *testing.T) {
 	fset := token.NewFileSet()
 	for _, packageName := range []string{"event", "interaction", "toolloop"} {

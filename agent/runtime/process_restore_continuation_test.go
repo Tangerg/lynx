@@ -64,7 +64,7 @@ func TestRestoreAnsweredSuspensionContinues(t *testing.T) {
 	}
 }
 
-func TestProducerPayloadNeverBecomesFrameworkState(t *testing.T) {
+func TestForeignSuspensionNeverAcquiresFrameworkState(t *testing.T) {
 	source := agent.MustNewEngine(runtime.Config{})
 	definition := producerToolSuspensionAgent()
 	mustDeploy(t, source, definition)
@@ -91,10 +91,6 @@ func TestProducerPayloadNeverBecomesFrameworkState(t *testing.T) {
 	}
 	if root.Suspension.FrameworkState != nil {
 		t.Fatalf("producer suspension acquired framework state %s", root.Suspension.FrameworkState)
-	}
-	const producerPayload = `{"schema_version":2,"kind":"managed_interaction","owner":"producer"}`
-	if string(root.Suspension.Payload) != producerPayload {
-		t.Fatalf("producer payload = %s, want %s", root.Suspension.Payload, producerPayload)
 	}
 	if err := runtime.ValidateResumableSnapshot(root); err != nil {
 		t.Fatalf("ValidateResumableSnapshot(producer tool suspension): %v", err)
@@ -214,7 +210,6 @@ func producerToolSuspensionAgent() *core.Agent {
 					Kind:          interaction.SuspensionTool,
 					Prompt:        json.RawMessage(`"continue?"`),
 					ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-					Payload:       json.RawMessage(`{"schema_version":2,"kind":"managed_interaction","owner":"producer"}`),
 					CreatedAt:     time.Now(),
 				}}
 			},

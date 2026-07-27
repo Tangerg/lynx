@@ -431,6 +431,24 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 // only the current shape is supported, including for an unversioned non-empty
 // database. No old version receives a compatibility path.
 func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
+	// The expected version is read from a freshly installed database rather than
+	// copied here: a literal would have to be edited on every shape change, and
+	// a stale copy would assert the wrong contract.
+	fresh, err := sqlite.Open(filepath.Join(t.TempDir(), "fresh.db"))
+	if err != nil {
+		t.Fatalf("open fresh database: %v", err)
+	}
+	var currentVersion int
+	if err := fresh.QueryRow(`PRAGMA user_version`).Scan(&currentVersion); err != nil {
+		t.Fatalf("read current schema version: %v", err)
+	}
+	if err := fresh.Close(); err != nil {
+		t.Fatalf("close fresh database: %v", err)
+	}
+	if currentVersion == 0 {
+		t.Fatal("current schema installed no version")
+	}
+
 	for _, staleVersion := range []int{0, 1, 3, 4, 5, 6, 7, 8, 9, 25} {
 		t.Run(fmt.Sprintf("version_%d", staleVersion), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "stale.db")
@@ -457,8 +475,8 @@ func TestOpenDiscardsEveryMismatchedSchema(t *testing.T) {
 			defer db.Close()
 
 			var version int
-			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != 29 {
-				t.Fatalf("schema version = %d, err=%v, want 29", version, err)
+			if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil || version != currentVersion {
+				t.Fatalf("schema version = %d, err=%v, want %d", version, err, currentVersion)
 			}
 			var staleTables int
 			if err := db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='stale_runs'`).Scan(&staleTables); err != nil || staleTables != 0 {

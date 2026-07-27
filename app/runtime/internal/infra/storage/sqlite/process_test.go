@@ -51,7 +51,6 @@ func validStoredSnapshot(id string, status core.ProcessStatus) core.ProcessSnaps
 			Kind:          agent.SuspensionTool,
 			Prompt:        json.RawMessage(`"continue?"`),
 			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			Payload:       json.RawMessage(`{"producer":"test-fixture"}`),
 			CreatedAt:     started,
 		}
 	}
@@ -96,7 +95,6 @@ func TestProcessStoreSaveLoadReplacement(t *testing.T) {
 func TestProcessStoreRoundTripsSuspensionStateWithoutInterpretingIt(t *testing.T) {
 	store := newProcessStore(t)
 	snapshot := validStoredSnapshot("proc-opaque-suspension", core.StatusWaiting)
-	snapshot.Suspension.Payload = json.RawMessage(`{"producer":"approval-adapter"}`)
 	snapshot.Suspension.FrameworkState = json.RawMessage(`{"opaque":"agent-runtime-state"}`)
 
 	if err := store.SaveTree(
@@ -114,9 +112,6 @@ func TestProcessStoreRoundTripsSuspensionStateWithoutInterpretingIt(t *testing.T
 		t.Fatalf("loaded tree = %+v", tree)
 	}
 	loaded := tree.Snapshots[0].Suspension
-	if !bytes.Equal(loaded.Payload, snapshot.Suspension.Payload) {
-		t.Fatalf("producer payload = %s, want %s", loaded.Payload, snapshot.Suspension.Payload)
-	}
 	if !bytes.Equal(loaded.FrameworkState, snapshot.Suspension.FrameworkState) {
 		t.Fatalf("framework state = %s, want %s", loaded.FrameworkState, snapshot.Suspension.FrameworkState)
 	}

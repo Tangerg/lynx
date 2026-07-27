@@ -88,7 +88,6 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			Kind:           interaction.SuspensionTool,
 			Prompt:         prompt,
 			ResumeSchema:   resumeSchema,
-			Payload:        json.RawMessage(`{"owner":"producer-fixture"}`),
 			FrameworkState: json.RawMessage(`{"owner":"framework-fixture"}`),
 			CreatedAt:      startedAt.Add(4 * time.Minute),
 		},
