@@ -9,6 +9,9 @@ import (
 )
 
 // DefaultRepeatIterations bounds repeat workflows when MaxIterations is unset.
+// The bound exists for the same reason as [DefaultLoopIterations]: iterations
+// accumulate framework-owned state, so the loop must terminate even when the
+// author states no ceiling.
 const DefaultRepeatIterations = 3
 
 // RepeatUntilConfig configures a "loop a task until the result is

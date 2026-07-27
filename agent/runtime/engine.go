@@ -10,7 +10,10 @@ import (
 
 const (
 	// DefaultMaxChildDepth limits recursive delegation. A root process has
-	// depth zero, so this value permits eight nested child levels.
+	// depth zero, so this value permits eight nested child levels. Unlike cost
+	// or round limits, an unbounded value here is a framework failure mode
+	// rather than a host policy: every level keeps a registered process alive in
+	// the tree. The framework therefore carries a rail and lets Config move it.
 	DefaultMaxChildDepth = 8
 )
 

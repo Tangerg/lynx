@@ -8,7 +8,11 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// DefaultLoopIterations bounds Loop when Config.MaxIterations is unset.
+// DefaultLoopIterations bounds Loop when Config.MaxIterations is unset. Every
+// iteration spawns a child that stays in the process tree until the host
+// releases the root, so an unbounded loop grows framework-owned state — the
+// same reason [runtime.DefaultMaxChildDepth] exists, and why this rail is not
+// the caller's threshold to choose.
 const DefaultLoopIterations = 5
 
 // LoopConfig configures a "run a sub-agent body repeatedly until

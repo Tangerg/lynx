@@ -9,9 +9,6 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// DefaultAcceptableScore is the acceptance threshold used when none is set.
-const DefaultAcceptableScore = 0.7
-
 // Evaluator is the user-supplied "did this attempt meet the bar?"
 // callback driving [RepeatUntilAcceptableConfig]. It receives the
 // loop's input and the latest attempt; returns a [Feedback] whose
@@ -21,7 +18,7 @@ type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessConte
 
 // RepeatUntilAcceptableConfig is a specialized wrapper over [RepeatUntilConfig]
 // that turns the "loop until LLM is satisfied" pattern into a
-// configuration: supply Task + Evaluator + AcceptableScore, and
+// configuration: supply Task + Evaluator + AcceptableScore (required), and
 // the workflow loops until the evaluator's Score crosses the
 // threshold (or [MaxIterations] expires).
 //
@@ -83,12 +80,12 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	if config.Evaluator == nil {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Evaluator must not be nil")
 	}
+	// What counts as good enough is the author's judgement, not something this
+	// package can guess, so an unset threshold is an error rather than a number
+	// picked here.
 	threshold := config.AcceptableScore
-	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold < 0 || threshold > 1 {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be finite and between 0 and 1", threshold)
-	}
-	if threshold == 0 {
-		threshold = DefaultAcceptableScore
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold <= 0 || threshold > 1 {
+		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be set and between 0 (exclusive) and 1", threshold)
 	}
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: MaxIterations %d must not be negative", config.MaxIterations)

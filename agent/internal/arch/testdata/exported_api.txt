@@ -548,7 +548,6 @@ toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint"
 toolloop: var ( ErrInvalidConfig = errors.New("toolloop: invalid config") ErrInvalidInput = errors.New("toolloop: invalid input") ErrRoundLimit = errors.New("toolloop: round limit reached") )
 toolloop: var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")
 toolloop: var ErrInvalidEvent = errors.New("toolloop: invalid event")
-workflow: const DefaultAcceptableScore = 0.7
 workflow: const DefaultLoopIterations = 5
 workflow: const DefaultRepeatIterations = 3
 workflow: func (f Feedback) Acceptable(threshold float64) bool

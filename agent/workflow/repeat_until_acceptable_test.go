@@ -70,11 +70,12 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	}
 }
 
-func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
-	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+func TestRepeatUntilAcceptable_RejectsUnsetThreshold(t *testing.T) {
+	// The acceptance bar is the author's judgement; leaving it unset is a
+	// configuration error, not an invitation for the package to pick a number.
+	_, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 		Name:          "iterate",
 		MaxIterations: 3,
-		// AcceptableScore zero → should default to 0.7
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, h *workflow.History[ruaOut]) (ruaOut, error) {
 			return ruaOut{Draft: "v"}, nil
 		},
@@ -82,22 +83,8 @@ func TestRepeatUntilAcceptable_DefaultsThresholdToZeroPointSeven(t *testing.T) {
 			return workflow.Feedback{Score: 0.69, Text: "borderline"}, nil
 		},
 	})
-	if err != nil {
-		t.Fatalf("RepeatUntilAcceptable: %v", err)
-	}
-
-	engine := agent.MustNewEngine(runtime.Config{})
-	mustDeploy(t, engine, a)
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(ruaIn{Topic: "x"}),
-		core.ProcessOptions{})
-	if proc.Status() != core.StatusCompleted {
-		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
-	}
-	// 0.69 < 0.7 → never accepted; loop hits MaxIterations and gives up.
-	got, _ := core.Result[ruaOut](proc)
-	if got.Draft == "" {
-		t.Fatal("expected the last attempted Out, got empty")
+	if err == nil {
+		t.Fatal("unset AcceptableScore was accepted")
 	}
 }
 
@@ -226,7 +213,8 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 func TestRepeatUntilAcceptable_PropagatesEvaluatorError(t *testing.T) {
 	cause := errors.New("judge unavailable")
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name: "evaluator-error",
+		Name:            "evaluator-error",
+		AcceptableScore: 0.8,
 		Task: func(context.Context, *core.ProcessContext, ruaIn, *workflow.History[ruaOut]) (ruaOut, error) {
 			return ruaOut{Draft: "attempt"}, nil
 		},
