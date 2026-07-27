@@ -3,7 +3,6 @@ package runtime_test
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -60,8 +59,7 @@ func TestRunChildRejectsASecondTreeBudget(t *testing.T) {
 		t.Fatalf("run parent: %v", err)
 	}
 	failure := parent.Failure()
-	if parent.Status() != core.StatusFailed || failure == nil ||
-		!strings.Contains(failure.Error(), "child budget must be configured on the root") {
+	if parent.Status() != core.StatusFailed || !errors.Is(failure, runtime.ErrChildBudget) {
 		t.Fatalf("parent status=%s failure=%v, want child-budget rejection", parent.Status(), parent.Failure())
 	}
 }

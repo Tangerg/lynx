@@ -490,7 +490,7 @@ runtime: type RunCompletion struct { Status core.ProcessStatus Failure error Err
 runtime: type Segment struct { }
 runtime: type SubtreeEventListener interface { EventListener ObserveSubtree() }
 runtime: var ( ErrProcessNotFound = errors.New("runtime: process not found") ErrProcessRunning = errors.New("runtime: process is already running") ErrProcessCheckpointBusy = errors.New("runtime: process checkpoint is busy") ErrProcessActive = errors.New("runtime: process is active") )
-runtime: var ErrChildBudget = errors.New("child budget must be configured on the root process")
+runtime: var ErrChildBudget = errors.New("run child: budget must be configured on the root process")
 runtime: var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 runtime: var ErrChildParentInactive = errors.New("run child: parent process is not running")
 runtime: var ErrDeploymentActive = errors.New("deployment is active")
