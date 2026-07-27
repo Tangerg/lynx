@@ -43,14 +43,12 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 	prompt := json.RawMessage(`{"message":"operator approval required"}`)
 	resumeSchema := json.RawMessage(`{"type":"string"}`)
 	checkpoint := &toolloop.Checkpoint{
-		SchemaVersion:      toolloop.CheckpointSchemaVersion,
-		ID:                 "approval-1",
-		Round:              2,
-		MaxRounds:          50,
-		MaxConcurrentCalls: 8,
-		ToolsetDigest:      "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
-		Request:            request,
-		Response:           response,
+		SchemaVersion: toolloop.CheckpointSchemaVersion,
+		ID:            "approval-1",
+		Round:         2,
+		ToolsetDigest: "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
+		Request:       request,
+		Response:      response,
 		CallStates: []toolloop.CallCheckpoint{
 			{Status: toolloop.CallCompleted, Result: &completedResult},
 			{

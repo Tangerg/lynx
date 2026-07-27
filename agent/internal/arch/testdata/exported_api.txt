@@ -499,7 +499,7 @@ runtime: var ErrDeploymentNotFound = errors.New("deployment not found")
 runtime: var ErrProcessIdentity = errors.New("runtime: invalid process identity")
 toolloop: const ( CallQueued CallStatus = "queued" CallCompleted CallStatus = "completed" CallPaused CallStatus = "paused" )
 toolloop: const ( EventModelRequest = interaction.EventModelRequest EventModelResponse = interaction.EventModelResponse EventToolCall = interaction.EventToolCall EventToolResult = interaction.EventToolResult EventPause = interaction.EventPause EventResume = interaction.EventResume )
-toolloop: const CheckpointSchemaVersion uint16 = 2
+toolloop: const CheckpointSchemaVersion uint16 = 3
 toolloop: func (c *Checkpoint) ToolCalls() ([]chat.ToolCall, error)
 toolloop: func (c *Checkpoint) UnmarshalJSON(data []byte) error
 toolloop: func (c *Checkpoint) Validate() error
@@ -521,7 +521,7 @@ toolloop: func ResumeFromContext(ctx context.Context) (Resume, bool)
 toolloop: type AbortError struct { Err error }
 toolloop: type CallCheckpoint struct { Status CallStatus `json:"status"` Result *chat.ToolResult `json:"result,omitempty"` Pending *PendingCall `json:"pending,omitempty"` }
 toolloop: type CallStatus string
-toolloop: type Checkpoint struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Round int `json:"round"` MaxRounds int `json:"max_rounds"` MaxConcurrentCalls int `json:"max_concurrent_calls"` ToolsetDigest string `json:"toolset_digest"` Request *chat.Request `json:"request"` Response *chat.Response `json:"response"` CallStates []CallCheckpoint `json:"call_states"` NextResult int `json:"next_result"` }
+toolloop: type Checkpoint struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` Round int `json:"round"` ToolsetDigest string `json:"toolset_digest"` Request *chat.Request `json:"request"` Response *chat.Response `json:"response"` CallStates []CallCheckpoint `json:"call_states"` NextResult int `json:"next_result"` }
 toolloop: type ConcurrentTool interface { ConcurrencyKey(arguments string) (key string, concurrent bool) }
 toolloop: type Config struct { MaxRounds int MaxConcurrentCalls int }
 toolloop: type Event struct { Kind EventKind Round int Final bool Request *chat.Request Response *chat.Response ToolCall *chat.ToolCall ToolResult *chat.ToolResult Pause *Pause Resume *Resume }

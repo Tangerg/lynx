@@ -142,17 +142,6 @@ func (r *Runner) resumeState(ctx context.Context, checkpoint *Checkpoint, resolv
 	if checkpoint.ID != resume.ID {
 		return nil, fmt.Errorf("%w: resume ID %q does not match checkpoint ID %q", ErrInvalidInput, resume.ID, checkpoint.ID)
 	}
-	if checkpoint.MaxRounds != r.maxRounds {
-		return nil, fmt.Errorf("%w: checkpoint max rounds %d does not match runner policy %d", ErrInvalidInput, checkpoint.MaxRounds, r.maxRounds)
-	}
-	if checkpoint.MaxConcurrentCalls != r.maxConcurrentCalls {
-		return nil, fmt.Errorf(
-			"%w: checkpoint max concurrent calls %d does not match runner policy %d",
-			ErrInvalidInput,
-			checkpoint.MaxConcurrentCalls,
-			r.maxConcurrentCalls,
-		)
-	}
 	captured, err := snapshot(checkpoint)
 	if err != nil {
 		return nil, fmt.Errorf("%w: snapshot checkpoint: %w", ErrInvalidInput, err)
@@ -602,15 +591,13 @@ func (r *Runner) checkpoint(state *runnerState) (*Checkpoint, error) {
 		return nil, errors.New("toolloop: checkpoint has no active pending call")
 	}
 	checkpoint := &Checkpoint{
-		SchemaVersion:      CheckpointSchemaVersion,
-		ID:                 active.Pending.ID,
-		Round:              state.round,
-		MaxRounds:          r.maxRounds,
-		MaxConcurrentCalls: r.maxConcurrentCalls,
-		Request:            request,
-		Response:           response,
-		CallStates:         cloneCallStates(state.callStates),
-		NextResult:         state.nextResult,
+		SchemaVersion: CheckpointSchemaVersion,
+		ID:            active.Pending.ID,
+		Round:         state.round,
+		Request:       request,
+		Response:      response,
+		CallStates:    cloneCallStates(state.callStates),
+		NextResult:    state.nextResult,
 	}
 	checkpoint.ToolsetDigest, err = toolsetDigest(request.Tools)
 	if err != nil {

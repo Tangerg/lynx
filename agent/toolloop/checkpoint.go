@@ -24,7 +24,7 @@ var (
 // CheckpointSchemaVersion is the portable tool-loop checkpoint schema accepted
 // by this version of the runner. The framework intentionally accepts exactly
 // one schema: callers must not guess how to resume obsolete execution state.
-const CheckpointSchemaVersion uint16 = 2
+const CheckpointSchemaVersion uint16 = 3
 
 // CallStatus identifies the checkpoint state of one model-requested tool call.
 // Running is deliberately absent: Runner reaches a checkpoint only after every
@@ -124,16 +124,14 @@ func (c CallCheckpoint) Validate() error {
 // Checkpoint deliberately contains no executable ToolResolver; Resume receives
 // that capability separately.
 type Checkpoint struct {
-	SchemaVersion      uint16           `json:"schema_version"`
-	ID                 string           `json:"id"`
-	Round              int              `json:"round"`
-	MaxRounds          int              `json:"max_rounds"`
-	MaxConcurrentCalls int              `json:"max_concurrent_calls"`
-	ToolsetDigest      string           `json:"toolset_digest"`
-	Request            *chat.Request    `json:"request"`
-	Response           *chat.Response   `json:"response"`
-	CallStates         []CallCheckpoint `json:"call_states"`
-	NextResult         int              `json:"next_result"`
+	SchemaVersion uint16           `json:"schema_version"`
+	ID            string           `json:"id"`
+	Round         int              `json:"round"`
+	ToolsetDigest string           `json:"toolset_digest"`
+	Request       *chat.Request    `json:"request"`
+	Response      *chat.Response   `json:"response"`
+	CallStates    []CallCheckpoint `json:"call_states"`
+	NextResult    int              `json:"next_result"`
 }
 
 // Validate verifies the protocol snapshots and their call/result correlation.
@@ -149,13 +147,6 @@ func (c *Checkpoint) Validate() error {
 	}
 	if c.Round < 1 {
 		return fmt.Errorf("%w: round must be positive", ErrInvalidCheckpoint)
-	}
-	// Zero carries the same meaning as in Config: unbounded rounds, serial calls.
-	if c.MaxRounds < 0 || (c.MaxRounds > 0 && c.Round > c.MaxRounds) {
-		return fmt.Errorf("%w: round policy is inconsistent", ErrInvalidCheckpoint)
-	}
-	if c.MaxConcurrentCalls < 0 {
-		return fmt.Errorf("%w: max concurrent calls must not be negative", ErrInvalidCheckpoint)
 	}
 	if c.Request == nil {
 		return fmt.Errorf("%w: request must not be nil", ErrInvalidCheckpoint)

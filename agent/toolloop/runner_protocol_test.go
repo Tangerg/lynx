@@ -507,15 +507,21 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 		})
 	}
 
-	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentCalls: 1})
-	_, err := collectRunnerEvents(serialRunner.Resume(
+	// Limits are policy the caller re-supplies on every run, not resumed state:
+	// a runner configured differently from the one that paused still continues
+	// the same checkpoint, so tuning a limit never orphans parked work.
+	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentCalls: 1, MaxRounds: 9})
+	events, err := collectRunnerEvents(serialRunner.Resume(
 		context.Background(),
 		checkpoint,
 		registry,
 		toolloop.Resume{ID: "approval-1", Input: json.RawMessage(`"approved"`)},
 	))
-	if !errors.Is(err, toolloop.ErrInvalidInput) {
-		t.Fatalf("concurrency-policy mismatch error = %v", err)
+	if err != nil {
+		t.Fatalf("resume under a different policy = %v", err)
+	}
+	if len(events) == 0 || !events[len(events)-1].Final {
+		t.Fatalf("resume under a different policy produced %d events without a final one", len(events))
 	}
 }
 
@@ -593,8 +599,6 @@ func TestCheckpointValidationAndAtomicJSON(t *testing.T) {
 		func(c *toolloop.Checkpoint) { c.SchemaVersion = 1 },
 		func(c *toolloop.Checkpoint) { c.ID = "" },
 		func(c *toolloop.Checkpoint) { c.Round = 0 },
-		func(c *toolloop.Checkpoint) { c.MaxConcurrentCalls = -1 },
-		func(c *toolloop.Checkpoint) { c.MaxRounds = -1 },
 		func(c *toolloop.Checkpoint) { c.Request = nil },
 		func(c *toolloop.Checkpoint) { c.Request = &chat.Request{} },
 		func(c *toolloop.Checkpoint) { c.Response = nil },
