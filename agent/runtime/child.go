@@ -16,6 +16,12 @@ var ErrChildDepth = errors.New("run child: max delegation depth exceeded")
 // owning parent's active run loop.
 var ErrChildParentInactive = errors.New("run child: parent process is not running")
 
+// ErrChildBudget reports child options carrying a Budget. One authority admits
+// work for a complete process tree, so a limit is only meaningful on its root;
+// accepting one per child would silently promise a subtree cap that nothing
+// enforces.
+var ErrChildBudget = errors.New("child budget must be configured on the root process")
+
 // RunChildWithState runs a child with a copy of the parent's entire blackboard.
 // Use it only when the child needs the parent's working state. For ordinary
 // delegation, prefer [Engine.RunChild], which starts clean.
@@ -180,6 +186,9 @@ func configureChildProcessOptions(
 	configured, err := configure(normalizeContext(ctx), parent, deployment.agent)
 	if err != nil {
 		return core.ProcessOptions{}, err
+	}
+	if configured.Budget != (core.Budget{}) {
+		return core.ProcessOptions{}, ErrChildBudget
 	}
 	if configured.Blackboard == nil {
 		configured.Blackboard = options.Blackboard

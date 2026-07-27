@@ -183,3 +183,44 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("statuses root=%s child=%s, want killed/killed", process.Status(), child.Status())
 	}
 }
+
+func TestChildOptionsCannotCarryASecondBudget(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+
+	leaf := agent.New(agent.AgentConfig{
+		Name: "budget-leaf",
+		Actions: []agent.Action{agent.NewAction("noop", func(context.Context, *core.ProcessContext, childPolicyInput) (childPolicyOutput, error) {
+			return childPolicyOutput{Path: "leaf"}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "leaf done"})},
+	})
+	leafDeployment, err := engine.Deploy(t.Context(), leaf)
+	if err != nil {
+		t.Fatalf("deploy leaf: %v", err)
+	}
+
+	root := agent.New(agent.AgentConfig{
+		Name: "budget-root",
+		Actions: []agent.Action{agent.NewAction("run-leaf", func(ctx context.Context, _ *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
+			_, err := engine.RunChild(ctx, leafDeployment, childPolicyInput{})
+			return childPolicyOutput{}, err
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "root done"})},
+	})
+	if _, err := engine.Deploy(t.Context(), root); err != nil {
+		t.Fatalf("deploy root: %v", err)
+	}
+
+	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
+		Budget: core.Budget{ModelCallLimit: 4},
+		ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
+			return core.ProcessOptions{Budget: core.Budget{ModelCallLimit: 1}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("Run control-flow error = %v", err)
+	}
+	if !errors.Is(process.Failure(), runtime.ErrChildBudget) {
+		t.Fatalf("failure = %v, want ErrChildBudget", process.Failure())
+	}
+}

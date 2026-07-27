@@ -182,9 +182,6 @@ func (e *Engine) restoreSnapshotSubtree(
 	children map[string][]core.ProcessSnapshot,
 	processes *[]*Process,
 ) (*Process, error) {
-	if parent != nil && options.Budget != (core.Budget{}) {
-		return nil, errors.New("restored child budget must be configured on the root process")
-	}
 	process, err := e.buildProcessSnapshot(snapshot, options)
 	if err != nil {
 		return nil, fmt.Errorf("rebuild process %q: %w", snapshot.ID, err)

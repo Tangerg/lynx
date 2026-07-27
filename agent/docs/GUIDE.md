@@ -301,7 +301,8 @@ Host 自己定义消费侧存储接口，并决定：
 需要限制时只在 root `ProcessOptions` 显式传入 cost/token/action/model-call limit，且同一次
 执行中的 cost 单位必须一致。Runtime 为完整 Process tree 建立一个共享原子准入器：
 Action 在执行前计数，模型调用在 I/O 前预留，因此并发 sibling 不会重复消费同一份
-action/model-call 余量。`ChildOptions` 不得再配置第二份 Budget。Token 与 cost 只有响应后
+action/model-call 余量。`ChildOptions` 返回 Budget 会被拒绝（`runtime.ErrChildBudget`）：限额只在
+root 有意义，接受一份 per-child 限额等于承诺一个没人执行的子树上限。Token 与 cost 只有响应后
 才能确定，因此属于 continuation ceiling：当前已准入调用可以越过阈值，但不会再准入下一项工作。
 
 托管 Interaction 不接受调用点传入的 raw Model、Cost 或 Observer。Runtime 每次从 Process
