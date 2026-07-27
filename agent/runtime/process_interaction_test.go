@@ -349,6 +349,86 @@ func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T)
 	}
 }
 
+// managedRejectedResponseModel answers its first call with a response the
+// framework rejects — a negative token count — and its second normally.
+// Providers assign Usage after the response is built, so the rejection lands
+// inside the managed interaction, after the call was already admitted.
+type managedRejectedResponseModel struct {
+	mu    sync.Mutex
+	calls int
+}
+
+func (m *managedRejectedResponseModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.calls++
+	message := chat.NewAssistantMessage(chat.NewTextPart("complete"))
+	response, err := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
+	if err != nil {
+		return nil, err
+	}
+	response.Model = "managed-rejected-response"
+	if m.calls == 1 {
+		response.Usage = chat.Usage{InputTokens: -1}
+		return response, nil
+	}
+	response.Usage = chat.Usage{InputTokens: 4, OutputTokens: 1}
+	return response, nil
+}
+
+func (m *managedRejectedResponseModel) Calls() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls
+}
+
+func TestManagedInteractionKeepsModelCallCapacityWhenResponseIsRejected(t *testing.T) {
+	model := &managedRejectedResponseModel{}
+	registry, err := tools.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var firstErr error
+	a := agent.New(agent.AgentConfig{Name: "managed-rejected-response", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
+		if err != nil {
+			return "", err
+		}
+		// The first interaction fails after its model call was admitted but
+		// before that call was charged. An action may legitimately continue, so
+		// the reserved capacity has to be back for the retry.
+		_, firstErr = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
+		result, err := pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
+		if err != nil {
+			return "", err
+		}
+		if result.StopReason != interaction.StopNone {
+			return string(result.StopReason), nil
+		}
+		return result.Final.Response.Text(), nil
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
+	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
+	mustDeploy(t, engine, a)
+
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{
+		Budget: core.Budget{ModelCallLimit: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstErr == nil {
+		t.Fatal("first interaction reported no error for an unrecordable token count")
+	}
+	result, ok := agent.Result[string](proc)
+	if !ok || result != "complete" {
+		t.Fatalf("result = %q (present=%t), want the retry to complete", result, ok)
+	}
+	if model.Calls() != 2 || proc.Usage().ModelCalls != 1 {
+		t.Fatalf("provider calls=%d recorded calls=%d, want the failed call to leave no reserved capacity",
+			model.Calls(), proc.Usage().ModelCalls)
+	}
+}
+
 type managedFinalModel struct {
 	mu    sync.Mutex
 	calls int

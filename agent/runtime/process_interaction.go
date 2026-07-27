@@ -47,6 +47,11 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		return interaction.Result{}, err
 	}
 
+	// At most one model-call reservation holds tree capacity at a time, and this
+	// loop is its only owner: release settles whatever is still live, and is a
+	// no-op once committed. Releasing before the next reservation and on the way
+	// out therefore covers every exit path — including ones added later — so
+	// reserved capacity can never outlive the call it was admitted for.
 	var reservation *modelCallReservation
 	defer func() {
 		reservation.release()
@@ -66,6 +71,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			if stop := interactionStopReason(boundary.Round, input.Limits); stop != interaction.StopNone {
 				return interaction.Result{StopReason: stop}, nil
 			}
+			reservation.release()
 			var stop interaction.StopReason
 			reservation, stop, err = p.budget.reserveModelCall()
 			if err != nil {
@@ -84,7 +90,6 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 		switch boundary.Kind {
 		case toolloop.EventModelResponse:
 			recordedUsage, transitionErr = p.recordInteractionUsage(ctx, boundary.Response, reservation)
-			reservation = nil
 			if transitionErr != nil {
 				transitionErr = fmt.Errorf("runtime: record interaction usage: %w", transitionErr)
 			}
@@ -273,13 +278,16 @@ func interactionStopReason(round int, limits interaction.Limits) interaction.Sto
 	return interaction.StopNone
 }
 
+// recordInteractionUsage commits the reservation admitted for this model call
+// with the usage the response reported. It never releases: the interaction loop
+// owns that half of the reservation lifecycle, so every failure exit frees the
+// capacity without this function having to anticipate it.
 func (p *Process) recordInteractionUsage(
 	ctx context.Context,
 	response *chat.Response,
 	reservation *modelCallReservation,
 ) (core.Usage, error) {
 	if response == nil {
-		reservation.release()
 		return core.Usage{}, nil
 	}
 	tokens, err := usageTokenCount(response.Usage.InputTokens, response.Usage.OutputTokens)
