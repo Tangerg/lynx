@@ -47,8 +47,7 @@ type mutableDeploymentCondition struct {
 }
 
 type deploymentGoldenInput struct {
-	Topic string   `json:"topic"`
-	Tags  []string `json:"tags,omitempty"`
+	Topic string `json:"topic"`
 }
 
 type deploymentGoldenStuckPolicy struct{}
@@ -67,10 +66,8 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	action := &mutableDeploymentAction{metadata: deploymentActionMetadata("finish")}
 	condition := &mutableDeploymentCondition{name: "ready", cost: 2.5}
 	pre := []string{"finish"}
-	tags := []string{"writing"}
-	examples := []string{"write a post"}
 	goal := core.NewGoal(core.GoalConfig{
-		Name: "complete", Preconditions: pre, Tags: tags, Examples: examples,
+		Name: "complete", Preconditions: pre,
 	})
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
@@ -102,8 +99,6 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	conditions[0] = nil
 	snapshotState[0].Name = "mutated"
 	pre[0] = "mutated"
-	tags[0] = "mutated"
-	examples[0] = "mutated"
 	action.metadata.Inputs[0].Name = "mutated"
 	action.metadata.Effects["finish"] = core.False
 	action.metadata.ToolGroups[0] = "mutated"
@@ -125,7 +120,7 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 		t.Fatalf("frozen tool groups = %v", metadata.ToolGroups)
 	}
 	frozenGoal := frozen.Goals()[0]
-	if frozenGoal.RequiredConditions()[0] != "finish" || frozenGoal.Tags()[0] != "writing" || frozenGoal.Examples()[0] != "write a post" {
+	if frozenGoal.RequiredConditions()[0] != "finish" {
 		t.Fatalf("frozen goal was mutated: %#v", frozenGoal)
 	}
 	if frozen.Conditions()[0].Name() != "ready" || frozen.Conditions()[0].Cost() != 2.5 {
@@ -262,7 +257,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		StuckPolicy: deploymentGoldenStuckPolicy{},
 		Actions:     []core.Action{&mutableDeploymentAction{metadata: actionMetadata}},
 		Goals: []*core.Goal{
-			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11), Tags: []string{"research", "report"}, Examples: []string{"Research Go releases", "Compare runtime designs"}}),
+			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11)}),
 		},
 		Conditions:    []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
 		SnapshotState: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
@@ -279,7 +274,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 	if !bytes.Equal(compiled.definition, bytes.TrimSpace(want)) {
 		t.Fatalf("canonical definition changed\nwant:\n%s\ngot:\n%s", bytes.TrimSpace(want), compiled.definition)
 	}
-	const wantDigest = "9c4e3c095834c2a28d62ade6552484714285dd8b56c5618fde6b582e04e5faaa"
+	const wantDigest = "1a526fbeaef1e5ec8ba948be7dc3fb91e8416e6d55084a9d4cd902a8e8d07173"
 	if compiled.ref.Digest != wantDigest {
 		t.Fatalf("definition digest = %s, want %s", compiled.ref.Digest, wantDigest)
 	}
@@ -298,7 +293,7 @@ func TestCanonicalDefinitionFieldInventory(t *testing.T) {
 		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "ToolGroups", "Cost", "Value", "ClearWorkingState",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.GoalConfig](), []string{
-		"Name", "Description", "Preconditions", "Inputs", "Value", "Tags", "Examples",
+		"Name", "Description", "Preconditions", "Inputs", "Value",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Goal](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.Binding](), []string{

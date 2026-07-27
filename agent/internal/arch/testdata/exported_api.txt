@@ -106,13 +106,11 @@ core: func (d StuckDecision) String() string
 core: func (d StuckDecision) Valid() bool
 core: func (f *ProcessFailure) Error() string
 core: func (g *Goal) Description() string
-core: func (g *Goal) Examples() []string
 core: func (g *Goal) Inputs() []Binding
 core: func (g *Goal) Name() string
 core: func (g *Goal) Preconditions() ConditionSet
 core: func (g *Goal) RequiredConditions() []string
 core: func (g *Goal) SatisfiedBy(worldState WorldState) bool
-core: func (g *Goal) Tags() []string
 core: func (g *Goal) Value(worldState WorldState) float64
 core: func (g *UUIDGenerator) Name() string
 core: func (k DependencyKey[T]) Name() string
@@ -213,7 +211,7 @@ core: type FuncAction[In, Out any] struct { }
 core: type FuncCondition struct { }
 core: type Goal struct { }
 core: type GoalApprover interface { Extension Approve(process ProcessView, goal *Goal) bool }
-core: type GoalConfig struct { Name string Description string Preconditions []string Inputs []Binding Value ScoreFunc Tags []string Examples []string }
+core: type GoalConfig struct { Name string Description string Preconditions []string Inputs []Binding Value ScoreFunc }
 core: type IDGenerator interface { Extension Next() string }
 core: type Interaction struct { ID string Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Stream func(*chat.Response) }
 core: type InteractionCostProjector interface { Extension ProjectInteractionCost( ctx context.Context, process ProcessView, response *chat.Response, ) (float64, error) }

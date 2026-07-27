@@ -20,17 +20,6 @@ type GoalConfig struct {
 	// Value is the planner's per-tick value probe. [NewOutputGoal]
 	// fills [FixedScore](1.0) when left nil.
 	Value ScoreFunc
-
-	// Tags are short keywords a model-driven goal selector can surface —
-	// a host implementation of routing.Ranker — so the model has a richer
-	// signal than just Name + Description. Typical: ["coding", "refactor"]
-	// or ["sentiment", "review"]. Optional; planner ignores them.
-	Tags []string
-
-	// Examples are sample user inputs that should match this goal —
-	// few-shot anchors for LLM rankers. Optional; planner ignores
-	// them. Typical: ["Refactor this Go file", "Rename the Foo type"].
-	Examples []string
 }
 
 // Goal is an immutable target state. The planner finds an action sequence
@@ -41,8 +30,6 @@ type Goal struct {
 	preconditions []string
 	inputs        []Binding
 	value         ScoreFunc
-	tags          []string
-	examples      []string
 }
 
 // NewGoal constructs an immutable goal from config.
@@ -53,8 +40,6 @@ func NewGoal(config GoalConfig) *Goal {
 		preconditions: slices.Clone(config.Preconditions),
 		inputs:        slices.Clone(config.Inputs),
 		value:         config.Value,
-		tags:          slices.Clone(config.Tags),
-		examples:      slices.Clone(config.Examples),
 	}
 }
 
@@ -104,22 +89,6 @@ func (g *Goal) Inputs() []Binding {
 		return nil
 	}
 	return slices.Clone(g.inputs)
-}
-
-// Tags returns model-routing hints.
-func (g *Goal) Tags() []string {
-	if g == nil {
-		return nil
-	}
-	return slices.Clone(g.tags)
-}
-
-// Examples returns few-shot routing examples.
-func (g *Goal) Examples() []string {
-	if g == nil {
-		return nil
-	}
-	return slices.Clone(g.examples)
 }
 
 // Value evaluates the goal value in worldState. An unconfigured value is zero.

@@ -244,8 +244,6 @@ type canonicalGoal struct {
 	Description   string             `json:"description,omitempty"`
 	Preconditions []string           `json:"pre,omitempty"`
 	Inputs        []canonicalBinding `json:"inputs,omitempty"`
-	Tags          []string           `json:"tags,omitempty"`
-	Examples      []string           `json:"examples,omitempty"`
 }
 
 type canonicalCondition struct {
@@ -311,8 +309,6 @@ func (c deploymentCompiler) canonicalGoal(goal *core.Goal) canonicalGoal {
 		Description:   goal.Description(),
 		Preconditions: c.normalizedStrings(goal.RequiredConditions()),
 		Inputs:        c.canonicalBindings(goal.Inputs()),
-		Tags:          goal.Tags(),
-		Examples:      goal.Examples(),
 	}
 }
 
