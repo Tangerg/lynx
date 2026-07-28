@@ -20,7 +20,11 @@ func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
 		if e.Problem == nil {
 			return nil, fmt.Errorf("error outcome is missing a problem")
 		}
-		result.Error = normalizeRunProblem(*e.Problem)
+		var err error
+		result.Error, err = runResultProblem(*e.Problem)
+		if err != nil {
+			return nil, err
+		}
 	case execution.OutcomeCanceled:
 		if r.cfg.CancelReason != nil {
 			detail = r.cfg.CancelReason()

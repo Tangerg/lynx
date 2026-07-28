@@ -115,6 +115,10 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			item.Error = &transcript.Problem{
 				Kind:  transcript.ToolFailedProblem,
 				Scope: transcript.ToolProblem,
+				// Distinct from a tool that ran and failed, and from one cut off by a
+				// restart: this call was still awaiting its approval or answer when the
+				// run it belonged to was declared unresumable.
+				Detail: "tool call abandoned because its run could not be resumed",
 			}
 		}
 		items = append(items, item)
@@ -131,6 +135,10 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		run.Result.Error = &transcript.Problem{
 			Kind:  transcript.RunLostProblem,
 			Scope: transcript.RunProblem,
+			// This run was parked on an interrupt and its process snapshot turned out
+			// to be unrestorable — it never re-entered the executor, so no terminal
+			// path could describe it.
+			Detail: "the parked run's process snapshot could not be restored",
 		}
 	}
 	run.Detail = detail

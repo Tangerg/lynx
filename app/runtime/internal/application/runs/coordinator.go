@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -158,7 +160,8 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	}
 	if spec.Activate != nil {
 		if err := spec.Activate(taskCtx); err != nil {
-			reducer.abort(fmt.Errorf("runs: activate segment: %w", err))
+			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: activate segment: %w", err))
+			reducer.abort()
 			cancel()
 		}
 	}

@@ -166,11 +166,19 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	if applied.Run.State != execution.Failed || applied.Run.Outcome == nil || *applied.Run.Outcome != execution.OutcomeError {
 		t.Fatalf("terminal run = %+v, want failed/error", applied.Run)
 	}
-	if applied.Run.Result == nil || applied.Run.Result.Error == nil || applied.Run.Result.Error.Kind != transcript.RunLostProblem || applied.Run.Result.Error.Detail != "" {
-		t.Fatalf("terminal result = %+v, want run_lost", applied.Run.Result)
+	// This path is the only one that knows the run died parked on an interrupt
+	// with an unrestorable snapshot, so it is the one that has to say so. Leaving
+	// the detail empty pushed the sentence out to the presenter, which could only
+	// see the kind and wrote one default for every way a run can be lost.
+	if applied.Run.Result == nil || applied.Run.Result.Error == nil ||
+		applied.Run.Result.Error.Kind != transcript.RunLostProblem ||
+		applied.Run.Result.Error.Detail != "the parked run's process snapshot could not be restored" {
+		t.Fatalf("terminal result = %+v, want run_lost naming its cause", applied.Run.Result)
 	}
-	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete || applied.Items[0].Error == nil || applied.Items[0].Error.Detail != "" {
-		t.Fatalf("terminal items = %+v, want incomplete failed tool", applied.Items)
+	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete ||
+		applied.Items[0].Error == nil ||
+		applied.Items[0].Error.Detail != "tool call abandoned because its run could not be resumed" {
+		t.Fatalf("terminal items = %+v, want incomplete failed tool naming its cause", applied.Items)
 	}
 	if applied.ProcessID != "proc_1" || !applied.Run.FinishedAt.Equal(finishedAt) || applied.Run.MessageMark != 1 {
 		t.Fatalf("terminal plan = %+v", applied)

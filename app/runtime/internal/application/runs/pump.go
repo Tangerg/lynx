@@ -36,7 +36,8 @@ func (c *Coordinator) pump(ctx, ownerCtx context.Context, spec segmentSpec, inne
 	fail := func(err error) {
 		abortTurn = true
 		if ctx.Err() == nil && ownerCtx.Err() == nil {
-			reducer.abort(err)
+			trace.SpanFromContext(ctx).RecordError(err)
+			reducer.abort()
 		}
 	}
 

@@ -802,6 +802,26 @@ func TestDeliveryDoesNotOwnArchiveRecoveryOrValidation(t *testing.T) {
 	})
 }
 
+// TestDeliveryDoesNotAuthorDomainText keeps presentation out of the business of
+// explaining a run to a person. Why a run stopped is a domain fact, and the
+// sentence a reader sees is the client's to write in the reader's language;
+// presentation carries the detail the domain reported, including the absence of
+// one.
+//
+// Both encoders once defaulted that sentence per kind, which is why the rule is
+// mechanical rather than a naming ban: the prose hid one call away, in helpers
+// that only looked like mappers. So in these two files a literal may only be a
+// programmer's diagnostic — anything that can reach a client has to come from a
+// typed value.
+func TestDeliveryDoesNotAuthorDomainText(t *testing.T) {
+	root := moduleRoot(t)
+	server := filepath.Join(root, "internal", "delivery", "server")
+	for _, name := range []string{"presenter_run.go", "artifact_encode.go"} {
+		forbidAuthoredText(t, filepath.Join(server, name),
+			"a run's explanation is authored where the case is known and worded by the client")
+	}
+}
+
 // TestDeliveryDoesNotDeriveSessionActivity keeps precedence between active
 // admission and durable interrupt state in the sessions read model. Delivery
 // maps the resulting enum but cannot duplicate the precedence rule.
@@ -1284,6 +1304,48 @@ func forbidTopLevelNames(t *testing.T, dir string, banned map[string]string) {
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", dir, walkErr)
 	}
+}
+
+// forbidAuthoredText rejects any string literal in a mapping file that is not a
+// programmer's diagnostic. A presenter's job is to carry typed values across, so
+// a literal that can reach a client is prose the presenter wrote itself —
+// invisible to the locale catalogs and to whoever owns the real answer. Import
+// paths, panic arguments, error messages and the empty string are exempt: none
+// of them is copy.
+func forbidAuthoredText(t *testing.T, path, reason string) {
+	t.Helper()
+	root := moduleRoot(t)
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	diagnostic := make(map[ast.Expr]struct{})
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return true
+		}
+		switch exprString(call.Fun) {
+		case "panic", "errors.New", "fmt.Errorf":
+			diagnostic[call.Args[0]] = struct{}{}
+		}
+		return true
+	})
+	ast.Inspect(file, func(node ast.Node) bool {
+		if _, isImport := node.(*ast.ImportSpec); isImport {
+			return false
+		}
+		literal, ok := node.(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING || literal.Value == `""` {
+			return true
+		}
+		if _, exempt := diagnostic[literal]; exempt {
+			return true
+		}
+		rel, _ := filepath.Rel(root, path)
+		t.Errorf("%s: authored text %s; %s", rel, literal.Value, reason)
+		return true
+	})
 }
 
 // forbidQualifiedCalls rejects a named package-selector call while allowing

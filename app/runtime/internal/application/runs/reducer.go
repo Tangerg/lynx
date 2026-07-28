@@ -192,7 +192,10 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	outcome := execution.OutcomeCanceled
 	if r.errProblem != nil {
 		outcome = execution.OutcomeError
-		result.Error = normalizeRunProblem(*r.errProblem)
+		result.Error, err = runResultProblem(*r.errProblem)
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
+		}
 	}
 	detail := ""
 	if outcome == execution.OutcomeCanceled && r.cfg.CancelReason != nil {
@@ -206,19 +209,25 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	return r.project(out)
 }
 
-func (r *reducer) abort(err error) {
-	if err == nil {
-		return
-	}
+// abort marks the segment as failed so terminal synthesis produces an error
+// outcome. It takes no cause: an internal failure must not put its internals on
+// the wire, so the client gets the bare symbol and supplies its own words.
+// That makes the caller's span the only place the cause survives — a rejected
+// terminal commit or a protocol-violating executor event is otherwise invisible
+// — so every caller records it there before calling this.
+func (r *reducer) abort() {
 	r.errProblem = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}
 }
 
-func normalizeRunProblem(problem transcript.Problem) *transcript.Problem {
-	problem.Scope = transcript.RunProblem
-	if problem.Detail == "" {
-		problem.Kind = transcript.InternalProblem
+// runResultProblem checks that a problem belongs in a run's result slot rather
+// than forcing it to fit. Overwriting the scope would silently relabel a
+// tool-scoped problem as run-scoped, and the export-time ValidateFor that would
+// eventually notice can no longer say which segment produced it.
+func runResultProblem(problem transcript.Problem) (*transcript.Problem, error) {
+	if err := problem.ValidateFor(transcript.RunProblem); err != nil {
+		return nil, fmt.Errorf("run result problem: %w", err)
 	}
-	return &problem
+	return &problem, nil
 }
 
 func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
