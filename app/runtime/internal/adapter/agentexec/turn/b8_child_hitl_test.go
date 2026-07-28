@@ -293,6 +293,8 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		bound: hooks.NewBound([]hooks.Hook{
 			{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
+			{Event: hooks.SubagentStart, Command: "record", Source: "test"},
+			{Event: hooks.SubagentStop, Command: "record", Source: "test"},
 		}, hooks.NewRunner(restoredHooks, nil)),
 	}, store, historyStore, buildID)
 	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateTurn{
@@ -338,6 +340,22 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 	if got := restoredHooks.count(hooks.PostToolUse, "shell"); got != 1 {
 		t.Fatalf("restored PostToolUse(shell) = %d, want 1", got)
+	}
+	if got := restoredHooks.inputsFor(hooks.SubagentStart); len(got) != 0 {
+		t.Fatalf("restored SubagentStart inputs = %#v, want no replay", got)
+	}
+	stopInputs := restoredHooks.inputsFor(hooks.SubagentStop)
+	if len(stopInputs) != 1 {
+		t.Fatalf("restored SubagentStop inputs = %#v, want 1", stopInputs)
+	}
+	stop := stopInputs[0].Subagent
+	if stop == nil ||
+		stop.ParentProcessID != processID ||
+		stop.Description != "focused child work" ||
+		stop.Prompt != "perform the child work" ||
+		stop.Status != hooks.SubagentCompleted ||
+		stop.Result != "child complete" {
+		t.Fatalf("restored SubagentStop = %+v", stop)
 	}
 	joinTurnCleanup(t, restored, restoredHandle)
 	ids, err := store.List(t.Context())
@@ -677,7 +695,7 @@ func (m *childToolModel) Call(_ context.Context, request *chat.Request) (*chat.R
 	case hasToolCallNamed(request.Messages, m.childTool):
 		return makeText("child complete")
 	case userMentions(request.Messages, "delegate"):
-		return makeToolCall("task", `{"prompt":"perform the child work"}`)
+		return makeToolCall("task", `{"description":"focused child work","prompt":"perform the child work"}`)
 	default:
 		return makeToolCall(m.childTool, m.childArguments)
 	}
@@ -764,4 +782,16 @@ func (r *hookCommandRecorder) count(event hooks.Event, toolName string) int {
 		}
 	}
 	return count
+}
+
+func (r *hookCommandRecorder) inputsFor(event hooks.Event) []hooks.Input {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var inputs []hooks.Input
+	for _, input := range r.inputs {
+		if input.Event == event {
+			inputs = append(inputs, input)
+		}
+	}
+	return inputs
 }

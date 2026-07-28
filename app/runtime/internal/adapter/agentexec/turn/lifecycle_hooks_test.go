@@ -25,9 +25,10 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 		project: func(processID string) (agentexec.SubagentProjection, bool) {
 			if processID == "child" {
 				return agentexec.SubagentProjection{
-					Description: "inspect auth",
-					Prompt:      "Find where auth failures are handled.",
-					Reply:       "auth failures are handled in middleware",
+					ParentProcessID: "root",
+					Description:     "inspect auth",
+					Prompt:          "Find where auth failures are handled.",
+					Reply:           "auth failures are handled in middleware",
 				}, true
 			}
 			return agentexec.SubagentProjection{}, false
@@ -60,6 +61,50 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 	}
 	if stop.Status != "completed" || stop.Result != "auth failures are handled in middleware" || stop.Description != "inspect auth" {
 		t.Fatalf("stop subagent = %+v", stop)
+	}
+}
+
+func TestSubagentLifecycleProjectsRestoredChildOnStop(t *testing.T) {
+	rec := &recordHookCommands{}
+	bound := hooks.NewBound(
+		[]hooks.Hook{{Event: hooks.SubagentStop, Command: "record", Source: "test"}},
+		hooks.NewRunner(rec, nil),
+	)
+	lifecycle := &subagentLifecycle{
+		sessionID: "sess",
+		cwd:       "/work",
+		hooks:     bound,
+		project: func(processID string) (agentexec.SubagentProjection, bool) {
+			if processID != "restored-child" {
+				return agentexec.SubagentProjection{}, false
+			}
+			return agentexec.SubagentProjection{
+				ParentProcessID: "restored-root",
+				Description:     "inspect auth",
+				Prompt:          "Find where auth failures are handled.",
+				Reply:           "auth failures are handled in middleware",
+			}, true
+		},
+	}
+	if err := lifecycle.confirmRoot("restored-root"); err != nil {
+		t.Fatalf("confirmRoot: %v", err)
+	}
+
+	lifecycle.listener("restored-turn").OnEvent(t.Context(), event.ProcessCompleted{
+		Header: event.NewHeader("restored-child"),
+	})
+
+	if len(rec.inputs) != 1 {
+		t.Fatalf("hook inputs = %d, want 1: %#v", len(rec.inputs), rec.inputs)
+	}
+	got := rec.inputs[0].Subagent
+	if got.ProcessID != "restored-child" ||
+		got.ParentProcessID != "restored-root" ||
+		got.Description != "inspect auth" ||
+		got.Prompt != "Find where auth failures are handled." ||
+		got.Status != hooks.SubagentCompleted ||
+		got.Result != "auth failures are handled in middleware" {
+		t.Fatalf("restored stop subagent = %+v", got)
 	}
 }
 

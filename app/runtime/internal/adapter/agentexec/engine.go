@@ -46,9 +46,10 @@ type Engine struct {
 // SubagentProjection is Runtime's own typed view of one delegated process: the
 // task it was given and, once it finishes, the answer it produced.
 type SubagentProjection struct {
-	Description string
-	Prompt      string
-	Reply       string
+	ParentProcessID string
+	Description     string
+	Prompt          string
+	Reply           string
 }
 
 // SubagentProjection reads a delegated process directly rather than off an
@@ -69,7 +70,7 @@ func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool)
 	}
 	blackboard := process.Blackboard()
 
-	var projection SubagentProjection
+	projection := SubagentProjection{ParentProcessID: process.ParentID()}
 	if input, ok := core.Get[taskInput](blackboard, core.DefaultBindingName); ok {
 		projection.Description = input.Description
 		projection.Prompt = input.Prompt

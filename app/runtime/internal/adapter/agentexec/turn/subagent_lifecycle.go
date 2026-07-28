@@ -20,7 +20,6 @@ type subagentLifecycle struct {
 	cwd       string
 	hooks     *hooks.Bound
 	project   func(string) (agentexec.SubagentProjection, bool)
-	subagents map[string]hooks.SubagentInput
 }
 
 func newSubagentLifecycle(
@@ -85,17 +84,8 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	}
 	switch ev := e.(type) {
 	case event.ProcessCreated:
-		in := hooks.SubagentInput{ProcessID: e.ProcessID(), ParentProcessID: ev.ParentID}
-		if projection, ok := l.projection(e.ProcessID()); ok {
-			in.Description = projection.Description
-			in.Prompt = summarizeHookText(projection.Prompt)
-		}
-		l.mu.Lock()
-		if l.subagents == nil {
-			l.subagents = map[string]hooks.SubagentInput{}
-		}
-		l.subagents[e.ProcessID()] = in
-		l.mu.Unlock()
+		in := l.subagentInput(e.ProcessID())
+		in.ParentProcessID = ev.ParentID
 		_ = l.hooks.Run(ctx, hooks.Input{
 			Event:     hooks.SubagentStart,
 			SessionID: l.sessionID,
@@ -103,19 +93,15 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
-		var reply string
-		if projection, ok := l.projection(e.ProcessID()); ok {
-			reply = projection.Reply
-		}
-		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookText(reply), "")
+		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, "")
 	case event.ProcessFailed:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, "", errorString(ev.Err))
+		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, errorString(ev.Err))
 	case event.ProcessKilled:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentKilled, "", ev.Reason)
+		l.runSubagentStopHook(ctx, e, hooks.SubagentKilled, ev.Reason)
 	case event.ProcessTerminated:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentTerminated, "", ev.Reason)
+		l.runSubagentStopHook(ctx, e, hooks.SubagentTerminated, ev.Reason)
 	case event.ProcessStuck:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentStuck, "", "")
+		l.runSubagentStopHook(ctx, e, hooks.SubagentStuck, "")
 	}
 }
 
@@ -128,18 +114,23 @@ func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProj
 	return l.project(processID)
 }
 
-func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, result, errText string) {
-	in := hooks.SubagentInput{ProcessID: e.ProcessID()}
-	l.mu.Lock()
-	if l.subagents != nil {
-		if cached, ok := l.subagents[e.ProcessID()]; ok {
-			in = cached
-			delete(l.subagents, e.ProcessID())
-		}
+func (l *subagentLifecycle) subagentInput(processID string) hooks.SubagentInput {
+	in := hooks.SubagentInput{ProcessID: processID}
+	if projection, ok := l.projection(processID); ok {
+		in.ParentProcessID = projection.ParentProcessID
+		in.Description = projection.Description
+		in.Prompt = summarizeHookText(projection.Prompt)
+		in.Result = summarizeHookText(projection.Reply)
 	}
-	l.mu.Unlock()
+	return in
+}
+
+func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, errText string) {
+	in := l.subagentInput(e.ProcessID())
+	if status != hooks.SubagentCompleted {
+		in.Result = ""
+	}
 	in.Status = status
-	in.Result = result
 	in.Error = errText
 	_ = l.hooks.Run(ctx, hooks.Input{
 		Event:     hooks.SubagentStop,
