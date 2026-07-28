@@ -72,7 +72,7 @@ func run(dir, tsDir string) error {
 		return nil
 	}
 	path = filepath.Join(tsDir, tsFileName)
-	if err := os.WriteFile(path, []byte(newTypeScript(walked)), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(newTypeScript(walked, built.Notifications)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil

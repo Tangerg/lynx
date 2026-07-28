@@ -34,9 +34,10 @@ type tsEmitter struct {
 	out strings.Builder
 }
 
-func newTypeScript(set *schemaSet) string {
+func newTypeScript(set *schemaSet, notifications []string) string {
 	emitter := &tsEmitter{set: set}
 	emitter.header()
+	emitter.notifications(notifications)
 
 	names := slices.Sorted(maps.Keys(set.defs))
 	generics := genericBases(set)
@@ -52,6 +53,45 @@ func newTypeScript(set *schemaSet) string {
 	}
 	emitter.enumValues(names)
 	return emitter.out.String()
+}
+
+// notifications emits the downstream method names.
+//
+// A client subscribes to these by name — nothing inbound routes to them — so the
+// name is the whole contract, and a client that spells it itself is a second author
+// of the method surface. The constant name is derived mechanically so no naming
+// scheme has to be invented per notification.
+func (e *tsEmitter) notifications(methods []string) {
+	e.line("// The methods the runtime sends downstream. A client only ever subscribes.")
+	for _, method := range methods {
+		e.line("export const %s = %s;", screamingSnake(method), strconv.Quote(method))
+	}
+	e.line("")
+}
+
+// screamingSnake turns a dotted method name into a TypeScript constant name:
+// notifications.run.event becomes NOTIFICATIONS_RUN_EVENT.
+func screamingSnake(name string) string {
+	var out strings.Builder
+	for index, letter := range name {
+		switch {
+		case letter == '.':
+			out.WriteByte('_')
+		case letter >= 'A' && letter <= 'Z' && index > 0:
+			out.WriteByte('_')
+			out.WriteRune(letter)
+		default:
+			out.WriteRune(letter - lowerToUpper(letter))
+		}
+	}
+	return out.String()
+}
+
+func lowerToUpper(letter rune) rune {
+	if letter >= 'a' && letter <= 'z' {
+		return 'a' - 'A'
+	}
+	return 0
 }
 
 // enumValues emits the runtime face of the enums.

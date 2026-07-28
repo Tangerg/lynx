@@ -8,6 +8,10 @@
 // carries no result — are NOT here: TypeScript has no way to state them. They are
 // in the generated validator and in schema.json.
 
+// The methods the runtime sends downstream. A client only ever subscribes.
+export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
+export const NOTIFICATIONS_WORKSPACE_EVENT = "notifications.workspace.event";
+
 export interface Page<T> {
   data: T[];
   nextCursor?: string;

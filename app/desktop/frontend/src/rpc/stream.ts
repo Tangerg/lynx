@@ -21,9 +21,10 @@ import { createPushPullChannel, type PushPullChannel } from "./channel";
 import type { RpcClient } from "./client";
 import type { RunEvent, StreamEvent, WorkspaceEvent } from "./wire.generated";
 import { STREAM_DOWN_METHOD, WORKSPACE_SUBSCRIBE_METHOD, type StreamDownParams } from "./transport";
+import { NOTIFICATIONS_RUN_EVENT, NOTIFICATIONS_WORKSPACE_EVENT } from "./wire.generated";
 
-export const RUN_EVENT_METHOD = "notifications.run.event";
-export const WORKSPACE_EVENT_METHOD = "notifications.workspace.event";
+export const RUN_EVENT_METHOD = NOTIFICATIONS_RUN_EVENT;
+export const WORKSPACE_EVENT_METHOD = NOTIFICATIONS_WORKSPACE_EVENT;
 
 // ---------------------------------------------------------------------------
 // Trust-boundary validation (CLAUDE.md: "validate at trust boundaries with Zod")
