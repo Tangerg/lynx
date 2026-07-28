@@ -263,6 +263,7 @@ func (t ProcessSnapshotTree) Validate() error {
 		return fmt.Errorf("%w: tree root %q must have no parent", ErrInvalidSnapshot, root.ID)
 	}
 
+	children := make(map[string][]string, len(t.Snapshots))
 	for _, snapshot := range t.Snapshots {
 		if snapshot.ID == t.RootID {
 			continue
@@ -270,6 +271,36 @@ func (t ProcessSnapshotTree) Validate() error {
 		if _, found := byID[snapshot.ParentID]; !found {
 			return fmt.Errorf("%w: process %q has parent %q outside tree rooted at %q", ErrInvalidSnapshot, snapshot.ID, snapshot.ParentID, t.RootID)
 		}
+		children[snapshot.ParentID] = append(children[snapshot.ParentID], snapshot.ID)
+	}
+
+	// Present parent links do not make one tree: two processes naming each other
+	// each satisfy "my parent is here" while forming a cycle the root never
+	// reaches. Restore descends from the root, so an unreachable snapshot would
+	// be dropped without a word. Requiring that the descent reaches every
+	// snapshot is what proves connected, acyclic, and rooted at once — the
+	// property a capture claims by carrying a RootID at all.
+	//
+	// The walk terminates regardless: each snapshot lists exactly one parent, so
+	// it is enqueued at most once, and the root belongs to no child list.
+	reached := 1
+	pending := []string{t.RootID}
+	for len(pending) > 0 {
+		parent := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		for _, child := range children[parent] {
+			reached++
+			pending = append(pending, child)
+		}
+	}
+	if reached != len(t.Snapshots) {
+		return fmt.Errorf(
+			"%w: %d of %d processes are unreachable from tree root %q",
+			ErrInvalidSnapshot,
+			len(t.Snapshots)-reached,
+			len(t.Snapshots),
+			t.RootID,
+		)
 	}
 	return nil
 }

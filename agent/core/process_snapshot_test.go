@@ -23,6 +23,14 @@ func validSnapshot(id string) core.ProcessSnapshot {
 	}
 }
 
+// mutualParent builds a snapshot that names parent as its parent, so a test can
+// assemble parent links the root never descends through.
+func mutualParent(id, parent string) core.ProcessSnapshot {
+	snapshot := validSnapshot(id)
+	snapshot.ParentID = parent
+	return snapshot
+}
+
 func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	snapshot := validSnapshot("wire")
 	body, err := json.Marshal(snapshot)
@@ -165,6 +173,24 @@ func TestProcessSnapshotTreeValidatesBoundary(t *testing.T) {
 		}},
 		{name: "external parent", tree: core.ProcessSnapshotTree{
 			RootID: root.ID, Snapshots: []core.ProcessSnapshot{root, disconnected},
+		}},
+		{name: "self-parented process", tree: core.ProcessSnapshotTree{
+			RootID:    root.ID,
+			Snapshots: []core.ProcessSnapshot{root, mutualParent("a", "a")},
+		}},
+		// A self-parent is already rejected per snapshot. These two are not: each
+		// process satisfies "my parent is in this capture" while sitting outside
+		// the root's descent, and restore only walks down from the root, so
+		// accepting them loses processes in silence.
+		{name: "processes parenting each other", tree: core.ProcessSnapshotTree{
+			RootID:    root.ID,
+			Snapshots: []core.ProcessSnapshot{root, mutualParent("a", "b"), mutualParent("b", "a")},
+		}},
+		{name: "subtree hanging off a cycle", tree: core.ProcessSnapshotTree{
+			RootID: root.ID,
+			Snapshots: []core.ProcessSnapshot{
+				root, mutualParent("a", "b"), mutualParent("b", "a"), mutualParent("c", "a"),
+			},
 		}},
 	}
 
