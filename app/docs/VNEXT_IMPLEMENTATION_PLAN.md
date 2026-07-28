@@ -60,7 +60,7 @@
 | 批次 | 名称 | 状态 | 说明 |
 |---|---|---|---|
 | A | 协议文档事实对齐 | `TODO` | 零代码变化 |
-| A′ | 现役泄露治本（**前置**） | `IN PROGRESS` | 5 slice（A′5 实施中发现），落 main |
+| A′ | 现役泄露治本（**前置**） | `IN PROGRESS` | 5 slice（A′5 实施中发现）；A′1/A′2/A′3/A′5 `DONE`，**A′4 待确认范围** |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
 | B′ | 权威读面 + store cutover | `TODO` | 5 slice，落 main，**建议起点** |
 | C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
@@ -421,8 +421,8 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 |---|---|---|---|
 | A′1 | 泄露 1 治本：Problem/Outcome detail **单一作者**。为 `RunLost / DeniedByUser / ToolFailed / Internal` 四个 kind 找回产生点并在那里写全；删 delivery 的 6 处默认文案（4 个 problem kind + 2 个 outcome kind）。领域无话可说的 → wire 省略字段 | `DONE` | `2a75bc6ae`（前端）+ `4571e91e9`（后端） |
 | A′2 | D6：`Retryable` 三处删除（`domain/execution/transcript` + `delivery/dispatch` spec 表 + wire/Artifact 映射），按 kind 直接决定 `retryAfterSeconds` | `DONE` | `0b7888f8c`（后端）+ `b3f3fb6b3`（前端） |
-| A′3 | 泄露 2 治本：`ListRuns` 改读 durable projection，删 live registry 读取与硬编码 status。**三态留给 C1** —— 本 slice 只做「单一真相源」 | `TODO` | — |
-| A′4 | 泄露 3 治本：过滤 / 排序 / keyset cursor 编解码下沉为 application query port（含 `items.list` 全量物化）；delivery 只传 opaque token | `TODO` | — |
+| A′3 | 泄露 2 治本：`ListRuns` 改读 durable projection，删 live registry 读取与硬编码 status。**三态留给 C1** —— 本 slice 只做「单一真相源」 | `DONE` | `03943f663` |
+| A′4 | 泄露 3 治本：过滤 / 排序 / cursor 编解码下沉；delivery 只传 opaque token。**范围已按实施发现修正 —— 见下方 ⚠️** | `TODO`（待确认范围） | — |
 | A′5 | 同一泄露的相邻面（A′1 实施中发现）：`mcp_projection.go` / `providers.go` 由 domain enum 编造 5 句英文 detail。**enum→enum 映射留 delivery（本职），enum→人话移入 locale catalog**。⚠️ 与 A′1 不同，**有前端半部** —— 这两个面板走 `errorDetail()`，其 fallback 是裸 symbol | `DONE` | `98399fab6`（后端）+ `5d3b2f2a7`（前端） |
 
 **A′5 顺带治掉的根**：`errorDetail()` 的 `?? type` fallback 就是"裸符号能露出来"的总根 —— 它让这个 reader **永远无法回答"runtime 什么也没说"**，于是把「该由 UI 供词」的信号提前填满了。已改为只返 detail；要文案的走 `describeProblem` / `rpcErrorText` 单一入口。**这条 fallback 原先零测试覆盖**，现已钉住。
@@ -433,6 +433,50 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 - ⚠️ **未擅自改动**：`mcp_authorization_required` 的 ProblemData 目前**无消费者**（两个面板都只在 `status === "failed"` 时读 `errorDetail`，而它配的是 `needsAuth`）。删它是 wire 变更 → 留给 C12 一并裁决，本轮只移走文案。
 
 **影响面**：`delivery/server`（presenter + runs_query + items）、`adapter/agentexec/turn`、`domain/execution/transcript`、`application` 新 query port。**wire 不变**（A′2 的 `retryable` 是 wire 字段 —— 它在 C10 才从 wire 消失，A′2 只断掉 domain 侧来源，wire 上恒为 false／省略）。
+
+---
+
+#### ⚠️ A′4 范围修正（2026-07-28 实施中发现，**待用户确认**）
+
+计划原文说 A′4 含「`items.list` 全量物化」的治本。**做不到**，原因是两条硬事实：
+
+**事实 1 —— `pageByCursor` 的签名本身就要求全量物化。**
+
+```go
+func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, maxLimit int) ([]T, string, error)
+```
+
+它拿全量 slice 线性扫描找 cursor 锚点。真 keyset 分页必须在 SQL 里 `WHERE (sort_key) > (anchor) LIMIT n` —— 那需要 durable 排序键：
+- `runs.list`：**今天就可以**（A′3 已落 `ORDER BY started_at, run_id`）。
+- `items.list`：**需要 B′4 的 `sequence` 唯一排序键**（现在没有）。
+- `interrupts.list`：**需要 B′4 的 root-owned aggregate keyset**。
+
+**事实 2 —— `pageByCursor` 有 5 个调用点，跨 4 个域，不是计划设想的 2 个。**
+
+| 调用点 | 域 | delivery 现在做了什么 |
+|---|---|---|
+| `runs_query.go` ListRuns | runs | ~~过滤+排序~~（A′3 已下沉）+ 分页 |
+| `runs_query.go` ListOpenInterrupts | interrupts | 分页 |
+| `items.go` ListItems | items | 分页（+ 全量物化） |
+| `sessions.go` | sessions | 分页 |
+| `schedules.go` | schedules | 分页 |
+
+后两个的过滤/排序**已经在 application**，delivery 只剩分页。
+
+**由此得到的两种 A′4：**
+
+| | 范围 | 代价 | 结果 |
+|---|---|---|---|
+| **A′4-窄** | 只动 §4.2 点名的三个（runs / interrupts / items）的分页归属 | 小 | `pageByCursor` 仍留在 delivery 供 sessions / schedules 用 → **守卫 `TestDeliveryDoesNotImplementQuerySemantics` 落不了地** |
+| **A′4-全** | 分页机制移入 `component/`（域中立原语），**5 个调用点各自的 application coordinator 做分页**，delivery 一件不留 | 3 个 application 包 + 1 个新 component 包 + 5 个 handler + 新 sentinel（`queries` 不能返 `protocol.ErrInvalidParams`，需自己的错误由 delivery 映射） | 泄露 3 的**所有权**彻底清掉，守卫可落地；B′4 之后只是把内存分页换成 SQL keyset，**port 签名不变** |
+
+**我的建议：A′4-全。** 理由：port 签名在两种方案下都一样，B′4 换的只是实现；而 A′4-窄 会让守卫悬空，等于 A′ 的 DoD 交不齐。
+
+**无论哪种，这两件都必须留到后面**（不是妥协，是依赖）：
+- `items.list` 的全量物化 → **B′4**（要 `sequence` 索引）
+- cursor 换成契约要求的 opaque keyset token（`formatVersion + method + normalized filters + sort tuple` + 完整性保护）→ **C13**（cursor 格式是 client-visible，属原子切换）
+
+> 台账已把 A′4 标为 `TODO（待确认范围）`，不要在确认前按原文执行。
 
 > ✅ **A′2 的 wire 问题已在实施时查清（2026-07-28）**，结论比预设的更干净：
 >
