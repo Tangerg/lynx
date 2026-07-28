@@ -420,7 +420,7 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 | slice | scope | 状态 | commit |
 |---|---|---|---|
 | A′1 | 泄露 1 治本：Problem/Outcome detail **单一作者**。为 `RunLost / DeniedByUser / ToolFailed / Internal` 四个 kind 找回产生点并在那里写全；删 delivery 的 6 处默认文案（4 个 problem kind + 2 个 outcome kind）。领域无话可说的 → wire 省略字段 | `DONE` | `2a75bc6ae`（前端）+ `4571e91e9`（后端） |
-| A′2 | D6：`Retryable` 三处删除（`domain/execution/transcript` + `delivery/dispatch` spec 表 + wire/Artifact 映射），按 kind 直接决定 `retryAfterSeconds` | `TODO` | — |
+| A′2 | D6：`Retryable` 三处删除（`domain/execution/transcript` + `delivery/dispatch` spec 表 + wire/Artifact 映射），按 kind 直接决定 `retryAfterSeconds` | `DONE` | `0b7888f8c`（后端）+ `b3f3fb6b3`（前端） |
 | A′3 | 泄露 2 治本：`ListRuns` 改读 durable projection，删 live registry 读取与硬编码 status。**三态留给 C1** —— 本 slice 只做「单一真相源」 | `TODO` | — |
 | A′4 | 泄露 3 治本：过滤 / 排序 / keyset cursor 编解码下沉为 application query port（含 `items.list` 全量物化）；delivery 只传 opaque token | `TODO` | — |
 | A′5 | 同一泄露的相邻面（A′1 实施中发现）：`mcp_projection.go` / `providers.go` 由 domain enum 编造 5 句英文 detail。**enum→enum 映射留 delivery（本职），enum→人话移入 locale catalog**。⚠️ 与 A′1 不同，**有前端半部** —— 这两个面板走 `errorDetail()`，其 fallback 是裸 symbol | `DONE` | `98399fab6`（后端）+ `5d3b2f2a7`（前端） |
@@ -434,7 +434,15 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 
 **影响面**：`delivery/server`（presenter + runs_query + items）、`adapter/agentexec/turn`、`domain/execution/transcript`、`application` 新 query port。**wire 不变**（A′2 的 `retryable` 是 wire 字段 —— 它在 C10 才从 wire 消失，A′2 只断掉 domain 侧来源，wire 上恒为 false／省略）。
 
-> ⚠️ A′2 的 wire 影响需在实施时确认：若 `retryable` 在 A′ 后恒缺省，前端现有分支会失效。**若这构成可观察行为变化，则 A′2 的 wire 半部推迟到 C10**，A′ 只做 domain + dispatch 表。**实施前必须先查前端是否消费 `retryable`。**
+> ✅ **A′2 的 wire 问题已在实施时查清（2026-07-28）**，结论比预设的更干净：
+>
+> `retryable` 的 json tag 是 `omitempty`，**bool 的 `false` 会被省略** —— 所以 wire 上 `retryable` 从来只有"true 或缺席"两态。前端唯一的消费点 `RunErrorBanner` 写的是 `error?.retryable !== false`，**恒为真**：它注释里声明的"永久性错误（凭证错 / 参数错）不给 Retry"从上线起就没生效过。
+>
+> 因此：**wire 半部无可观察行为变化，不必推迟**；A′2 做了 domain + dispatch 表 + 三处映射删除。前端的 retry 门禁改为按 symbolic type 判断（`invalid_api_key` / `invalid_params` / `provider_rejected`），并从 `RunError` 删掉该字段 —— 旧写法因此**在类型上不可表达**，比加测试更强。
+>
+> ⚠️ **`ProblemData.Retryable` / `ArtifactProblem.Retryable` 两个 wire 字段仍声明着**（无 writer），按契约在 **C10 / C14** 随 `protocolVersion` / Artifact v7 一起删 —— 删 wire 字段属破坏性公开 API 改动，归 C 的原子切换。两处都留了注释**禁止**从 `Type` 反推它（那正是泄露 1 的形态）。
+>
+> 📌 **这是 `omitempty`-on-bool 的同一类 bug**（agent 模块那次是 `omitempty`-on-struct）：**字段的"缺席"与"负值"不可区分时，任何 `!== false` / `!= zero` 的门禁都是死的。** 扫其余 wire bool 时按这条查。
 
 **DoD**：
 - 三个泄露消失
