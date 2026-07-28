@@ -56,6 +56,15 @@ describe("reducer — run lifecycle", () => {
     s = reduce(s, runStarted("run_2", "ses_1"));
     expect(s.error).toBeNull();
   });
+
+  // A run that failed without a per-occurrence detail must leave `message`
+  // unset. Defaulting it to the symbol here would show "internal_error" as the
+  // explanation and leave the banner nothing to translate.
+  it("segment.finished{error} without a detail leaves the words to the banner", () => {
+    let s = reduce(INITIAL_VIEW_STATE, runStarted("run_1", "ses_1"));
+    s = reduce(s, runFinished({ type: "error", result: { error: { type: "internal_error" } } }));
+    expect(s.error).toEqual({ message: undefined, code: "internal_error" });
+  });
 });
 
 describe("reducer — item fold", () => {

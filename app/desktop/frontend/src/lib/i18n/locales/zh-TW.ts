@@ -875,6 +875,8 @@ export const zhTW: Record<string, string> = {
   "rpcError.provider_rejected": "模型供應方認為該請求無效並已拒絕。",
   "rpcError.provider_error": "模型供應方沒有回應 —— 請重試。",
   "rpcError.agent_stuck": "agent 不再有進展 —— 換個說法，或縮小任務範圍。",
+  "rpcError.internal_error": "執行階段內部出錯 —— 重試一次，若反覆出現請看診斷。",
+  "rpcError.run_lost": "這次執行的程序已消失 —— 它在結果寫入前就結束了。重新發起一次。",
   "rpcError.no_language_server": "該檔案類型沒有語言伺服器 —— 這裡無法使用程式碼智慧。",
   "rpcError.is_a_directory": "該路徑是資料夾 —— 請選一個檔案讀取。",
   "rpcError.file_too_large": "檔案太大，無法整體讀取 —— 請改為指定行區間。",

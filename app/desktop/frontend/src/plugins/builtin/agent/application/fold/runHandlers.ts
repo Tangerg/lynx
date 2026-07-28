@@ -127,8 +127,12 @@ export function onRunFinished(
   if (outcome.type === "error") {
     const errored: AgentViewState = {
       ...withRun,
+      // `message` is only what the runtime actually said about this occurrence.
+      // Falling back to the symbol here would put "internal_error" in front of
+      // the user and leave the banner nothing to translate — the symbol travels
+      // in `code`, and the banner turns it into this locale's words.
       error: {
-        message: result?.error?.detail ?? result?.error?.type,
+        message: result?.error?.detail,
         code: result?.error?.type,
         retryable: result?.error?.retryable,
         retryAfterSeconds: result?.error?.retryAfterSeconds,
@@ -137,7 +141,9 @@ export function onRunFinished(
     return appendTimelineEntry({
       kind: "run-error",
       status: "err",
-      summary: errored.error?.message,
+      // The timeline is a diagnostic log, so the symbol is the better label
+      // there when there's no per-occurrence detail to show.
+      summary: errored.error?.message ?? errored.error?.code,
     })(errored);
   }
   const detail = "detail" in outcome ? outcome.detail : undefined;

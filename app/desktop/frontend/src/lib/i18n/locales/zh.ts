@@ -876,6 +876,8 @@ export const zh: Record<string, string> = {
   "rpcError.provider_rejected": "模型提供方认为该请求无效并已拒绝。",
   "rpcError.provider_error": "模型提供方没有响应 —— 请重试。",
   "rpcError.agent_stuck": "agent 不再有进展 —— 换个说法，或缩小任务范围。",
+  "rpcError.internal_error": "运行时内部出错 —— 重试一次，若反复出现请看诊断。",
+  "rpcError.run_lost": "这次运行的进程已消失 —— 它在结果落库前就结束了。重新发起一次。",
   "rpcError.no_language_server": "该文件类型没有语言服务器 —— 这里用不了代码智能。",
   "rpcError.is_a_directory": "该路径是目录 —— 请选一个文件读。",
   "rpcError.file_too_large": "文件太大，无法整体读取 —— 请改为指定行区间。",

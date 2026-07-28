@@ -911,6 +911,10 @@ export const fr: Record<string, string> = {
   "rpcError.provider_rejected": "Le fournisseur de modèle a rejeté la requête comme invalide.",
   "rpcError.provider_error": "Le fournisseur de modèle n'a pas répondu — réessaie.",
   "rpcError.agent_stuck": "L'agent n'avance plus — reformule ou restreins la tâche.",
+  "rpcError.internal_error":
+    "Quelque chose a cassé dans le runtime — réessaie, et regarde les diagnostics si ça persiste.",
+  "rpcError.run_lost":
+    "Le processus de ce run a disparu — il s'est terminé avant qu'un résultat soit enregistré. Relance-le.",
   "rpcError.no_language_server":
     "Aucun serveur de langage pour ce type de fichier — l'intelligence de code n'est pas disponible ici.",
   "rpcError.is_a_directory": "Ce chemin est un répertoire — choisis un fichier à lire.",

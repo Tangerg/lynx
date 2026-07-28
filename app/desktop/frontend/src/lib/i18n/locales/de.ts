@@ -912,6 +912,10 @@ export const de: Record<string, string> = {
   "rpcError.provider_error": "Der Modellanbieter hat nicht geantwortet — versuche es erneut.",
   "rpcError.agent_stuck":
     "Der Agent kommt nicht weiter — formuliere um oder grenze die Aufgabe ein.",
+  "rpcError.internal_error":
+    "In der Runtime ist etwas schiefgelaufen — versuche es erneut und sieh in die Diagnose, falls es bleibt.",
+  "rpcError.run_lost":
+    "Der Prozess dieses Runs ist weg — er endete, bevor ein Ergebnis gespeichert wurde. Starte ihn neu.",
   "rpcError.no_language_server":
     "Kein Language-Server für diesen Dateityp — Code-Intelligenz ist hier nicht verfügbar.",
   "rpcError.is_a_directory": "Dieser Pfad ist ein Verzeichnis — wähle eine Datei zum Lesen.",

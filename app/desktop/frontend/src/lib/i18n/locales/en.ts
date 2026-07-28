@@ -941,6 +941,10 @@ export const en: Record<string, string> = {
   "rpcError.provider_error": "The model provider didn't respond — try again.",
   "rpcError.agent_stuck":
     "The agent stopped making progress — try rephrasing or narrowing the task.",
+  "rpcError.internal_error":
+    "Something broke inside the runtime — retry, and check diagnostics if it keeps happening.",
+  "rpcError.run_lost":
+    "The run's process is gone — it ended before a result was saved. Start it again.",
   "rpcError.no_language_server":
     "No language server for this file type — code intelligence isn't available here.",
   "rpcError.is_a_directory": "That path is a directory — pick a file to read.",

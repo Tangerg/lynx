@@ -17,6 +17,7 @@ import {
 import { clearActiveRunError, useActiveRunError } from "@/plugins/builtin/agent/public/run";
 import { useT } from "@/lib/i18n";
 import { swift } from "@/lib/motion";
+import { describeErrorType } from "@/lib/rpcErrors";
 import {
   openDiagnosticsView,
   openTimelineView,
@@ -35,6 +36,13 @@ function findLastUserText(): string {
 //
 // The reducer parks the error message on `state.error` until the next
 // RUN_STARTED clears it, or until the user dismisses it explicitly.
+//
+// This is where the words come from when the runtime had none: `message` is
+// only the per-occurrence detail the runtime actually reported, so a failure it
+// classified but couldn't elaborate on (an internal error must not put its
+// internals on the wire) falls through to this locale's copy for the symbol.
+// The runtime deliberately does not supply that sentence — it would be one
+// locale's copy authored where no translator can see it.
 // Sits above the message stream so a render error inside MessageStream
 // doesn't take the error notice down with it. Tinted with --color-negative
 // so it reads as a stoppable problem, not a passing notice.
@@ -100,7 +108,7 @@ export function RunErrorBanner() {
               {error.code ? ` · ${error.code}` : ""}
             </div>
             <div className="text-ui-lg text-fg-soft whitespace-pre-wrap break-words">
-              {error.message ?? t("runError.unknown")}
+              {error.message ?? describeErrorType(error.code) ?? t("runError.unknown")}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               {canRetry && (

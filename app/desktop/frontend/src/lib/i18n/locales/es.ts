@@ -908,6 +908,10 @@ export const es: Record<string, string> = {
   "rpcError.provider_rejected": "El proveedor del modelo rechazó la petición por inválida.",
   "rpcError.provider_error": "El proveedor del modelo no respondió — inténtalo de nuevo.",
   "rpcError.agent_stuck": "El agente dejó de avanzar — reformula o acota la tarea.",
+  "rpcError.internal_error":
+    "Algo falló dentro del runtime — reintenta y revisa los diagnósticos si se repite.",
+  "rpcError.run_lost":
+    "El proceso de esta ejecución desapareció — terminó antes de guardar un resultado. Vuelve a lanzarla.",
   "rpcError.no_language_server":
     "No hay servidor de lenguaje para este tipo de archivo — aquí no hay inteligencia de código.",
   "rpcError.is_a_directory": "Esa ruta es un directorio — elige un archivo para leer.",

@@ -28,6 +28,11 @@ const MAPPED_TYPES: readonly string[] = [
   "provider_rejected",
   "provider_error",
   "agent_stuck",
+  // Run terminals that carry no per-occurrence detail: the runtime classified
+  // the failure but has nothing case-specific to add (an internal error must not
+  // put its internals on the wire), so the words are ours to supply.
+  "internal_error",
+  "run_lost",
   // 613 — B7 code intel / B8 file read / B12 MCP auth (all expected, UI-inline).
   "no_language_server",
   "is_a_directory",
@@ -35,12 +40,17 @@ const MAPPED_TYPES: readonly string[] = [
   "mcp_auth_failed",
 ];
 
+/** Friendly copy for a mapped protocol error type; undefined for an unmapped
+ *  one. Callers append their own context-specific fallback. */
+export function describeErrorType(type: string | undefined): string | undefined {
+  return type && MAPPED_TYPES.includes(type) ? t(`rpcError.${type}`) : undefined;
+}
+
 /** Friendly copy for a mapped protocol error type; undefined otherwise.
  *  Callers append their own context-specific fallback. */
 export function describeRpcError(err: unknown): string | undefined {
   if (!(err instanceof RpcError)) return undefined;
-  const type = errorType(err.data);
-  return type && MAPPED_TYPES.includes(type) ? t(`rpcError.${type}`) : undefined;
+  return describeErrorType(errorType(err.data));
 }
 
 /** Best human-readable text for any RPC error: mapped copy, then the
