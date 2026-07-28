@@ -221,9 +221,9 @@ core: type AgentDescriptor struct { }
 core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
-core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() (Blackboard, error) ClearWorkingState() }
+core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() (Blackboard, error) ClearWorkingState() error }
 core: type BlackboardReader interface { ID() string Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) Inspect(verbose bool) string }
-core: type BlackboardWriter interface { Store(key string, value any) error Add(value any) error Bind(value any) error StoreAll(bindings Bindings) error Hide(target any) error StoreCondition(key string, value bool) }
+core: type BlackboardWriter interface { Store(key string, value any) error Add(value any) error Bind(value any) error StoreAll(bindings Bindings) error Hide(target any) error StoreCondition(key string, value bool) error }
 core: type Budget struct { CostLimit float64 ActionLimit int ModelCallLimit int TokenLimit int64 }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
 core: type ChatMiddleware struct { CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware }

@@ -78,7 +78,9 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 	// the just-produced value survives. Used for state-machine transitions and
 	// looping flows that want a clean slate on success.
 	if a.metadata.ClearWorkingState {
-		process.blackboard.ClearWorkingState()
+		if err := process.blackboard.ClearWorkingState(); err != nil {
+			return ActionFailed, fmt.Errorf("agent.Action.Execute: action %q clear working state: %w", a.metadata.Name, err)
+		}
 	}
 
 	if err := a.writeOutput(process.blackboard, output); err != nil {

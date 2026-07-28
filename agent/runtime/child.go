@@ -216,6 +216,8 @@ func cleanBlackboard(parent core.Blackboard) (blackboard core.Blackboard, err er
 			err = panicerr.New(fmt.Sprintf("blackboard %q ClearWorkingState panicked", name), recovered)
 		}
 	}()
-	blackboard.ClearWorkingState()
+	if err := blackboard.ClearWorkingState(); err != nil {
+		return nil, fmt.Errorf("blackboard %q ClearWorkingState: %w", name, err)
+	}
 	return blackboard, nil
 }

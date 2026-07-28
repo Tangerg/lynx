@@ -205,11 +205,12 @@ func (b *inMemoryBlackboard) Hide(target any) error {
 	return nil
 }
 
-func (b *inMemoryBlackboard) StoreCondition(key string, value bool) {
+func (b *inMemoryBlackboard) StoreCondition(key string, value bool) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.conditions[key] = value
+	return nil
 }
 
 func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
@@ -248,7 +249,7 @@ func (b *inMemoryBlackboard) Clone() (core.Blackboard, error) {
 }
 
 // ClearWorkingState removes all planner/action working state.
-func (b *inMemoryBlackboard) ClearWorkingState() {
+func (b *inMemoryBlackboard) ClearWorkingState() error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -256,6 +257,7 @@ func (b *inMemoryBlackboard) ClearWorkingState() {
 	b.objects = b.objects[:0]
 	b.hidden = b.hidden[:0]
 	clear(b.conditions)
+	return nil
 }
 
 // Lookup resolves typed lookups:

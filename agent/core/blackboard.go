@@ -78,8 +78,10 @@ type BlackboardWriter interface {
 
 	// StoreCondition records boolean state that is NOT derived from object
 	// presence (e.g. "user_authenticated"). The planner consults these
-	// alongside type bindings.
-	StoreCondition(key string, value bool)
+	// alongside type bindings. It reports a failure to commit the write for the
+	// same reason the value writers do: a blackboard backed by anything other
+	// than memory has one, and its only alternative would be to panic.
+	StoreCondition(key string, value bool) error
 }
 
 // Blackboard is the shared, typed memory all actions read from and write
@@ -119,8 +121,10 @@ type Blackboard interface {
 	Clone() (Blackboard, error)
 
 	// ClearWorkingState removes bindings, objects, conditions, and hidden
-	// markers.
-	ClearWorkingState()
+	// markers. It reports a failure to commit that removal, so a caller that
+	// clears before binding an output does not write the output over state it
+	// only assumes is gone.
+	ClearWorkingState() error
 }
 
 // Get is the typed form of [BlackboardReader.Lookup]. It is a top-level
