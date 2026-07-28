@@ -24,15 +24,12 @@ type History[T any] struct {
 	attempts []T
 }
 
-func newHistory[T any](attempts []T) *History[T] {
-	return &History[T]{attempts: slices.Clone(attempts)}
+func newHistory[T any](attempts []T) History[T] {
+	return History[T]{attempts: slices.Clone(attempts)}
 }
 
 // Attempts returns an ownership-isolated snapshot in execution order.
-func (h *History[T]) Attempts() []T {
-	if h == nil {
-		return nil
-	}
+func (h History[T]) Attempts() []T {
 	return slices.Clone(h.attempts)
 }
 
@@ -57,27 +54,19 @@ func (h *History[T]) UnmarshalJSON(data []byte) error {
 }
 
 // Last returns the most recent attempt.
-func (h *History[T]) Last() (T, bool) {
-	if h == nil || len(h.attempts) == 0 {
+func (h History[T]) Last() (T, bool) {
+	if len(h.attempts) == 0 {
 		var zero T
 		return zero, false
 	}
 	return h.attempts[len(h.attempts)-1], true
 }
 
-// Count reports the number of recorded attempts. It is nil-safe.
-func (h *History[T]) Count() int {
-	if h == nil {
-		return 0
-	}
-	return len(h.attempts)
-}
+// Count reports the number of recorded attempts.
+func (h History[T]) Count() int { return len(h.attempts) }
 
-func (h *History[T]) record(attempt T) {
-	if h == nil {
-		return
-	}
-	h.attempts = append(h.attempts, attempt)
+func (h History[T]) withAttempt(attempt T) History[T] {
+	return History[T]{attempts: append(slices.Clone(h.attempts), attempt)}
 }
 
 // Feedback is a scored, human-readable acceptance signal. Score is in [0, 1].
@@ -109,10 +98,7 @@ type AttemptHistory[Out any] struct {
 }
 
 // Attempts returns an ownership-isolated snapshot in execution order.
-func (h *AttemptHistory[Out]) Attempts() []Attempt[Out] {
-	if h == nil {
-		return nil
-	}
+func (h AttemptHistory[Out]) Attempts() []Attempt[Out] {
 	return slices.Clone(h.attempts)
 }
 
@@ -136,24 +122,18 @@ func (h *AttemptHistory[Out]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (h *AttemptHistory[Out]) record(output Out, feedback Feedback) {
-	if h == nil {
-		return
+func (h AttemptHistory[Out]) withAttempt(output Out, feedback Feedback) AttemptHistory[Out] {
+	return AttemptHistory[Out]{
+		attempts: append(slices.Clone(h.attempts), Attempt[Out]{Output: output, Feedback: feedback}),
 	}
-	h.attempts = append(h.attempts, Attempt[Out]{Output: output, Feedback: feedback})
 }
 
-// Count reports the number of recorded attempts. It is nil-safe.
-func (h *AttemptHistory[Out]) Count() int {
-	if h == nil {
-		return 0
-	}
-	return len(h.attempts)
-}
+// Count reports the number of recorded attempts.
+func (h AttemptHistory[Out]) Count() int { return len(h.attempts) }
 
 // Last returns the most recent attempt.
-func (h *AttemptHistory[Out]) Last() (Attempt[Out], bool) {
-	if h == nil || len(h.attempts) == 0 {
+func (h AttemptHistory[Out]) Last() (Attempt[Out], bool) {
+	if len(h.attempts) == 0 {
 		var zero Attempt[Out]
 		return zero, false
 	}
@@ -161,8 +141,8 @@ func (h *AttemptHistory[Out]) Last() (Attempt[Out], bool) {
 }
 
 // Best returns the highest-scoring attempt. Ties keep the earliest attempt.
-func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool) {
-	if h == nil || len(h.attempts) == 0 {
+func (h AttemptHistory[Out]) Best() (Attempt[Out], bool) {
+	if len(h.attempts) == 0 {
 		var zero Attempt[Out]
 		return zero, false
 	}
@@ -175,10 +155,7 @@ func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool) {
 	return best, true
 }
 
-func (h *AttemptHistory[Out]) outputs() []Out {
-	if h == nil {
-		return nil
-	}
+func (h AttemptHistory[Out]) outputs() []Out {
 	outputs := make([]Out, len(h.attempts))
 	for index, attempt := range h.attempts {
 		outputs[index] = attempt.Output

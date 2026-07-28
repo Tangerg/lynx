@@ -18,7 +18,9 @@ import (
 type BlackboardReader interface {
 	ID() string
 
-	// Load returns whatever is stored at key (by name only).
+	// Load returns an ownership-isolated copy of the value stored at key.
+	// Mutating the returned value never changes blackboard state; callers commit
+	// changes by storing a replacement.
 	Load(key string) (any, bool)
 
 	// Lookup returns the value bound to (variable, typeName). When
@@ -32,7 +34,7 @@ type BlackboardReader interface {
 	// Lookup returning ok.
 	HasValue(variable, typeName string) bool
 
-	// Objects returns a snapshot in insertion order.
+	// Objects returns ownership-isolated values in insertion order.
 	Objects() []any
 
 	// Condition reads boolean state set via [BlackboardWriter.StoreCondition].
@@ -46,37 +48,27 @@ type BlackboardReader interface {
 // BlackboardWriter is the mutation slice of [Blackboard].
 type BlackboardWriter interface {
 	// Store saves by name and appends to the ordered objects list, making the
-	// value reachable both by name and by latest-of-type lookup.
-	Store(key string, value any)
-
-	// StoreTransient stores a runtime-only named value. It participates in live
-	// lookups but is excluded from process snapshots and restored processes.
-	StoreTransient(key string, value any)
+	// value reachable both by name and by latest-of-type lookup. The blackboard
+	// takes ownership of a serialized copy and returns an error when value
+	// cannot satisfy the portable state contract.
+	Store(key string, value any) error
 
 	// Add appends without binding to a name. Used when an action wants
 	// to record an artifact without claiming the canonical "it" slot.
-	Add(value any)
-
-	// AddTransient appends a runtime-only artifact.
-	AddTransient(value any)
+	Add(value any) error
 
 	// Bind stores under "it" AND derives a second key from the value's type
 	// (e.g. UserInput → "user_input"). Dual-binding so YAML/prompt actions
 	// can reference inputs by type-derived names without coupling to the
 	// actual variable name.
-	Bind(value any)
-
-	// BindTransient applies Bind's lookup semantics without making the value
-	// snapshot-compatible. Use it for handles, clients, channels, and other
-	// runtime-only state.
-	BindTransient(value any)
+	Bind(value any) error
 
 	// StoreAll stores each binding — convenience for seeding.
-	StoreAll(bindings Bindings)
+	StoreAll(bindings Bindings) error
 
 	// Hide marks an object as not-discoverable via Lookup, without removing
 	// it from the historical record (Objects() still returns it).
-	Hide(target any)
+	Hide(target any) error
 
 	// StoreCondition records boolean state that is NOT derived from object
 	// presence (e.g. "user_authenticated"). The planner consults these
@@ -96,19 +88,21 @@ type BlackboardWriter interface {
 // engine-scoped only; [ProcessOptions.Blackboard] is the explicit per-process
 // override.
 //
+// Values are portable immutable snapshots: implementations take ownership on
+// write and return ownership-isolated copies on read. Runtime handles and other
+// non-portable capabilities belong in [Dependencies], not planner state.
+//
 // Implementations MUST be safe for concurrent use by host code. Framework
-// workflow fan-out does not share writes: every branch receives Clone() state
-// and its mutations are discarded before deterministic result join.
+// workflow fan-out does not share values or writes: every branch receives
+// Clone state and its mutations are discarded before deterministic result join.
 type Blackboard interface {
 	Extension
 	BlackboardReader
 	BlackboardWriter
 
-	// Clone returns an independent copy of the current state.
-	// Mutations on the child do not propagate back. Used by sub-agents
-	// and (since the prototype pattern replaced BlackboardFactory) to
-	// produce the per-process Blackboard at process start.
-	Clone() Blackboard
+	// Clone returns an ownership-isolated copy of the current state.
+	// Used by sub-agents, parallel action branches, and engine prototypes.
+	Clone() (Blackboard, error)
 
 	// ClearWorkingState removes bindings, objects, conditions, and hidden
 	// markers.

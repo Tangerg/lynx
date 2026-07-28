@@ -195,22 +195,22 @@ interface Blackboard : Bindable, MayHaveLastResult {
 // BlackboardWorldStateDeterminer:逻辑条件走 SpEL LogicalExpressionParser,name:Type 走类型绑定,hasRun_* 走标志
 ```
 
-**lynx**:**reader / writer 结构化分离**,transient 变体,Blackboard 本身是 Extension(prototype),泛型顶层函数,**无 SpEL**。
+**lynx**:**reader / writer 结构化分离**,portable value ownership,Blackboard 本身是 Extension(prototype),泛型顶层函数,**无 SpEL**。
 
 ```go
 // agent/core
 type BlackboardReader interface { ID() string; Load(key)(any,bool); Lookup(var,typeName)(any,bool); HasValue(...); Objects()[]any; Condition(key)(bool,bool); Inspect(verbose) string }
-type BlackboardWriter interface { Store; StoreTransient; Add; AddTransient; Bind; BindTransient; Hide; StoreCondition; ... }
-type Blackboard interface { Extension; BlackboardReader; BlackboardWriter; Clone() Blackboard; ClearWorkingState() }
+type BlackboardWriter interface { Store(...) error; Add(...) error; Bind(...) error; StoreAll(...) error; Hide(...) error; StoreCondition(...); ... }
+type Blackboard interface { Extension; BlackboardReader; BlackboardWriter; Clone() (Blackboard, error); ClearWorkingState() }
 func Get[T any](bb BlackboardReader, name string) (T, bool)   // 顶层泛型(Go 方法不能带类型参数)
 ```
 
 **取舍与理由**:
 
 - **reader/writer 分离是结构性 ISP**。`ConditionEnv.Blackboard` 只给 `BlackboardReader` —— 编译器保证 condition 在 OBSERVE 阶段**不能 mutate** 状态。Embabel 的 condition 拿到的是完整 `Blackboard`,约束靠约定。
-- **transient 变体(`StoreTransient`/`BindTransient`/`AddTransient`)**:参与实时 lookup 但**排除出 process snapshot**——给 handle/client/channel 等运行时状态用。Embabel 无此区分(它靠 `AgentProcessRepository` 整体持久化)。这是 lynx continuation snapshot 的基础(见 §9)。
+- **portable value ownership**:写入先取得带精确 Go 类型的 JSON 快照，读取返回独立重建值，`Clone` 复制 owned snapshot；因此 caller、observer、child 和并行 branch 都不能通过共享指针改写同一状态。不可 portable 的 handle/client/channel 属于 `Dependencies`，不是 Blackboard 数据。
 - **无 SpEL / 无表达式语言**。Embabel 用 SpEL(`LogicalExpressionParser`)做逻辑条件求值。lynx 的 condition 是 **Go 函数**(`ConditionFunc`)或 `PromptCondition`(LLM 驱动)—— 不引入嵌入式表达式语言(KISS + 无隐藏求值面)。逻辑组合是 `And/Or/Not` composite condition,纯 Go。
-- **Blackboard 是 Extension + prototype 模式**:注册一个,运行时用 `Clone()` 给每个进程一份隔离实例。Embabel 用 `spawn()`。语义近似,但 lynx 用 Extension 注册统一入口。
+- **Blackboard 是 Extension + prototype 模式**:注册一个,运行时用 `Clone()` 给每个进程一份隔离实例；Clone 失败显式返回 error。Embabel 用 `spawn()`。语义近似,但 lynx 用 Extension 注册统一入口。
 - **`ClearWorkingState()` 清空全部 planner/action 工作状态**。宿主的 session、cwd、isolation、lease 等请求上下文通过 Go `context.Context` 传播，不借 Blackboard 偷渡，也不进入 Agent snapshot。Embabel 的 `bindProtected` 在 lynx 中没有对应能力。
 
 ---

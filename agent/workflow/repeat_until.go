@@ -37,12 +37,12 @@ type RepeatUntilConfig[In, Out any] struct {
 	// Task is the per-iteration body. It receives the loop input In,
 	// the running history (so it can inspect prior attempts), and
 	// returns the next attempt. Required.
-	Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error)
+	Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error)
 
 	// Accept inspects the latest attempt and returns true to stop
 	// the loop. Receives the loop input, the latest Out, and the
 	// full history (latest is also history.Last()). Required.
-	Accept func(ctx context.Context, input In, latest Out, history *History[Out]) bool
+	Accept func(ctx context.Context, input In, latest Out, history History[Out]) bool
 }
 
 // RepeatUntil compiles config into a deployable [*core.Agent].
@@ -56,9 +56,8 @@ type RepeatUntilConfig[In, Out any] struct {
 // MaxIterations cap forces the condition to true regardless once
 // reached, so a never-accepting Accept can't loop forever.
 //
-// History is bound on the blackboard at first iteration and
-// mutated (via its record method) on each subsequent run, so
-// user-supplied Task / Accept callbacks always see the running record.
+// History is replaced on the blackboard after each iteration, so user-supplied
+// Task / Accept callbacks see an immutable snapshot of the running record.
 //
 // Returns an error on missing Name, nil Task, or nil Accept.
 func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
@@ -80,27 +79,26 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	}
 
 	acceptKey := config.Name + "_acceptable"
-	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
+	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
 
-	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, History[Out]]{
 		name:          config.Name,
 		description:   config.Description,
 		actionName:    config.Name + "-task",
 		doneKey:       acceptKey,
 		maxIterations: maxIterations,
 		stateBinding:  historyState,
-		newState:      func() *History[Out] { return &History[Out]{} },
-		count:         (*History[Out]).Count,
-		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
+		newState:      func() History[Out] { return History[Out]{} },
+		count:         History[Out].Count,
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, History[Out], error) {
 			output, err := config.Task(ctx, process, input, history)
 			if err != nil {
 				var zero Out
-				return zero, err
+				return zero, history, err
 			}
-			history.record(output)
-			return output, nil
+			return output, history.withAttempt(output), nil
 		},
-		stop: func(ctx context.Context, input In, history *History[Out]) bool {
+		stop: func(ctx context.Context, input In, history History[Out]) bool {
 			last, ok := history.Last()
 			return ok && config.Accept(ctx, input, last, history)
 		},

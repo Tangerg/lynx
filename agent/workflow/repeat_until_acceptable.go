@@ -48,7 +48,7 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// [RepeatUntilConfig.Task] — receives loop input, current
 	// history (so the body can "revise based on prior feedback"),
 	// and returns the next Out.
-	Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error)
+	Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error)
 
 	// Evaluator scores the latest Out. The returned Feedback is
 	// also bound on the blackboard (Bind) so subsequent Task calls
@@ -96,42 +96,44 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	}
 
 	acceptKey := config.Name + "_acceptable"
-	historyState := core.NewBinding[*AttemptHistory[Out]](config.Name + historyStateSuffix)
+	historyState := core.NewBinding[AttemptHistory[Out]](config.Name + historyStateSuffix)
 	feedbackState := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
 
-	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *AttemptHistory[Out]]{
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, AttemptHistory[Out]]{
 		name:          config.Name,
 		description:   config.Description,
 		actionName:    config.Name + "-task",
 		doneKey:       acceptKey,
 		maxIterations: maxIterations,
 		stateBinding:  historyState,
-		newState:      func() *AttemptHistory[Out] { return &AttemptHistory[Out]{} },
-		count:         (*AttemptHistory[Out]).Count,
+		newState:      func() AttemptHistory[Out] { return AttemptHistory[Out]{} },
+		count:         AttemptHistory[Out].Count,
 		snapshotState: []core.Binding{feedbackState},
-		run: func(ctx context.Context, process *core.ProcessContext, input In, history *AttemptHistory[Out]) (Out, error) {
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history AttemptHistory[Out]) (Out, AttemptHistory[Out], error) {
 			var zero Out
 
 			// The task sees prior outputs so it can revise.
 			output, err := config.Task(ctx, process, input, newHistory(history.outputs()))
 			if err != nil {
-				return zero, err
+				return zero, history, err
 			}
 
 			feedback, err := config.Evaluator(ctx, process, input, output)
 			if err != nil {
-				return zero, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluate attempt: %w", err)
+				return zero, history, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluate attempt: %w", err)
 			}
 			if err := feedback.Validate(); err != nil {
-				return zero, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluator feedback: %w", err)
+				return zero, history, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluator feedback: %w", err)
 			}
-			history.record(output, feedback)
-			process.Blackboard().Store(feedbackState.Name, feedback)
+			history = history.withAttempt(output, feedback)
+			if err := process.Blackboard().Store(feedbackState.Name, feedback); err != nil {
+				return zero, history, fmt.Errorf("workflow.RepeatUntilAcceptable: store feedback: %w", err)
+			}
 
 			best, _ := history.Best()
-			return best.Output, nil
+			return best.Output, history, nil
 		},
-		stop: func(_ context.Context, _ In, history *AttemptHistory[Out]) bool {
+		stop: func(_ context.Context, _ In, history AttemptHistory[Out]) bool {
 			best, ok := history.Best()
 			return ok && best.Feedback.Acceptable(threshold)
 		},

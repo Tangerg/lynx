@@ -143,7 +143,7 @@ func TestLoop_SnapshotTreePreservesWorkflowState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	history, ok := core.Result[*workflow.History[loopOut]](restored)
+	history, ok := core.Result[workflow.History[loopOut]](restored)
 	if !ok || history.Count() != 2 {
 		t.Fatalf("restored history count=%d ok=%v, want 2", history.Count(), ok)
 	}

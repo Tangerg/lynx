@@ -7,6 +7,7 @@ import (
 )
 
 type item struct{ Value string }
+type mutableItem struct{ Values []string }
 
 func TestInMemoryBlackboardLatestByType(t *testing.T) {
 	bb := newInMemoryBlackboard()
@@ -40,7 +41,10 @@ func TestInMemoryBlackboardSpawnInheritsHidden(t *testing.T) {
 	if v, ok := parent.Lookup(core.LastResultBindingName, ""); !ok || v.(item).Value != "fresh" {
 		t.Fatalf("parent visible-latest = %v, want fresh (stale is hidden)", v)
 	}
-	child := parent.Clone()
+	child, err := parent.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if v, ok := child.Lookup(core.LastResultBindingName, ""); !ok || v.(item).Value != "fresh" {
 		t.Fatalf("child visible-latest = %v, want fresh — Clone must propagate the hidden marker (else stale resurfaces)", v)
 	}
@@ -50,7 +54,10 @@ func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
 	parent := newInMemoryBlackboard()
 	parent.Bind(item{Value: "shared"})
 
-	child := parent.Clone()
+	child, err := parent.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, ok := core.Last[item](child)
 	if !ok || got.Value != "shared" {
 		t.Fatalf("child should inherit parent item; got %v", got)
@@ -63,6 +70,56 @@ func TestInMemoryBlackboardSpawnInherits(t *testing.T) {
 	parentLatest, _ := core.Last[item](parent)
 	if parentLatest.Value != "shared" {
 		t.Fatalf("parent leaked from child mutation: %q", parentLatest.Value)
+	}
+}
+
+func TestInMemoryBlackboardOwnsStoredAndReturnedValues(t *testing.T) {
+	original := &mutableItem{Values: []string{"original"}}
+	blackboard := newInMemoryBlackboard()
+	if err := blackboard.Bind(original); err != nil {
+		t.Fatal(err)
+	}
+
+	original.Values[0] = "producer mutation"
+	first, ok := core.Last[*mutableItem](blackboard)
+	if !ok || first.Values[0] != "original" {
+		t.Fatalf("stored value = %#v, %v; want owned original", first, ok)
+	}
+
+	first.Values[0] = "reader mutation"
+	second, ok := core.Last[*mutableItem](blackboard)
+	if !ok || second.Values[0] != "original" {
+		t.Fatalf("second read = %#v, %v; reader mutated blackboard state", second, ok)
+	}
+
+	clone, err := blackboard.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cloned, ok := core.Last[*mutableItem](clone)
+	if !ok {
+		t.Fatal("clone lost mutable item")
+	}
+	cloned.Values[0] = "clone mutation"
+	if got, _ := core.Last[*mutableItem](blackboard); got.Values[0] != "original" {
+		t.Fatalf("clone mutated parent state: %#v", got)
+	}
+}
+
+func TestInMemoryBlackboardRejectsNonPortableStateAtomically(t *testing.T) {
+	blackboard := newInMemoryBlackboard()
+	if err := blackboard.Bind(func() {}); err == nil {
+		t.Fatal("Bind accepted a function")
+	}
+
+	var bindings core.Bindings
+	bindings.Set("valid", item{Value: "valid"})
+	bindings.Set("invalid", make(chan struct{}))
+	if err := blackboard.StoreAll(bindings); err == nil {
+		t.Fatal("StoreAll accepted a channel")
+	}
+	if _, ok := blackboard.Load("valid"); ok {
+		t.Fatal("StoreAll partially committed before rejecting invalid state")
 	}
 }
 

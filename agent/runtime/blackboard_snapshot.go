@@ -3,7 +3,6 @@ package runtime
 import (
 	"fmt"
 	"maps"
-	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
@@ -66,25 +65,32 @@ func restoreBlackboard(blackboard core.Blackboard, state BlackboardState) (err e
 }
 
 // Snapshot implements [BlackboardSnapshotter]. Hide markers are deliberately
-// omitted because they are a transient view filter with no portable wire form.
+// omitted because they are a process-local view filter with no portable wire
+// form.
 func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-	var bindings core.Bindings
-	for key, value := range b.named.All() {
-		if _, transient := b.transientNamed[key]; !transient {
-			bindings.Set(key, value)
-		}
+	named := make(map[string]storedBlackboardValue, len(b.named))
+	for key, value := range b.named {
+		named[key] = value.clone()
 	}
-	objects := make([]any, 0, len(b.objects))
-	for i, value := range b.objects {
-		if i < len(b.snapshotObjects) && b.snapshotObjects[i] {
-			objects = append(objects, value)
-		}
+	storedObjects := make([]storedBlackboardValue, len(b.objects))
+	for index, value := range b.objects {
+		storedObjects[index] = value.clone()
+	}
+	conditions := maps.Clone(b.conditions)
+	b.mu.RUnlock()
+
+	var bindings core.Bindings
+	for key, value := range named {
+		bindings.Set(key, value.mustValue())
+	}
+	objects := make([]any, len(storedObjects))
+	for index, value := range storedObjects {
+		objects[index] = value.mustValue()
 	}
 	return BlackboardState{
 		Bindings:   bindings,
-		Conditions: maps.Clone(b.conditions),
+		Conditions: conditions,
 		Objects:    objects,
 	}, nil
 }
@@ -92,21 +98,30 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 // Restore implements [BlackboardRestorer]. Existing bindings are cleared first;
 // hidden markers are reset because they have no portable wire form.
 func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
+	named := make(map[string]storedBlackboardValue, state.Bindings.Len())
+	for key, value := range state.Bindings.All() {
+		stored, err := storeBlackboardValue(value)
+		if err != nil {
+			return fmt.Errorf("restore blackboard[%q]: %w", key, err)
+		}
+		named[key] = stored
+	}
+	objects := make([]storedBlackboardValue, len(state.Objects))
+	for index, value := range state.Objects {
+		stored, err := storeBlackboardValue(value)
+		if err != nil {
+			return fmt.Errorf("restore objects[%d]: %w", index, err)
+		}
+		objects[index] = stored
+	}
+
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named = core.Bindings{}
-	for key, value := range state.Bindings.All() {
-		b.named.Set(key, value)
-	}
-	clear(b.transientNamed)
+	b.named = named
 	clear(b.conditions)
 	maps.Copy(b.conditions, state.Conditions)
-	b.objects = slices.Clone(state.Objects)
-	b.snapshotObjects = make([]bool, len(state.Objects))
-	for i := range b.snapshotObjects {
-		b.snapshotObjects[i] = true
-	}
+	b.objects = objects
 	b.hidden = b.hidden[:0]
 	return nil
 }

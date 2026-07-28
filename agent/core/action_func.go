@@ -81,7 +81,9 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 		process.blackboard.ClearWorkingState()
 	}
 
-	a.writeOutput(process.blackboard, output)
+	if err := a.writeOutput(process.blackboard, output); err != nil {
+		return ActionFailed, fmt.Errorf("agent.Action.Execute: action %q store output: %w", a.metadata.Name, err)
+	}
 	return ActionSucceeded, nil
 }
 
@@ -115,18 +117,16 @@ func (a *FuncAction[In, Out]) loadInput(blackboard Blackboard) (In, error) {
 // writeOutput stores the produced value on the blackboard. The first declared
 // output binding is the canonical name; Bind() is used so the dual-binding
 // behavior (default name + type-derived name) kicks in.
-func (a *FuncAction[In, Out]) writeOutput(blackboard Blackboard, output Out) {
+func (a *FuncAction[In, Out]) writeOutput(blackboard Blackboard, output Out) error {
 	if len(a.metadata.Outputs) == 0 {
-		blackboard.Bind(output)
-		return
+		return blackboard.Bind(output)
 	}
 
 	binding := a.metadata.Outputs[0]
 	if binding.IsDefault() {
-		blackboard.Bind(output)
-		return
+		return blackboard.Bind(output)
 	}
-	blackboard.Store(binding.Name, output)
+	return blackboard.Store(binding.Name, output)
 }
 
 // NewAction constructs a typed function-backed action. The framework derives

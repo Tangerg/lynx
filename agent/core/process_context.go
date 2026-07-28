@@ -183,7 +183,10 @@ func cloneBranchBlackboard(blackboard Blackboard) (clone Blackboard, err error) 
 			err = panicerr.New(fmt.Sprintf("blackboard %T Clone panicked", blackboard), recovered)
 		}
 	}()
-	clone = blackboard.Clone()
+	clone, err = blackboard.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("blackboard %T Clone: %w", blackboard, err)
+	}
 	if valueIsNil(clone) {
 		return nil, fmt.Errorf("blackboard %T Clone returned nil", blackboard)
 	}

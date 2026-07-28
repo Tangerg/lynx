@@ -62,25 +62,24 @@ func (g testIDGenerator) Next() string { return g.next() }
 type testBlackboard struct {
 	core.Blackboard
 	name     string
-	clone    func() core.Blackboard
-	bind     func(any)
+	clone    func() (core.Blackboard, error)
+	bind     func(any) error
 	snapshot func() (runtime.BlackboardState, error)
 	restore  func(runtime.BlackboardState) error
 }
 
 func (b *testBlackboard) Name() string { return b.name }
-func (b *testBlackboard) Clone() core.Blackboard {
+func (b *testBlackboard) Clone() (core.Blackboard, error) {
 	if b.clone != nil {
 		return b.clone()
 	}
 	return b.Blackboard.Clone()
 }
-func (b *testBlackboard) Bind(value any) {
+func (b *testBlackboard) Bind(value any) error {
 	if b.bind != nil {
-		b.bind(value)
-		return
+		return b.bind(value)
 	}
-	b.Blackboard.Bind(value)
+	return b.Blackboard.Bind(value)
 }
 func (b *testBlackboard) Snapshot() (runtime.BlackboardState, error) {
 	if b.snapshot != nil {
@@ -301,7 +300,7 @@ func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 	}{
 		{
 			name: "clone panic",
-			prototype: &testBlackboard{Blackboard: base, name: "panic-board", clone: func() core.Blackboard {
+			prototype: &testBlackboard{Blackboard: base, name: "panic-board", clone: func() (core.Blackboard, error) {
 				panic(cause)
 			}},
 			wantError: cause,
@@ -309,7 +308,7 @@ func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 		},
 		{
 			name:      "nil clone",
-			prototype: &testBlackboard{Blackboard: base, name: "nil-board", clone: func() core.Blackboard { return nil }},
+			prototype: &testBlackboard{Blackboard: base, name: "nil-board", clone: func() (core.Blackboard, error) { return nil, nil }},
 			contains:  `blackboard "nil-board" Clone returned nil`,
 		},
 	}
@@ -336,7 +335,7 @@ func TestEngineFreezesBlackboardPrototypeNameAtRegistration(t *testing.T) {
 	prototype := &testBlackboard{
 		Blackboard: base,
 		name:       "registered-board",
-		clone: func() core.Blackboard {
+		clone: func() (core.Blackboard, error) {
 			panic("clone failed")
 		},
 	}
@@ -362,7 +361,7 @@ func TestBlackboardSeedPanicReturnsProcessCreationError(t *testing.T) {
 	blackboard := &testBlackboard{
 		Blackboard: base,
 		name:       "seed-board",
-		bind: func(any) {
+		bind: func(any) error {
 			panic(cause)
 		},
 	}
@@ -408,7 +407,7 @@ func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 			panic(cause)
 		},
 	}
-	restoreBoard.clone = func() core.Blackboard { return restoreBoard }
+	restoreBoard.clone = func() (core.Blackboard, error) { return restoreBoard, nil }
 	restoreEngine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{restoreBoard}})
 	if _, err := restoreEngine.Deploy(t.Context(), definition); err != nil {
 		t.Fatalf("Deploy: %v", err)

@@ -268,12 +268,9 @@ continuation 属于 Runtime。
 
 `core.ProcessSnapshot` 使用严格 JSON 解码：未知 schema、未知字段、trailing value、无效 enum、
 DeploymentRef 不匹配或 checkpoint correlation 错误都会 fail closed。普通 Blackboard 值默认
-进入 portable snapshot；运行时 handle、函数、channel、client 等必须通过以下 API 显式标记为
-transient：
-
-- `StoreTransient`
-- `BindTransient`
-- `AddTransient`
+进入 portable snapshot；Blackboard 在写入时即取得 JSON 快照所有权，不可序列化的函数、
+channel、client 等会直接返回错误。运行时 handle 和 client 是能力而非 planner state，应通过
+`core.Dependencies` 或闭包注入，不进入 Blackboard。
 
 当前 ProcessSnapshot schema 为 v10，Suspension schema 为 v3。Waiting snapshot 同时允许
 “尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Resume`，后者恢复

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -19,7 +20,7 @@ type repeatWorkflowConfig[In, Out, State any] struct {
 	stateBinding core.Binding
 	newState     func() State
 	count        func(State) int
-	run          func(context.Context, *core.ProcessContext, In, State) (Out, error)
+	run          func(context.Context, *core.ProcessContext, In, State) (Out, State, error)
 	stop         func(context.Context, In, State) bool
 
 	snapshotState []core.Binding
@@ -55,14 +56,25 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 			state, ok := core.Last[State](process.Blackboard())
 			if !ok {
 				state = config.newState()
-				process.Blackboard().Store(config.stateBinding.Name, state)
 				// Preserve the original input. Repeated outputs can shadow an input
 				// of the same Go type on the blackboard.
-				process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input})
+				if err := process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input}); err != nil {
+					var zero Out
+					return zero, fmt.Errorf("workflow: store original input: %w", err)
+				}
 			} else if original, ok := core.Last[loopInput[In]](process.Blackboard()); ok {
 				input = original.Value
 			}
-			return config.run(ctx, process, input, state)
+			output, next, err := config.run(ctx, process, input, state)
+			if err != nil {
+				var zero Out
+				return zero, err
+			}
+			if err := process.Blackboard().Store(config.stateBinding.Name, next); err != nil {
+				var zero Out
+				return zero, fmt.Errorf("workflow: store iteration state: %w", err)
+			}
+			return output, nil
 		},
 		core.ActionConfig{
 			Repeatable: true,

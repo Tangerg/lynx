@@ -208,9 +208,9 @@ core: type AgentConfig struct { Name string Description string Version string St
 core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
-core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() Blackboard ClearWorkingState() }
+core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() (Blackboard, error) ClearWorkingState() }
 core: type BlackboardReader interface { ID() string Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) Inspect(verbose bool) string }
-core: type BlackboardWriter interface { Store(key string, value any) StoreTransient(key string, value any) Add(value any) AddTransient(value any) Bind(value any) BindTransient(value any) StoreAll(bindings Bindings) Hide(target any) StoreCondition(key string, value bool) }
+core: type BlackboardWriter interface { Store(key string, value any) error Add(value any) error Bind(value any) error StoreAll(bindings Bindings) error Hide(target any) error StoreCondition(key string, value bool) }
 core: type Budget struct { CostLimit float64 ActionLimit int ModelCallLimit int TokenLimit int64 }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
 core: type ChatMiddleware struct { CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware }
@@ -564,16 +564,16 @@ workflow: const DefaultLoopIterations = 5
 workflow: const DefaultRepeatIterations = 3
 workflow: func (f Feedback) Acceptable(threshold float64) bool
 workflow: func (f Feedback) Validate() error
-workflow: func (h *AttemptHistory[Out]) Attempts() []Attempt[Out]
-workflow: func (h *AttemptHistory[Out]) Best() (Attempt[Out], bool)
-workflow: func (h *AttemptHistory[Out]) Count() int
-workflow: func (h *AttemptHistory[Out]) Last() (Attempt[Out], bool)
 workflow: func (h *AttemptHistory[Out]) UnmarshalJSON(data []byte) error
-workflow: func (h *History[T]) Attempts() []T
-workflow: func (h *History[T]) Count() int
-workflow: func (h *History[T]) Last() (T, bool)
 workflow: func (h *History[T]) UnmarshalJSON(data []byte) error
+workflow: func (h AttemptHistory[Out]) Attempts() []Attempt[Out]
+workflow: func (h AttemptHistory[Out]) Best() (Attempt[Out], bool)
+workflow: func (h AttemptHistory[Out]) Count() int
+workflow: func (h AttemptHistory[Out]) Last() (Attempt[Out], bool)
 workflow: func (h AttemptHistory[Out]) MarshalJSON() ([]byte, error)
+workflow: func (h History[T]) Attempts() []T
+workflow: func (h History[T]) Count() int
+workflow: func (h History[T]) Last() (T, bool)
 workflow: func (h History[T]) MarshalJSON() ([]byte, error)
 workflow: func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error)
 workflow: func DefaultKey[Element ~string](element Element) string
@@ -594,8 +594,8 @@ workflow: type Feedback struct { Score float64 Text string }
 workflow: type History[T any] struct { }
 workflow: type LoopConfig[In, Out any] struct { Name string Description string MaxIterations int Body *core.Agent Until func(ctx context.Context, input In, latest Out) bool }
 workflow: type ParallelConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Agents []*core.Agent Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
-workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Description string MaxIterations int AcceptableScore float64 Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Evaluator Evaluator[In, Out] }
-workflow: type RepeatUntilConfig[In, Out any] struct { Name string Description string MaxIterations int Task func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) Accept func(ctx context.Context, input In, latest Out, history *History[Out]) bool }
+workflow: type RepeatUntilAcceptableConfig[In, Out any] struct { Name string Description string MaxIterations int AcceptableScore float64 Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error) Evaluator Evaluator[In, Out] }
+workflow: type RepeatUntilConfig[In, Out any] struct { Name string Description string MaxIterations int Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error) Accept func(ctx context.Context, input In, latest Out, history History[Out]) bool }
 workflow: type ScatterGatherConfig[In, Element, Result any] struct { Name string Description string MaxConcurrency int Generators []func(ctx context.Context, process *core.ProcessContext, input In) (Element, error) Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error) }
 workflow: type SupervisorConfig[In, Out any] struct { Name string Description string Tools []tools.Tool Instructions string Render func(In) (string, error) Parse func(text string) (Out, error) MaxToolRounds int }
 workflow: type TeamConfig struct { Name string Description string Agents []*core.Agent PlannerName string }

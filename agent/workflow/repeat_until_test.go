@@ -31,11 +31,11 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[refine, refine]{
 		Name:          "refine-loop",
 		MaxIterations: 5,
-		Task: func(_ context.Context, _ *core.ProcessContext, in refine, h *workflow.History[refine]) (refine, error) {
+		Task: func(_ context.Context, _ *core.ProcessContext, in refine, h workflow.History[refine]) (refine, error) {
 			taskInputs = append(taskInputs, in.Tag)
 			return refine{Tag: "attempt", N: h.Count() + 1}, nil
 		},
-		Accept: func(_ context.Context, in refine, _ refine, h *workflow.History[refine]) bool {
+		Accept: func(_ context.Context, in refine, _ refine, h workflow.History[refine]) bool {
 			acceptInputs = append(acceptInputs, in.Tag)
 			return h.Count() >= 3 // stop after 3 attempts
 		},
@@ -78,14 +78,14 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 		Name:          "increment-loop",
 		Description:   "increments until target",
 		MaxIterations: 10,
-		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h workflow.History[ruOut]) (ruOut, error) {
 			last, ok := h.Last()
 			if !ok {
 				return ruOut{Value: 1}, nil
 			}
 			return ruOut{Value: last.Value + 1}, nil
 		},
-		Accept: func(_ context.Context, in ruIn, last ruOut, _ *workflow.History[ruOut]) bool {
+		Accept: func(_ context.Context, in ruIn, last ruOut, _ workflow.History[ruOut]) bool {
 			return last.Value >= in.Target
 		},
 	})
@@ -123,10 +123,10 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
 		Name:          "capped-loop",
 		MaxIterations: 3,
-		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h workflow.History[ruOut]) (ruOut, error) {
 			return ruOut{Value: h.Count() + 1}, nil
 		},
-		Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return false },
+		Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
 	})
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
@@ -153,10 +153,10 @@ func TestRepeatUntil_SnapshotTreeRoundTrip(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
 		Name: "snapshot-repeat", MaxIterations: 3,
-		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, history *workflow.History[ruOut]) (ruOut, error) {
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, history workflow.History[ruOut]) (ruOut, error) {
 			return ruOut{Value: history.Count() + 1}, nil
 		},
-		Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return false },
+		Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -181,7 +181,7 @@ func TestRepeatUntil_SnapshotTreeRoundTrip(t *testing.T) {
 	if !ok || result.Value != 3 {
 		t.Fatalf("restored result=%#v ok=%v, want value 3", result, ok)
 	}
-	history, ok := core.Result[*workflow.History[ruOut]](restored)
+	history, ok := core.Result[workflow.History[ruOut]](restored)
 	if !ok || history.Count() != 3 {
 		t.Fatalf("restored history count=%d ok=%v, want 3", history.Count(), ok)
 	}
@@ -192,7 +192,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
 		Name:          "history-witness",
 		MaxIterations: 5,
-		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h *workflow.History[ruOut]) (ruOut, error) {
+		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h workflow.History[ruOut]) (ruOut, error) {
 			snapshot := make([]int, 0, h.Count())
 			for _, a := range h.Attempts() {
 				snapshot = append(snapshot, a.Value)
@@ -200,7 +200,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 			seenInTask = snapshot // overwrite each iteration
 			return ruOut{Value: h.Count() + 1}, nil
 		},
-		Accept: func(_ context.Context, _ ruIn, last ruOut, h *workflow.History[ruOut]) bool {
+		Accept: func(_ context.Context, _ ruIn, last ruOut, h workflow.History[ruOut]) bool {
 			return last.Value >= 3 && h.Count() >= 3
 		},
 	})
@@ -237,28 +237,28 @@ func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 		spec workflow.RepeatUntilConfig[ruIn, ruOut]
 	}{
 		{"empty name", workflow.RepeatUntilConfig[ruIn, ruOut]{
-			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
-			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
+			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 		{"nil task", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name:   "x",
-			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
+			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 		{"nil accept", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name: "x",
-			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
 		}},
 		{"negative iterations", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name:          "x",
 			MaxIterations: -1,
-			Task: func(context.Context, *core.ProcessContext, ruIn, *workflow.History[ruOut]) (ruOut, error) {
+			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
-			Accept: func(context.Context, ruIn, ruOut, *workflow.History[ruOut]) bool { return true },
+			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 	}
 	for _, tc := range cases {

@@ -1,6 +1,9 @@
 package runtime
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -23,21 +26,63 @@ const inMemoryBlackboardName = "in-memory-blackboard"
 type inMemoryBlackboard struct {
 	id string
 
-	mu              sync.RWMutex
-	named           core.Bindings
-	transientNamed  map[string]struct{}
-	objects         []any
-	snapshotObjects []bool
-	hidden          []any // intentionally a slice — Hide() must accept unhashable values too
-	conditions      map[string]bool
+	mu         sync.RWMutex
+	named      map[string]storedBlackboardValue
+	objects    []storedBlackboardValue
+	hidden     []storedBlackboardValue
+	conditions map[string]bool
 }
 
 func newInMemoryBlackboard() *inMemoryBlackboard {
 	return &inMemoryBlackboard{
-		id:             uuid.NewString(),
-		transientNamed: map[string]struct{}{},
-		conditions:     map[string]bool{},
+		id:         uuid.NewString(),
+		named:      map[string]storedBlackboardValue{},
+		conditions: map[string]bool{},
 	}
+}
+
+// storedBlackboardValue is the in-memory ownership boundary. Keeping the exact
+// concrete type beside its JSON form lets every read reconstruct a fresh Go
+// value without exposing the blackboard's state graph.
+type storedBlackboardValue struct {
+	typ  reflect.Type
+	data []byte
+}
+
+func storeBlackboardValue(value any) (storedBlackboardValue, error) {
+	stored := storedBlackboardValue{typ: reflect.TypeOf(value)}
+	data, err := json.Marshal(value)
+	if err != nil {
+		return storedBlackboardValue{}, fmt.Errorf("encode %T: %w", value, err)
+	}
+	stored.data = slices.Clone(data)
+	if _, err := stored.value(); err != nil {
+		return storedBlackboardValue{}, fmt.Errorf("decode %T: %w", value, err)
+	}
+	return stored, nil
+}
+
+func (v storedBlackboardValue) value() (any, error) {
+	if v.typ == nil {
+		return nil, nil
+	}
+	target := reflect.New(v.typ)
+	if err := json.Unmarshal(v.data, target.Interface()); err != nil {
+		return nil, err
+	}
+	return target.Elem().Interface(), nil
+}
+
+func (v storedBlackboardValue) mustValue() any {
+	value, err := v.value()
+	if err != nil {
+		panic(fmt.Sprintf("agent runtime: corrupt in-memory blackboard value %s: %v", v.typ, err))
+	}
+	return value
+}
+
+func (v storedBlackboardValue) clone() storedBlackboardValue {
+	return storedBlackboardValue{typ: v.typ, data: slices.Clone(v.data)}
 }
 
 // Name identifies the in-memory blackboard implementation. The
@@ -51,102 +96,110 @@ func (b *inMemoryBlackboard) ID() string { return b.id }
 // Store saves under key and appends to the ordered objects list. The
 // dual-record is what makes "give me the latest of type T" work via
 // Lookup("it", typeName).
-func (b *inMemoryBlackboard) Store(key string, value any) {
+func (b *inMemoryBlackboard) Store(key string, value any) error {
+	stored, err := storeBlackboardValue(value)
+	if err != nil {
+		return fmt.Errorf("blackboard Store(%q): %w", key, err)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named.Set(key, value)
-	delete(b.transientNamed, key)
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, true)
-}
-
-func (b *inMemoryBlackboard) StoreTransient(key string, value any) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.named.Set(key, value)
-	b.transientNamed[key] = struct{}{}
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, false)
+	b.named[key] = stored
+	b.objects = append(b.objects, stored)
+	return nil
 }
 
 func (b *inMemoryBlackboard) Load(key string) (any, bool) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	v, ok := b.named.Get(key)
-	return v, ok
+	value, ok := b.named[key]
+	value = value.clone()
+	b.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return value.mustValue(), true
 }
 
-func (b *inMemoryBlackboard) Add(value any) {
+func (b *inMemoryBlackboard) Add(value any) error {
+	stored, err := storeBlackboardValue(value)
+	if err != nil {
+		return fmt.Errorf("blackboard Add: %w", err)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, true)
-}
-
-func (b *inMemoryBlackboard) AddTransient(value any) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, false)
+	b.objects = append(b.objects, stored)
+	return nil
 }
 
 func (b *inMemoryBlackboard) Objects() []any {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
+	stored := make([]storedBlackboardValue, len(b.objects))
+	for index, value := range b.objects {
+		stored[index] = value.clone()
+	}
+	b.mu.RUnlock()
 
-	return slices.Clone(b.objects)
+	objects := make([]any, len(stored))
+	for index, value := range stored {
+		objects[index] = value.mustValue()
+	}
+	return objects
 }
 
 // Bind implements dual-binding: the value lands at
 // "it" AND at a type-derived key (UserInput → "user_input") so prompt
 // templates can refer to it by either name.
-func (b *inMemoryBlackboard) Bind(value any) {
+func (b *inMemoryBlackboard) Bind(value any) error {
+	stored, err := storeBlackboardValue(value)
+	if err != nil {
+		return fmt.Errorf("blackboard Bind: %w", err)
+	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named.Set(core.DefaultBindingName, value)
-	delete(b.transientNamed, core.DefaultBindingName)
+	b.named[core.DefaultBindingName] = stored
 	if derivedKey := core.TypeKey(value); derivedKey != "" {
-		b.named.Set(derivedKey, value)
-		delete(b.transientNamed, derivedKey)
+		b.named[derivedKey] = stored
 	}
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, true)
+	b.objects = append(b.objects, stored)
+	return nil
 }
 
-func (b *inMemoryBlackboard) BindTransient(value any) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.named.Set(core.DefaultBindingName, value)
-	b.transientNamed[core.DefaultBindingName] = struct{}{}
-	if derivedKey := core.TypeKey(value); derivedKey != "" {
-		b.named.Set(derivedKey, value)
-		b.transientNamed[derivedKey] = struct{}{}
+func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) error {
+	type namedValue struct {
+		key   string
+		value storedBlackboardValue
 	}
-	b.objects = append(b.objects, value)
-	b.snapshotObjects = append(b.snapshotObjects, false)
-}
-
-func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
+	values := make([]namedValue, 0, bindings.Len())
 	for key, value := range bindings.All() {
-		b.named.Set(key, value)
-		delete(b.transientNamed, key)
-		b.objects = append(b.objects, value)
-		b.snapshotObjects = append(b.snapshotObjects, true)
+		stored, err := storeBlackboardValue(value)
+		if err != nil {
+			return fmt.Errorf("blackboard StoreAll(%q): %w", key, err)
+		}
+		values = append(values, namedValue{key: key, value: stored})
 	}
-}
 
-func (b *inMemoryBlackboard) Hide(target any) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.hidden = append(b.hidden, target)
+	for _, value := range values {
+		b.named[value.key] = value.value
+		b.objects = append(b.objects, value.value)
+	}
+	return nil
+}
+
+func (b *inMemoryBlackboard) Hide(target any) error {
+	stored, err := storeBlackboardValue(target)
+	if err != nil {
+		return fmt.Errorf("blackboard Hide: %w", err)
+	}
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.hidden = append(b.hidden, stored)
+	return nil
 }
 
 func (b *inMemoryBlackboard) StoreCondition(key string, value bool) {
@@ -171,18 +224,24 @@ func (b *inMemoryBlackboard) Inspect(verbose bool) string {
 // Clone produces a child blackboard inheriting the parent's full state: named
 // keys, conditions, the objects list, and the hidden markers. Visibility is
 // part of the inherited state for live child processes.
-func (b *inMemoryBlackboard) Clone() core.Blackboard {
+func (b *inMemoryBlackboard) Clone() (core.Blackboard, error) {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
 
 	child := newInMemoryBlackboard()
-	child.named = b.named.Clone()
-	maps.Copy(child.transientNamed, b.transientNamed)
 	maps.Copy(child.conditions, b.conditions)
-	child.objects = append(child.objects, b.objects...)
-	child.snapshotObjects = append(child.snapshotObjects, b.snapshotObjects...)
-	child.hidden = append(child.hidden, b.hidden...)
-	return child
+	for key, value := range b.named {
+		child.named[key] = value.clone()
+	}
+	child.objects = make([]storedBlackboardValue, len(b.objects))
+	for index, value := range b.objects {
+		child.objects[index] = value.clone()
+	}
+	child.hidden = make([]storedBlackboardValue, len(b.hidden))
+	for index, value := range b.hidden {
+		child.hidden[index] = value.clone()
+	}
+	return child, nil
 }
 
 // ClearWorkingState removes all planner/action working state.
@@ -190,10 +249,8 @@ func (b *inMemoryBlackboard) ClearWorkingState() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.named = core.Bindings{}
-	clear(b.transientNamed)
+	clear(b.named)
 	b.objects = b.objects[:0]
-	b.snapshotObjects = b.snapshotObjects[:0]
 	b.hidden = b.hidden[:0]
 	clear(b.conditions)
 }
@@ -205,8 +262,16 @@ func (b *inMemoryBlackboard) ClearWorkingState() {
 //   - explicit name: the value stored at that name, only if its type matches.
 func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 	b.mu.RLock()
-	defer b.mu.RUnlock()
+	value, ok := b.lookup(variable, typeName)
+	value = value.clone()
+	b.mu.RUnlock()
+	if !ok {
+		return nil, false
+	}
+	return value.mustValue(), true
+}
 
+func (b *inMemoryBlackboard) lookup(variable, typeName string) (storedBlackboardValue, bool) {
 	switch variable {
 	case "", core.DefaultBindingName:
 		return b.findLatestByType(typeName)
@@ -214,22 +279,24 @@ func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 		return b.findLatestVisible()
 	}
 
-	value, ok := b.named.Get(variable)
+	value, ok := b.named[variable]
 	if !ok {
-		return nil, false
+		return storedBlackboardValue{}, false
 	}
 	if typeName != "" && !b.typeMatches(value, typeName) {
-		return nil, false
+		return storedBlackboardValue{}, false
 	}
 	return value, true
 }
 
 func (b *inMemoryBlackboard) HasValue(variable, typeName string) bool {
-	_, ok := b.Lookup(variable, typeName)
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	_, ok := b.lookup(variable, typeName)
 	return ok
 }
 
-func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
+func (b *inMemoryBlackboard) findLatestByType(typeName string) (storedBlackboardValue, bool) {
 	for i := len(b.objects) - 1; i >= 0; i-- {
 		obj := b.objects[i]
 		if b.isHidden(obj) {
@@ -239,21 +306,21 @@ func (b *inMemoryBlackboard) findLatestByType(typeName string) (any, bool) {
 			return obj, true
 		}
 	}
-	return nil, false
+	return storedBlackboardValue{}, false
 }
 
-func (b *inMemoryBlackboard) findLatestVisible() (any, bool) {
+func (b *inMemoryBlackboard) findLatestVisible() (storedBlackboardValue, bool) {
 	for i := len(b.objects) - 1; i >= 0; i-- {
 		if !b.isHidden(b.objects[i]) {
 			return b.objects[i], true
 		}
 	}
-	return nil, false
+	return storedBlackboardValue{}, false
 }
 
-func (b *inMemoryBlackboard) isHidden(v any) bool {
+func (b *inMemoryBlackboard) isHidden(v storedBlackboardValue) bool {
 	for _, h := range b.hidden {
-		if reflect.DeepEqual(h, v) {
+		if h.typ == v.typ && bytes.Equal(h.data, v.data) {
 			return true
 		}
 	}
@@ -264,15 +331,15 @@ func (b *inMemoryBlackboard) isHidden(v any) bool {
 // Binding uses: pointer types unwrap, then the concrete type's full
 // name is compared. Interface hierarchies are not walked; a binding matches
 // the stored value's concrete type only.
-func (b *inMemoryBlackboard) typeMatches(v any, typeName string) bool {
+func (b *inMemoryBlackboard) typeMatches(v storedBlackboardValue, typeName string) bool {
 	if typeName == "" {
 		return true
 	}
-	if v == nil {
+	if v.typ == nil {
 		return false
 	}
 
-	rt := reflect.TypeOf(v)
+	rt := v.typ
 	for rt != nil {
 		if core.TypeNameOf(rt) == typeName {
 			return true

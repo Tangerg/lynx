@@ -264,7 +264,10 @@ func cloneBlackboardNamed(name string, source core.Blackboard) (clone core.Black
 			err = panicerr.New(fmt.Sprintf("blackboard %q Clone panicked", name), recovered)
 		}
 	}()
-	clone = source.Clone()
+	clone, err = source.Clone()
+	if err != nil {
+		return nil, fmt.Errorf("blackboard %q Clone: %w", name, err)
+	}
 	if valueIsNil(clone) {
 		return nil, fmt.Errorf("blackboard %q Clone returned nil", name)
 	}
@@ -338,10 +341,14 @@ func bindBlackboardSeed(blackboard core.Blackboard, bindings core.Bindings) (err
 	}()
 	for key, value := range bindings.All() {
 		if key == core.DefaultBindingName {
-			blackboard.Bind(value)
+			if err := blackboard.Bind(value); err != nil {
+				return fmt.Errorf("bind %q: %w", key, err)
+			}
 			continue
 		}
-		blackboard.Store(key, value)
+		if err := blackboard.Store(key, value); err != nil {
+			return fmt.Errorf("store %q: %w", key, err)
+		}
 	}
 	return nil
 }

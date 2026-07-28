@@ -105,35 +105,34 @@ func Loop[In, Out any](
 	}
 
 	doneKey := config.Name + "_done"
-	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
+	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
 
-	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
+	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, History[Out]]{
 		name:          config.Name,
 		description:   config.Description,
 		actionName:    config.Name + "-iter",
 		doneKey:       doneKey,
 		maxIterations: maxIterations,
 		stateBinding:  historyState,
-		newState:      func() *History[Out] { return &History[Out]{} },
-		count:         (*History[Out]).Count,
-		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
+		newState:      func() History[Out] { return History[Out]{} },
+		count:         History[Out].Count,
+		run: func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, History[Out], error) {
 			var zero Out
 			child, err := childRuntime.RunChild(ctx, bodyDeployment, input)
 			if err != nil {
-				return zero, fmt.Errorf("iteration %d: %w", history.Count(), err)
+				return zero, history, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}
 			if err := child.TerminalError(); err != nil {
-				return zero, fmt.Errorf("iteration %d (%s): %w", history.Count(), bodyName, err)
+				return zero, history, fmt.Errorf("iteration %d (%s): %w", history.Count(), bodyName, err)
 			}
 
 			output, ok := core.Result[Out](child)
 			if !ok {
-				return zero, fmt.Errorf("iteration %d (%s) produced no %T", history.Count(), bodyName, zero)
+				return zero, history, fmt.Errorf("iteration %d (%s) produced no %T", history.Count(), bodyName, zero)
 			}
-			history.record(output)
-			return output, nil
+			return output, history.withAttempt(output), nil
 		},
-		stop: func(ctx context.Context, input In, history *History[Out]) bool {
+		stop: func(ctx context.Context, input In, history History[Out]) bool {
 			last, ok := history.Last()
 			return ok && config.Until(ctx, input, last)
 		},

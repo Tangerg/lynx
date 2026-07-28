@@ -100,7 +100,7 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 type fakeBlackboard struct {
 	value any
 	ok    bool
-	clone func() core.Blackboard
+	clone func() (core.Blackboard, error)
 }
 
 func (f fakeBlackboard) Name() string { return "fake-blackboard" }
@@ -120,19 +120,16 @@ func (f fakeBlackboard) Objects() []any {
 }
 func (f fakeBlackboard) Condition(string) (bool, bool) { return false, false }
 func (f fakeBlackboard) Inspect(bool) string           { return "fake" }
-func (f fakeBlackboard) Store(string, any)             {}
-func (f fakeBlackboard) StoreTransient(string, any)    {}
-func (f fakeBlackboard) Add(any)                       {}
-func (f fakeBlackboard) AddTransient(any)              {}
-func (f fakeBlackboard) Bind(any)                      {}
-func (f fakeBlackboard) BindTransient(any)             {}
-func (f fakeBlackboard) StoreAll(core.Bindings)        {}
-func (f fakeBlackboard) Hide(any)                      {}
+func (f fakeBlackboard) Store(string, any) error       { return nil }
+func (f fakeBlackboard) Add(any) error                 { return nil }
+func (f fakeBlackboard) Bind(any) error                { return nil }
+func (f fakeBlackboard) StoreAll(core.Bindings) error  { return nil }
+func (f fakeBlackboard) Hide(any) error                { return nil }
 func (f fakeBlackboard) StoreCondition(string, bool)   {}
-func (f fakeBlackboard) Clone() core.Blackboard {
+func (f fakeBlackboard) Clone() (core.Blackboard, error) {
 	if f.clone != nil {
 		return f.clone()
 	}
-	return f
+	return f, nil
 }
 func (f fakeBlackboard) ClearWorkingState() {}

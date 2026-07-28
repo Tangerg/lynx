@@ -10,7 +10,7 @@ import (
 func TestForParallelBranchReturnsClonePanic(t *testing.T) {
 	cause := errors.New("clone unavailable")
 	process := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{clone: func() core.Blackboard { panic(cause) }},
+		Blackboard: fakeBlackboard{clone: func() (core.Blackboard, error) { panic(cause) }},
 	})
 
 	branch, err := process.ForParallelBranch()
@@ -19,9 +19,21 @@ func TestForParallelBranchReturnsClonePanic(t *testing.T) {
 	}
 }
 
+func TestForParallelBranchReturnsCloneError(t *testing.T) {
+	cause := errors.New("clone unavailable")
+	process := core.NewProcessContext(core.ProcessContextConfig{
+		Blackboard: fakeBlackboard{clone: func() (core.Blackboard, error) { return nil, cause }},
+	})
+
+	branch, err := process.ForParallelBranch()
+	if branch != nil || !errors.Is(err, cause) {
+		t.Fatalf("ForParallelBranch = %#v, %v; want nil branch and clone error", branch, err)
+	}
+}
+
 func TestForParallelBranchRejectsNilClone(t *testing.T) {
 	process := core.NewProcessContext(core.ProcessContextConfig{
-		Blackboard: fakeBlackboard{clone: func() core.Blackboard { return nil }},
+		Blackboard: fakeBlackboard{clone: func() (core.Blackboard, error) { return nil, nil }},
 	})
 
 	branch, err := process.ForParallelBranch()

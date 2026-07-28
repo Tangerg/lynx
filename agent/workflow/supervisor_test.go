@@ -138,7 +138,7 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	}
 }
 
-func TestSupervisor_DefaultRenderPropagatesJSONError(t *testing.T) {
+func TestSupervisor_RejectsNonPortableInputBeforeExecution(t *testing.T) {
 	model := new(renderGuardModel)
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	worker, err := runtime.NewAgentTool[supTopic, supAnswer](engine, deploySubAgent(t, engine))
@@ -154,11 +154,8 @@ func TestSupervisor_DefaultRenderPropagatesJSONError(t *testing.T) {
 		t.Fatal(err)
 	}
 	process, err := engine.Run(t.Context(), supervisor, core.Input(unrenderableInput{}), core.ProcessOptions{})
-	if err != nil {
-		t.Fatalf("Run control-flow error: %v", err)
-	}
-	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), errRenderInput) {
-		t.Fatalf("status/failure = %s/%v, want render error", process.Status(), process.Failure())
+	if process != nil || !errors.Is(err, errRenderInput) {
+		t.Fatalf("Run = %#v, %v, want portable-state rejection", process, err)
 	}
 	if model.calls != 0 {
 		t.Fatalf("model calls = %d, want none", model.calls)
