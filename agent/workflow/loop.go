@@ -9,12 +9,12 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// DefaultLoopIterations bounds Loop when Config.MaxIterations is unset. Every
+// defaultLoopIterations bounds Loop when Config.MaxIterations is unset. Every
 // iteration spawns a child that stays in the process tree until the host
 // releases the root, so an unbounded loop grows framework-owned state — the
 // same reason [runtime.DefaultMaxChildDepth] exists, and why this rail is not
 // the caller's threshold to choose.
-const DefaultLoopIterations = 5
+const defaultLoopIterations = 5
 
 // LoopConfig configures a "run a sub-agent body repeatedly until
 // Until returns true (or MaxIterations expires)" workflow. Each
@@ -100,7 +100,7 @@ func Loop[In, Out any](
 		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
 	}
 	bodyName := bodyDeployment.Ref().Name
-	maxIterations := cmp.Or(config.MaxIterations, DefaultLoopIterations)
+	maxIterations := cmp.Or(config.MaxIterations, defaultLoopIterations)
 
 	doneKey := config.Name + "_done"
 	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)

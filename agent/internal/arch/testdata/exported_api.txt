@@ -60,7 +60,6 @@ core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusComplete
 core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
-core: const ActionRunConditionPrefix = "action_ran_"
 core: const ProcessSnapshotSchemaVersion uint16 = 13
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
@@ -580,8 +579,6 @@ toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint"
 toolloop: var ( ErrInvalidConfig = errors.New("toolloop: invalid config") ErrInvalidInput = errors.New("toolloop: invalid input") ErrRoundLimit = errors.New("toolloop: round limit reached") )
 toolloop: var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")
 toolloop: var ErrInvalidEvent = errors.New("toolloop: invalid event")
-workflow: const DefaultLoopIterations = 5
-workflow: const DefaultRepeatIterations = 3
 workflow: func (f Feedback) Acceptable(threshold float64) bool
 workflow: func (f Feedback) Validate() error
 workflow: func (h *AttemptHistory[Out]) UnmarshalJSON(data []byte) error

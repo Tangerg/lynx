@@ -115,16 +115,16 @@ func (d ActionDescriptor) ToolGroups() []string { return slices.Clone(d.toolGrou
 // ClearsWorkingState reports whether success resets process working state.
 func (d ActionDescriptor) ClearsWorkingState() bool { return d.clearWorkingState }
 
-// ActionRunConditionPrefix prefixes the conventional "this action has run"
+// actionRunConditionPrefix prefixes the conventional "this action has run"
 // condition keys minted by [ActionMetadata.RunCondition].
-const ActionRunConditionPrefix = "action_ran_"
+const actionRunConditionPrefix = "action_ran_"
 
 // RunCondition is the conventional condition key recording that this
 // action has executed at least once. The runtime sets it after each
 // successful run; the planner consumes it as a precondition guard for
 // non-rerunnable actions.
 func (m ActionMetadata) RunCondition() string {
-	return ActionRunConditionPrefix + m.Name
+	return actionRunConditionPrefix + m.Name
 }
 
 // Applicable reports whether every precondition holds in state.

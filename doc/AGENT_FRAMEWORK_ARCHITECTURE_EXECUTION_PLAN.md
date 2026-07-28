@@ -1566,7 +1566,7 @@ P8 不是继续增加 Framework 能力，而是对 P0–P7 已成立的生命周
   - `StuckDecision` 的零值改为 `StuckStop`，显式 `StuckReplan` 才重规划，避免空结果导致无限循环。
 - [x] **P9-11 明确运行记录字段与 wire 对应**（完成：2026-07-16）
   - Go struct 使用 `ActionName`，JSON 继续使用稳定的 `action`；覆盖 ActionRun、snapshot、ModelCall、EmbeddingCall 与 ReplanRequested。
-  - action-run condition 使用 `ActionRunConditionPrefix` 与 `action_ran_`，不保留 `hasRun_` Java 式内部键。
+  - action-run condition 使用包内私有前缀 `action_ran_`，不保留 `hasRun_` Java 式内部键。
 - [x] **P9-12 重组根包和 runtime 文件职责**（完成：2026-07-16）
   - 根入口拆为 `definition.go`、`engine.go`、`prompt.go`、`interaction.go`、`facade.go`。
   - runtime process composition 拆为 extensions/dependencies/chat；termination 从 tool_group 文件移出；事件按 deployment/action/interaction/usage 归档。
