@@ -144,7 +144,7 @@ func artifactProblemFromDomain(problem *transcript.Problem) (*protocol.ArtifactP
 	}
 	return &protocol.ArtifactProblem{
 		Type: kind, Detail: problem.Detail, DocURL: problem.DocURL,
-		Retryable: problem.Retryable, RetryAfterSeconds: problem.RetryAfterSeconds,
+		RetryAfterSeconds: problem.RetryAfterSeconds,
 	}, nil
 }
 

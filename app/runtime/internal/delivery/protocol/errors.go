@@ -31,11 +31,16 @@ type ProblemData struct {
 	// DocURL optionally points at this type's docs (Stripe doc_url), lowering
 	// integration cost (API.md §8.3); absent → look the symbolic type up in §8.2.
 	DocURL string `json:"docUrl,omitempty"`
-	// Retryable marks transient failures; RetryAfterSeconds, when given,
-	// is the earliest sensible retry (e.g. a provider rate-limit backoff)
-	// the client should honor before falling back to its own (API.md §8.3).
-	Retryable         bool `json:"retryable,omitempty"`
-	RetryAfterSeconds int  `json:"retryAfterSeconds,omitempty"`
+	// Retryable has no writer: it left the domain with the transient/permanent
+	// classification the contract rejects, and it leaves the wire with the
+	// protocol bump. Do NOT restore it by deriving it here from Type — that is
+	// presentation deciding a business fact, which is what the domain just
+	// stopped doing. Clients branch on Type.
+	Retryable bool `json:"retryable,omitempty"`
+	// RetryAfterSeconds, when given, is the earliest sensible retry (e.g. a
+	// provider rate-limit backoff) the client honors before its own (API.md §8.3).
+	// Only the kinds that waiting can clear carry one.
+	RetryAfterSeconds int `json:"retryAfterSeconds,omitempty"`
 	// Errors carries field-level validation failures (typically
 	// invalid_params / form validation), addressable by field so the UI
 	// can flag each one (API.md §8.3).

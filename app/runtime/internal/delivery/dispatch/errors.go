@@ -15,7 +15,6 @@ import (
 // on the numeric code.
 type rpcErrorSpec struct {
 	code              int
-	retryable         bool
 	retryAfterSeconds int
 }
 
@@ -39,7 +38,7 @@ var sentinelSpecs = map[error]rpcErrorSpec{
 	protocol.ErrRevisionConflict:       {code: protocol.CodeRevisionConflict},
 	protocol.ErrIdempotencyConflict:    {code: protocol.CodeIdempotencyConflict},
 	protocol.ErrIdempotencyInProgress: {
-		code: protocol.CodeIdempotencyInProgress, retryable: true, retryAfterSeconds: 1,
+		code: protocol.CodeIdempotencyInProgress, retryAfterSeconds: 1,
 	},
 }
 
@@ -78,7 +77,7 @@ func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string) *transport.Erro
 	// error response (API.md §8.1 channel a).
 	data, _ := json.Marshal(protocol.ProblemData{
 		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail,
-		Retryable: spec.retryable, RetryAfterSeconds: spec.retryAfterSeconds,
+		RetryAfterSeconds: spec.retryAfterSeconds,
 	})
 	return transport.NewError(spec.code, typ, data)
 }

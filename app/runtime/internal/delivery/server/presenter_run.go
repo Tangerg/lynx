@@ -135,7 +135,7 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 	}
 	return &protocol.ProblemData{
 		Type: kind, Channel: scope, Detail: problem.Detail, DocURL: problem.DocURL,
-		Retryable: problem.Retryable, RetryAfterSeconds: problem.RetryAfterSeconds,
+		RetryAfterSeconds: problem.RetryAfterSeconds,
 	}
 }
 

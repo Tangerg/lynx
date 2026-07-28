@@ -232,6 +232,10 @@ func problemFromError(err error) transcript.Problem {
 
 func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) transcript.Problem {
 	problem := transcript.Problem{Scope: transcript.RunProblem}
+	// A provider's backoff hint only means something for the failures that
+	// waiting can clear. Naming those kinds here is what a transient/permanent
+	// flag was standing in for.
+	acceptsBackoff := false
 	switch kind {
 	case execution.FailureAgentStuck:
 		problem.Kind = transcript.AgentStuckProblem
@@ -239,25 +243,25 @@ func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) tra
 	case execution.FailureRateLimited:
 		problem.Kind = transcript.RateLimitedProblem
 		problem.Detail = "the model provider rate-limited the request; retry shortly"
-		problem.Retryable = true
+		acceptsBackoff = true
 	case execution.FailureInvalidCredentials:
 		problem.Kind = transcript.InvalidAPIKeyProblem
 		problem.Detail = "the model provider rejected the credentials; check the provider API key"
 	case execution.FailureTimeout:
 		problem.Kind = transcript.TimeoutProblem
 		problem.Detail = "the model provider request timed out or the connection failed; retry shortly"
-		problem.Retryable = true
+		acceptsBackoff = true
 	case execution.FailureProviderUnavailable:
 		problem.Kind = transcript.ProviderUnavailableProblem
 		problem.Detail = "the model provider is temporarily unavailable; retry shortly"
-		problem.Retryable = true
+		acceptsBackoff = true
 	case execution.FailureProviderRejected:
 		problem.Kind = transcript.ProviderRejectedProblem
 		problem.Detail = "the model provider rejected the request as invalid"
 	default:
 		return internalRunProblem()
 	}
-	if problem.Retryable && retryAfter > 0 {
+	if acceptsBackoff && retryAfter > 0 {
 		problem.RetryAfterSeconds = int((retryAfter + time.Second - 1) / time.Second)
 	}
 	return problem

@@ -181,12 +181,16 @@ const (
 	ToolFailedProblem
 )
 
+// Problem classifies a failure. There is deliberately no transient/permanent
+// flag: the three kinds that once set one are exactly the three that accept a
+// RetryAfterSeconds, so the flag carried nothing the kind didn't already say,
+// and a client that branches on it is branching on a derived value instead of
+// the classification.
 type Problem struct {
 	Kind              ProblemKind
 	Scope             ProblemScope
 	Detail            string
 	DocURL            string
-	Retryable         bool
 	RetryAfterSeconds int
 }
 

@@ -338,7 +338,7 @@ func portableProblemFromArtifact(path string, artifact *protocol.ArtifactProblem
 	}
 	return &transcript.Problem{
 		Kind: kind, Scope: scope, Detail: artifact.Detail, DocURL: artifact.DocURL,
-		Retryable: artifact.Retryable, RetryAfterSeconds: artifact.RetryAfterSeconds,
+		RetryAfterSeconds: artifact.RetryAfterSeconds,
 	}, nil
 }
 

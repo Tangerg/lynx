@@ -330,10 +330,10 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 		name    string
 		problem transcript.Problem
 	}{
-		{"rate limited", transcript.Problem{Kind: transcript.RateLimitedProblem, Detail: "retry shortly", Retryable: true, RetryAfterSeconds: 30}},
+		{"rate limited", transcript.Problem{Kind: transcript.RateLimitedProblem, Detail: "retry shortly", RetryAfterSeconds: 30}},
 		{"invalid credentials", transcript.Problem{Kind: transcript.InvalidAPIKeyProblem, Detail: "check credentials"}},
-		{"provider unavailable", transcript.Problem{Kind: transcript.ProviderUnavailableProblem, Detail: "retry shortly", Retryable: true}},
-		{"timeout", transcript.Problem{Kind: transcript.TimeoutProblem, Detail: "retry shortly", Retryable: true}},
+		{"provider unavailable", transcript.Problem{Kind: transcript.ProviderUnavailableProblem, Detail: "retry shortly"}},
+		{"timeout", transcript.Problem{Kind: transcript.TimeoutProblem, Detail: "retry shortly"}},
 		{"provider rejected", transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "invalid request"}},
 	}
 	for _, test := range cases {
@@ -344,7 +344,7 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 			problem := finished.Run.Result.Error
 			if problem == nil || *problem != (transcript.Problem{
 				Kind: test.problem.Kind, Scope: transcript.RunProblem, Detail: test.problem.Detail,
-				Retryable: test.problem.Retryable, RetryAfterSeconds: test.problem.RetryAfterSeconds,
+				RetryAfterSeconds: test.problem.RetryAfterSeconds,
 			}) || strings.Contains(problem.Detail, "api.example") {
 				t.Errorf("terminal problem = %+v", problem)
 			}
