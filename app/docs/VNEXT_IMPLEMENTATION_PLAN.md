@@ -552,7 +552,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | `c83d041f3`（8/14 + drift gate） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | `c83d041f3` + `01a4c7c`（**9/14** + drift gate） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
 #### ⚠️ B4 进度（2026-07-29）：18 项中 4 项已落，5 项待 B3 余量，3 项待 C
@@ -584,6 +584,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 6 | state scope/writer/lifecycle policy | `StateKeySpec.Scope/Writer` |
 | 7 | runtime topic capability list | `WorkspaceEvent` union + per-topic feature |
 | 8 | system invariant manifest | `application/contract.SystemInvariants()` |
+| 9 | **human-readable API reference** | manifest 的 markdown 投影（`contract/API_REFERENCE.md`）—— 14 类里唯一不需要 schema walker 的剩余项 |
 
 外加：union / objectConstraint 两节（B2 的 spec 投影）、`streamingMethods`（Registry 派生）。
 
@@ -593,9 +594,9 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 **drift gate 已落**（§11.4 gate 1）：`internal/arch/contract_drift_test.go` 重跑生成器并比 worktree；配一条
 `TestGeneratedContractIsSubstantive` 防止空 manifest 让 gate 空转通过。
 
-**余下 6 类都依赖一个反射 schema walker**（这是它们与上面 8 类的本质区别：上面是投影，下面要把 Go 类型走成 JSON Schema）：
+**余下 5 类都依赖一个反射 schema walker**（这是它们与上面 8 类的本质区别：上面是投影，下面要把 Go 类型走成 JSON Schema）：
 OpenRPC · JSON Schema bundle · TypeScript wire types · authoritative/terminal validators ·
-method constants + typed client stubs · human-readable API reference。
+method constants + typed client stubs。
 
 **接手须知（避免重新推导）**：
 - Registry 已有 `Contract()` / `WireShapes()` 两个导出口；`MethodMeta` 目前**不带** `reflect.Type` —— B1 刻意没加
