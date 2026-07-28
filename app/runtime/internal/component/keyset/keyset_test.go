@@ -76,8 +76,8 @@ func TestLimitClampsToTheReadsCeiling(t *testing.T) {
 			t.Fatalf("Limit(%d, %d) = (%d, %v), want %d", test.requested, test.max, got, err, test.want)
 		}
 	}
-	if _, err := Limit(-1, 200); err == nil {
-		t.Fatal("Limit(-1) returned no error")
+	if _, err := Limit(-1, 200); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("Limit(-1) err = %v, want ErrInvalidLimit", err)
 	}
 }
 

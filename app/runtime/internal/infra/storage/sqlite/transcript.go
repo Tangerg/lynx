@@ -219,23 +219,47 @@ func (s *TranscriptStore) ListRuns(ctx context.Context, sessionID string) ([]tra
 }
 
 func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
+	sequenced, err := s.PageItems(ctx, sessionID, 0, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]transcript.Item, 0, len(sequenced))
+	for _, entry := range sequenced {
+		out = append(out, entry.Item)
+	}
+	return out, nil
+}
+
+// PageItems returns a session's history in durable append order, starting after
+// afterSequence and stopping after limit rows. A zero afterSequence starts at the
+// beginning and a zero limit reads to the end.
+//
+// The bound is applied by the query, not by the caller: seeking past an anchor
+// and stopping at a limit is what keeps a long session's history out of memory
+// when only a page of it was asked for.
+func (s *TranscriptStore) PageItems(ctx context.Context, sessionID string, afterSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
 		 FROM history_items AS h
 		 LEFT JOIN tool_result_blobs AS b
 		   ON b.id = h.offload_id AND b.session_id = h.session_id AND b.item_id = h.item_id
-		 WHERE h.session_id = ? ORDER BY h.seq`, sessionID)
+		 WHERE h.session_id = ? AND h.seq > ? ORDER BY h.seq`
+	args := []any{sessionID, afterSequence}
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)
 	}
 	defer rows.Close()
 
-	var out []transcript.Item
+	var out []transcript.SequencedItem
 	for rows.Next() {
 		var session, runID, itemID, payload, rawOffloadID string
 		var offloadedBody sql.NullString
-		var createdAt int64
-		if err := rows.Scan(&session, &runID, &itemID, &createdAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
+		var sequence, createdAt int64
+		if err := rows.Scan(&sequence, &session, &runID, &itemID, &createdAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history item: %w", err)
 		}
 		var item transcript.Item
@@ -267,7 +291,7 @@ func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]tr
 			body := tool.StringResult(offloadedBody.String)
 			item.Tool.Result = &body
 		}
-		out = append(out, item)
+		out = append(out, transcript.SequencedItem{Sequence: sequence, Item: item})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("sqlite: list history items: %w", err)

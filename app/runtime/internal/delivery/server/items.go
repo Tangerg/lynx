@@ -3,11 +3,23 @@ package server
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
+
+// wirePageError maps a read's page-request rejection onto invalid_params. A
+// cursor the read will not continue is a bad request, not a runtime failure:
+// letting it fall through to the unrecognized-error default would tell the client
+// the server broke and hide the one remedy — start from the first page.
+func wirePageError(err error) error {
+	if errors.Is(err, keyset.ErrInvalidCursor) || errors.Is(err, keyset.ErrInvalidLimit) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	return err
+}
 
 // ListItems returns a session's persisted history as durable Items
 // (API.md §7.4). History = the completed Item sequence; there is no
@@ -19,26 +31,29 @@ import (
 //
 // The source is the durable Item-history store (a required runtime
 // dependency): the exact Items the runtime streamed (same ids, runId,
-// text, createdAt).
+// text, createdAt). The page is cut by the query, so a long session's
+// history is not loaded to return a slice of it.
 func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	hItems, hRuns, err := s.queries.ListTranscript(ctx, in.SessionID)
+	page, err := s.queries.ListItemPage(ctx, in.SessionID, in.Cursor, in.Limit)
 	if err != nil {
-		return nil, err
+		return nil, wirePageError(err)
 	}
-	return s.listItemsFromHistory(hItems, hRuns, in)
+	items := make([]protocol.Item, 0, len(page.Items))
+	for _, item := range page.Items {
+		items = append(items, presentItem(item))
+	}
+	runs := make([]protocol.RunRef, 0, len(page.Runs))
+	for _, run := range page.Runs {
+		runs = append(runs, presentRun(run))
+	}
+	return &protocol.ListItemsResponse{
+		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: page.NextCursor},
+		Runs: runs,
+	}, nil
 }
 
-// defaultItemPageLimit caps a single items.list page when the client gives
-// no (or an over-large) limit.
-const defaultItemPageLimit = 200
-
-// pageByCursor applies opaque-cursor + limit pagination over an ordered slice
-// whose elements carry a unique stable key. cursor is the previous page's key
-// (opaque to the client); a non-empty returned cursor is the "has more"
-// signal (§4.11) — the server never silently truncates. A cursor whose anchor
-// no longer exists is rejected instead of guessing against a collection whose
-// ordering may not match its identity key. The client then restarts from page
-// one, avoiding silent skips or duplicates.
+// pageByCursor is the in-memory pager the remaining list handlers still use while
+// their reads move behind keyset queries. It goes away with its last caller.
 func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, maxLimit int) ([]T, string, error) {
 	if limit < 0 {
 		return nil, "", fmt.Errorf("%w: limit must not be negative", protocol.ErrInvalidParams)
@@ -68,27 +83,4 @@ func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, ma
 		return page, base64.RawURLEncoding.EncodeToString([]byte(key(page[len(page)-1]))), nil
 	}
 	return elems, "", nil
-}
-
-// listItemsFromHistory serves items.list from durable Item rows.
-func (s *Server) listItemsFromHistory(hItems []transcript.Item, hRuns []transcript.Run, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-	pageRows, next, err := pageByCursor(hItems, func(item transcript.Item) string { return item.ID }, in.Cursor, in.Limit, defaultItemPageLimit)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]protocol.Item, 0, len(pageRows))
-	for _, item := range pageRows {
-		items = append(items, presentItem(item))
-	}
-	// Runs stay fully decoded: the client needs the whole run tree to thread
-	// items, and the per-session run count is small.
-	runs := make([]protocol.RunRef, 0, len(hRuns))
-	for _, run := range hRuns {
-		runs = append(runs, presentRun(run))
-	}
-
-	return &protocol.ListItemsResponse{
-		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: next},
-		Runs: runs,
-	}, nil
 }

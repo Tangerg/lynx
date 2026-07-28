@@ -9,6 +9,7 @@ import (
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
@@ -19,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -96,9 +96,9 @@ type runUseCases interface {
 }
 
 type queryUseCases interface {
+	ListItemPage(ctx context.Context, sessionID, cursor string, limit int) (queries.ItemPage, error)
 	ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
 	ListRunningRuns(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error)
-	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
 }
 
 type usageUseCases interface {

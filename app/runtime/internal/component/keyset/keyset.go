@@ -20,6 +20,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"strings"
 )
@@ -29,6 +30,11 @@ import (
 // All of those have one remedy — restart from the first page — so they are one
 // sentinel rather than a taxonomy the caller would branch on identically.
 var ErrInvalidCursor = errors.New("keyset: cursor cannot continue this query")
+
+// ErrInvalidLimit reports a page size a read will not serve. Separate from
+// ErrInvalidCursor because the caller's fix differs: correct the request, rather
+// than start the collection over.
+var ErrInvalidLimit = errors.New("keyset: page limit is invalid")
 
 // formatVersion changes when the token layout does, so a cursor in flight across
 // an upgrade is rejected instead of decoded as something else.
@@ -100,7 +106,7 @@ func Decode(cursor, method string, filters []string) ([]string, error) {
 // is willing to serve, and gets a cursor instead.
 func Limit(requested, max int) (int, error) {
 	if requested < 0 {
-		return 0, errors.New("keyset: limit must not be negative")
+		return 0, fmt.Errorf("%w: must not be negative", ErrInvalidLimit)
 	}
 	if requested == 0 || requested > max {
 		return max, nil

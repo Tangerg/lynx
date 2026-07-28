@@ -94,6 +94,20 @@ type Item struct {
 	DroppedMessages int
 }
 
+// SequencedItem pairs a history Item with its position in the session's durable
+// append order — the total order a paged read continues along, and the only one
+// that is exact: creation timestamps tie, and an imported transcript can carry
+// backdated ones.
+//
+// The position sits beside the Item rather than inside it because the store
+// assigns it when the Item lands: an Item on its way to being appended has no
+// position, so a field for one inside the aggregate would be a zero every writer
+// had to remember to ignore.
+type SequencedItem struct {
+	Sequence int64
+	Item     Item
+}
+
 type ContentKind uint8
 
 const (
