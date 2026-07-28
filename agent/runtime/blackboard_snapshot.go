@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
@@ -109,18 +110,9 @@ func decodeBlackboardValues(codec core.SnapshotCodec, values []core.TaggedValue)
 // Snapshot implements [BlackboardSnapshotter].
 func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	b.mu.RLock()
-	named := make(map[string]storedBlackboardValue, len(b.named))
-	for key, value := range b.named {
-		named[key] = value.clone()
-	}
-	storedObjects := make([]storedBlackboardValue, len(b.objects))
-	for index, value := range b.objects {
-		storedObjects[index] = value.clone()
-	}
-	storedHidden := make([]storedBlackboardValue, len(b.hidden))
-	for index, value := range b.hidden {
-		storedHidden[index] = value.clone()
-	}
+	named := maps.Clone(b.named)
+	storedObjects := slices.Clone(b.objects)
+	storedHidden := slices.Clone(b.hidden)
 	conditions := maps.Clone(b.conditions)
 	b.mu.RUnlock()
 

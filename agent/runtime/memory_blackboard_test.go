@@ -134,6 +134,41 @@ func TestInMemoryBlackboardOwnsStoredAndReturnedValues(t *testing.T) {
 	}
 }
 
+// TestInMemoryBlackboardCleanChildCannotWriteThroughToParent pins the only
+// boundary left between a parent and a clean child: the copied objects
+// container. Stored values share their bytes, and ClearWorkingState truncates
+// instead of reallocating, so a shared array would send the child's first write
+// into the slot still holding the parent's first object — corrupting the parent
+// through a child that was supposed to start with nothing.
+func TestInMemoryBlackboardCleanChildCannotWriteThroughToParent(t *testing.T) {
+	seeded := []string{"first", "second", "third"}
+	parent := newInMemoryBlackboard()
+	for _, value := range seeded {
+		if err := parent.Add(item{Value: value}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	child, err := cleanBlackboard(parent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := child.Add(item{Value: "child write"}); err != nil {
+		t.Fatal(err)
+	}
+
+	objects := parent.Objects()
+	if len(objects) != len(seeded) {
+		t.Fatalf("parent object count = %d, want %d", len(objects), len(seeded))
+	}
+	for index, want := range seeded {
+		got, ok := objects[index].(item)
+		if !ok || got.Value != want {
+			t.Fatalf("parent objects[%d] = %#v, want %q", index, objects[index], want)
+		}
+	}
+}
+
 func TestInMemoryBlackboardRejectsNonPortableStateAtomically(t *testing.T) {
 	blackboard := newInMemoryBlackboard()
 	if err := blackboard.Bind(func() {}); err == nil {

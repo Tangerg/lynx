@@ -39,6 +39,11 @@ func newInMemoryBlackboard() *inMemoryBlackboard {
 // storedBlackboardValue is the in-memory ownership boundary. Keeping the exact
 // concrete type beside its JSON form lets every read reconstruct a fresh Go
 // value without exposing the blackboard's state graph.
+//
+// A stored value is immutable once constructed, which is why readers, children
+// and snapshots share its bytes and copy only the container they came from.
+// Editing data in place would corrupt every sharer at once, and nothing would
+// report it.
 type storedBlackboardValue struct {
 	typ  reflect.Type
 	data []byte
@@ -53,13 +58,20 @@ func storeBlackboardValue(value any) (storedBlackboardValue, error) {
 	if err != nil {
 		return storedBlackboardValue{}, fmt.Errorf("encode %T: %w", value, err)
 	}
-	stored.data = slices.Clone(data)
+	stored.data = data
+	// requirePortableType rules on the shape of a type; a type that owns its
+	// portable form can still emit JSON its own decoder rejects. Nothing but a
+	// decode here catches that, and catching it at the write is the whole point.
 	if _, err := stored.value(); err != nil {
 		return storedBlackboardValue{}, fmt.Errorf("decode %T: %w", value, err)
 	}
 	return stored, nil
 }
 
+// value rebuilds a fresh Go value. It can run the stored type's own
+// UnmarshalJSON, so callers holding b.mu must release it first: that user code
+// may read the blackboard back, and sync.RWMutex forbids recursive RLock — it
+// deadlocks the moment a writer is queued.
 func (v storedBlackboardValue) value() (any, error) {
 	if v.typ == nil {
 		return nil, nil
@@ -77,10 +89,6 @@ func (v storedBlackboardValue) mustValue() any {
 		panic(fmt.Sprintf("agent runtime: corrupt in-memory blackboard value %s: %v", v.typ, err))
 	}
 	return value
-}
-
-func (v storedBlackboardValue) clone() storedBlackboardValue {
-	return storedBlackboardValue{typ: v.typ, data: slices.Clone(v.data)}
 }
 
 // Name identifies the in-memory blackboard implementation. The
@@ -108,7 +116,6 @@ func (b *inMemoryBlackboard) Store(key string, value any) error {
 func (b *inMemoryBlackboard) Load(key string) (any, bool) {
 	b.mu.RLock()
 	value, ok := b.named[key]
-	value = value.clone()
 	b.mu.RUnlock()
 	if !ok {
 		return nil, false
@@ -130,10 +137,7 @@ func (b *inMemoryBlackboard) Add(value any) error {
 
 func (b *inMemoryBlackboard) Objects() []any {
 	b.mu.RLock()
-	stored := make([]storedBlackboardValue, len(b.objects))
-	for index, value := range b.objects {
-		stored[index] = value.clone()
-	}
+	stored := slices.Clone(b.objects)
 	b.mu.RUnlock()
 
 	objects := make([]any, len(stored))
@@ -223,17 +227,9 @@ func (b *inMemoryBlackboard) Clone() (core.Blackboard, error) {
 
 	child := newInMemoryBlackboard()
 	maps.Copy(child.conditions, b.conditions)
-	for key, value := range b.named {
-		child.named[key] = value.clone()
-	}
-	child.objects = make([]storedBlackboardValue, len(b.objects))
-	for index, value := range b.objects {
-		child.objects[index] = value.clone()
-	}
-	child.hidden = make([]storedBlackboardValue, len(b.hidden))
-	for index, value := range b.hidden {
-		child.hidden[index] = value.clone()
-	}
+	maps.Copy(child.named, b.named)
+	child.objects = slices.Clone(b.objects)
+	child.hidden = slices.Clone(b.hidden)
 	return child, nil
 }
 
@@ -257,7 +253,6 @@ func (b *inMemoryBlackboard) ClearWorkingState() error {
 func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 	b.mu.RLock()
 	value, ok := b.lookup(variable, typeName)
-	value = value.clone()
 	b.mu.RUnlock()
 	if !ok {
 		return nil, false
