@@ -60,7 +60,7 @@
 | 批次 | 名称 | 状态 | 说明 |
 |---|---|---|---|
 | A | 协议文档事实对齐 | `TODO` | 零代码变化 |
-| A′ | 现役泄露治本（**前置**） | `TODO` | 4 slice，落 main |
+| A′ | 现役泄露治本（**前置**） | `IN PROGRESS` | 5 slice（A′5 实施中发现），落 main |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
 | B′ | 权威读面 + store cutover | `TODO` | 5 slice，落 main，**建议起点** |
 | C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
@@ -262,6 +262,11 @@ delivery/server/presenter_run.go     为另外 4 个 kind 补 Detail
 
 delivery 侧还为 `OutcomeMaxBudget` / `OutcomeMaxSteps` 编了两句默认文案。
 
+**实施时（2026-07-28）又发现两条更硬的证据**：
+
+1. **前端本来就是对的，错的是后端。** `lib/rpcErrors.ts` 的文件头注释记录着**同一个 bug 的前科**：*"They were English string literals here … the app shipped fifteen sentences no translator could see."* 前端已按 type 建好 8 语言文案表，且 `MAPPED_TYPES` 恰好**缺**这四个 kind —— delivery 是在替它补，且只有英文。
+2. **两个编码器不一致。** `artifact_encode.go` 直接用 `problem.Detail`（无 fallback），`presenter_run.go` 有 fallback —— **同一次失败，客户端从 live 流看到一句话、从 Artifact 看到空**。这不是"多写了一份文案"，是 wire 上的真相分叉。
+
 **"这个 Run 为什么停了"是领域语义。** domain 没给 detail，delivery 就补一个 —— 不是映射，是填充缺失的业务事实。已有守卫 `TestDeliveryDoesNotDeriveSessionActivity` 的注释写的正是这条边界：*"Delivery maps the resulting enum but cannot duplicate the precedence rule"*。
 
 **vNext 会放大它**：`RunOutcome.detail`（3 variant）、`ProblemData.detail`、`child_run_canceled` detail 都是同一模式。
@@ -317,13 +322,16 @@ vNext 要求 cursor 是 **server-issued opaque keyset token**，内含 `formatVe
 现有 12 个 delivery 守卫都是过去泄露的化石。本轮该留下 6 个新的：
 
 ```go
-TestDeliveryDoesNotAuthorDomainText        // A′1 长出：禁 presenter 里的 default 文案字面量
+TestDeliveryDoesNotAuthorDomainText        // ✅ DONE (4571e91e9)
 TestDeliveryDoesNotImplementQuerySemantics // A′4 长出：禁 pageByCursor / 切片过滤 / 排序
 TestDeliveryReadsRunsFromDurableProjection // A′3 长出：禁 delivery 调 coordinator.List() 取 Run 事实
 TestSystemInvariantsStayInApplication      // D3 长出：禁 delivery 出现 SystemInvariantSpec
 TestDeliveryDoesNotComputeMetrics          // C 预埋
 TestRunWireShapesShareOneDefinition        // C 预埋
 ```
+
+**A′1 的守卫比原计划强，理由值得记下**：原计划写的是「禁 default 文案字面量」，但泄露的实际形态是**文案藏在一个看起来像 mapper 的 helper 里**（`presentProblemDetail`），禁字面量赋值挡不住它。落地形态改为：*在 `presenter_run.go` / `artifact_encode.go` 里，字符串字面量只能是给程序员的诊断*（豁免 import path / `panic` / `errors.New` / `fmt.Errorf` / 空串）。已验证：把文案塞进新 helper 里也会被咬到。
+> 教训：守卫要挡**形态**，不是挡**符号名**。换个函数名就绕过的守卫等于没有。
 
 契约 §14.6 那句「validator 的依赖图不包含 store/dispatcher/executor」**已有等价守卫**，不用新建。
 
@@ -411,10 +419,18 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| A′1 | 泄露 1 治本：Problem/Outcome detail **单一作者**。为 `RunLost / DeniedByUser / ToolFailed / Internal` 四个 kind 找回产生点并在那里写全；删 delivery 的 6 处默认文案（4 个 problem kind + 2 个 outcome kind）。领域无话可说的 → wire 省略字段 | `TODO` | — |
+| A′1 | 泄露 1 治本：Problem/Outcome detail **单一作者**。为 `RunLost / DeniedByUser / ToolFailed / Internal` 四个 kind 找回产生点并在那里写全；删 delivery 的 6 处默认文案（4 个 problem kind + 2 个 outcome kind）。领域无话可说的 → wire 省略字段 | `DONE` | `2a75bc6ae`（前端）+ `4571e91e9`（后端） |
 | A′2 | D6：`Retryable` 三处删除（`domain/execution/transcript` + `delivery/dispatch` spec 表 + wire/Artifact 映射），按 kind 直接决定 `retryAfterSeconds` | `TODO` | — |
 | A′3 | 泄露 2 治本：`ListRuns` 改读 durable projection，删 live registry 读取与硬编码 status。**三态留给 C1** —— 本 slice 只做「单一真相源」 | `TODO` | — |
 | A′4 | 泄露 3 治本：过滤 / 排序 / keyset cursor 编解码下沉为 application query port（含 `items.list` 全量物化）；delivery 只传 opaque token | `TODO` | — |
+| A′5 | 同一泄露的相邻面（A′1 实施中发现）：`mcp_projection.go` / `providers.go` 由 domain enum 编造 5 句英文 detail。**enum→enum 映射留 delivery（本职），enum→人话移入 locale catalog**。⚠️ 与 A′1 不同，**有前端半部** —— 这两个面板走 `errorDetail()`，其 fallback 是裸 symbol | `DONE` | `98399fab6`（后端）+ `5d3b2f2a7`（前端） |
+
+**A′5 顺带治掉的根**：`errorDetail()` 的 `?? type` fallback 就是"裸符号能露出来"的总根 —— 它让这个 reader **永远无法回答"runtime 什么也没说"**，于是把「该由 UI 供词」的信号提前填满了。已改为只返 detail；要文案的走 `describeProblem` / `rpcErrorText` 单一入口。**这条 fallback 原先零测试覆盖**，现已钉住。
+
+**A′5 另外两个发现**：
+- `mcp_invalid_connection_state`：delivery 为一个不可达分支**发明的 wire 类型**，把"投影没跟上 domain 枚举"这个缺陷当成用户可读的判决发出去。已改为 panic（与 `presenter_run.go` 同一处境同一处理），该 symbol 消失。
+- `mcp_auth_failed`：前端 8 语言有文案、`MAPPED_TYPES` 有登记，但**后端无任何产生点**（`AuthorizeMCPServer` 只映 `invalid_params` 或落 `internal_error`）。已删。
+- ⚠️ **未擅自改动**：`mcp_authorization_required` 的 ProblemData 目前**无消费者**（两个面板都只在 `status === "failed"` 时读 `errorDetail`，而它配的是 `needsAuth`）。删它是 wire 变更 → 留给 C12 一并裁决，本轮只移走文案。
 
 **影响面**：`delivery/server`（presenter + runs_query + items）、`adapter/agentexec/turn`、`domain/execution/transcript`、`application` 新 query port。**wire 不变**（A′2 的 `retryable` 是 wire 字段 —— 它在 C10 才从 wire 消失，A′2 只断掉 domain 侧来源，wire 上恒为 false／省略）。
 
