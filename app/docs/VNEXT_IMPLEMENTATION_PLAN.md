@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 12 项已落，1 项待编，1 项部分待 C，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 13 项已落，1 项部分待 C，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -573,7 +573,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 14 | state key fixture | ⏸ 待编（`StateKeySpec` 已声明 recovery/scope/writer/payload 且注册期校验 recovery 是已注册方法；缺 event↔query 同形 fixture，`state.changed` 那半依赖 C） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 | invariant integration fixture | ✅ `TestEverySystemInvariantHasAnIntegrationFixture` —— 13 个 (invariant, boundary) 对逐一有跨 projection fixture，**双向链接**（索引点名 fixture，fixture 的 godoc 写明它守哪条 invariant）。补了 3 条新 fixture，纠正了审计里 1 处误判 |
-| 11 | list query fixture | ⏸ 待编 —— **证据已审完**，见下「gate 11 证据审计」：5 个分页读 × 3 条腿里 4 格已有，9 格缺，另咬到一个 cursor 命名分歧 |
+| 11 | list query fixture | ✅ 两半都落：结构半 `TestPageCursorsBindToTheirOwnMethod`（每个 `*PageMethod` 常量必须是**已注册方法名**且**互不相同** —— 两个读共用命名空间会互相接受对方的 anchor，seek 落到错的排序上），行为半 `TestEverySeekPagedReadHasQueryFixtures`（5 个读 × 3 条腿的证据索引，双向链接）。补了 9 格 fixture，`interrupts.list` 已改名 |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
 #### ✅ B3 完成（2026-07-29）：14/14 产物
@@ -839,8 +839,19 @@ gate 的两条腿都验过会响：改错 fixture 名 → "named as the fixture 
 dev 阶段无迁移负担），并让 gate 顺手核对每个身份常量都是**注册过的方法名** —— 那条校验现在就能加，和 `StateKeySpec`
 的 `RecoveryMethod` 是同一招。
 
-**实现顺序建议**：先定 cursor 命名 → 补 9 格 fixture（每格都要有反例：拿 A 读的 cursor 喂 B 读必须被拒）→
-最后加"每个身份常量都是注册方法名"的静态校验。
+**实现结果（同日落地，按上面的顺序做完）**：
+
+1. **cursor 命名统一** —— `interruptPageMethod` 改成 `runs.listOpenInterrupts`。这**不是**破坏性公开 API 改动：常量是内部的，
+   cursor 对客户端是不透明 token，代价只有"已铸 cursor 失效"，而 cursor 本来就是 per-query 短命的。
+2. **9 格 fixture 补齐**，每格都带反例。四个分页 fake（runs / interrupts / sessions / schedules）改成**按 store 的方式
+   seek**：`(0, "")` 是"没有 anchor"= 第一页（与 sqlite 的 `if afterStartedAt > 0 || afterRunID != ""` 一致），其余严格大于
+   上一页最后一行。原先的 fake 直接忽略 anchor —— 那种 fake 下"下一页方向"根本无从断言，读怎么写测试都过。
+   关键反例：**把 A 读的 cursor 喂给 B 读必须被拒** —— run 页与 interrupt 页 scope 相同、都按时间戳排序，**只有 query
+   命名空间能把它们分开**，所以两个方向都试了。
+3. **静态校验**：`*PageMethod` 常量必须是已注册方法名 **且互不相同**。后半条是审计时没想到的 —— 两个读共用命名空间，
+   彼此的 anchor 会被对方接受，然后 seek 落到错的排序上，而组件测试与产物比对都看不见。
+
+`keyset` 那 4 条组件测试仍是组件层的证明；gate 11 证明的是**每个读接对了**。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 
