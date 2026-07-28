@@ -326,7 +326,7 @@ vNext 要求 cursor 是 **server-issued opaque keyset token**，内含 `formatVe
 TestDeliveryDoesNotAuthorDomainText        // ✅ DONE (4571e91e9 + 98399fab6)
 TestDeliveryDoesNotImplementQuerySemantics // ✅ DONE (dfcadad95)
 TestDeliveryReadsRunsFromDurableProjection // ✅ DONE (03943f663)
-TestSystemInvariantsStayInApplication      // D3 长出：禁 delivery 出现 SystemInvariantSpec
+TestSystemInvariantsStayInApplication      // ✅ DONE (B2) — 禁 delivery 出现 SystemInvariantSpec
 TestDeliveryDoesNotComputeMetrics          // C 预埋
 TestRunWireShapesShareOneDefinition        // C 预埋
 ```
@@ -551,9 +551,37 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | slice | scope | 状态 | commit |
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
-| B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `TODO` | — |
+| B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `TODO` | — |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `TODO` | — |
+
+#### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
+
+B3 的生成器还没有，但一份说谎的 spec 现在就该测出来。所以 `UnionSpec` / `ObjectConstraintSpec` / `StateKeySpec` 在
+注册期按 Go 类型校验（dotted path 走 embedded 内联），init 时 panic：
+
+- 变体声明了结构体没有的字段 → 拒；
+- **结构体有字段却没有任何变体认领 → 拒**（这条是真会发生的漂移：加个字段忘了登记，生成的 schema 就会让它在每个 tag 下合法）；
+- discriminator 不是 `type` → 拒（API.md §2.1 无例外）；tag 重复 → 拒；
+- state key 的 `RecoveryMethod` 必须是**已注册方法** → 否则等于承诺一个客户端调不出来的调用。
+
+**当场咬到一个**：`Interrupt` 的变体字段在 `payload` 里（`payload.tool`），覆盖记账没把 `payload` 本身算进去 —— 校验器
+自己第一次运行就报了这个，说明它在干活。
+
+**13 类 union 只登记了今天存在的 12 个**（含 §11.2 未点名但同样闭合的 `ContentBlock` / `QuestionField` /
+`ArtifactContentBlock`）。`SegmentOutcome` / `ItemListScope` / `CapabilityRequirement` / `CancelRunResponse`
+**类型还不存在**（C1 / C5 / C6 才产生）—— 为一个谁都发不出来的类型登记 shape，校验不了任何东西，是纯占位。
+`TestEveryClosedWireUnionIsRegistered` 用显式清单钉住"今天该有哪 12 个"，C 里加类型时这条测试会先红。
+
+**D3 落地形态**：`internal/application/contract` 包 —— `SystemInvariantSpec` + 6 条已声明不变量 + 8 个具名事务边界。
+它**不执行**任何校验：契约 §11.2 明文禁止让 `Validate()` 拿到 repository dependency，所以这里只做"给不变量稳定命名 +
+声明谁负责维护"，验证归 B4 gate 8 的 integration fixture。新增守卫
+**`TestSystemInvariantsStayInApplication`**（§4.4 第 4 条）：禁 `delivery` 出现 `SystemInvariantSpec` / `TransactionBoundary`，
+并顺带断言声明集本身可执行（无重名、每条都有 Why 与责任边界）。arch 守卫 41 → 42。
+
+**§4.4 六个守卫现状**：4 个 DONE（`DoesNotAuthorDomainText` / `DoesNotImplementQuerySemantics` /
+`ReadsRunsFromDurableProjection` / `SystemInvariantsStayInApplication`），剩 2 个（`DoesNotComputeMetrics` /
+`RunWireShapesShareOneDefinition`）按原计划是 **C 预埋** —— 它们要禁的符号在 C1/C2 才产生。
 
 #### ⚠️ B1 实施记录（2026-07-29）：Registry 落在 `delivery/dispatch`，不在 `protocol`
 

@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
 )
 
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
@@ -1603,5 +1605,26 @@ func moduleRoot(t *testing.T) string {
 			t.Fatal("go.mod not found walking up from test dir")
 		}
 		dir = parent
+	}
+}
+
+// TestSystemInvariantsStayInApplication keeps cross-resource invariants out of
+// the wire ring (vNext plan D3). A SystemInvariantSpec names a fact that spans
+// runs, interrupts and the store, and it points at the transaction responsible
+// for it — neither of which delivery can see. Two things go wrong if delivery
+// names one: the wire layer starts asserting business facts, and the application
+// ring would have to import delivery to register, which is an outward edge.
+func TestSystemInvariantsStayInApplication(t *testing.T) {
+	root := moduleRoot(t)
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "delivery"), map[string]string{
+		"SystemInvariantSpec": "a cross-resource invariant is named by the ring that owns its transaction",
+		"TransactionBoundary": "a transaction boundary is an application concern",
+	})
+	// The declared set must be actionable wherever it lives.
+	if err := appcontract.Validate(); err != nil {
+		t.Fatalf("declared system invariants: %v", err)
+	}
+	if len(appcontract.SystemInvariants()) == 0 {
+		t.Fatal("no system invariant is declared; the manifest gate would pass vacuously")
 	}
 }
