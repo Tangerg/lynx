@@ -163,6 +163,10 @@ func startFailureAgent(name, planner string) *core.Agent {
 		Name:        name,
 		Version:     "1.0.0",
 		PlannerName: planner,
+		// StartTurn seeds turnInput, so a stand-in for the chat agent has to
+		// declare it. Without the declaration this is an agent no turn could
+		// ever run, and the seed would fail before the failure under test.
+		SnapshotState: []core.Binding{core.NewBinding[turnInput](core.DefaultBindingName)},
 		Actions: []agent.Action{
 			agent.NewAction("finish", func(_ context.Context, _ *core.ProcessContext, input startFailureInput) (startFailureOutput, error) {
 				return startFailureOutput(input), nil

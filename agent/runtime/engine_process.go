@@ -77,7 +77,7 @@ func (e *Engine) buildProcessFromDeployment(
 	}
 	bindings = bindings.Clone()
 
-	blackboard, err := e.resolveBlackboard(options.Blackboard)
+	blackboard, err := e.resolveBlackboard(agent.SnapshotCodec(), options.Blackboard)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
@@ -222,7 +222,20 @@ func findPlannerByName(extensions []extensionEntry, name string) planning.Planne
 // [core.Blackboard] extension is used as a prototype, with [Clone]
 // producing the isolated per-process instance; otherwise the built-in
 // in-memory implementation is constructed fresh.
-func (e *Engine) resolveBlackboard(supplied core.Blackboard) (core.Blackboard, error) {
+//
+// Whichever source wins, the result is gated on codec: the process may only
+// hold state the agent behind it declared it can restore. That check belongs
+// here because this is the one place all three sources meet — two of them are
+// constructed by the caller, so no constructor could carry it.
+func (e *Engine) resolveBlackboard(codec core.SnapshotCodec, supplied core.Blackboard) (core.Blackboard, error) {
+	blackboard, err := e.resolveBlackboardSource(supplied)
+	if err != nil {
+		return nil, err
+	}
+	return declareWrites(blackboard, codec), nil
+}
+
+func (e *Engine) resolveBlackboardSource(supplied core.Blackboard) (core.Blackboard, error) {
 	if supplied != nil {
 		if _, err := blackboardName(supplied); err != nil {
 			return nil, err

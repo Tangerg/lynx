@@ -14,6 +14,10 @@ import (
 // contract violation from a transport or storage failure.
 var ErrUnportableValue = errors.New("core: value has no portable form")
 
+// ErrUndeclaredState reports a value whose exact Go type the owning Agent never
+// declared, so no snapshot of it could be restored. See [SnapshotCodec].
+var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
+
 // BlackboardReader is the read-only slice of [Blackboard] — passed to
 // contexts that observe state but should not mutate it (e.g. condition
 // evaluation, world-state determination, planner introspection).

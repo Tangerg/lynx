@@ -106,7 +106,7 @@ func TestRestoreTreeBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T) {
 	sibling := snapshot
 	sibling.ID = "restored-sibling"
 
-	base, err := engine.NewBlackboard()
+	base, err := engine.NewBlackboard(definition)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +287,7 @@ func TestDuplicateGeneratedProcessIDDoesNotReplaceRegistryEntry(t *testing.T) {
 
 func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 	baseEngine := agent.MustNewEngine(runtime.Config{})
-	base, err := baseEngine.NewBlackboard()
+	base, err := baseEngine.NewBlackboard(extensionBoundaryAgent())
 	if err != nil {
 		t.Fatalf("NewBlackboard baseline: %v", err)
 	}
@@ -315,7 +315,7 @@ func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{test.prototype}})
-			blackboard, err := engine.NewBlackboard()
+			blackboard, err := engine.NewBlackboard(extensionBoundaryAgent())
 			if blackboard != nil || err == nil || !strings.Contains(err.Error(), test.contains) {
 				t.Fatalf("NewBlackboard = %#v, %v; want nil and %q", blackboard, err, test.contains)
 			}
@@ -328,7 +328,7 @@ func TestBlackboardConstructionFailuresReturnErrors(t *testing.T) {
 
 func TestEngineFreezesBlackboardPrototypeNameAtRegistration(t *testing.T) {
 	baseEngine := agent.MustNewEngine(runtime.Config{})
-	base, err := baseEngine.NewBlackboard()
+	base, err := baseEngine.NewBlackboard(extensionBoundaryAgent())
 	if err != nil {
 		t.Fatalf("NewBlackboard baseline: %v", err)
 	}
@@ -342,7 +342,7 @@ func TestEngineFreezesBlackboardPrototypeNameAtRegistration(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{prototype}})
 	prototype.name = "mutated-board"
 
-	_, err = engine.NewBlackboard()
+	_, err = engine.NewBlackboard(extensionBoundaryAgent())
 	if err == nil || !strings.Contains(err.Error(), `blackboard "registered-board" Clone panicked`) {
 		t.Fatalf("NewBlackboard error = %v", err)
 	}
@@ -353,7 +353,7 @@ func TestEngineFreezesBlackboardPrototypeNameAtRegistration(t *testing.T) {
 
 func TestBlackboardSeedPanicReturnsProcessCreationError(t *testing.T) {
 	baseEngine := agent.MustNewEngine(runtime.Config{})
-	base, err := baseEngine.NewBlackboard()
+	base, err := baseEngine.NewBlackboard(extensionBoundaryAgent())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -374,7 +374,7 @@ func TestBlackboardSeedPanicReturnsProcessCreationError(t *testing.T) {
 
 func TestBlackboardPersistencePanicsReturnErrors(t *testing.T) {
 	baseEngine := agent.MustNewEngine(runtime.Config{})
-	base, err := baseEngine.NewBlackboard()
+	base, err := baseEngine.NewBlackboard(extensionBoundaryAgent())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -648,15 +648,21 @@ func TestAgentValidatorPanicRejectsDeploy(t *testing.T) {
 	}
 }
 
+// extensionTestInput and extensionTestOutput are package-level so a test can
+// seed the exact type the agent declares. A locally-defined input would leave
+// callers reaching for an anonymous struct{}, which is a different type — and
+// therefore state this agent could never restore.
+type extensionTestInput struct{}
+
+type extensionTestOutput struct{}
+
 func newExtensionTestAgent() *core.Agent {
-	type input struct{}
-	type output struct{}
 	return agent.New(agent.AgentConfig{
 		Name: "validated-snapshot",
-		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, input) (output, error) {
-			return output{}, nil
+		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, extensionTestInput) (extensionTestOutput, error) {
+			return extensionTestOutput{}, nil
 		}, core.ActionConfig{})},
-		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[extensionTestOutput](core.GoalConfig{Description: "done"})},
 	})
 }
 
@@ -744,7 +750,7 @@ func TestExtensionDecisionPanicsFailProcess(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			definition := newExtensionTestAgent()
 			engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{test.extension}})
-			process, err := engine.Run(t.Context(), definition, core.Input(struct{}{}), core.ProcessOptions{})
+			process, err := engine.Run(t.Context(), definition, core.Input(extensionTestInput{}), core.ProcessOptions{})
 			if err != nil {
 				t.Fatalf("Run: %v", err)
 			}

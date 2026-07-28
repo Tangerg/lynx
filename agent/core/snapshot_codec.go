@@ -42,12 +42,12 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 	if a == nil {
 		return nil, nil, errors.New("agent.Agent.EncodeBlackboard: agent is nil")
 	}
-	table := a.snapshotTypes()
+	codec := a.SnapshotCodec()
 	var taggedNamed map[string]TaggedValue
 	if bindings.Len() > 0 {
 		taggedNamed = make(map[string]TaggedValue, bindings.Len())
 		for key, value := range bindings.All() {
-			tagged, err := tagSnapshotValue(value, table)
+			tagged, err := codec.Encode(value)
 			if err != nil {
 				return nil, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
 			}
@@ -56,7 +56,7 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 	}
 	taggedObjects := make([]TaggedValue, 0, len(objects))
 	for i, value := range objects {
-		tagged, err := tagSnapshotValue(value, table)
+		tagged, err := codec.Encode(value)
 		if err != nil {
 			return nil, nil, fmt.Errorf("objects[%d]: %w", i, err)
 		}
@@ -68,14 +68,54 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 	return taggedNamed, taggedObjects, nil
 }
 
-func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, error) {
+// SnapshotCodec is the single authority on which values can cross a process
+// snapshot. A value survives only if its exact Go type is declared by this
+// Agent — an action input or output, or [AgentConfig.SnapshotState] — because
+// the declaration is the only thing that turns a tag back into a
+// [reflect.Type]. An undeclared type is one the Agent could encode and never
+// restore.
+//
+// Obtain one with [Agent.SnapshotCodec]. The zero value declares nothing and
+// rejects every non-nil value, which is the safe reading of "no agent".
+type SnapshotCodec struct {
+	types map[string]reflect.Type
+}
+
+// SnapshotCodec returns the codec for this Agent's declared state. The result
+// is a snapshot of the declarations; later mutation of the Agent cannot widen
+// what an in-flight process is allowed to carry.
+func (a *Agent) SnapshotCodec() SnapshotCodec {
+	if a == nil {
+		return SnapshotCodec{}
+	}
+	return SnapshotCodec{types: a.snapshotTypes()}
+}
+
+// Declares reports why value's type cannot cross a snapshot, or nil when it
+// can. It is the write-time form of [SnapshotCodec.Encode] for callers that
+// need the verdict before paying to serialize: a blackboard checks it so an
+// undeclared value is refused at the write that introduces it, rather than
+// making the whole process unsnapshottable at some later checkpoint.
+func (c SnapshotCodec) Declares(value any) error {
+	if value == nil {
+		return nil
+	}
+	typeName := snapshotTypeName(reflect.TypeOf(value))
+	if _, ok := c.types[typeName]; !ok {
+		return fmt.Errorf("%w: %q", ErrUndeclaredState, typeName)
+	}
+	return nil
+}
+
+// Encode tags value with the exact type needed to rebuild it.
+func (c SnapshotCodec) Encode(value any) (TaggedValue, error) {
 	if value == nil {
 		return TaggedValue{Type: anyTypeName, Value: json.RawMessage(nullJSON)}, nil
 	}
-	typeName := snapshotTypeName(reflect.TypeOf(value))
-	if _, ok := table[typeName]; !ok {
-		return TaggedValue{}, fmt.Errorf("type %q is not declared snapshot state", typeName)
+	if err := c.Declares(value); err != nil {
+		return TaggedValue{}, err
 	}
+	typeName := snapshotTypeName(reflect.TypeOf(value))
 	data, err := json.Marshal(value)
 	if err != nil {
 		return TaggedValue{}, fmt.Errorf("encode %q: %w", typeName, err)
@@ -83,38 +123,9 @@ func tagSnapshotValue(value any, table map[string]reflect.Type) (TaggedValue, er
 	return TaggedValue{Type: typeName, Value: data}, nil
 }
 
-// DecodeBlackboard reconstructs strict snapshot values. Unknown tags and decode
-// failures are errors; restore never silently substitutes generic JSON objects.
-func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error) {
-	if a == nil {
-		return Bindings{}, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
-	}
-	table := a.snapshotTypes()
-	var decodedNamed Bindings
-	if len(named) > 0 {
-		for key, tagged := range named {
-			value, err := decodeSnapshotValue(tagged, table)
-			if err != nil {
-				return Bindings{}, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
-			}
-			decodedNamed.Set(key, value)
-		}
-	}
-	decodedObjects := make([]any, 0, len(objects))
-	for i, tagged := range objects {
-		value, err := decodeSnapshotValue(tagged, table)
-		if err != nil {
-			return Bindings{}, nil, fmt.Errorf("objects[%d]: %w", i, err)
-		}
-		decodedObjects = append(decodedObjects, value)
-	}
-	if len(decodedObjects) == 0 {
-		decodedObjects = nil
-	}
-	return decodedNamed, decodedObjects, nil
-}
-
-func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any, error) {
+// Decode rebuilds the exact Go value behind a tag. Unknown tags and decode
+// failures are errors; restore never silently substitutes a generic JSON value.
+func (c SnapshotCodec) Decode(tagged TaggedValue) (any, error) {
 	if err := tagged.Validate(); err != nil {
 		return nil, err
 	}
@@ -124,15 +135,46 @@ func decodeSnapshotValue(tagged TaggedValue, table map[string]reflect.Type) (any
 		}
 		return nil, nil
 	}
-	typeValue, ok := table[tagged.Type]
+	typeValue, ok := c.types[tagged.Type]
 	if !ok || typeValue == nil {
-		return nil, fmt.Errorf("unknown snapshot type %q", tagged.Type)
+		return nil, fmt.Errorf("%w: %q", ErrUndeclaredState, tagged.Type)
 	}
 	pointer := reflect.New(typeValue)
 	if err := json.Unmarshal(tagged.Value, pointer.Interface()); err != nil {
 		return nil, fmt.Errorf("decode %q: %w", tagged.Type, err)
 	}
 	return pointer.Elem().Interface(), nil
+}
+
+// DecodeBlackboard reconstructs strict snapshot values. Unknown tags and decode
+// failures are errors; restore never silently substitutes generic JSON objects.
+func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error) {
+	if a == nil {
+		return Bindings{}, nil, errors.New("agent.Agent.DecodeBlackboard: agent is nil")
+	}
+	codec := a.SnapshotCodec()
+	var decodedNamed Bindings
+	if len(named) > 0 {
+		for key, tagged := range named {
+			value, err := codec.Decode(tagged)
+			if err != nil {
+				return Bindings{}, nil, fmt.Errorf("blackboard[%q]: %w", key, err)
+			}
+			decodedNamed.Set(key, value)
+		}
+	}
+	decodedObjects := make([]any, 0, len(objects))
+	for i, tagged := range objects {
+		value, err := codec.Decode(tagged)
+		if err != nil {
+			return Bindings{}, nil, fmt.Errorf("objects[%d]: %w", i, err)
+		}
+		decodedObjects = append(decodedObjects, value)
+	}
+	if len(decodedObjects) == 0 {
+		decodedObjects = nil
+	}
+	return decodedNamed, decodedObjects, nil
 }
 
 // snapshotTypes maps tagged state names to concrete action I/O and builtin

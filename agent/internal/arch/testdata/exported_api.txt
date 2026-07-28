@@ -73,6 +73,7 @@ core: func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[st
 core: func (a *Agent) Goals() []*Goal
 core: func (a *Agent) Name() string
 core: func (a *Agent) PlannerName() string
+core: func (a *Agent) SnapshotCodec() SnapshotCodec
 core: func (a *Agent) SnapshotState() []Binding
 core: func (a *Agent) StuckPolicy() StuckPolicy
 core: func (a *Agent) Validate() error
@@ -96,6 +97,9 @@ core: func (c *FuncCondition) Name() string
 core: func (c *PromptCondition) Cost() float64
 core: func (c *PromptCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth
 core: func (c *PromptCondition) Name() string
+core: func (c SnapshotCodec) Declares(value any) error
+core: func (c SnapshotCodec) Decode(tagged TaggedValue) (any, error)
+core: func (c SnapshotCodec) Encode(value any) (TaggedValue, error)
 core: func (conditions ConditionSet) Satisfies(required ConditionSet) bool
 core: func (conditions ConditionSet) Unsatisfied(required ConditionSet) ConditionSet
 core: func (conditions ConditionSet) Validate() error
@@ -264,6 +268,7 @@ core: type PromptConfig struct { System string Options *chat.Options Tools []too
 core: type PromptFunc func(context.Context, *ConditionEnv) string
 core: type ReplanRequest struct { Reason string Update func(Blackboard) }
 core: type ScoreFunc func(WorldState) float64
+core: type SnapshotCodec struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }
 core: type StuckDecision uint8
 core: type StuckPolicy interface { Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) StuckResult }
@@ -284,6 +289,7 @@ core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidUsage = errors.New("usage: invalid")
 core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
+core: var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
 core: var ErrUnportableValue = errors.New("core: value has no portable form")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" )
 event: func (*NamedSubtreeListener) ObserveSubtree()
@@ -477,7 +483,7 @@ runtime: func (e *Engine) Deployments() []*Deployment
 runtime: func (e *Engine) ForgetDeployment(ref core.DeploymentRef) error
 runtime: func (e *Engine) Kill(ctx context.Context, id string) error
 runtime: func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, error)
-runtime: func (e *Engine) NewBlackboard() (core.Blackboard, error)
+runtime: func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error)
 runtime: func (e *Engine) Process(id string) (*Process, bool)
 runtime: func (e *Engine) Processes() []*Process
 runtime: func (e *Engine) RemoveTree(ctx context.Context, processID string) error

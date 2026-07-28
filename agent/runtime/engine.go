@@ -158,16 +158,24 @@ func MustNew(config Config) *Engine {
 // child through [core.ProcessOptions.Dependencies].
 func (e *Engine) Dependencies() *core.Dependencies { return e.dependencies }
 
-// NewBlackboard constructs a fresh [core.Blackboard] for a new
-// process. Resolution order: a registered [core.Blackboard]
-// extension (used as a prototype — Clone yields the isolated
-// per-process instance), else the built-in in-memory implementation.
-// Public so orchestration helpers — most notably the workflow
-// agent-level builders — can hand a child process a clean blackboard
-// rather than inheriting the parent's accumulated state via Clone. It returns
-// an error when a registered prototype
-// panics or violates the Clone contract.
-func (e *Engine) NewBlackboard() (core.Blackboard, error) { return e.resolveBlackboard(nil) }
+// NewBlackboard constructs a fresh [core.Blackboard] for a process that will
+// run agent. Resolution order: a registered [core.Blackboard] extension (used
+// as a prototype — Clone yields the isolated per-process instance), else the
+// built-in in-memory implementation.
+//
+// Public so orchestration helpers — most notably the workflow agent-level
+// builders — can hand a child process a clean blackboard rather than inheriting
+// the parent's accumulated state via Clone. agent is required because its
+// declared snapshot state is what the returned blackboard admits: a blackboard
+// built for one agent must not be handed to a process that cannot restore what
+// it holds. It returns an error when a registered prototype panics or violates
+// the Clone contract.
+func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error) {
+	if agent == nil {
+		return nil, errors.New("runtime.Engine.NewBlackboard: agent is nil")
+	}
+	return e.resolveBlackboard(agent.SnapshotCodec(), nil)
+}
 
 func (e *Engine) Process(id string) (*Process, bool) { return e.processes.get(id) }
 

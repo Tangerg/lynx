@@ -264,7 +264,7 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 	if err != nil {
 		return nil, err
 	}
-	blackboard, err := e.resolveBlackboard(options.Blackboard)
+	blackboard, err := e.resolveBlackboard(agent.SnapshotCodec(), options.Blackboard)
 	if err != nil {
 		return nil, err
 	}
