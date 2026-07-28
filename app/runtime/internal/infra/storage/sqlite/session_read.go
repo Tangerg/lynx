@@ -13,9 +13,37 @@ import (
 // Internal subtask-delegation sessions ([session.KindSubtask]) are excluded so
 // they never clutter the session list — query the lineage via [Children].
 func (s *SessionStore) List(ctx context.Context) ([]session.Session, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT `+sessionColumns+` FROM sessions WHERE kind != ? ORDER BY favorite DESC, updated_at DESC, id DESC`,
-		session.KindSubtask)
+	return s.ListPage(ctx, false, 0, "", 0)
+}
+
+// ListPage returns user-facing sessions in list order, bounded by the query. The
+// anchor is the full sort key a previous page ended at — pinned state, then
+// update time, then id — because the earlier components tie freely and a partial
+// bound would drop or repeat rows at a page boundary.
+//
+// Paging here rather than after the fact matters more than for most reads: each
+// session's view is resolved against the filesystem and the live-run registry, so
+// slicing a fully-resolved list did that work for every session to return one
+// page of them.
+func (s *SessionStore) ListPage(ctx context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error) {
+	query := `SELECT ` + sessionColumns + ` FROM sessions WHERE kind != ?`
+	args := []any{session.KindSubtask}
+	if afterUpdatedAt > 0 || afterID != "" {
+		favorite := 0
+		if afterFavorite {
+			favorite = 1
+		}
+		query += ` AND (favorite < ?
+			OR (favorite = ? AND updated_at < ?)
+			OR (favorite = ? AND updated_at = ? AND id < ?))`
+		args = append(args, favorite, favorite, afterUpdatedAt, favorite, afterUpdatedAt, afterID)
+	}
+	query += ` ORDER BY favorite DESC, updated_at DESC, id DESC`
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list sessions: %w", err)
 	}

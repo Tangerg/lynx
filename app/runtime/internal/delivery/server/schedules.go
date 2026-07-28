@@ -20,19 +20,15 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 	if !s.features.schedules {
 		return nil, capabilityNotNegotiated("schedules.list")
 	}
-	scheds, err := s.schedules.List(ctx)
+	page, err := s.schedules.ListPage(ctx, query.Cursor, query.Limit)
 	if err != nil {
-		return nil, mapScheduleErr(err, "schedules.list", "")
+		return nil, mapScheduleErr(wirePageError(err), "schedules.list", "")
 	}
-	page, next, err := pageByCursor(scheds, func(sc schedule.Schedule) string { return sc.ID }, query.Cursor, query.Limit, 100)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]protocol.Schedule, 0, len(page))
-	for _, sc := range page {
+	out := make([]protocol.Schedule, 0, len(page.Rows))
+	for _, sc := range page.Rows {
 		out = append(out, scheduleToWire(sc))
 	}
-	return &protocol.Page[protocol.Schedule]{Data: out, NextCursor: next}, nil
+	return &protocol.Page[protocol.Schedule]{Data: out, NextCursor: page.NextCursor}, nil
 }
 
 // CreateSchedule adds an enabled schedule (schedules.create), computing its

@@ -282,6 +282,7 @@ type ApprovalRuleStore interface {
 // application-owned ports.
 type ScheduleStore interface {
 	List(ctx context.Context) ([]schedule.Schedule, error)
+	ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error)
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
 	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)

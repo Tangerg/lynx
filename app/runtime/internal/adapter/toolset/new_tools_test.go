@@ -379,6 +379,10 @@ func newTestScheduleCoordinator(reg scheduleapp.ManagementStore) *scheduleapp.Co
 	})
 }
 
+func (m *memoryScheduleRegistry) ListPage(ctx context.Context, _ int64, _ string, _ int) ([]schedule.Schedule, error) {
+	return m.List(ctx)
+}
+
 func (m *memoryScheduleRegistry) List(context.Context) ([]schedule.Schedule, error) {
 	out := make([]schedule.Schedule, 0, len(m.items))
 	for _, sc := range m.items {

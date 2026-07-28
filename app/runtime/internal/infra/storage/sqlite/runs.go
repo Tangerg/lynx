@@ -128,11 +128,16 @@ func (s *RunStateStore) stateForRun(ctx context.Context, sessionID, runID string
 	}
 }
 
-// ListRunning returns every Run this store holds in the running state, oldest
-// admission first, scoped to sessionID when it is non-empty. Parked and terminal
-// Runs are excluded: a caller asking what is executing is asking about work in
-// progress, and an interrupted Run is waiting on a person.
-func (s *RunStateStore) ListRunning(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error) {
+// ListRunning returns Runs in the running state, oldest admission first, scoped
+// to sessionID when it is non-empty. Parked and terminal Runs are excluded: a
+// caller asking what is executing is asking about work in progress, and an
+// interrupted Run is waiting on a person.
+//
+// The page is bounded here rather than by the caller. after is the (admission
+// time, run id) position a previous page ended at — zero time starts at the
+// beginning — and the pair is what makes the order total, since two Runs in
+// different sessions can be admitted in the same nanosecond.
+func (s *RunStateStore) ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]execution.AdmittedRun, error) {
 	query := `SELECT run_id, session_id, provider, model, started_at
 		 FROM runs WHERE state = ?`
 	args := []any{runStateRunning}
@@ -140,7 +145,15 @@ func (s *RunStateStore) ListRunning(ctx context.Context, sessionID string) ([]ex
 		query += ` AND session_id = ?`
 		args = append(args, sessionID)
 	}
+	if afterStartedAt > 0 || afterRunID != "" {
+		query += ` AND (started_at > ? OR (started_at = ? AND run_id > ?))`
+		args = append(args, afterStartedAt, afterStartedAt, afterRunID)
+	}
 	query += ` ORDER BY started_at, run_id`
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
 
 	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
 	if err != nil {

@@ -47,7 +47,7 @@ type fakeInterrupts struct {
 	session string
 }
 
-func (f *fakeInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
+func (f *fakeInterrupts) ListPage(_ context.Context, sessionID string, _ int64, _ string, _ int) ([]interrupts.Pending, error) {
 	f.session = sessionID
 	return f.pending, nil
 }
@@ -74,9 +74,9 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 		t.Fatalf("ListItemPage items=%d runs=%d session=%q err=%v", len(page.Items), len(page.Runs), tx.session, err)
 	}
 
-	pending, err := c.ListPendingInterrupts(ctx, "ses_2")
-	if err != nil || len(pending) != 1 || ints.session != "ses_2" {
-		t.Fatalf("ListPendingInterrupts pending=%d session=%q err=%v", len(pending), ints.session, err)
+	pending, err := c.ListPendingInterruptPage(ctx, "ses_2", "", 0)
+	if err != nil || len(pending.Rows) != 1 || ints.session != "ses_2" {
+		t.Fatalf("ListPendingInterruptPage pending=%d session=%q err=%v", len(pending.Rows), ints.session, err)
 	}
 }
 

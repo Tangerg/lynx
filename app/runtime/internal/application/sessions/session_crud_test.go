@@ -22,6 +22,10 @@ type crudSessionStore struct {
 	patched       bool
 }
 
+func (s *crudSessionStore) ListPage(ctx context.Context, _ bool, _ int64, _ string, _ int) ([]session.Session, error) {
+	return s.List(ctx)
+}
+
 func (s *crudSessionStore) List(context.Context) ([]session.Session, error) { return s.sessions, nil }
 
 func (s *crudSessionStore) Get(_ context.Context, id string) (session.Session, error) {

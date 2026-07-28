@@ -828,6 +828,32 @@ func TestDeliveryDoesNotAuthorDomainText(t *testing.T) {
 	}
 }
 
+// TestDeliveryDoesNotImplementQuerySemantics keeps delivery out of deciding which
+// rows a read returns, in what order, and where a page stops. Those are
+// properties of the query: a correct cursor encodes the sort position and the
+// normalized filters it was minted for, which the query knows and a presenter
+// does not. The one that lived here took a materialized slice and searched it for
+// an element id, so every paged read loaded its whole collection to return a
+// slice of it.
+//
+// Delivery may still name a refused page request — it maps the sentinel onto
+// invalid_params — but it may not run the mechanics.
+func TestDeliveryDoesNotImplementQuerySemantics(t *testing.T) {
+	root := moduleRoot(t)
+	server := filepath.Join(root, "internal", "delivery", "server")
+	forbidTopLevelNames(t, server, map[string]string{
+		"pageByCursor":            "cutting a page belongs to the read that ordered the rows",
+		"defaultItemPageLimit":    "how wide a page may be is the read's policy",
+		"defaultSessionPageLimit": "how wide a page may be is the read's policy",
+	})
+	forbidQualifiedCalls(t, server, map[string]string{
+		"keyset.Decode": "a cursor is decoded by the read that minted it",
+		"keyset.Encode": "a cursor is minted by the read that knows the sort position",
+		"keyset.Limit":  "how wide a page may be is the read's policy",
+		"keyset.PageOf": "cutting a page belongs to the read that ordered the rows",
+	})
+}
+
 // TestDeliveryDoesNotDeriveSessionActivity keeps precedence between active
 // admission and durable interrupt state in the sessions read model. Delivery
 // maps the resulting enum but cannot duplicate the precedence rule.
@@ -1320,10 +1346,17 @@ func forbidTopLevelNames(t *testing.T, dir string, banned map[string]string) {
 				}
 			case *ast.GenDecl:
 				for _, spec := range decl.Specs {
-					if named, ok := spec.(*ast.TypeSpec); ok {
-						if reason, forbidden := banned[named.Name.Name]; forbidden {
+					var names []*ast.Ident
+					switch named := spec.(type) {
+					case *ast.TypeSpec:
+						names = []*ast.Ident{named.Name}
+					case *ast.ValueSpec:
+						names = named.Names
+					}
+					for _, name := range names {
+						if reason, forbidden := banned[name.Name]; forbidden {
 							rel, _ := filepath.Rel(root, path)
-							t.Errorf("%s: removed ownership seam %s returned; %s", rel, named.Name.Name, reason)
+							t.Errorf("%s: removed ownership seam %s returned; %s", rel, name.Name, reason)
 						}
 					}
 				}

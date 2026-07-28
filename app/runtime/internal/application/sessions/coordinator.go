@@ -32,6 +32,7 @@ import (
 // delete) go through [WriteSets].
 type SessionStore interface {
 	List(ctx context.Context) ([]session.Session, error)
+	ListPage(ctx context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error)
 	Get(ctx context.Context, id string) (session.Session, error)
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	Ensure(ctx context.Context, sess session.Session) (session.Session, error)

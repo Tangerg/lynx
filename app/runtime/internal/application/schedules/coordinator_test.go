@@ -174,6 +174,10 @@ type runNowRegistry struct {
 	recordCtxErr error
 }
 
+func (r *runNowRegistry) ListPage(ctx context.Context, _ int64, _ string, _ int) ([]schedule.Schedule, error) {
+	return r.List(ctx)
+}
+
 func (r *runNowRegistry) List(context.Context) ([]schedule.Schedule, error) { return nil, nil }
 func (r *runNowRegistry) Get(context.Context, string) (schedule.Schedule, error) {
 	return r.schedule, nil

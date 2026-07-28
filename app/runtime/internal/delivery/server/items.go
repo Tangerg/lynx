@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -50,37 +49,4 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 		Page: protocol.Page[protocol.Item]{Data: items, NextCursor: page.NextCursor},
 		Runs: runs,
 	}, nil
-}
-
-// pageByCursor is the in-memory pager the remaining list handlers still use while
-// their reads move behind keyset queries. It goes away with its last caller.
-func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, maxLimit int) ([]T, string, error) {
-	if limit < 0 {
-		return nil, "", fmt.Errorf("%w: limit must not be negative", protocol.ErrInvalidParams)
-	}
-	if cursor != "" {
-		decoded, err := base64.RawURLEncoding.DecodeString(cursor)
-		if err != nil || len(decoded) == 0 {
-			return nil, "", fmt.Errorf("%w: cursor is invalid", protocol.ErrInvalidParams)
-		}
-		start := -1
-		for idx, el := range elems {
-			if key(el) == string(decoded) {
-				start = idx + 1
-				break
-			}
-		}
-		if start < 0 {
-			return nil, "", fmt.Errorf("%w: cursor anchor is no longer available", protocol.ErrInvalidParams)
-		}
-		elems = elems[start:]
-	}
-	if limit <= 0 || limit > maxLimit {
-		limit = maxLimit
-	}
-	if len(elems) > limit {
-		page := elems[:limit]
-		return page, base64.RawURLEncoding.EncodeToString([]byte(key(page[len(page)-1]))), nil
-	}
-	return elems, "", nil
 }

@@ -28,6 +28,10 @@ func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]inter
 	return r.pending, r.err
 }
 
+func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID string, _ int64, _ string, _ int) ([]interrupts.Pending, error) {
+	return r.List(ctx, sessionID)
+}
+
 func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
 	for _, pending := range r.pending {
 		if pending.RunID == runID {

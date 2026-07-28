@@ -1,48 +1,39 @@
 package server
 
 import (
-	"encoding/base64"
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func TestPageByCursorContinuesAfterStableAnchor(t *testing.T) {
-	values := []string{"a", "b", "c"}
-	first, cursor, err := pageByCursor(values, func(value string) string { return value }, "", 2, 10)
-	if err != nil {
-		t.Fatalf("first page: %v", err)
-	}
-	if len(first) != 2 || first[0] != "a" || first[1] != "b" || cursor == "" {
-		t.Fatalf("first page = %v cursor=%q", first, cursor)
-	}
-	second, next, err := pageByCursor(values, func(value string) string { return value }, cursor, 2, 10)
-	if err != nil {
-		t.Fatalf("second page: %v", err)
-	}
-	if len(second) != 1 || second[0] != "c" || next != "" {
-		t.Fatalf("second page = %v cursor=%q", second, next)
+// A page request a read refuses is the client's to fix, so it has to reach the
+// wire as invalid_params. Falling through to the unrecognized-error default would
+// report internal_error and hide the remedy — correct the limit, or start from the
+// first page.
+func TestWirePageErrorMapsRefusedPageRequests(t *testing.T) {
+	for name, err := range map[string]error{
+		"cursor": keyset.ErrInvalidCursor,
+		"limit":  keyset.ErrInvalidLimit,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := wirePageError(err); !errors.Is(got, protocol.ErrInvalidParams) {
+				t.Fatalf("wirePageError = %v, want ErrInvalidParams", got)
+			}
+			if got := wirePageError(err); !errors.Is(got, err) {
+				t.Fatalf("wirePageError dropped the cause: %v", got)
+			}
+		})
 	}
 }
 
-func TestPageByCursorRejectsInvalidQueries(t *testing.T) {
-	values := []string{"a", "b"}
-	tests := []struct {
-		name   string
-		cursor string
-		limit  int
-	}{
-		{name: "negative limit", limit: -1},
-		{name: "malformed cursor", cursor: "%%%"},
-		{name: "missing anchor", cursor: base64.RawURLEncoding.EncodeToString([]byte("gone"))},
+func TestWirePageErrorLeavesOtherFailuresAlone(t *testing.T) {
+	store := errors.New("store unavailable")
+	if got := wirePageError(store); !errors.Is(got, store) || errors.Is(got, protocol.ErrInvalidParams) {
+		t.Fatalf("wirePageError = %v, want the store failure unchanged", got)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, _, err := pageByCursor(values, func(value string) string { return value }, tt.cursor, tt.limit, 10)
-			if !errors.Is(err, protocol.ErrInvalidParams) {
-				t.Fatalf("error = %v, want ErrInvalidParams", err)
-			}
-		})
+	if wirePageError(nil) != nil {
+		t.Fatal("wirePageError(nil) returned an error")
 	}
 }

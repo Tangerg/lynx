@@ -87,9 +87,27 @@ func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, 
 }
 
 func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
-	return s.query(ctx, "list schedules",
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
-		 FROM schedules ORDER BY created_at DESC, id DESC`)
+	return s.ListPage(ctx, 0, "", 0)
+}
+
+// ListPage returns schedules newest-created first, bounded by the query. after is
+// the (creation time, id) position a previous page ended at; the id breaks ties,
+// so two schedules created in the same nanosecond cannot be dropped or repeated
+// across a page boundary.
+func (s *ScheduleStore) ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error) {
+	query := `SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
+		 FROM schedules`
+	var args []any
+	if afterCreatedAt > 0 || afterID != "" {
+		query += ` WHERE created_at < ? OR (created_at = ? AND id < ?)`
+		args = append(args, afterCreatedAt, afterCreatedAt, afterID)
+	}
+	query += ` ORDER BY created_at DESC, id DESC`
+	if limit > 0 {
+		query += ` LIMIT ?`
+		args = append(args, limit)
+	}
+	return s.query(ctx, "list schedules", query, args...)
 }
 
 func (s *ScheduleStore) Due(ctx context.Context, now time.Time, limit int) ([]schedule.Schedule, error) {

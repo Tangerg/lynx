@@ -28,28 +28,19 @@ func wireSessionErr(err error) error {
 	return err
 }
 
-// defaultSessionPageLimit caps a single sessions.list page when the client
-// gives no (or an over-large) limit.
-const defaultSessionPageLimit = 100
-
-// ListSessions paginates over the in-process session store with the
-// same opaque-cursor mechanics as items.list (see pageByCursor): a non-empty
-// NextCursor is the "has more" signal — never a silent truncation. The
-// store returns the full ordered list; pagination is applied here.
+// ListSessions returns one page of the session list (sessions.list). A non-empty
+// NextCursor is the "has more" signal — never a silent truncation. The page is
+// cut by the read, so only the sessions on it are resolved.
 func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
-	views, err := s.sessions.ListViews(ctx)
+	page, err := s.sessions.ListViewPage(ctx, q.Cursor, q.Limit)
 	if err != nil {
-		return nil, err
+		return nil, wirePageError(err)
 	}
-	page, next, err := pageByCursor(views, func(view sessions.SessionView) string { return view.ID }, q.Cursor, q.Limit, defaultSessionPageLimit)
-	if err != nil {
-		return nil, err
-	}
-	data := make([]protocol.Session, 0, len(page))
-	for _, view := range page {
+	data := make([]protocol.Session, 0, len(page.Rows))
+	for _, view := range page.Rows {
 		data = append(data, sessionViewToWire(view))
 	}
-	return &protocol.Page[protocol.Session]{Data: data, NextCursor: next}, nil
+	return &protocol.Page[protocol.Session]{Data: data, NextCursor: page.NextCursor}, nil
 }
 
 func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, error) {

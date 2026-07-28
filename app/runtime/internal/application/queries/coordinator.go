@@ -18,7 +18,18 @@ import (
 
 // itemPageMethod names the query a page cursor belongs to, so a cursor minted by
 // another read is rejected instead of continuing this one.
-const itemPageMethod = "items.list"
+const (
+	itemPageMethod      = "items.list"
+	runPageMethod       = "runs.list"
+	interruptPageMethod = "interrupts.list"
+)
+
+// Page ceilings, per read. A client asking for more gets this many and a cursor.
+const (
+	itemPageLimit      = 200
+	runPageLimit       = 100
+	interruptPageLimit = 100
+)
 
 // TranscriptReader is the coordinator's view of the durable transcript
 // projection. Items arrive one bounded page at a time, seeking past the previous
@@ -32,13 +43,13 @@ type TranscriptReader interface {
 // InterruptReader is the coordinator's view of the open-interrupt registry: a
 // session's open interrupts, or every pending interrupt when sessionID is empty.
 type InterruptReader interface {
-	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	ListPage(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error)
 }
 
 // RunReader is the coordinator's view of the durable Run admission record: the
 // Runs that are executing, in one session or across all of them.
 type RunReader interface {
-	ListRunning(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error)
+	ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]execution.AdmittedRun, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -64,10 +75,6 @@ func New(deps Dependencies) *Coordinator {
 		runs:       deps.Runs,
 	}
 }
-
-// itemPageLimit is the widest items.list page this read will serve. A client
-// asking for more gets this many and a cursor.
-const itemPageLimit = 200
 
 // ItemPage is one page of a session's history, with the run tree needed to thread
 // the items on it.
@@ -135,17 +142,69 @@ func sequenceAnchor(anchor []string) (int64, error) {
 	return sequence, nil
 }
 
-// ListPendingInterrupts returns durable open HITL interrupts. An empty sessionID
-// returns every pending interrupt.
-func (c *Coordinator) ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
-	return c.interrupts.List(ctx, sessionID)
+// ListRunningRuns returns one page of the Runs currently executing, scoped to
+// sessionID when it is non-empty and continuing after cursor. It reads the
+// durable admission record rather than a live in-process registry: the registry
+// only knows the segments THIS process is streaming, so it answers a different
+// question than the one being asked, and answers it differently after a restart.
+func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[execution.AdmittedRun], error) {
+	filters := []string{sessionID}
+	afterStartedAt, afterID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
+	if err != nil {
+		return keyset.Page[execution.AdmittedRun]{}, err
+	}
+	size, err := keyset.Limit(limit, runPageLimit)
+	if err != nil {
+		return keyset.Page[execution.AdmittedRun]{}, err
+	}
+	rows, err := c.runs.ListRunning(ctx, sessionID, afterStartedAt, afterID, size+1)
+	if err != nil {
+		return keyset.Page[execution.AdmittedRun]{}, err
+	}
+	return keyset.PageOf(rows, size, runPageMethod, filters, func(run execution.AdmittedRun) []string {
+		return []string{strconv.FormatInt(run.StartedAt.UnixNano(), 10), run.RunID}
+	}), nil
 }
 
-// ListRunningRuns returns the Runs currently executing, scoped to sessionID when
-// it is non-empty. It reads the durable admission record rather than a live
-// in-process registry: the registry only knows the segments THIS process is
-// streaming, so it answers a different question than the one being asked, and
-// answers it differently after a restart.
-func (c *Coordinator) ListRunningRuns(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error) {
-	return c.runs.ListRunning(ctx, sessionID)
+// ListPendingInterruptPage returns one page of the durable open HITL interrupts,
+// oldest first, continuing after cursor. An empty sessionID pages across every
+// session.
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
+	filters := []string{sessionID}
+	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageMethod, filters)
+	if err != nil {
+		return keyset.Page[interrupts.Pending]{}, err
+	}
+	size, err := keyset.Limit(limit, interruptPageLimit)
+	if err != nil {
+		return keyset.Page[interrupts.Pending]{}, err
+	}
+	rows, err := c.interrupts.ListPage(ctx, sessionID, afterCreatedAt, afterID, size+1)
+	if err != nil {
+		return keyset.Page[interrupts.Pending]{}, err
+	}
+	return keyset.PageOf(rows, size, interruptPageMethod, filters, func(pending interrupts.Pending) []string {
+		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RunID}
+	}), nil
+}
+
+// timeAndIDAnchor reads a decoded cursor's (timestamp, id) sort position. The id
+// is what makes the order total: two rows can share a nanosecond, and a
+// timestamp-only bound would then drop one or return it twice.
+func timeAndIDAnchor(cursor, method string, filters []string) (int64, string, error) {
+	anchor, err := keyset.Decode(cursor, method, filters)
+	if err != nil {
+		return 0, "", err
+	}
+	if len(anchor) == 0 {
+		return 0, "", nil
+	}
+	if len(anchor) != 2 {
+		return 0, "", keyset.ErrInvalidCursor
+	}
+	stamp, err := strconv.ParseInt(anchor[0], 10, 64)
+	if err != nil {
+		return 0, "", keyset.ErrInvalidCursor
+	}
+	return stamp, anchor[1], nil
 }

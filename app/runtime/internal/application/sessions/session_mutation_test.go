@@ -383,7 +383,11 @@ func (s *mutationStores) ApplyTerminal(context.Context, TerminalPlan) error {
 	return s.record("apply.cancel")
 }
 
-func (*mutationStores) List(context.Context) ([]session.Session, error)      { panic("unused") }
+func (*mutationStores) List(context.Context) ([]session.Session, error) { panic("unused") }
+
+func (*mutationStores) ListPage(context.Context, bool, int64, string, int) ([]session.Session, error) {
+	panic("unused")
+}
 func (*mutationStores) Get(context.Context, string) (session.Session, error) { panic("unused") }
 func (*mutationStores) Create(context.Context, string, string) (session.Session, error) {
 	panic("unused")

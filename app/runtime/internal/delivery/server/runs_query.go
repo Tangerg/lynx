@@ -15,42 +15,34 @@ import (
 // streaming, so it lost every run whose process restarted and never held the
 // ones a person is being asked to approve.
 func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	running, err := s.queries.ListRunningRuns(ctx, in.SessionID)
+	page, err := s.queries.ListRunningRuns(ctx, in.SessionID, in.Cursor, in.Limit)
 	if err != nil {
-		return nil, err
+		return nil, wirePageError(err)
 	}
-	out := make([]protocol.RunRef, 0, len(running))
-	for _, run := range running {
+	out := make([]protocol.RunRef, 0, len(page.Rows))
+	for _, run := range page.Rows {
 		out = append(out, presentAdmittedRun(run))
 	}
-	page, next, err := pageByCursor(out, func(run protocol.RunRef) string { return run.ID }, in.Cursor, in.Limit, 100)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.Page[protocol.RunRef]{Data: page, NextCursor: next}, nil
+	return &protocol.Page[protocol.RunRef]{Data: out, NextCursor: page.NextCursor}, nil
 }
 
 // ListOpenInterrupts returns durable resumable interrupts as a Page
 // (API.md §6.2).
 func (s *Server) ListOpenInterrupts(ctx context.Context, in protocol.ListOpenInterruptsRequest) (*protocol.Page[protocol.OpenInterrupt], error) {
-	pending, err := s.queries.ListPendingInterrupts(ctx, in.SessionID)
+	page, err := s.queries.ListPendingInterruptPage(ctx, in.SessionID, in.Cursor, in.Limit)
 	if err != nil {
-		return nil, err
+		return nil, wirePageError(err)
 	}
-	out := make([]protocol.OpenInterrupt, 0, len(pending))
-	for _, p := range pending {
+	out := make([]protocol.OpenInterrupt, 0, len(page.Rows))
+	for _, pending := range page.Rows {
 		out = append(out, protocol.OpenInterrupt{
-			RunID:      p.RunID,
-			SessionID:  p.SessionID,
-			Interrupts: presentInterrupts(p.Interrupts),
-			CreatedAt:  p.CreatedAt,
+			RunID:      pending.RunID,
+			SessionID:  pending.SessionID,
+			Interrupts: presentInterrupts(pending.Interrupts),
+			CreatedAt:  pending.CreatedAt,
 		})
 	}
-	page, next, err := pageByCursor(out, func(item protocol.OpenInterrupt) string { return item.RunID }, in.Cursor, in.Limit, 100)
-	if err != nil {
-		return nil, err
-	}
-	return &protocol.Page[protocol.OpenInterrupt]{Data: page, NextCursor: next}, nil
+	return &protocol.Page[protocol.OpenInterrupt]{Data: out, NextCursor: page.NextCursor}, nil
 }
 
 // SubscribeRun opens a fresh event stream onto an actively-streaming root

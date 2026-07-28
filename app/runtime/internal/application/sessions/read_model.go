@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -78,8 +80,9 @@ func (c *Coordinator) SessionStates(ctx context.Context, sessionIDs []string) (m
 }
 
 // ListViews resolves every user-facing session as one application read model.
-// Delivery may choose how to paginate the resulting ordered collection, but it
-// never joins aggregate, filesystem, live-run, and model-default facts itself.
+// Callers that only want a page ask for one — resolving a view touches the
+// filesystem and the live-run registry per session, so the whole list is a real
+// cost, not a slice to be narrowed afterward.
 func (c *Coordinator) ListViews(ctx context.Context) ([]SessionView, error) {
 	if c.sessions == nil {
 		return nil, errors.New("sessions: session store is unavailable")
@@ -89,6 +92,59 @@ func (c *Coordinator) ListViews(ctx context.Context) ([]SessionView, error) {
 		return nil, err
 	}
 	return c.views(ctx, values)
+}
+
+// viewPageMethod names the query a page cursor belongs to, so a cursor minted by
+// another read is rejected instead of continuing this one.
+const viewPageMethod = "sessions.list"
+
+// viewPageLimit is the widest sessions.list page this read will serve.
+const viewPageLimit = 100
+
+// ListViewPage resolves one page of user-facing sessions, continuing after
+// cursor. The page is bounded by the query, so only the sessions being returned
+// are resolved against the filesystem and the live-run registry.
+func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[SessionView], error) {
+	if c.sessions == nil {
+		return keyset.Page[SessionView]{}, errors.New("sessions: session store is unavailable")
+	}
+	anchor, err := keyset.Decode(cursor, viewPageMethod, nil)
+	if err != nil {
+		return keyset.Page[SessionView]{}, err
+	}
+	var afterFavorite bool
+	var afterUpdatedAt int64
+	var afterID string
+	if len(anchor) > 0 {
+		if len(anchor) != 3 {
+			return keyset.Page[SessionView]{}, keyset.ErrInvalidCursor
+		}
+		afterFavorite = anchor[0] == "1"
+		if afterUpdatedAt, err = strconv.ParseInt(anchor[1], 10, 64); err != nil {
+			return keyset.Page[SessionView]{}, keyset.ErrInvalidCursor
+		}
+		afterID = anchor[2]
+	}
+	size, err := keyset.Limit(limit, viewPageLimit)
+	if err != nil {
+		return keyset.Page[SessionView]{}, err
+	}
+	values, err := c.sessions.ListPage(ctx, afterFavorite, afterUpdatedAt, afterID, size+1)
+	if err != nil {
+		return keyset.Page[SessionView]{}, err
+	}
+	bounded := keyset.PageOf(values, size, viewPageMethod, nil, func(value session.Session) []string {
+		favorite := "0"
+		if value.Favorite {
+			favorite = "1"
+		}
+		return []string{favorite, strconv.FormatInt(value.UpdatedAt.UnixNano(), 10), value.ID}
+	})
+	views, err := c.views(ctx, bounded.Rows)
+	if err != nil {
+		return keyset.Page[SessionView]{}, err
+	}
+	return keyset.Page[SessionView]{Rows: views, NextCursor: bounded.NextCursor}, nil
 }
 
 // View resolves one session's complete application read model.

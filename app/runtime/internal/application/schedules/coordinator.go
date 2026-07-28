@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
@@ -17,6 +19,7 @@ import (
 // use case. Firing and worker cursor updates intentionally remain separate.
 type ManagementStore interface {
 	List(ctx context.Context) ([]schedule.Schedule, error)
+	ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error)
 	Get(ctx context.Context, id string) (schedule.Schedule, error)
 	Create(ctx context.Context, sc schedule.Schedule) (schedule.Schedule, error)
 	Update(ctx context.Context, sc schedule.Schedule, expectedRevision uint64) (schedule.Schedule, error)
@@ -84,6 +87,44 @@ func (c *Coordinator) Available() bool { return c != nil && c.enabled }
 // List returns every saved schedule, newest-created first.
 func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return c.registry.List(ctx)
+}
+
+// listPageMethod names the query a page cursor belongs to, so a cursor minted by
+// another read is rejected instead of continuing this one.
+const listPageMethod = "schedules.list"
+
+// listPageLimit is the widest schedules.list page this read will serve.
+const listPageLimit = 100
+
+// ListPage returns one page of schedules, newest-created first, continuing after
+// cursor.
+func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (keyset.Page[schedule.Schedule], error) {
+	anchor, err := keyset.Decode(cursor, listPageMethod, nil)
+	if err != nil {
+		return keyset.Page[schedule.Schedule]{}, err
+	}
+	var afterCreatedAt int64
+	var afterID string
+	if len(anchor) > 0 {
+		if len(anchor) != 2 {
+			return keyset.Page[schedule.Schedule]{}, keyset.ErrInvalidCursor
+		}
+		if afterCreatedAt, err = strconv.ParseInt(anchor[0], 10, 64); err != nil {
+			return keyset.Page[schedule.Schedule]{}, keyset.ErrInvalidCursor
+		}
+		afterID = anchor[1]
+	}
+	size, err := keyset.Limit(limit, listPageLimit)
+	if err != nil {
+		return keyset.Page[schedule.Schedule]{}, err
+	}
+	rows, err := c.registry.ListPage(ctx, afterCreatedAt, afterID, size+1)
+	if err != nil {
+		return keyset.Page[schedule.Schedule]{}, err
+	}
+	return keyset.PageOf(rows, size, listPageMethod, nil, func(sc schedule.Schedule) []string {
+		return []string{strconv.FormatInt(sc.CreatedAt.UnixNano(), 10), sc.ID}
+	}), nil
 }
 
 // Create validates, normalizes, schedules, and persists a new schedule.
@@ -208,6 +249,10 @@ func (c *Coordinator) resolveCwd(cwd string) (string, error) {
 type disabledManagementStore struct{}
 
 func (disabledManagementStore) List(context.Context) ([]schedule.Schedule, error) {
+	return nil, schedule.ErrUnavailable
+}
+
+func (disabledManagementStore) ListPage(context.Context, int64, string, int) ([]schedule.Schedule, error) {
 	return nil, schedule.ErrUnavailable
 }
 

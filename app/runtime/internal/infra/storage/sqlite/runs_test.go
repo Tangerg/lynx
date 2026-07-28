@@ -676,7 +676,7 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 		t.Fatalf("terminalize: %v", err)
 	}
 
-	running, err := store.ListRunning(ctx, "")
+	running, err := store.ListRunning(ctx, "", 0, "", 0)
 	if err != nil {
 		t.Fatalf("list running: %v", err)
 	}
@@ -690,10 +690,10 @@ func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
 		t.Fatalf("run_live started at %v, want its admission time", running[0].StartedAt)
 	}
 
-	if scoped, err := store.ListRunning(ctx, "ses_A"); err != nil || len(scoped) != 1 {
+	if scoped, err := store.ListRunning(ctx, "ses_A", 0, "", 0); err != nil || len(scoped) != 1 {
 		t.Fatalf("ses_A scoped = %+v (err %v), want run_live", scoped, err)
 	}
-	if scoped, err := store.ListRunning(ctx, "ses_B"); err != nil || len(scoped) != 0 {
+	if scoped, err := store.ListRunning(ctx, "ses_B", 0, "", 0); err != nil || len(scoped) != 0 {
 		t.Fatalf("ses_B scoped = %+v (err %v), want nothing while parked", scoped, err)
 	}
 }
@@ -714,7 +714,7 @@ func TestListRunningOrdersByAdmission(t *testing.T) {
 			t.Fatalf("admit %s: %v", draft.RunID, err)
 		}
 	}
-	running, err := store.ListRunning(ctx, "")
+	running, err := store.ListRunning(ctx, "", 0, "", 0)
 	if err != nil {
 		t.Fatalf("list running: %v", err)
 	}
@@ -724,5 +724,41 @@ func TestListRunningOrdersByAdmission(t *testing.T) {
 	}
 	if len(order) != 3 || order[0] != "run_a" || order[1] != "run_b" || order[2] != "run_c" {
 		t.Fatalf("order = %v, want oldest admission first", order)
+	}
+}
+
+// TestListRunningSeeksPastItsAnchor bounds the page in the query: continuing from
+// a position must skip exactly the rows already returned, including a row that
+// shares its admission nanosecond with the anchor.
+func TestListRunningSeeksPastItsAnchor(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	for _, draft := range []execution.RunDraft{
+		{RunID: "run_a", SessionID: "ses_A", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_b", SessionID: "ses_B", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_c", SessionID: "ses_C", CreatedAt: time.Unix(0, 20)},
+	} {
+		if err := store.Admit(ctx, draft); err != nil {
+			t.Fatalf("admit %s: %v", draft.RunID, err)
+		}
+	}
+
+	first, err := store.ListRunning(ctx, "", 0, "", 2)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if len(first) != 2 || first[0].RunID != "run_a" || first[1].RunID != "run_b" {
+		t.Fatalf("first page = %+v, want run_a then run_b", first)
+	}
+
+	// run_b shares run_a's admission time, so a time-only bound would drop it or
+	// repeat it; the run id breaks the tie.
+	rest, err := store.ListRunning(ctx, "", first[1].StartedAt.UnixNano(), first[1].RunID, 2)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if len(rest) != 1 || rest[0].RunID != "run_c" {
+		t.Fatalf("second page = %+v, want only run_c", rest)
 	}
 }

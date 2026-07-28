@@ -16,6 +16,7 @@ import (
 	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -37,7 +38,7 @@ type sessionUseCases interface {
 	CreateView(ctx context.Context, title, cwd string) (sessions.SessionView, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.SessionView, error)
-	ListViews(ctx context.Context) ([]sessions.SessionView, error)
+	ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[sessions.SessionView], error)
 	ExportSession(ctx context.Context, sessionID string) (sessions.ExportResult, error)
 	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.SessionView, error)
 	Rollback(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
@@ -97,8 +98,8 @@ type runUseCases interface {
 
 type queryUseCases interface {
 	ListItemPage(ctx context.Context, sessionID, cursor string, limit int) (queries.ItemPage, error)
-	ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
-	ListRunningRuns(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error)
+	ListPendingInterruptPage(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
+	ListRunningRuns(ctx context.Context, sessionID, cursor string, limit int) (keyset.Page[execution.AdmittedRun], error)
 }
 
 type usageUseCases interface {
@@ -114,7 +115,7 @@ type scheduleManagementUseCases interface {
 	Available() bool
 	Create(ctx context.Context, cmd schedules.CreateCommand) (schedule.Schedule, error)
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context) ([]schedule.Schedule, error)
+	ListPage(ctx context.Context, cursor string, limit int) (keyset.Page[schedule.Schedule], error)
 	Update(ctx context.Context, cmd schedules.UpdateCommand) (schedule.Schedule, error)
 }
 
