@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**12/14** + drift gate + gate 4） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落，4 项待 B3 余量，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落 + gate 9 半落，3 项待 B3 余量，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -567,7 +567,9 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
-| 6 / 9 / 10 / 14 | 三方约束等价 / TS 可编译 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余下 3 类产物 |
+| 9 | TS types / validators / client stubs 可编译 | ⚠️ 部分：**TS types 已生成且前端 `npm run check` 全绿**（typecheck + oxlint + prettier + 173 test file / 841 test + knip + 8 个结构脚本 + bundle 预算）；validators / stubs 待 B3 余 2 类 |
+| 6 / 10 / 14 | 三方约束等价 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余 2 类产物（gate 10 还需先把两处 sample 合成一处，见上） |
+| — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
@@ -661,7 +663,38 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
 **工具配置**：`knip.json` 的 ignore 从 `src/rpc/shapes.ts` 换成 `wire.generated.ts`；`.prettierignore` 加同一文件
 （生成物的格式属于生成器）。
 
-**余 2 类**：authoritative/terminal validators · method constants + typed client stubs。
+**余 2 类，两者的设计都已定案（勿重新推导）**：
+
+**(a) authoritative/terminal runtime validators —— 关键是"约束声明一次"**
+
+现状：`protocol/request_constraints.go` 手写 ~30 个 `Validate()`（`required()` / `positive()` 两个 helper）。schema 侧
+**没有**对应的 `minLength` / `minimum` —— 这正是 gate 6（Go/TS/schema 三方等价）真正的缺口。**不要**在 walker 里猜
+"required string ⇒ minLength 1"（有合法的可空必填串），也**不要**保留手写 Go + 另写一份声明（两个源）。
+
+定案路线：
+1. 约束进 shape registry：按 `reflect.Type` 登记 `{Field, Kind}`，`Kind ∈ {NonEmpty, Positive}`（今天只有这两种；
+   `request_constraints.go` 的两个 helper 就是全集）。注册期用 `protocol.HasWirePath` 校验字段存在 —— 与 union spec 同一
+   机制。
+2. Go validator **生成进 `protocol`**（新文件 `request_constraints.generated.go`），手写那份删掉。`protocol.Validator`
+   接口与 `ConstraintError` 保留不动，`dispatch` 的 `decode[In]` 一行都不用改。
+   **bootstrap 风险已评估**：contractgen import protocol，所以生成物损坏会让 protocol 编不过、进而生成器也编不过。
+   解法是标准的 `rm 生成文件 && go generate` —— 可恢复，且比新建一个 `wirecheck` 包再把 `decode` 改道要小得多。
+3. schema 从同一声明发 `minLength: 1` / `minimum: 1`；TS validator 从**schema 树**派生（与 TS types 同一原则），
+   gate 6 由此**结构上成立**而不是靠一条"记得同步"的测试。
+
+**(b) TypeScript method constants + typed client stubs —— 生成的是 wire-faithful 那一层，不是替掉 `methods.ts`**
+
+契约 §12 明文「wire 保持窄，SDK 提供高层句柄」。手写的 `src/rpc/methods.ts`（625 行）**就是那个 SDK 层**，它的签名
+刻意比 wire 友好（`setEnabled(name, enabled)` 而不是 `setEnabled(params: SetMCPEnabledRequest)`）。整份生成掉会改动
+66 个签名及其全部调用点，**换不来任何契约收益**。所以：
+- 生成 wire-faithful stub（一方法一函数，收 request 对象、返 response 类型）+ 方法名常量；
+- 手写 SDK 层留在上面消费它 —— 这才是 §12 说的分层。
+- Go 侧**不生成**方法名常量（见上一条：Registry 本身就是 Go 的共读源）。
+- notification 名已生成（`NOTIFICATIONS_RUN_EVENT` / `NOTIFICATIONS_WORKSPACE_EVENT`），frontend 已改读。
+
+**gate 10 的前置**：canonical sample 现在有**两个家**（`app/desktop/frontend/src/rpc/samples/` 与
+`protocol/wire_golden_test.go`）。§11.3 要求 Go / TS validator / JSON Schema **分别验证同一批独立 fixture**，所以这两处
+必须先合成一处（人工编写不变，只是共用），否则"三方过同一批样本"这句话没有指代。
 
 **接手须知（避免重新推导）**：
 - `MethodMeta` 现带 `Params` / `Result` / `Event` 三个 `reflect.Type`（工厂填，`Result` 对 ack-only 方法为 nil、
