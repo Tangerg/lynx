@@ -280,14 +280,12 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 	)
 }
 
-// applyReplan applies an action's replan request: stage its blackboard
-// update, exclude the action, publish the event. Status stays Running so
-// the next tick reformulates the plan.
+// applyReplan applies an action's replan request: exclude the action and
+// publish the event. Status stays Running so the next tick reformulates the
+// plan. Actions commit discoveries through ProcessContext before requesting a
+// replan, where write failures remain part of the action result.
 func (p *Process) applyReplan(ctx context.Context, action core.Action, request *core.ReplanRequest) {
 	p.state.excludeAction(action.Metadata().Name)
-	if request.Update != nil {
-		request.Update(p.blackboard)
-	}
 	p.publishEvent(ctx, event.ReplanRequested{
 		Header:     p.eventHeader(),
 		ActionName: action.Metadata().Name,

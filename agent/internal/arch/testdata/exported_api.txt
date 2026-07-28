@@ -265,7 +265,7 @@ core: type PromptCondition struct { }
 core: type PromptConditionConfig struct { Name string Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
 core: type PromptConfig struct { System string Options *chat.Options Tools []tools.Tool DisableActionTools bool MaxToolRounds int }
 core: type PromptFunc func(context.Context, *ConditionEnv) string
-core: type ReplanRequest struct { Reason string Update func(Blackboard) }
+core: type ReplanRequest struct { Reason string }
 core: type ScoreFunc func(WorldState) float64
 core: type SnapshotCodec struct { }
 core: type StopPolicy interface { Extension Check(process ProcessView) (stop bool, reason string) }

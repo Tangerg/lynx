@@ -108,13 +108,11 @@ func (s ProcessStatus) snapshotStable() bool {
 }
 
 // ReplanRequest tells the runtime that an action invalidated the current plan.
-// The runtime excludes that action for one tick, applies Update, and plans
-// again.
+// The action must commit any discovered state through its ProcessContext before
+// returning the request. The runtime excludes that action for one tick and
+// plans again.
 type ReplanRequest struct {
 	Reason string
-
-	// Update stages state discovered by the action before re-planning.
-	Update func(Blackboard)
 }
 
 func (r *ReplanRequest) Error() string {
