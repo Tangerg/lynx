@@ -20,12 +20,18 @@
 
 import { createRpcClient, type RpcClient } from "./client";
 import { createMethods, type Methods } from "./methods";
-import type { RequestMeta } from "./wire.generated";
+import type { RequestMeta, ServerCapabilities } from "./wire.generated";
 import type { Transport } from "./transport";
 
 /** Options for [createLyraClient]. */
 export interface LyraClientOptions {
   requestMeta?: () => RequestMeta | undefined;
+  /**
+   * What the server said it can do, or null before discovery. Supplying it lets the
+   * capability preflight refuse a gated call locally instead of round-tripping to
+   * learn what the negotiation already said.
+   */
+  capabilities?: () => ServerCapabilities | null | undefined;
 }
 
 export interface LyraClient extends Methods {
@@ -42,7 +48,7 @@ export interface LyraClient extends Methods {
 /** Build a Lyra Runtime Protocol client over the given transport. */
 export function createLyraClient(transport: Transport, opts?: LyraClientOptions): LyraClient {
   const rpc = createRpcClient(transport, { requestMeta: opts?.requestMeta });
-  return Object.assign(createMethods(rpc), {
+  return Object.assign(createMethods(rpc, { capabilities: opts?.capabilities }), {
     rpc,
     close: () => rpc.close(),
   });

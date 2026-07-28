@@ -5,6 +5,7 @@
 
 import { RUNTIME_BASE, RUNTIME_ENDPOINT_CONFIG_KEY } from "@/main/config";
 import { runtimeRequestMeta } from "@/main/runtimeProtocol";
+import { negotiatedCapabilities } from "@/plugins/builtin/runtime/public/capabilities";
 import { getConfig } from "@/plugins/sdk/config";
 import type { LyraClient, ShellClient } from "@/rpc";
 import { createHttpTransport, createLyraClient, createShellClient } from "@/rpc";
@@ -37,6 +38,7 @@ function defaultContainer(): Container {
       if (shared?.signature === signature) return shared.client;
       const client = createLyraClient(createHttpTransport({ baseUrl, localToken }), {
         requestMeta: runtimeRequestMeta,
+        capabilities: negotiatedCapabilities,
       });
       shared = { signature, client };
       return client;

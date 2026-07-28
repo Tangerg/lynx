@@ -552,29 +552,29 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**13.5/14** —— validator 两半都已生成，余 typed client stubs） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 7 项已落 + gate 9 半落，2 项待 sample 合家，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 9 项已落，2 项待 sample 合家，2 项待编，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
 | 1 | `go generate` 后 worktree 无 diff | ✅ `c83d041f3`（`TestGeneratedContractHasNoDrift` + 防空转的 Substantive） |
 | 2 | Registry method 集合 == dispatcher 集合 | ✅ **构造上成立**（B1 后 dispatcher 直接路由 Registry，无第二张表）+ `TestContractIsTheOnlyMethodTable` |
-| 3 | capability rules 三方等价 | ⚠️ 部分：gate 读 discovery 自己的输出（构造上等价，`ba6a301db`）；SDK preflight 侧待 B3 的 client stubs |
+| 3 | capability rules 三方等价 | ✅ **三方全落**：dispatcher↔discovery 构造上等价（enforcement 读 advertisement，`ba6a301db`）；SDK 侧 `rpc/preflight.ts` 读**生成的** `WIRE_CAPABILITY_POLICY`（同一份 metas 投影，所以规则也构造上等价）。剩下唯一能分歧的是**条件语义**（`present` 对空数组算不算命中），所以 `preflight.test.ts` 把 dispatch 那 7 条 gate case 原样问一遍客户端 matcher —— 产物比对永远发现不了这类分歧 |
 | 5 | 所有 closed union 有 discriminator + 完整 variant | ✅ `7e7a9ec12`（注册期反射校验，含"字段无变体认领"） |
 | 7 | DTO validator 无 store/dispatcher/executor 依赖 | ✅ `fff51823d`（禁 internal import + 禁 Validate 带参数） |
 | 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
-| 9 | TS types / validators / client stubs 可编译 | ⚠️ 部分：**TS types + TS validator 已生成，前端 `npm run check` 全绿**（typecheck + oxlint + prettier + 174 test file + knip + 8 个结构脚本 + bundle 预算；validator 只被测试消费 → 不进 entry bundle）；stubs 待 B3 余 1 类 |
+| 9 | TS types / validators / client stubs 可编译 | ✅ 三类全生成且前端 `npm run check` 全绿（typecheck + oxlint + prettier + 175 test file + knip + 8 个结构脚本 + bundle 预算）。**knip 是这条的真门禁**：它拒绝"生成了但没人读"的导出，所以每一类产物都必须当场接上消费者——`WIRE_STREAM_METHODS` / `WireEvent` 因此被删（无 reader，要时再生成），`WIRE_CAPABILITY_POLICY` 与 preflight 同批落 |
 | 6 | 三方约束等价 | ✅ **三方全落**：`TestValueConstraintsAgreeAcrossArtifacts` 回读三份产物 —— 一份声明喂三个独立 emitter（Go 发 `required(...)`、schema 发 `minLength`、TS 发 `minLength(1)`；嵌套路径在后两者里走第四条 allOf 代码路径），构造**不**保证一致，只有回读才保证。TS 侧还按 shape 切块回读（不是全文 grep），所以"规则落在别的 shape 上"也会被点名 |
 | 10 / 14 | canonical samples 三方 / state key fixture | ⏸ 待 sample 合家（三个 validator 都在了，缺的是**一份** file↔shape 映射：Go 的 `wireSamples` 与 TS 的 `wire<T>(…)` 现在各写一遍） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
-#### ⚠️ B3 进度与交接（2026-07-29）：13.5/14 产物（validator 两半都在，余 typed client stubs）
+#### ✅ B3 完成（2026-07-29）：14/14 产物
 
 **已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
 `internal/delivery/dispatch/contract_methods.go`）：
@@ -664,7 +664,7 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
 **工具配置**：`knip.json` 的 ignore 从 `src/rpc/shapes.ts` 换成 `wire.generated.ts`；`.prettierignore` 加同一文件
 （生成物的格式属于生成器）。
 
-**余 1 类，设计已定案（勿重新推导）**：
+**最后两类的落地记录（勿重新推导）**：
 
 **(a) authoritative/terminal runtime validators —— 两半都已落地**
 
@@ -710,15 +710,40 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
   在生效），外加落地时一次性跑过**全部 78 个 canonical sample**（77 通过 + 上面那 1 个真错）。
 - gate 1 顺手收窄成"环外产物按目录逐文件比对"，所以下一个落在 `src/rpc` 或 `protocol` 的生成物**不需要再改 gate**。
 
-**(b) TypeScript method constants + typed client stubs —— 生成的是 wire-faithful 那一层，不是替掉 `methods.ts`**
+**(b) TypeScript method constants + typed client stubs（2026-07-29 落地）**
 
-契约 §12 明文「wire 保持窄，SDK 提供高层句柄」。手写的 `src/rpc/methods.ts`（625 行）**就是那个 SDK 层**，它的签名
-刻意比 wire 友好（`setEnabled(name, enabled)` 而不是 `setEnabled(params: SetMCPEnabledRequest)`）。整份生成掉会改动
-66 个签名及其全部调用点，**换不来任何契约收益**。所以：
-- 生成 wire-faithful stub（一方法一函数，收 request 对象、返 response 类型）+ 方法名常量；
-- 手写 SDK 层留在上面消费它 —— 这才是 §12 说的分层。
-- Go 侧**不生成**方法名常量（见上一条：Registry 本身就是 Go 的共读源）。
+契约 §12 明文「wire 保持窄，SDK 提供高层句柄」，手写的 `src/rpc/methods.ts` **就是那个 SDK 层** —— 它的签名刻意比
+wire 友好（`setEnabled(name, enabled)` 而不是 `setEnabled(params: SetMCPEnabledRequest)`），整份生成掉换不来任何契约收益。
+所以生成的是 `wire.methods.generated.ts`：`WireMethodName` / `WireShapes` / `WireParams<M>` / `WireResult<M>` / `WireFeature`
+/ `WIRE_CAPABILITY_POLICY`，SDK 在上面组合。
+
+- **"一方法一函数"最终落成一个 `WireCall` 类型 seam，不是 83 个 wrapper**。契约要的效果是"每个调用点的 method 名与
+  两个 shape 都被契约检查"，而 83 个只做转发的 closure 既做不到 `mutations.call` 那条路（幂等重放走另一个 helper），
+  又多一层。`methods.ts` 里两行 `const call: WireCall` / `const mutate` 就把 83 个调用点全接上了：
+  **46 个手写 result 类型和 83 个 method 名字面量从此是被检查的，不是被复述的**。method 名写错现在是编译错，
+  以前是运行时 `method_not_found`。
+- **Go 侧不生成方法名常量**（结论不变）：`server` 与 `dispatch` 同环、Registry 本身就是共读源。
+- **8 个手写的 response 形状被删**：SDK 里 `{ mode: ApprovalMode }` / `{ hits: CodebaseHit[] }` /
+  `{ runId; segmentId }` … 都是已发布 shape 的孪生体（`ApprovalModeResult` / `CodebaseSearchResult` /
+  `StartRunResponse`）。换成正名后 `runs.subscribe` 的结果不再是"刚好够用的窄类型"，branded id 在
+  `agentSessionRecovery` 的解析点贴（与 `runtimeRunsGateway` 同一规则）。
+- **feature key 先收成一个作者**：原先有三份 —— dispatch 的 11 个私有常量、`server.go` 广告 map 里的 19 个字面量、
+  前端 `RuntimeCapability` 的 19 个名字。features map 是**开放**的（§9 规定未出现的 key 读作 off），所以任何一处拼错
+  都**静默**表现为"这个 build 不支持"。现在归 `protocol/features.go`（常量 + 可枚举表 + AST 完整性测试），
+  并双向设闸：广告必须覆盖词表（`TestCapabilitiesAdvertiseThePublishedVocabulary`）、规则只能引用已发布 key
+  （`TestCapabilityRulesNameAPublishedFeature`）、前端的联合类型删掉改用 owner 的名字。
+- **咬出第三个真错**：`goals.get` 无 goal 时返 `null` —— API.md §7.14 写了、`GetGoal` 就是 `return nil, nil`、
+  前端也一直写 `Goal | null`，而**每一份产物都只说 `Goal`**。可空性推导不出来（几乎每个 handler 都返指针，
+  只有这一个 nil 可达），所以由方法自己声明 `ResultNullable`（注册期校验必须是指针）。
+- **SDK preflight 落在 `rpc/preflight.ts`**（gate 3 第三条腿）：读生成的 policy，条件语义镜像 `capability.go`
+  （dotted path / `present` 把空数组空串当缺席 / `equals` 比字符串）。**只在服务器已经说过"不行"时才本地拒**——
+  没有 negotiated 快照（discovery 之前）一律放行，让 runtime 保持权威；反过来会把服务器支持的功能凭猜测拿掉。
+  拒绝复用 `RpcError` + `capability_not_negotiated`（而不是新错误类），因为所有既有 `isErrorType` 分支必须照旧命中。
+  snapshot 的唯一家还是 runtime 插件的 store，经 `SingletonPort.peek()` 取（port 未装 = 还没协商 = null，
+  而不是抛 wiring 错——让 preflight try/catch 一个 wiring 错就会掩盖真的 wiring 错）。
 - notification 名已生成（`NOTIFICATIONS_RUN_EVENT` / `NOTIFICATIONS_WORKSPACE_EVENT`），frontend 已改读。
+- **`WIRE_STREAM_METHODS` / `WireEvent` 生成后又删掉**：knip 拒绝"导出了没人读"，而它们当下确实无 reader
+  （transport 判流看 Content-Type，SDK 直接写 `RunEvent`）。要用时再生成 —— 这条比留着更符合 YAGNI。
 
 **gate 10 的前置（写 TS validator 时看清楚了，比原先记的更小也更准）**：sample **文件**本来就只有一个家
 （`app/desktop/frontend/src/rpc/samples/`，Go 的 golden test 跨模块读它）。真正抄了两遍的是 **file↔shape 映射** ——

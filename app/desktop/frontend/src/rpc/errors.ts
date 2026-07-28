@@ -1,6 +1,8 @@
-// Typed exception thrown when a JSON-RPC Response carries an `error`.
-// Wraps the raw payload so callers can switch on `code` (RPC_* constants
-// from ./types) without parsing the message string.
+// Typed exception thrown when a JSON-RPC Response carries an `error` — or when the
+// SDK's capability preflight refuses a call the negotiation already ruled out, which
+// is the same refusal with the round-trip removed. Wraps the raw payload so callers
+// can switch on `code` (RPC_* constants from ./types) without parsing the message
+// string.
 
 import { errorType, type RpcErrorPayload } from "./types";
 

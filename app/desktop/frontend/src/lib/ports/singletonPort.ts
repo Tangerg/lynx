@@ -1,6 +1,14 @@
 export interface SingletonPort<T> {
   configure(next: T): () => void;
   get(): T;
+  /**
+   * The adapter if one is installed, else null — for the callers that have a
+   * correct answer without it. `get()` throws because most callers do not: reading
+   * a port before its adapter exists is a wiring bug there. But a question like
+   * "what has the server negotiated" is answerable before install — nothing has —
+   * and making that caller catch a thrown wiring error would hide real ones.
+   */
+  peek(): T | null;
 }
 
 /**
@@ -25,6 +33,9 @@ export function createSingletonPort<T>(notConfiguredMessage: string): SingletonP
     },
     get() {
       if (!current) throw new Error(notConfiguredMessage);
+      return current;
+    },
+    peek() {
       return current;
     },
   };

@@ -10,7 +10,9 @@
 
 import type { RpcCallOptions, RpcClient } from "./client";
 import { isErrorType, RpcError } from "./errors";
+import { unnegotiated } from "./preflight";
 import type { RunId, SessionId } from "./ids";
+import { RPC_CAPABILITY_NOT_NEGOTIATED } from "./types";
 import type {
   AgentDoc,
   ApprovalMode,
@@ -59,6 +61,7 @@ import type {
   RunScheduleNowResponse,
   Schedule,
   CreateScheduleRequest,
+  ServerCapabilities,
   Session,
   SessionArtifact,
   Skill,
@@ -443,14 +446,45 @@ export interface Methods {
   };
 }
 
-export function createMethods(client: RpcClient): Methods {
+/** Options for [createMethods]. */
+export interface MethodsOptions {
+  /**
+   * What the server said it can do, or null before discovery — the capability
+   * preflight reads it before each call. Omit it and every call goes out, leaving
+   * the runtime to refuse what it cannot do.
+   */
+  capabilities?: () => ServerCapabilities | null | undefined;
+}
+
+export function createMethods(client: RpcClient, options: MethodsOptions = {}): Methods {
   const mutations = new MutationAttempts();
-  const call: WireCall = (method, params, options) => client.call(method, params, options);
-  const mutate = <M extends WireMethodName>(
+
+  // Every outbound call passes the preflight, because the alternative is a
+  // round-trip whose only possible answer is the refusal we already hold.
+  const refuse = <M extends WireMethodName>(method: M, params: WireParams<M>): void => {
+    const missing = unnegotiated(method, params, options.capabilities?.());
+    if (missing.length === 0) return;
+    throw new RpcError({
+      code: RPC_CAPABILITY_NOT_NEGOTIATED,
+      message: `${method} requires ${missing.join(", ")}`,
+      // The type is the whole payload: a client's copy for this problem is its
+      // own (§8.4), so manufacturing a detail here would put runtime words in it.
+      data: { type: "capability_not_negotiated" },
+    });
+  };
+
+  const call: WireCall = async (method, params, callOptions) => {
+    refuse(method, params);
+    return client.call(method, params, callOptions);
+  };
+  const mutate = async <M extends WireMethodName>(
     method: M,
     params: WireParams<M>,
     signal?: AbortSignal,
-  ): Promise<WireResult<M>> => mutations.call(client, method, params, signal);
+  ): Promise<WireResult<M>> => {
+    refuse(method, params);
+    return mutations.call(client, method, params, signal);
+  };
 
   return {
     runtime: {

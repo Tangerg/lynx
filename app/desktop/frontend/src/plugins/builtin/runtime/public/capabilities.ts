@@ -1,5 +1,7 @@
 import { runtimeCapabilities, type RuntimeCapabilityPort } from "../application/ports/capabilities";
 
+export { negotiatedCapabilities } from "../application/ports/capabilities";
+
 // These borrow their signatures FROM the port rather than restating them. The
 // capability keys are the runtime's published vocabulary, which left two honest
 // alternatives — name the wire type here, which a public surface may not do, or mint

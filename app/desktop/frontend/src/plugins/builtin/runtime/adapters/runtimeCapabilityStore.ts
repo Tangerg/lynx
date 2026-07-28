@@ -60,6 +60,7 @@ export function installRuntimeCapabilityPort(): () => void {
     useCapability: useServerFeature,
     hasCapability: serverFeature,
     supportsStreamingMethod: runtimeSupportsStreamingMethod,
+    negotiated: () => useRuntimeStore.getState().capabilities,
     subscribe: subscribeRuntimeCapabilities,
     replace: (capabilities) => useRuntimeStore.getState().replace(capabilities),
     clear: () => useRuntimeStore.getState().clear(),
