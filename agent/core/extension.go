@@ -75,7 +75,7 @@ type ToolMiddleware interface {
 	) tools.Tool
 }
 
-// AgentValidator runs as the last [Engine.Deploy] validation step after
+// AgentValidator runs as the engine's last deploy-time validation step after
 // [Agent.Validate]. It receives the same frozen definition snapshot that the
 // runtime will execute and identify in snapshots. A non-nil return rejects the
 // deployment, attributed to the validator's Name. Valid only at engine scope.

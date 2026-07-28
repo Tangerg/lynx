@@ -4,7 +4,7 @@
 // [Feedback] and [History] types.
 //
 // Each builder produces a [*core.Agent] you deploy on a [*runtime.Engine]
-// and run via [Engine.Run] or compose as a sub-agent through
+// and run via [runtime.Engine.Run] or compose as a sub-agent through
 // [runtime.NewAgentTool]. The agents are normal GOAP-planned agents — no new
 // runtime concepts; the workflow is
 // expressed via action effects and computed conditions the planner

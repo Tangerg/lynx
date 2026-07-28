@@ -25,6 +25,9 @@ func ValidateID(id string) error {
 	return nil
 }
 
+// EventKind names the boundary an [Event] reports. The set is closed: a driver
+// projects its own protocol onto these, so a new kind is a change to what every
+// consumer must handle, not an extension point.
 type EventKind string
 
 const (
@@ -102,6 +105,9 @@ func (e Event) Clone() Event {
 	return cloned
 }
 
+// Validate reports whether e is internally consistent, wrapping
+// [ErrInvalidEvent]: each kind requires its own payload, and the shared shape
+// cannot express that in types.
 func (e Event) Validate() error {
 	if !e.Kind.Valid() {
 		return fmt.Errorf("%w: unknown kind %q", ErrInvalidEvent, e.Kind)

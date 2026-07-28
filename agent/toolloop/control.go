@@ -62,6 +62,9 @@ func (e *AbortError) Error() string {
 	return "toolloop: abort: " + e.Err.Error()
 }
 
+// Unwrap exposes the cause so errors.Is reaches whatever the caller aborted
+// for. Unlike a pause, an abort ends the loop, and the reason it ended is the
+// only thing left to report.
 func (e *AbortError) Unwrap() error {
 	if e == nil {
 		return nil

@@ -31,7 +31,7 @@ type ChildOptionsFunc func(
 // package namespace with ~10 `With…` constructors. Direct struct-
 // literal init is the intended ergonomics. Cross-cutting concerns
 // (audit, verbosity, throttling, RBAC) belong on extensions registered
-// via [Extensions]; ProcessOptions itself stays minimal.
+// via [ProcessOptions.Extensions]; ProcessOptions itself stays minimal.
 type ProcessOptions struct {
 	Blackboard Blackboard
 

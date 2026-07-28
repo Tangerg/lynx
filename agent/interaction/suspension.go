@@ -11,6 +11,11 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
+// SuspensionSchemaVersion is the only suspension shape this build accepts.
+// [Suspension.Validate] rejects every other version rather than migrating it: a
+// parked process resumes into running framework code, so accepting a shape this
+// build does not understand would continue execution from state it cannot
+// interpret.
 const SuspensionSchemaVersion uint16 = 5
 
 var (
@@ -36,6 +41,13 @@ type Suspension struct {
 	CreatedAt      time.Time       `json:"created_at"`
 }
 
+// Validate reports whether s is a suspension this build can resume from,
+// wrapping [ErrInvalidSuspension]. A stored Response is checked against
+// ResumeSchema as well, so a suspension is never valid while carrying an answer
+// its own schema would reject.
+//
+// Both JSON boundaries call it, which is what keeps an invalid suspension from
+// being persisted or accepted.
 func (s Suspension) Validate() error {
 	if s.SchemaVersion != SuspensionSchemaVersion {
 		return fmt.Errorf("%w: schema version %d is unsupported", ErrInvalidSuspension, s.SchemaVersion)
@@ -67,8 +79,18 @@ func (s Suspension) Validate() error {
 	return nil
 }
 
+// Responded reports whether an answer has been recorded. It is derived from the
+// payload rather than tracked in a flag, so a resumed process cannot disagree
+// with the response it actually carries.
 func (s Suspension) Responded() bool { return len(s.Response) > 0 }
 
+// Clone returns an independently owned copy. The raw JSON fields are byte
+// slices, so an assignment alone would leave the copy sharing wire bytes with
+// state the runtime persists.
+//
+// It returns a pointer because a process holds *Suspension: handing back a value
+// would make every caller take its address, and an accidental copy of that value
+// is the aliasing this exists to prevent.
 func (s Suspension) Clone() *Suspension {
 	cloned := s
 	cloned.Prompt = bytes.Clone(s.Prompt)
@@ -78,6 +100,8 @@ func (s Suspension) Clone() *Suspension {
 	return &cloned
 }
 
+// MarshalJSON refuses to encode a suspension that would not validate, so an
+// unusable one can never reach a store.
 func (s Suspension) MarshalJSON() ([]byte, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -86,6 +110,11 @@ func (s Suspension) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire(s))
 }
 
+// UnmarshalJSON accepts only an exact, complete suspension: an unknown field or
+// a trailing value is a version skew, and quietly dropping either would resume a
+// process from less state than whoever wrote it believed was saved. The decoded
+// value is validated before it replaces the receiver, so a failed decode leaves
+// s untouched.
 func (s *Suspension) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSuspension)
@@ -143,6 +172,10 @@ func (e *SuspendedError) Error() string {
 	return fmt.Sprintf("%s at %q", ErrSuspended, e.Suspension.ID)
 }
 
+// Unwrap reports [ErrSuspended] so a caller can test for a park with
+// errors.Is. There is no underlying failure to expose — the suspension is a
+// control-flow signal, and its data travels in the field, not in the error
+// chain.
 func (e *SuspendedError) Unwrap() error { return ErrSuspended }
 
 func validJSON(data json.RawMessage) bool {

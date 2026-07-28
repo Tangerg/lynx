@@ -59,7 +59,7 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 //  2. "{Name}-gather"  — preconditioned on the bound list; runs
 //     Joiner; binds Result.
 //
-// The single goal targets Result, so [Engine.Run] terminates
+// The single goal targets Result, so [runtime.Engine.Run] terminates
 // when Joiner has bound it.
 //
 // Returns an error on missing Name, empty Generators, or nil Joiner.

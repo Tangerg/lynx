@@ -54,6 +54,8 @@ type (
 	RunCompletion = runtime.RunCompletion
 )
 
+// FuncAction is [core.FuncAction]. It stands apart from the aliases above only
+// because it is generic.
 type FuncAction[In, Out any] = core.FuncAction[In, Out]
 
 const (

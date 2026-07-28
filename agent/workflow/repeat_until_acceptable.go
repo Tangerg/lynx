@@ -20,7 +20,7 @@ type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessConte
 // that turns the "loop until LLM is satisfied" pattern into a
 // configuration: supply Task + Evaluator + AcceptableScore (required), and
 // the workflow loops until the evaluator's Score crosses the
-// threshold (or [MaxIterations] expires).
+// threshold (or [RepeatUntilAcceptableConfig.MaxIterations] expires).
 //
 // Each iteration's Feedback is also bound on the blackboard via
 // [core.Blackboard.Bind] so users can inspect "why did the judge

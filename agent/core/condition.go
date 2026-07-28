@@ -68,6 +68,10 @@ func NewCondition(name string, fn ConditionFunc) *FuncCondition {
 func (c *FuncCondition) Name() string  { return c.name }
 func (c *FuncCondition) Cost() float64 { return c.cost }
 
+// Evaluate reports the condition's truth. A condition built without a function
+// is Unknown rather than False: three-valued logic already distinguishes "not
+// known" from "known false", and collapsing the two would let a planner treat an
+// unwired condition as a satisfied negation.
 func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	if c.fn == nil {
 		return Unknown

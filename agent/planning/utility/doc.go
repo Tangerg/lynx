@@ -2,7 +2,7 @@
 // and a goal-first variant with goal-satisfaction termination.
 //
 // Both planners score every applicable action by its net value
-// ([core.Action.Value] − [core.Action.Cost]) and pick the highest.
+// ([core.ActionMetadata.Value] − [core.ActionMetadata.Cost]) and pick the highest.
 // They differ in how they decide when to stop:
 //
 //   - [NewPlanner] is the classic Utility AI shape: pick the best

@@ -49,6 +49,9 @@ const (
 	StatusKilled
 )
 
+// String renders the durable snake_case form a snapshot carries, the one
+// [parseProcessStatus] reads back. These are stored values, not display text:
+// renaming one silently orphans every snapshot already written with it.
 func (s ProcessStatus) String() string {
 	switch s {
 	case StatusNotStarted:

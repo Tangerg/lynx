@@ -48,7 +48,7 @@ type RepeatUntilConfig[In, Out any] struct {
 // RepeatUntil compiles config into a deployable [*core.Agent].
 //
 // The agent has one action — "{Name}-task" — that produces Out and
-// is flagged [ActionConfig.Repeatable] so the planner can pick it
+// is flagged [core.ActionConfig.Repeatable] so the planner can pick it
 // repeatedly. After every run the runtime re-evaluates the
 // "{Name}-acceptable" computed condition: when true, the goal
 // (which preconditions on it) is satisfied and the loop terminates;

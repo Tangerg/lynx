@@ -192,6 +192,8 @@ func (s ProcessSnapshot) Validate() error {
 	return nil
 }
 
+// MarshalJSON refuses to encode a snapshot that would not validate, so a store
+// never receives one a restore would then reject.
 func (s ProcessSnapshot) MarshalJSON() ([]byte, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
@@ -199,6 +201,10 @@ func (s ProcessSnapshot) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.wire())
 }
 
+// UnmarshalJSON accepts only an exact snapshot: an unknown field means the
+// writer recorded state this build does not know about, and restoring while
+// dropping it would resume a process from an incomplete world. The decoded value
+// is validated before it replaces the receiver.
 func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)

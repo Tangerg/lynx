@@ -40,6 +40,8 @@ func (e *DeploymentConflictError) Error() string {
 	return fmt.Sprintf("%s: active %s, candidate %s; use Engine.Replace to change the active route", ErrDeploymentConflict, e.Active, e.Candidate)
 }
 
+// Unwrap reports [ErrDeploymentConflict] so a caller can recognize the conflict
+// with errors.Is while still reading the two refs from the struct.
 func (e *DeploymentConflictError) Unwrap() error { return ErrDeploymentConflict }
 
 // Deploy registers an agent after a multi-layer validation that reports

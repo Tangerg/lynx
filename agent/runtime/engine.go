@@ -28,17 +28,6 @@ const (
 // Engine-scoped extensions live on [Config.Extensions];
 // per-process extensions live on [core.ProcessOptions.Extensions]
 // and merge with engine extensions at dispatch time.
-//
-// The implementation is split across:
-//
-//   - engine.go         — struct + constructor + small accessors
-//   - engine_deploy.go  — Deploy / Undeploy + reachability check +
-//     extension-resolution fallbacks
-//   - engine_run.go     — Run / Start / Continue / Resume / ResumeAsync / Kill
-//   - engine_process.go — process construction + dependency wiring
-//   - process_capture.go — snapshot serialization
-//   - process_snapshot_tree.go — stable tree capture and removal
-//   - process_restore.go — caller-supplied snapshot restoration
 type Engine struct {
 	catalog   deploymentRegistry // immutable deployments and active routes
 	processes processRegistry    // created and restored processes
@@ -177,6 +166,10 @@ func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error) {
 	return e.resolveBlackboard(agent.SnapshotCodec(), nil)
 }
 
+// Process returns the live process registered under id. It is the process
+// itself, not a copy, so an observer sees state advance as the tick advances it.
+// A false result does not distinguish "never registered" from "already removed";
+// either way there is nothing to act on.
 func (e *Engine) Process(id string) (*Process, bool) { return e.processes.get(id) }
 
 // Processes returns a snapshot of all currently registered

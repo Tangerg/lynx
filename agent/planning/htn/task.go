@@ -113,6 +113,8 @@ func (l *Library) MustAdd(t *Task) {
 	}
 }
 
+// Lookup returns a copy of the named task, so a caller inspecting or adapting it
+// cannot reach the library's own copy. Safe for concurrent use alongside Add.
 func (l *Library) Lookup(name string) (*Task, bool) {
 	if l == nil {
 		return nil, false

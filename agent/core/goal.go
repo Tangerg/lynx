@@ -53,6 +53,8 @@ func NewGoal(config GoalConfig) *Goal {
 	}
 }
 
+// Name identifies the goal. It answers for a nil goal so callers holding an
+// unset or not-yet-selected goal can report on it without a guard of their own.
 func (g *Goal) Name() string {
 	if g == nil {
 		return ""
