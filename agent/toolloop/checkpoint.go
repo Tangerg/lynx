@@ -117,9 +117,10 @@ func (c CallCheckpoint) Validate() error {
 // ordered publication waits for every earlier call. This stable ordering is
 // required for deterministic continuation inputs.
 //
-// MaxRounds and MaxConcurrentCalls are part of the captured execution policy.
-// Resume rejects a Runner configured differently instead of silently changing
-// the schedule of work that remains queued.
+// A checkpoint records where execution stopped, not the policy it ran under:
+// round and concurrency limits belong to the Runner the caller assembles, so a
+// continuation may legitimately be driven with different ones. Persisting a
+// checkpoint therefore does not persist a schedule.
 //
 // Checkpoint deliberately contains no executable ToolResolver; Resume receives
 // that capability separately.
