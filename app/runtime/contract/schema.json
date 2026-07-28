@@ -33,7 +33,8 @@
       "type": "object",
       "properties": {
         "content": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "cwd": {
           "type": "string"
@@ -97,7 +98,8 @@
       "type": "object",
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -150,7 +152,8 @@
           "$ref": "#/$defs/AgentMemoryReviewDecision"
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -179,7 +182,8 @@
           "type": "string"
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "pinned": {
           "type": "boolean"
@@ -967,7 +971,8 @@
           "type": "string"
         },
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1077,7 +1082,8 @@
           "type": "integer"
         },
         "query": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1195,7 +1201,8 @@
           }
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "timeoutSeconds": {
           "type": "integer"
@@ -1223,7 +1230,8 @@
           "type": "string"
         },
         "provider": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1324,7 +1332,8 @@
       "type": "object",
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1335,7 +1344,8 @@
       "type": "object",
       "properties": {
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1529,7 +1539,8 @@
           "$ref": "#/$defs/ExportFormat"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1803,7 +1814,8 @@
           "type": "string"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "title": {
           "type": "string"
@@ -1863,7 +1875,8 @@
           "type": "integer"
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1888,7 +1901,8 @@
       "type": "object",
       "properties": {
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -1959,7 +1973,8 @@
       "type": "object",
       "properties": {
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -2025,7 +2040,8 @@
           "type": "string"
         },
         "query": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -2136,6 +2152,23 @@
       },
       "required": [
         "artifact"
+      ],
+      "allOf": [
+        {
+          "properties": {
+            "artifact": {
+              "properties": {
+                "session": {
+                  "properties": {
+                    "id": {
+                      "minLength": 1
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
     },
     "ImportSessionResponse": {
@@ -2375,7 +2408,8 @@
           "type": "string"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -2792,7 +2826,8 @@
           "type": "integer"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -2883,7 +2918,8 @@
       "type": "object",
       "properties": {
         "server": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -3864,7 +3900,8 @@
           "type": "integer"
         },
         "path": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "startLine": {
           "type": "integer"
@@ -3933,7 +3970,8 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -3972,7 +4010,8 @@
           }
         },
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -3987,7 +4026,8 @@
           "$ref": "#/$defs/RestoreType"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "toRunId": {
           "type": "string"
@@ -4290,7 +4330,8 @@
       "type": "object",
       "properties": {
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4566,7 +4607,8 @@
       "type": "object",
       "properties": {
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4588,7 +4630,8 @@
       "type": "object",
       "properties": {
         "projectRoot": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "trusted": {
           "type": "boolean"
@@ -4606,7 +4649,8 @@
           "type": "boolean"
         },
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4681,7 +4725,8 @@
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4712,13 +4757,15 @@
           "type": "string"
         },
         "objective": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "provider": {
           "type": "string"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -4781,10 +4828,12 @@
       "type": "object",
       "properties": {
         "message": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -5006,7 +5055,8 @@
       "type": "object",
       "properties": {
         "runId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -5017,7 +5067,8 @@
       "type": "object",
       "properties": {
         "provider": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "required": [
@@ -5127,10 +5178,11 @@
         },
         "expectedRevision": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 1
         },
         "id": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "model": {
           "type": "string"
@@ -5158,7 +5210,7 @@
         },
         "expectedRevision": {
           "type": "integer",
-          "minimum": 0
+          "minimum": 1
         },
         "favorite": {
           "type": "boolean"
@@ -5167,7 +5219,8 @@
           "type": "string"
         },
         "sessionId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "title": {
           "type": "string"

@@ -26,6 +26,7 @@ func buildShapes() *Shapes {
 	registerObjectConstraints(s)
 	registerStateKeys(s)
 	registerCarriedShapes(s)
+	registerValueConstraints(s)
 	return s
 }
 

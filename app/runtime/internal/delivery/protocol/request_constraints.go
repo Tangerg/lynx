@@ -1,10 +1,19 @@
 package protocol
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // Validator is implemented by a request DTO that carries a constraint its JSON
 // shape alone cannot express: an id that must be present, a revision that must
 // be positive, an enum that must be one of a closed set.
+//
+// The implementations are GENERATED (request_constraints.generated.go) from the
+// declared value constraints, so the Go check, the TypeScript check and the
+// schema's minLength / minimum all come from one statement. Only the interface,
+// the error type and these helpers are hand-written; a hand-written Validate()
+// would be a second author of a rule the schema also states.
 //
 // Delivery calls Validate immediately after decoding and before the request
 // reaches any use case, mapping a failure to invalid_params (API.md §8.2). A
@@ -68,118 +77,16 @@ func positive(field string, value uint64) FieldError {
 	return FieldError{}
 }
 
-// ─── Sessions ───────────────────────────────────────────────────────
-
-func (r GetSessionRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r DeleteSessionRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r ForkSessionRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r RollbackSessionRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r ExportSessionRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r UpdateSessionRequest) Validate() error {
-	return violate(
-		required("sessionId", r.SessionID),
-		positive("expectedRevision", r.ExpectedRevision),
-	)
-}
-
-// Validate requires the artifact's own session id: import is RESTORE semantics
-// (the session comes back under the id it was exported with), so an artifact
-// with no id names no session to restore.
-func (r ImportSessionRequest) Validate() error {
-	return violate(required("artifact.session.id", r.Artifact.Session.ID))
-}
-
-// ─── Runs / Items ───────────────────────────────────────────────────
-
-func (r ResumeRunRequest) Validate() error { return violate(required("runId", r.RunID)) }
-
-func (r SubscribeRunRequest) Validate() error { return violate(required("runId", r.RunID)) }
-
-func (r CancelRunRequest) Validate() error { return violate(required("runId", r.RunID)) }
-
-func (r SteerRunRequest) Validate() error {
-	return violate(required("runId", r.RunID), required("message", r.Message))
-}
-
-func (r ListItemsRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-// ─── Workspace ──────────────────────────────────────────────────────
-
-func (r GetFileHeadRequest) Validate() error { return violate(required("path", r.Path)) }
-
-func (r ReadFileRequest) Validate() error { return violate(required("path", r.Path)) }
-
-func (r GrepRequest) Validate() error { return violate(required("query", r.Query)) }
-
-// ─── Skills / Hooks ─────────────────────────────────────────────────
-
-func (r SkillNameRequest) Validate() error { return violate(required("name", r.Name)) }
-
-func (r SetHookTrustRequest) Validate() error { return violate(required("projectRoot", r.ProjectRoot)) }
-
-// ─── MCP ────────────────────────────────────────────────────────────
-
-func (r MCPServerRequest) Validate() error { return violate(required("server", r.Server)) }
-
-func (r ConfigureMCPServerRequest) Validate() error { return violate(required("name", r.Name)) }
-
-func (r RemoveMCPServerRequest) Validate() error { return violate(required("name", r.Name)) }
-
-func (r SetMCPEnabledRequest) Validate() error { return violate(required("name", r.Name)) }
-
-// ─── Providers / Models / Tools / Usage ─────────────────────────────
-
-func (r ConfigureProviderRequest) Validate() error { return violate(required("provider", r.Provider)) }
-
-func (r TestProviderRequest) Validate() error { return violate(required("provider", r.Provider)) }
-
-func (r InvokeToolRequest) Validate() error { return violate(required("name", r.Name)) }
-
-func (r SessionUsageRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-// ─── Memory / Agent memory ──────────────────────────────────────────
-
-func (r GetMemoryRequest) Validate() error { return validMemoryScope(r.Scope) }
-
-func (r UpdateMemoryRequest) Validate() error { return validMemoryScope(r.Scope) }
-
-func validMemoryScope(scope MemoryScope) error {
-	if scope.Valid() {
-		return nil
+// oneOf rejects a value outside a closed set. Go's decoder puts any string into a
+// named string type, so without this an unknown tag would reach a use case instead
+// of failing as invalid_params. optional allows the empty string: an absent optional
+// enum is the caller declining to choose, not a bad value.
+func oneOf(field, value string, values []string, optional bool) FieldError {
+	if value == "" && optional {
+		return FieldError{}
 	}
-	return violate(FieldError{
-		Field:  "scope",
-		Detail: `must be "cwd", "projectRoot", or "home"`,
-	})
+	if slices.Contains(values, value) {
+		return FieldError{}
+	}
+	return FieldError{Field: field, Detail: "must be one of " + strings.Join(values, ", ")}
 }
-
-func (r AgentMemoryItemRequest) Validate() error { return violate(required("id", r.ID)) }
-
-func (r AgentMemoryReviewRequest) Validate() error { return violate(required("id", r.ID)) }
-
-func (r AgentMemoryUpdateRequest) Validate() error { return violate(required("id", r.ID)) }
-
-func (r AgentMemoryAddRequest) Validate() error { return violate(required("content", r.Content)) }
-
-// ─── Schedules / Goals / Codebase ───────────────────────────────────
-
-func (r UpdateScheduleRequest) Validate() error {
-	return violate(required("id", r.ID), positive("expectedRevision", r.ExpectedRevision))
-}
-
-func (r DeleteScheduleRequest) Validate() error { return violate(required("id", r.ID)) }
-
-func (r RunScheduleNowRequest) Validate() error { return violate(required("id", r.ID)) }
-
-func (r StartGoalRequest) Validate() error {
-	return violate(required("sessionId", r.SessionID), required("objective", r.Objective))
-}
-
-func (r GoalRequest) Validate() error { return violate(required("sessionId", r.SessionID)) }
-
-func (r CodebaseSearchRequest) Validate() error { return violate(required("query", r.Query)) }

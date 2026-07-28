@@ -107,6 +107,47 @@ type CarriedSpec struct {
 	GoType  reflect.Type
 }
 
+// ConstraintKind is a value constraint a field's JSON type does not express.
+type ConstraintKind uint8
+
+const (
+	// ConstraintNonEmpty rejects the empty string. A required id whose value is ""
+	// names nothing, and every transport and generated client should refuse it in
+	// the same place rather than each handler deciding.
+	ConstraintNonEmpty ConstraintKind = iota
+	// ConstraintPositive rejects zero. A revision or count of zero is not a value
+	// the caller could have meant.
+	ConstraintPositive
+)
+
+func (k ConstraintKind) String() string {
+	if k == ConstraintPositive {
+		return "positive"
+	}
+	return "nonEmpty"
+}
+
+// FieldConstraint is one field's value constraint. Field is a dotted JSON path.
+type FieldConstraint struct {
+	Field string
+	Kind  ConstraintKind
+}
+
+// FieldConstraintSpec declares the value constraints of one request shape.
+//
+// These are the checks reflection cannot see: that a string must be non-empty,
+// that a number must exceed zero. Closed-enum membership is NOT declared here —
+// the enum's value set is already declared, so the check is derived from it, and
+// declaring it twice would let the two disagree.
+//
+// The declaration is the single source: the Go validator, the TypeScript validator
+// and the schema's minLength / minimum are all generated from it, which is what
+// makes the three equivalent by construction instead of by a reminder.
+type FieldConstraintSpec struct {
+	GoType      reflect.Type
+	Constraints []FieldConstraint
+}
+
 // Shapes is the registered shape contract. It is separate from the method
 // registry because a union is not a method: several methods carry the same union,
 // and the artifacts generated from it (oneOf + discriminator, if/then) are
@@ -116,12 +157,14 @@ type Shapes struct {
 	constraints []ObjectConstraintSpec
 	stateKeys   []StateKeySpec
 	carried     []CarriedSpec
+	values      []FieldConstraintSpec
 }
 
-func (s *Shapes) Unions() []UnionSpec                 { return s.unions }
-func (s *Shapes) Constraints() []ObjectConstraintSpec { return s.constraints }
-func (s *Shapes) StateKeys() []StateKeySpec           { return s.stateKeys }
-func (s *Shapes) Carried() []CarriedSpec              { return s.carried }
+func (s *Shapes) Unions() []UnionSpec                     { return s.unions }
+func (s *Shapes) Constraints() []ObjectConstraintSpec     { return s.constraints }
+func (s *Shapes) StateKeys() []StateKeySpec               { return s.stateKeys }
+func (s *Shapes) Carried() []CarriedSpec                  { return s.carried }
+func (s *Shapes) ValueConstraints() []FieldConstraintSpec { return s.values }
 
 func (s *Shapes) union(spec UnionSpec) {
 	if err := spec.validate(); err != nil {
@@ -142,6 +185,13 @@ func (s *Shapes) stateKey(spec StateKeySpec) {
 		panic("dispatch: invalid state key spec: " + err.Error())
 	}
 	s.stateKeys = append(s.stateKeys, spec)
+}
+
+func (s *Shapes) valueConstraint(spec FieldConstraintSpec) {
+	if err := spec.validate(); err != nil {
+		panic("dispatch: invalid value constraint spec: " + err.Error())
+	}
+	s.values = append(s.values, spec)
 }
 
 func (s *Shapes) carriedShape(spec CarriedSpec) {
@@ -218,6 +268,34 @@ func (o ObjectConstraintSpec) validate() error {
 		for _, field := range slices.Concat(rule.Required, rule.Forbidden) {
 			if err := protocol.HasWirePath(o.GoType, field); err != nil {
 				return fmt.Errorf("%s rule %d: %w", name, index, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (f FieldConstraintSpec) validate() error {
+	if f.GoType == nil || f.GoType.Kind() != reflect.Struct {
+		return fmt.Errorf("value constraint spec needs a struct type, got %v", f.GoType)
+	}
+	name := f.GoType.Name()
+	if len(f.Constraints) == 0 {
+		return fmt.Errorf("%s: a constraint spec with no constraints constrains nothing", name)
+	}
+	for _, constraint := range f.Constraints {
+		selector, leaf, ok := protocol.GoPath(f.GoType, constraint.Field)
+		if !ok {
+			return fmt.Errorf("%s: no JSON field %q", name, constraint.Field)
+		}
+		kind := protocol.Deref(leaf.Type).Kind()
+		switch constraint.Kind {
+		case ConstraintNonEmpty:
+			if kind != reflect.String {
+				return fmt.Errorf("%s.%s is %s; only a string can be non-empty", name, selector, kind)
+			}
+		case ConstraintPositive:
+			if kind != reflect.Uint64 && kind != reflect.Int && kind != reflect.Int64 {
+				return fmt.Errorf("%s.%s is %s; only a number can be positive", name, selector, kind)
 			}
 		}
 	}

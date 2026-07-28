@@ -33,16 +33,17 @@ var (
 
 func main() {
 	out := flag.String("out", ".", "directory the Go-side artifacts are written to")
+	validators := flag.String("validators", "", "directory the generated Go validator is written to; skipped when empty")
 	ts := flag.String("ts", "", "directory the TypeScript wire types are written to; skipped when empty")
 	flag.Parse()
 
-	if err := run(*out, *ts); err != nil {
+	if err := run(*out, *validators, *ts); err != nil {
 		fmt.Fprintln(os.Stderr, "contractgen:", err)
 		os.Exit(1)
 	}
 }
 
-func run(dir, tsDir string) error {
+func run(dir, validatorDir, tsDir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", dir, err)
 	}
@@ -67,6 +68,13 @@ func run(dir, tsDir string) error {
 	path := filepath.Join(dir, "API_REFERENCE.md")
 	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
+	}
+	// The Go validator lands beside the shapes it checks, in the protocol package.
+	if validatorDir != "" {
+		path = filepath.Join(validatorDir, validatorFile)
+		if err := os.WriteFile(path, []byte(newValidators(registry, shapes)), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
+		}
 	}
 	if tsDir == "" {
 		return nil

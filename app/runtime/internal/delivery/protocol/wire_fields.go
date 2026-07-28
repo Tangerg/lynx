@@ -18,6 +18,11 @@ type WireField struct {
 	Name string
 	Type reflect.Type
 
+	// GoName is the struct field's Go name, which a code generator needs to emit a
+	// selector for it. An embedded struct's fields are promoted, so the name alone
+	// addresses them — there is no prefix to carry.
+	GoName string
+
 	// Optional reports that the encoder may omit the field entirely
 	// (`omitempty` / `omitzero`). It is the only honest source for "may this be
 	// absent": a required-looking field with omitempty is absent on the wire
@@ -43,7 +48,7 @@ func WireFields(owner reflect.Type) []WireField {
 		if name == "" {
 			continue
 		}
-		out = append(out, WireField{Name: name, Type: field.Type, Optional: options.optional})
+		out = append(out, WireField{Name: name, Type: field.Type, GoName: field.Name, Optional: options.optional})
 	}
 	return out
 }
@@ -80,6 +85,23 @@ func HasWirePath(root reflect.Type, path string) error {
 		current = Deref(field.Type)
 	}
 	return nil
+}
+
+// GoPath resolves a dotted JSON path to the Go selector that reads it, so a
+// generator can emit `r.Artifact.Session.ID` for `artifact.session.id`.
+func GoPath(root reflect.Type, path string) (selector string, leaf WireField, ok bool) {
+	current := root
+	var parts []string
+	for segment := range strings.SplitSeq(path, ".") {
+		field, found := LookupWireField(current, segment)
+		if !found {
+			return "", WireField{}, false
+		}
+		parts = append(parts, field.GoName)
+		leaf = field
+		current = Deref(field.Type)
+	}
+	return strings.Join(parts, "."), leaf, true
 }
 
 // Deref unwraps the pointers and slices around a value type, so a path segment

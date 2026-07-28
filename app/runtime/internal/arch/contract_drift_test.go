@@ -27,12 +27,18 @@ import (
 // Without it, "generated" degrades into "generated once".
 func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
-	regenerated, regeneratedTS := regenerateContract(t, root)
+	regenerated, regeneratedTS, regeneratedValidators := regenerateContract(t, root)
 
-	// The TypeScript types live in the frontend's own tree, so they are compared
-	// separately — but by the same rule: the generator reran and nothing moved.
-	if !bytes.Equal(readArtifact(t, regeneratedTS, tsWireTypes), readArtifact(t, filepath.Join(root, tsWireDir), tsWireTypes)) {
-		t.Errorf("%s/%s is stale — run `go generate ./...` and commit the result", tsWireDir, tsWireTypes)
+	// Two artifacts land outside contract/ — the TypeScript types in the frontend's
+	// tree and the Go validator beside the shapes it checks — so they are compared
+	// one by one, under the same rule: the generator reran and nothing moved.
+	for _, outside := range []struct{ fresh, committed, name string }{
+		{regeneratedTS, filepath.Join(root, tsWireDir), tsWireTypes},
+		{regeneratedValidators, filepath.Join(root, validatorDir), validatorFile},
+	} {
+		if !bytes.Equal(readArtifact(t, outside.fresh, outside.name), readArtifact(t, outside.committed, outside.name)) {
+			t.Errorf("%s is stale — run `go generate ./...` and commit the result", outside.name)
+		}
 	}
 
 	fresh := artifactNames(t, regenerated)
@@ -61,21 +67,23 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 // dispatch's contract_methods.go. The frontend consumes the wire types from its own
 // tree — a client that imported them across the module boundary would not build.
 const (
-	tsWireDir   = "../desktop/frontend/src/rpc"
-	tsWireTypes = "wire.generated.ts"
+	tsWireDir     = "../desktop/frontend/src/rpc"
+	tsWireTypes   = "wire.generated.ts"
+	validatorDir  = "internal/delivery/protocol"
+	validatorFile = "request_constraints.generated.go"
 )
 
-func regenerateContract(t *testing.T, root string) (artifacts, typescript string) {
+func regenerateContract(t *testing.T, root string) (artifacts, typescript, validators string) {
 	t.Helper()
 
-	artifacts, typescript = t.TempDir(), t.TempDir()
+	artifacts, typescript, validators = t.TempDir(), t.TempDir(), t.TempDir()
 	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen",
-		"-out", artifacts, "-ts", typescript)
+		"-out", artifacts, "-ts", typescript, "-validators", validators)
 	cmd.Dir = root
 	if combined, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run contractgen: %v\n%s", err, combined)
 	}
-	return artifacts, typescript
+	return artifacts, typescript, validators
 }
 
 func artifactNames(t *testing.T, dir string) []string {
@@ -161,7 +169,14 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 // repository — stops being equivalent to the Go one.
 func TestRequestConstraintsStayPure(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "internal", "delivery", "protocol", "request_constraints.go")
+	for _, name := range []string{"request_constraints.go", validatorFile} {
+		assertConstraintsArePure(t, filepath.Join(root, validatorDir, name))
+	}
+}
+
+func assertConstraintsArePure(t *testing.T, path string) {
+	t.Helper()
+
 	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)

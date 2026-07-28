@@ -552,7 +552,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**12/14** + drift gate + gate 4） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**13/14** —— Go validator 已生成，TS validator 待补） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
 #### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落 + gate 9 半落，3 项待 B3 余量，4 项待 C
@@ -573,7 +573,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
-#### ⚠️ B3 进度与交接（2026-07-29）：12/14 产物 + drift gate + gate 4 已落，余 2 类
+#### ⚠️ B3 进度与交接（2026-07-29）：13/14 产物（validator 只余 TS 半边）
 
 **已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
 `internal/delivery/dispatch/contract_methods.go`）：
@@ -665,22 +665,25 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
 
 **余 2 类，两者的设计都已定案（勿重新推导）**：
 
-**(a) authoritative/terminal runtime validators —— 关键是"约束声明一次"**
+**(a) authoritative/terminal runtime validators —— Go 半边已落地**
 
-现状：`protocol/request_constraints.go` 手写 ~30 个 `Validate()`（`required()` / `positive()` 两个 helper）。schema 侧
-**没有**对应的 `minLength` / `minimum` —— 这正是 gate 6（Go/TS/schema 三方等价）真正的缺口。**不要**在 walker 里猜
-"required string ⇒ minLength 1"（有合法的可空必填串），也**不要**保留手写 Go + 另写一份声明（两个源）。
+上面这条路线已按定案实施：
+- `FieldConstraintSpec` 进 shape registry（`ConstraintNonEmpty` / `ConstraintPositive` 两种；注册期校验字段存在**且类型
+  匹配** —— 对非 string 声明 NonEmpty 直接 panic）；声明集在 `contract_values_wire.go`（41 个请求形状）。
+- **Go validator 生成进 `protocol/request_constraints.generated.go`**（41 个 `Validate()`），手写那 30 个已删；
+  `Validator` 接口 / `ConstraintError` / `required` / `positive` 三个 helper 留手写，`decode[In]` 一行未改。
+  生成器多一个 `-validators` flag（`go generate` 的 cwd 是 directive 所在目录，不是 module root —— 踩过一次）。
+- **schema 从同一声明发 `minLength: 1` / `minimum: 1`**（37 处）。嵌套约束（`artifact.session.id`）**不能**去改共享
+  定义（那条规则属于这个 request、不属于每个携带 `ArtifactSession` 的类型），所以走 request 自己的 `allOf` 分支。
+- **enum 成员检查是派生的，不是声明的**：`WireEnum` 已经声明了值集，所以生成器对每个 enum 字段自动发
+  `oneOf(field, value, values, optional)`。这比手写那版**更严** —— 原先只有 `MemoryScope` 一处有检查，
+  `RestoreType` 之类的坏 tag 会一路流到 use case；现在一律 `invalid_params`。手写的 `validMemoryScope` 随之删除。
+- drift gate 与 gate 7 都已扩到生成物（gate 7 现在两个文件都查：手写 helper 与生成的 validator 都不许 import
+  `/internal/`、`Validate()` 都不许带参数）。
 
-定案路线：
-1. 约束进 shape registry：按 `reflect.Type` 登记 `{Field, Kind}`，`Kind ∈ {NonEmpty, Positive}`（今天只有这两种；
-   `request_constraints.go` 的两个 helper 就是全集）。注册期用 `protocol.HasWirePath` 校验字段存在 —— 与 union spec 同一
-   机制。
-2. Go validator **生成进 `protocol`**（新文件 `request_constraints.generated.go`），手写那份删掉。`protocol.Validator`
-   接口与 `ConstraintError` 保留不动，`dispatch` 的 `decode[In]` 一行都不用改。
-   **bootstrap 风险已评估**：contractgen import protocol，所以生成物损坏会让 protocol 编不过、进而生成器也编不过。
-   解法是标准的 `rm 生成文件 && go generate` —— 可恢复，且比新建一个 `wirecheck` 包再把 `decode` 改道要小得多。
-3. schema 从同一声明发 `minLength: 1` / `minimum: 1`；TS validator 从**schema 树**派生（与 TS types 同一原则），
-   gate 6 由此**结构上成立**而不是靠一条"记得同步"的测试。
+**余下**：TS validator（同样从 **schema 树**派生 —— 与 TS types 同一原则，gate 6 才是结构上成立而不是靠"记得同步"）。
+`minLength` / `minimum` / `enum` / `required` / union `oneOf` / presence `if-then` 全都已经在 `contract/schema.json` 里，
+TS 侧要做的是把这棵树编译成检查函数，不需要再读任何 Go 侧声明。
 
 **(b) TypeScript method constants + typed client stubs —— 生成的是 wire-faithful 那一层，不是替掉 `methods.ts`**
 

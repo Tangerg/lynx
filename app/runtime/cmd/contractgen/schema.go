@@ -48,6 +48,7 @@ type schema struct {
 	Format          string         `json:"format,omitempty"`
 	ContentEncoding string         `json:"contentEncoding,omitempty"`
 	Enum            []string       `json:"enum,omitempty"`
+	MinLength       *int           `json:"minLength,omitempty"`
 	Const           string         `json:"const,omitempty"`
 	Minimum         *int64         `json:"minimum,omitempty"`
 	Items           *schema        `json:"items,omitempty"`
@@ -74,6 +75,7 @@ type schemaSet struct {
 
 	unions      map[reflect.Type]dispatch.UnionSpec
 	constraints map[reflect.Type][]dispatch.PresenceRule
+	values      map[reflect.Type][]dispatch.FieldConstraint
 }
 
 func newSchemaSet(shapes *dispatch.Shapes) *schemaSet {
@@ -82,12 +84,16 @@ func newSchemaSet(shapes *dispatch.Shapes) *schemaSet {
 		origin:      make(map[string]reflect.Type),
 		unions:      make(map[reflect.Type]dispatch.UnionSpec),
 		constraints: make(map[reflect.Type][]dispatch.PresenceRule),
+		values:      make(map[reflect.Type][]dispatch.FieldConstraint),
 	}
 	for _, union := range shapes.Unions() {
 		set.unions[union.GoType] = union
 	}
 	for _, constraint := range shapes.Constraints() {
 		set.constraints[constraint.GoType] = append(set.constraints[constraint.GoType], constraint.Rules...)
+	}
+	for _, spec := range shapes.ValueConstraints() {
+		set.values[spec.GoType] = append(set.values[spec.GoType], spec.Constraints...)
 	}
 	return set
 }
@@ -170,10 +176,33 @@ func (s *schemaSet) define(t reflect.Type, body *schema) *schema {
 func (s *schemaSet) object(t reflect.Type) *schema {
 	out := &schema{Type: "object", Properties: make(map[string]any)}
 	for _, field := range protocol.WireFields(t) {
-		out.Properties[field.Name] = s.walk(field.Type)
+		node := s.walk(field.Type)
+		// A value constraint on a directly-owned field narrows it in place; the
+		// declared constraint and the generated Go check read the same statement.
+		if node.Ref == "" {
+			applyValueConstraints(node, s.valueConstraintsFor(t, field.Name))
+		}
+		out.Properties[field.Name] = node
 		if !field.Optional {
 			out.Required = append(out.Required, field.Name)
 		}
+	}
+	// A constraint on a NESTED field cannot narrow the shared definition it lives in
+	// — the rule belongs to this request, not to every carrier of that type — so it
+	// rides an allOf branch on the request instead.
+	for _, constraint := range s.values[t] {
+		if !strings.Contains(constraint.Field, ".") {
+			continue
+		}
+		branch := &schema{}
+		parent, leaf := descend(branch, t, constraint.Field, false)
+		if parent.Properties == nil {
+			parent.Properties = make(map[string]any)
+		}
+		narrowed := &schema{}
+		applyValueConstraints(narrowed, []dispatch.ConstraintKind{constraint.Kind})
+		parent.Properties[leaf] = narrowed
+		out.AllOf = append(out.AllOf, branch)
 	}
 	if union, ok := s.unions[t]; ok {
 		// A variant states the whole frame it permits, which is stricter and more
@@ -373,4 +402,17 @@ func defName(t reflect.Type) string {
 		out += "Of" + argument
 	}
 	return out
+}
+
+// applyValueConstraints states a declared value constraint in JSON Schema terms, so
+// the schema and the generated validators refuse the same frames.
+func applyValueConstraints(node *schema, kinds []dispatch.ConstraintKind) {
+	for _, kind := range kinds {
+		switch kind {
+		case dispatch.ConstraintNonEmpty:
+			node.MinLength = new(1)
+		case dispatch.ConstraintPositive:
+			node.Minimum = new(int64(1))
+		}
+	}
 }
