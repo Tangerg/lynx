@@ -36,3 +36,19 @@ type ResumeDraft struct {
 	RunID     string
 	SessionID string
 }
+
+// AdmittedRun is what the durable admission record can answer about a Run
+// without loading its transcript: identity, where it sits in its lifecycle, and
+// the selection it runs under.
+//
+// It is the authoritative answer to "which Runs exist and what are they doing" —
+// a live in-process registry only knows the segments THIS process is streaming,
+// so a Run parked on an interrupt, or one whose process died, is absent from it
+// while very much still being a Run.
+type AdmittedRun struct {
+	RunID          string
+	SessionID      string
+	State          RunState
+	ModelSelection modelref.Selection
+	StartedAt      time.Time
+}

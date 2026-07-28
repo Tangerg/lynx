@@ -649,3 +649,80 @@ func TestTerminalizeRejectsUnknownOutcome(t *testing.T) {
 		t.Fatal("terminalize accepted an unknown outcome")
 	}
 }
+
+// TestListRunningSeesOnlyWorkInProgress pins what "which runs are running" means
+// on the durable record. A parked run is non-terminal — it still holds its
+// session's admission slot — but it is waiting on a person, not executing, and a
+// terminal run is neither. The live in-process registry answers this question
+// differently and answers it wrongly after a restart, which is why the read moved
+// here.
+func TestListRunningSeesOnlyWorkInProgress(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	for _, draft := range []execution.RunDraft{
+		{RunID: "run_live", SessionID: "ses_A", CreatedAt: time.Unix(0, 20)},
+		{RunID: "run_parked", SessionID: "ses_B", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_done", SessionID: "ses_C", CreatedAt: time.Unix(0, 30)},
+	} {
+		if err := store.Admit(ctx, draft); err != nil {
+			t.Fatalf("admit %s: %v", draft.RunID, err)
+		}
+	}
+	if err := store.Suspend(ctx, "ses_B", "run_parked"); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	if err := store.Terminalize(ctx, "ses_C", "run_done", execution.OutcomeCompleted); err != nil {
+		t.Fatalf("terminalize: %v", err)
+	}
+
+	running, err := store.ListRunning(ctx, "")
+	if err != nil {
+		t.Fatalf("list running: %v", err)
+	}
+	if len(running) != 1 || running[0].RunID != "run_live" {
+		t.Fatalf("running = %+v, want only run_live", running)
+	}
+	if running[0].State != execution.Running || running[0].SessionID != "ses_A" {
+		t.Fatalf("run_live = %+v, want running in ses_A", running[0])
+	}
+	if !running[0].StartedAt.Equal(time.Unix(0, 20).UTC()) {
+		t.Fatalf("run_live started at %v, want its admission time", running[0].StartedAt)
+	}
+
+	if scoped, err := store.ListRunning(ctx, "ses_A"); err != nil || len(scoped) != 1 {
+		t.Fatalf("ses_A scoped = %+v (err %v), want run_live", scoped, err)
+	}
+	if scoped, err := store.ListRunning(ctx, "ses_B"); err != nil || len(scoped) != 0 {
+		t.Fatalf("ses_B scoped = %+v (err %v), want nothing while parked", scoped, err)
+	}
+}
+
+// TestListRunningOrdersByAdmission keeps the page stable across calls: an
+// unordered scan lets SQLite pick, and a cursor page over an unstable order skips
+// and repeats rows.
+func TestListRunningOrdersByAdmission(t *testing.T) {
+	ctx := context.Background()
+	store, _ := newRunStores(t)
+
+	for _, draft := range []execution.RunDraft{
+		{RunID: "run_c", SessionID: "ses_C", CreatedAt: time.Unix(0, 30)},
+		{RunID: "run_a", SessionID: "ses_A", CreatedAt: time.Unix(0, 10)},
+		{RunID: "run_b", SessionID: "ses_B", CreatedAt: time.Unix(0, 20)},
+	} {
+		if err := store.Admit(ctx, draft); err != nil {
+			t.Fatalf("admit %s: %v", draft.RunID, err)
+		}
+	}
+	running, err := store.ListRunning(ctx, "")
+	if err != nil {
+		t.Fatalf("list running: %v", err)
+	}
+	var order []string
+	for _, run := range running {
+		order = append(order, run.RunID)
+	}
+	if len(order) != 3 || order[0] != "run_a" || order[1] != "run_b" || order[2] != "run_c" {
+		t.Fatalf("order = %v, want oldest admission first", order)
+	}
+}

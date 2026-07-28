@@ -7,19 +7,37 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func presentRun(run transcript.Run) protocol.RunRef {
-	var status protocol.RunStatus
-	switch run.State {
+// presentRunStatus is the one place a durable run state becomes a wire status,
+// shared by the transcript and admission projections so the same run cannot read
+// as running through one and finished through the other.
+func presentRunStatus(state execution.RunState) protocol.RunStatus {
+	switch state {
 	case execution.Running:
-		status = protocol.RunStatusRunning
+		return protocol.RunStatusRunning
 	case execution.Interrupted, execution.Completed, execution.Failed, execution.Canceled:
-		status = protocol.RunStatusFinished
+		return protocol.RunStatusFinished
 	default:
 		panic("server: unknown run state")
 	}
+}
+
+// presentAdmittedRun maps the durable admission record, which knows a run's
+// identity, position and selection but not its transcript. It carries no
+// outcome: an outcome describes a finished run, and this projection is only
+// asked for running ones.
+func presentAdmittedRun(run execution.AdmittedRun) protocol.RunRef {
+	return protocol.RunRef{
+		ID: run.RunID, SessionID: run.SessionID,
+		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
+		Status: presentRunStatus(run.State), CreatedAt: run.StartedAt,
+	}
+}
+
+func presentRun(run transcript.Run) protocol.RunRef {
 	ref := protocol.RunRef{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
-		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(), Status: status,
+		Provider: run.ModelSelection.Provider(), Model: run.ModelSelection.Model(),
+		Status:    presentRunStatus(run.State),
 		CreatedAt: run.CreatedAt, FinishedAt: run.FinishedAt,
 	}
 	if run.State != execution.Running {

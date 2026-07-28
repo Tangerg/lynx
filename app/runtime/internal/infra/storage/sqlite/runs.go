@@ -11,6 +11,7 @@ import (
 	sqlite3lib "modernc.org/sqlite/lib"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // Coarse admission states stored in runs.state. The partial unique index
@@ -125,6 +126,50 @@ func (s *RunStateStore) stateForRun(ctx context.Context, sessionID, runID string
 	default:
 		return 0, false, fmt.Errorf("sqlite: read run state: unknown state %q", coarse)
 	}
+}
+
+// ListRunning returns every Run this store holds in the running state, oldest
+// admission first, scoped to sessionID when it is non-empty. Parked and terminal
+// Runs are excluded: a caller asking what is executing is asking about work in
+// progress, and an interrupted Run is waiting on a person.
+func (s *RunStateStore) ListRunning(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error) {
+	query := `SELECT run_id, session_id, provider, model, started_at
+		 FROM runs WHERE state = ?`
+	args := []any{runStateRunning}
+	if sessionID != "" {
+		query += ` AND session_id = ?`
+		args = append(args, sessionID)
+	}
+	query += ` ORDER BY started_at, run_id`
+
+	rows, err := conn(ctx, s.db).QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+	}
+	defer rows.Close()
+
+	var out []execution.AdmittedRun
+	for rows.Next() {
+		var run execution.AdmittedRun
+		var provider, model string
+		var startedAt int64
+		if err := rows.Scan(&run.RunID, &run.SessionID, &provider, &model, &startedAt); err != nil {
+			return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+		}
+		run.State = execution.Running
+		// A half-set pair is a corrupt row, not a run without a selection: the
+		// admission that wrote it took both values from one Selection.
+		run.ModelSelection, err = modelref.New(provider, model)
+		if err != nil {
+			return nil, fmt.Errorf("sqlite: list running runs: run %q: %w", run.RunID, err)
+		}
+		run.StartedAt = time.Unix(0, startedAt).UTC()
+		out = append(out, run)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sqlite: list running runs: %w", err)
+	}
+	return out, nil
 }
 
 // Terminalize ends the exact non-terminal Run with outcome o, freeing the

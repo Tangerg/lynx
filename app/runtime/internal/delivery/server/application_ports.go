@@ -17,6 +17,7 @@ import (
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -88,7 +89,6 @@ type codebaseUseCases interface {
 
 type runUseCases interface {
 	Cancel(ctx context.Context, cmd runs.CancelCommand) error
-	List() []runs.Record
 	Resume(ctx context.Context, cmd runs.ResumeCommand) (runs.StartResult, error)
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	Steer(ctx context.Context, cmd runs.SteerCommand) error
@@ -97,6 +97,7 @@ type runUseCases interface {
 
 type queryUseCases interface {
 	ListPendingInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	ListRunningRuns(ctx context.Context, sessionID string) ([]execution.AdmittedRun, error)
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
 }
 

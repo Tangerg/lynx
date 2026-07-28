@@ -633,6 +633,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Queries: queries.New(queries.Dependencies{
 				Transcript: cfg.TranscriptStore,
 				Interrupts: cfg.InterruptStore,
+				Runs:       cfg.RunStore,
 			}),
 			Usage: usage.New(usage.Dependencies{
 				Runs:            cfg.TranscriptStore,

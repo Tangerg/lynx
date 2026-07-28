@@ -10,20 +10,18 @@ import (
 )
 
 // ListRuns returns the currently running runs as a cursor Page (API.md §7.3).
-func (s *Server) ListRuns(_ context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
-	records := s.coordinator.List()
-	out := make([]protocol.RunRef, 0, len(records))
-	for _, r := range records {
-		if in.SessionID != "" && r.SessionID != in.SessionID {
-			continue
-		}
-		out = append(out, protocol.RunRef{
-			ID:        r.ID,
-			SessionID: r.SessionID,
-			Provider:  r.ModelSelection.Provider(),
-			Model:     r.ModelSelection.Model(),
-			Status:    protocol.RunStatusRunning,
-		})
+// The set and the session scope come from the durable admission record, not from
+// this process's live registry: the registry sees only the segments it is
+// streaming, so it lost every run whose process restarted and never held the
+// ones a person is being asked to approve.
+func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+	running, err := s.queries.ListRunningRuns(ctx, in.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]protocol.RunRef, 0, len(running))
+	for _, run := range running {
+		out = append(out, presentAdmittedRun(run))
 	}
 	page, next, err := pageByCursor(out, func(run protocol.RunRef) string { return run.ID }, in.Cursor, in.Limit, 100)
 	if err != nil {

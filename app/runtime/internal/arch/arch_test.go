@@ -871,15 +871,43 @@ func TestStartCommandHasOneInputRepresentation(t *testing.T) {
 // coordinators; handlers consume only the use cases they actually drive.
 func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "internal", "delivery", "server", "application_ports.go")
-	forbidden := map[string]map[string]struct{}{
-		"sessionUseCases": {
-			"ClaimWorkingTreeMutation": {}, "ClaimWorkingTreeRun": {}, "RestoreSession": {},
-		},
-		"integrationUseCases": {"MCPRegisteredServer": {}, "MCPServerStatus": {}},
-		"modelUseCases":       {"DefaultModel": {}},
-		"runUseCases":         {"AcquireSession": {}, "ActiveSession": {}, "ActiveSessions": {}, "Contains": {}},
-	}
+	const reason = "not a production handler dependency"
+	forbidInterfaceMethods(t, filepath.Join(root, "internal", "delivery", "server", "application_ports.go"),
+		map[string]map[string]string{
+			"sessionUseCases": {
+				"ClaimWorkingTreeMutation": reason, "ClaimWorkingTreeRun": reason, "RestoreSession": reason,
+			},
+			"integrationUseCases": {"MCPRegisteredServer": reason, "MCPServerStatus": reason},
+			"modelUseCases":       {"DefaultModel": reason},
+			"runUseCases": {
+				"AcquireSession": reason, "ActiveSession": reason,
+				"ActiveSessions": reason, "Contains": reason,
+			},
+		})
+}
+
+// TestDeliveryReadsRunsFromDurableProjection keeps the live registry out of the
+// answer to "which Runs exist and what are they doing". The registry tracks the
+// segments THIS process is streaming, so it reports a different set after a
+// restart and never holds a Run parked on an interrupt — it answers a narrower
+// question than the one runs.list asks. Delivery reads the durable admission
+// record through the query port instead.
+func TestDeliveryReadsRunsFromDurableProjection(t *testing.T) {
+	root := moduleRoot(t)
+	forbidInterfaceMethods(t, filepath.Join(root, "internal", "delivery", "server", "application_ports.go"),
+		map[string]map[string]string{
+			"runUseCases": {
+				"List": "the set of Runs is a durable projection, not this process's live registry",
+			},
+		})
+}
+
+// forbidInterfaceMethods rejects named methods on named interfaces in one file.
+// It guards consumer-port width: which use cases a ring is allowed to drive is a
+// dependency decision, and an extra method is how one ring quietly starts owning
+// another's read model.
+func forbidInterfaceMethods(t *testing.T, path string, banned map[string]map[string]string) {
+	t.Helper()
 	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 	if err != nil {
 		t.Fatalf("parse %s: %v", path, err)
@@ -894,7 +922,7 @@ func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
 			if !ok {
 				continue
 			}
-			blocked, watched := forbidden[named.Name.Name]
+			blocked, watched := banned[named.Name.Name]
 			if !watched {
 				continue
 			}
@@ -904,8 +932,8 @@ func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
 			}
 			for _, method := range iface.Methods.List {
 				for _, name := range method.Names {
-					if _, leaked := blocked[name.Name]; leaked {
-						t.Errorf("%s: %s.%s is not a production handler dependency", path, named.Name.Name, name.Name)
+					if reason, leaked := blocked[name.Name]; leaked {
+						t.Errorf("%s: %s.%s is %s", path, named.Name.Name, name.Name, reason)
 					}
 				}
 			}
@@ -913,10 +941,6 @@ func TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods(t *testing.T) {
 	}
 }
 
-// TestCanonicalExecutionRecordsStayTyped prevents the old persistence design
-// from returning: transcript and interrupt records may be serialized by an
-// adapter, but their domain shape cannot contain an opaque Blob/Payload/JSON
-// field or json.RawMessage.
 func TestCanonicalExecutionRecordsStayTyped(t *testing.T) {
 	root := moduleRoot(t)
 	dirs := []string{
