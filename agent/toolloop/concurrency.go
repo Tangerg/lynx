@@ -55,11 +55,9 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 			return nil, false, fmt.Errorf("tool %q: %w", call.Name, err)
 		}
 		plan := callPlan{tool: tool, direct: direct}
-		if concurrent, ok := Capability[ConcurrentTool](tool); ok {
-			plan.key, plan.concurrent, err = concurrencyKey(concurrent, call.Name, call.Arguments)
-			if err != nil {
-				return nil, false, err
-			}
+		plan.key, plan.concurrent, err = concurrencyKey(tool, call.Name, call.Arguments)
+		if err != nil {
+			return nil, false, err
 		}
 		plans[index] = plan
 		allDirect = allDirect && plan.direct
@@ -67,13 +65,21 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 	return plans, allDirect, nil
 }
 
-func concurrencyKey(tool ConcurrentTool, name, arguments string) (key string, concurrent bool, err error) {
+// concurrencyKey owns both halves of asking a tool how it schedules: finding the
+// declaration through the wrapping chain and calling it. Keeping the lookup
+// inside this recover is what attributes a non-terminating chain to the tool
+// instead of relying on some earlier caller having already walked it.
+func concurrencyKey(tool tools.Tool, name, arguments string) (key string, concurrent bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %q ConcurrencyKey panicked", name), recovered)
+			err = panicerr.New(fmt.Sprintf("tool %q concurrency lookup panicked", name), recovered)
 		}
 	}()
-	key, concurrent = tool.ConcurrencyKey(arguments)
+	declared, ok := Capability[ConcurrentTool](tool)
+	if !ok {
+		return "", false, nil
+	}
+	key, concurrent = declared.ConcurrencyKey(arguments)
 	return key, concurrent, nil
 }
 

@@ -45,15 +45,18 @@ func (directRuntimeTool) ReturnsDirect() bool { return true }
 func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
 
 func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
+	// Registered before the lookup, not after it: walking the wrapping chain runs
+	// the tool's own Unwrap, and a chain that does not end reports itself by
+	// panicking. Both belong to the tool, so both are attributed to it.
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %T direct-return lookup panicked", tool), recovered)
+		}
+	}()
 	marker, ok := Capability[DirectTool](tool)
 	if !ok {
 		return false, nil
 	}
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %T ReturnsDirect panicked", tool), recovered)
-		}
-	}()
 	return marker.ReturnsDirect(), nil
 }
 

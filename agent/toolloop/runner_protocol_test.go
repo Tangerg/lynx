@@ -151,8 +151,10 @@ func TestRunnerContainsSchedulingPanics(t *testing.T) {
 			return runnerToolResponse(chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}), nil
 		}}, toolloop.Config{})
 		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
-		if !errors.Is(err, cause) || !strings.Contains(err.Error(), `tool "lookup" ConcurrencyKey panicked`) {
-			t.Fatalf("Run error = %v, want concurrency-key panic", err)
+		// Attribution is the contract — the failing tool has to be named — so
+		// assert that and the propagated cause, not the wording in between.
+		if !errors.Is(err, cause) || !strings.Contains(err.Error(), `tool "lookup"`) {
+			t.Fatalf("Run error = %v, want a concurrency panic attributed to the tool", err)
 		}
 	})
 }

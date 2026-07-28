@@ -3,10 +3,14 @@ package toolloop_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type directCapabilityTool struct{}
@@ -49,5 +53,57 @@ func TestDirectOwnsOnlyItsMarker(t *testing.T) {
 	}
 	if output, err := wrapped.Call(t.Context(), `{}`); output != "written" || err != nil {
 		t.Fatalf("Call() = %q, %v; want written, nil", output, err)
+	}
+}
+
+// wrappingLoop is a decorator whose chain never reaches an innermost tool.
+type wrappingLoop struct {
+	name string
+	next tools.Tool
+}
+
+func (w *wrappingLoop) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: w.name, InputSchema: json.RawMessage(`{}`)}
+}
+func (w *wrappingLoop) Call(context.Context, string) (string, error) { return "", nil }
+func (w *wrappingLoop) Unwrap() tools.Tool                           { return w.next }
+
+// TestCapabilityRefusesAChainThatDoesNotEnd pins the terminating condition of the
+// wrapping walk. Two decorators naming each other used to spin forever, which
+// hangs whatever asked — tool advertisement, scheduling, a host's own capability
+// query — with no error and no progress.
+func TestCapabilityRefusesAChainThatDoesNotEnd(t *testing.T) {
+	for name, chainOf := range map[string]func() tools.Tool{
+		"two decorators wrapping each other": func() tools.Tool {
+			outer := &wrappingLoop{name: "outer"}
+			inner := &wrappingLoop{name: "inner", next: outer}
+			outer.next = inner
+			return outer
+		},
+		"a decorator wrapping itself": func() tools.Tool {
+			self := &wrappingLoop{name: "self"}
+			self.next = self
+			return self
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			tool := chainOf()
+			done := make(chan any, 1)
+			go func() {
+				defer func() { done <- recover() }()
+				toolloop.Capability[toolloop.ConcurrentTool](tool)
+			}()
+			select {
+			case recovered := <-done:
+				if recovered == nil {
+					t.Fatal("a chain that does not end resolved quietly instead of reporting itself")
+				}
+				if !strings.Contains(fmt.Sprint(recovered), "Unwrap chain does not end") {
+					t.Fatalf("panic = %v, want it to name the unterminated chain", recovered)
+				}
+			case <-time.After(5 * time.Second):
+				t.Fatal("Capability did not terminate on a cyclic wrapping chain")
+			}
+		})
 	}
 }
