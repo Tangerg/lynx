@@ -43,7 +43,17 @@ var (
 	// work. A caller must never be told an active goal was accepted when no loop
 	// can be attached to drive it.
 	ErrClosed = errors.New("goals: driver closed")
+	// ErrUnavailable reports that this runtime assembled no goal store, so goal
+	// mode does not exist here. The driver answers it itself rather than leaving a
+	// nil receiver for a caller to remember to check — "not assembled" is a state
+	// the owner of the capability reports, not a precondition it delegates.
+	ErrUnavailable = errors.New("goals: goal mode unavailable")
 )
+
+// Available reports whether goal mode is assembled in this runtime. Nil-safe: a
+// runtime with no goal store leaves the driver nil, and asking an absent
+// capability whether it exists must answer, not panic.
+func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 
 // RunUseCases is the goal loop's narrow view of the run entry point — the same
 // headless start the scheduler uses. Autonomous execution never calls a delivery
@@ -129,6 +139,9 @@ func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions Sessi
 // does not exist. The new goal gets a fresh lease so a straggler from any
 // previously-cleared goal can no longer write.
 func (d *Driver) Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
+	if !d.Available() {
+		return goal.Goal{}, ErrUnavailable
+	}
 	release := d.mutations.acquire(sessionID)
 	defer release()
 	if d.closed.Load() {
@@ -192,6 +205,9 @@ func (d *Driver) Start(ctx context.Context, sessionID, objective string, selecti
 // idempotent on an already-active goal. The resume renews the lease so
 // the fresh loop owns the goal and any straggler cannot write.
 func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error) {
+	if !d.Available() {
+		return goal.Goal{}, ErrUnavailable
+	}
 	release := d.mutations.acquire(sessionID)
 	defer release()
 	if d.closed.Load() {
@@ -248,6 +264,9 @@ func (d *Driver) Resume(ctx context.Context, sessionID string) (goal.Goal, error
 // post-terminal snapshot. This ordering preserves terminal accounting and makes
 // the user stop the final lifecycle transition rather than racing it.
 func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) {
+	if !d.Available() {
+		return goal.Goal{}, ErrUnavailable
+	}
 	release := d.mutations.acquire(sessionID)
 	defer release()
 	if d.closed.Load() {
@@ -292,6 +311,9 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (d *Driver) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+	if !d.Available() {
+		return goal.Goal{}, false, ErrUnavailable
+	}
 	return d.goals.Get(ctx, sessionID)
 }
 

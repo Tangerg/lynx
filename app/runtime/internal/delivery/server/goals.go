@@ -25,9 +25,6 @@ type goalRunner interface {
 
 // StartGoal opens and begins driving a goal for the session (goals.start).
 func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*protocol.Goal, error) {
-	if !s.features.goals {
-		return nil, capabilityNotNegotiated("goals.start")
-	}
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
@@ -41,9 +38,6 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 
 // GetGoal returns the session's goal, or a nil result when it has none (goals.get).
 func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
-	if !s.features.goals {
-		return nil, capabilityNotNegotiated("goals.get")
-	}
 	g, ok, err := s.goals.Get(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.get")
@@ -56,9 +50,6 @@ func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protoco
 
 // StopGoal pauses the session's goal and stops the loop (goals.stop).
 func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
-	if !s.features.goals {
-		return nil, capabilityNotNegotiated("goals.stop")
-	}
 	g, err := s.goals.Stop(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.stop")
@@ -68,9 +59,6 @@ func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protoc
 
 // ResumeGoal re-activates a paused or blocked goal (goals.resume).
 func (s *Server) ResumeGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
-	if !s.features.goals {
-		return nil, capabilityNotNegotiated("goals.resume")
-	}
 	g, err := s.goals.Resume(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.resume")
@@ -83,6 +71,8 @@ func mapGoalErr(err error, method string) error {
 		return nil
 	}
 	switch {
+	case errors.Is(err, goals.ErrUnavailable):
+		return capabilityNotNegotiated(method)
 	case errors.Is(err, goals.ErrGoalActive):
 		return fmt.Errorf("%w: a goal is already active for this session — stop it first", protocol.ErrSessionBusy)
 	case errors.Is(err, goals.ErrNoGoal):

@@ -28,6 +28,12 @@ func wireWorkspaceError(err error) error {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, workspaceapp.ErrVCSUnavailable):
 		return protocol.ErrVcsUnavailable
+	// A capability this build never assembled is capability_not_negotiated, the
+	// same answer discovery's feature map implies (API.md §9). The dispatcher's
+	// rule refuses these before they get here; this mapping keeps the sentinel
+	// from surfacing raw on any other path into the same coordinator.
+	case errors.Is(err, workspaceapp.ErrMemoryUnavailable):
+		return fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 	default:
 		return err
 	}

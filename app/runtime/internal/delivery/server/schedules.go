@@ -17,9 +17,6 @@ import (
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
 func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
-	if !s.features.schedules {
-		return nil, capabilityNotNegotiated("schedules.list")
-	}
 	page, err := s.schedules.ListPage(ctx, query.Cursor, query.Limit)
 	if err != nil {
 		return nil, mapScheduleErr(wirePageError(err), "schedules.list", "")
@@ -34,9 +31,6 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 // CreateSchedule adds an enabled schedule (schedules.create), computing its
 // first due time from the cron.
 func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
-	if !s.features.schedules {
-		return nil, capabilityNotNegotiated("schedules.create")
-	}
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
@@ -59,9 +53,6 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 // UpdateSchedule applies a revision-guarded partial patch. The coordinator
 // recomputes due time when cron or enabled changes and clears it when disabled.
 func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
-	if !s.features.schedules {
-		return nil, capabilityNotNegotiated("schedules.update")
-	}
 	updated, err := s.schedules.Update(ctx, scheduleapp.UpdateCommand{
 		ID:               in.ID,
 		ExpectedRevision: in.ExpectedRevision,
@@ -84,9 +75,6 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 
 // DeleteSchedule removes a schedule (schedules.delete). Idempotent.
 func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleRequest) error {
-	if !s.features.schedules {
-		return capabilityNotNegotiated("schedules.delete")
-	}
 	return mapScheduleErr(s.schedules.Delete(ctx, in.ID), "schedules.delete", in.ID)
 }
 
@@ -94,9 +82,6 @@ func (s *Server) DeleteSchedule(ctx context.Context, in protocol.DeleteScheduleR
 // extra run that records the firing without shifting the schedule's next due
 // time.
 func (s *Server) RunScheduleNow(ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
-	if !s.features.schedules {
-		return nil, capabilityNotNegotiated("schedules.runNow")
-	}
 	handle, err := s.scheduleFiring.RunNow(ctx, in.ID)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.runNow", in.ID)

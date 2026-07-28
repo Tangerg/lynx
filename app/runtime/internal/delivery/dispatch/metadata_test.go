@@ -12,7 +12,7 @@ import (
 func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
-		Method: MethodRunsCancel,
+		Method: "runs.cancel",
 		Params: json.RawMessage(`{
 			"_meta": {
 				"protocolVersion": "2026-07-19",
@@ -53,7 +53,7 @@ func TestBindRequestMetaStripsMetaAndStoresContext(t *testing.T) {
 func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
-		Method: MethodRunsCancel,
+		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":"bad","runId":"run_1"}`),
 	}
 
@@ -69,7 +69,7 @@ func TestBindRequestMetaRejectsMalformedMeta(t *testing.T) {
 func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
-		Method: MethodRunsCancel,
+		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":null,"runId":"run_1"}`),
 	}
 
@@ -85,7 +85,7 @@ func TestBindRequestMetaRejectsNullMeta(t *testing.T) {
 func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
-		Method: MethodRunsCancel,
+		Method: "runs.cancel",
 		Params: json.RawMessage(`{"_meta":{"protocolVersion":"1900-01-01"},"runId":"run_1"}`),
 	}
 

@@ -62,11 +62,6 @@ func decode[In any](msg *transport.Request) (In, *transport.Error) {
 	return in, nil
 }
 
-func decodeEmpty(msg *transport.Request) *transport.Error {
-	_, bad := decode[struct{}](msg)
-	return bad
-}
-
 // reply maps a (result, error) method tail onto a HandleResult: errors go
 // through [errorToRPC], success encodes the result.
 func reply[Out any](msg *transport.Request, out Out, err error) HandleResult {

@@ -23,29 +23,20 @@ const (
 	idempotencyStoreWriteTimeout = 5 * time.Second
 )
 
-var replayProtectedMethods = map[string]struct{}{
-	MethodSessionsCreate: {}, MethodSessionsUpdate: {}, MethodSessionsDelete: {},
-	MethodSessionsFork: {}, MethodSessionsRollback: {}, MethodSessionsImport: {},
-	MethodRunsStart: {}, MethodRunsResume: {}, MethodRunsCancel: {}, MethodRunsSteer: {},
-	MethodSkillsLibraryArchive: {}, MethodSkillsLibraryRestore: {},
-	MethodMCPServersReconnect: {}, MethodMCPServersAuthorize: {},
-	MethodMCPConfigsConfigure: {}, MethodMCPConfigsRemove: {}, MethodMCPConfigsSetEnabled: {},
-	MethodHooksSetTrust:   {},
-	MethodApprovalSetMode: {}, MethodApprovalForgetRule: {},
-	MethodSchedulesCreate: {}, MethodSchedulesUpdate: {}, MethodSchedulesDelete: {}, MethodSchedulesRunNow: {},
-	MethodCodebaseReindex: {}, MethodProvidersConfigure: {},
-	MethodModelsSetUtilityRole: {}, MethodModelsSetEmbeddingRole: {},
-	MethodToolsInvoke: {}, MethodMemoryUpdate: {}, MethodFeedbackCreate: {},
-}
-
-func isReplayProtected(method string) bool {
-	_, ok := replayProtectedMethods[method]
-	return ok
+// idempotencyOf reads the method's declared retry semantics. An unregistered
+// method keeps no record — dispatch will reject it as method_not_found anyway.
+func idempotencyOf(method string) IdempotencyPolicy {
+	registered, ok := contract.Lookup(method)
+	if !ok {
+		return IdempotencyNone
+	}
+	return registered.Meta.Idempotency
 }
 
 func (d *Dispatcher) dispatchReplayProtected(ctx context.Context, req *transport.Request) HandleResult {
 	key := transport.IdempotencyKeyFrom(ctx)
-	if key == "" || !isReplayProtected(req.Method) {
+	policy := idempotencyOf(req.Method)
+	if key == "" || !policy.Replays() {
 		return d.dispatchRequest(ctx, req)
 	}
 	if len(key) > maxIdempotencyKeyBytes {
@@ -190,7 +181,10 @@ func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload
 		return responseError(req.ID, errorToRPC(errors.New("idempotency: stored payload is not a response")))
 	}
 	response.ID = req.ID
-	if response.Error != nil || (req.Method != MethodRunsStart && req.Method != MethodRunsResume) {
+	// A cached error, or a method that replays by returning its response, is done
+	// here. A run-opening method is not: its ack names a run the caller still has
+	// no stream for, so the retry re-attaches to the run rather than starting one.
+	if response.Error != nil || idempotencyOf(req.Method) != IdempotencyReplayRunStream {
 		return HandleResult{Response: response}
 	}
 	var started protocol.StartRunResponse

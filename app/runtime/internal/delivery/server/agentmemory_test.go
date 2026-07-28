@@ -63,16 +63,6 @@ func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, c
 	return agentmemory.Item{ID: "mem_new", Scope: scope, Content: content, Origin: agentmemory.OriginUser, Status: agentmemory.StatusActive}, nil
 }
 
-func TestAgentMemoryHandlersDisabled(t *testing.T) {
-	s := newTestServer(&stubRuntime{})
-	if _, err := s.ListAgentMemory(context.Background(), protocol.AgentMemoryListRequest{}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
-		t.Fatalf("list err = %v, want capability_not_negotiated", err)
-	}
-	if err := s.ReviewAgentMemory(context.Background(), protocol.AgentMemoryReviewRequest{ID: "x", Decision: "approve"}); !errors.Is(err, protocol.ErrCapabilityNotNeg) {
-		t.Fatalf("review err = %v, want capability_not_negotiated", err)
-	}
-}
-
 func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	rec := &recordingAgentMemory{items: []agentmemory.Item{
 		{ID: "1", Content: "- fact", Origin: agentmemory.OriginAuto, Status: agentmemory.StatusPending},

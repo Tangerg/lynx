@@ -550,10 +550,62 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `TODO` | — |
+| B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `TODO` | — |
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `TODO` | — |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `TODO` | — |
+
+#### ⚠️ B1 实施记录（2026-07-29）：Registry 落在 `delivery/dispatch`，不在 `protocol`
+
+契约 §11.1 的示意把 `Registry` 画在 wire 类型旁边。**实施时判断放 `dispatch`**，理由是抽象归属而非便利：
+
+- Registry 的内容与它驱动的路由不可分 —— `Method` 持有 decode/invoke/encode 闭包，那是 dispatch 的本职。把 metadata
+  放 `protocol`、Registry 放 `dispatch`，等于把**一个概念劈成两个包**，且「唯一注册点」会变成"metadata 一处、绑定另一处"。
+- 计划 §2.2（D3）本就写「生成器…**读 delivery 的 method/union spec**」，未指定 `protocol`。
+- `TestProtocolStaysWireOnly` 不受影响（dispatch 可 import protocol，反向不需要）。
+
+**注册点用方法表达式**（`func(*Dispatcher, ctx, P) (R, error)`）而非绑定方法值：`contract` 因此是 package-level 值，
+**不需要 Runtime 实例就能构建**。这正是 B3 生成器要的 —— 读全量 metadata + reflect 类型，无需 stub 一个 83 方法的 Runtime。
+
+**消掉的重复：4 张按方法名索引的表 → 1 处注册。**
+
+| 删掉的 | 规模 |
+|---|---|
+| `method_names.go` 方法名常量 | 85 |
+| `method_table.go` handler 映射 | 83 |
+| `idempotency.go` 的 `replayProtectedMethods` | 32 |
+| `handlers_*.go` 里 `if in.X == ""` 必填校验 | 44（前一 commit 已搬到请求形状） |
+| `server/*.go` 里 `if !s.features.X` 能力检查 | 20 |
+
+**能力门禁读 discovery 自己的输出**（`d.api.Discover(ctx)`），不另开一条 feature 通道。契约 §11.4 gate 3 要求
+「dispatcher / discovery / SDK preflight 三方等价」—— 让 enforcement 读 advertisement 使二者**构造上等价**，而不是靠一条
+"记得同步"的测试。代价是每次被门控的调用多构造一个 19 项 map；被门控的方法都是低频面板调用，未测量前不优化（Pike 2/3）。
+
+**实施中查出并修掉的 3 个真错（都不是"移动代码"）：**
+
+1. **`codebase` 把"能力未装配"和"未配 embedding role"混成一个答案。** 协调器 `c.index == nil` 时返回
+   `ErrNoEmbeddingModel`，而 API.md §7.10 明文区分：未装配 → `capability_not_negotiated`，装配但未配置 → `invalid_params`
+   （后者是用户可修的）。新增 `codebase.ErrUnavailable` 分开；`codebase.status` 原先对未装配的 runtime 报
+   `state:"none"`，读起来像"装配好了但索引是空的"，会诱导客户端给一个不存在的能力显示"开始构建"按钮 —— 这条分支
+   在 server 的 feature 检查后面本来就不可达，是死行为。
+2. **`memory` 的 `ErrMemoryUnavailable` 没有 wire 映射。** 之前被 server 的 feature 检查挡住看不见；检查一移走就以裸
+   sentinel 露出去。补进 `wireWorkspaceError`（与 agentMemory / schedules / skills 同一形态）。
+3. **`goals.Driver` 未装配时是 nil，公开方法不自守 → 直接调用 panic。** 之前靠 delivery 的 feature 检查兜住，也就是说
+   「不 panic」这件事依赖上层记得检查。改为 driver 自己回答 `ErrUnavailable`（与 `agentmemory.Coordinator` 已有的
+   `Available()` 同一形态），delivery 不再为它守卫。
+
+**跟着搬家的 3 个测试**：`TestAgentMemoryHandlersDisabled` / codebase 的 query 必填断言 / memory 的 disabled 断言 ——
+它们断言的规则已经不属于 `server` 了。前者移入 `dispatch` 的 gate 测试（覆盖无条件 + 三种条件形态），后两者由请求形状
+的 `Validate()` 与新 sentinel 覆盖。**没有降低覆盖**：gate 测试比原先的 20 个 per-method 检查更严（含"空 watches 不算 watch"
+与 rollback 三值）。
+
+**一处按契约修正了行为**：`restoreType: files|both` 在 `features.checkpoints=false` 时，从 `checkpoint_unavailable`
+改为 `capability_not_negotiated`。AUX_API §4.1 本就把二者分开（能力关 vs 该 run 无快照），旧代码把两个事实压成一个错误码。
+wire **shape** 未变。
+
+**未做（留 B3）**：`server.capabilitiesFor` 的 `StreamingMethods` 仍是手写 4 项。Registry 已有 `StreamMethods()` 作为唯一
+真相，但 `server` 是 Runtime 实现、不该 import dispatcher；正确的收口是 B3 生成一份供二者读的常量。本轮先用
+`TestStreamMethodsAreTheStreamingContract` 钉住 Registry 侧，B4 gate 2 再校验两侧相等。
 
 **反泄露 DoD（每 slice 都查）**：
 - `delivery/protocol` 仍不 import domain/application（`TestProtocolStaysWireOnly` 绿）

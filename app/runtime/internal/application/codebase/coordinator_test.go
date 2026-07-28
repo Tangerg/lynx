@@ -66,15 +66,18 @@ func (i *codebaseIndex) Status(_ context.Context, root string) (codebaseindex.St
 	return i.status, nil
 }
 
-func TestStatusReturnsNoneWhenUnconfigured(t *testing.T) {
+// TestUnassembledIndexIsUnavailableNotEmpty pins the distinction API.md §7.10
+// draws: a runtime that never assembled a semantic index says so
+// (capability_not_negotiated), rather than reporting an empty index — which would
+// invite the client to offer a "build it" button for a capability that is absent.
+func TestUnassembledIndexIsUnavailableNotEmpty(t *testing.T) {
 	c := newCoordinator(nil)
 
-	got, err := c.Status(context.Background(), "/repo")
-	if err != nil {
-		t.Fatalf("status: %v", err)
+	if _, err := c.Status(context.Background(), "/repo"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("status err = %v, want ErrUnavailable", err)
 	}
-	if got.Index.State != codebaseindex.StateNone {
-		t.Fatalf("state = %q, want none", got.Index.State)
+	if _, err := c.Search(context.Background(), "/repo", "q", 0); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("search err = %v, want ErrUnavailable", err)
 	}
 }
 
@@ -112,8 +115,8 @@ func TestStatusUsesStatusPort(t *testing.T) {
 
 func TestStartReindexRequiresAvailableIndex(t *testing.T) {
 	c := newCoordinator(nil)
-	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
-		t.Fatalf("start reindex without index err = %v, want ErrNoEmbeddingModel", err)
+	if _, err := c.StartReindex(context.Background(), "/repo"); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("start reindex without index err = %v, want ErrUnavailable", err)
 	}
 
 	c = newCoordinator(&codebaseIndex{})

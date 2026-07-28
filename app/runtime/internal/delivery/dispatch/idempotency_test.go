@@ -86,7 +86,7 @@ func TestRequestFingerprintCanonicalizesObjectOrder(t *testing.T) {
 }
 
 func TestReplayPreservesCompletedRunResponse(t *testing.T) {
-	request, err := transport.NewCall("retry", MethodRunsStart, map[string]string{"sessionId": "ses_1"})
+	request, err := transport.NewCall("retry", "runs.start", map[string]string{"sessionId": "ses_1"})
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
@@ -118,11 +118,11 @@ func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
 	dispatcher := New(runtime)
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
-	first, err := transport.NewCall("first", MethodRunsCancel, protocol.CancelRunRequest{RunID: "run_1"})
+	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {
 		t.Fatalf("build first request: %v", err)
 	}
-	second, err := transport.NewCall("second", MethodRunsCancel, protocol.CancelRunRequest{RunID: "run_1"})
+	second, err := transport.NewCall("second", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {
 		t.Fatalf("build second request: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 	dispatcher := New(runtime, WithIdempotencyStore(store))
 	ctx := transport.WithIdempotencyKey(t.Context(), "cancel-once")
 	request := func(id string, runID string) *transport.Request {
-		req, err := transport.NewCall(id, MethodRunsCancel, protocol.CancelRunRequest{RunID: runID})
+		req, err := transport.NewCall(id, "runs.cancel", protocol.CancelRunRequest{RunID: runID})
 		if err != nil {
 			t.Fatalf("build request: %v", err)
 		}
@@ -183,9 +183,9 @@ func TestPendingCompletionStillRejectsKeyReuse(t *testing.T) {
 	store.failures.Store(1)
 	dispatcher := New(&countingCancelRuntime{}, WithIdempotencyStore(store))
 	ctx := transport.WithIdempotencyKey(t.Context(), "bound-key")
-	first, _ := transport.NewCall("first", MethodRunsCancel, protocol.CancelRunRequest{RunID: "run_1"})
+	first, _ := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	dispatcher.Handle(ctx, first)
-	conflict, _ := transport.NewCall("second", MethodRunsCancel, protocol.CancelRunRequest{RunID: "run_2"})
+	conflict, _ := transport.NewCall("second", "runs.cancel", protocol.CancelRunRequest{RunID: "run_2"})
 	result := dispatcher.Handle(ctx, conflict)
 	var conflictErr *transport.Error
 	if result.Response != nil {

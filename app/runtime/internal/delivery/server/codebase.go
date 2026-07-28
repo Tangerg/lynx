@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	codebaseapp "github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
@@ -17,12 +18,6 @@ import (
 // CodebaseSearch returns the chunks most similar to the query in the cwd's
 // project (codebase.search), building/refreshing the index first.
 func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
-	if !s.features.codebase {
-		return nil, capabilityNotNegotiated("codebase.search")
-	}
-	if in.Query == "" {
-		return nil, fmt.Errorf("%w: query is required", protocol.ErrInvalidParams)
-	}
 	hits, err := s.codebase.Search(ctx, in.Cwd, in.Query, in.Limit)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
@@ -42,9 +37,6 @@ func (s *Server) CodebaseSearch(ctx context.Context, in protocol.CodebaseSearchR
 
 // CodebaseStatus reports the cwd's index state (codebase.status).
 func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
-	if !s.features.codebase {
-		return nil, capabilityNotNegotiated("codebase.status")
-	}
 	st, err := s.codebase.Status(ctx, in.Cwd)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
@@ -61,9 +53,6 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 // (codebase.reindex) — a big reindex can take seconds, so the status surface
 // polls codebase.status for progress rather than blocking the call.
 func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
-	if !s.features.codebase {
-		return nil, capabilityNotNegotiated("codebase.reindex")
-	}
 	operationID, err := s.codebase.StartReindex(ctx, in.Cwd)
 	if err != nil {
 		return nil, mapCodebaseErr(err)
@@ -74,6 +63,9 @@ func (s *Server) CodebaseReindex(ctx context.Context, in protocol.CodebaseReinde
 // mapCodebaseErr surfaces "no embedding model" as invalid_params with a fix-it
 // message; other errors pass through (internal_error).
 func mapCodebaseErr(err error) error {
+	if errors.Is(err, codebaseapp.ErrUnavailable) {
+		return fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
+	}
 	if errors.Is(err, codebaseindex.ErrNoEmbeddingModel) {
 		return fmt.Errorf("%w: no embedding model configured — set one in Settings (models.setEmbeddingRole)", protocol.ErrInvalidParams)
 	}

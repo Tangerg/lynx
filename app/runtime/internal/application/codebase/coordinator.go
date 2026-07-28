@@ -28,6 +28,13 @@ var errClosed = errors.New("codebase: closed")
 // explicit prevents semantic-index calls from accepting an unscoped path.
 var ErrRootResolverUnavailable = errors.New("codebase: workspace root resolver unavailable")
 
+// ErrUnavailable reports that this runtime assembled no semantic index, so the
+// capability does not exist here. It is deliberately distinct from
+// [codebaseindex.ErrNoEmbeddingModel]: "never built" and "built but not
+// configured" are two different answers to the client (API.md §7.10) — the first
+// is capability_not_negotiated, the second a fixable invalid_params.
+var ErrUnavailable = errors.New("codebase: semantic index unavailable")
+
 // RootResolver is the narrow workspace context dependency required by codebase
 // use cases. The codebase component owns when its operations need a canonical
 // project root; resolving paths remains the workspace component's concern.
@@ -87,8 +94,8 @@ func (c *Coordinator) Available() bool { return c != nil && c.index != nil }
 
 // Search returns semantic search hits for cwd, building the index when needed.
 func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) ([]codebaseindex.Hit, error) {
-	if c.index == nil {
-		return nil, codebaseindex.ErrNoEmbeddingModel
+	if !c.Available() {
+		return nil, ErrUnavailable
 	}
 	root, err := c.root(cwd)
 	if err != nil {
@@ -99,12 +106,12 @@ func (c *Coordinator) Search(ctx context.Context, cwd, query string, limit int) 
 
 // Status returns cwd's current semantic-index state and any in-flight rebuild.
 func (c *Coordinator) Status(ctx context.Context, cwd string) (Status, error) {
+	if !c.Available() {
+		return Status{}, ErrUnavailable
+	}
 	root, err := c.root(cwd)
 	if err != nil {
 		return Status{}, err
-	}
-	if c.index == nil {
-		return Status{Index: codebaseindex.Status{State: codebaseindex.StateNone}}, nil
 	}
 	status, err := c.index.Status(ctx, root)
 	if err != nil {
@@ -116,8 +123,8 @@ func (c *Coordinator) Status(ctx context.Context, cwd string) (Status, error) {
 // StartReindex starts a full rebuild for cwd that outlives the request context,
 // owned by this component's task group and canceled and joined during shutdown.
 func (c *Coordinator) StartReindex(ctx context.Context, cwd string) (string, error) {
-	if c.index == nil {
-		return "", codebaseindex.ErrNoEmbeddingModel
+	if !c.Available() {
+		return "", ErrUnavailable
 	}
 	root, err := c.root(cwd)
 	if err != nil {

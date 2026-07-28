@@ -27,9 +27,6 @@ type agentMemoryUseCases interface {
 
 // ListAgentMemory returns a project's active + pending memory (agentMemory.list).
 func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
-	if !s.features.agentMemory {
-		return nil, capabilityNotNegotiated("agentMemory.list")
-	}
 	scope, err := agentMemoryScopeFromWire(in.Scope)
 	if err != nil {
 		return nil, err
@@ -60,17 +57,11 @@ func (s *Server) ReviewAgentMemory(ctx context.Context, in protocol.AgentMemoryR
 	default:
 		return fmt.Errorf("%w: decision must be \"approve\" or \"reject\"", protocol.ErrInvalidParams)
 	}
-	if !s.features.agentMemory {
-		return capabilityNotNegotiated("agentMemory.review")
-	}
 	return mapAgentMemoryErr(s.agentMemory.Review(ctx, in.ID, status), "agentMemory.review")
 }
 
 // UpdateAgentMemory edits and/or pins an item (agentMemory.update).
 func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
-	if !s.features.agentMemory {
-		return nil, capabilityNotNegotiated("agentMemory.update")
-	}
 	item, err := s.agentMemory.Update(ctx, in.ID, in.Content, in.Pinned)
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.update")
@@ -84,17 +75,11 @@ func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryU
 
 // DeleteAgentMemory removes an item (agentMemory.delete).
 func (s *Server) DeleteAgentMemory(ctx context.Context, in protocol.AgentMemoryItemRequest) error {
-	if !s.features.agentMemory {
-		return capabilityNotNegotiated("agentMemory.delete")
-	}
 	return mapAgentMemoryErr(s.agentMemory.Delete(ctx, in.ID), "agentMemory.delete")
 }
 
 // AddAgentMemory stores a user-authored active item (agentMemory.add).
 func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
-	if !s.features.agentMemory {
-		return nil, capabilityNotNegotiated("agentMemory.add")
-	}
 	scope, err := agentMemoryScopeFromWire(in.Scope)
 	if err != nil {
 		return nil, err

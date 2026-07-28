@@ -80,7 +80,7 @@ func TestCodebaseSearchMapsToWire(t *testing.T) {
 	}
 }
 
-func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
+func TestCodebaseSearchRequiresAnAssembledIndex(t *testing.T) {
 	root := t.TempDir()
 	s := serverWithCodebase(root, nil) // no index
 
@@ -89,10 +89,13 @@ func TestCodebaseSearchRequiresIndexAndQuery(t *testing.T) {
 		t.Fatalf("search without index err = %v, want capability_not_negotiated", err)
 	}
 
+	// "query is required" is the request shape's own constraint
+	// (protocol.CodebaseSearchRequest.Validate), enforced once at the delivery
+	// boundary — not restated here.
 	withIndex := serverWithCodebase(root, &fakeCodebaseIndex{available: true})
-	_, err = withIndex.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{})
-	if !errors.Is(err, protocol.ErrInvalidParams) {
-		t.Fatalf("search without query err = %v, want invalid_params", err)
+	_, err = withIndex.CodebaseSearch(context.Background(), protocol.CodebaseSearchRequest{Query: "session"})
+	if err != nil {
+		t.Fatalf("search with an available index: %v", err)
 	}
 }
 
