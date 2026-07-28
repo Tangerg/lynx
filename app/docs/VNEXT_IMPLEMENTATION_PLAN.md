@@ -552,10 +552,10 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**13/14** —— Go validator 已生成，TS validator 待补） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**13.5/14** —— validator 两半都已生成，余 typed client stubs） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落 + gate 6/9 各半落，2 项待 TS validator，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 7 项已落 + gate 9 半落，2 项待 sample 合家，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -567,14 +567,14 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
-| 9 | TS types / validators / client stubs 可编译 | ⚠️ 部分：**TS types 已生成且前端 `npm run check` 全绿**（typecheck + oxlint + prettier + 173 test file / 841 test + knip + 8 个结构脚本 + bundle 预算）；validators / stubs 待 B3 余 2 类 |
-| 6 | 三方约束等价 | ⚠️ **Go↔schema 半边已落**：`TestValueConstraintsAgreeAcrossArtifacts` 回读两份产物 —— 一份声明喂两个独立 emitter（Go 发 `required(...)`、schema 发 `minLength`，嵌套路径走第三条 allOf 代码路径），构造**不**保证它们一致，只有回读才保证。TS 半边随 TS validator 落 |
-| 10 / 14 | canonical samples 三方 / state key fixture | ⏸ 待 TS validator（gate 10 还需先把两处 sample 合成一处，见上） |
+| 9 | TS types / validators / client stubs 可编译 | ⚠️ 部分：**TS types + TS validator 已生成，前端 `npm run check` 全绿**（typecheck + oxlint + prettier + 174 test file + knip + 8 个结构脚本 + bundle 预算；validator 只被测试消费 → 不进 entry bundle）；stubs 待 B3 余 1 类 |
+| 6 | 三方约束等价 | ✅ **三方全落**：`TestValueConstraintsAgreeAcrossArtifacts` 回读三份产物 —— 一份声明喂三个独立 emitter（Go 发 `required(...)`、schema 发 `minLength`、TS 发 `minLength(1)`；嵌套路径在后两者里走第四条 allOf 代码路径），构造**不**保证一致，只有回读才保证。TS 侧还按 shape 切块回读（不是全文 grep），所以"规则落在别的 shape 上"也会被点名 |
+| 10 / 14 | canonical samples 三方 / state key fixture | ⏸ 待 sample 合家（三个 validator 都在了，缺的是**一份** file↔shape 映射：Go 的 `wireSamples` 与 TS 的 `wire<T>(…)` 现在各写一遍） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
-#### ⚠️ B3 进度与交接（2026-07-29）：13/14 产物（validator 只余 TS 半边）
+#### ⚠️ B3 进度与交接（2026-07-29）：13.5/14 产物（validator 两半都在，余 typed client stubs）
 
 **已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
 `internal/delivery/dispatch/contract_methods.go`）：
@@ -664,9 +664,9 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
 **工具配置**：`knip.json` 的 ignore 从 `src/rpc/shapes.ts` 换成 `wire.generated.ts`；`.prettierignore` 加同一文件
 （生成物的格式属于生成器）。
 
-**余 2 类，两者的设计都已定案（勿重新推导）**：
+**余 1 类，设计已定案（勿重新推导）**：
 
-**(a) authoritative/terminal runtime validators —— Go 半边已落地**
+**(a) authoritative/terminal runtime validators —— 两半都已落地**
 
 上面这条路线已按定案实施：
 - `FieldConstraintSpec` 进 shape registry（`ConstraintNonEmpty` / `ConstraintPositive` 两种；注册期校验字段存在**且类型
@@ -682,9 +682,33 @@ required 字段不加 null，**违反由 validator 抓**（那才是坏帧该现
 - drift gate 与 gate 7 都已扩到生成物（gate 7 现在两个文件都查：手写 helper 与生成的 validator 都不许 import
   `/internal/`、`Validate()` 都不许带参数）。
 
-**余下**：TS validator（同样从 **schema 树**派生 —— 与 TS types 同一原则，gate 6 才是结构上成立而不是靠"记得同步"）。
-`minLength` / `minimum` / `enum` / `required` / union `oneOf` / presence `if-then` 全都已经在 `contract/schema.json` 里，
-TS 侧要做的是把这棵树编译成检查函数，不需要再读任何 Go 侧声明。
+**TS 半边（2026-07-29 落地）**：`wire.validate.generated.ts`（1987 行，241 个 shape）由 `cmd/contractgen/typescript_validator.go`
+**从 schema 树编译**，与 TS types 同一原则 —— gate 6 因此是结构上成立，不是靠"记得同步"。
+
+- **两侧 scope 不同不是偷懒，是各自拥有的帧不同**：runtime **收**请求，Go 的类型化 decode 已经定了结构，所以生成的 Go
+  validator 只补类型说不出的那部分（值约束、enum 成员）；client **收** result / event，而 TS 类型在运行时**已被擦除**，
+  所以这一份必须扛全树（type keyword / required / enum / minLength·minimum / union 排他 / presence rule）。
+- **一个 keyword 一个原语**（`wireCheck.ts` 手写，与 Go 侧手写 `required` / `positive` / `oneOf` 同一分工）：
+  `object` / `fields` / `array` / `record` / `text` / `integer` / `numeric` / `flag` / `minLength` / `minimum` /
+  `enumOf` / `literal` / `absent` / `anything` / `ref` / `oneOf` / `allOf` / `ifThen`。**咬到的第一个真错就出自"图省事把
+  两个 keyword 融进一个原语"**：最初写成 `text(1)`，于是 schema 里那 5 处**没有 type keyword 的裸 `minLength`**
+  （嵌套约束走的 allOf 分支）无处可放，被静默编译成 `anything()` —— 约束整个丢了。改成一 keyword 一原语后，一条规则
+  只有一种拼写，gate 6 才有东西可回读。`enum` 是唯一保留的融合（值集蕴含它旁边的 `type: string`，且**从不**单独出现）。
+- **`fields` 与 `object` 的区别是刻意的**：union branch 与 presence rule 在 schema 里**没有** type keyword，按 JSON Schema
+  `properties` 只对 object 生效 —— 所以它们编译成不断言类型的 `fields`，由外层定义断言一次。否则一个非 object 的帧会被
+  13 个 variant 各报一次"类型不对"。
+- **不加 schema 没说的规则**：`format` / `contentEncoding` 按默认词汇表当**注解**处理（时间戳格式由 Go decoder 拒）。
+  加一条 RFC-3339 断言会让 validator **比已发布 schema 严**，那是与"不发 `additionalProperties: false`"对称的同一种说谎。
+- **`oneOf` 的判定精确、报告是启发式**：0 个 variant 命中就附上"最接近的那个"的违规（`ContentBlock.mime must not be
+  present here`），而不是只说一句"没有 variant 匹配"；命中 >1 个则是 union 排他性自己有毛病，直说。
+- **当场咬出第二个真错**：`method.sessions.rollback.resp.json` 这份**手写** canonical sample 里，dropped run 带
+  `status:"finished"` + `finishedAt` 却**没有 outcome** —— 而 `presentRun` 只要 `state != Running` 就一定填 outcome，
+  `presentRunStatus` 又把每个非 Running 状态映射成 `finished`，所以这是一帧 runtime **产生不出来**的数据。
+  Go round-trip 抓不到（`*RunOutcome` + `omitempty` 解得干净）、`tsc` 也抓不到（类型里 `outcome?`）—— **只有 presence
+  rule 抓得到**。已补上 outcome。这正是 §11.3 要 validator 而不只要 types 的理由。
+- 验证：13 条 per-keyword 行为测试（`wire.validate.test.ts`，正反各一半 —— sample 全是合法帧，只有非法帧才能证明规则真
+  在生效），外加落地时一次性跑过**全部 78 个 canonical sample**（77 通过 + 上面那 1 个真错）。
+- gate 1 顺手收窄成"环外产物按目录逐文件比对"，所以下一个落在 `src/rpc` 或 `protocol` 的生成物**不需要再改 gate**。
 
 **(b) TypeScript method constants + typed client stubs —— 生成的是 wire-faithful 那一层，不是替掉 `methods.ts`**
 
@@ -696,9 +720,13 @@ TS 侧要做的是把这棵树编译成检查函数，不需要再读任何 Go �
 - Go 侧**不生成**方法名常量（见上一条：Registry 本身就是 Go 的共读源）。
 - notification 名已生成（`NOTIFICATIONS_RUN_EVENT` / `NOTIFICATIONS_WORKSPACE_EVENT`），frontend 已改读。
 
-**gate 10 的前置**：canonical sample 现在有**两个家**（`app/desktop/frontend/src/rpc/samples/` 与
-`protocol/wire_golden_test.go`）。§11.3 要求 Go / TS validator / JSON Schema **分别验证同一批独立 fixture**，所以这两处
-必须先合成一处（人工编写不变，只是共用），否则"三方过同一批样本"这句话没有指代。
+**gate 10 的前置（写 TS validator 时看清楚了，比原先记的更小也更准）**：sample **文件**本来就只有一个家
+（`app/desktop/frontend/src/rpc/samples/`，Go 的 golden test 跨模块读它）。真正抄了两遍的是 **file↔shape 映射** ——
+Go 的 `wireSamples`（`file` → `func() any`）与 TS 的 `wire<T>(sample)` 各写一份，78 条各自维护。§11.3 要求 Go / TS
+validator / JSON Schema **分别验证同一批 fixture**，"同一批"要有指代就得让这份映射只有一份。
+落地形态：一份**人工编写**的索引（sample 文件名 → 已发布 shape 名），三方各按自己的方式读它 —— Go 按名字取
+`reflect.Type`、TS 调 `validateWire(name, …)`、schema 侧解析 `schema.json#/$defs/<name>`。索引本身人工写才守住
+§11.3「禁止生成 fixture 再用同源 schema 自证」；缺口检查（哪个 shape 还没有 sample）可以生成。
 
 **接手须知（避免重新推导）**：
 - `MethodMeta` 现带 `Params` / `Result` / `Event` 三个 `reflect.Type`（工厂填，`Result` 对 ack-only 方法为 nil、

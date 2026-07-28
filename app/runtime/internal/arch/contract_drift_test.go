@@ -30,15 +30,18 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
 	regenerated, regeneratedTS, regeneratedValidators := regenerateContract(t, root)
 
-	// Two artifacts land outside contract/ — the TypeScript types in the frontend's
-	// tree and the Go validator beside the shapes it checks — so they are compared
-	// one by one, under the same rule: the generator reran and nothing moved.
-	for _, outside := range []struct{ fresh, committed, name string }{
-		{regeneratedTS, filepath.Join(root, tsWireDir), tsWireTypes},
-		{regeneratedValidators, filepath.Join(root, validatorDir), validatorFile},
+	// Some artifacts land outside contract/ — the TypeScript types and checks in the
+	// frontend's tree, the Go validator beside the shapes it checks. Their homes hold
+	// hand-written files too, so the rule runs one way: every file the generator
+	// writes there must match the copy in the tree.
+	for _, outside := range []struct{ fresh, committed string }{
+		{regeneratedTS, filepath.Join(root, tsWireDir)},
+		{regeneratedValidators, filepath.Join(root, validatorDir)},
 	} {
-		if !bytes.Equal(readArtifact(t, outside.fresh, outside.name), readArtifact(t, outside.committed, outside.name)) {
-			t.Errorf("%s is stale — run `go generate ./...` and commit the result", outside.name)
+		for _, name := range artifactNames(t, outside.fresh) {
+			if !bytes.Equal(readArtifact(t, outside.fresh, name), readArtifact(t, outside.committed, name)) {
+				t.Errorf("%s is stale — run `go generate ./...` and commit the result", name)
+			}
 		}
 	}
 
@@ -68,10 +71,10 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 // dispatch's contract_methods.go. The frontend consumes the wire types from its own
 // tree — a client that imported them across the module boundary would not build.
 const (
-	tsWireDir     = "../desktop/frontend/src/rpc"
-	tsWireTypes   = "wire.generated.ts"
-	validatorDir  = "internal/delivery/protocol"
-	validatorFile = "request_constraints.generated.go"
+	tsWireDir       = "../desktop/frontend/src/rpc"
+	tsWireValidator = "wire.validate.generated.ts"
+	validatorDir    = "internal/delivery/protocol"
+	validatorFile   = "request_constraints.generated.go"
 )
 
 func regenerateContract(t *testing.T, root string) (artifacts, typescript, validators string) {
@@ -505,15 +508,15 @@ func exportedStructs(t *testing.T, dir string) []string {
 	return out
 }
 
-// TestValueConstraintsAgreeAcrossArtifacts is the Go/schema half of contract §11.4
-// gate 6: every declared value constraint is stated by BOTH emitters.
+// TestValueConstraintsAgreeAcrossArtifacts is contract §11.4 gate 6: every declared
+// value constraint is stated by all THREE emitters.
 //
-// One declaration feeds two independent emitters — the Go validator writes a
-// `required(...)` call, the schema writes `minLength`, and a nested path takes a
-// third code path (an allOf branch on the request, because the rule belongs to the
-// request and not to every carrier of the shared type). Construction does not make
-// them agree; only reading both artifacts back does. The TypeScript half lands with
-// the TS validator, which reads the schema this pins.
+// One declaration feeds three independent emitters — the Go validator writes a
+// `required(...)` call, the schema writes `minLength`, the TypeScript checks write
+// `minLength(1)` — and a nested path takes a fourth code path in two of them (an
+// allOf branch, because the rule belongs to the request and not to every carrier of
+// the shared type). Construction does not make them agree; only reading the
+// artifacts back does.
 func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "contract")
@@ -525,6 +528,7 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 		t.Fatalf("decode schema.json: %v", err)
 	}
 	validator := string(readArtifact(t, filepath.Join(root, validatorDir), validatorFile))
+	checks := checkEntries(t, string(readArtifact(t, filepath.Join(root, tsWireDir), tsWireValidator)))
 
 	for _, spec := range dispatch.WireShapes().ValueConstraints() {
 		shape := spec.GoType.Name()
@@ -549,8 +553,59 @@ func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
 				t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
 					shape, constraint.Field, constraint.Kind, helper)
 			}
+			// The TypeScript checks name the leaf, so a dotted path is read at the
+			// segment the constraint lands on. Looking inside this shape's own entry —
+			// not the whole file — is what pins the rule to the right shape.
+			entry, ok := checks[shape]
+			if !ok {
+				t.Errorf("%s carries value constraints and %s has no check for it", shape, tsWireValidator)
+				continue
+			}
+			if !statesCheck(entry, constraint.Field, keyword) {
+				t.Errorf("%s.%s is declared %s and its %s check states no %s",
+					shape, constraint.Field, constraint.Kind, tsWireValidator, keyword)
+			}
 		}
 	}
+}
+
+// statesCheck reports whether one shape's checks constrain the last segment of a
+// dotted path with the given keyword. A value constraint compiles to a single line
+// either way it is stated — `sessionId: allOf([text(), minLength(1)])` beside a type
+// keyword, `id: minLength(1)` alone in an allOf branch — so the line the field names
+// is the whole rule.
+func statesCheck(entry, path, keyword string) bool {
+	segments := strings.Split(path, ".")
+	field := segments[len(segments)-1] + ": "
+	for line := range strings.SplitSeq(entry, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, field) && strings.Contains(trimmed, keyword+"(") {
+			return true
+		}
+	}
+	return false
+}
+
+// checkEntries splits the generated TypeScript checks into one entry per published
+// shape. Every entry starts a line at the registry's own indentation, so the text
+// between two such lines is one shape's whole rule set.
+func checkEntries(t *testing.T, source string) map[string]string {
+	t.Helper()
+
+	entry := regexp.MustCompile(`(?m)^  ([A-Za-z0-9_]+): `)
+	matches := entry.FindAllStringSubmatchIndex(source, -1)
+	if len(matches) == 0 {
+		t.Fatalf("%s publishes no checks", tsWireValidator)
+	}
+	out := make(map[string]string, len(matches))
+	for index, match := range matches {
+		end := len(source)
+		if index+1 < len(matches) {
+			end = matches[index+1][0]
+		}
+		out[source[match[2]:match[3]]] = source[match[0]:end]
+	}
+	return out
 }
 
 // constraintInSchema reports whether the definition constrains the last segment of

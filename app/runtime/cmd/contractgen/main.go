@@ -79,9 +79,16 @@ func run(dir, validatorDir, tsDir string) error {
 	if tsDir == "" {
 		return nil
 	}
-	path = filepath.Join(tsDir, tsFileName)
-	if err := os.WriteFile(path, []byte(newTypeScript(walked, built.Notifications)), 0o644); err != nil {
-		return fmt.Errorf("write %s: %w", path, err)
+	// The client's two halves: the shapes it may hold, and the checks that say an
+	// arriving frame really is one of them.
+	for _, artifact := range []struct{ name, content string }{
+		{tsFileName, newTypeScript(walked, built.Notifications)},
+		{tsValidatorFileName, newWireChecks(walked)},
+	} {
+		path = filepath.Join(tsDir, artifact.name)
+		if err := os.WriteFile(path, []byte(artifact.content), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", path, err)
+		}
 	}
 	return nil
 }

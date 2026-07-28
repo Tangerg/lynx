@@ -4,6 +4,7 @@
   "ignore": [
     "sample-plugins/**",
     "src/rpc/wire.generated.ts",
+    "src/rpc/wire.validate.generated.ts",
     "src/rpc/types.ts",
     "src/rpc/ids.ts"
   ],
