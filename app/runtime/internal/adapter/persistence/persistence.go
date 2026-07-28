@@ -32,7 +32,7 @@ type Bundle struct {
 	Tx   func(context.Context, func(context.Context) error) error
 
 	Session       *sqlitestore.SessionStore
-	Runs          *sqlitestore.RunStateStore
+	Runs          *sqlitestore.RunStore
 	WorkspaceMuts *sqlitestore.WorkspaceMutationStore
 	Memory        *storage.FileKnowledgeStore
 	AgentMemory   *sqlitestore.AgentMemoryStore
@@ -77,7 +77,7 @@ func Open() (*Bundle, error) {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
 		Session:       sqlitestore.NewSessionStore(db),
-		Runs:          sqlitestore.NewRunStateStore(db),
+		Runs:          sqlitestore.NewRunStore(db),
 		WorkspaceMuts: sqlitestore.NewWorkspaceMutationStore(db),
 		Memory:        mem,
 		AgentMemory:   sqlitestore.NewAgentMemoryStore(db),

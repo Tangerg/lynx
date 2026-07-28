@@ -50,7 +50,7 @@ func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	items, _, err := tr.List(t.Context(), sess)
+	items, err := tr.List(t.Context(), sess)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestTranscriptSurfacesMissingOffloadedToolResult(t *testing.T) {
 	if err := tr.AppendItem(t.Context(), toolItem(sess, "item-1", preview, &resultoffload.Ref{ID: "GONE234BLOB"})); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := tr.List(t.Context(), sess); err == nil {
+	if _, err := tr.List(t.Context(), sess); err == nil {
 		t.Fatal("missing blob must surface a broken durable reference")
 	}
 }
@@ -83,7 +83,7 @@ func TestTranscriptLeavesOrdinaryToolResultUntouched(t *testing.T) {
 	if err := tr.AppendItem(t.Context(), toolItem(sess, "item-1", plain, nil)); err != nil {
 		t.Fatal(err)
 	}
-	items, _, err := tr.List(t.Context(), sess)
+	items, err := tr.List(t.Context(), sess)
 	if err != nil {
 		t.Fatal(err)
 	}

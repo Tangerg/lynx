@@ -51,7 +51,7 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 		State:          state,
 		CreatedAt:      r.cfg.CreatedAt,
 		UpdatedAt:      r.now(),
-		MessageMark:    -1,
+		MessageMark:    transcript.UnknownMessageMark,
 	}
 }
 

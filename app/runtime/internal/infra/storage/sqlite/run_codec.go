@@ -1,0 +1,256 @@
+package sqlite
+
+import (
+	"database/sql"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+)
+
+// The Run row's two JSON columns. Token accounting and a failure classification
+// are read and written whole with the row, never queried across, so they stay one
+// value each rather than a dozen columns — the same call the goals table makes
+// for its budget. They are declared here, with explicit names, because the
+// durable encoding is this adapter's to choose: the domain values carry no tags,
+// and renaming a Go field must not silently invalidate stored rows.
+type runUsageRow struct {
+	InputTokens      int64                     `json:"inputTokens,omitzero"`
+	OutputTokens     int64                     `json:"outputTokens,omitzero"`
+	CacheReadTokens  int64                     `json:"cacheReadTokens,omitzero"`
+	CacheWriteTokens int64                     `json:"cacheWriteTokens,omitzero"`
+	ReasoningTokens  int64                     `json:"reasoningTokens,omitzero"`
+	CostUSD          *float64                  `json:"costUsd,omitempty"`
+	ByModel          map[string]runModelRowUse `json:"byModel,omitempty"`
+}
+
+type runModelRowUse struct {
+	InputTokens      int64    `json:"inputTokens,omitzero"`
+	OutputTokens     int64    `json:"outputTokens,omitzero"`
+	CacheReadTokens  int64    `json:"cacheReadTokens,omitzero"`
+	CacheWriteTokens int64    `json:"cacheWriteTokens,omitzero"`
+	ReasoningTokens  int64    `json:"reasoningTokens,omitzero"`
+	CostUSD          *float64 `json:"costUsd,omitempty"`
+}
+
+type runProblemRow struct {
+	Kind              int    `json:"kind"`
+	Detail            string `json:"detail,omitempty"`
+	DocURL            string `json:"docUrl,omitempty"`
+	RetryAfterSeconds int    `json:"retryAfterSeconds,omitzero"`
+}
+
+// terminalRunValues are the encoded accrued facts of a finished Run, ready to
+// bind to a statement. An empty usage / problem string means the Run recorded
+// none.
+type terminalRunValues struct {
+	steps      int
+	durationNs int64
+	usage      string
+	problem    string
+}
+
+func terminalRunRow(run transcript.Run) (terminalRunValues, error) {
+	if run.Result == nil {
+		return terminalRunValues{}, nil
+	}
+	usage, err := encodeRunUsage(run.Result.Usage)
+	if err != nil {
+		return terminalRunValues{}, err
+	}
+	problem, err := encodeRunProblem(run.Result.Error)
+	if err != nil {
+		return terminalRunValues{}, err
+	}
+	return terminalRunValues{
+		steps:      run.Result.Steps,
+		durationNs: int64(run.Result.Duration),
+		usage:      usage,
+		problem:    problem,
+	}, nil
+}
+
+func encodeRunUsage(usage *transcript.Usage) (string, error) {
+	if usage == nil {
+		return "", nil
+	}
+	row := runUsageRow{
+		InputTokens:      usage.InputTokens,
+		OutputTokens:     usage.OutputTokens,
+		CacheReadTokens:  usage.CacheReadTokens,
+		CacheWriteTokens: usage.CacheWriteTokens,
+		ReasoningTokens:  usage.ReasoningTokens,
+		CostUSD:          usage.CostUSD,
+	}
+	if len(usage.ByModel) > 0 {
+		row.ByModel = make(map[string]runModelRowUse, len(usage.ByModel))
+		for model, perModel := range usage.ByModel {
+			row.ByModel[model] = runModelRowUse{
+				InputTokens:      perModel.InputTokens,
+				OutputTokens:     perModel.OutputTokens,
+				CacheReadTokens:  perModel.CacheReadTokens,
+				CacheWriteTokens: perModel.CacheWriteTokens,
+				ReasoningTokens:  perModel.ReasoningTokens,
+				CostUSD:          perModel.CostUSD,
+			}
+		}
+	}
+	encoded, err := json.Marshal(row)
+	if err != nil {
+		return "", fmt.Errorf("encode run usage: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func encodeRunProblem(problem *transcript.Problem) (string, error) {
+	if problem == nil {
+		return "", nil
+	}
+	encoded, err := json.Marshal(runProblemRow{
+		Kind:              int(problem.Kind),
+		Detail:            problem.Detail,
+		DocURL:            problem.DocURL,
+		RetryAfterSeconds: problem.RetryAfterSeconds,
+	})
+	if err != nil {
+		return "", fmt.Errorf("encode run problem: %w", err)
+	}
+	return string(encoded), nil
+}
+
+// scanRun decodes one Run row plus the joined open-interrupt payload.
+//
+// The fine [execution.RunState] is rebuilt from the coarse admission state and
+// the terminal reason beside it rather than stored a second time, and the
+// terminal facts are materialized exactly when the state says they exist — the
+// equivalence [transcript.Run.Validate] enforces on the way in.
+func scanRun(row scanRow) (transcript.Run, error) {
+	var (
+		run                 transcript.Run
+		coarse              string
+		outcome             string
+		provider            string
+		model               string
+		steps               int
+		durationNs          int64
+		usage               string
+		problem             string
+		startedAt           int64
+		finishedAt          int64
+		updatedAt           int64
+		interruptsSuspended sql.NullString
+	)
+	if err := row.Scan(
+		&run.ID, &run.SessionID, &run.SpawnedByItemID, &coarse, &outcome,
+		&provider, &model, &run.Detail, &steps, &durationNs, &usage, &problem,
+		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
+	); err != nil {
+		return transcript.Run{}, fmt.Errorf("sqlite: scan run: %w", err)
+	}
+	selection, err := modelref.New(provider, model)
+	if err != nil {
+		return transcript.Run{}, fmt.Errorf("sqlite: decode run %q model selection: %w", run.ID, err)
+	}
+	run.ModelSelection = selection
+	run.CreatedAt = time.Unix(0, startedAt).UTC()
+	run.UpdatedAt = time.Unix(0, updatedAt).UTC()
+
+	switch coarse {
+	case runStateRunning:
+		run.State = execution.Running
+	case runStateInterrupted:
+		run.State = execution.Interrupted
+		// A parked Run's interrupts are what it is parked ON. The absence of the
+		// interrupt record it was parked with is a broken park, not a Run waiting on
+		// nothing — reporting it as an empty wait would invent a state the run never
+		// had. Boot reconciliation is what resolves it.
+		if !interruptsSuspended.Valid {
+			return transcript.Run{}, fmt.Errorf("sqlite: run %q is parked with no open interrupt", run.ID)
+		}
+		if run.Interrupts, err = decodeInterrupts(interruptsSuspended.String); err != nil {
+			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q interrupts: %w", run.ID, err)
+		}
+		if len(run.Interrupts) == 0 {
+			return transcript.Run{}, fmt.Errorf("sqlite: run %q is parked on an empty interrupt set", run.ID)
+		}
+	case runStateTerminal:
+		reason, ok := execution.ParseOutcome(outcome)
+		if !ok {
+			return transcript.Run{}, fmt.Errorf("sqlite: run %q has unknown outcome %q", run.ID, outcome)
+		}
+		state, ok := execution.Running.Terminate(reason)
+		if !ok {
+			return transcript.Run{}, fmt.Errorf("sqlite: run %q outcome %s reaches no terminal state", run.ID, reason)
+		}
+		run.State = state
+		run.Outcome = &reason
+		run.FinishedAt = time.Unix(0, finishedAt).UTC()
+		run.Result = &transcript.RunResult{Steps: steps, Duration: time.Duration(durationNs)}
+		if run.Result.Usage, err = decodeRunUsage(usage); err != nil {
+			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q usage: %w", run.ID, err)
+		}
+		if run.Result.Error, err = decodeRunProblem(problem); err != nil {
+			return transcript.Run{}, fmt.Errorf("sqlite: decode run %q problem: %w", run.ID, err)
+		}
+	default:
+		return transcript.Run{}, fmt.Errorf("sqlite: run %q has unknown state %q", run.ID, coarse)
+	}
+	if err := run.Validate(); err != nil {
+		return transcript.Run{}, fmt.Errorf("sqlite: run %q: %w", run.ID, err)
+	}
+	return run, nil
+}
+
+func decodeRunUsage(encoded string) (*transcript.Usage, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	var row runUsageRow
+	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
+		return nil, err
+	}
+	usage := &transcript.Usage{ModelUsage: transcript.ModelUsage{
+		InputTokens:      row.InputTokens,
+		OutputTokens:     row.OutputTokens,
+		CacheReadTokens:  row.CacheReadTokens,
+		CacheWriteTokens: row.CacheWriteTokens,
+		ReasoningTokens:  row.ReasoningTokens,
+		CostUSD:          row.CostUSD,
+	}}
+	if len(row.ByModel) > 0 {
+		usage.ByModel = make(map[string]transcript.ModelUsage, len(row.ByModel))
+		for model, perModel := range row.ByModel {
+			usage.ByModel[model] = transcript.ModelUsage{
+				InputTokens:      perModel.InputTokens,
+				OutputTokens:     perModel.OutputTokens,
+				CacheReadTokens:  perModel.CacheReadTokens,
+				CacheWriteTokens: perModel.CacheWriteTokens,
+				ReasoningTokens:  perModel.ReasoningTokens,
+				CostUSD:          perModel.CostUSD,
+			}
+		}
+	}
+	return usage, nil
+}
+
+func decodeRunProblem(encoded string) (*transcript.Problem, error) {
+	if encoded == "" {
+		return nil, nil
+	}
+	var row runProblemRow
+	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
+		return nil, err
+	}
+	// Scope is not stored: a problem in a Run's result slot is a Run problem by
+	// definition, and Validate refuses any other.
+	return &transcript.Problem{
+		Kind:              transcript.ProblemKind(row.Kind),
+		Scope:             transcript.RunProblem,
+		Detail:            row.Detail,
+		DocURL:            row.DocURL,
+		RetryAfterSeconds: row.RetryAfterSeconds,
+	}, nil
+}

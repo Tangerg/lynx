@@ -7,13 +7,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 type fakeTranscript struct {
 	items []transcript.SequencedItem
-	runs  []transcript.Run
 
 	session       string
 	afterSequence int64
@@ -37,7 +37,17 @@ func (f *fakeTranscript) PageItems(_ context.Context, sessionID string, afterSeq
 	return out, nil
 }
 
-func (f *fakeTranscript) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
+// fakeRuns is the Run record the item page threads its items against.
+type fakeRuns struct {
+	runs    []transcript.Run
+	session string
+}
+
+func (f *fakeRuns) ListRunning(context.Context, string, int64, string, int) ([]execution.AdmittedRun, error) {
+	return nil, nil
+}
+
+func (f *fakeRuns) ListRuns(_ context.Context, sessionID string) ([]transcript.Run, error) {
 	f.session = sessionID
 	return f.runs, nil
 }
@@ -65,13 +75,14 @@ func sequencedItems(count int) []transcript.SequencedItem {
 
 func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 	ctx := context.Background()
-	tx := &fakeTranscript{items: sequencedItems(1), runs: []transcript.Run{{ID: "run_1"}}}
+	tx := &fakeTranscript{items: sequencedItems(1)}
+	runs := &fakeRuns{runs: []transcript.Run{{ID: "run_1"}}}
 	ints := &fakeInterrupts{pending: []interrupts.Pending{{RunID: "run_1"}}}
-	c := New(Dependencies{Transcript: tx, Interrupts: ints})
+	c := New(Dependencies{Transcript: tx, Interrupts: ints, Runs: runs})
 
 	page, err := c.ListItemPage(ctx, "ses_1", "", 0)
-	if err != nil || len(page.Items) != 1 || len(page.Runs) != 1 || tx.session != "ses_1" {
-		t.Fatalf("ListItemPage items=%d runs=%d session=%q err=%v", len(page.Items), len(page.Runs), tx.session, err)
+	if err != nil || len(page.Items) != 1 || len(page.Runs) != 1 || tx.session != "ses_1" || runs.session != "ses_1" {
+		t.Fatalf("ListItemPage items=%d runs=%d session=%q/%q err=%v", len(page.Items), len(page.Runs), tx.session, runs.session, err)
 	}
 
 	pending, err := c.ListPendingInterruptPage(ctx, "ses_2", "", 0)
@@ -86,7 +97,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(5)}
-	c := New(Dependencies{Transcript: tx})
+	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}})
 
 	first, err := c.ListItemPage(ctx, "ses_1", "", 2)
 	if err != nil {
@@ -125,7 +136,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(5)}
-	c := New(Dependencies{Transcript: tx})
+	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}})
 
 	other, err := c.ListItemPage(ctx, "ses_other", "", 2)
 	if err != nil {
@@ -140,7 +151,7 @@ func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 }
 
 func TestListItemPageRejectsANegativeLimit(t *testing.T) {
-	c := New(Dependencies{Transcript: &fakeTranscript{items: sequencedItems(1)}})
+	c := New(Dependencies{Transcript: &fakeTranscript{items: sequencedItems(1)}, Runs: &fakeRuns{}})
 	if _, err := c.ListItemPage(context.Background(), "ses_1", "", -1); err == nil {
 		t.Fatal("negative limit returned no error")
 	}

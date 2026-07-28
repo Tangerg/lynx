@@ -153,6 +153,28 @@ func (o Outcome) valid() bool {
 	return o <= OutcomeMaxSteps
 }
 
+// ParseOutcome maps an outcome's [Outcome.String] form back to the value,
+// reporting false for anything else. It sits next to String because they are one
+// mapping read in two directions: a durable record must come back as the same
+// terminal reason it was written as, and a second hand-written table somewhere
+// downstream would be free to disagree with this one.
+func ParseOutcome(s string) (Outcome, bool) {
+	switch s {
+	case "completed":
+		return OutcomeCompleted, true
+	case "canceled":
+		return OutcomeCanceled, true
+	case "error":
+		return OutcomeError, true
+	case "maxBudget":
+		return OutcomeMaxBudget, true
+	case "maxSteps":
+		return OutcomeMaxSteps, true
+	default:
+		return 0, false
+	}
+}
+
 func (o Outcome) String() string {
 	switch o {
 	case OutcomeCompleted:

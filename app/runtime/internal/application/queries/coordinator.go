@@ -31,13 +31,10 @@ const (
 	interruptPageLimit = 100
 )
 
-// TranscriptReader is the coordinator's view of the durable transcript
-// projection. Items arrive one bounded page at a time, seeking past the previous
-// page's position; runs arrive whole, because threading an item to its run needs
-// the tree and a session holds few of them.
+// TranscriptReader is the coordinator's view of the durable item history. Items
+// arrive one bounded page at a time, seeking past the previous page's position.
 type TranscriptReader interface {
 	PageItems(ctx context.Context, sessionID string, afterSequence int64, limit int) ([]transcript.SequencedItem, error)
-	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
 // InterruptReader is the coordinator's view of the open-interrupt registry: a
@@ -46,10 +43,13 @@ type InterruptReader interface {
 	ListPage(ctx context.Context, sessionID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error)
 }
 
-// RunReader is the coordinator's view of the durable Run admission record: the
-// Runs that are executing, in one session or across all of them.
+// RunReader is the coordinator's view of the durable Run record: the Runs that
+// are executing, in one session or across all of them, and a session's Runs in
+// full. The latter arrive whole rather than paged, because threading an item to
+// its Run needs the tree and a session holds few of them.
 type RunReader interface {
 	ListRunning(ctx context.Context, sessionID string, afterStartedAt int64, afterRunID string, limit int) ([]execution.AdmittedRun, error)
+	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -118,7 +118,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, sessionID, cursor string
 			return []string{strconv.FormatInt(entry.Sequence, 10)}
 		})
 
-	runs, err := c.transcript.ListRuns(ctx, sessionID)
+	runs, err := c.runs.ListRuns(ctx, sessionID)
 	if err != nil {
 		return ItemPage{}, err
 	}

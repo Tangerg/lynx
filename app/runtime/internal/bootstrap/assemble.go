@@ -509,6 +509,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Sessions:     cfg.SessionStore,
 		Interrupts:   cfg.InterruptStore,
 		Transcript:   cfg.TranscriptStore,
+		Runs:         cfg.RunStore,
 		Snapshots:    sessionStorage,
 		Writes:       sessionStorage,
 		Forgetter:    turnDispatcher,
@@ -636,7 +637,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 				Runs:       cfg.RunStore,
 			}),
 			Usage: usage.New(usage.Dependencies{
-				Runs:            cfg.TranscriptStore,
+				Runs:            cfg.RunStore,
 				Sessions:        cfg.SessionStore,
 				DefaultProvider: cfg.Provider,
 				DefaultModel:    cfg.Model,

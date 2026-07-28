@@ -268,8 +268,10 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != execution.OutcomeCompleted {
 		t.Fatalf("last payload = %#v", events[len(events)-1].Payload)
 	}
-	if opening := effects.opening(); opening.Admit == nil || opening.Resume != nil || len(opening.Events) != 2 {
-		t.Fatalf("opening = %+v, want admit + run/user-item commits", opening)
+	// The opening's durable projection is the admission plus the user item; the
+	// SegmentStarted event carries no second copy of the Run.
+	if opening := effects.opening(); opening.Admit == nil || opening.Resume != nil || len(opening.Events) != 1 {
+		t.Fatalf("opening = %+v, want admit + the user-item commit", opening)
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("terminal run and exact run-state transition were not committed")

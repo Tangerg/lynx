@@ -16,6 +16,12 @@ import (
 // one Session for their entire lifetime; persistence must never re-parent them.
 var ErrIdentityConflict = errors.New("transcript: identity conflict")
 
+// UnknownMessageMark is the [Run.MessageMark] of a Run whose conversation
+// watermark is not knowable yet: the count is captured when the Run finishes,
+// and the chat log keeps growing until then. It is negative so it can never be
+// mistaken for a real count — including an empty log's zero.
+const UnknownMessageMark = -1
+
 type Run struct {
 	SessionID       string
 	ID              string
@@ -227,6 +233,92 @@ type Approval struct {
 	Risk         tool.RiskLevel
 	Reason       string
 	Rememberable bool
+}
+
+// Validate reports whether a Run's lifecycle facts agree with its state.
+//
+// A Run carries its terminal facts — outcome, result, detail, finish time, and
+// message watermark — exactly when it has reached a terminal state, and carries
+// none of them before. That equivalence is what lets the durable row keep them
+// as plain columns with no separate "is there a result" flag: the state answers
+// it. Both the store's write path and the portable-snapshot boundary check the
+// rule here instead of restating it, so there is one place to read it.
+func (run Run) Validate() error {
+	switch {
+	case run.ID == "":
+		return errors.New("id is required")
+	case run.SessionID == "":
+		return errors.New("sessionId is required")
+	case run.CreatedAt.IsZero():
+		return errors.New("creation time is required")
+	}
+	if run.State.IsTerminal() {
+		return run.validateTerminal()
+	}
+	return run.validateOpen()
+}
+
+func (run Run) validateOpen() error {
+	switch {
+	case run.Outcome != nil:
+		return fmt.Errorf("%s run carries outcome %s", run.State, run.Outcome)
+	case run.Result != nil:
+		return fmt.Errorf("%s run carries a result", run.State)
+	case run.Detail != "":
+		return fmt.Errorf("%s run carries a terminal detail", run.State)
+	case !run.FinishedAt.IsZero():
+		return fmt.Errorf("%s run carries a finish time", run.State)
+	case run.MessageMark != UnknownMessageMark:
+		return fmt.Errorf("%s run carries message watermark %d", run.State, run.MessageMark)
+	}
+	// Being parked and holding open interrupts are the same fact seen twice: the
+	// interrupts ARE what the run is parked on.
+	if (run.State == execution.Interrupted) != (len(run.Interrupts) != 0) {
+		return fmt.Errorf("%s run holds %d open interrupts", run.State, len(run.Interrupts))
+	}
+	return nil
+}
+
+func (run Run) validateTerminal() error {
+	if run.Outcome == nil {
+		return errors.New("terminal run has no outcome")
+	}
+	expected, ok := execution.Running.Terminate(*run.Outcome)
+	if !ok || expected != run.State {
+		return fmt.Errorf("state %s does not match outcome %s", run.State, run.Outcome)
+	}
+	if run.Result == nil {
+		return errors.New("terminal run has no result")
+	}
+	if (*run.Outcome == execution.OutcomeError) != (run.Result.Error != nil) {
+		return fmt.Errorf("error result does not match outcome %s", run.Outcome)
+	}
+	if err := run.Result.Validate(); err != nil {
+		return err
+	}
+	switch {
+	case run.FinishedAt.IsZero():
+		return errors.New("terminal run has no finish time")
+	case run.MessageMark < 0:
+		return fmt.Errorf("terminal run has message watermark %d", run.MessageMark)
+	case len(run.Interrupts) != 0:
+		return fmt.Errorf("terminal run holds %d open interrupts", len(run.Interrupts))
+	}
+	return nil
+}
+
+// Validate reports whether the result accounting is internally consistent.
+func (result *RunResult) Validate() error {
+	if result == nil {
+		return nil
+	}
+	if result.Steps < 0 || result.Duration < 0 {
+		return errors.New("result accounting must not be negative")
+	}
+	if err := result.Usage.Validate(); err != nil {
+		return err
+	}
+	return result.Error.ValidateFor(RunProblem)
 }
 
 // Validate reports whether the usage accounting is internally consistent.

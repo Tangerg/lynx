@@ -5,32 +5,28 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
 // validateParkedRun checks the complete park boundary before boot keeps it
 // resumable. A matching row in interrupts is not sufficient: resume also needs
-// the interrupted transcript Run, every referenced running item, and a usable
-// process snapshot. An impossible partial transcript write means database
-// corruption (the transcript park is one transaction), so startup fails loud;
-// a missing/unusable process snapshot is an external-resource loss and returns
-// resumable=false so reconciliation can terminalize the Run as run_lost.
-func (s *RunStateStore) validateParkedRun(ctx context.Context, active nonTerminalRun, pending interrupts.Pending, validateSnapshot ProcessSnapshotValidator) (bool, error) {
+// every referenced running item and a usable process snapshot. An impossible
+// partial transcript write means database corruption (the transcript park is one
+// transaction), so startup fails loud; a missing/unusable process snapshot is an
+// external-resource loss and returns resumable=false so reconciliation can
+// terminalize the Run as run_lost.
+//
+// The Run's own lifecycle facts are not re-checked against a second copy of
+// themselves — the Run row is the only place they live, and no write can put
+// terminal facts on a non-terminal row.
+func (s *RunStore) validateParkedRun(ctx context.Context, active nonTerminalRun, pending interrupts.Pending, validateSnapshot ProcessSnapshotValidator) (bool, error) {
 	if err := active.validateParkedInterrupt(pending); err != nil {
 		return false, err
 	}
-	items, runs, err := NewTranscriptStore(s.db).List(ctx, active.sessionID)
+	items, err := NewTranscriptStore(s.db).List(ctx, active.sessionID)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: validate parked run %q transcript: %w", active.runID, err)
-	}
-	run, err := active.interruptedTranscriptRun(runs)
-	if err != nil {
-		return false, err
-	}
-	if err := active.validateParkedTranscript(*run, pending); err != nil {
-		return false, err
 	}
 	itemsByID := indexTranscriptItems(items)
 	interruptItems, err := active.validatePendingInterruptItems(pending.Interrupts, itemsByID)
@@ -65,30 +61,8 @@ func (active nonTerminalRun) validateParkedInterrupt(pending interrupts.Pending)
 	if active.modelSelection != pending.ModelSelection {
 		return fmt.Errorf("sqlite: validate parked run %q: admission model %q/%q differs from interrupt model %q/%q", active.runID, active.modelSelection.Provider(), active.modelSelection.Model(), pending.ModelSelection.Provider(), pending.ModelSelection.Model())
 	}
-	return nil
-}
-
-func (active nonTerminalRun) interruptedTranscriptRun(runs []transcript.Run) (*transcript.Run, error) {
-	for index := range runs {
-		if runs[index].ID == active.runID {
-			return &runs[index], nil
-		}
-	}
-	return nil, fmt.Errorf("sqlite: validate parked run %q: transcript run not found", active.runID)
-}
-
-func (active nonTerminalRun) validateParkedTranscript(run transcript.Run, pending interrupts.Pending) error {
-	if run.State != execution.Interrupted || run.Outcome != nil || run.Result != nil || !run.FinishedAt.IsZero() || run.MessageMark != -1 {
-		return fmt.Errorf("sqlite: validate parked run %q: invalid interrupted transcript boundary", active.runID)
-	}
-	if run.ModelSelection != pending.ModelSelection {
-		return fmt.Errorf("sqlite: validate parked run %q: transcript model %q/%q differs from interrupt model %q/%q", active.runID, run.ModelSelection.Provider(), run.ModelSelection.Model(), pending.ModelSelection.Provider(), pending.ModelSelection.Model())
-	}
-	if !run.CreatedAt.Equal(pending.RunCreatedAt) {
-		return fmt.Errorf("sqlite: validate parked run %q: transcript and interrupt creation times differ", active.runID)
-	}
-	if !reflect.DeepEqual(run.Interrupts, pending.Interrupts) {
-		return fmt.Errorf("sqlite: validate parked run %q: transcript and pending interrupts differ", active.runID)
+	if !active.createdAt.Equal(pending.RunCreatedAt) {
+		return fmt.Errorf("sqlite: validate parked run %q: run and interrupt creation times differ", active.runID)
 	}
 	return nil
 }

@@ -354,6 +354,7 @@ func (s *mutationStores) record(stage string) error {
 func (s *mutationStores) Session() SessionStore                                { return s }
 func (s *mutationStores) Interrupts() InterruptStore                           { return s.ints }
 func (s *mutationStores) Transcript() TranscriptStore                          { return emptyTranscript{} }
+func (s *mutationStores) Runs() RunStore                                       { return emptyTranscript{} }
 func (*mutationStores) ReadSnapshot(context.Context, string) (Snapshot, error) { panic("unused") }
 func (s *mutationStores) ForgetSession(string) {
 	s.operations = append(s.operations, "session.forget")

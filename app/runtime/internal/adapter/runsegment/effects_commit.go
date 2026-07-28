@@ -21,11 +21,11 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
+	// Exactly one admission action IS the opening's durable projection: the Run
+	// comes into existence, or resumes, right here. Item commits are whatever the
+	// opening happened to produce, and an approval-only resume produces none.
 	if (opening.Admit == nil) == (opening.Resume == nil) {
 		return errors.New("runsegment: opening requires exactly one admission action")
-	}
-	if len(opening.Events) == 0 {
-		return errors.New("runsegment: opening requires a durable projection")
 	}
 	return e.runInTx(ctx, func(ctx context.Context) error {
 		switch {
@@ -78,8 +78,8 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 			if commit.Interrupt != nil || commit.State != runs.StateUnchanged {
 				return errors.New("runsegment: opening commit contains a lifecycle transition")
 			}
-			if len(commit.Items) == 0 && commit.Run == nil {
-				return errors.New("runsegment: opening commit has no durable projection")
+			if len(commit.Items) == 0 {
+				return errors.New("runsegment: opening commit has no items to append")
 			}
 			if err := e.applyCommit(ctx, commit, nil); err != nil {
 				return err
@@ -148,11 +148,6 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit, pend
 	}
 	for _, item := range commit.Items {
 		if err := e.appendItem(ctx, item); err != nil {
-			return err
-		}
-	}
-	if commit.Run != nil {
-		if err := e.putRun(ctx, *commit.Run, commit.State == runs.StateTerminalize); err != nil {
 			return err
 		}
 	}
@@ -250,30 +245,6 @@ func (e *Effects) appendItem(ctx context.Context, item transcript.Item) error {
 	return nil
 }
 
-// putRun upserts a transcript run, resolving the terminal message watermark
-// inside the caller's transaction — the mark the rollback / fork boundary math
-// truncates the chat log to. The message log is in its terminal post-maintenance
-// (post-compaction) shape by the time the terminal event reaches here.
-func (e *Effects) putRun(ctx context.Context, run transcript.Run, terminal bool) error {
-	if e.transcript == nil {
-		return errors.New("runsegment: transcript persistence is unavailable")
-	}
-	if terminal && run.MessageMark < 0 {
-		if e.messages == nil {
-			return errors.New("runsegment: message persistence is unavailable")
-		}
-		mark, err := e.messages.Count(ctx, run.SessionID)
-		if err != nil {
-			return fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
-		}
-		run.MessageMark = mark
-	}
-	if run.UpdatedAt.IsZero() {
-		run.UpdatedAt = time.Now().UTC()
-	}
-	return e.transcript.PutRun(ctx, run)
-}
-
 func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error {
 	if commit.State == runs.StateUnchanged {
 		return nil
@@ -285,8 +256,38 @@ func (e *Effects) applyState(ctx context.Context, commit runs.EventCommit) error
 	case runs.StateSuspend:
 		return e.runState.Suspend(ctx, commit.SessionID, commit.RunID)
 	case runs.StateTerminalize:
-		return e.runState.Terminalize(ctx, commit.SessionID, commit.RunID, commit.Outcome)
+		run, err := e.finishedRun(ctx, commit)
+		if err != nil {
+			return err
+		}
+		return e.runState.Terminalize(ctx, run)
 	default:
 		return fmt.Errorf("runsegment: unknown run state change %d", commit.State)
 	}
+}
+
+// finishedRun completes the terminal Run record with the two facts the reducer
+// cannot know: the conversation watermark, resolved inside the caller's
+// transaction so it is consistent with the state it terminalizes (the message log
+// is in its terminal post-compaction shape by the time a terminal event arrives),
+// and the row's touch time.
+func (e *Effects) finishedRun(ctx context.Context, commit runs.EventCommit) (transcript.Run, error) {
+	if commit.Run == nil {
+		return transcript.Run{}, errors.New("runsegment: terminal commit carries no run record")
+	}
+	run := *commit.Run
+	if run.MessageMark < 0 {
+		if e.messages == nil {
+			return transcript.Run{}, errors.New("runsegment: message persistence is unavailable")
+		}
+		mark, err := e.messages.Count(ctx, run.SessionID)
+		if err != nil {
+			return transcript.Run{}, fmt.Errorf("runsegment: resolve terminal message watermark: %w", err)
+		}
+		run.MessageMark = mark
+	}
+	if run.UpdatedAt.IsZero() {
+		run.UpdatedAt = time.Now().UTC()
+	}
+	return run, nil
 }

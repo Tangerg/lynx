@@ -56,11 +56,10 @@ type InterruptStore interface {
 	Consume(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
-// TranscriptStore is the run-segment append/upsert side of durable transcript
+// TranscriptStore is the run-segment append side of durable transcript
 // persistence. Reading and destructive deletion belong to other use-cases.
 type TranscriptStore interface {
 	AppendItem(ctx context.Context, it transcript.Item) error
-	PutRun(ctx context.Context, r transcript.Run) error
 }
 
 type ToolResultStore interface {
@@ -68,15 +67,17 @@ type ToolResultStore interface {
 	Discard(ctx context.Context, sessionID string, ref offload.Ref) error
 }
 
-// RunStateWriter applies the run's mid-flight admission-state transitions inside
-// the event commit (§8.3): a park suspends the run, a terminal terminalizes it —
-// each in the SAME transaction as the interrupt / terminal record it must stay
-// consistent with. The sqlite RunStateStore satisfies it.
-type RunStateWriter interface {
+// RunWriter applies the run's lifecycle transitions inside the event commit
+// (§8.3): an opening admits or resumes it, a park suspends it, and a terminal
+// ends it — each in the SAME transaction as the interrupt / item records it must
+// stay consistent with. Terminalize takes the whole finished Run because the
+// terminal state and the result explaining it are one fact. The sqlite RunStore
+// satisfies it.
+type RunWriter interface {
 	Admit(ctx context.Context, draft execution.RunDraft) error
 	Resume(ctx context.Context, draft execution.ResumeDraft) error
 	Suspend(ctx context.Context, sessionID, runID string) error
-	Terminalize(ctx context.Context, sessionID, runID string, o execution.Outcome) error
+	Terminalize(ctx context.Context, run transcript.Run) error
 }
 
 // Transactor runs fn inside one storage transaction: every store call made by
@@ -128,7 +129,7 @@ type Config struct {
 	Messages           MessageCounter
 	Titles             TitleGenerator
 	Processes          ProcessLookup
-	RunState           RunStateWriter
+	RunState           RunWriter
 	Tx                 Transactor
 	Checkpoints        Checkpoints
 	Tasks              TaskLauncher
@@ -147,7 +148,7 @@ type Effects struct {
 	messages        MessageCounter
 	titles          TitleGenerator
 	processes       ProcessLookup
-	runState        RunStateWriter
+	runState        RunWriter
 	tx              Transactor
 	checkpoints     Checkpoints
 	tasks           TaskLauncher

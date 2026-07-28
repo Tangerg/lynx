@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
@@ -79,32 +78,15 @@ func (snapshot Snapshot) validateRuns() (map[string]struct{}, error) {
 		if _, exists := runs[run.ID]; exists {
 			return nil, fmt.Errorf("sessions: snapshot contains duplicate run %q", run.ID)
 		}
+		// A snapshot is a portable record of finished work, so only a terminal Run
+		// belongs in one; whether its facts hold together is the Run's own rule.
 		if !run.State.IsTerminal() {
 			return nil, fmt.Errorf("sessions: snapshot run %q is %s, want terminal", run.ID, run.State)
 		}
-		if run.Outcome == nil || run.Result == nil {
-			return nil, fmt.Errorf("sessions: snapshot terminal run %q has no outcome or result", run.ID)
+		if err := run.Validate(); err != nil {
+			return nil, fmt.Errorf("sessions: snapshot run %q: %w", run.ID, err)
 		}
-		expected, ok := execution.Running.Terminate(*run.Outcome)
-		if !ok || expected != run.State {
-			return nil, fmt.Errorf("sessions: snapshot run %q state %s does not match outcome %s", run.ID, run.State, run.Outcome)
-		}
-		if run.FinishedAt.IsZero() || len(run.Interrupts) != 0 {
-			return nil, fmt.Errorf("sessions: snapshot terminal run %q has an incomplete terminal boundary", run.ID)
-		}
-		if (*run.Outcome == execution.OutcomeError) != (run.Result.Error != nil) {
-			return nil, fmt.Errorf("sessions: snapshot run %q error result does not match outcome %s", run.ID, run.Outcome)
-		}
-		if run.Result.Steps < 0 || run.Result.Duration < 0 {
-			return nil, fmt.Errorf("sessions: snapshot run %q has negative result accounting", run.ID)
-		}
-		if err := run.Result.Usage.Validate(); err != nil {
-			return nil, fmt.Errorf("sessions: snapshot run %q usage: %w", run.ID, err)
-		}
-		if err := run.Result.Error.ValidateFor(transcript.RunProblem); err != nil {
-			return nil, fmt.Errorf("sessions: snapshot run %q problem: %w", run.ID, err)
-		}
-		if run.MessageMark < 0 || run.MessageMark > len(snapshot.Messages) {
+		if run.MessageMark > len(snapshot.Messages) {
 			return nil, fmt.Errorf("sessions: snapshot run %q has invalid message watermark %d", run.ID, run.MessageMark)
 		}
 		runs[run.ID] = struct{}{}

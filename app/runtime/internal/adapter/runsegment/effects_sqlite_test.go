@@ -49,7 +49,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	ints := sqlite.NewInterruptStore(db)
 	history := sqlite.NewTranscriptStore(db)
-	state := sqlite.NewRunStateStore(db)
+	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
@@ -82,7 +82,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	ints := sqlite.NewInterruptStore(db)
 	history := sqlite.NewTranscriptStore(db)
-	state := sqlite.NewRunStateStore(db)
+	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
 	created := time.Now().UTC()
 	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
@@ -104,7 +104,11 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", UpdatedAt: created},
+			Items: []transcript.Item{{
+				SessionID: "ses_1", RunID: "run_1", ID: "item_resumed", CreatedAt: created,
+				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "go on"}},
+			}},
 		}},
 	})
 	if err != nil {
@@ -113,9 +117,9 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if _, found, getErr := ints.Get(ctx, "run_1"); getErr != nil || found {
 		t.Fatalf("interrupt found=%v err=%v, want consumed", found, getErr)
 	}
-	_, recorded, listErr := history.List(ctx, "ses_1")
+	recorded, listErr := history.List(ctx, "ses_1")
 	if listErr != nil || len(recorded) != 1 {
-		t.Fatalf("history runs=%d err=%v, want one opening projection", len(recorded), listErr)
+		t.Fatalf("history items=%d err=%v, want the opening projection", len(recorded), listErr)
 	}
 	var stateName string
 	if err := db.QueryRowContext(ctx, `SELECT state FROM runs WHERE run_id = ?`, "run_1").Scan(&stateName); err != nil || stateName != "running" {
@@ -135,7 +139,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	ctx := t.Context()
 	sessions := sqlite.NewSessionStore(db)
-	state := sqlite.NewRunStateStore(db)
+	state := sqlite.NewRunStore(db)
 	history := sqlite.NewTranscriptStore(db)
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
 		Sessions:        sessions,
@@ -192,7 +196,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	if _, saved, err := goals.Save(ctx, g, goal.Version{}); err != nil || !saved {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
-	state := sqlite.NewRunStateStore(db)
+	state := sqlite.NewRunStore(db)
 	draft := execution.RunDraft{RunID: "run_goal", SessionID: g.SessionID, CreatedAt: created}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit goal run: %v", err)
@@ -203,10 +207,13 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		RunState:  state,
 		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
+	// The watermark is already resolved, so this commit needs no message store.
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeCompleted)
+	finished.MessageMark = 0
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
 		Outcome: execution.OutcomeCompleted,
-		Run:     &transcript.Run{ID: draft.RunID, SessionID: draft.SessionID, UpdatedAt: created},
+		Run:     finished,
 		GoalTurn: &goal.TurnRecord{
 			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
 			Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 2, CompletedAt: created,
@@ -235,7 +242,7 @@ func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	ints := sqlite.NewInterruptStore(db)
 	history := sqlite.NewTranscriptStore(db)
-	state := sqlite.NewRunStateStore(db)
+	state := sqlite.NewRunStore(db)
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()

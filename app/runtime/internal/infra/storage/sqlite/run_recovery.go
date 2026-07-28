@@ -26,7 +26,7 @@ type ProcessSnapshotValidator func(context.Context, string) (bool, error)
 // message watermark, and its admission row terminalizes. Orphan interrupt rows
 // are removed. The complete cross-table repair commits in one transaction, so
 // boot never exposes a half-reconciled lifecycle.
-func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot ProcessSnapshotValidator) (int, error) {
+func (s *RunStore) ReconcileOrphans(ctx context.Context, validateSnapshot ProcessSnapshotValidator) (int, error) {
 	if validateSnapshot == nil {
 		return 0, errors.New("sqlite: process snapshot validator is required")
 	}
@@ -101,7 +101,7 @@ func (s *RunStateStore) ReconcileOrphans(ctx context.Context, validateSnapshot P
 	return reconciled, nil
 }
 
-func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, processID string, validateSnapshot ProcessSnapshotValidator) (bool, error) {
+func (s *RunStore) hasResumableProcessSnapshot(ctx context.Context, processID string, validateSnapshot ProcessSnapshotValidator) (bool, error) {
 	resumable, err := validateSnapshot(ctx, processID)
 	if err != nil {
 		return false, fmt.Errorf("sqlite: validate process snapshot %q resumable state: %w", processID, err)
@@ -109,16 +109,21 @@ func (s *RunStateStore) hasResumableProcessSnapshot(ctx context.Context, process
 	return resumable, nil
 }
 
+// nonTerminalRun is a Run still holding its session's admission slot, read
+// WITHOUT composing the interrupt it may be parked on: reconciliation exists to
+// repair parks whose interrupt record is missing or unusable, so it cannot
+// require one to read the row.
 type nonTerminalRun struct {
 	runID          string
 	sessionID      string
 	modelSelection modelref.Selection
 	state          execution.RunState
+	createdAt      time.Time
 }
 
-func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
+func (s *RunStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT run_id, session_id, provider, model, state FROM runs WHERE state != ? ORDER BY started_at`,
+		`SELECT run_id, session_id, provider, model, state, started_at FROM runs WHERE state != ? ORDER BY started_at`,
 		runStateTerminal)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list non-terminal runs: %w", err)
@@ -129,9 +134,11 @@ func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, 
 	for rows.Next() {
 		var run nonTerminalRun
 		var provider, model, coarse string
-		if err := rows.Scan(&run.runID, &run.sessionID, &provider, &model, &coarse); err != nil {
+		var startedAt int64
+		if err := rows.Scan(&run.runID, &run.sessionID, &provider, &model, &coarse, &startedAt); err != nil {
 			return nil, fmt.Errorf("sqlite: scan non-terminal run: %w", err)
 		}
+		run.createdAt = time.Unix(0, startedAt).UTC()
 		selection, err := modelref.New(provider, model)
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: decode non-terminal run %q model selection: %w", run.runID, err)
@@ -153,24 +160,11 @@ func (s *RunStateStore) nonTerminalRuns(ctx context.Context) ([]nonTerminalRun, 
 	return out, nil
 }
 
-func (s *RunStateStore) recoverLostRun(ctx context.Context, active nonTerminalRun, now time.Time) error {
+func (s *RunStore) recoverLostRun(ctx context.Context, active nonTerminalRun, now time.Time) error {
 	transcripts := NewTranscriptStore(s.db)
-	items, runs, err := transcripts.List(ctx, active.sessionID)
+	items, err := transcripts.List(ctx, active.sessionID)
 	if err != nil {
 		return fmt.Errorf("sqlite: reconcile lost run %q transcript: %w", active.runID, err)
-	}
-	var run *transcript.Run
-	for i := range runs {
-		if runs[i].ID == active.runID {
-			run = &runs[i]
-			break
-		}
-	}
-	if run == nil {
-		return fmt.Errorf("sqlite: reconcile lost run %q: transcript run not found", active.runID)
-	}
-	if run.State != active.state {
-		return fmt.Errorf("sqlite: reconcile lost run %q: transcript state %s does not match admission state %s", active.runID, run.State, active.state)
 	}
 
 	for _, item := range items {
@@ -198,25 +192,20 @@ func (s *RunStateStore) recoverLostRun(ctx context.Context, active nonTerminalRu
 		return fmt.Errorf("sqlite: reconcile lost run %q: state %s is not recoverable", active.runID, active.state)
 	}
 	outcome := execution.OutcomeError
-	if run.Result == nil {
-		run.Result = &transcript.RunResult{}
+	lost := transcript.Run{
+		SessionID:      active.sessionID,
+		ID:             active.runID,
+		ModelSelection: active.modelSelection,
+		State:          next,
+		Outcome:        &outcome,
+		Result: &transcript.RunResult{Error: &transcript.Problem{
+			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+			Detail: "run lost on restart",
+		}},
+		CreatedAt:   active.createdAt,
+		FinishedAt:  now,
+		UpdatedAt:   now,
+		MessageMark: messageMark,
 	}
-	run.State = next
-	run.Outcome = new(outcome)
-	run.Result.Error = &transcript.Problem{
-		Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
-		Detail: "run lost on restart",
-	}
-	run.Detail = ""
-	run.Interrupts = nil
-	run.FinishedAt = now
-	run.UpdatedAt = now
-	run.MessageMark = messageMark
-	if err := transcripts.PutRun(ctx, *run); err != nil {
-		return fmt.Errorf("sqlite: reconcile lost run %q terminal transcript: %w", active.runID, err)
-	}
-	if err := s.writeState(ctx, active.sessionID, active.runID, "reconcile lost", active.state, next, outcome.String()); err != nil {
-		return err
-	}
-	return nil
+	return s.RecoverLost(ctx, lost)
 }

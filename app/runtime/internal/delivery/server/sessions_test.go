@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
@@ -104,6 +105,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 
 	svc := sqlite.NewSessionStore(db)
 	hist := sqlite.NewTranscriptStore(db)
+	runStore := sqlite.NewRunStore(db)
 	ints := sqlite.NewInterruptStore(db)
 	created, _ := svc.Create(ctx, "doomed", "/w")
 	id := created.ID
@@ -119,7 +121,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 
 	// Seed one of every session-scoped row.
-	if err := hist.PutRun(ctx, transcript.Run{SessionID: id, ID: "run_1"}); err != nil {
+	if err := runStore.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: id, CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1"}); err != nil {
@@ -130,7 +132,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 	history := map[string][]chat.Message{id: {chat.NewUserMessage(chat.NewTextPart("hi"))}}
 
-	runtime := &stubRuntime{sess: svc, hist: hist, interrupts: ints, history: history}
+	runtime := &stubRuntime{sess: svc, hist: hist, runs: runStore, interrupts: ints, history: history}
 	s := newTestServer(runtime)
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -145,8 +147,9 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	if _, err := svc.Get(ctx, fork.ID); err != nil {
 		t.Errorf("independent user fork was deleted with its parent: %v", err)
 	}
-	if items, runs, _ := hist.List(ctx, id); len(items) != 0 || len(runs) != 0 {
-		t.Errorf("transcript not cascaded: %d items, %d runs left", len(items), len(runs))
+	runsLeft, _ := runtime.runs.ListRuns(ctx, id)
+	if items, _ := hist.List(ctx, id); len(items) != 0 || len(runsLeft) != 0 {
+		t.Errorf("transcript not cascaded: %d items, %d runs left", len(items), len(runsLeft))
 	}
 	if pending, _ := ints.List(ctx, id); len(pending) != 0 {
 		t.Errorf("interrupts not cascaded: %d left", len(pending))
@@ -202,7 +205,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	}
 
 	turns := &recordingTurns{}
-	s := newTestServer(&stubRuntime{sess: svc, hist: hist, interrupts: ints, history: map[string][]chat.Message{}, turns: turns})
+	s := newTestServer(&stubRuntime{sess: svc, hist: hist, runs: sqlite.NewRunStore(db), interrupts: ints, history: map[string][]chat.Message{}, turns: turns})
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
@@ -232,7 +235,7 @@ func TestForkSession(t *testing.T) {
 	parent, _ := svc.Create(ctx, "research", "/work/proj")
 
 	hist := map[string][]chat.Message{parent.ID: {chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))}}
-	s := newTestServer(&stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db)})
+	s := newTestServer(&stubRuntime{sess: svc, history: hist, hist: sqlite.NewTranscriptStore(db), runs: sqlite.NewRunStore(db)})
 
 	child, err := s.ForkSession(ctx, protocol.ForkSessionRequest{SessionID: parent.ID, Title: "branch A"})
 	if err != nil {

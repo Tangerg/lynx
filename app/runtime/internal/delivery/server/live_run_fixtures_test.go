@@ -35,6 +35,7 @@ func newBlockingServer(t *testing.T) *Server {
 	return newTestServer(&blockingRunRuntime{stubRuntime: stubRuntime{
 		sess:       sqlite.NewSessionStore(db),
 		hist:       sqlite.NewTranscriptStore(db),
+		runs:       sqlite.NewRunStore(db),
 		interrupts: sqlite.NewInterruptStore(db),
 		history:    map[string][]chat.Message{},
 	}})
@@ -68,7 +69,6 @@ func (*blockingRunRuntime) RunSegmentEffects(runsegment.Checkpoints, runsegment.
 type blockingTranscript struct{}
 
 func (blockingTranscript) AppendItem(context.Context, transcript.Item) error { return nil }
-func (blockingTranscript) PutRun(context.Context, transcript.Run) error      { return nil }
 
 // startLiveRun starts a run that blocks forever (via a blockingRunRuntime the
 // caller wired into the Server), waits until the coordinator has registered it,

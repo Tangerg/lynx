@@ -113,35 +113,8 @@ func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.It
 	return nil
 }
 
-func (s *TranscriptStore) PutRun(ctx context.Context, run transcript.Run) error {
-	if run.SessionID == "" || run.ID == "" {
-		return errors.New("sqlite: history run sessionId/id are required")
-	}
-	payload, err := json.Marshal(run)
-	if err != nil {
-		return fmt.Errorf("sqlite: encode history run: %w", err)
-	}
-	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO history_runs(run_id, session_id, updated_at, payload, message_mark)
-		 VALUES (?, ?, ?, ?, ?)
-		 ON CONFLICT(run_id) DO UPDATE SET
-		   updated_at   = excluded.updated_at,
-		   payload      = excluded.payload,
-		   message_mark = excluded.message_mark
-		 WHERE history_runs.session_id = excluded.session_id`,
-		run.ID, run.SessionID, run.UpdatedAt.UnixNano(), string(payload), run.MessageMark,
-	)
-	if err != nil {
-		return fmt.Errorf("sqlite: put history run: %w", err)
-	}
-	if changed, err := res.RowsAffected(); err != nil {
-		return fmt.Errorf("sqlite: inspect history run write: %w", err)
-	} else if changed != 1 {
-		return fmt.Errorf("%w: run %q already belongs to another session", transcript.ErrIdentityConflict, run.ID)
-	}
-	return nil
-}
-
+// DeleteRun removes one run's items from a session's history. The Run's own row
+// belongs to the run store; this store owns the item log.
 func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string) error {
 	if sessionID == "" || runID == "" {
 		return errors.New("sqlite: delete history run requires sessionId + runId")
@@ -171,11 +144,6 @@ func (s *TranscriptStore) DeleteRun(ctx context.Context, sessionID, runID string
 		); err != nil {
 			return fmt.Errorf("sqlite: delete run items: %w", err)
 		}
-		if _, err := q.ExecContext(ctx,
-			`DELETE FROM history_runs WHERE run_id = ? AND session_id = ?`, runID, sessionID,
-		); err != nil {
-			return fmt.Errorf("sqlite: delete run: %w", err)
-		}
 		return nil
 	})
 }
@@ -195,30 +163,12 @@ func (s *TranscriptStore) DeleteSession(ctx context.Context, sessionID string) e
 		if _, err := q.ExecContext(ctx, `DELETE FROM history_items WHERE session_id = ?`, sessionID); err != nil {
 			return fmt.Errorf("sqlite: delete session items: %w", err)
 		}
-		if _, err := q.ExecContext(ctx, `DELETE FROM history_runs WHERE session_id = ?`, sessionID); err != nil {
-			return fmt.Errorf("sqlite: delete session runs: %w", err)
-		}
 		return nil
 	})
 }
 
-func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error) {
-	items, err := s.listItems(ctx, sessionID)
-	if err != nil {
-		return nil, nil, err
-	}
-	runs, err := s.listRuns(ctx, sessionID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return items, runs, nil
-}
-
-func (s *TranscriptStore) ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
-	return s.listRuns(ctx, sessionID)
-}
-
-func (s *TranscriptStore) listItems(ctx context.Context, sessionID string) ([]transcript.Item, error) {
+// List returns a session's whole item history in durable append order.
+func (s *TranscriptStore) List(ctx context.Context, sessionID string) ([]transcript.Item, error) {
 	sequenced, err := s.PageItems(ctx, sessionID, 0, 0)
 	if err != nil {
 		return nil, err
@@ -360,37 +310,4 @@ func ftsMatchQuery(raw string) string {
 		quoted[i] = `"` + strings.ReplaceAll(field, `"`, `""`) + `"`
 	}
 	return strings.Join(quoted, " ")
-}
-
-func (s *TranscriptStore) listRuns(ctx context.Context, sessionID string) ([]transcript.Run, error) {
-	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT session_id, run_id, updated_at, payload, message_mark
-		 FROM history_runs WHERE session_id = ? ORDER BY updated_at`, sessionID)
-	if err != nil {
-		return nil, fmt.Errorf("sqlite: list history runs: %w", err)
-	}
-	defer rows.Close()
-
-	var out []transcript.Run
-	for rows.Next() {
-		var session, runID, payload string
-		var updatedAt int64
-		var mark int
-		if err := rows.Scan(&session, &runID, &updatedAt, &payload, &mark); err != nil {
-			return nil, fmt.Errorf("sqlite: scan history run: %w", err)
-		}
-		var run transcript.Run
-		if err := json.Unmarshal([]byte(payload), &run); err != nil {
-			return nil, fmt.Errorf("sqlite: decode history run %q: %w", runID, err)
-		}
-		run.SessionID = session
-		run.ID = runID
-		run.UpdatedAt = time.Unix(0, updatedAt).UTC()
-		run.MessageMark = mark
-		out = append(out, run)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("sqlite: list history runs: %w", err)
-	}
-	return out, nil
 }

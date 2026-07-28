@@ -301,8 +301,8 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 	}
 }
 
-// TestTranscriptStore_RoundTrip mirrors the file backend: items in append
-// order (ORDER BY seq), RunRef upsert by run_id, per-session scoping.
+// TestTranscriptStore_RoundTrip pins the item log: append order (ORDER BY seq)
+// and per-session scoping. The Runs those items belong to are the run store's.
 func TestTranscriptStore_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
 	db, err := sqlite.Open(path)
@@ -324,25 +324,12 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 			t.Fatalf("append %s: %v", it.ID, err)
 		}
 	}
-	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_1", State: execution.Running, UpdatedAt: now, MessageMark: -1})
-	if err != nil {
-		t.Fatalf("put run running: %v", err)
-	}
-	outcome := execution.OutcomeCompleted
-	err = store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_1", State: execution.Completed, Outcome: &outcome, UpdatedAt: now, MessageMark: 3})
-	if err != nil {
-		t.Fatalf("put run finished: %v", err)
-	}
-
-	items, runs, err := store.List(ctx, "ses_a")
+	items, err := store.List(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	if len(items) != 2 || items[0].ID != "i1" || items[1].ID != "i2" || items[1].Content[0].Text != "two" {
 		t.Fatalf("items = %+v, want [i1 i2]", items)
-	}
-	if len(runs) != 1 || runs[0].State != execution.Completed || runs[0].Outcome == nil || *runs[0].Outcome != execution.OutcomeCompleted || runs[0].MessageMark != 3 {
-		t.Fatalf("runs = %+v, want one finished run", runs)
 	}
 }
 
@@ -354,10 +341,11 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	store := sqlite.NewTranscriptStore(db)
+	runs := sqlite.NewRunStore(db)
 	ctx := t.Context()
 	now := time.Now().UTC()
 
-	if err := store.PutRun(ctx, transcript.Run{SessionID: "ses_a", ID: "run_shared", UpdatedAt: now}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_shared", SessionID: "ses_a", CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
@@ -366,7 +354,9 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 		t.Fatalf("seed item: %v", err)
 	}
 
-	if err := store.PutRun(ctx, transcript.Run{SessionID: "ses_b", ID: "run_shared", UpdatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
+	// A run id belongs to one session for its whole lifetime — and the refusal must
+	// say so, not report the innocent session as busy.
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_shared", SessionID: "ses_b", CreatedAt: now}); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
@@ -375,13 +365,21 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", err)
 	}
 
-	itemsA, runsA, err := store.List(ctx, "ses_a")
+	itemsA, err := store.List(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("list ses_a: %v", err)
 	}
-	itemsB, runsB, err := store.List(ctx, "ses_b")
+	runsA, err := runs.ListRuns(ctx, "ses_a")
+	if err != nil {
+		t.Fatalf("list ses_a runs: %v", err)
+	}
+	itemsB, err := store.List(ctx, "ses_b")
 	if err != nil {
 		t.Fatalf("list ses_b: %v", err)
+	}
+	runsB, err := runs.ListRuns(ctx, "ses_b")
+	if err != nil {
+		t.Fatalf("list ses_b runs: %v", err)
 	}
 	if len(itemsA) != 1 || itemsA[0].ID != "item_shared" || len(runsA) != 1 || runsA[0].ID != "run_shared" {
 		t.Fatalf("original transcript changed: items=%+v runs=%+v", itemsA, runsA)

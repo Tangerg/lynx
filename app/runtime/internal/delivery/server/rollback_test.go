@@ -30,6 +30,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		model:       "default-model",
 		history:     map[string][]chat.Message{},
 		hist:        sqlite.NewTranscriptStore(db),
+		runs:        sqlite.NewRunStore(db),
 		toolResults: sqlite.NewToolResultStore(db),
 		interrupts:  sqlite.NewInterruptStore(db),
 		muts:        sqlite.NewWorkspaceMutationStore(db),
@@ -40,7 +41,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
 	outcome := execution.OutcomeCompleted
-	if err := rt.hist.PutRun(t.Context(), transcript.Run{
+	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Completed,
 		Outcome: &outcome, Result: &transcript.RunResult{},
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
@@ -93,7 +94,7 @@ func TestRollbackSession_DropTail(t *testing.T) {
 		t.Fatalf("dropped userInput = %+v, want 'second prompt'", ui)
 	}
 	// run_2's durable history is gone; run_1 survives.
-	_, runs, _ := rt.hist.List(ctx, sess.ID)
+	runs, _ := rt.runs.ListRuns(ctx, sess.ID)
 	if len(runs) != 1 || runs[0].ID != "run_1" {
 		t.Fatalf("surviving runs = %+v, want [run_1]", runs)
 	}
@@ -223,20 +224,24 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
+	if err := rt.runs.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
 
 	outcome := execution.OutcomeCompleted
 	commit := appRuns.EventCommit{
 		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
 		Run: &transcript.Run{
 			ID: "run_1", SessionID: sess.ID, State: execution.Completed, Outcome: &outcome,
-			CreatedAt: started, UpdatedAt: started.Add(time.Minute), MessageMark: -1,
+			Result: &transcript.RunResult{}, CreatedAt: started, FinishedAt: started.Add(time.Minute),
+			UpdatedAt: started.Add(time.Minute), MessageMark: transcript.UnknownMessageMark,
 		},
 	}
 	if err := rt.RunSegmentEffects(nil, nil).CommitEvent(ctx, commit); err != nil {
 		t.Fatalf("commit terminal run: %v", err)
 	}
 
-	_, runs, err := rt.hist.List(ctx, sess.ID)
+	runs, err := rt.runs.ListRuns(ctx, sess.ID)
 	if err != nil || len(runs) != 1 {
 		t.Fatalf("list runs = %d (err %v), want 1", len(runs), err)
 	}

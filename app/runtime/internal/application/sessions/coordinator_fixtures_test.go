@@ -21,6 +21,7 @@ type testStores interface {
 	Session() SessionStore
 	Interrupts() InterruptStore
 	Transcript() TranscriptStore
+	Runs() RunStore
 	ReadSnapshot(context.Context, string) (Snapshot, error)
 	ForgetSession(string)
 }
@@ -28,6 +29,7 @@ type testStores interface {
 func (s coordinatorStores) Session() SessionStore       { return nil }
 func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
+func (s coordinatorStores) Runs() RunStore              { return emptyTranscript{} }
 func (s coordinatorStores) ReadSnapshot(context.Context, string) (Snapshot, error) {
 	if s.snapshotReads != nil {
 		*s.snapshotReads++
@@ -155,6 +157,7 @@ func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	deps.Sessions = stores.Session()
 	deps.Interrupts = stores.Interrupts()
 	deps.Transcript = stores.Transcript()
+	deps.Runs = stores.Runs()
 	deps.Snapshots = stores
 	deps.Writes = stores
 	deps.Forgetter = stores
@@ -188,6 +191,10 @@ func (r testCwdResolver) Inspect(path string) (session.WorkspaceIdentity, error)
 
 type emptyTranscript struct{}
 
-func (emptyTranscript) List(context.Context, string) ([]transcript.Item, []transcript.Run, error) {
-	return nil, nil, nil
+func (emptyTranscript) List(context.Context, string) ([]transcript.Item, error) {
+	return nil, nil
+}
+
+func (emptyTranscript) ListRuns(context.Context, string) ([]transcript.Run, error) {
+	return nil, nil
 }

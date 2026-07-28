@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 33
+const schemaEpoch = 34
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -112,22 +112,40 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_process_snapshots_parent
 			ON process_snapshots(parent_id)`,
-		// Authoritative Run admission state (§8.2): one row per Run. state is the
-		// coarse admission position — 'running' | 'interrupted' | 'terminal' — and
-		// the partial unique index below is the durable "one non-terminal Run per
-		// Session" guarantee that survives restart (the in-process live-run registry
-		// is only this process's view). outcome is the terminal reason, '' until
-		// terminal. Executor recovery handles live on open interrupts, where the
-		// actual snapshot id is known.
+		// One row per Run, and the whole Run (§8.2). state is the coarse admission
+		// position — 'running' | 'interrupted' | 'terminal' — and the partial unique
+		// index below is the durable "one non-terminal Run per Session" guarantee
+		// that survives restart (the in-process live-run registry is only this
+		// process's view). outcome is the terminal reason, '' until terminal.
+		//
+		// The remaining columns are the Run's accrued facts, and they are written
+		// only by the lifecycle transition that makes them true: a terminal state
+		// and the result explaining it land in one statement, so no row can claim
+		// one without the other. A Run's open interrupts are NOT here — the
+		// interrupts table owns them and a read composes them, because two copies
+		// of one park would be two answers to "what is this run waiting on".
+		//
+		// message_mark is the conversation message count captured when the Run
+		// finished (post-compaction) — the per-run watermark sessions.rollback /
+		// fork{fromRunId} truncate to. -1 is transcript.UnknownMessageMark: a Run
+		// that has not finished has no watermark yet.
 		`CREATE TABLE IF NOT EXISTS runs (
-			run_id      TEXT    PRIMARY KEY,
-			session_id  TEXT    NOT NULL,
-			state       TEXT    NOT NULL,
-			provider    TEXT    NOT NULL DEFAULT '',
-			model       TEXT    NOT NULL DEFAULT '',
-			outcome     TEXT    NOT NULL DEFAULT '',
-			started_at  INTEGER NOT NULL,
-			updated_at  INTEGER NOT NULL
+			run_id             TEXT    PRIMARY KEY,
+			session_id         TEXT    NOT NULL,
+			spawned_by_item_id TEXT    NOT NULL DEFAULT '',
+			state              TEXT    NOT NULL,
+			outcome            TEXT    NOT NULL DEFAULT '',
+			provider           TEXT    NOT NULL DEFAULT '',
+			model              TEXT    NOT NULL DEFAULT '',
+			detail             TEXT    NOT NULL DEFAULT '',
+			steps              INTEGER NOT NULL DEFAULT 0,
+			active_duration_ns INTEGER NOT NULL DEFAULT 0,
+			usage              TEXT    NOT NULL DEFAULT '',
+			problem            TEXT    NOT NULL DEFAULT '',
+			message_mark       INTEGER NOT NULL DEFAULT -1,
+			started_at         INTEGER NOT NULL,
+			finished_at        INTEGER NOT NULL DEFAULT 0,
+			updated_at         INTEGER NOT NULL
 		)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_runs_session_active
 			ON runs(session_id) WHERE state != 'terminal'`,
@@ -192,18 +210,6 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			created_at UNINDEXED,
 			tokenize = 'porter unicode61 remove_diacritics 2'
 		)`,
-		`CREATE TABLE IF NOT EXISTS history_runs (
-			run_id       TEXT    PRIMARY KEY,
-			session_id   TEXT    NOT NULL,
-			updated_at   INTEGER NOT NULL,
-			payload      TEXT    NOT NULL,
-			-- message_mark is the conversation message count captured when the run
-			-- finished (post-compaction) — the per-run watermark sessions.rollback
-			-- / fork{fromRunId} truncate to. -1 = unknown / still in-flight (B4).
-			message_mark INTEGER NOT NULL DEFAULT -1
-		)`,
-		`CREATE INDEX IF NOT EXISTS idx_history_runs_session
-			ON history_runs(session_id)`,
 		`CREATE TABLE IF NOT EXISTS providers (
 			id        TEXT PRIMARY KEY,
 			api_key   TEXT NOT NULL DEFAULT '',

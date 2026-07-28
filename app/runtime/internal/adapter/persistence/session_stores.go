@@ -20,7 +20,7 @@ type SessionStores struct {
 	sessions    *sqlitestore.SessionStore
 	transcript  *sqlitestore.TranscriptStore
 	interrupts  *sqlitestore.InterruptStore
-	runs        *sqlitestore.RunStateStore
+	runs        *sqlitestore.RunStore
 	processes   *sqlitestore.ProcessStore
 	history     *conversation.Messages
 	todos       todoCleaner
@@ -35,7 +35,7 @@ type SessionStoresConfig struct {
 	Sessions    *sqlitestore.SessionStore
 	Transcript  *sqlitestore.TranscriptStore
 	Interrupts  *sqlitestore.InterruptStore
-	Runs        *sqlitestore.RunStateStore
+	Runs        *sqlitestore.RunStore
 	Processes   *sqlitestore.ProcessStore
 	History     *conversation.Messages
 	Todos       todoCleaner
@@ -92,7 +92,11 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 		if err != nil {
 			return err
 		}
-		items, runs, err := s.transcript.List(ctx, sessionID)
+		items, err := s.transcript.List(ctx, sessionID)
+		if err != nil {
+			return err
+		}
+		runs, err := s.runs.ListRuns(ctx, sessionID)
 		if err != nil {
 			return err
 		}
@@ -164,17 +168,17 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollbac
 			if err := s.transcript.DeleteRun(ctx, plan.SessionID, runID); err != nil {
 				return err
 			}
+			// A dropped Run ceases to exist, which is also how it releases the
+			// session's admission slot — there is no state left to terminalize.
+			if err := s.runs.Delete(ctx, plan.SessionID, runID); err != nil {
+				return err
+			}
 			if err := s.interrupts.Delete(ctx, runID); err != nil {
 				return err
 			}
 		}
 		if len(plan.ProcessIDs) > 0 {
 			if err := s.processes.DeleteTrees(ctx, plan.ProcessIDs); err != nil {
-				return err
-			}
-		}
-		if plan.Terminate {
-			if err := s.runs.Terminalize(ctx, plan.SessionID, plan.RunID, execution.OutcomeCanceled); err != nil {
 				return err
 			}
 		}
@@ -205,7 +209,7 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestoreP
 			return err
 		}
 		for _, run := range plan.Runs {
-			if err := s.transcript.PutRun(ctx, run); err != nil {
+			if err := s.runs.Restore(ctx, run); err != nil {
 				return err
 			}
 		}
@@ -292,14 +296,13 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.Termina
 				return err
 			}
 		}
-		if err := s.transcript.PutRun(ctx, plan.Run); err != nil {
-			return err
-		}
 		if plan.ProcessID != "" {
 			if err := s.processes.DeleteTrees(ctx, []string{plan.ProcessID}); err != nil {
 				return err
 			}
 		}
+		// The interrupt goes before the terminal write: while it is open, the Run is
+		// parked ON it, and a Run cannot be both finished and waiting.
 		if err := s.interrupts.Delete(ctx, plan.Run.ID); err != nil {
 			return err
 		}
@@ -308,9 +311,9 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.Termina
 		}
 		switch *plan.Run.Outcome {
 		case execution.OutcomeCanceled:
-			return s.runs.Terminalize(ctx, plan.Run.SessionID, plan.Run.ID, execution.OutcomeCanceled)
+			return s.runs.Terminalize(ctx, plan.Run)
 		case execution.OutcomeError:
-			return s.runs.RecoverLost(ctx, plan.Run.SessionID, plan.Run.ID)
+			return s.runs.RecoverLost(ctx, plan.Run)
 		default:
 			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *plan.Run.Outcome)
 		}

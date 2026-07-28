@@ -373,7 +373,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		InterruptStore:   sqlitestore.NewInterruptStore(db),
 		TranscriptStore:  sqlitestore.NewTranscriptStore(db),
 		FeedbackStore:    sqlitestore.NewFeedbackStore(db),
-		RunStore:         sqlitestore.NewRunStateStore(db),
+		RunStore:         sqlitestore.NewRunStore(db),
 		ProcessStore:     processes,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
@@ -401,12 +401,6 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}
 	if err := cfg.RunStore.Suspend(ctx, sessionID, runID); err != nil {
 		t.Fatalf("suspend: %v", err)
-	}
-	if err := cfg.TranscriptStore.PutRun(ctx, transcript.Run{
-		ID: runID, SessionID: sessionID, State: execution.Interrupted,
-		Interrupts: open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
-	}); err != nil {
-		t.Fatalf("put transcript run: %v", err)
 	}
 	if err := cfg.TranscriptStore.AppendItem(ctx, transcript.Item{
 		ID: "item_park", RunID: runID, SessionID: sessionID,
@@ -451,9 +445,9 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if _, _, err := cfg.ProcessStore.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after assemble = %v, want not found", err)
 	}
-	_, runs, err := cfg.TranscriptStore.List(ctx, sessionID)
+	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)
 	if err != nil || len(runs) != 1 || runs[0].Result == nil || runs[0].Result.Error == nil ||
 		runs[0].Result.Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("transcript after assemble = (%+v, %v), want run_lost", runs, err)
+		t.Fatalf("runs after assemble = (%+v, %v), want run_lost", runs, err)
 	}
 }

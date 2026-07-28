@@ -8,14 +8,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
+// RollbackPlan is the atomic durable command for truncating a session back to a
+// run boundary. A parked run among DropRunIDs needs no terminalization: dropping
+// its record is also how it releases the session's admission slot.
 type RollbackPlan struct {
 	SessionID      string
-	RunID          string
 	KeepMark       int
 	DropRunIDs     []string
 	DropSessionIDs []string
 	ProcessIDs     []string
-	Terminate      bool
 }
 
 type ForkPlan struct {

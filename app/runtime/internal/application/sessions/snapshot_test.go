@@ -16,7 +16,7 @@ func portableSnapshot() Snapshot {
 		Runs: []transcript.Run{{
 			SessionID: "ses_1", ID: "run_1", State: execution.Completed,
 			Outcome: &outcome, Result: &transcript.RunResult{},
-			FinishedAt: time.Unix(2, 0), MessageMark: 0,
+			CreatedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), MessageMark: 0,
 		}},
 		Items: []transcript.Item{{
 			SessionID: "ses_1", ID: "item_1", RunID: "run_1",
@@ -34,6 +34,7 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 		{"duplicate run", func(s *Snapshot) { s.Runs = append(s.Runs, s.Runs[0]) }},
 		{"state outcome mismatch", func(s *Snapshot) { s.Runs[0].State = execution.Failed }},
 		{"missing finished time", func(s *Snapshot) { s.Runs[0].FinishedAt = time.Time{} }},
+		{"missing creation time", func(s *Snapshot) { s.Runs[0].CreatedAt = time.Time{} }},
 		{"wrong item session", func(s *Snapshot) { s.Items[0].SessionID = "ses_other" }},
 		{"duplicate item", func(s *Snapshot) { s.Items = append(s.Items, s.Items[0]) }},
 		{"unknown item status", func(s *Snapshot) { s.Items[0].Status = transcript.ItemStatus(255) }},

@@ -205,9 +205,9 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, reduc
 			opening.Events = append(opening.Events, *reduced.Commit)
 		}
 	}
-	if len(opening.Events) == 0 {
-		return reductionBatch{}, errors.New("runs: opening has no durable projection")
-	}
+	// An opening may carry no item commits at all — a resumed segment that only
+	// delivers an approval has nothing to append. Its durable projection is the
+	// admission or resume above, which is what makes the Run exist.
 	if err := c.effects.CommitOpening(ctx, opening); err != nil {
 		return reductionBatch{}, err
 	}

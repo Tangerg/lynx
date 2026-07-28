@@ -197,7 +197,7 @@ func TestRecoverRollbacks(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(b) != "v1" {
 		t.Errorf("a.txt = %q, want v1 (working tree restored by recovery)", b)
 	}
-	_, runs, _ := rt.hist.List(ctx, sid)
+	runs, _ := rt.runs.ListRuns(ctx, sid)
 	if len(runs) != 1 || runs[0].ID != "run1" {
 		t.Errorf("runs after recovery = %+v, want only run1 (history truncated)", runs)
 	}
@@ -229,7 +229,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	if err := s.sessions.(*sessions.Coordinator).RecoverWorkspaceMutations(ctx); err != nil {
 		t.Fatalf("RecoverWorkspaceMutations: %v", err)
 	}
-	_, runs, _ := rt.hist.List(ctx, sid)
+	runs, _ := rt.runs.ListRuns(ctx, sid)
 	if len(runs) != 1 || runs[0].ID != "run1" {
 		t.Errorf("runs = %+v, want run1 untouched (idempotent no-op)", runs)
 	}
@@ -266,7 +266,7 @@ func TestRecoverRollbacks_FilesOnly(t *testing.T) {
 	if got, _ := os.ReadFile(filepath.Join(cwd, "a.txt")); string(got) != "v1" {
 		t.Fatalf("a.txt = %q, want v1", got)
 	}
-	_, runs, _ := rt.hist.List(ctx, sid)
+	runs, _ := rt.runs.ListRuns(ctx, sid)
 	if len(runs) != 2 {
 		t.Fatalf("files-only recovery dropped history: %+v", runs)
 	}
@@ -315,7 +315,7 @@ func TestRollback_NoCheckpointStore(t *testing.T) {
 		t.Fatalf("err = %v, want ErrCheckpointUnavailable", err)
 	}
 	// Atomic "both": the files step failed first, so run2 must still be present.
-	_, runs, _ := rt.hist.List(ctx, ses.ID)
+	runs, _ := rt.runs.ListRuns(ctx, ses.ID)
 	if len(runs) != 2 {
 		t.Errorf("runs = %d, want 2 (history untouched after files failure)", len(runs))
 	}
@@ -356,7 +356,7 @@ func TestRollback_IncompleteRestoreKeepsRecoveryIntent(t *testing.T) {
 	if len(pending) != 1 || pending[0].SessionID != ses.ID || !pending[0].RestoreHistory {
 		t.Fatalf("pending = %+v, want recoverable files+history intent", pending)
 	}
-	_, runs, _ := rt.hist.List(ctx, ses.ID)
+	runs, _ := rt.runs.ListRuns(ctx, ses.ID)
 	if len(runs) != 2 {
 		t.Fatalf("incomplete file restore mutated history: %+v", runs)
 	}

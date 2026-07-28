@@ -105,11 +105,12 @@ type Config struct {
 	// is the composition ring (see doc/EXECUTION_CENTERED_ARCHITECTURE.md §8.1).
 	SessionStore *sqlitestore.SessionStore
 
-	// RunStore is the durable Run-admission backstop (§8.2): the authoritative
-	// "one non-terminal Run per Session" table the run coordinator records
-	// admissions/terminals through, and the boot reconcile sweeps. Required: an
-	// in-memory-only fallback would violate the restart-safe admission invariant.
-	RunStore *sqlitestore.RunStateStore
+	// RunStore is the durable Run table (§8.2): the authoritative "one
+	// non-terminal Run per Session" admission backstop the run coordinator records
+	// admissions/terminals through, the record every Run read is answered from,
+	// and what the boot reconcile sweeps. Required: an in-memory-only fallback
+	// would violate the restart-safe admission invariant.
+	RunStore *sqlitestore.RunStore
 
 	// ProcessStore holds the recoverable agent-process snapshot referenced by a
 	// parked interrupt. Required so session cancel/delete/rollback can remove the

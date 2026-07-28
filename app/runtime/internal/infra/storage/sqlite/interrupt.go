@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -193,10 +194,8 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt model selection: %w", err)
 	}
 	p.ModelSelection = selection
-	if payload != "" {
-		if err := json.Unmarshal([]byte(payload), &p.Interrupts); err != nil {
-			return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
-		}
+	if p.Interrupts, err = decodeInterrupts(payload); err != nil {
+		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
 	}
 	if drained != "" {
 		var rows []drainedToolRow
@@ -208,6 +207,20 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 	p.RunCreatedAt = time.Unix(0, runCreatedNs).UTC()
 	p.CreatedAt = time.Unix(0, createdNs).UTC()
 	return p, nil
+}
+
+// decodeInterrupts reads the stored open-interrupt set. It is the one reader of
+// that encoding: the Run table joins the same column to answer what a parked Run
+// is waiting on, and a second decoder there could disagree about the format.
+func decodeInterrupts(payload string) ([]transcript.Interrupt, error) {
+	if payload == "" {
+		return nil, nil
+	}
+	var out []transcript.Interrupt
+	if err := json.Unmarshal([]byte(payload), &out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {

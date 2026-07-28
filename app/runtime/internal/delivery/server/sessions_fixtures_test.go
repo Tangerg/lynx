@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
@@ -57,7 +58,8 @@ type stubRuntime struct {
 	sess        *sqlite.SessionStore
 	model       string
 	history     map[string][]chat.Message // per-session chat history (fork copies it)
-	hist        *sqlite.TranscriptStore   // durable Item/run history (rollback/fork read runs)
+	hist        *sqlite.TranscriptStore   // durable Item history
+	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
 	toolResults *sqlite.ToolResultStore
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
@@ -84,6 +86,7 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 	return queries.New(queries.Dependencies{
 		Transcript: s.hist,
 		Interrupts: s.interrupts,
+		Runs:       s.runs,
 	})
 }
 
@@ -256,12 +259,18 @@ func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.
 
 func (s stubLifecycleStores) Transcript() sessions.TranscriptStore { return s.rt.hist }
 
+func (s stubLifecycleStores) Runs() sessions.RunStore { return s.rt.runs }
+
 func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessions.Snapshot, error) {
 	ses, err := s.rt.sess.Get(ctx, id)
 	if err != nil {
 		return sessions.Snapshot{}, err
 	}
-	items, runs, err := s.rt.hist.List(ctx, id)
+	items, err := s.rt.hist.List(ctx, id)
+	if err != nil {
+		return sessions.Snapshot{}, err
+	}
+	runs, err := s.rt.runs.ListRuns(ctx, id)
 	if err != nil {
 		return sessions.Snapshot{}, err
 	}
@@ -296,11 +305,8 @@ func (s stubLifecycleStores) ApplyFork(ctx context.Context, plan sessions.ForkPl
 	return child, nil
 }
 
-// The atomic write-sets over the stub's in-memory history + real sqlite
-// transcript/interrupt/session stores. The stub carries no durable run-state
-// store (admission state is verified in the sqlite/sessions unit tests), so the
-// run-state transition is skipped — the observable transcript/history effects
-// these delivery tests assert are unaffected.
+// The atomic write-sets over the stub's in-memory chat log + real sqlite
+// transcript/run/interrupt/session stores, mirroring the persistence adapter.
 func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
 	if plan.KeepMark >= 0 {
 		if err := s.rt.TruncateMessages(ctx, plan.SessionID, plan.KeepMark); err != nil {
@@ -309,6 +315,9 @@ func (s stubLifecycleStores) ApplyRollback(ctx context.Context, plan sessions.Ro
 	}
 	for _, runID := range plan.DropRunIDs {
 		if err := s.rt.hist.DeleteRun(ctx, plan.SessionID, runID); err != nil {
+			return err
+		}
+		if err := s.rt.runs.Delete(ctx, plan.SessionID, runID); err != nil {
 			return err
 		}
 		if err := s.rt.interrupts.Delete(ctx, runID); err != nil {
@@ -334,6 +343,9 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	if err := s.rt.hist.DeleteSession(ctx, id); err != nil {
 		return err
 	}
+	if err := s.rt.runs.DeleteForSession(ctx, id); err != nil {
+		return err
+	}
 	if s.rt.toolResults != nil {
 		if err := s.rt.toolResults.DropSession(ctx, id); err != nil {
 			return err
@@ -346,7 +358,7 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 		return err
 	}
 	for _, r := range plan.Runs {
-		if err := s.rt.hist.PutRun(ctx, r); err != nil {
+		if err := s.rt.runs.Restore(ctx, r); err != nil {
 			return err
 		}
 	}
@@ -379,6 +391,9 @@ func (s stubLifecycleStores) deleteSession(ctx context.Context, sessionID string
 	if err := s.rt.hist.DeleteSession(ctx, sessionID); err != nil {
 		return err
 	}
+	if err := s.rt.runs.DeleteForSession(ctx, sessionID); err != nil {
+		return err
+	}
 	if err := s.rt.TruncateMessages(ctx, sessionID, 0); err != nil {
 		return err
 	}
@@ -399,10 +414,13 @@ func (s stubLifecycleStores) ApplyTerminal(ctx context.Context, plan sessions.Te
 			return err
 		}
 	}
-	if err := s.rt.hist.PutRun(ctx, plan.Run); err != nil {
+	if err := s.rt.interrupts.Delete(ctx, plan.Run.ID); err != nil {
 		return err
 	}
-	return s.rt.interrupts.Delete(ctx, plan.Run.ID)
+	if plan.Run.Outcome != nil && *plan.Run.Outcome == execution.OutcomeError {
+		return s.rt.runs.RecoverLost(ctx, plan.Run)
+	}
+	return s.rt.runs.Terminalize(ctx, plan.Run)
 }
 
 func (s stubLifecycleStores) deleteInterrupts(ctx context.Context, sessionID string) error {
@@ -452,6 +470,7 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Sessions:    s.sess,
 		Interrupts:  s.interrupts,
 		Transcript:  s.hist,
+		Runs:        s.runs,
 		Snapshots:   stores,
 		Writes:      stores,
 		Forgetter:   s,
@@ -472,11 +491,21 @@ func (s stubRuntime) RunSegmentEffects(checkpoints runsegment.Checkpoints, publi
 		Messages:           stubMessageCounter{rt: s},
 		Titles:             stubTitleGenerator{},
 		Processes:          stubRunSegmentProcesses{rt: s},
-		RunState:           stubRunState{},
+		RunState:           s.runWriter(),
 		Tx:                 s.RunInTx,
 		Checkpoints:        checkpoints,
 		PublishFileChanges: publish,
 	})
+}
+
+// runWriter is the real Run table when the fixture has one, so a committed
+// terminal actually lands where every Run read comes from. Fixtures that only
+// exercise streaming keep the no-op.
+func (s stubRuntime) runWriter() runsegment.RunWriter {
+	if s.runs != nil {
+		return s.runs
+	}
+	return stubRunState{}
 }
 
 type stubRunState struct{}
@@ -484,9 +513,7 @@ type stubRunState struct{}
 func (stubRunState) Admit(context.Context, execution.RunDraft) error     { return nil }
 func (stubRunState) Resume(context.Context, execution.ResumeDraft) error { return nil }
 func (stubRunState) Suspend(context.Context, string, string) error       { return nil }
-func (stubRunState) Terminalize(context.Context, string, string, execution.Outcome) error {
-	return nil
-}
+func (stubRunState) Terminalize(context.Context, transcript.Run) error   { return nil }
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local

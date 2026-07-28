@@ -69,7 +69,7 @@ type sessionStores struct {
 	sessions   *sqlite.SessionStore
 	transcript *sqlite.TranscriptStore
 	interrupts *sqlite.InterruptStore
-	runs       *sqlite.RunStateStore
+	runs       *sqlite.RunStore
 	processes  *sqlite.ProcessStore
 	history    *conversation.Messages
 	todos      *sqlite.TodoStore
@@ -79,14 +79,14 @@ type sessionStores struct {
 
 // newWriteSetFixture builds the persistence adapter over a fresh sqlite
 // database so the atomic write-sets run against the real stores + transactor.
-func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sqlite.InterruptStore) {
+func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.InterruptStore) {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	runs := sqlite.NewRunStateStore(db)
+	runs := sqlite.NewRunStore(db)
 	ints := sqlite.NewInterruptStore(db)
 	todos := sqlite.NewTodoStore(db)
 	approvals := sqlite.NewApprovalRuleStore(db)
@@ -112,10 +112,25 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStateStore, *sq
 	return ss, runs, ints
 }
 
+// parkCreatedAt is when the fixture's parked Run was admitted.
+var parkCreatedAt = time.Unix(1, 0).UTC()
+
+// restoredRun is a finished Run as an import carries it — the only shape a
+// restore accepts, since a Run that has not ended cannot be replayed into a
+// session from the outside.
+func restoredRun(sessionID, runID string, at time.Time) transcript.Run {
+	outcome := execution.OutcomeCompleted
+	return transcript.Run{
+		SessionID: sessionID, ID: runID, State: execution.Completed,
+		Outcome: &outcome, Result: &transcript.RunResult{},
+		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 0,
+	}
+}
+
 func park(
 	t *testing.T,
 	sessions *sqlite.SessionStore,
-	runs *sqlite.RunStateStore,
+	runs *sqlite.RunStore,
 	ints *sqlite.InterruptStore,
 	processes *sqlite.ProcessStore,
 	sessionID, runID string,
@@ -134,7 +149,7 @@ func park(
 	if err := processes.SaveTree(ctx, bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID)), bootstrapCheckpoint(sessionID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("save process snapshot: %v", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: time.Unix(0, 0)}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: runID, SessionID: sessionID, CreatedAt: parkCreatedAt}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, sessionID, runID); err != nil {
@@ -166,7 +181,7 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{ProcessID: processID, Run: transcript.Run{
 		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
-		Outcome: &outcome, Result: &transcript.RunResult{},
+		Outcome: &outcome, Result: &transcript.RunResult{}, CreatedAt: parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
@@ -181,12 +196,12 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 		t.Fatalf("child process snapshot after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
 	}
-	_, transcriptRuns, err := ss.transcript.List(ctx, "ses_A")
-	if err != nil || len(transcriptRuns) != 1 || transcriptRuns[0].State != execution.Canceled {
-		t.Fatalf("terminal transcript = %+v (err %v), want canceled run", transcriptRuns, err)
+	storedRuns, err := runs.ListRuns(ctx, "ses_A")
+	if err != nil || len(storedRuns) != 2 || storedRuns[0].State != execution.Canceled {
+		t.Fatalf("terminal runs = %+v (err %v), want the canceled run and its successor", storedRuns, err)
 	}
 }
 
@@ -211,6 +226,7 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 		Outcome: &outcome, Result: &transcript.RunResult{Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 		}},
+		CreatedAt:  parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}); err != nil {
 		t.Fatalf("ApplyTerminal run_lost: %v", err)
@@ -224,19 +240,20 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if _, _, err := ss.processes.LoadTree(ctx, child.ID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("child process snapshot after run_lost = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
-	_, transcriptRuns, err := ss.transcript.List(ctx, "ses_A")
-	if err != nil || len(transcriptRuns) != 1 || transcriptRuns[0].Result == nil || transcriptRuns[0].Result.Error == nil ||
-		transcriptRuns[0].Result.Error.Kind != transcript.RunLostProblem {
-		t.Fatalf("terminal transcript = %+v (err %v), want run_lost", transcriptRuns, err)
+	storedRuns, err := runs.ListRuns(ctx, "ses_A")
+	if err != nil || len(storedRuns) != 2 || storedRuns[0].Result == nil || storedRuns[0].Result.Error == nil ||
+		storedRuns[0].Result.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("terminal runs = %+v (err %v), want run_lost", storedRuns, err)
 	}
 }
 
-// TestApplyRollbackDropsRunsAndTerminalizes: a rollback that abandons a parked run
-// drops its interrupt and terminalizes the admission slot when Terminate is set.
-func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
+// TestApplyRollbackDropsRunsAndFreesAdmission: a rollback that abandons a parked
+// run drops its interrupt and its Run record — which is also how the session's
+// admission slot is released.
+func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
 	processID := park(t, ss.sessions, runs, ints, ss.processes, "ses_A", "run_1")
@@ -247,11 +264,9 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:  "ses_A",
-		RunID:      "run_1",
 		KeepMark:   -1,
 		DropRunIDs: []string{"run_1"},
 		ProcessIDs: []string{processID},
-		Terminate:  true,
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
@@ -264,7 +279,7 @@ func TestApplyRollbackDropsRunsAndTerminalizes(t *testing.T) {
 	if _, _, err := ss.processes.LoadTree(ctx, processID); !errors.Is(err, execution.ErrProcessSnapshotNotFound) {
 		t.Fatalf("process snapshot after rollback = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
 	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
@@ -340,7 +355,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A"}); err != nil {
+	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
 	}
 }
@@ -450,7 +465,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 		}
 	}
 	now := time.Now().UTC()
-	if err := ss.transcript.PutRun(ctx, transcript.Run{SessionID: "ses_A", ID: "run_shared", UpdatedAt: now}); err != nil {
+	if err := ss.runs.Restore(ctx, restoredRun("ses_A", "run_shared", now)); err != nil {
 		t.Fatalf("seed source run: %v", err)
 	}
 	if err := ss.transcript.AppendItem(ctx, transcript.Item{
@@ -458,7 +473,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed source item: %v", err)
 	}
-	if err := ss.transcript.PutRun(ctx, transcript.Run{SessionID: "ses_B", ID: "run_target", UpdatedAt: now}); err != nil {
+	if err := ss.runs.Restore(ctx, restoredRun("ses_B", "run_target", now)); err != nil {
 		t.Fatalf("seed target run: %v", err)
 	}
 	if err := ss.history.Seed(ctx, "ses_B", []chat.Message{chat.NewUserMessage(chat.NewTextPart("before"))}); err != nil {
@@ -468,7 +483,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
 		Session:  session.Session{ID: "ses_B", Title: "replacement", Cwd: "/replacement"},
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("after"))},
-		Runs:     []transcript.Run{{SessionID: "ses_B", ID: "run_shared", UpdatedAt: now}},
+		Runs:     []transcript.Run{restoredRun("ses_B", "run_shared", now)},
 	})
 	if !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("ApplyRestore error = %v, want ErrIdentityConflict", err)
@@ -482,13 +497,17 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	if err != nil || len(messages) != 1 {
 		t.Fatalf("target history after rollback = %+v, %v", messages, err)
 	}
-	_, targetRuns, err := ss.transcript.List(ctx, "ses_B")
+	targetRuns, err := ss.runs.ListRuns(ctx, "ses_B")
 	if err != nil || len(targetRuns) != 1 || targetRuns[0].ID != "run_target" {
-		t.Fatalf("target transcript after rollback = %+v, %v", targetRuns, err)
+		t.Fatalf("target runs after rollback = %+v, %v", targetRuns, err)
 	}
-	sourceItems, sourceRuns, err := ss.transcript.List(ctx, "ses_A")
-	if err != nil || len(sourceItems) != 1 || len(sourceRuns) != 1 {
-		t.Fatalf("source transcript after conflict = items=%+v runs=%+v err=%v", sourceItems, sourceRuns, err)
+	sourceItems, err := ss.transcript.List(ctx, "ses_A")
+	if err != nil || len(sourceItems) != 1 {
+		t.Fatalf("source items after conflict = %+v, %v", sourceItems, err)
+	}
+	sourceRuns, err := ss.runs.ListRuns(ctx, "ses_A")
+	if err != nil || len(sourceRuns) != 1 {
+		t.Fatalf("source runs after conflict = %+v, %v", sourceRuns, err)
 	}
 }
 

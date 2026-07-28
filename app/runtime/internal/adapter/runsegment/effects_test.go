@@ -51,10 +51,9 @@ func mustEffectSelection(t testing.TB, provider, model string) modelref.Selectio
 	return selection
 }
 
-// TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit persists
-// the item + run projection (resolving the terminal message watermark) AND
-// terminalizes the run-state — all through one CommitEvent, atomically inside the
-// wired transactor.
+// TestCommitEventPersistsTranscriptAndTerminalizes: a terminal commit appends the
+// item projection AND terminalizes the Run with its resolved message watermark —
+// all through one CommitEvent, atomically inside the wired transactor.
 func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	stores := &fakeStores{transcript: &fakeTranscript{}, mark: 7}
 	runState := &fakeRunState{}
@@ -67,7 +66,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		State:     runs.StateTerminalize,
 		Outcome:   execution.OutcomeCompleted,
 		Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
-		Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", MessageMark: -1},
+		Run:       finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -76,11 +75,15 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "item_1" {
 		t.Fatalf("items = %+v, want item_1", stores.transcript.items)
 	}
-	if len(stores.transcript.runs) != 1 || stores.transcript.runs[0].MessageMark != 7 {
-		t.Fatalf("runs = %+v, want one run with resolved mark 7", stores.transcript.runs)
+	if len(runState.terminalized) != 1 {
+		t.Fatalf("terminalized = %+v, want one finished run", runState.terminalized)
 	}
-	if len(runState.terminalized) != 1 || runState.terminalized[0] != "ses_1:run_1:completed" {
-		t.Fatalf("terminalized = %v, want [ses_1:run_1:completed]", runState.terminalized)
+	finished := runState.terminalized[0]
+	if finished.SessionID != "ses_1" || finished.ID != "run_1" || *finished.Outcome != execution.OutcomeCompleted {
+		t.Fatalf("terminalized run = %+v", finished)
+	}
+	if finished.MessageMark != 7 {
+		t.Fatalf("terminalized mark = %d, want the resolved 7", finished.MessageMark)
 	}
 	if tx.calls != 1 {
 		t.Fatalf("RunInTx calls = %d, want 1 (the whole commit is one transaction)", tx.calls)
@@ -151,16 +154,13 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
 		Outcome:   execution.OutcomeCompleted,
-		Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1", MessageMark: -1},
+		Run:       finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent error = %v, want %v", err, want)
 	}
-	if len(stores.transcript.runs) != 0 {
-		t.Fatalf("runs = %+v, want none after unresolved terminal watermark", stores.transcript.runs)
-	}
 	if len(runState.terminalized) != 0 {
-		t.Fatalf("terminalized = %v, want none", runState.terminalized)
+		t.Fatalf("terminalized = %+v, want none", runState.terminalized)
 	}
 }
 
@@ -190,14 +190,14 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1"},
+			Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("CommitOpening: %v", err)
 	}
-	if tx.calls != 1 || len(runState.admitted) != 1 || len(stores.transcript.runs) != 1 {
-		t.Fatalf("opening tx=%d admitted=%d runs=%d, want 1/1/1", tx.calls, len(runState.admitted), len(stores.transcript.runs))
+	if tx.calls != 1 || len(runState.admitted) != 1 || len(stores.transcript.items) != 1 {
+		t.Fatalf("opening tx=%d admitted=%d items=%d, want 1/1/1", tx.calls, len(runState.admitted), len(stores.transcript.items))
 	}
 }
 
@@ -214,14 +214,14 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Run:       &transcript.Run{SessionID: "ses_1", ID: "run_1"},
+			Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
 		}},
 	})
 	if err != nil {
 		t.Fatalf("CommitOpening: %v", err)
 	}
-	if tx.calls != 1 || ints.pending.RunID != "" || len(runState.resumed) != 1 || len(stores.transcript.runs) != 1 {
-		t.Fatalf("resume tx=%d pending=%+v resumed=%v runs=%d", tx.calls, ints.pending, runState.resumed, len(stores.transcript.runs))
+	if tx.calls != 1 || ints.pending.RunID != "" || len(runState.resumed) != 1 || len(stores.transcript.items) != 1 {
+		t.Fatalf("resume tx=%d pending=%+v resumed=%v items=%d", tx.calls, ints.pending, runState.resumed, len(stores.transcript.items))
 	}
 }
 
@@ -250,10 +250,6 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 			SessionID: "ses_1", RunID: "run_1", ID: "int_1",
 			Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
 		}},
-		Run: &transcript.Run{
-			SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-			Interrupts: []transcript.Interrupt{{ItemID: "int_1", Kind: transcript.QuestionInterrupt}},
-		},
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -269,8 +265,8 @@ func TestCommitEventRecordsInterruptAndSuspends(t *testing.T) {
 	if len(runState.suspended) != 1 || runState.suspended[0] != "ses_1:run_1" {
 		t.Fatalf("suspended = %v, want [ses_1:run_1]", runState.suspended)
 	}
-	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "int_1" || len(stores.transcript.runs) != 1 {
-		t.Fatalf("park transcript = items:%+v runs:%+v, want one running interrupt item and run", stores.transcript.items, stores.transcript.runs)
+	if len(stores.transcript.items) != 1 || stores.transcript.items[0].ID != "int_1" {
+		t.Fatalf("park transcript = items:%+v, want one running interrupt item", stores.transcript.items)
 	}
 }
 
@@ -498,12 +494,26 @@ func (p fakeProcess) ProcessID(context.Context, turn.TurnHandle) (string, error)
 	return p.processID, p.err
 }
 
+// finishedRunRecord is the terminal Run a reducer hands to a terminal commit: it
+// carries its outcome and result but leaves the message watermark unknown, since
+// resolving that is the committer's job.
+func finishedRunRecord(runID, sessionID string, outcome execution.Outcome) *transcript.Run {
+	state, _ := execution.Running.Terminate(outcome)
+	return &transcript.Run{
+		SessionID: sessionID, ID: runID, State: state, Outcome: &outcome,
+		Result:      &transcript.RunResult{},
+		CreatedAt:   time.Unix(1, 0).UTC(),
+		FinishedAt:  time.Unix(2, 0).UTC(),
+		MessageMark: transcript.UnknownMessageMark,
+	}
+}
+
 // fakeRunState records the run-state transitions the commit applies.
 type fakeRunState struct {
 	admitted     []execution.RunDraft
 	resumed      []string
 	suspended    []string
-	terminalized []string
+	terminalized []transcript.Run
 }
 
 func (r *fakeRunState) Admit(_ context.Context, draft execution.RunDraft) error {
@@ -521,8 +531,8 @@ func (r *fakeRunState) Suspend(_ context.Context, sessionID, runID string) error
 	return nil
 }
 
-func (r *fakeRunState) Terminalize(_ context.Context, sessionID, runID string, o execution.Outcome) error {
-	r.terminalized = append(r.terminalized, sessionID+":"+runID+":"+o.String())
+func (r *fakeRunState) Terminalize(_ context.Context, run transcript.Run) error {
+	r.terminalized = append(r.terminalized, run)
 	return nil
 }
 
@@ -536,7 +546,6 @@ func (t *fakeTx) run(ctx context.Context, fn func(context.Context) error) error 
 
 type fakeTranscript struct {
 	items []transcript.Item
-	runs  []transcript.Run
 }
 
 type toolResultBinding struct {
@@ -565,11 +574,6 @@ func (s *fakeToolResults) Discard(_ context.Context, sessionID string, ref offlo
 
 func (s *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error {
 	s.items = append(s.items, it)
-	return nil
-}
-
-func (s *fakeTranscript) PutRun(_ context.Context, r transcript.Run) error {
-	s.runs = append(s.runs, r)
 	return nil
 }
 

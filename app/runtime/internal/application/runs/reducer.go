@@ -127,7 +127,8 @@ func (r *reducer) open() (reductionBatch, error) {
 	out := []RunEvent{SegmentStarted{Run: transcript.Run{
 		ID: r.cfg.RunID, SessionID: r.cfg.SessionID,
 		ModelSelection: r.cfg.ModelSelection,
-		State:          execution.Running, CreatedAt: createdAt, UpdatedAt: r.now(), MessageMark: -1,
+		State:          execution.Running, CreatedAt: createdAt, UpdatedAt: r.now(),
+		MessageMark: transcript.UnknownMessageMark,
 	}}}
 	out = append(out, r.openUserMessage()...)
 	out = append(out, r.resumeQuestionCompletions()...)
@@ -301,8 +302,6 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		if e.Item.Status == transcript.ItemCompleted && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
 			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: slices.Clone(e.mutatedPaths)}
 		}
-	case SegmentStarted:
-		commit.Run = &e.Run
 	case SegmentFinished:
 		commit.Run = &e.Run
 		if e.Run.State == execution.Interrupted {
@@ -320,9 +319,12 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 			commit.Outcome = *e.Run.Outcome
 			commit.GoalTurn = r.goalTurn(e.Run)
 		}
-	case SegmentProgressed, ItemStarted, ItemChanged, StateSnapshot:
-		// These events have no standalone EventCommit. Interrupt ItemStarted
-		// projections are folded into the atomic park write-set by project.
+	case SegmentStarted, SegmentProgressed, ItemStarted, ItemChanged, StateSnapshot:
+		// These events have no standalone EventCommit. SegmentStarted carries a Run
+		// for the stream, but the Run's durable opening IS its admission (or its
+		// resume) — recording it a second time here would be a second writer of
+		// facts admission already owns. Interrupt ItemStarted projections are folded
+		// into the atomic park write-set by project.
 	default:
 		return reduction{}, fmt.Errorf("%w: unhandled run event %T", errReducerInvariant, event)
 	}
@@ -381,11 +383,36 @@ func validateReductionBatch(batch reductionBatch) error {
 	return validateTerminalReduction(batch.events[terminalAt])
 }
 
+// lifecycleReductions counts the events that move the segment's lifecycle: its
+// opening and its ending.
+func lifecycleReductions(reductions []reduction) int {
+	count := 0
+	for _, reduced := range reductions {
+		switch reduced.Event.(type) {
+		case SegmentStarted, SegmentFinished:
+			count++
+		}
+	}
+	return count
+}
+
 func validateReductionEvents(reductions []reduction) (terminalAt int, err error) {
 	terminalAt = -1
 	for i, reduced := range reductions {
 		if reduced.Event == nil {
 			return -1, fmt.Errorf("%w: reduction[%d] has no event", errReducerInvariant, i)
+		}
+		// One batch moves the segment's lifecycle at most once, and an opening only
+		// ever starts one. Both are checked on the events rather than on their
+		// durable commits because an opening produces none — a Run's durable
+		// opening is its admission — so a stray one would otherwise pass unseen.
+		if _, opening := reduced.Event.(SegmentStarted); opening {
+			if i != 0 {
+				return -1, fmt.Errorf("%w: reduction[%d] opens a segment mid-batch", errReducerInvariant, i)
+			}
+			if lifecycleReductions(reductions) > 1 {
+				return -1, fmt.Errorf("%w: reduction batch both opens and ends a segment", errReducerInvariant)
+			}
 		}
 		if reduced.Event.Terminal() {
 			terminalAt = i

@@ -62,7 +62,7 @@
 | A | 协议文档事实对齐 | `TODO` | 零代码变化 |
 | A′ | 现役泄露治本（**前置**） | `DONE` | 5 slice 全 `DONE`（A′5 为实施中发现追加）；三个现役泄露消除，5 个守卫落地 |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
-| B′ | 权威读面 + store cutover | `TODO` | 5 slice，落 main，**建议起点** |
+| B′ | 权威读面 + store cutover | `IN PROGRESS` | B′1 `DONE`；B′2+B′3 **合并为一个 slice** 后 `DONE`（理由见下）；剩 B′4 / B′5 |
 | C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
 | D | 切换后数值调优 | `TODO` | 依赖 C |
 
@@ -532,13 +532,41 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| B′1 | bump internal store schema epoch；遇旧 epoch **确定性拒绝启动并提示重建**，不后台静默删用户文件；不 `ALTER TABLE`、不读旧行、不伪造零值、不留 compatibility view / dual-read / dual-write | `TODO` | — |
-| B′2 | `runs` 重建为 typed durable projection（补 §3.3 的 12 列）；在 start / interrupt / resume / terminal / restart-recovery 的**既有事务内**维护（契约 §4.6 事务边界表）。⚠️ `idx_runs_session_active` 保持原样 | `TODO` | — |
-| B′3 | 删 `history_runs` 表 + `payload`；`message_mark`、rollback/fork、`usage.session/summary` 全改读 `runs`；**terminal transcript / Artifact adapter 也改读同一 typed projection**，消除「只存在于 finished payload 的 metrics/outcome 第二真相」 | `TODO` | — |
+| B′1 | bump internal store schema epoch；遇旧 epoch **确定性拒绝启动并提示重建**，不后台静默删用户文件；不 `ALTER TABLE`、不读旧行、不伪造零值、不留 compatibility view / dual-read / dual-write | `DONE` | `ca24bb3b4` |
+| B′2+B′3 | **合并**：`runs` 成为完整 Run 行（补列 + 一个 owner）、`history_runs` 删表、全部消费方改读同一行 | `DONE` | 见下 |
 | B′4 | application query ports：Run query（读 durable projection）、Item query（按 Session / Run subtree，durable `sequence` 唯一排序键，为 `run_id/sequence` 与 lineage traversal 建索引）、`interrupts.list` 的 waiting-Run aggregate keyset query（**不拆散 set**、按 `root_run_id`、每个 Interrupt 持久化来源 `run_id`）。**过滤 + 排序 + cursor 编解码三件事全在 port**，delivery 一件不留。`waiting` 停止折叠（一对一 enum 映射，不引入优先级规则） | `TODO` | — |
 | B′5 | todos session-scoped projection：补 `revision`、单调分配、root-only write policy、按 history boundary 的 lifecycle substrate、只读 query/presenter。**`todos.get` wire method 留到 C7** | `TODO` | — |
 
 **Batch B′ DoD**：fresh schema 无 `history_runs`；旧 schema fixture 被明确拒绝；代码库无旧 Run payload decoder、无零值回填、无兼容读路径；全绿；**未对外声称支持 vNext**。
+
+#### ⚠️ B′1 范围修正 —— epoch bump 不在 B′1（2026-07-28 实施中）
+
+B′1 原文含「bump epoch」。**bump 与「拒绝旧 epoch」是两件事**：拒绝是**策略**（silent DROP 掉用户全部表 → 命名文件、拒绝启动、由用户决定删不删），bump 是**形态变更的后果**。在 B′1 里 bump 一次形态没变的 epoch，只会白白让所有本地库被拒一次。所以 B′1 只落策略，epoch 34 随真正改形态的 B′2 一起落。
+另有一处**豁免**：完全没有表的空文件不算 mismatch（否则每次首启都失败）—— 这是「没有任何东西会丢」的唯一情形。
+
+#### ⚠️ B′2 与 B′3 合并（2026-07-28 实施中，**已 DONE**）
+
+计划把「补列」和「删旧表」分成两个 slice。**在「不双读双写」纪律下这两步无法分开**：
+- 只补列不切读写 = 一批没有 writer 的死列；
+- 只删表不搬走 owner = 编译不过。
+中间态只能靠 dual-write 撑住，而那正是本批禁止的东西。于是合并成一个 commit，claim 是一句话：**一个 Run 一行，一张表一个 owner。**
+
+**§3.3 的 12 列只补了今天有 writer 的那些。** `parent_run_id / root_run_id / active_segment_id / max_steps / max_budget_usd / protocol_profile` 全部无 writer（D2 子 Run、vNext 配置面才产生），现在加就是空列 —— 按 `feedback_yagni_speculative_headroom` 留到 C 里它们的 writer 落地时再加。实际补的是：`spawned_by_item_id / detail / steps / active_duration_ns / usage / problem / message_mark / finished_at`。
+**一处刻意偏离计划命名**：`active_duration_ms` → **`active_duration_ns`**。本表其余时间列全是 UnixNano，用 ms 会在 store 层丢精度去迁就一个正在被删的 wire 字段（§3.2 删 `durationMs`）。
+
+**实施中发现的、计划没有的东西：**
+
+1. **`Run.Interrupts` 是第三份真相**，且 `run_recovery_validation.go` 有一个 `reflect.DeepEqual(run.Interrupts, pending.Interrupts)` —— 一段专门用来检查两份拷贝是否一致的代码，正是病征本身。新表**不存** interrupts：`interrupts` 表是唯一 owner，读时 join 补上；parked 行 join 不到就是坏 park（报错，不是「等待空集合」）。同理删掉的还有 `validateParkedTranscript` 里 model/createdAt 的互校 —— 它们校的是同一行。
+2. **rollback 会 terminalize 一个它随即删掉的 run**。合表后这是不可表达的（`state=terminal` + 无 result 违反行不变量），且本来就多余：**删行本身就是释放 admission slot**（`DeleteForSession` 的注释早就这么说）。`RollbackPlan.Terminate` / `.RunID` 因此成为死字段，一并删。
+3. **`ApplyRestore` 从来不写 admission 行** —— 导入一个 session 后 `runs` 表对它一无所知。旧 schema 下不可见（导入的 run 全是终态），合表后会直接丢掉整段历史。新增 `RunStore.Restore`（只收终态行，非终态一律拒 —— 那会把 admission slot 交给一个不存在的 executor）。
+4. **`Admit` 把「run id 撞车」报成了 `ErrSessionBusy`** —— 两个约束意思相反（PK 说 id 被占，partial index 说 session 被占）。SQLite 的扩展码本就区分（1555 vs 2067），`isUniqueViolation` 只匹配后者，所以撞车过去是漏成裸错误。现在分别映射到 `ErrIdentityConflict` / `ErrSessionBusy` —— 后者会让调用方去等一个根本不存在的 run 结束。
+5. **`Admit` 允许零 CreatedAt** → `started_at` 落成一个 1754 年的荒谬值，而它现在是所有 Run 读面的排序键。改为 fail-fast。
+6. **非终态 Run 的 durable 投影整个是多余的**。SegmentStarted 的 Run 除 `SpawnedByItemID`（今天恒空）外没有一个字段是 admission 不知道的；park 的 Run 也一样（state 归 Suspend、interrupts 归 interrupts 表）。于是 `PutRun` 整个方法删掉，**Run 行只由生命周期转换写**：`Admit` / `Suspend` / `Resume` / `Terminalize(run)` / `RecoverLost(run)` / `Restore(run)` / `Delete`。终态状态与解释它的 result **在同一条 UPDATE 里**落地 —— 行不可能声称终态却没有 result，也不可能一边 running 一边带着 result。
+   连带：opening 的 durable 投影**就是** admission/resume 本身，所以「opening 必须有 durable projection」这条检查（会让 approval-only 的 resume 假失败）撤掉；「一个 batch 至多一次生命周期事件」的不变量从「有没有 Run commit」改成直接查事件本身（原来靠 commit 间接查，投影删掉后会失守）。
+7. **`transcript.Run.Validate()`** 新增 —— 终态事实与 state 的等价关系（终态 ⟺ 有 outcome/result/finishedAt/messageMark）此前只写在 `Snapshot.validateRuns` 里；store 编解码要同一条规则，复述一遍就是两个作者。现在 domain 一处定义，store 写入前校验、`Snapshot` 委托它。这也是「行不需要 `has_result` 标志位」的依据：state 就是答案。
+8. `UnknownMessageMark = -1` 命名了原先散在 5 处的字面量（含 schema 默认值注释）。
+
+**未加 arch 守卫**：本 slice 的规则由 API 形态而非命名强制 —— 没有 `PutRun` 可调，加回来是显眼的 review 事件；不为一条 SQL 字符串写守卫。
 
 ---
 

@@ -186,7 +186,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	if err != nil || !found || restored != body {
 		t.Fatalf("destination read-back = (found %v, bytes %d, err %v), want full body", found, len(restored), err)
 	}
-	items, _, err := destinationRuntime.hist.List(ctx, ses.ID)
+	items, err := destinationRuntime.hist.List(ctx, ses.ID)
 	if err != nil {
 		t.Fatalf("list destination transcript: %v", err)
 	}
@@ -337,12 +337,14 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
-	if err := rt.hist.PutRun(ctx, transcript.Run{
-		ID: "run_parked", SessionID: ses.ID, State: execution.Interrupted,
-		Interrupts:  []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt}},
-		MessageMark: -1,
+	parkedAt := time.Unix(1, 0).UTC()
+	if err := rt.runs.Admit(ctx, execution.RunDraft{
+		RunID: "run_parked", SessionID: ses.ID, CreatedAt: parkedAt,
 	}); err != nil {
-		t.Fatalf("put interrupted run: %v", err)
+		t.Fatalf("admit parked run: %v", err)
+	}
+	if err := rt.runs.Suspend(ctx, ses.ID, "run_parked"); err != nil {
+		t.Fatalf("suspend parked run: %v", err)
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
@@ -353,6 +355,9 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	if err := rt.interrupts.Put(ctx, interrupts.Pending{
 		RunID: "run_parked", SessionID: ses.ID, TurnID: "turn_parked",
+		Interrupts: []transcript.Interrupt{{ItemID: "item_question", Kind: transcript.QuestionInterrupt,
+			Question: &transcript.Question{Prompt: "Continue?"}}},
+		RunCreatedAt: parkedAt, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("put interrupt: %v", err)
 	}

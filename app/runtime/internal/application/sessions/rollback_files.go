@@ -87,10 +87,14 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 		defer treeAdmission.Release()
 	}
 
-	if c.transcript == nil {
+	if c.transcript == nil || c.runs == nil {
 		return RollbackResult{}, errors.New("sessions: transcript store is unavailable")
 	}
-	items, runs, err := c.transcript.List(ctx, spec.SessionID)
+	items, err := c.transcript.List(ctx, spec.SessionID)
+	if err != nil {
+		return result, err
+	}
+	runs, err := c.runs.ListRuns(ctx, spec.SessionID)
 	if err != nil {
 		return result, err
 	}
@@ -203,10 +207,10 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 	var boundary transcript.Boundary
 	var dropSessionIDs []string
 	if m.RestoreHistory {
-		if c.transcript == nil {
-			return errors.New("sessions: transcript store is unavailable")
+		if c.runs == nil {
+			return errors.New("sessions: run store is unavailable")
 		}
-		_, runs, err := c.transcript.List(ctx, m.SessionID)
+		runs, err := c.runs.ListRuns(ctx, m.SessionID)
 		if err != nil {
 			return err
 		}

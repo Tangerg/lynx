@@ -31,9 +31,8 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	if err != nil {
 		return err
 	}
-	// A dropped parked run held the session's durable admission slot; the write-set
-	// terminalizes it (Terminate) so the session can start a fresh run afterward.
-	// The partial unique index guarantees at most one non-terminal row per session.
+	// A dropped parked run held the session's durable admission slot; dropping its
+	// record releases the slot, so the session can start a fresh run afterward.
 	sessionIDs := append([]string{sessionID}, dropSessionIDs...)
 	return c.withGoalMutation(
 		ctx,
@@ -44,12 +43,10 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			}
 			return c.writes.ApplyRollback(ctx, RollbackPlan{
 				SessionID:      sessionID,
-				RunID:          parkedRunID(parked),
 				KeepMark:       boundary.KeepMark,
 				DropRunIDs:     dropRunIDs,
 				DropSessionIDs: dropSessionIDs,
 				ProcessIDs:     parkedProcessIDs(parked),
-				Terminate:      len(parked) > 0,
 			})
 		},
 		func(ctx context.Context) error {
@@ -73,13 +70,6 @@ func parkedProcessIDs(parked []RunTurnBinding) []string {
 		}
 	}
 	return ids
-}
-
-func parkedRunID(parked []RunTurnBinding) string {
-	if len(parked) == 0 {
-		return ""
-	}
-	return parked[0].RunID
 }
 
 func (c *Coordinator) parkedSessionTurns(ctx context.Context, sessionIDs []string) ([]RunTurnBinding, error) {

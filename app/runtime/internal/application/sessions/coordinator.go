@@ -49,8 +49,20 @@ type InterruptStore interface {
 	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
 }
 
+// TranscriptStore is the lifecycle coordinator's read view of a session's item
+// history. The Runs those items belong to come from [RunStore] — one record, one
+// owner — and the coordinator reads both inside one storage transaction when it
+// needs them to agree.
 type TranscriptStore interface {
-	List(ctx context.Context, sessionID string) ([]transcript.Item, []transcript.Run, error)
+	List(ctx context.Context, sessionID string) ([]transcript.Item, error)
+}
+
+// RunStore is the lifecycle coordinator's read view of a session's Runs. Every
+// boundary it computes — a rollback target, a fork point, an abandoned park — is
+// derived from the Run timeline, so it reads the Runs themselves rather than
+// inferring them from the items they produced.
+type RunStore interface {
+	ListRuns(ctx context.Context, sessionID string) ([]transcript.Run, error)
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the
@@ -174,6 +186,7 @@ type Coordinator struct {
 	sessions     SessionStore
 	interrupts   InterruptStore
 	transcript   TranscriptStore
+	runs         RunStore
 	snapshots    SnapshotReader
 	writes       WriteSets
 	forgetter    SessionForgetter
@@ -205,6 +218,7 @@ type Dependencies struct {
 	Sessions     SessionStore
 	Interrupts   InterruptStore
 	Transcript   TranscriptStore
+	Runs         RunStore
 	Snapshots    SnapshotReader
 	Writes       WriteSets
 	Forgetter    SessionForgetter
@@ -227,6 +241,7 @@ func New(deps Dependencies) *Coordinator {
 		sessions:     deps.Sessions,
 		interrupts:   deps.Interrupts,
 		transcript:   deps.Transcript,
+		runs:         deps.Runs,
 		snapshots:    deps.Snapshots,
 		writes:       deps.Writes,
 		forgetter:    deps.Forgetter,

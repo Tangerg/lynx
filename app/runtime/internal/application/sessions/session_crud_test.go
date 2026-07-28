@@ -77,6 +77,7 @@ type crudStores struct {
 func (s *crudStores) Session() SessionStore                                { return s.session }
 func (*crudStores) Interrupts() InterruptStore                             { return nil }
 func (*crudStores) Transcript() TranscriptStore                            { return emptyTranscript{} }
+func (*crudStores) Runs() RunStore                                         { return emptyTranscript{} }
 func (*crudStores) ReadSnapshot(context.Context, string) (Snapshot, error) { return Snapshot{}, nil }
 func (*crudStores) ForgetSession(string)                                   {}
 func (*crudStores) ApplyFork(context.Context, ForkPlan) (session.Session, error) {
