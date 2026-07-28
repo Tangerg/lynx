@@ -3,7 +3,7 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 12,
+    "schema_version": 13,
     "id": "process-1",
     "parent_id": "process-root",
     "deployment": {
@@ -55,6 +55,14 @@
         "t": "fixture.Result",
         "v": {
           "title": "Lynx"
+        }
+      }
+    ],
+    "hidden": [
+      {
+        "t": "fixture.Result",
+        "v": {
+          "title": "Superseded"
         }
       }
     ]

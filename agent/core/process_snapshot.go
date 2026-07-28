@@ -16,7 +16,7 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 12
+const ProcessSnapshotSchemaVersion uint16 = 13
 
 var (
 	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
@@ -76,6 +76,7 @@ type ProcessSnapshot struct {
 	Blackboard map[string]TaggedValue `json:"blackboard,omitempty"`
 	Conditions map[string]bool        `json:"conditions,omitempty"`
 	Objects    []TaggedValue          `json:"objects,omitempty"`
+	Hidden     []TaggedValue          `json:"hidden,omitempty"`
 }
 
 type processSnapshotWire struct {
@@ -92,6 +93,7 @@ type processSnapshotWire struct {
 	Blackboard    map[string]TaggedValue  `json:"blackboard,omitempty"`
 	Conditions    map[string]bool         `json:"conditions,omitempty"`
 	Objects       []TaggedValue           `json:"objects,omitempty"`
+	Hidden        []TaggedValue           `json:"hidden,omitempty"`
 }
 
 func (s ProcessSnapshot) wire() processSnapshotWire {
@@ -101,7 +103,7 @@ func (s ProcessSnapshot) wire() processSnapshotWire {
 		Deployment: s.Deployment, StartedAt: s.StartedAt,
 		Status: s.Status.String(), Suspension: s.Suspension, GoalName: s.GoalName,
 		Failure: s.Failure, OwnUsage: s.OwnUsage,
-		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects,
+		Blackboard: s.Blackboard, Conditions: s.Conditions, Objects: s.Objects, Hidden: s.Hidden,
 	}
 }
 
@@ -116,7 +118,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 		Deployment: w.Deployment, StartedAt: w.StartedAt,
 		Status: status, Suspension: w.Suspension, GoalName: w.GoalName,
 		Failure: w.Failure, OwnUsage: w.OwnUsage,
-		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects,
+		Blackboard: w.Blackboard, Conditions: w.Conditions, Objects: w.Objects, Hidden: w.Hidden,
 	}, nil
 }
 
@@ -187,6 +189,11 @@ func (s ProcessSnapshot) Validate() error {
 	for i, value := range s.Objects {
 		if err := value.Validate(); err != nil {
 			return fmt.Errorf("%w: objects[%d]: %w", ErrInvalidSnapshot, i, err)
+		}
+	}
+	for i, value := range s.Hidden {
+		if err := value.Validate(); err != nil {
+			return fmt.Errorf("%w: hidden[%d]: %w", ErrInvalidSnapshot, i, err)
 		}
 	}
 	return nil

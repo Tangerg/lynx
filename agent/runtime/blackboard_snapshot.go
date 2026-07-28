@@ -9,12 +9,14 @@ import (
 )
 
 // BlackboardState is the ownership-isolated state required to restore
-// a blackboard. Conditions are explicit boolean facts, while Bindings and
-// Objects preserve the blackboard's named and insertion-ordered views.
+// a blackboard. Conditions are explicit boolean facts, Bindings and Objects
+// preserve the named and insertion-ordered views, and Hidden preserves which
+// historical values typed lookup must skip.
 type BlackboardState struct {
 	Bindings   core.Bindings
 	Conditions map[string]bool
 	Objects    []any
+	Hidden     []any
 }
 
 // BlackboardSnapshotter is the optional capture surface a custom
@@ -74,9 +76,37 @@ func restoreBlackboard(blackboard core.Blackboard, state BlackboardState) (err e
 	return restorer.Restore(state)
 }
 
-// Snapshot implements [BlackboardSnapshotter]. Hide markers are deliberately
-// omitted because they are a process-local view filter with no portable wire
-// form.
+func encodeBlackboardValues(codec core.SnapshotCodec, values []any) ([]core.TaggedValue, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	encoded := make([]core.TaggedValue, len(values))
+	for index, value := range values {
+		tagged, err := codec.Encode(value)
+		if err != nil {
+			return nil, fmt.Errorf("values[%d]: %w", index, err)
+		}
+		encoded[index] = tagged
+	}
+	return encoded, nil
+}
+
+func decodeBlackboardValues(codec core.SnapshotCodec, values []core.TaggedValue) ([]any, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	decoded := make([]any, len(values))
+	for index, tagged := range values {
+		value, err := codec.Decode(tagged)
+		if err != nil {
+			return nil, fmt.Errorf("values[%d]: %w", index, err)
+		}
+		decoded[index] = value
+	}
+	return decoded, nil
+}
+
+// Snapshot implements [BlackboardSnapshotter].
 func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	b.mu.RLock()
 	named := make(map[string]storedBlackboardValue, len(b.named))
@@ -86,6 +116,10 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	storedObjects := make([]storedBlackboardValue, len(b.objects))
 	for index, value := range b.objects {
 		storedObjects[index] = value.clone()
+	}
+	storedHidden := make([]storedBlackboardValue, len(b.hidden))
+	for index, value := range b.hidden {
+		storedHidden[index] = value.clone()
 	}
 	conditions := maps.Clone(b.conditions)
 	b.mu.RUnlock()
@@ -98,15 +132,19 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 	for index, value := range storedObjects {
 		objects[index] = value.mustValue()
 	}
+	hidden := make([]any, len(storedHidden))
+	for index, value := range storedHidden {
+		hidden[index] = value.mustValue()
+	}
 	return BlackboardState{
 		Bindings:   bindings,
 		Conditions: conditions,
 		Objects:    objects,
+		Hidden:     hidden,
 	}, nil
 }
 
-// Restore implements [BlackboardRestorer]. Existing bindings are cleared first;
-// hidden markers are reset because they have no portable wire form.
+// Restore implements [BlackboardRestorer].
 func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	named := make(map[string]storedBlackboardValue, state.Bindings.Len())
 	for key, value := range state.Bindings.All() {
@@ -124,6 +162,14 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 		}
 		objects[index] = stored
 	}
+	hidden := make([]storedBlackboardValue, len(state.Hidden))
+	for index, value := range state.Hidden {
+		stored, err := storeBlackboardValue(value)
+		if err != nil {
+			return fmt.Errorf("restore hidden[%d]: %w", index, err)
+		}
+		hidden[index] = stored
+	}
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -132,6 +178,6 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	clear(b.conditions)
 	maps.Copy(b.conditions, state.Conditions)
 	b.objects = objects
-	b.hidden = b.hidden[:0]
+	b.hidden = hidden
 	return nil
 }

@@ -98,6 +98,10 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			Type:  "fixture.Result",
 			Value: json.RawMessage(`{"title":"Lynx"}`),
 		}},
+		Hidden: []agentcore.TaggedValue{{
+			Type:  "fixture.Result",
+			Value: json.RawMessage(`{"title":"Superseded"}`),
+		}},
 	}
 
 	return map[string]any{

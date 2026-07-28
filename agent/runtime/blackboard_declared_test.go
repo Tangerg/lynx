@@ -135,3 +135,52 @@ func TestDeclaredBlackboardKeepsTheCaptureSurface(t *testing.T) {
 		t.Fatalf("Restore: %v", err)
 	}
 }
+
+func TestProcessRejectsExistingBlackboardStateItsAgentCannotRestore(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	blackboard, err := engine.NewBlackboard(declaringAgent())
+	if err != nil {
+		t.Fatalf("NewBlackboard: %v", err)
+	}
+	if err := blackboard.Store("input", declaredIn{Text: "in"}); err != nil {
+		t.Fatalf("Store: %v", err)
+	}
+	incompatible := agent.New(agent.AgentConfig{
+		Name: "different-state-schema",
+		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, string) (string, error) {
+			return "done", nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "done"})},
+	})
+
+	process, err := engine.Run(t.Context(), incompatible, core.Bindings{}, core.ProcessOptions{Blackboard: blackboard})
+	if process != nil {
+		t.Fatalf("Run returned process %q with incompatible existing state", process.ID())
+	}
+	if !errors.Is(err, core.ErrUndeclaredState) {
+		t.Fatalf("Run error = %v, want core.ErrUndeclaredState", err)
+	}
+}
+
+func TestDeclaredBlackboardRejectsUndeclaredRestoreState(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	blackboard, err := engine.NewBlackboard(declaringAgent())
+	if err != nil {
+		t.Fatalf("NewBlackboard: %v", err)
+	}
+	if err := blackboard.Store("value", declaredIn{Text: "before"}); err != nil {
+		t.Fatalf("Store: %v", err)
+	}
+	restorer := blackboard.(runtime.BlackboardRestorer)
+
+	err = restorer.Restore(runtime.BlackboardState{
+		Objects: []any{undeclaredArtifact{Note: "injected"}},
+	})
+	if !errors.Is(err, core.ErrUndeclaredState) {
+		t.Fatalf("Restore error = %v, want core.ErrUndeclaredState", err)
+	}
+	value, ok := blackboard.Load("value")
+	if !ok || value != (declaredIn{Text: "before"}) {
+		t.Fatalf("rejected Restore mutated blackboard: value=%v found=%v", value, ok)
+	}
+}

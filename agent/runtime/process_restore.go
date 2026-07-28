@@ -79,7 +79,7 @@ func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) error {
 				)
 			}
 		}
-		if _, _, err := deployment.agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects); err != nil {
+		if _, err := decodeProcessBlackboard(deployment.agent, snapshot); err != nil {
 			return fmt.Errorf(
 				"runtime.Engine.ValidateRestoreTree: %w: process %q blackboard: %w",
 				core.ErrInvalidSnapshot,
@@ -109,6 +109,23 @@ func agentHasGoal(agent *core.Agent, name string) bool {
 		}
 	}
 	return false
+}
+
+func decodeProcessBlackboard(agent *core.Agent, snapshot core.ProcessSnapshot) (BlackboardState, error) {
+	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
+	if err != nil {
+		return BlackboardState{}, err
+	}
+	hidden, err := decodeBlackboardValues(agent.SnapshotCodec(), snapshot.Hidden)
+	if err != nil {
+		return BlackboardState{}, fmt.Errorf("hidden: %w", err)
+	}
+	return BlackboardState{
+		Bindings:   bindings,
+		Conditions: snapshot.Conditions,
+		Objects:    objects,
+		Hidden:     hidden,
+	}, nil
 }
 
 // RestoreTree atomically rebuilds and registers a caller-supplied complete
@@ -304,15 +321,11 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 	}
 	process.budget.restore(snapshot.OwnUsage)
 
-	bindings, objects, err := agent.DecodeBlackboard(snapshot.Blackboard, snapshot.Objects)
+	blackboardState, err := decodeProcessBlackboard(agent, snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("%w: decode blackboard: %w", core.ErrInvalidSnapshot, err)
 	}
-	if err := restoreBlackboard(blackboard, BlackboardState{
-		Bindings:   bindings,
-		Conditions: snapshot.Conditions,
-		Objects:    objects,
-	}); err != nil {
+	if err := restoreBlackboard(blackboard, blackboardState); err != nil {
 		return nil, fmt.Errorf("%w: restore blackboard: %w", core.ErrInvalidSnapshot, err)
 	}
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
 // declaredBlackboard gates every write on the codec that would have to restore
@@ -45,25 +46,28 @@ func (b *declaredBlackboard) Snapshot() (BlackboardState, error) {
 }
 
 func (b *declaredBlackboard) Restore(state BlackboardState) error {
+	if err := validateBlackboardState(b.codec, state); err != nil {
+		return err
+	}
 	return restoreBlackboard(b.Blackboard, state)
 }
 
 func (b *declaredBlackboard) Store(key string, value any) error {
-	if err := b.codec.Declares(value); err != nil {
+	if err := validateBlackboardValue(b.codec, value); err != nil {
 		return fmt.Errorf("blackboard Store(%q): %w", key, err)
 	}
 	return b.Blackboard.Store(key, value)
 }
 
 func (b *declaredBlackboard) Add(value any) error {
-	if err := b.codec.Declares(value); err != nil {
+	if err := validateBlackboardValue(b.codec, value); err != nil {
 		return fmt.Errorf("blackboard Add: %w", err)
 	}
 	return b.Blackboard.Add(value)
 }
 
 func (b *declaredBlackboard) Bind(value any) error {
-	if err := b.codec.Declares(value); err != nil {
+	if err := validateBlackboardValue(b.codec, value); err != nil {
 		return fmt.Errorf("blackboard Bind: %w", err)
 	}
 	return b.Blackboard.Bind(value)
@@ -73,7 +77,7 @@ func (b *declaredBlackboard) Bind(value any) error {
 // leave the earlier ones committed.
 func (b *declaredBlackboard) StoreAll(bindings core.Bindings) error {
 	for key, value := range bindings.All() {
-		if err := b.codec.Declares(value); err != nil {
+		if err := validateBlackboardValue(b.codec, value); err != nil {
 			return fmt.Errorf("blackboard StoreAll(%q): %w", key, err)
 		}
 	}
@@ -93,5 +97,47 @@ func (b *declaredBlackboard) Clone() (core.Blackboard, error) {
 	return declareWrites(clone, b.codec), nil
 }
 
-// Hide is not gated: a hide marker names a value the blackboard already holds
-// and never reaches a snapshot, which is why capture drops the markers.
+func (b *declaredBlackboard) Hide(target any) error {
+	if err := validateBlackboardValue(b.codec, target); err != nil {
+		return fmt.Errorf("blackboard Hide: %w", err)
+	}
+	return b.Blackboard.Hide(target)
+}
+
+func validateBlackboardValue(codec core.SnapshotCodec, value any) error {
+	_, err := codec.Encode(value)
+	return err
+}
+
+func validateBlackboardState(codec core.SnapshotCodec, state BlackboardState) error {
+	for key, value := range state.Bindings.All() {
+		if err := validateBlackboardValue(codec, value); err != nil {
+			return fmt.Errorf("blackboard state binding %q: %w", key, err)
+		}
+	}
+	for index, value := range state.Objects {
+		if err := validateBlackboardValue(codec, value); err != nil {
+			return fmt.Errorf("blackboard state objects[%d]: %w", index, err)
+		}
+	}
+	for index, value := range state.Hidden {
+		if err := validateBlackboardValue(codec, value); err != nil {
+			return fmt.Errorf("blackboard state hidden[%d]: %w", index, err)
+		}
+	}
+	return nil
+}
+
+func validateBlackboardContents(blackboard core.Blackboard, codec core.SnapshotCodec) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("blackboard %T Objects panicked", blackboard), recovered)
+		}
+	}()
+	for index, value := range blackboard.Objects() {
+		if err := validateBlackboardValue(codec, value); err != nil {
+			return fmt.Errorf("blackboard objects[%d]: %w", index, err)
+		}
+	}
+	return nil
+}

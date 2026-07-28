@@ -34,6 +34,10 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 	if err != nil {
 		return core.ProcessSnapshot{}, fmt.Errorf("encode blackboard: %w", err)
 	}
+	snapshot.Hidden, err = encodeBlackboardValues(p.agent().SnapshotCodec(), blackboardState.Hidden)
+	if err != nil {
+		return core.ProcessSnapshot{}, fmt.Errorf("encode hidden blackboard state: %w", err)
+	}
 	snapshot.Conditions = blackboardState.Conditions
 	if err := snapshot.Validate(); err != nil {
 		return core.ProcessSnapshot{}, err

@@ -23,6 +23,34 @@ func TestInMemoryBlackboardLatestByType(t *testing.T) {
 	}
 }
 
+func TestInMemoryBlackboardSnapshotPreservesVisibility(t *testing.T) {
+	blackboard := newInMemoryBlackboard()
+	fresh := item{Value: "fresh"}
+	stale := item{Value: "stale"}
+	if err := blackboard.Bind(fresh); err != nil {
+		t.Fatal(err)
+	}
+	if err := blackboard.Bind(stale); err != nil {
+		t.Fatal(err)
+	}
+	if err := blackboard.Hide(stale); err != nil {
+		t.Fatal(err)
+	}
+	state, err := blackboard.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restored := newInMemoryBlackboard()
+	if err := restored.Restore(state); err != nil {
+		t.Fatal(err)
+	}
+	value, ok := restored.Lookup(core.LastResultBindingName, "")
+	if !ok || value != fresh {
+		t.Fatalf("visible value after restore = %v/%v, want %v", value, ok, fresh)
+	}
+}
+
 // TestInMemoryBlackboardSpawnInheritsHidden guards the un-hide bug: a Clone'd
 // child inherits the parent's objects, so it must inherit the parent's hidden
 // markers too — else an object the parent deliberately hid (to stop actions

@@ -61,7 +61,7 @@ core: const ( StuckStop StuckDecision = iota StuckReplan )
 core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ActionRunConditionPrefix = "action_ran_"
-core: const ProcessSnapshotSchemaVersion uint16 = 12
+core: const ProcessSnapshotSchemaVersion uint16 = 13
 core: const UUIDGeneratorName = "uuid"
 core: func (*UUIDGenerator) Next() string
 core: func (a *Agent) Actions() []Action
@@ -257,7 +257,7 @@ core: type ProcessContextConfig struct { Process ProcessView Control ProcessCont
 core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
-core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
+core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
 core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() GoalDescriptor Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
@@ -519,7 +519,7 @@ runtime: func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) 
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
 runtime: type BlackboardSnapshotter interface { Snapshot() (BlackboardState, error) }
-runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any }
+runtime: type BlackboardState struct { Bindings core.Bindings Conditions map[string]bool Objects []any Hidden []any }
 runtime: type Config struct { Chat core.ChatCapability ChatMiddleware *core.ChatMiddleware MaxToolRounds int MaxChildDepth int Extensions []core.Extension }
 runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }

@@ -228,6 +228,9 @@ func (e *Engine) resolveBlackboard(codec core.SnapshotCodec, supplied core.Black
 	if err != nil {
 		return nil, err
 	}
+	if err := validateBlackboardContents(blackboard, codec); err != nil {
+		return nil, fmt.Errorf("validate existing blackboard state: %w", err)
+	}
 	return declareWrites(blackboard, codec), nil
 }
 
