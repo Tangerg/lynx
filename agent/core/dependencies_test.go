@@ -102,9 +102,7 @@ func TestDependenciesConcurrentLookup(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 32 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for range 100 {
 				got, err := core.LookupDependency(dependencies.Child(), key)
 				if err != nil || got != want {
@@ -112,7 +110,7 @@ func TestDependenciesConcurrentLookup(t *testing.T) {
 					return
 				}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

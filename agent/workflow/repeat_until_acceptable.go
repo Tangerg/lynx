@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -90,10 +91,7 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: MaxIterations %d must not be negative", config.MaxIterations)
 	}
-	maxIterations := config.MaxIterations
-	if maxIterations == 0 {
-		maxIterations = DefaultRepeatIterations
-	}
+	maxIterations := cmp.Or(config.MaxIterations, DefaultRepeatIterations)
 
 	acceptKey := config.Name + "_acceptable"
 	historyState := core.NewBinding[AttemptHistory[Out]](config.Name + historyStateSuffix)

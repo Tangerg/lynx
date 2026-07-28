@@ -1,6 +1,7 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"strings"
@@ -57,10 +58,7 @@ func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) 
 	if config.Cost < 0 {
 		return nil, errors.New("agent: prompt condition cost must not be negative")
 	}
-	cost := config.Cost
-	if cost == 0 {
-		cost = defaultPromptConditionCost
-	}
+	cost := cmp.Or(config.Cost, defaultPromptConditionCost)
 	return &PromptCondition{
 		name:   config.Name,
 		cost:   cost,

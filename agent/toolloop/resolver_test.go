@@ -80,7 +80,7 @@ func TestRunnerValidatesAdvertisedTools(t *testing.T) {
 		{name: "typed nil tool", request: requestWithTool, resolver: typedNilToolResolver{}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := collectRunnerEvents(runner.Run(context.Background(), test.request, test.resolver))
+			_, err := collectRunnerEvents(runner.Run(t.Context(), test.request, test.resolver))
 			if !errors.Is(err, toolloop.ErrInvalidInput) {
 				t.Fatalf("Run error = %v", err)
 			}
@@ -88,7 +88,7 @@ func TestRunnerValidatesAdvertisedTools(t *testing.T) {
 	}
 
 	requestWithoutTools := protocolRequest(t)
-	if _, err := collectRunnerEvents(runner.Run(context.Background(), requestWithoutTools, nil)); err != nil {
+	if _, err := collectRunnerEvents(runner.Run(t.Context(), requestWithoutTools, nil)); err != nil {
 		t.Fatalf("Run without tools: %v", err)
 	}
 }

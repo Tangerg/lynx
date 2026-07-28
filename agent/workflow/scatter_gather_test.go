@@ -156,13 +156,13 @@ func TestScatterGather_GeneratorsGetIsolatedContext(t *testing.T) {
 	probe := func(_ context.Context, pc *core.ProcessContext, _ sgIn) (sgElement, error) {
 		pc.Blackboard().Store("branch-write", sgElement{Score: 99})
 		pc.Blackboard().StoreCondition("branch-condition", true)
-		if status, err := pc.Suspend(context.Background(), agent.Suspension{}); status != core.ActionFailed || !errors.Is(err, core.ErrParallelBranchControl) {
+		if status, err := pc.Suspend(t.Context(), agent.Suspension{}); status != core.ActionFailed || !errors.Is(err, core.ErrParallelBranchControl) {
 			return sgElement{}, errors.New("parallel suspension was not rejected")
 		}
 		if err := pc.TerminateAgent("must stay branch-local"); !errors.Is(err, core.ErrParallelBranchControl) {
 			return sgElement{}, err
 		}
-		if _, err := pc.Interact(context.Background(), core.Interaction{}); !errors.Is(err, core.ErrParallelBranchControl) {
+		if _, err := pc.Interact(t.Context(), core.Interaction{}); !errors.Is(err, core.ErrParallelBranchControl) {
 			return sgElement{}, err
 		}
 		return sgElement{Score: 1}, nil

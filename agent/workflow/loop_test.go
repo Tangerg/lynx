@@ -23,10 +23,10 @@ type loopOut struct{ Value int }
 // makeIncrementingBody returns (body, *iterCount). Each invocation
 // increments iterCount and returns loopOut{Value: count}. The body
 // agent itself is stateless — the counter lives in the closure.
-func makeIncrementingBody() (*core.Agent, *int32) {
-	var iterCount int32
+func makeIncrementingBody() (*core.Agent, *atomic.Int32) {
+	var iterCount atomic.Int32
 	body := agent.New(agent.AgentConfig{Name: "incrementing-body", Description: "returns loopOut whose Value is the call count", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ loopIn) (loopOut, error) {
-		v := atomic.AddInt32(&iterCount, 1)
+		v := iterCount.Add(1)
 		return loopOut{Value: int(v)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[loopOut](core.GoalConfig{Description: "loopOut produced"})}})
 	return body, &iterCount
@@ -74,8 +74,8 @@ func TestLoop_LoopsUntilUntilTrue(t *testing.T) {
 	if got.Value != 4 {
 		t.Fatalf("Value = %d, want 4", got.Value)
 	}
-	if atomic.LoadInt32(iterCount) != 4 {
-		t.Fatalf("iterCount = %d, want 4", atomic.LoadInt32(iterCount))
+	if iterCount.Load() != 4 {
+		t.Fatalf("iterCount = %d, want 4", iterCount.Load())
 	}
 }
 
@@ -111,8 +111,8 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	if got.Value != 3 {
 		t.Fatalf("Value = %d, want 3 (MaxIterations cap)", got.Value)
 	}
-	if atomic.LoadInt32(iterCount) != 3 {
-		t.Fatalf("iterCount = %d, want 3 (MaxIterations cap)", atomic.LoadInt32(iterCount))
+	if iterCount.Load() != 3 {
+		t.Fatalf("iterCount = %d, want 3 (MaxIterations cap)", iterCount.Load())
 	}
 }
 

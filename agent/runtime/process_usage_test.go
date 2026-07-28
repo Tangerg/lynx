@@ -135,13 +135,11 @@ func TestConcurrentSiblingsShareModelCallAdmission(t *testing.T) {
 	results := make(chan result, len(children))
 	var group sync.WaitGroup
 	for _, child := range children {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			<-start
 			reservation, stop, err := child.budget.reserveModelCall()
 			results <- result{reservation: reservation, stop: stop, err: err}
-		}()
+		})
 	}
 	close(start)
 	group.Wait()
@@ -179,16 +177,14 @@ func TestConcurrentSiblingsShareActionAdmission(t *testing.T) {
 	results := make(chan bool, len(children))
 	var group sync.WaitGroup
 	for _, child := range children {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			<-start
 			admitted, _, err := child.budget.admitAction()
 			if err != nil {
 				t.Error(err)
 			}
 			results <- admitted
-		}()
+		})
 	}
 	close(start)
 	group.Wait()

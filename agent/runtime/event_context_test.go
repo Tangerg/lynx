@@ -149,7 +149,7 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	})
 	mustDeploy(t, engine, a)
 
-	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
+	ctx, parent := otel.Tracer("test/runtime").Start(t.Context(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
 	_, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()
@@ -182,7 +182,7 @@ func TestProcessContextSuspendKeepsActionTrace(t *testing.T) {
 	})
 	mustDeploy(t, engine, a)
 
-	ctx, parent := otel.Tracer("test/runtime").Start(context.Background(), "test-parent")
+	ctx, parent := otel.Tracer("test/runtime").Start(t.Context(), "test-parent")
 	parentTrace := parent.SpanContext().TraceID()
 	proc, err := engine.Run(ctx, a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})
 	parent.End()

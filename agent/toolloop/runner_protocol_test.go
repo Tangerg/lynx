@@ -87,7 +87,7 @@ func TestRunnerMultiRoundAndDefensiveEvents(t *testing.T) {
 	request := newRunnerRequest(t, registry)
 
 	var events []toolloop.Event
-	for event, err := range runner.Run(context.Background(), request, registry) {
+	for event, err := range runner.Run(t.Context(), request, registry) {
 		if err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -189,7 +189,7 @@ func TestRunnerTurnsOrdinaryAndUnknownToolErrorsIntoFeedback(t *testing.T) {
 		return runnerTextResponse("recovered"), nil
 	}}
 	runner := newRunner(t, model, toolloop.Config{})
-	events, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+	events, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestRunnerDirectPolicy(t *testing.T) {
 			), nil
 		}}
 		runner := newRunner(t, model, toolloop.Config{})
-		events, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+		events, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -243,7 +243,7 @@ func TestRunnerDirectPolicy(t *testing.T) {
 			return runnerTextResponse("done"), nil
 		}}
 		runner := newRunner(t, model, toolloop.Config{})
-		events, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+		events, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +286,7 @@ func TestRunnerPauseAndResumeDoesNotRepeatCompletedWork(t *testing.T) {
 		return runnerTextResponse("finished"), nil
 	}}
 	runner := newRunner(t, model, toolloop.Config{})
-	firstEvents, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+	firstEvents, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestRunnerPauseAndResumeDoesNotRepeatCompletedWork(t *testing.T) {
 	}
 
 	resume := toolloop.Resume{ID: "approve-1", Input: json.RawMessage(`"approved"`)}
-	resumedEvents, err := collectRunnerEvents(runner.Resume(context.Background(), restored.Pause.Checkpoint, registry, resume))
+	resumedEvents, err := collectRunnerEvents(runner.Resume(t.Context(), restored.Pause.Checkpoint, registry, resume))
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 				return runnerToolResponse(chat.ToolCall{ID: "stop-1", Name: "stop", Arguments: `{}`}), nil
 			}}
 			runner := newRunner(t, model, toolloop.Config{})
-			_, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+			_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 			if !errors.Is(err, test.want) {
 				t.Fatalf("Run error = %v, want errors.Is %v", err, test.want)
 			}
@@ -364,7 +364,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 		modelErr := errors.New("provider failed")
 		model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) { return nil, modelErr }}
 		runner := newRunner(t, model, toolloop.Config{})
-		_, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, nil), nil))
+		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, nil), nil))
 		if !errors.Is(err, modelErr) {
 			t.Fatalf("Run error = %v", err)
 		}
@@ -373,7 +373,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 	t.Run("nil response", func(t *testing.T) {
 		model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) { return nil, nil }}
 		runner := newRunner(t, model, toolloop.Config{})
-		_, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, nil), nil))
+		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, nil), nil))
 		if err == nil {
 			t.Fatal("Run unexpectedly succeeded")
 		}
@@ -384,7 +384,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 			return &chat.Response{Choices: []chat.Choice{{Index: -1}}}, nil
 		}}
 		runner := newRunner(t, model, toolloop.Config{})
-		_, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, nil), nil))
+		_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, nil), nil))
 		if !errors.Is(err, chat.ErrInvalidResponse) {
 			t.Fatalf("Run error = %v", err)
 		}
@@ -403,7 +403,7 @@ func TestRunnerHandlesHallucinatedToolWithoutResolver(t *testing.T) {
 		return runnerTextResponse("done"), nil
 	}}
 	runner := newRunner(t, model, toolloop.Config{})
-	if _, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, nil), nil)); err != nil {
+	if _, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, nil), nil)); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 }
@@ -418,7 +418,7 @@ func TestRunnerRoundLimitLazinessAndEarlyStop(t *testing.T) {
 		return runnerToolResponse(chat.ToolCall{ID: fmt.Sprintf("call-%d", round), Name: "again", Arguments: `{}`}), nil
 	}}
 	runner := newRunner(t, model, toolloop.Config{MaxRounds: 2})
-	sequence := runner.Run(context.Background(), newRunnerRequest(t, registry), registry)
+	sequence := runner.Run(t.Context(), newRunnerRequest(t, registry), registry)
 	if model.calls != 0 || toolCalls != 0 {
 		t.Fatal("Run was not lazy")
 	}
@@ -432,7 +432,7 @@ func TestRunnerRoundLimitLazinessAndEarlyStop(t *testing.T) {
 		return nil, nil
 	}}
 	stoppedRunner := newRunner(t, stoppedModel, toolloop.Config{})
-	stoppedRunner.Run(context.Background(), newRunnerRequest(t, nil), nil)(func(event toolloop.Event, err error) bool {
+	stoppedRunner.Run(t.Context(), newRunnerRequest(t, nil), nil)(func(event toolloop.Event, err error) bool {
 		if err != nil || event.Kind != toolloop.EventModelRequest {
 			t.Fatalf("first yield = %#v, %v", event, err)
 		}
@@ -460,7 +460,7 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 	}
 	runner := newRunner(t, validModel, toolloop.Config{})
 	var nilContext context.Context
-	canceled, cancel := context.WithCancel(context.Background())
+	canceled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := collectRunnerEvents(runner.Run(canceled, newRunnerRequest(t, nil), nil)); !errors.Is(err, context.Canceled) {
 		t.Fatalf("pre-canceled Run error = %v", err)
@@ -471,9 +471,9 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 		seq  iter.Seq2[toolloop.Event, error]
 	}{
 		{name: "nil context", seq: runner.Run(nilContext, newRunnerRequest(t, nil), nil)},
-		{name: "nil request", seq: runner.Run(context.Background(), nil, nil)},
-		{name: "invalid request", seq: runner.Run(context.Background(), &chat.Request{}, nil)},
-		{name: "zero runner", seq: (*toolloop.Runner)(nil).Run(context.Background(), newRunnerRequest(t, nil), nil)},
+		{name: "nil request", seq: runner.Run(t.Context(), nil, nil)},
+		{name: "invalid request", seq: runner.Run(t.Context(), &chat.Request{}, nil)},
+		{name: "zero runner", seq: (*toolloop.Runner)(nil).Run(t.Context(), newRunnerRequest(t, nil), nil)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := collectRunnerEvents(test.seq)
@@ -498,7 +498,7 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 		{name: "nil context", checkpoint: checkpoint, resolver: registry, resume: toolloop.Resume{ID: "approval-1"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			if test.name == "nil context" {
 				ctx = nil
 			}
@@ -514,7 +514,7 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 	// the same checkpoint, so tuning a limit never orphans parked work.
 	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentCalls: 1, MaxRounds: 9})
 	events, err := collectRunnerEvents(serialRunner.Resume(
-		context.Background(),
+		t.Context(),
 		checkpoint,
 		registry,
 		toolloop.Resume{ID: "approval-1", Input: json.RawMessage(`"approved"`)},
@@ -550,7 +550,7 @@ func TestRunnerRejectsAmbiguousToolBranches(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) { return test.response, nil }}
 			runner := newRunner(t, model, toolloop.Config{})
-			_, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, nil), nil))
+			_, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, nil), nil))
 			if !errors.Is(err, toolloop.ErrAmbiguousToolCalls) {
 				t.Fatalf("error = %v", err)
 			}

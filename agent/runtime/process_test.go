@@ -87,7 +87,7 @@ func TestRunSingleAction(t *testing.T) {
 	}
 
 	proc, err := engine.Run(
-		context.Background(), a,
+		t.Context(), a,
 		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
@@ -269,7 +269,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	}
 
 	proc, err := engine.Run(
-		context.Background(), a,
+		t.Context(), a,
 		core.Input(word{Text: "abcd"}),
 		core.ProcessOptions{},
 	)
@@ -296,7 +296,7 @@ func TestRunValidatesBeforeCreatingProcess(t *testing.T) {
 	})
 
 	engine := agent.MustNewEngine(runtime.Config{})
-	proc, err := engine.Run(context.Background(), a, core.Bindings{}, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
 	if err == nil {
 		t.Fatal("Run should reject invalid agent")
 	}
@@ -316,7 +316,7 @@ func TestRunRejectsUnknownPlannerName(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 
 	proc, err := engine.Run(
-		context.Background(), a,
+		t.Context(), a,
 		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{},
 	)
@@ -359,7 +359,7 @@ func TestRunPublishesSingleStuckEvent(t *testing.T) {
 		},
 	})
 
-	proc, err := engine.Run(context.Background(), a, core.Bindings{}, core.ProcessOptions{})
+	proc, err := engine.Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

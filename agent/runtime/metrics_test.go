@@ -41,7 +41,7 @@ func TestMetrics_RecordedDuringRun(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 
-	if _, err := engine.Run(context.Background(), a,
+	if _, err := engine.Run(t.Context(), a,
 		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{}); err != nil {
 		t.Fatalf("Run: %v", err)

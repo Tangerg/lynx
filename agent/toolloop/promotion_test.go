@@ -49,7 +49,7 @@ func TestPromoteToolsAdvertisesWithheldToolMidLoop(t *testing.T) {
 	}}
 
 	runner := newRunner(t, model, toolloop.Config{})
-	events, err := collectRunnerEvents(runner.Run(context.Background(), request, registry))
+	events, err := collectRunnerEvents(runner.Run(t.Context(), request, registry))
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestPromoteToolsRejectsUnresolvableDefinition(t *testing.T) {
 	}}
 
 	runner := newRunner(t, model, toolloop.Config{})
-	if _, err := collectRunnerEvents(runner.Run(context.Background(), request, registry)); err != nil {
+	if _, err := collectRunnerEvents(runner.Run(t.Context(), request, registry)); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 }
@@ -103,7 +103,7 @@ func TestPromoteToolsNoOpWithoutRunner(t *testing.T) {
 	out, err := newRunnerTool("t", func(ctx context.Context, _ string) (string, error) {
 		toolloop.PromoteTools(ctx, chat.ToolDefinition{Name: "x"})
 		return "ok", nil
-	}).Call(context.Background(), `{}`)
+	}).Call(t.Context(), `{}`)
 	if err != nil || out != "ok" {
 		t.Fatalf("call = (%q, %v), want (\"ok\", nil)", out, err)
 	}
@@ -297,7 +297,7 @@ func TestPromotedToolsEnterTheManifestInNameOrder(t *testing.T) {
 	}}
 
 	runner := newRunner(t, model, toolloop.Config{})
-	if _, err := collectRunnerEvents(runner.Run(context.Background(), request, registry)); err != nil {
+	if _, err := collectRunnerEvents(runner.Run(t.Context(), request, registry)); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	want := []string{"search_tools", "mcp_alpha", "mcp_beta", "mcp_gamma"}

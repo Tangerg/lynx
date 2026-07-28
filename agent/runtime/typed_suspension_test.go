@@ -36,7 +36,7 @@ func TestTypedActionSuspendsAndResumes(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	segment, err := engine.Start(ctx, gate,
 		core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {

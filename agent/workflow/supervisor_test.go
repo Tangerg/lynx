@@ -119,7 +119,7 @@ func TestSupervisor_EndToEnd(t *testing.T) {
 	}
 	mustDeploy(t, engine, supervisor)
 
-	process, err := engine.Run(context.Background(), supervisor,
+	process, err := engine.Run(t.Context(), supervisor,
 		core.Input(supTopic{Title: "go generics"}),
 		core.ProcessOptions{})
 	if err != nil {

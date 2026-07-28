@@ -7,7 +7,6 @@ import (
 	"slices"
 
 	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
@@ -98,29 +97,18 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 				branches[index] = branch
 			}
 			group, groupContext := errgroup.WithContext(ctx)
-			var slots *semaphore.Weighted
 			if maxConcurrency > 0 {
-				slots = semaphore.NewWeighted(int64(maxConcurrency))
+				group.SetLimit(maxConcurrency)
 			}
 			var schedulingErr error
 			for index, generator := range generators {
-				if slots != nil {
-					if err := slots.Acquire(groupContext, 1); err != nil {
-						schedulingErr = err
-						break
-					}
-				}
 				if err := groupContext.Err(); err != nil {
-					if slots != nil {
-						slots.Release(1)
-					}
 					schedulingErr = err
 					break
 				}
+				// Go blocks here once the limit is reached, which is the whole
+				// admission control: a branch starts only when a slot frees.
 				group.Go(func() error {
-					if slots != nil {
-						defer slots.Release(1)
-					}
 					if err := groupContext.Err(); err != nil {
 						return err
 					}

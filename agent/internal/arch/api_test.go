@@ -11,7 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -232,7 +232,7 @@ func agentExportedAPISnapshot(t *testing.T) string {
 		}
 	}
 
-	sort.Strings(entries)
+	slices.Sort(entries)
 	return "# Generated Agent exported API baseline. Review every diff; do not edit by hand.\n" +
 		"# Packages: every non-internal, non-example package in the agent module.\n" +
 		"# Regenerate: go test ./internal/arch -run TestExportedAPIMatchesBaseline -update-api\n\n" +
@@ -408,8 +408,8 @@ func agentAPIDelta(want, got string) string {
 			added = append(added, "+ "+line)
 		}
 	}
-	sort.Strings(removed)
-	sort.Strings(added)
+	slices.Sort(removed)
+	slices.Sort(added)
 	changes := append(removed, added...)
 	const limit = 80
 	if len(changes) > limit {
@@ -420,7 +420,7 @@ func agentAPIDelta(want, got string) string {
 
 func agentLineCounts(value string) map[string]int {
 	counts := make(map[string]int)
-	for _, line := range strings.Split(strings.TrimSpace(value), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(value), "\n") {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
@@ -451,6 +451,6 @@ func productionGoFiles(t *testing.T) []string {
 	}); err != nil {
 		t.Fatalf("walk Agent production files: %v", err)
 	}
-	sort.Strings(files)
+	slices.Sort(files)
 	return files
 }

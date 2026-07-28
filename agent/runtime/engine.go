@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"cmp"
 	"context"
 	"errors"
 
@@ -100,10 +101,7 @@ func New(config Config) (*Engine, error) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
 	chatMiddleware := cloneChatMiddleware(config.ChatMiddleware)
-	maxChildDepth := config.MaxChildDepth
-	if maxChildDepth == 0 {
-		maxChildDepth = DefaultMaxChildDepth
-	}
+	maxChildDepth := cmp.Or(config.MaxChildDepth, DefaultMaxChildDepth)
 
 	engine := &Engine{
 		catalog:          newDeploymentRegistry(),

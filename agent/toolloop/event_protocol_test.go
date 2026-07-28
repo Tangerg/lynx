@@ -76,7 +76,7 @@ func protocolCheckpoint(t *testing.T) *toolloop.Checkpoint {
 		return runnerToolResponse(chat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}), nil
 	}}
 	runner := newRunner(t, model, toolloop.Config{})
-	events, err := collectRunnerEvents(runner.Run(context.Background(), newRunnerRequest(t, registry), registry))
+	events, err := collectRunnerEvents(runner.Run(t.Context(), newRunnerRequest(t, registry), registry))
 	if err != nil {
 		t.Fatalf("create checkpoint: %v", err)
 	}

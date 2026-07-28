@@ -63,7 +63,7 @@ func TestUtility_AlreadySatisfiedNoActions(t *testing.T) {
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"goalKey"}})
 	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
-	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	pl, _ := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 0 {
 		t.Errorf("expected empty plan when already satisfied + no actions, got %#v", pl)
 	}
@@ -76,7 +76,7 @@ func TestUtility_OneStepLookaheadEmitsPlan(t *testing.T) {
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
-	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	pl, _ := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "a" {
 		t.Fatalf("expected 1-step plan via 'a', got %#v", pl)
 	}
@@ -89,7 +89,7 @@ func TestUtility_OneStepLookaheadInsufficientReturnsNil(t *testing.T) {
 	a := newAction("a", nil, core.ConditionSet{"step1": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
-	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	pl, _ := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl != nil {
 		t.Errorf("Utility refuses multi-step plans for real goals; got %#v", pl)
 	}
@@ -101,7 +101,7 @@ func TestUtility_ExcludedActionsSkipped(t *testing.T) {
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
-	pl, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g,
+	pl, _ := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g,
 		planning.Options{ExcludedActions: planning.NewExclusions("a")})
 	if pl != nil {
 		t.Errorf("excluded action should not be picked; got %#v", pl)
@@ -153,13 +153,13 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	domain := mustDomain(t, []core.Action{stillRunnable}, []*core.Goal{g}, nil)
 
 	// Hybrid: empty planning.
-	plH, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	plH, _ := utility.NewGoalFirst().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if plH == nil || len(plH.Actions()) != 0 {
 		t.Errorf("hybrid: want empty plan, got %#v", plH)
 	}
 
 	// Classic: picks the action.
-	plU, _ := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	plU, _ := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if plU == nil || len(plU.Actions()) != 1 {
 		t.Errorf("classic: want 1-step plan, got %#v", plU)
 	}
@@ -172,7 +172,7 @@ func TestHybridUtility_OneStepReachesGoal(t *testing.T) {
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
-	pl, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	pl, _ := utility.NewGoalFirst().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
 	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "a" {
 		t.Fatalf("expected 1-step plan via 'a', got %#v", pl)
 	}

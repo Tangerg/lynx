@@ -25,8 +25,8 @@ func TestNamedListener_NameAndOnEvent(t *testing.T) {
 
 	mc := event.NewMulticast()
 	mc.Add(listener)
-	mc.OnEvent(context.Background(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-	mc.OnEvent(context.Background(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+	mc.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+	mc.OnEvent(t.Context(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
 
 	if len(got) != 2 {
 		t.Fatalf("captured %d events, want 2: %v", len(got), got)
@@ -40,7 +40,7 @@ func TestNamedListener_NilFnIsNop(t *testing.T) {
 	listener := event.NewNamedListener("nop", nil)
 
 	// Should not panic.
-	listener.OnEvent(context.Background(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+	listener.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
 }
 
 func TestMulticastCancelListenerFunc(t *testing.T) {
@@ -117,7 +117,7 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 	var wg sync.WaitGroup
 	for range N {
 		wg.Go(func() {
-			mc.OnEvent(context.Background(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+			mc.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
 		})
 	}
 	wg.Wait()

@@ -46,7 +46,7 @@ func TestPrune_DropsUnreachableActions(t *testing.T) {
 	)
 
 	pruned, err := domain.Prune(
-		context.Background(),
+		t.Context(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
 		planning.Options{},
@@ -77,7 +77,7 @@ func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
 	)
 
 	pruned, err := domain.Prune(
-		context.Background(),
+		t.Context(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
 		planning.Options{},
@@ -102,7 +102,7 @@ func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 	domain := mustDomain(t, []core.Action{dead}, []*core.Goal{goal}, nil)
 
 	pruned, err := domain.Prune(
-		context.Background(),
+		t.Context(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
 		planning.Options{},
@@ -135,7 +135,7 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 	originalCount := len(domain.Actions())
 
 	_, err := domain.Prune(
-		context.Background(),
+		t.Context(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
 		planning.Options{},
@@ -151,7 +151,7 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 func TestPrune_NilDomainRejected(t *testing.T) {
 	var domain *planning.Domain
 	_, err := domain.Prune(
-		context.Background(),
+		t.Context(),
 		goap.NewPlanner(),
 		planning.NewState(nil),
 		planning.Options{},

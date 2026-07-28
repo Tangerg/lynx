@@ -123,8 +123,8 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		engine := agent.MustNewEngine(runtime.Config{})
 
-		var inFlight int32
-		var peak int32
+		var inFlight atomic.Int32
+		var peak atomic.Int32
 		started := make(chan struct{}, 4)
 		release := make(chan struct{})
 		released := false
@@ -135,17 +135,17 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 		}()
 		updatePeak := func(now int32) {
 			for {
-				cur := atomic.LoadInt32(&peak)
-				if now <= cur || atomic.CompareAndSwapInt32(&peak, cur, now) {
+				cur := peak.Load()
+				if now <= cur || peak.CompareAndSwap(cur, now) {
 					return
 				}
 			}
 		}
 		mkProbed := func(name string, score int) *core.Agent {
 			return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("score", func(ctx context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
-				now := atomic.AddInt32(&inFlight, 1)
+				now := inFlight.Add(1)
 				updatePeak(now)
-				defer atomic.AddInt32(&inFlight, -1)
+				defer inFlight.Add(-1)
 				started <- struct{}{}
 				select {
 				case <-release:
@@ -199,7 +199,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 		if extra := len(started); extra != 0 {
 			t.Fatalf("%d action(s) exceeded MaxConcurrency before release", extra)
 		}
-		if got := atomic.LoadInt32(&peak); got != 2 {
+		if got := peak.Load(); got != 2 {
 			t.Fatalf("peak in-flight = %d, want exactly 2", got)
 		}
 

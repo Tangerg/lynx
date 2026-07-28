@@ -78,7 +78,7 @@ func runActionToolsWithResolver(t *testing.T, role string, resolver core.ToolGro
 	engine := agent.MustNewEngine(runtime.Config{Extensions: extensions})
 	mustDeploy(t, engine, a)
 
-	if _, err := engine.Run(context.Background(), a,
+	if _, err := engine.Run(t.Context(), a,
 		core.Input(word{Text: "lynx"}),
 		core.ProcessOptions{}); err != nil {
 		t.Fatalf("Run: %v", err)

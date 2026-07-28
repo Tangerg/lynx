@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -99,10 +100,7 @@ func Loop[In, Out any](
 		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
 	}
 	bodyName := bodyDeployment.Ref().Name
-	maxIterations := config.MaxIterations
-	if maxIterations == 0 {
-		maxIterations = DefaultLoopIterations
-	}
+	maxIterations := cmp.Or(config.MaxIterations, DefaultLoopIterations)
 
 	doneKey := config.Name + "_done"
 	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
