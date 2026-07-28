@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 
@@ -454,6 +456,7 @@ func (r *Runner) mergePromotions(state *runnerState) error {
 	for _, def := range state.request.Tools {
 		advertised[def.Name] = struct{}{}
 	}
+	accepted := make([]chat.ToolDefinition, 0, len(promoted))
 	for _, def := range promoted {
 		def = def.Clone()
 		if def.Validate() != nil {
@@ -477,8 +480,17 @@ func (r *Runner) mergePromotions(state *runnerState) error {
 			continue
 		}
 		advertised[def.Name] = struct{}{}
-		state.request.Tools = append(state.request.Tools, def)
+		accepted = append(accepted, def)
 	}
+	// Promotions arrive in whatever order concurrent tools reached the sink, so
+	// ordering them by name is what keeps one execution reproducible: the same
+	// round otherwise sends the model a differently ordered toolset, which also
+	// costs a prompt-cache hit. Only the additions are ordered — the manifest the
+	// caller supplied stays as the caller arranged it.
+	slices.SortFunc(accepted, func(left, right chat.ToolDefinition) int {
+		return strings.Compare(left.Name, right.Name)
+	})
+	state.request.Tools = append(state.request.Tools, accepted...)
 	return nil
 }
 

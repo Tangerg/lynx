@@ -3,6 +3,7 @@ package toolloop_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
@@ -208,5 +209,54 @@ func TestAdvertiseSeesThroughDecorators(t *testing.T) {
 	}
 	if len(names) != 2 || names[0] != "read" || names[1] != "search_tools" {
 		t.Fatalf("manifest = %v, want the deferral honored through the decorator", names)
+	}
+}
+
+// TestPromotedToolsEnterTheManifestInNameOrder pins that arrival order does not
+// reach the model. Several tools in one round promote concurrently, so the sink
+// receives them in whatever order they win the lock; appending in that order
+// would send the same round a differently ordered toolset each run, costing
+// reproducibility and a prompt-cache hit. Advertise already orders the initial
+// manifest by name, and promotion holds to the same rule.
+func TestPromotedToolsEnterTheManifestInNameOrder(t *testing.T) {
+	withheld := make([]tools.Tool, 0, 3)
+	for _, name := range []string{"mcp_alpha", "mcp_beta", "mcp_gamma"} {
+		withheld = append(withheld, newRunnerTool(name, func(context.Context, string) (string, error) {
+			return "ok", nil
+		}))
+	}
+	// Promote in reverse order: the manifest must not reflect it.
+	search := newRunnerTool("search_tools", func(ctx context.Context, _ string) (string, error) {
+		toolloop.PromoteTools(ctx,
+			withheld[2].Definition(),
+			withheld[0].Definition(),
+			withheld[1].Definition(),
+		)
+		return "found three", nil
+	})
+	registry := newRunnerRegistry(t, append([]tools.Tool{search}, withheld...)...)
+	request := protocolRequest(t)
+	request.Tools = []chat.ToolDefinition{search.Definition()}
+
+	var round2 []string
+	model := &scriptedModel{call: func(round int, request *chat.Request) (*chat.Response, error) {
+		switch round {
+		case 1:
+			return runnerToolResponse(chat.ToolCall{ID: "c1", Name: "search_tools", Arguments: `{}`}), nil
+		case 2:
+			round2 = toolNames(request.Tools)
+			return runnerTextResponse("done"), nil
+		default:
+			return runnerTextResponse("done"), nil
+		}
+	}}
+
+	runner := newRunner(t, model, toolloop.Config{})
+	if _, err := collectRunnerEvents(runner.Run(context.Background(), request, registry)); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	want := []string{"search_tools", "mcp_alpha", "mcp_beta", "mcp_gamma"}
+	if !slices.Equal(round2, want) {
+		t.Fatalf("round 2 manifest = %v, want %v", round2, want)
 	}
 }
