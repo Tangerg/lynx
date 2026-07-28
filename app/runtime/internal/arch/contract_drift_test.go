@@ -25,24 +25,25 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
 	manifest := filepath.Join(root, "contract", "manifest.json")
 
-	committed, err := os.ReadFile(manifest)
-	if err != nil {
-		t.Fatalf("read the committed manifest: %v — run `go generate ./...`", err)
-	}
-
+	reference := filepath.Join(root, "contract", "API_REFERENCE.md")
 	regenerated := t.TempDir()
 	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen", "-out", regenerated)
 	cmd.Dir = root
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run contractgen: %v\n%s", err, out)
 	}
-	fresh, err := os.ReadFile(filepath.Join(regenerated, "manifest.json"))
-	if err != nil {
-		t.Fatalf("read the regenerated manifest: %v", err)
-	}
-
-	if !bytes.Equal(committed, fresh) {
-		t.Fatal("contract/manifest.json is stale — run `go generate ./...` and commit the result")
+	for _, artifact := range []string{manifest, reference} {
+		committed, err := os.ReadFile(artifact)
+		if err != nil {
+			t.Fatalf("read %s: %v — run `go generate ./...`", filepath.Base(artifact), err)
+		}
+		fresh, err := os.ReadFile(filepath.Join(regenerated, filepath.Base(artifact)))
+		if err != nil {
+			t.Fatalf("read the regenerated %s: %v", filepath.Base(artifact), err)
+		}
+		if !bytes.Equal(committed, fresh) {
+			t.Errorf("contract/%s is stale — run `go generate ./...` and commit the result", filepath.Base(artifact))
+		}
 	}
 }
 

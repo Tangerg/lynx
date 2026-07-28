@@ -46,13 +46,20 @@ func run(dir string) error {
 	}
 	// Indented with a trailing newline so the file is reviewable in a diff — the
 	// drift gate's output is meant to be read by a person, not just compared.
-	encoded, err := json.MarshalIndent(build(), "", "  ")
+	// Built once: both artifacts must describe the same registry snapshot, and a
+	// second build() would let them disagree if anything about it were not pure.
+	built := build()
+	encoded, err := json.MarshalIndent(built, "", "  ")
 	if err != nil {
 		return fmt.Errorf("encode manifest: %w", err)
 	}
 	encoded = append(encoded, '\n')
 	path := filepath.Join(dir, "manifest.json")
 	if err := os.WriteFile(path, encoded, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	path = filepath.Join(dir, "API_REFERENCE.md")
+	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
