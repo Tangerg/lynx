@@ -180,6 +180,11 @@ type ActionStarted struct {
 
 func (ActionStarted) Kind() Kind { return KindActionStarted }
 
+func (e ActionStarted) cloneEvent() Event {
+	e.Action = e.Action.Clone()
+	return e
+}
+
 // ActionFinished fires after an action invocation terminates. Action carries the
 // description for the same reason as [ActionStarted].
 type ActionFinished struct {
@@ -191,6 +196,11 @@ type ActionFinished struct {
 }
 
 func (ActionFinished) Kind() Kind { return KindActionFinished }
+
+func (e ActionFinished) cloneEvent() Event {
+	e.Action = e.Action.Clone()
+	return e
+}
 
 // GoalAchieved fires when the planner returns an empty plan for a non-nil goal.
 type GoalAchieved struct {

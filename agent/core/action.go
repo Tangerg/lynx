@@ -48,7 +48,11 @@ type ActionMetadata struct {
 	ClearWorkingState bool // On success, clear working state before binding output.
 }
 
-func (m ActionMetadata) clone() ActionMetadata {
+// Clone returns a copy that shares no mutable state with m: its binding slices,
+// condition maps, and tool-group list are independent. Callers that hand
+// metadata to more than one observer need this, since a value type alone still
+// shares the containers behind those fields.
+func (m ActionMetadata) Clone() ActionMetadata {
 	m.Inputs = slices.Clone(m.Inputs)
 	m.Outputs = slices.Clone(m.Outputs)
 	m.Preconditions = maps.Clone(m.Preconditions)

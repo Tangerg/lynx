@@ -115,6 +115,7 @@ core: func (g *UUIDGenerator) Name() string
 core: func (k DependencyKey[T]) Name() string
 core: func (m *ChatMiddleware) Empty() bool
 core: func (m ActionMetadata) Applicable(state ConditionSet) bool
+core: func (m ActionMetadata) Clone() ActionMetadata
 core: func (m ActionMetadata) RunCondition() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard

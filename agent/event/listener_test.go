@@ -128,3 +128,40 @@ func TestNamedListener_ConcurrentDelivery(t *testing.T) {
 		t.Fatalf("count = %d, want %d", count, N)
 	}
 }
+
+// TestMulticastIsolatesActionMetadataListeners covers the other mutable event
+// payload. ActionMetadata is a value, but its condition maps and binding slices
+// are not: without a per-delivery copy the first listener rewrites what every
+// later listener observes, and the process's own metadata with it.
+func TestMulticastIsolatesActionMetadataListeners(t *testing.T) {
+	started := event.ActionStarted{
+		Header: event.NewHeader("process-1"),
+		Action: core.ActionMetadata{
+			Name:          "publish",
+			Preconditions: core.ConditionSet{"ready": core.True},
+			ToolGroups:    []string{"coding"},
+		},
+	}
+
+	var observedCondition core.Truth
+	var observedGroup string
+	multicast := event.NewMulticast()
+	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+		metadata := value.(event.ActionStarted).Action
+		metadata.Preconditions["ready"] = core.False
+		metadata.ToolGroups[0] = "mutated"
+	}))
+	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+		metadata := value.(event.ActionStarted).Action
+		observedCondition = metadata.Preconditions["ready"]
+		observedGroup = metadata.ToolGroups[0]
+	}))
+	multicast.OnEvent(t.Context(), started)
+
+	if observedCondition != core.True || observedGroup != "coding" {
+		t.Fatalf("observed %v/%q, want the values the event was published with", observedCondition, observedGroup)
+	}
+	if started.Action.Preconditions["ready"] != core.True || started.Action.ToolGroups[0] != "coding" {
+		t.Fatalf("publishing mutated the source metadata: %+v", started.Action)
+	}
+}
