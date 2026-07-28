@@ -184,9 +184,6 @@ func sortByNetValueDesc(plans []*Plan, worldState core.WorldState) error {
 }
 
 func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
-	if p == nil {
-		return 0, nil
-	}
 	goalValue := 0.0
 	if p.goal != nil {
 		var err error

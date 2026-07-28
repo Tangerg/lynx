@@ -396,9 +396,6 @@ func (admission *resumeAdmission) apply(start bool) error {
 }
 
 func (admission *resumeAdmission) release() {
-	if admission == nil {
-		return
-	}
 	for index := len(admission.claims) - 1; index >= 0; index-- {
 		admission.claims[index].releaseCheckpoint()
 	}

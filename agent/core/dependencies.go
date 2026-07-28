@@ -103,9 +103,6 @@ func (d *Dependencies) Parent() *Dependencies {
 // Freeze makes the local scope immutable. It is idempotent and does not freeze
 // parent or child scopes.
 func (d *Dependencies) Freeze() {
-	if d == nil {
-		return
-	}
 	d.mu.Lock()
 	d.frozen = true
 	d.mu.Unlock()

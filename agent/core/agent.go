@@ -364,9 +364,6 @@ func evaluateConditionCost(condition Condition) (cost float64, err error) {
 // legitimate input-driven agents can deploy. Nil actions/goals are
 // skipped here; [Agent.Validate] reports those separately.
 func (a *Agent) goalReachabilityErrors() []error {
-	if a == nil {
-		return nil
-	}
 	producible := map[string]struct{}{}
 	for _, action := range a.config.Actions {
 		if action == nil {

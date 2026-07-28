@@ -97,22 +97,6 @@ func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver To
 	}
 }
 
-type runnerState struct {
-	request    *chat.Request
-	resolver   ToolResolver
-	round      int
-	response   *chat.Response
-	calls      []chat.ToolCall
-	callStates []CallCheckpoint
-	nextResult int
-	resume     *Resume
-	// promotions collects tools promoted mid-loop (see PromoteTools). It is
-	// drained into request.Tools before every checkpoint or continuation, so a
-	// promoted tool is advertised on the next model round and rides through a
-	// pause/resume inside the checkpoint's request.
-	promotions toolPromotions
-}
-
 func (r *Runner) startState(ctx context.Context, request *chat.Request, resolver ToolResolver) (*runnerState, error) {
 	if err := r.validateContext(ctx); err != nil {
 		return nil, err
@@ -488,25 +472,6 @@ func (r *Runner) mergePromotions(state *runnerState) error {
 	return nil
 }
 
-func (s *runnerState) startedCalls() int {
-	for index, state := range s.callStates {
-		if state.Status == CallQueued {
-			return index
-		}
-	}
-	return len(s.callStates)
-}
-
-func (s *runnerState) settled(index int, result chat.ToolResult, pending *PendingCall) {
-	if pending != nil {
-		cloned := *pending
-		s.callStates[index] = CallCheckpoint{Status: CallPaused, Pending: &cloned}
-		return
-	}
-	cloned := result
-	s.callStates[index] = CallCheckpoint{Status: CallCompleted, Result: &cloned}
-}
-
 func invokeTool(
 	ctx context.Context,
 	call chat.ToolCall,
@@ -601,44 +566,6 @@ func (r *Runner) checkpoint(state *runnerState) (*Checkpoint, error) {
 		return nil, err
 	}
 	return checkpoint, nil
-}
-
-func (s *runnerState) continuationRequest() (*chat.Request, error) {
-	choice := s.response.First()
-	if choice == nil || choice.Message == nil {
-		return nil, errors.New("toolloop: tool response has no canonical assistant message")
-	}
-	continuation, err := snapshot(s.request)
-	if err != nil {
-		return nil, fmt.Errorf("toolloop: snapshot continuation request: %w", err)
-	}
-	assistant, err := snapshot(choice.Message)
-	if err != nil {
-		return nil, fmt.Errorf("toolloop: snapshot assistant message: %w", err)
-	}
-	results, err := s.completedResults()
-	if err != nil {
-		return nil, err
-	}
-	continuation.Messages = append(continuation.Messages, *assistant, chat.NewToolMessage(results...))
-	if err := continuation.Validate(); err != nil {
-		return nil, fmt.Errorf("toolloop: continuation request: %w", err)
-	}
-	return continuation, nil
-}
-
-func (s *runnerState) completedResults() ([]chat.ToolResult, error) {
-	if len(s.callStates) != len(s.calls) {
-		return nil, errors.New("toolloop: call state count does not match response calls")
-	}
-	results := make([]chat.ToolResult, len(s.callStates))
-	for index, state := range s.callStates {
-		if state.Status != CallCompleted || state.Result == nil {
-			return nil, fmt.Errorf("toolloop: call %q has no completed result", s.calls[index].ID)
-		}
-		results[index] = *state.Result
-	}
-	return results, nil
 }
 
 func snapshot[T any](value *T) (*T, error) {

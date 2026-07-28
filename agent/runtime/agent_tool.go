@@ -77,7 +77,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 }
 
 func (t *agentTool) parentProcess(ctx context.Context) (*Process, error) {
-	if t == nil || t.engine == nil {
+	if t.engine == nil {
 		return nil, nil
 	}
 	view := core.ProcessViewFrom(ctx)
@@ -162,7 +162,7 @@ func (t *agentTool) suspendForNestedChild(
 }
 
 func (t *agentTool) abortNestedChild(ctx context.Context, child *Process) error {
-	if t == nil || t.engine == nil || child == nil {
+	if t.engine == nil || child == nil {
 		return nil
 	}
 	cleanupCtx := context.WithoutCancel(normalizeContext(ctx))

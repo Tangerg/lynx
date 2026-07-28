@@ -193,16 +193,10 @@ func (p *Process) prepareNestedSuspension(suspension interaction.Suspension) (ne
 }
 
 func (p *Process) commitNestedSuspension(checkpoint nestedChildCheckpoint) {
-	if p == nil {
-		return
-	}
 	p.nested.replacePending(checkpoint.relations)
 }
 
 func (p *Process) restoreNestedSuspension(suspension *interaction.Suspension) error {
-	if p == nil {
-		return nil
-	}
 	checkpoint, err := nestedChildrenFromSuspension(suspension)
 	if err != nil {
 		return err
@@ -219,16 +213,10 @@ func (p *Process) claimNestedChild(toolCallID, childID string) error {
 }
 
 func (p *Process) unstageNestedChild(toolCallID, childID string) bool {
-	if p == nil {
-		return false
-	}
 	return p.nested.unstage(toolCallID, childID)
 }
 
 func (p *Process) abortStagedNestedChildren(ctx context.Context) (int, error) {
-	if p == nil {
-		return 0, nil
-	}
 	childIDs := p.nested.takeStagedChildIDs()
 	if p.engine == nil {
 		return len(childIDs), nil

@@ -59,7 +59,7 @@ type Process struct {
 }
 
 func (p *Process) releaseDeployment() {
-	if p == nil || !p.deploymentRetained || p.engine == nil {
+	if !p.deploymentRetained || p.engine == nil {
 		return
 	}
 	p.engine.catalog.release(p.deployment)
@@ -100,7 +100,7 @@ func newProcess(
 }
 
 func (p *Process) agent() *core.Agent {
-	if p == nil || p.deployment == nil {
+	if p.deployment == nil {
 		return nil
 	}
 	return p.deployment.agent

@@ -269,9 +269,6 @@ func (e *Engine) discoverProcessTrees(roots []string) (*discoveredProcessTrees, 
 }
 
 func (tree *discoveredProcessTrees) wait(ctx context.Context) error {
-	if tree == nil {
-		return nil
-	}
 	var errs []error
 	for _, id := range tree.order {
 		process := tree.live[id]
@@ -290,9 +287,6 @@ func (tree *discoveredProcessTrees) wait(ctx context.Context) error {
 }
 
 func (tree *discoveredProcessTrees) claim() error {
-	if tree == nil {
-		return nil
-	}
 	processes := tree.liveProcesses()
 	if !tree.engine.processes.reserveProcesses(processes) {
 		return fmt.Errorf("reserve process tree removal: %w", ErrProcessActive)
@@ -315,7 +309,7 @@ func (tree *discoveredProcessTrees) releaseClaims() {
 }
 
 func (tree *discoveredProcessTrees) release() {
-	if tree == nil || tree.engine == nil {
+	if tree.engine == nil {
 		return
 	}
 	processes := tree.liveProcesses()
