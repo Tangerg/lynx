@@ -573,7 +573,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 14 | state key fixture | ⏸ 待编（`StateKeySpec` 已声明 recovery/scope/writer/payload 且注册期校验 recovery 是已注册方法；缺 event↔query 同形 fixture，`state.changed` 那半依赖 C） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 | invariant integration fixture | ✅ `TestEverySystemInvariantHasAnIntegrationFixture` —— 13 个 (invariant, boundary) 对逐一有跨 projection fixture，**双向链接**（索引点名 fixture，fixture 的 godoc 写明它守哪条 invariant）。补了 3 条新 fixture，纠正了审计里 1 处误判 |
-| 11 | list query fixture | ⏸ 待编（`sqlite:TestListRunning{OrdersByAdmission,SeeksPastItsAnchor,SeesOnlyWorkInProgress}` 已覆盖固定排序与 cursor seek 的一半；缺 scope/filter cursor binding 与"下一页方向"的成套 fixture） |
+| 11 | list query fixture | ⏸ 待编 —— **证据已审完**，见下「gate 11 证据审计」：5 个分页读 × 3 条腿里 4 格已有，9 格缺，另咬到一个 cursor 命名分歧 |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
 #### ✅ B3 完成（2026-07-29）：14/14 产物
@@ -812,6 +812,35 @@ validator / JSON Schema **分别验证同一批 fixture**，"同一批"要有指
   拒掉"自称终态却什么都没带"的 artifact，并断言 session 没被留下半个。
 
 gate 的两条腿都验过会响：改错 fixture 名 → "named as the fixture ... and does not exist"；漏写 godoc → 一次点出 10 条。
+
+#### ⚠️ gate 11 证据审计（2026-07-29）
+
+契约要求 list query fixture 覆盖三条腿：**固定排序**、**scope/filter cursor binding**、**下一页方向**。全仓 seek 分页
+只有一个实现（`component/keyset`：`Encode` / `Decode` / `Limit` / `PageOf`，cursor 里绑 method 名 + filter 指纹），
+消费它的分页读共 5 个：
+
+| 分页读 | cursor 身份常量 | 固定排序 | filter binding | 下一页方向 |
+|---|---|---|---|---|
+| `items.list` | `itemPageMethod` | ✅ `queries:TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor` | ✅ `queries:TestListItemPageRefusesAForeignCursor` | ✅ 同左 |
+| `runs.list` | `runPageMethod` | ✅ `sqlite:TestListRunningOrdersByAdmission` | ❌ | ✅ `sqlite:TestListRunningSeeksPastItsAnchor` |
+| open interrupts | `interruptPageMethod` | ❌ | ❌ | ❌ |
+| `sessions.list` | `viewPageMethod` | ❌ | ❌ | ❌ |
+| `schedules.list` | `listPageMethod` | ❌ | ❌ | ❌ |
+
+组件层三条腿都齐（`keyset:TestCursorFromAnotherQueryIsRejected` / `TestFilterBoundariesAreNotInterchangeable` /
+`TestPageOfSignalsMoreOnlyWhenTheOverFetchProvesIt` / `TestLimitClampsToTheReadsCeiling`），所以缺的不是机制，是
+**每个读各自接对了没有** —— 而这正是 gate 11 存在的理由：`keyset` 再对，某个读传错自己的 method 名或漏传 filter，
+它的 cursor 就会接受别处铸的 anchor，组件测试一个都看不见。
+
+**当场咬到一个命名分歧（待用户定）**：open interrupts 的 cursor 身份是 `interruptPageMethod = "interrupts.list"`，
+而已发布的方法叫 `runs.listOpenInterrupts` —— **没有任何方法叫 `interrupts.list`**。功能上不算 bug（这是内部命名空间，
+不上 wire），但它是"同一件事的第二套词汇"：cursor 的 method 绑定本该就是已发布的方法名，否则 gate 11 想核"每个读绑的是
+自己那个方法"时，得先知道有一处例外。**倾向**：改成 `runs.listOpenInterrupts`（破坏性只限于"旧 cursor 失效"，
+dev 阶段无迁移负担），并让 gate 顺手核对每个身份常量都是**注册过的方法名** —— 那条校验现在就能加，和 `StateKeySpec`
+的 `RecoveryMethod` 是同一招。
+
+**实现顺序建议**：先定 cursor 命名 → 补 9 格 fixture（每格都要有反例：拿 A 读的 cursor 喂 B 读必须被拒）→
+最后加"每个身份常量都是注册方法名"的静态校验。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 
