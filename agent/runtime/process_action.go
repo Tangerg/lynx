@@ -146,9 +146,7 @@ func (p *Process) invokeAction(ctx context.Context, action core.Action, processC
 	if action == nil {
 		return core.ActionFailed, errors.New("runtime.Process.invokeAction: action is nil")
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			status = core.ActionFailed

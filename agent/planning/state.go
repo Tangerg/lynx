@@ -13,7 +13,7 @@ import (
 // produces a new value; the receiver is never mutated. The key is
 // computed eagerly at construction so concurrent readers (parallel-tick
 // runners share a snapshot via [core.ProcessView.WorldState]) never
-// race on lazy initialisation.
+// race on lazy initialization.
 type State struct {
 	conditions core.ConditionSet
 	timestamp  time.Time

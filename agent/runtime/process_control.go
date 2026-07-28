@@ -51,9 +51,7 @@ func (p *Process) Suspension() *interaction.Suspension {
 }
 
 func (c processControl) Suspend(ctx context.Context, suspension interaction.Suspension) (core.ActionStatus, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	process := c.process
 	nested, err := process.prepareNestedSuspension(suspension)
 	if err != nil {

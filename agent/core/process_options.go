@@ -24,7 +24,7 @@ type ChildOptionsFunc func(
 // stored inside those containers must themselves remain safe for their declared
 // lifetime.
 //
-// Cross-cutting behaviour belongs on an extension registered via
+// Cross-cutting behavior belongs on an extension registered via
 // [ProcessOptions.Extensions], not on a new field here.
 type ProcessOptions struct {
 	Blackboard Blackboard

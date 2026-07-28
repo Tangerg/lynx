@@ -25,9 +25,7 @@ func newProcessTreeSequencer() *processTreeSequencer {
 }
 
 func (s *processTreeSequencer) acquire(ctx context.Context, key string) (func(), error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

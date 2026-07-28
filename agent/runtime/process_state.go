@@ -287,11 +287,14 @@ func (s *processState) beginRunLocked(fromCheckpoint bool) (bool, error) {
 
 // endRun releases the complete run boundary and returns one lock-consistent
 // status/failure pair for Segment publication.
-func (s *processState) endRun() (core.ProcessStatus, error) {
+// endRun closes the run and reports the outcome it recorded. The second result
+// is the process's own failure, not a failure to end the run, which is why
+// callers that only need the run closed discard both.
+func (s *processState) endRun() (status core.ProcessStatus, failure error) {
 	s.mu.Lock()
 	done := s.runDone
-	status := s.currentStatus
-	failure := s.runErr
+	status = s.currentStatus
+	failure = s.runErr
 	s.runPhase = runIdle
 	s.runDone = nil
 	s.mu.Unlock()
@@ -309,9 +312,7 @@ func (s *processState) waitRun(ctx context.Context) error {
 	if !active || done == nil {
 		return nil
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	select {
 	case <-done:
 		return nil

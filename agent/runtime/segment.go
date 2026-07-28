@@ -80,9 +80,7 @@ func (s *Segment) Await(ctx context.Context) (RunCompletion, error) {
 	if s == nil || s.process == nil || s.done == nil {
 		return RunCompletion{}, errors.New("runtime.Segment.Await: invalid segment")
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = normalizeContext(ctx)
 	select {
 	case <-s.done:
 		return s.completion, nil

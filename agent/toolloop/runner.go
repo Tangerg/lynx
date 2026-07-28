@@ -346,6 +346,8 @@ func (r *Runner) runSegment(
 			return err
 		})
 	}
+	// The group's error is only the first branch to fail; per-call attribution
+	// comes from outcomes below, so joining is all Wait is needed for.
 	_ = group.Wait()
 
 	if err := ctx.Err(); err != nil {
