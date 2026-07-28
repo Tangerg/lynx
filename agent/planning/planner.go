@@ -141,7 +141,7 @@ func (d *Domain) Plans(
 	case state == nil:
 		return nil, errors.New("planning.Domain.Plans: world state is nil")
 	}
-	plannerName, err := safePlannerName(planner)
+	hosted, err := hostPlanner(planner)
 	if err != nil {
 		return nil, fmt.Errorf("planning.Domain.Plans: %w", err)
 	}
@@ -151,16 +151,16 @@ func (d *Domain) Plans(
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		plan, err := planToGoal(ctx, planner, plannerName, state, d, goal, options)
+		plan, err := hosted.planToGoal(ctx, state, d, goal, options)
 		if err != nil {
-			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", plannerName, goal.Name(), err)
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", hosted.name, goal.Name(), err)
 		}
 		if plan == nil {
 			continue
 		}
 		accepted, err := d.acceptPlan(plan, goal, state, options)
 		if err != nil {
-			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", plannerName, goal.Name(), err)
+			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", hosted.name, goal.Name(), err)
 		}
 		plans = append(plans, accepted)
 	}
@@ -170,19 +170,32 @@ func (d *Domain) Plans(
 	return plans, nil
 }
 
-func safePlannerName(planner Planner) (name string, err error) {
+// hostedPlanner is one host-supplied planner the domain calls across the trust
+// boundary. Both questions below run code the framework does not own, so each
+// answer arrives as an error rather than a panic.
+//
+// Planner and name travel together because [Planner.PlanToGoal] promises errors
+// attributed to the planner, and the name that attribution needs is itself an
+// answer the planner had to be asked for. Pairing them makes that promise
+// structural instead of something every caller has to remember to thread.
+type hostedPlanner struct {
+	planner Planner
+	name    string
+}
+
+// hostPlanner asks planner for its name and pairs the two.
+func hostPlanner(planner Planner) (hosted hostedPlanner, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
+			hosted = hostedPlanner{}
 			err = panicerr.New(fmt.Sprintf("planner %T Name panicked", planner), recovered)
 		}
 	}()
-	return planner.Name(), nil
+	return hostedPlanner{planner: planner, name: planner.Name()}, nil
 }
 
-func planToGoal(
+func (p hostedPlanner) planToGoal(
 	ctx context.Context,
-	planner Planner,
-	plannerName string,
 	state core.WorldState,
 	domain *Domain,
 	goal *core.Goal,
@@ -190,10 +203,11 @@ func planToGoal(
 ) (plan *Plan, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("planner %q PlanToGoal panicked", plannerName), recovered)
+			plan = nil
+			err = panicerr.New(fmt.Sprintf("planner %q PlanToGoal panicked", p.name), recovered)
 		}
 	}()
-	return planner.PlanToGoal(ctx, state, domain, goal, options)
+	return p.planner.PlanToGoal(ctx, state, domain, goal, options)
 }
 
 func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, options Options) (*Plan, error) {
