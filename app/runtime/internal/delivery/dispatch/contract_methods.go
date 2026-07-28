@@ -1,5 +1,12 @@
 package dispatch
 
+// The machine-readable projection of everything registered here is generated,
+// never hand-written; CI reruns this and fails on a worktree diff, which is the
+// only mechanism that notices when the code and the published contract disagree
+// (contract §11.4 gate 1).
+//
+//go:generate go run github.com/Tangerg/lynx/app/runtime/cmd/contractgen -out ../../../contract
+
 import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 
 // contract is the runtime's method surface. It is built once, at package init,

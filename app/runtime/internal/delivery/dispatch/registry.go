@@ -178,3 +178,12 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 	}
 	return method.handle(d, ctx, msg)
 }
+
+// Contract exposes the registered method surface to build-time tooling. The
+// generator reads it instead of a hand-kept list, which is what makes "the
+// artifacts match the dispatcher" true by construction rather than by review.
+func Contract() *Registry { return contract }
+
+// WireShapes exposes the registered union / constraint / state-key contract to
+// build-time tooling.
+func WireShapes() *Shapes { return shapes }

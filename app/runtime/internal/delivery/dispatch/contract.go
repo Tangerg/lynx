@@ -188,3 +188,21 @@ func (m MethodMeta) validate() error {
 	}
 	return nil
 }
+
+func (p IdempotencyPolicy) String() string {
+	switch p {
+	case IdempotencyReplayResponse:
+		return "replayResponse"
+	case IdempotencyReplayRunStream:
+		return "replayRunStream"
+	default:
+		return "none"
+	}
+}
+
+func (o ConditionOperator) String() string {
+	if o == OperatorEquals {
+		return "equals"
+	}
+	return "present"
+}
