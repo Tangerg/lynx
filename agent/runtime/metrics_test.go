@@ -14,18 +14,14 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-var (
-	runtimeMetricOnce   sync.Once
-	runtimeMetricReader *sdkmetric.ManualReader
-)
-
-func installRuntimeMetricCapture() *sdkmetric.ManualReader {
-	runtimeMetricOnce.Do(func() {
-		runtimeMetricReader = sdkmetric.NewManualReader()
-		otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(runtimeMetricReader)))
-	})
-	return runtimeMetricReader
-}
+// installRuntimeMetricCapture installs the process-wide meter provider once.
+// The OTel global can only be set once per process, so every test in this
+// package reads the same reader.
+var installRuntimeMetricCapture = sync.OnceValue(func() *sdkmetric.ManualReader {
+	reader := sdkmetric.NewManualReader()
+	otel.SetMeterProvider(sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader)))
+	return reader
+})
 
 // TestMetrics_RecordedDuringRun uses the package's process-lifetime
 // MeterProvider and confirms the runtime emitted the tick / action / plan /

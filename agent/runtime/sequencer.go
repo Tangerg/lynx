@@ -91,10 +91,7 @@ func (s *processTreeSequencer) cancelWaiter(key string, gate *sequenceGate, targ
 }
 
 func (s *processTreeSequencer) releaseFunc(key string, gate *sequenceGate) func() {
-	var once sync.Once
-	return func() {
-		once.Do(func() { s.release(key, gate) })
-	}
+	return sync.OnceFunc(func() { s.release(key, gate) })
 }
 
 func (s *processTreeSequencer) release(key string, gate *sequenceGate) {

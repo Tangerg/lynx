@@ -417,8 +417,8 @@ func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 	if !errors.Is(err, ErrDeploymentConflict) {
 		t.Fatalf("Deploy error = %v, want ErrDeploymentConflict", err)
 	}
-	var conflict *DeploymentConflictError
-	if !errors.As(err, &conflict) {
+	conflict, ok := errors.AsType[*DeploymentConflictError](err)
+	if !ok {
 		t.Fatalf("Deploy error = %T, want DeploymentConflictError", err)
 	}
 	if conflict.Active != firstDeployment.Ref() || conflict.Candidate == firstDeployment.Ref() {

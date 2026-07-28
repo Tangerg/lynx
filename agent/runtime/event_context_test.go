@@ -18,21 +18,21 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-var (
-	runtimeTraceExporter *tracetest.InMemoryExporter
-	runtimeTraceOnce     sync.Once
-)
+// runtimeTraceExporter installs the process-wide tracer provider once. The OTel
+// global can only be set once per process, so every test in this package shares
+// one exporter and resets it around itself.
+var runtimeTraceExporter = sync.OnceValue(func() *tracetest.InMemoryExporter {
+	exporter := tracetest.NewInMemoryExporter()
+	otel.SetTracerProvider(sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter)))
+	return exporter
+})
 
 func installRuntimeTraceCapture(t *testing.T) *tracetest.InMemoryExporter {
 	t.Helper()
-	runtimeTraceOnce.Do(func() {
-		runtimeTraceExporter = tracetest.NewInMemoryExporter()
-		provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(runtimeTraceExporter))
-		otel.SetTracerProvider(provider)
-	})
-	runtimeTraceExporter.Reset()
-	t.Cleanup(func() { runtimeTraceExporter.Reset() })
-	return runtimeTraceExporter
+	exporter := runtimeTraceExporter()
+	exporter.Reset()
+	t.Cleanup(func() { exporter.Reset() })
+	return exporter
 }
 
 type readyPanicListener struct {

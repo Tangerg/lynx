@@ -28,7 +28,7 @@ type suspensionCheckpoint struct {
 	SchemaVersion  uint16                   `json:"schema_version"`
 	Kind           suspensionCheckpointKind `json:"kind"`
 	Owner          string                   `json:"owner,omitempty"`
-	Deployment     core.DeploymentRef       `json:"deployment,omitempty"`
+	Deployment     core.DeploymentRef       `json:"deployment,omitzero"`
 	Checkpoint     *toolloop.Checkpoint     `json:"checkpoint,omitempty"`
 	NestedChildren []*nestedChildRelation   `json:"nested_children,omitempty"`
 }
