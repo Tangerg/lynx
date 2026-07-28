@@ -9,8 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
 // TestGeneratedContractHasNoDrift is contract §11.4 gate 1: rerun the generator
@@ -125,6 +128,61 @@ func TestRequestConstraintsStayPure(t *testing.T) {
 		}
 		if fn.Type.Params != nil && len(fn.Type.Params.List) != 0 {
 			t.Errorf("%s.Validate takes parameters; a shape constraint reads only its own value", exprString(fn.Recv.List[0].Type))
+		}
+	}
+}
+
+// TestProtocolVersionAgreesEverywhere is contract §11.4 gate 12: the generated
+// manifest, the canonical docs and the code state one protocol version.
+//
+// This is the drift A1 had to fix by hand, machine-enforced. C16 flips the version
+// in ONE place — the constant — and this gate then names every document still
+// claiming the old one, instead of a reader discovering the mismatch later from a
+// client that negotiated against a stale header.
+func TestProtocolVersionAgreesEverywhere(t *testing.T) {
+	root := moduleRoot(t)
+
+	var manifest struct {
+		Protocol struct {
+			Current      string `json:"current"`
+			MinSupported string `json:"minSupported"`
+		} `json:"protocol"`
+	}
+	raw, err := os.ReadFile(filepath.Join(root, "contract", "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	if manifest.Protocol.Current != protocol.ProtocolVersion {
+		t.Errorf("manifest protocol %q != code %q", manifest.Protocol.Current, protocol.ProtocolVersion)
+	}
+	if manifest.Protocol.MinSupported != protocol.MinProtocolVersion {
+		t.Errorf("manifest minSupported %q != code %q", manifest.Protocol.MinSupported, protocol.MinProtocolVersion)
+	}
+
+	// The canonical docs each state the version in their own header. Any version
+	// literal they carry must be one the code actually serves; a doc naming a
+	// version the runtime would reject is worse than no doc, because a client
+	// negotiates against it.
+	dateLiteral := regexp.MustCompile(`\b20\d\d-\d\d-\d\d\b`)
+	for _, name := range []string{"API.md", "AUX_API.md", "TRANSPORT.md"} {
+		path := filepath.Join(root, "..", "desktop", "docs", "protocol", name)
+		text, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		found := false
+		for _, match := range dateLiteral.FindAllString(string(text), -1) {
+			if !protocol.SupportsProtocolVersion(match) {
+				t.Errorf("%s names protocol version %q, which this build does not serve", name, match)
+				continue
+			}
+			found = true
+		}
+		if !found {
+			t.Errorf("%s states no protocol version; a canonical doc must say which one it describes", name)
 		}
 	}
 }

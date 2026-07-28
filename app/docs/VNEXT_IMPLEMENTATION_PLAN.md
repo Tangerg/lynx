@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | `c83d041f3` + `01a4c7c`（**9/14** + drift gate） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 4 项已落，5 项待 B3 余量，3 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 5 项已落，5 项待 B3 余量，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -564,6 +564,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 3 | capability rules 三方等价 | ⚠️ 部分：gate 读 discovery 自己的输出（构造上等价，`ba6a301db`）；SDK preflight 侧待 B3 的 client stubs |
 | 5 | 所有 closed union 有 discriminator + 完整 variant | ✅ `7e7a9ec12`（注册期反射校验，含"字段无变体认领"） |
 | 7 | DTO validator 无 store/dispatcher/executor 依赖 | ✅ `fff51823d`（禁 internal import + 禁 Validate 带参数） |
+| 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 / 6 / 9 / 10 / 14 | OpenRPC·Schema 可解析 / 三方约束等价 / TS 可编译 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余下 6 类产物 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
