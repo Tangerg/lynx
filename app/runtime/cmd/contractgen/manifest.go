@@ -27,6 +27,7 @@ type manifest struct {
 	Unions           []unionEntry           `json:"unions"`
 	Constraints      []constraintEntry      `json:"objectConstraints"`
 	SystemInvariants []invariantEntry       `json:"systemInvariants"`
+	CanonicalSamples []sampleEntry          `json:"canonicalSamples"`
 }
 
 type methodEntry struct {
@@ -142,6 +143,7 @@ func build(walked *schemaSet) manifest {
 		Unions:           unions(shapes),
 		Constraints:      constraints(shapes),
 		SystemInvariants: invariants(),
+		CanonicalSamples: canonicalSamples(),
 	}
 }
 

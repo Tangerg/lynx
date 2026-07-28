@@ -10,4 +10,5 @@ src/lib/shiki.ts
 # prettier's.
 src/rpc/wire.generated.ts
 src/rpc/wire.methods.generated.ts
+src/rpc/wire.samples.generated.ts
 src/rpc/wire.validate.generated.ts

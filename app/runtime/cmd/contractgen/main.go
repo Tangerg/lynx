@@ -79,12 +79,14 @@ func run(dir, validatorDir, tsDir string) error {
 	if tsDir == "" {
 		return nil
 	}
-	// The client's three halves: the shapes it may hold, the checks that say an
-	// arriving frame really is one of them, and the method surface that carries them.
+	// What the client needs to hold the protocol: the shapes, the checks that say an
+	// arriving frame really is one of them, the method surface that carries them, and
+	// which hand-written fixture proves which shape.
 	for _, artifact := range []struct{ name, content string }{
 		{tsFileName, newTypeScript(walked, built.Notifications)},
 		{tsValidatorFileName, newWireChecks(walked)},
 		{tsMethodsFileName, newWireMethods(registry, walked)},
+		{tsSamplesFileName, newWireSamples()},
 	} {
 		path = filepath.Join(tsDir, artifact.name)
 		if err := os.WriteFile(path, []byte(artifact.content), 0o644); err != nil {

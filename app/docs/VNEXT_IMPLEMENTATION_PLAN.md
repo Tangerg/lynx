@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 9 项已落，2 项待 sample 合家，2 项待编，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 11 项已落，1 项部分，2 项待编，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -569,7 +569,8 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
 | 9 | TS types / validators / client stubs 可编译 | ✅ 三类全生成且前端 `npm run check` 全绿（typecheck + oxlint + prettier + 175 test file + knip + 8 个结构脚本 + bundle 预算）。**knip 是这条的真门禁**：它拒绝"生成了但没人读"的导出，所以每一类产物都必须当场接上消费者——`WIRE_STREAM_METHODS` / `WireEvent` 因此被删（无 reader，要时再生成），`WIRE_CAPABILITY_POLICY` 与 preflight 同批落 |
 | 6 | 三方约束等价 | ✅ **三方全落**：`TestValueConstraintsAgreeAcrossArtifacts` 回读三份产物 —— 一份声明喂三个独立 emitter（Go 发 `required(...)`、schema 发 `minLength`、TS 发 `minLength(1)`；嵌套路径在后两者里走第四条 allOf 代码路径），构造**不**保证一致，只有回读才保证。TS 侧还按 shape 切块回读（不是全文 grep），所以"规则落在别的 shape 上"也会被点名 |
-| 10 / 14 | canonical samples 三方 / state key fixture | ⏸ 待 sample 合家（三个 validator 都在了，缺的是**一份** file↔shape 映射：Go 的 `wireSamples` 与 TS 的 `wire<T>(…)` 现在各写一遍） |
+| 10 | canonical samples 三方 | ✅ **真三方**：binding 收成一份（`protocol/canonical_samples.go`，非测试代码，生成器投影进 manifest 与 `wire.samples.generated.ts`），84 个 fixture 各过三关 —— Go round-trip / TS 编译出的 checks / **ajv 读已发布的 `contract/schema.json`**。第三关不可省：前两关都从同一棵 schema 树派生，编译器里的 bug 会让它们互相认同；只有一个没参与生产的实现能回答"第三方拿到的那份文档接受运行时真发的帧吗"。三关各带反例（缺 required / variant 串字段），否则 84 个合法样本对"什么都接受"的 schema 也全过 |
+| 14 | state key fixture | ⏸ 待编（`StateKeySpec` 已声明 recovery/scope/writer/payload 且注册期校验 recovery 是已注册方法；缺 event↔query 同形 fixture，`state.changed` 那半依赖 C） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
