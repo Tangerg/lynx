@@ -6,7 +6,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -29,7 +28,6 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 					Description: "inspect auth",
 					Prompt:      "Find where auth failures are handled.",
 					Reply:       "auth failures are handled in middleware",
-					Replied:     true,
 				}, true
 			}
 			return agentexec.SubagentProjection{}, false
@@ -117,21 +115,6 @@ func TestSubagentLifecycleExistsOnlyForRelevantHooks(t *testing.T) {
 	if lifecycle := newSubagentLifecycle("session", "/work", subagent, nil); lifecycle == nil {
 		t.Fatal("did not install a subtree listener for subagent hooks")
 	}
-}
-
-type testTaskInput struct {
-	Description string
-	Prompt      string
-}
-
-func (in testTaskInput) SubagentDescription() string { return in.Description }
-
-func (in testTaskInput) SubagentPrompt() string { return in.Prompt }
-
-func namedBinding(name string, value any) core.Bindings {
-	var bindings core.Bindings
-	bindings.Set(name, value)
-	return bindings
 }
 
 func TestSummarizeHookText_KeepsUTF8Boundary(t *testing.T) {

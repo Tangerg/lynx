@@ -49,7 +49,6 @@ type SubagentProjection struct {
 	Description string
 	Prompt      string
 	Reply       string
-	Replied     bool
 }
 
 // SubagentProjection reads a delegated process directly rather than off an
@@ -77,7 +76,7 @@ func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool)
 	}
 	// A delegated agent's goal produces the reply text itself, so the reply is
 	// the last string it bound — not an arbitrary trailing object.
-	projection.Reply, projection.Replied = core.Last[string](blackboard)
+	projection.Reply, _ = core.Last[string](blackboard)
 	return projection, true
 }
 

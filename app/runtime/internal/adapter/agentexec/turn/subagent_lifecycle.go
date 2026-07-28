@@ -2,7 +2,6 @@ package turn
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -165,21 +164,6 @@ func subagentStopReason(status hooks.SubagentStatus) string {
 		return "subagent became stuck"
 	default:
 		return "subagent stopped"
-	}
-}
-
-func summarizeHookValue(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return summarizeHookText(x)
-	default:
-		b, err := json.Marshal(x)
-		if err != nil {
-			return summarizeHookText(fmt.Sprint(x))
-		}
-		return summarizeHookText(string(b))
 	}
 }
 
