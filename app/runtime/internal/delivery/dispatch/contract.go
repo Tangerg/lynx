@@ -3,6 +3,7 @@ package dispatch
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -117,6 +118,17 @@ type MethodMeta struct {
 	CapabilityRules []CapabilityRule
 
 	Stability protocol.Stability
+
+	// Params, Result and Event are the Go types of the method's wire frames, filled
+	// in by the registration factory from its own type parameters — the one place
+	// that knows them without a second declaration to keep in step.
+	//
+	// They exist for the schema walker: an artifact generator needs the type graph,
+	// not just the names. Result is nil for an ack-only method (its success carries
+	// no data) and Event is nil for a unary one.
+	Params reflect.Type
+	Result reflect.Type
+	Event  reflect.Type
 }
 
 // Features returns every feature key this method's rules can require, in
@@ -172,6 +184,12 @@ func (m MethodMeta) validate() error {
 	}
 	if m.Kind == KindUnary && m.Idempotency == IdempotencyReplayRunStream {
 		return fmt.Errorf("%s: only a run-opening stream can replay by re-attaching", m.Name)
+	}
+	if m.Params == nil {
+		return fmt.Errorf("%s: params type is required — a method with no schema cannot be published", m.Name)
+	}
+	if (m.Kind == KindStream) != (m.Event != nil) {
+		return fmt.Errorf("%s: a stream declares its event type and only a stream has one", m.Name)
 	}
 	for _, rule := range m.CapabilityRules {
 		if len(rule.Requires) == 0 {

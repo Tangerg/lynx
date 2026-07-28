@@ -1,0 +1,3530 @@
+{
+  "openrpc": "1.3.2",
+  "info": {
+    "title": "Lyra Runtime Protocol",
+    "version": "2026-07-19",
+    "description": "Generated from the Contract Registry. Shapes live in schema.json; this document is the method surface."
+  },
+  "methods": [
+    {
+      "name": "runtime.discover",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/DiscoverResponse"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "sessions.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfSession"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "sessions.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Session"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.create",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Session"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CreateSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "expectedRevision",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "favorite",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Session"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32019,
+          "message": "revision_conflict"
+        },
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "relocate"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "cwd",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "relocate"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UpdateSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.delete",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/DeleteSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.fork",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "fromRunId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Session"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ForkSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.rollback",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "toRunId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "restoreType",
+          "schema": {
+            "$ref": "schema.json#/$defs/RestoreType"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/RollbackSessionResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        },
+        {
+          "code": -32018,
+          "message": "session_busy"
+        },
+        {
+          "code": -32009,
+          "message": "checkpoint_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "checkpoints"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "restoreType",
+              "operator": "equals",
+              "value": "files"
+            }
+          ],
+          "requires": [
+            "checkpoints"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "restoreType",
+              "operator": "equals",
+              "value": "both"
+            }
+          ],
+          "requires": [
+            "checkpoints"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/RollbackSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.export",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "format",
+          "schema": {
+            "$ref": "schema.json#/$defs/ExportFormat"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ExportSessionResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "sessionExport"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "sessionExport"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ExportSessionRequest"
+      }
+    },
+    {
+      "name": "sessions.import",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "artifact",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/SessionArtifact"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ImportSessionResponse"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "sessionExport"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "sessionExport"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ImportSessionRequest"
+      }
+    },
+    {
+      "name": "runs.start",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "input",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/ContentBlock"
+            }
+          }
+        },
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "maxSteps",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "maxBudgetUsd",
+          "schema": {
+            "type": "number"
+          }
+        },
+        {
+          "name": "params",
+          "schema": {
+            "$ref": "schema.json#/$defs/GenerationParams"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/StartRunResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        },
+        {
+          "code": -32018,
+          "message": "session_busy"
+        },
+        {
+          "code": -32011,
+          "message": "unsupported_mime"
+        }
+      ],
+      "x-lyra-kind": "stream",
+      "x-lyra-idempotency": "replayRunStream",
+      "x-lyra-stability": "stable",
+      "x-lyra-streamEvent": {
+        "$ref": "schema.json#/$defs/RunEvent"
+      },
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/StartRunRequest"
+      }
+    },
+    {
+      "name": "runs.resume",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "responses",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/InterruptResponse"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/StartRunResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        },
+        {
+          "code": -32014,
+          "message": "interrupt_not_open"
+        }
+      ],
+      "x-lyra-kind": "stream",
+      "x-lyra-idempotency": "replayRunStream",
+      "x-lyra-stability": "stable",
+      "x-lyra-streamEvent": {
+        "$ref": "schema.json#/$defs/RunEvent"
+      },
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ResumeRunRequest"
+      }
+    },
+    {
+      "name": "runs.subscribe",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/StartRunResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        }
+      ],
+      "x-lyra-kind": "stream",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-streamEvent": {
+        "$ref": "schema.json#/$defs/RunEvent"
+      },
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SubscribeRunRequest"
+      }
+    },
+    {
+      "name": "runs.cancel",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "reason",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        },
+        {
+          "code": -32008,
+          "message": "run_already_finished"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CancelRunRequest"
+      }
+    },
+    {
+      "name": "runs.steer",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "runId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "message",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32003,
+          "message": "run_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SteerRunRequest"
+      }
+    },
+    {
+      "name": "runs.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfRunRef"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListRunsRequest"
+      }
+    },
+    {
+      "name": "runs.listOpenInterrupts",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfOpenInterrupt"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListOpenInterruptsRequest"
+      }
+    },
+    {
+      "name": "items.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ListItemsResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListItemsRequest"
+      }
+    },
+    {
+      "name": "workspace.listFileChanges",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfWorkspaceFileChange"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32017,
+          "message": "vcs_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+      }
+    },
+    {
+      "name": "workspace.getDiff",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "mode",
+          "schema": {
+            "$ref": "schema.json#/$defs/DiffMode"
+          }
+        },
+        {
+          "name": "format",
+          "schema": {
+            "$ref": "schema.json#/$defs/DiffFormat"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Diff"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32017,
+          "message": "vcs_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetDiffRequest"
+      }
+    },
+    {
+      "name": "workspace.getFileHead",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "lines",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/FileHead"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetFileHeadRequest"
+      }
+    },
+    {
+      "name": "workspace.grep",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/GrepResult"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GrepRequest"
+      }
+    },
+    {
+      "name": "workspace.listFiles",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "glob",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "recursive",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "includeIgnored",
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfFileEntry"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListFilesRequest"
+      }
+    },
+    {
+      "name": "workspace.readFile",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "startLine",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "endLine",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "maxBytes",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/FileContent"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ReadFileRequest"
+      }
+    },
+    {
+      "name": "workspace.listProjects",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfProject"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "workspace.subscribe",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "watches",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "schema.json#/$defs/WatchSpec"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/WorkspaceSubscribeResponse"
+        }
+      },
+      "x-lyra-kind": "stream",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "fileWatch"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "when": [
+            {
+              "field": "watches",
+              "operator": "present"
+            }
+          ],
+          "requires": [
+            "fileWatch"
+          ]
+        }
+      ],
+      "x-lyra-streamEvent": {
+        "$ref": "schema.json#/$defs/WorkspaceEvent"
+      },
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceSubscribeRequest"
+      }
+    },
+    {
+      "name": "skills.discovered.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfSkill"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+      }
+    },
+    {
+      "name": "skills.library.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfManagedSkill"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "skills.library.archive",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SkillNameRequest"
+      }
+    },
+    {
+      "name": "skills.library.restore",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SkillNameRequest"
+      }
+    },
+    {
+      "name": "skills.drafts.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfSkillDraft"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "skills.drafts.promote",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "revision",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SkillDraftRef"
+      }
+    },
+    {
+      "name": "skills.drafts.reject",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "revision",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "skills"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "skills"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SkillDraftRef"
+      }
+    },
+    {
+      "name": "recipes.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfRecipe"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+      }
+    },
+    {
+      "name": "agentDocs.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfAgentDoc"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+      }
+    },
+    {
+      "name": "mcp.servers.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfMcpServer"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "mcp.tools.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "server",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfMcpTool"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPListToolsRequest"
+      }
+    },
+    {
+      "name": "mcp.servers.reconnect",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "server",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.servers.authorize",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "server",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/MCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.configs.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfMcpServerConfig"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "mcp.configs.configure",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/McpTransport"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "url",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "authorization",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "headers",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "command",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "args",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "dir",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "timeoutSeconds",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "disabledTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "autoApproveTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpServerConfig"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ConfigureMCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.configs.remove",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/RemoveMCPServerRequest"
+      }
+    },
+    {
+      "name": "mcp.configs.setEnabled",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SetMCPEnabledRequest"
+      }
+    },
+    {
+      "name": "mcp.configs.test",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/McpTransport"
+          }
+        },
+        {
+          "name": "enabled",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        },
+        {
+          "name": "description",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "url",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "authorization",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "headers",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "command",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "args",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "env",
+          "schema": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "dir",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "timeoutSeconds",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "disabledTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "name": "autoApproveTools",
+          "schema": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/McpTestResult"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "mcp"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "mcp"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ConfigureMCPServerRequest"
+      }
+    },
+    {
+      "name": "hooks.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/HooksListResult"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListHooksRequest"
+      }
+    },
+    {
+      "name": "hooks.setTrust",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "projectRoot",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "trusted",
+          "required": true,
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SetHookTrustRequest"
+      }
+    },
+    {
+      "name": "approval.getMode",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ApprovalModeResult"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "approval.setMode",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "mode",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/ApprovalMode"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ApprovalModeResult"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SetApprovalModeRequest"
+      }
+    },
+    {
+      "name": "approval.listRules",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ListApprovalRulesResult"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListApprovalRulesRequest"
+      }
+    },
+    {
+      "name": "approval.forgetRule",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ForgetApprovalRuleRequest"
+      }
+    },
+    {
+      "name": "schedules.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfSchedule"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "schedules"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "schedules"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "schedules.create",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "prompt",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cron",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Schedule"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "schedules"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "schedules"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CreateScheduleRequest"
+      }
+    },
+    {
+      "name": "schedules.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "expectedRevision",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        {
+          "name": "title",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "prompt",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "cron",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "enabled",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Schedule"
+        }
+      },
+      "errors": [
+        {
+          "code": -32019,
+          "message": "revision_conflict"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "schedules"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "schedules"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UpdateScheduleRequest"
+      }
+    },
+    {
+      "name": "schedules.delete",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "schedules"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "schedules"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/DeleteScheduleRequest"
+      }
+    },
+    {
+      "name": "schedules.runNow",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/RunScheduleNowResponse"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "schedules"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "schedules"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/RunScheduleNowRequest"
+      }
+    },
+    {
+      "name": "goals.start",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "objective",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "budget",
+          "schema": {
+            "$ref": "schema.json#/$defs/GoalBudget"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Goal"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/StartGoalRequest"
+      }
+    },
+    {
+      "name": "goals.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Goal"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GoalRequest"
+      }
+    },
+    {
+      "name": "goals.stop",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Goal"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GoalRequest"
+      }
+    },
+    {
+      "name": "goals.resume",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Goal"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "goals"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "goals"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GoalRequest"
+      }
+    },
+    {
+      "name": "codebase.search",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "query",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/CodebaseSearchResult"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "codebase"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "codebase"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CodebaseSearchRequest"
+      }
+    },
+    {
+      "name": "codebase.status",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/CodebaseStatus"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "codebase"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "codebase"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CodebaseStatusRequest"
+      }
+    },
+    {
+      "name": "codebase.reindex",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/CodebaseReindexResponse"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "codebase"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "codebase"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/CodebaseReindexRequest"
+      }
+    },
+    {
+      "name": "providers.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfProvider"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "providers.configure",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "baseUrl",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "apiKey",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Provider"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ConfigureProviderRequest"
+      }
+    },
+    {
+      "name": "providers.test",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "provider",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/ProviderTestResult"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/TestProviderRequest"
+      }
+    },
+    {
+      "name": "models.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfModel"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/ListModelsRequest"
+      }
+    },
+    {
+      "name": "models.getUtilityRole",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/UtilityRole"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "models.setUtilityRole",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/UtilityRole"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UtilityRole"
+      }
+    },
+    {
+      "name": "models.getEmbeddingRole",
+      "paramStructure": "by-name",
+      "params": [],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/EmbeddingRole"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "type": "object"
+      }
+    },
+    {
+      "name": "models.setEmbeddingRole",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "provider",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/EmbeddingRole"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/EmbeddingRole"
+      }
+    },
+    {
+      "name": "tools.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfToolSpec"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/PageQuery"
+      }
+    },
+    {
+      "name": "tools.invoke",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "name",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "arguments",
+          "required": true,
+          "schema": {
+            "type": "object",
+            "additionalProperties": {}
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {}
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        },
+        {
+          "code": -32013,
+          "message": "path_outside_root"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/InvokeToolRequest"
+      }
+    },
+    {
+      "name": "usage.session",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/Usage"
+        }
+      },
+      "errors": [
+        {
+          "code": -32002,
+          "message": "session_not_found"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/SessionUsageRequest"
+      }
+    },
+    {
+      "name": "usage.summary",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sinceDays",
+          "schema": {
+            "type": "integer"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/UsageSummary"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UsageSummaryRequest"
+      }
+    },
+    {
+      "name": "memory.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "limit",
+          "schema": {
+            "type": "integer"
+          }
+        },
+        {
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/PageOfMemoryEntry"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "memory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "memory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/WorkspaceListQuery"
+      }
+    },
+    {
+      "name": "memory.get",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "scope",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/MemoryScope"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/MemoryEntry"
+        }
+      },
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "memory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "memory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/GetMemoryRequest"
+      }
+    },
+    {
+      "name": "memory.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "scope",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/MemoryScope"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "content",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "errors": [
+        {
+          "code": -32005,
+          "message": "cwd_unavailable"
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "memory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "memory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/UpdateMemoryRequest"
+      }
+    },
+    {
+      "name": "agentMemory.list",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "scope",
+          "schema": {
+            "$ref": "schema.json#/$defs/AgentMemoryScope"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/AgentMemoryList"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "agentMemory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "agentMemory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/AgentMemoryListRequest"
+      }
+    },
+    {
+      "name": "agentMemory.review",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "decision",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/AgentMemoryReviewDecision"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "agentMemory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "agentMemory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/AgentMemoryReviewRequest"
+      }
+    },
+    {
+      "name": "agentMemory.update",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "content",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "pinned",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/AgentMemoryItem"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "agentMemory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "agentMemory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/AgentMemoryUpdateRequest"
+      }
+    },
+    {
+      "name": "agentMemory.delete",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "agentMemory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "agentMemory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/AgentMemoryItemRequest"
+      }
+    },
+    {
+      "name": "agentMemory.add",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "scope",
+          "schema": {
+            "$ref": "schema.json#/$defs/AgentMemoryScope"
+          }
+        },
+        {
+          "name": "cwd",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "content",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "result": {
+        "name": "result",
+        "schema": {
+          "$ref": "schema.json#/$defs/AgentMemoryItem"
+        }
+      },
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "none",
+      "x-lyra-stability": "stable",
+      "x-lyra-features": [
+        "agentMemory"
+      ],
+      "x-lyra-capabilityRules": [
+        {
+          "requires": [
+            "agentMemory"
+          ]
+        }
+      ],
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/AgentMemoryAddRequest"
+      }
+    },
+    {
+      "name": "feedback.create",
+      "paramStructure": "by-name",
+      "params": [
+        {
+          "name": "sessionId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "runId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "itemId",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "rating",
+          "schema": {
+            "$ref": "schema.json#/$defs/FeedbackRating"
+          }
+        },
+        {
+          "name": "text",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "x-lyra-kind": "unary",
+      "x-lyra-idempotency": "replayResponse",
+      "x-lyra-stability": "stable",
+      "x-lyra-requestFrame": {
+        "$ref": "schema.json#/$defs/FeedbackRequest"
+      }
+    }
+  ]
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"iter"
+	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
@@ -96,6 +97,8 @@ func Unary[Params, Result any](
 	call func(*Dispatcher, context.Context, Params) (Result, error),
 ) {
 	meta.Kind = KindUnary
+	meta.Params = reflect.TypeFor[Params]()
+	meta.Result = reflect.TypeFor[Result]()
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
@@ -117,6 +120,7 @@ func UnaryAck[Params any](
 	call func(*Dispatcher, context.Context, Params) error,
 ) {
 	meta.Kind = KindUnary
+	meta.Params = reflect.TypeFor[Params]()
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
@@ -142,6 +146,9 @@ func Stream[Params, Ack, Event any](
 	framer func(context.Context) func(Event) (StreamFrame, bool),
 ) {
 	meta.Kind = KindStream
+	meta.Params = reflect.TypeFor[Params]()
+	meta.Result = reflect.TypeFor[Ack]()
+	meta.Event = reflect.TypeFor[Event]()
 	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {

@@ -127,7 +127,7 @@ func (u UnionSpec) validate() error {
 	if u.Discriminator != "type" {
 		return fmt.Errorf("%s: discriminator is %q — API.md §2.1 fixes it at \"type\"", name, u.Discriminator)
 	}
-	if err := hasJSONField(u.GoType, u.Discriminator); err != nil {
+	if err := protocol.HasWirePath(u.GoType, u.Discriminator); err != nil {
 		return fmt.Errorf("%s: %w", name, err)
 	}
 	if len(u.Variants) == 0 {
@@ -144,7 +144,7 @@ func (u UnionSpec) validate() error {
 		}
 		tags[variant.Tag] = true
 		for _, field := range slices.Concat(variant.Required, variant.Optional) {
-			if err := hasJSONField(u.GoType, field); err != nil {
+			if err := protocol.HasWirePath(u.GoType, field); err != nil {
 				return fmt.Errorf("%s variant %q: %w", name, variant.Tag, err)
 			}
 			// A nested declaration accounts for the frame that holds it: claiming
@@ -157,7 +157,7 @@ func (u UnionSpec) validate() error {
 	}
 	// The drift that actually happens: a field is added to the struct and no
 	// variant claims it, so the generated schema would allow it under every tag.
-	for _, field := range jsonFields(u.GoType) {
+	for _, field := range protocol.WireFieldNames(u.GoType) {
 		if !slices.Contains(accounted, field) {
 			return fmt.Errorf("%s: field %q belongs to no variant — every field of a closed union must name its tag", name, field)
 		}
@@ -178,12 +178,12 @@ func (o ObjectConstraintSpec) validate() error {
 			return fmt.Errorf("%s rule %d: states neither a required nor a forbidden field", name, index)
 		}
 		for _, condition := range rule.When {
-			if err := hasJSONField(o.GoType, condition.Field); err != nil {
+			if err := protocol.HasWirePath(o.GoType, condition.Field); err != nil {
 				return fmt.Errorf("%s rule %d condition: %w", name, index, err)
 			}
 		}
 		for _, field := range slices.Concat(rule.Required, rule.Forbidden) {
-			if err := hasJSONField(o.GoType, field); err != nil {
+			if err := protocol.HasWirePath(o.GoType, field); err != nil {
 				return fmt.Errorf("%s rule %d: %w", name, index, err)
 			}
 		}
@@ -210,88 +210,4 @@ func (k StateKeySpec) validate() error {
 		return fmt.Errorf("state key %q: recovery method %q is not a registered method", k.Key, k.RecoveryMethod)
 	}
 	return nil
-}
-
-// hasJSONField reports whether a dotted JSON path addresses a real field.
-func hasJSONField(root reflect.Type, path string) error {
-	current := root
-	for _, segment := range strings.Split(path, ".") {
-		field, ok := lookupJSONField(current, segment)
-		if !ok {
-			return fmt.Errorf("no JSON field %q on %s", segment, current.Name())
-		}
-		current = deref(field)
-	}
-	return nil
-}
-
-func lookupJSONField(owner reflect.Type, jsonName string) (reflect.Type, bool) {
-	if owner.Kind() != reflect.Struct {
-		return nil, false
-	}
-	for index := range owner.NumField() {
-		field := owner.Field(index)
-		name, embedded := jsonNameOf(field)
-		if embedded {
-			// An embedded struct inlines its fields onto the same JSON object, so a
-			// path segment may address one of them.
-			if inner, ok := lookupJSONField(deref(field.Type), jsonName); ok {
-				return inner, true
-			}
-			continue
-		}
-		if name == jsonName {
-			return field.Type, true
-		}
-	}
-	return nil, false
-}
-
-// jsonFields lists every JSON field name a struct marshals, following embedded
-// structs the way encoding/json inlines them.
-func jsonFields(owner reflect.Type) []string {
-	var out []string
-	for index := range owner.NumField() {
-		field := owner.Field(index)
-		name, embedded := jsonNameOf(field)
-		if embedded {
-			out = append(out, jsonFields(deref(field.Type))...)
-			continue
-		}
-		if name != "" {
-			out = append(out, name)
-		}
-	}
-	return out
-}
-
-// jsonNameOf returns a field's wire name, or embedded=true when the field is an
-// anonymous struct whose fields are inlined. A "-" tag or an unexported field
-// yields "" — it is not on the wire, so no variant needs to claim it.
-func jsonNameOf(field reflect.StructField) (name string, embedded bool) {
-	tag, tagged := field.Tag.Lookup("json")
-	if field.Anonymous && (!tagged || tag == "") {
-		return "", true
-	}
-	if !field.IsExported() {
-		return "", false
-	}
-	if !tagged {
-		return field.Name, false
-	}
-	name = strings.Split(tag, ",")[0]
-	if name == "-" {
-		return "", false
-	}
-	if name == "" {
-		return field.Name, false
-	}
-	return name, false
-}
-
-func deref(t reflect.Type) reflect.Type {
-	for t.Kind() == reflect.Pointer || t.Kind() == reflect.Slice {
-		t = t.Elem()
-	}
-	return t
 }

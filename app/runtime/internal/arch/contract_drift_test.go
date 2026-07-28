@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -26,28 +27,67 @@ import (
 // Without it, "generated" degrades into "generated once".
 func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
-	manifest := filepath.Join(root, "contract", "manifest.json")
+	regenerated := regenerateContract(t, root)
 
-	reference := filepath.Join(root, "contract", "API_REFERENCE.md")
-	regenerated := t.TempDir()
-	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen", "-out", regenerated)
+	fresh := artifactNames(t, regenerated)
+	committed := artifactNames(t, filepath.Join(root, "contract"))
+	for _, name := range fresh {
+		if !slices.Contains(committed, name) {
+			t.Errorf("the generator writes %s and the tree has no copy — run `go generate ./...` and commit it", name)
+		}
+	}
+	for _, name := range committed {
+		if !slices.Contains(fresh, name) {
+			t.Errorf("contract/%s is no longer generated — delete it rather than leaving an artifact nothing authors", name)
+		}
+	}
+	for _, name := range fresh {
+		if !slices.Contains(committed, name) {
+			continue
+		}
+		if !bytes.Equal(readArtifact(t, regenerated, name), readArtifact(t, filepath.Join(root, "contract"), name)) {
+			t.Errorf("contract/%s is stale — run `go generate ./...` and commit the result", name)
+		}
+	}
+}
+
+func regenerateContract(t *testing.T, root string) string {
+	t.Helper()
+
+	out := t.TempDir()
+	cmd := exec.Command("go", "run", "github.com/Tangerg/lynx/app/runtime/cmd/contractgen", "-out", out)
 	cmd.Dir = root
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("run contractgen: %v\n%s", err, out)
+	if combined, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("run contractgen: %v\n%s", err, combined)
 	}
-	for _, artifact := range []string{manifest, reference} {
-		committed, err := os.ReadFile(artifact)
-		if err != nil {
-			t.Fatalf("read %s: %v — run `go generate ./...`", filepath.Base(artifact), err)
-		}
-		fresh, err := os.ReadFile(filepath.Join(regenerated, filepath.Base(artifact)))
-		if err != nil {
-			t.Fatalf("read the regenerated %s: %v", filepath.Base(artifact), err)
-		}
-		if !bytes.Equal(committed, fresh) {
-			t.Errorf("contract/%s is stale — run `go generate ./...` and commit the result", filepath.Base(artifact))
+	return out
+}
+
+func artifactNames(t *testing.T, dir string) []string {
+	t.Helper()
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s: %v", dir, err)
+	}
+	var out []string
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			out = append(out, entry.Name())
 		}
 	}
+	slices.Sort(out)
+	return out
+}
+
+func readArtifact(t *testing.T, dir, name string) []byte {
+	t.Helper()
+
+	content, err := os.ReadFile(filepath.Join(dir, name))
+	if err != nil {
+		t.Fatalf("read %s: %v", filepath.Join(dir, name), err)
+	}
+	return content
 }
 
 // TestGeneratedContractIsSubstantive stops the drift gate from passing
@@ -184,5 +224,157 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 		if !found {
 			t.Errorf("%s states no protocol version; a canonical doc must say which one it describes", name)
 		}
+	}
+}
+
+// TestGeneratedSchemasResolve is contract §11.4 gate 4: the OpenRPC document and
+// the JSON Schema bundle parse, and every reference in them lands on a definition
+// that exists.
+//
+// A dangling reference is the failure mode that matters here, because it is
+// invisible to the drift gate: a stale generator produces a self-consistent pair
+// of files and byte-compares clean forever. What it cannot survive is being
+// resolved. The check is written here rather than delegated to a validator library
+// so it holds on a machine with no network and no vendored schema tooling.
+func TestGeneratedSchemasResolve(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "contract")
+
+	var bundle struct {
+		Schema string                     `json:"$schema"`
+		Defs   map[string]json.RawMessage `json:"$defs"`
+	}
+	if err := json.Unmarshal(readArtifact(t, dir, "schema.json"), &bundle); err != nil {
+		t.Fatalf("decode schema.json: %v", err)
+	}
+	if bundle.Schema == "" {
+		t.Error("schema.json states no dialect; a schema whose dialect is a guess is not a contract")
+	}
+	if len(bundle.Defs) == 0 {
+		t.Fatal("schema.json defines no types")
+	}
+
+	// Inside the bundle a reference is document-local; from the method document it
+	// carries the bundle's file name, because the shapes have exactly one home.
+	referenced := make(map[string]bool)
+	for _, document := range []struct {
+		name   string
+		prefix string
+	}{
+		{"schema.json", "#/$defs/"},
+		{"openrpc.json", "schema.json#/$defs/"},
+	} {
+		var decoded any
+		if err := json.Unmarshal(readArtifact(t, dir, document.name), &decoded); err != nil {
+			t.Fatalf("decode %s: %v", document.name, err)
+		}
+		refs := collectRefs(decoded)
+		if len(refs) == 0 {
+			t.Errorf("%s references no shapes at all", document.name)
+		}
+		for _, ref := range refs {
+			target, ok := strings.CutPrefix(ref, document.prefix)
+			if !ok {
+				t.Errorf("%s references %q, which does not point into the shape bundle", document.name, ref)
+				continue
+			}
+			if _, ok := bundle.Defs[target]; !ok {
+				t.Errorf("%s references %q, which schema.json does not define", document.name, ref)
+				continue
+			}
+			referenced[target] = true
+		}
+	}
+
+	// A definition nothing points at describes a frame no method can carry — either
+	// a spec registered against an unreachable type, or a shape that outlived its
+	// method.
+	for name := range bundle.Defs {
+		if !referenced[name] {
+			t.Errorf("schema.json defines %q and nothing references it", name)
+		}
+	}
+}
+
+// TestOpenRPCDescribesEveryMethod pins the method document to the registry: the
+// two artifacts are generated from one source, so a gap here means a method was
+// projected into one artifact and not the other.
+func TestOpenRPCDescribesEveryMethod(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "contract")
+
+	var document struct {
+		OpenRPC string `json:"openrpc"`
+		Info    struct {
+			Version string `json:"version"`
+		} `json:"info"`
+		Methods []struct {
+			Name           string `json:"name"`
+			ParamStructure string `json:"paramStructure"`
+			Kind           string `json:"x-lyra-kind"`
+			Stability      string `json:"x-lyra-stability"`
+		} `json:"methods"`
+	}
+	if err := json.Unmarshal(readArtifact(t, dir, "openrpc.json"), &document); err != nil {
+		t.Fatalf("decode openrpc.json: %v", err)
+	}
+	if document.OpenRPC == "" {
+		t.Error("openrpc.json states no spec version")
+	}
+	if document.Info.Version != protocol.ProtocolVersion {
+		t.Errorf("openrpc.json is version %q, the code serves %q", document.Info.Version, protocol.ProtocolVersion)
+	}
+
+	var manifest struct {
+		Methods []struct {
+			Name      string `json:"name"`
+			Kind      string `json:"kind"`
+			Stability string `json:"stability"`
+		} `json:"methods"`
+	}
+	if err := json.Unmarshal(readArtifact(t, dir, "manifest.json"), &manifest); err != nil {
+		t.Fatalf("decode manifest.json: %v", err)
+	}
+	if len(document.Methods) != len(manifest.Methods) {
+		t.Fatalf("openrpc.json has %d methods, the manifest has %d", len(document.Methods), len(manifest.Methods))
+	}
+	for index, method := range manifest.Methods {
+		described := document.Methods[index]
+		switch {
+		case described.Name != method.Name:
+			t.Errorf("method %d: openrpc says %q, the manifest says %q", index, described.Name, method.Name)
+		case described.Kind != method.Kind:
+			t.Errorf("%s: openrpc says %q, the manifest says %q", method.Name, described.Kind, method.Kind)
+		case described.Stability != method.Stability:
+			t.Errorf("%s: openrpc says %q, the manifest says %q", method.Name, described.Stability, method.Stability)
+		case described.ParamStructure != "by-name":
+			t.Errorf("%s: params are %q; the wire passes one object keyed by field name", method.Name, described.ParamStructure)
+		}
+	}
+}
+
+// collectRefs walks decoded JSON and returns every $ref value it finds.
+func collectRefs(node any) []string {
+	switch typed := node.(type) {
+	case map[string]any:
+		var out []string
+		for key, value := range typed {
+			if key == "$ref" {
+				if ref, ok := value.(string); ok {
+					out = append(out, ref)
+				}
+				continue
+			}
+			out = append(out, collectRefs(value)...)
+		}
+		return out
+	case []any:
+		var out []string
+		for _, value := range typed {
+			out = append(out, collectRefs(value)...)
+		}
+		return out
+	default:
+		return nil
 	}
 }

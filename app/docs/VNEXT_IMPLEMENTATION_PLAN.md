@@ -552,10 +552,10 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 |---|---|---|---|
 | B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `DONE` | 见下 |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `DONE` | 见下 |
-| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | `c83d041f3` + `01a4c7c`（**9/14** + drift gate） |
+| B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**11/14** + drift gate + gate 4） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 5 项已落，5 项待 B3 余量，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落，4 项待 B3 余量，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -566,11 +566,12 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 7 | DTO validator 无 store/dispatcher/executor 依赖 | ✅ `fff51823d`（禁 internal import + 禁 Validate 带参数） |
 | 12 | protocol manifest / canonical 文档 / 代码 三方版本一致 | ✅ `TestProtocolVersionAgreesEverywhere` —— C16 只改一处常量，这条会点名每份还写着旧版本的文档 |
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
-| 4 / 6 / 9 / 10 / 14 | OpenRPC·Schema 可解析 / 三方约束等价 / TS 可编译 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余下 6 类产物 |
+| 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
+| 6 / 9 / 10 / 14 | 三方约束等价 / TS 可编译 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余下 3 类产物 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
-#### ⚠️ B3 进度与交接（2026-07-29）：8/14 产物 + drift gate 已落，余 6 类需 schema walker
+#### ⚠️ B3 进度与交接（2026-07-29）：11/14 产物 + drift gate + gate 4 已落，余 3 类
 
 **已落地**（`cmd/contractgen` → `app/runtime/contract/manifest.json`，38KB，`go:generate` 挂在
 `internal/delivery/dispatch/contract_methods.go`）：
@@ -595,19 +596,48 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 **drift gate 已落**（§11.4 gate 1）：`internal/arch/contract_drift_test.go` 重跑生成器并比 worktree；配一条
 `TestGeneratedContractIsSubstantive` 防止空 manifest 让 gate 空转通过。
 
-**余下 5 类都依赖一个反射 schema walker**（这是它们与上面 8 类的本质区别：上面是投影，下面要把 Go 类型走成 JSON Schema）：
-OpenRPC · JSON Schema bundle · TypeScript wire types · authoritative/terminal validators ·
-method constants + typed client stubs。
+**schema walker 已落地**（`cmd/contractgen/schema.go`）—— 第 10、11 类产物随之落地：
+
+| # | 产物 | 落点 |
+|---|---|---|
+| 10 | **JSON Schema bundle** | `contract/schema.json`，232 个定义、171 个内部 `$ref` 全解析 |
+| 11 | **OpenRPC** | `contract/openrpc.json`，83 方法；shape **不复制**，全部 `schema.json#/$defs/X` 外部引用 |
+
+**walker 的分工原则**：反射看得见的（字段名、`omitempty` 决定的可选性、嵌套、泛型实例化）走反射；反射看不见的
+（discriminator、variant 字段表、presence rule、enum 值集）走已注册的 spec。**两半都不猜对方的活**。
+
+三条实施决定：
+
+1. **不发 `additionalProperties: false`。** Go decoder 忽略未知字段，所以闭合 schema 会拒掉 runtime 接受的帧 ——
+   *比代码严*和*比代码松*一样是说谎，且严的那种直接打断所有前向兼容客户端。variant 排他靠 `properties: {x: false}`
+   （boolean schema）表达，不靠关闭对象。
+2. **enum 值集必须声明**（新 `protocol/wire_enums.go`，51 个 wire enum）。反射能看到字段类型是 `RunStatus`，永远看不到
+   `RunStatus` 只有两个值 —— const block 不可运行时枚举。表**引用常量、不复写字面量**（值改名只有一处），并由
+   `TestWireEnumsAreComplete` 用 AST 读回常量比对。**这不违反 §11.2 的「AST 只可读取 godoc」**：读 AST 的是**测试**，
+   产物管道读的是声明；测试只证明"声明就是全部真相"。没有这张表，每个 enum 在 schema/TS 里都是裸 `string` ——
+   一份允许 runtime 会拒的帧的已发布契约。
+3. **`encoding/json` 语义收成一处**（新 `protocol/wire_fields.go`：`WireFields` / `WireFieldNames` / `LookupWireField` /
+   `HasWirePath` / `Deref`）。dispatch 的注册期校验、schema walker、待做的 TS emitter 与 validator generator 需要同一个
+   答案；三四份私有 copy 就是三四次对"wire 到底长什么样"产生分歧的机会。`contract_shape.go` 的四个私有 helper 已删。
+
+**当场咬到一个真错**：`external()`（把 walk 出来的引用重指向 bundle）原先只改顶层 `Ref`，于是 `[]ContentBlock` 这类
+**嵌套在数组里的引用**留在了 openrpc.json 里指向自己（3 处 dangling）。改成深拷贝重写 —— 拷贝而非就地改，是为了
+两份文档相互独立：渲染一份永远不可能在另一份里留下本地引用。gate 4 的解析器正是为抓这类错写的。
+
+**余 3 类**：TypeScript wire types · authoritative/terminal validators · method constants + typed client stubs。
 
 **接手须知（避免重新推导）**：
-- Registry 已有 `Contract()` / `WireShapes()` 两个导出口；`MethodMeta` 目前**不带** `reflect.Type` —— B1 刻意没加
-  （按 `feedback_yagni_speculative_headroom`：无消费者时不留字段）。schema walker 落地时在 `Unary`/`UnaryAck`/`Stream`
-  三个工厂里加 `reflect.TypeFor[Params]()` 等三行即可，这正是它们存在的时机。
-- union 的 `Required`/`Optional` 支持 dotted path（`payload.tool`），walker 生成 `if/then` 时要按同样规则解析嵌套 frame；
-  `contract_shape.go` 的 `hasJSONField` / `jsonFields` 已实现 embedded 内联的遍历，直接复用。
+- `MethodMeta` 现带 `Params` / `Result` / `Event` 三个 `reflect.Type`（工厂填，`Result` 对 ack-only 方法为 nil、
+  `Event` 只有 stream 有，`validate()` 已钉住这两条）。TS emitter 与 client stub 直接读它。
+- `schemaSet` 的 defs 是 `map[string]*schema`（encoder 自带 key 排序 → diff 稳定）。刻意**没有**保留"首次到达顺序"
+  —— TS emitter 要稳定顺序就对 map key 排序，别为它先留字段。
+- **request 的值约束（非空串 / 正整数）目前只在手写 `request_constraints.go` 里，schema 侧没有对应的
+  `minLength` / `minimum`** —— 这是 gate 6（三方约束等价）真正的缺口，也是 validator 那一类产物必须先解决的根：
+  约束要**声明一次**，Go/TS/schema 三方都从声明生成。**不要**先在 walker 里猜"required string ⇒ minLength 1"
+  （有合法的可空必填串），也不要保留手写 Go + 另写一份声明（两个源）。
 - **canonical samples 必须保持人工编写**（§11.3）—— 生成器只做 sample 索引与缺口检查，禁止生成 fixture 再用同源
   schema 自证。现有 `delivery/protocol/wire_golden_test.go` 的样本是起点。
-- `server.capabilitiesFor` 的 `StreamingMethods` 仍手写 4 项，等这批生成物给出共读常量后收口（见 B1 记录末段）。
+- `server.capabilitiesFor` 的 `StreamingMethods` 仍手写 4 项，等 method constants 那一类产物给出共读常量后收口。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 

@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -44,22 +45,40 @@ func run(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create %s: %w", dir, err)
 	}
-	// Indented with a trailing newline so the file is reviewable in a diff — the
-	// drift gate's output is meant to be read by a person, not just compared.
-	// Built once: both artifacts must describe the same registry snapshot, and a
-	// second build() would let them disagree if anything about it were not pure.
+	// Built once: every artifact must describe the same registry snapshot, and a
+	// second build would let them disagree if anything about it were not pure.
 	built := build()
-	encoded, err := json.MarshalIndent(built, "", "  ")
-	if err != nil {
-		return fmt.Errorf("encode manifest: %w", err)
+	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
+	walked := walkWireTypes(registry, shapes)
+
+	for _, artifact := range []struct {
+		name    string
+		content any
+	}{
+		{"manifest.json", built},
+		{"schema.json", newBundle(walked)},
+		{"openrpc.json", newOpenRPC(registry, walked)},
+	} {
+		if err := writeJSON(filepath.Join(dir, artifact.name), artifact.content); err != nil {
+			return err
+		}
 	}
-	encoded = append(encoded, '\n')
-	path := filepath.Join(dir, "manifest.json")
-	if err := os.WriteFile(path, encoded, 0o644); err != nil {
+	path := filepath.Join(dir, "API_REFERENCE.md")
+	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	path = filepath.Join(dir, "API_REFERENCE.md")
-	if err := os.WriteFile(path, []byte(reference(built)), 0o644); err != nil {
+	return nil
+}
+
+// writeJSON writes an artifact indented with a trailing newline, so a reviewer
+// reads a diff rather than one long line — the drift gate's output is meant to be
+// read by a person, not just compared.
+func writeJSON(path string, content any) error {
+	encoded, err := json.MarshalIndent(content, "", "  ")
+	if err != nil {
+		return fmt.Errorf("encode %s: %w", filepath.Base(path), err)
+	}
+	if err := os.WriteFile(path, append(encoded, '\n'), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
 	return nil
