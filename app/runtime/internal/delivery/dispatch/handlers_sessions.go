@@ -23,9 +23,6 @@ func (d *Dispatcher) handleSessionsGet(ctx context.Context, msg *transport.Reque
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
 	sess, gErr := d.api.GetSession(ctx, in.SessionID)
 	return reply(msg, sess, gErr)
 }
@@ -44,12 +41,6 @@ func (d *Dispatcher) handleSessionsUpdate(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
-	if in.ExpectedRevision == 0 {
-		return responseError(msg.ID, invalidParams("expectedRevision must be greater than zero"))
-	}
 	sess, err := d.api.UpdateSession(ctx, in)
 	return reply(msg, sess, err)
 }
@@ -59,9 +50,6 @@ func (d *Dispatcher) handleSessionsDelete(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
 	return replyDone(msg, d.api.DeleteSession(ctx, in.SessionID))
 }
 
@@ -69,9 +57,6 @@ func (d *Dispatcher) handleSessionsFork(ctx context.Context, msg *transport.Requ
 	in, bad := decode[protocol.ForkSessionRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	sess, err := d.api.ForkSession(ctx, in)
 	return reply(msg, sess, err)
@@ -82,9 +67,6 @@ func (d *Dispatcher) handleSessionsRollback(ctx context.Context, msg *transport.
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
 	out, err := d.api.RollbackSession(ctx, in)
 	return reply(msg, out, err)
 }
@@ -94,9 +76,6 @@ func (d *Dispatcher) handleSessionsExport(ctx context.Context, msg *transport.Re
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
 	out, err := d.api.ExportSession(ctx, in)
 	return reply(msg, out, err)
 }
@@ -105,9 +84,6 @@ func (d *Dispatcher) handleSessionsImport(ctx context.Context, msg *transport.Re
 	in, bad := decode[protocol.ImportSessionRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Artifact.Session.ID == "" {
-		return responseError(msg.ID, invalidParams("artifact.session.id is required"))
 	}
 	out, err := d.api.ImportSession(ctx, in)
 	return reply(msg, out, err)
@@ -119,9 +95,6 @@ func (d *Dispatcher) handleItemsList(ctx context.Context, msg *transport.Request
 	in, bad := decode[protocol.ListItemsRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	out, err := d.api.ListItems(ctx, in)
 	return reply(msg, out, err)

@@ -23,9 +23,6 @@ func (d *Dispatcher) handleProvidersConfigure(ctx context.Context, msg *transpor
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Provider == "" {
-		return responseError(msg.ID, invalidParams("provider is required"))
-	}
 	out, err := d.api.ConfigureProvider(ctx, in)
 	return reply(msg, out, err)
 }
@@ -34,9 +31,6 @@ func (d *Dispatcher) handleProvidersTest(ctx context.Context, msg *transport.Req
 	in, bad := decode[protocol.TestProviderRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Provider == "" {
-		return responseError(msg.ID, invalidParams("provider is required"))
 	}
 	out, tErr := d.api.TestProvider(ctx, in.Provider)
 	return reply(msg, out, tErr)
@@ -99,9 +93,6 @@ func (d *Dispatcher) handleToolsInvoke(ctx context.Context, msg *transport.Reque
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
-	}
 	out, err := d.api.InvokeTool(ctx, in)
 	return reply(msg, out, err)
 }
@@ -112,9 +103,6 @@ func (d *Dispatcher) handleUsageSession(ctx context.Context, msg *transport.Requ
 	in, bad := decode[protocol.SessionUsageRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	out, uErr := d.api.SessionUsage(ctx, in.SessionID)
 	return reply(msg, out, uErr)

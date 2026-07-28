@@ -17,12 +17,6 @@ func (d *Dispatcher) handleGoalsStart(ctx context.Context, msg *transport.Reques
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
-	if in.Objective == "" {
-		return responseError(msg.ID, invalidParams("objective is required"))
-	}
 	out, err := d.api.StartGoal(ctx, in)
 	return reply(msg, out, err)
 }
@@ -31,9 +25,6 @@ func (d *Dispatcher) handleGoalsGet(ctx context.Context, msg *transport.Request)
 	in, bad := decode[protocol.GoalRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	out, err := d.api.GetGoal(ctx, in)
 	return reply(msg, out, err)
@@ -44,9 +35,6 @@ func (d *Dispatcher) handleGoalsStop(ctx context.Context, msg *transport.Request
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
-	}
 	out, err := d.api.StopGoal(ctx, in)
 	return reply(msg, out, err)
 }
@@ -55,9 +43,6 @@ func (d *Dispatcher) handleGoalsResume(ctx context.Context, msg *transport.Reque
 	in, bad := decode[protocol.GoalRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.SessionID == "" {
-		return responseError(msg.ID, invalidParams("sessionId is required"))
 	}
 	out, err := d.api.ResumeGoal(ctx, in)
 	return reply(msg, out, err)

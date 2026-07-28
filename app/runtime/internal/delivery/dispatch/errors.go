@@ -72,12 +72,13 @@ func problemError(code int, typ, detail string) *transport.Error {
 	return problemErrorWithSpec(rpcErrorSpec{code: code}, typ, detail)
 }
 
-func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string) *transport.Error {
+func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string, fields ...protocol.FieldError) *transport.Error {
 	// channel "rpc": every numeric-coded error is a synchronous JSON-RPC
 	// error response (API.md §8.1 channel a).
 	data, _ := json.Marshal(protocol.ProblemData{
 		Type: typ, Channel: protocol.ErrorChannelRPC, Detail: detail,
 		RetryAfterSeconds: spec.retryAfterSeconds,
+		Errors:            fields,
 	})
 	return transport.NewError(spec.code, typ, data)
 }
@@ -85,6 +86,20 @@ func problemErrorWithSpec(spec rpcErrorSpec, typ, detail string) *transport.Erro
 // invalidParams wraps a params-validation failure as invalid_params.
 func invalidParams(reason string) *transport.Error {
 	return problemError(protocol.CodeInvalidParams, "invalid_params", reason)
+}
+
+// invalidRequestShape reports a decoded request that broke its own constraints.
+// A [protocol.ConstraintError] names the offending params keys, so this fills
+// ProblemData.errors (API.md §8.3) and the client flags each field instead of
+// parsing one sentence. Anything else only has prose to offer.
+func invalidRequestShape(err error) *transport.Error {
+	if constraint, ok := errors.AsType[*protocol.ConstraintError](err); ok {
+		return problemErrorWithSpec(
+			rpcErrorSpec{code: protocol.CodeInvalidParams},
+			"invalid_params", constraint.Error(), constraint.Fields...,
+		)
+	}
+	return invalidParams(err.Error())
 }
 
 // methodNotFound is the canonical envelope for an unknown method.

@@ -44,10 +44,20 @@ func streamingResult(id transport.ID, result any, events iter.Seq[StreamFrame]) 
 // one JSON object whose fields are known by the request DTO; malformed, null,
 // or drifted requests fail at the delivery boundary instead of silently
 // discarding client intent.
+//
+// A request whose type states its own constraints ([protocol.Validator]) is
+// checked here — once, on the one path every method's params travel. That is why
+// no handler re-checks a required field: a second check is a second author, and
+// the one that gets forgotten is the one that matters.
 func decode[In any](msg *transport.Request) (In, *transport.Error) {
 	var in In
 	if err := decodeParams(msg.Params, &in); err != nil {
 		return in, invalidParams(err.Error())
+	}
+	if constrained, ok := any(&in).(protocol.Validator); ok {
+		if err := constrained.Validate(); err != nil {
+			return in, invalidRequestShape(err)
+		}
 	}
 	return in, nil
 }

@@ -35,9 +35,6 @@ func (d *Dispatcher) handleWorkspaceGetFileHead(ctx context.Context, msg *transp
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Path == "" {
-		return responseError(msg.ID, invalidParams("path is required"))
-	}
 	out, err := d.api.GetWorkspaceFileHead(ctx, in)
 	return reply(msg, out, err)
 }
@@ -56,9 +53,6 @@ func (d *Dispatcher) handleWorkspaceReadFile(ctx context.Context, msg *transport
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Path == "" {
-		return responseError(msg.ID, invalidParams("path is required"))
-	}
 	out, err := d.api.ReadWorkspaceFile(ctx, in)
 	return reply(msg, out, err)
 }
@@ -67,9 +61,6 @@ func (d *Dispatcher) handleWorkspaceGrep(ctx context.Context, msg *transport.Req
 	in, bad := decode[protocol.GrepRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Query == "" {
-		return responseError(msg.ID, invalidParams("query is required"))
 	}
 	out, err := d.api.GrepWorkspace(ctx, in)
 	return reply(msg, out, err)
@@ -107,9 +98,6 @@ func (d *Dispatcher) handleSkillsLibraryArchive(ctx context.Context, msg *transp
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
-	}
 	return replyDone(msg, d.api.ArchiveSkill(ctx, in))
 }
 
@@ -117,9 +105,6 @@ func (d *Dispatcher) handleSkillsLibraryRestore(ctx context.Context, msg *transp
 	in, bad := decode[protocol.SkillNameRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
 	}
 	return replyDone(msg, d.api.RestoreSkill(ctx, in))
 }
@@ -190,9 +175,6 @@ func (d *Dispatcher) handleMCPServersReconnect(ctx context.Context, msg *transpo
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Server == "" {
-		return responseError(msg.ID, invalidParams("server is required"))
-	}
 	return replyDone(msg, d.api.ReconnectMCPServer(ctx, in.Server))
 }
 
@@ -200,9 +182,6 @@ func (d *Dispatcher) handleMCPServersAuthorize(ctx context.Context, msg *transpo
 	in, bad := decode[protocol.MCPServerRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Server == "" {
-		return responseError(msg.ID, invalidParams("server is required"))
 	}
 	return replyDone(msg, d.api.AuthorizeMCPServer(ctx, in.Server))
 }
@@ -221,9 +200,6 @@ func (d *Dispatcher) handleMCPConfigsConfigure(ctx context.Context, msg *transpo
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
-	}
 	out, err := d.api.ConfigureMCPServer(ctx, in)
 	return reply(msg, out, err)
 }
@@ -233,9 +209,6 @@ func (d *Dispatcher) handleMCPConfigsRemove(ctx context.Context, msg *transport.
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
-	}
 	return replyDone(msg, d.api.RemoveMCPServer(ctx, in.Name))
 }
 
@@ -243,9 +216,6 @@ func (d *Dispatcher) handleMCPConfigsSetEnabled(ctx context.Context, msg *transp
 	in, bad := decode[protocol.SetMCPEnabledRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.Name == "" {
-		return responseError(msg.ID, invalidParams("name is required"))
 	}
 	return replyDone(msg, d.api.SetMCPServerEnabled(ctx, in))
 }
@@ -272,9 +242,6 @@ func (d *Dispatcher) handleHooksSetTrust(ctx context.Context, msg *transport.Req
 	in, bad := decode[protocol.SetHookTrustRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.ProjectRoot == "" {
-		return responseError(msg.ID, invalidParams("projectRoot is required"))
 	}
 	return replyDone(msg, d.api.SetHookTrust(ctx, in))
 }

@@ -35,9 +35,6 @@ func (d *Dispatcher) handleRunsResume(ctx context.Context, msg *transport.Reques
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.RunID == "" {
-		return responseError(msg.ID, invalidParams("runId is required"))
-	}
 	out, events, err := d.api.ResumeRun(ctx, in)
 	return replyStream(ctx, msg, out, events, err)
 }
@@ -49,9 +46,6 @@ func (d *Dispatcher) handleRunsSubscribe(ctx context.Context, msg *transport.Req
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.RunID == "" {
-		return responseError(msg.ID, invalidParams("runId is required"))
-	}
 	out, events, sErr := d.api.SubscribeRun(ctx, in.RunID)
 	return replyStream(ctx, msg, out, events, sErr)
 }
@@ -61,9 +55,6 @@ func (d *Dispatcher) handleRunsCancel(ctx context.Context, msg *transport.Reques
 	if bad != nil {
 		return responseError(msg.ID, bad)
 	}
-	if in.RunID == "" {
-		return responseError(msg.ID, invalidParams("runId is required"))
-	}
 	return replyDone(msg, d.api.CancelRun(ctx, in))
 }
 
@@ -71,9 +62,6 @@ func (d *Dispatcher) handleRunsSteer(ctx context.Context, msg *transport.Request
 	in, bad := decode[protocol.SteerRunRequest](msg)
 	if bad != nil {
 		return responseError(msg.ID, bad)
-	}
-	if in.RunID == "" || in.Message == "" {
-		return responseError(msg.ID, invalidParams("runId and message are required"))
 	}
 	return replyDone(msg, d.api.SteerRun(ctx, in))
 }
