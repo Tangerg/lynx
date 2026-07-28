@@ -1657,6 +1657,27 @@
         "status"
       ]
     },
+    "FileEdit": {
+      "type": "object",
+      "properties": {
+        "diff": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DiffRow"
+          }
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/FileStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ]
+    },
     "FileEntry": {
       "type": "object",
       "properties": {
@@ -4443,6 +4464,23 @@
         "title"
       ]
     },
+    "SearchHit": {
+      "type": "object",
+      "properties": {
+        "lineNumber": {
+          "type": "integer"
+        },
+        "path": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
     "ServerCapabilities": {
       "type": "object",
       "properties": {
@@ -5372,6 +5410,26 @@
       "required": [
         "path",
         "watchId"
+      ]
+    },
+    "WebSearchResult": {
+      "type": "object",
+      "properties": {
+        "faviconUrl": {
+          "type": "string"
+        },
+        "snippet": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
       ]
     },
     "WorkspaceEvent": {

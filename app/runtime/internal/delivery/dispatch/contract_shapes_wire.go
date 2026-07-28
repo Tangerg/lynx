@@ -24,7 +24,7 @@ func buildShapes() *Shapes {
 	registerArtifactUnions(s)
 	registerObjectConstraints(s)
 	registerStateKeys(s)
-	registerEnvelope(s)
+	registerCarriedShapes(s)
 	return s
 }
 
@@ -282,10 +282,22 @@ func registerStateKeys(s *Shapes) {
 	})
 }
 
-func registerEnvelope(s *Shapes) {
-	// `params._meta` is the one wire member no method carries: dispatch strips it
-	// before decoding typed params, so the artifact walk — which starts from the
-	// registered methods — cannot reach it. Every client has to construct it, so a
-	// contract that omits its shape is incomplete (API.md §2.4).
-	s.envelopeMember(EnvelopeSpec{Member: "_meta", GoType: typeOf[protocol.RequestMeta]()})
+func registerCarriedShapes(s *Shapes) {
+	// `params._meta` is stripped before typed params are decoded, so the walk cannot
+	// reach it — yet every client constructs it (API.md §2.4).
+	s.carriedShape(CarriedSpec{Carrier: "params._meta", GoType: typeOf[protocol.RequestMeta]()})
+
+	// A tool result is `any` on purpose: the runtime does not constrain what a tool
+	// returns. These are the shapes first-party tools DO return inside it (API.md
+	// §4.4.2), and the client renders them, so their shapes are published even though
+	// the carrier is opaque. Which tool returns which is documented in §4.4.2 and not
+	// declared here: the per-tool result wrapper objects have no Go types yet, and
+	// inventing the binding without them would be a guess.
+	for _, carried := range []reflect.Type{
+		typeOf[protocol.FileEdit](),
+		typeOf[protocol.SearchHit](),
+		typeOf[protocol.WebSearchResult](),
+	} {
+		s.carriedShape(CarriedSpec{Carrier: "items[].tool.result", GoType: carried})
+	}
 }

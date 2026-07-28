@@ -92,15 +92,19 @@ type StateKeySpec struct {
 	PayloadType reflect.Type
 }
 
-// EnvelopeSpec declares a wire type that travels on the JSON-RPC envelope rather
-// than inside a method's params or result.
+// CarriedSpec declares a wire type the method graph cannot reach.
 //
-// Nothing else can find these: the artifact walk starts from the registered
-// methods, and `params._meta` belongs to no method. Declaring it is what keeps the
-// published contract from omitting a member every client has to construct.
-type EnvelopeSpec struct {
-	Member string
-	GoType reflect.Type
+// The artifact walk starts from the registered methods, so a shape that rides
+// somewhere else is invisible to it: `params._meta` is stripped before typed
+// decoding, and a tool result is deliberately opaque JSON. Both are on the wire and
+// a client has to construct or render them, so a contract that omits their shape is
+// incomplete.
+//
+// Carrier says WHERE it rides, in wire terms. A bare list of types would publish
+// the shapes without answering the only question a reader has about them.
+type CarriedSpec struct {
+	Carrier string
+	GoType  reflect.Type
 }
 
 // Shapes is the registered shape contract. It is separate from the method
@@ -111,13 +115,13 @@ type Shapes struct {
 	unions      []UnionSpec
 	constraints []ObjectConstraintSpec
 	stateKeys   []StateKeySpec
-	envelope    []EnvelopeSpec
+	carried     []CarriedSpec
 }
 
 func (s *Shapes) Unions() []UnionSpec                 { return s.unions }
 func (s *Shapes) Constraints() []ObjectConstraintSpec { return s.constraints }
 func (s *Shapes) StateKeys() []StateKeySpec           { return s.stateKeys }
-func (s *Shapes) Envelope() []EnvelopeSpec            { return s.envelope }
+func (s *Shapes) Carried() []CarriedSpec              { return s.carried }
 
 func (s *Shapes) union(spec UnionSpec) {
 	if err := spec.validate(); err != nil {
@@ -140,11 +144,11 @@ func (s *Shapes) stateKey(spec StateKeySpec) {
 	s.stateKeys = append(s.stateKeys, spec)
 }
 
-func (s *Shapes) envelopeMember(spec EnvelopeSpec) {
+func (s *Shapes) carriedShape(spec CarriedSpec) {
 	if err := spec.validate(); err != nil {
-		panic("dispatch: invalid envelope spec: " + err.Error())
+		panic("dispatch: invalid carried shape spec: " + err.Error())
 	}
-	s.envelope = append(s.envelope, spec)
+	s.carried = append(s.carried, spec)
 }
 
 // validate checks a union spec against the struct it describes.
@@ -220,12 +224,12 @@ func (o ObjectConstraintSpec) validate() error {
 	return nil
 }
 
-func (e EnvelopeSpec) validate() error {
+func (c CarriedSpec) validate() error {
 	switch {
-	case e.Member == "":
-		return errors.New("envelope spec needs the member it travels under")
-	case e.GoType == nil:
-		return fmt.Errorf("envelope member %q has no type", e.Member)
+	case c.Carrier == "":
+		return errors.New("carried shape spec needs the wire member it rides in")
+	case c.GoType == nil:
+		return fmt.Errorf("carrier %q has no type", c.Carrier)
 	}
 	return nil
 }

@@ -21,7 +21,7 @@ type manifest struct {
 	CapabilityPolicy []capabilityEntry      `json:"capabilityPolicy"`
 	RunEventPolicy   []eventEntry           `json:"runEventPolicy"`
 	RuntimeTopics    []topicEntry           `json:"runtimeTopics"`
-	Envelope         []envelopeEntry        `json:"envelope"`
+	CarriedShapes    []carriedEntry         `json:"carriedShapes"`
 	StatePolicy      []stateEntry           `json:"statePolicy"`
 	Unions           []unionEntry           `json:"unions"`
 	Constraints      []constraintEntry      `json:"objectConstraints"`
@@ -86,12 +86,12 @@ type stateEntry struct {
 	Payload        *schema `json:"payload"`
 }
 
-// envelopeEntry says which JSON-RPC envelope member carries which shape. The
-// member name is part of the answer: a bare type list would publish the shape
-// without saying where on the wire it goes.
-type envelopeEntry struct {
-	Member string  `json:"member"`
-	Schema *schema `json:"schema"`
+// carriedEntry says where on the wire a shape rides that no method frame reaches.
+// The carrier is part of the answer: a bare type list would publish the shape
+// without saying where a client would ever meet it.
+type carriedEntry struct {
+	Carrier string  `json:"carrier"`
+	Schema  *schema `json:"schema"`
 }
 
 type unionEntry struct {
@@ -135,7 +135,7 @@ func build(walked *schemaSet) manifest {
 		CapabilityPolicy: capabilities(registry),
 		RunEventPolicy:   runEvents(shapes),
 		RuntimeTopics:    topics(shapes),
-		Envelope:         envelope(shapes, walked),
+		CarriedShapes:    carriedShapes(shapes, walked),
 		StatePolicy:      stateKeys(shapes, walked),
 		Unions:           unions(shapes),
 		Constraints:      constraints(shapes),
@@ -290,11 +290,11 @@ func stateKeys(shapes *dispatch.Shapes, walked *schemaSet) []stateEntry {
 	return out
 }
 
-func envelope(shapes *dispatch.Shapes, walked *schemaSet) []envelopeEntry {
-	members := shapes.Envelope()
-	out := make([]envelopeEntry, 0, len(members))
-	for _, member := range members {
-		out = append(out, envelopeEntry{Member: member.Member, Schema: external(walked.walk(member.GoType))})
+func carriedShapes(shapes *dispatch.Shapes, walked *schemaSet) []carriedEntry {
+	carried := shapes.Carried()
+	out := make([]carriedEntry, 0, len(carried))
+	for _, shape := range carried {
+		out = append(out, carriedEntry{Carrier: shape.Carrier, Schema: external(walked.walk(shape.GoType))})
 	}
 	return out
 }

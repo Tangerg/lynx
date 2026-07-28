@@ -107,7 +107,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		} `json:"errors"`
 		CapabilityPolicy []struct{} `json:"capabilityPolicy"`
 		RunEventPolicy   []struct{} `json:"runEventPolicy"`
-		Envelope         []struct{} `json:"envelope"`
+		CarriedShapes    []struct{} `json:"carriedShapes"`
 		StatePolicy      []struct{} `json:"statePolicy"`
 		Unions           []struct{} `json:"unions"`
 		Constraints      []struct{} `json:"objectConstraints"`
@@ -122,7 +122,7 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		"streamingMethods":  len(manifest.StreamingMethods),
 		"errors.codes":      len(manifest.Errors.Codes),
 		"capabilityPolicy":  len(manifest.CapabilityPolicy),
-		"envelope":          len(manifest.Envelope),
+		"carriedShapes":     len(manifest.CarriedShapes),
 		"runEventPolicy":    len(manifest.RunEventPolicy),
 		"statePolicy":       len(manifest.StatePolicy),
 		"unions":            len(manifest.Unions),
@@ -380,4 +380,96 @@ func collectRefs(node any) []string {
 	default:
 		return nil
 	}
+}
+
+// notOnTheWire are the exported structs in the protocol package that the shape
+// bundle is right to omit, each with the reason.
+//
+// It is a closed list on purpose. Everything else in that package IS the wire, so
+// a new exported struct either appears in the bundle or has to be named here — the
+// same discipline the union field-coverage check applies one level down. Without
+// it, the way a shape goes unpublished is silently: nobody notices that no method
+// reaches it.
+var notOnTheWire = map[string]string{
+	"ConstraintError": "the Go validator's error carrier; its wire projection is ProblemData.errors",
+	"WireField":       "reflection over the wire types, not a wire type",
+	"WorkspaceQuery":  "an embedded mixin — encoding/json inlines its fields, so the wire has no such object",
+}
+
+// TestEveryWireStructIsPublished checks the bundle against the protocol package.
+//
+// The walk starts from the registered methods, which means a shape reachable from
+// nothing — a tool result's members, an envelope member — is absent from every
+// artifact and nothing complains. That is how the contract quietly loses a type a
+// client still has to render, so the declaration mechanism exists (carried shapes,
+// state payloads) and this proves it was used.
+func TestEveryWireStructIsPublished(t *testing.T) {
+	root := moduleRoot(t)
+
+	var bundle struct {
+		Defs map[string]json.RawMessage `json:"$defs"`
+	}
+	if err := json.Unmarshal(readArtifact(t, filepath.Join(root, "contract"), "schema.json"), &bundle); err != nil {
+		t.Fatalf("decode schema.json: %v", err)
+	}
+	// A generic publishes as one definition per instantiation (PageOfSession), so the
+	// base name counts as published.
+	published := make(map[string]bool, len(bundle.Defs))
+	for name := range bundle.Defs {
+		published[name] = true
+		if base, _, generic := strings.Cut(name, "Of"); generic {
+			published[base] = true
+		}
+	}
+
+	for _, name := range exportedStructs(t, filepath.Join(root, "internal", "delivery", "protocol")) {
+		reason, excused := notOnTheWire[name]
+		switch {
+		case published[name] && excused:
+			t.Errorf("%s is published AND listed as not on the wire (%q) — one of the two is wrong", name, reason)
+		case !published[name] && !excused:
+			t.Errorf("%s is a wire struct no artifact describes; register how it is carried, or say why it is not on the wire", name)
+		}
+	}
+	for name := range notOnTheWire {
+		if !slices.Contains(exportedStructs(t, filepath.Join(root, "internal", "delivery", "protocol")), name) {
+			t.Errorf("%s is excused from the bundle and no longer exists", name)
+		}
+	}
+}
+
+func exportedStructs(t *testing.T, dir string) []string {
+	t.Helper()
+
+	files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+	if err != nil {
+		t.Fatalf("glob %s: %v", dir, err)
+	}
+	var out []string
+	for _, path := range files {
+		if strings.HasSuffix(path, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", path, err)
+		}
+		for _, decl := range file.Decls {
+			group, ok := decl.(*ast.GenDecl)
+			if !ok || group.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range group.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || !typeSpec.Name.IsExported() {
+					continue
+				}
+				if _, ok := typeSpec.Type.(*ast.StructType); ok {
+					out = append(out, typeSpec.Name.Name)
+				}
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
 }

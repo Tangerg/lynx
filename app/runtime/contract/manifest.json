@@ -1306,11 +1306,29 @@
       "type": "resync"
     }
   ],
-  "envelope": [
+  "carriedShapes": [
     {
-      "member": "_meta",
+      "carrier": "params._meta",
       "schema": {
         "$ref": "schema.json#/$defs/RequestMeta"
+      }
+    },
+    {
+      "carrier": "items[].tool.result",
+      "schema": {
+        "$ref": "schema.json#/$defs/FileEdit"
+      }
+    },
+    {
+      "carrier": "items[].tool.result",
+      "schema": {
+        "$ref": "schema.json#/$defs/SearchHit"
+      }
+    },
+    {
+      "carrier": "items[].tool.result",
+      "schema": {
+        "$ref": "schema.json#/$defs/WebSearchResult"
       }
     }
   ],
