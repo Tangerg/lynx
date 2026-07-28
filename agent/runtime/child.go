@@ -115,11 +115,11 @@ func (r childRun) admit() (*Process, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: options: %w", agentName, err)
 	}
-	child, eventBindings, err := r.engine.createChild(deployment, parent, r.bindings(), options)
+	child, err := r.engine.createChild(deployment, parent, r.bindings(), options)
 	if err != nil {
 		return nil, fmt.Errorf("run child %q: create: %w", agentName, err)
 	}
-	child.publishCreated(r.ctx, eventBindings)
+	child.publishCreated(r.ctx)
 	return child, nil
 }
 

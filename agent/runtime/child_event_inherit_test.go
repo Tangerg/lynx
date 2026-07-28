@@ -119,10 +119,10 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		if ev.ProcessID() == proc.ID() {
 			continue
 		}
-		value, exists := ev.Bindings.Get(core.DefaultBindingName)
-		in, ok := value.(subInput)
-		if !exists || !ok || in.Value != 21 {
-			t.Fatalf("child ProcessCreated bindings = %#v, want subInput{21}", ev.Bindings)
+		// The event states lineage, not the child's input: a host that wants the
+		// input reads it from the process this names.
+		if ev.ParentID != proc.ID() {
+			t.Fatalf("child ProcessCreated ParentID = %q, want %q", ev.ParentID, proc.ID())
 		}
 		childID = ev.ProcessID()
 		break

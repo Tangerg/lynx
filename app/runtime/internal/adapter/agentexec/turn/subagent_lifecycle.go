@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -20,7 +20,7 @@ type subagentLifecycle struct {
 	sessionID string
 	cwd       string
 	hooks     *hooks.Bound
-	result    func(string) (any, bool)
+	project   func(string) (agentexec.SubagentProjection, bool)
 	subagents map[string]hooks.SubagentInput
 }
 
@@ -28,12 +28,12 @@ func newSubagentLifecycle(
 	sessionID string,
 	cwd string,
 	bound *hooks.Bound,
-	result func(string) (any, bool),
+	project func(string) (agentexec.SubagentProjection, bool),
 ) *subagentLifecycle {
 	if !bound.Handles(hooks.SubagentStart, hooks.SubagentStop) {
 		return nil
 	}
-	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound, result: result}
+	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound, project: project}
 }
 
 // confirmRoot binds a restored process, or verifies that the synchronous
@@ -87,7 +87,10 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	switch ev := e.(type) {
 	case event.ProcessCreated:
 		in := hooks.SubagentInput{ProcessID: e.ProcessID(), ParentProcessID: ev.ParentID}
-		in.Description, in.Prompt = subagentTaskInput(ev.Bindings)
+		if projection, ok := l.projection(e.ProcessID()); ok {
+			in.Description = projection.Description
+			in.Prompt = summarizeHookText(projection.Prompt)
+		}
 		l.mu.Lock()
 		if l.subagents == nil {
 			l.subagents = map[string]hooks.SubagentInput{}
@@ -101,11 +104,11 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
-		var result any
-		if l.result != nil {
-			result, _ = l.result(e.ProcessID())
+		var reply string
+		if projection, ok := l.projection(e.ProcessID()); ok {
+			reply = projection.Reply
 		}
-		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookValue(result), "")
+		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookText(reply), "")
 	case event.ProcessFailed:
 		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, "", errorString(ev.Err))
 	case event.ProcessKilled:
@@ -115,6 +118,15 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 	case event.ProcessStuck:
 		l.runSubagentStopHook(ctx, e, hooks.SubagentStuck, "", "")
 	}
+}
+
+// projection reads the host's view of a delegated process. A lifecycle built
+// without one still fires its hooks, just without the task detail.
+func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProjection, bool) {
+	if l == nil || l.project == nil {
+		return agentexec.SubagentProjection{}, false
+	}
+	return l.project(processID)
 }
 
 func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, e event.Event, status hooks.SubagentStatus, result, errText string) {
@@ -154,23 +166,6 @@ func subagentStopReason(status hooks.SubagentStatus) string {
 	default:
 		return "subagent stopped"
 	}
-}
-
-type subagentTask interface {
-	SubagentDescription() string
-	SubagentPrompt() string
-}
-
-func subagentTaskInput(bindings core.Bindings) (description, prompt string) {
-	value, ok := bindings.Get(core.DefaultBindingName)
-	if !ok {
-		return "", ""
-	}
-	task, ok := value.(subagentTask)
-	if !ok {
-		return "", ""
-	}
-	return task.SubagentDescription(), summarizeHookText(task.SubagentPrompt())
 }
 
 func summarizeHookValue(v any) string {

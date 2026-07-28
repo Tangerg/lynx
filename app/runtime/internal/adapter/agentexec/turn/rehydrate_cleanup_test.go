@@ -14,10 +14,12 @@ type closeOnRestoreEngine struct {
 	process    agentexec.TurnProcess
 }
 
-func (*closeOnRestoreEngine) ProcessResult(string) (any, bool) { return nil, false }
-
 func (*closeOnRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	return nil, errors.New("unexpected StartTurn")
+}
+
+func (*closeOnRestoreEngine) SubagentProjection(string) (agentexec.SubagentProjection, bool) {
+	return agentexec.SubagentProjection{}, false
 }
 
 func (e *closeOnRestoreEngine) RestoreTurn(context.Context, string, agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
@@ -31,10 +33,12 @@ type gatedRestoreEngine struct {
 	process agentexec.TurnProcess
 }
 
-func (*gatedRestoreEngine) ProcessResult(string) (any, bool) { return nil, false }
-
 func (*gatedRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	return nil, errors.New("unexpected StartTurn")
+}
+
+func (*gatedRestoreEngine) SubagentProjection(string) (agentexec.SubagentProjection, bool) {
+	return agentexec.SubagentProjection{}, false
 }
 
 func (e *gatedRestoreEngine) RestoreTurn(context.Context, string, agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {

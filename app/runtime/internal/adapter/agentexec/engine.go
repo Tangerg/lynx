@@ -43,18 +43,42 @@ type Engine struct {
 	chatMiddlewareBuilder  chatMiddlewareBuilder
 }
 
-// ProcessResult returns the latest live result for an application projection.
-// Agent events intentionally carry no arbitrary business object; the Host reads
-// a result explicitly while it still owns the process tree.
-func (e *Engine) ProcessResult(processID string) (any, bool) {
+// SubagentProjection is Runtime's own typed view of one delegated process: the
+// task it was given and, once it finishes, the answer it produced.
+type SubagentProjection struct {
+	Description string
+	Prompt      string
+	Reply       string
+	Replied     bool
+}
+
+// SubagentProjection reads a delegated process directly rather than off an
+// Agent event. Framework events carry lifecycle identity and nothing of the
+// host's, so this is where Runtime turns a process id back into its own types —
+// with the concrete taskInput in reach, instead of an any that every caller has
+// to re-interrogate.
+//
+// Valid while the engine still owns the process tree, which is true for the
+// duration of any event this answers.
+func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool) {
 	if e == nil || e.runtime == nil {
-		return nil, false
+		return SubagentProjection{}, false
 	}
 	process, ok := e.runtime.Process(processID)
 	if !ok {
-		return nil, false
+		return SubagentProjection{}, false
 	}
-	return core.Last[any](process.Blackboard())
+	blackboard := process.Blackboard()
+
+	var projection SubagentProjection
+	if input, ok := core.Get[taskInput](blackboard, core.DefaultBindingName); ok {
+		projection.Description = input.Description
+		projection.Prompt = input.Prompt
+	}
+	// A delegated agent's goal produces the reply text itself, so the reply is
+	// the last string it bound — not an arbitrary trailing object.
+	projection.Reply, projection.Replied = core.Last[string](blackboard)
+	return projection, true
 }
 
 // New constructs an execution engine. It rejects missing required dependencies

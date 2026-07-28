@@ -57,7 +57,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{dispatcher: s, st: state}
-	subagents := newSubagentLifecycle(state.handle.SessionID, state.cwd, state.hooks, s.engine.ProcessResult)
+	subagents := newSubagentLifecycle(state.handle.SessionID, state.cwd, state.hooks, s.engine.SubagentProjection)
 	var eventListener core.Extension
 	if subagents != nil {
 		eventListener = subagents.listener(handle.TurnID)

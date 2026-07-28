@@ -21,13 +21,13 @@ func createProcessForTest(
 	if err != nil {
 		t.Fatal(err)
 	}
-	process, eventBindings, err := engine.buildProcessFromDeployment(deployment, bindings, options)
+	process, err := engine.buildProcessFromDeployment(deployment, bindings, options)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !engine.processes.insert(process) {
 		t.Fatalf("register test process %q: duplicate ID", process.ID())
 	}
-	process.publishCreated(t.Context(), eventBindings)
+	process.publishCreated(t.Context())
 	return process
 }

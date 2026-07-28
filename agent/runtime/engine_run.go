@@ -71,13 +71,13 @@ func (e *Engine) runDeployment(
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
 	defer span.End()
 
-	process, eventBindings, err := e.admitProcessRun(deployment, bindings, options)
+	process, err := e.admitProcessRun(deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		return nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
-	process.publishCreated(ctx, eventBindings)
+	process.publishCreated(ctx)
 
 	if err := process.runOwned(ctx); err != nil {
 		finishAgentRunSpan(span, process, err)
@@ -122,14 +122,14 @@ func (e *Engine) Start(
 		return nil, fmt.Errorf("runtime.Engine.Start: %w", err)
 	}
 	ctx, span := startAgentRunSpan(ctx, deployment.agent.Name())
-	process, eventBindings, err := e.admitProcessRun(deployment, bindings, options)
+	process, err := e.admitProcessRun(deployment, bindings, options)
 	if err != nil {
 		finishAgentRunSpan(span, nil, err)
 		span.End()
 		return nil, err
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
-	process.publishCreated(ctx, eventBindings)
+	process.publishCreated(ctx)
 	segment := newSegment(process)
 	go process.runOwnedSegment(ctx, segment, func(runErr error) {
 		finishAgentRunSpan(span, process, runErr)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -22,11 +23,16 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 		sessionID: "sess",
 		cwd:       "/work",
 		hooks:     bound,
-		result: func(processID string) (any, bool) {
+		project: func(processID string) (agentexec.SubagentProjection, bool) {
 			if processID == "child" {
-				return "auth failures are handled in middleware", true
+				return agentexec.SubagentProjection{
+					Description: "inspect auth",
+					Prompt:      "Find where auth failures are handled.",
+					Reply:       "auth failures are handled in middleware",
+					Replied:     true,
+				}, true
 			}
-			return nil, false
+			return agentexec.SubagentProjection{}, false
 		},
 	}
 	listener := lifecycle.listener("turn")
@@ -35,10 +41,6 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 	listener.OnEvent(context.Background(), event.ProcessCreated{
 		Header:   event.NewHeader("child"),
 		ParentID: "root",
-		Bindings: core.Input(testTaskInput{
-			Description: "inspect auth",
-			Prompt:      "Find where auth failures are handled.",
-		}),
 	})
 	listener.OnEvent(context.Background(), event.ProcessCompleted{
 		Header: event.NewHeader("child"),
@@ -125,28 +127,6 @@ type testTaskInput struct {
 func (in testTaskInput) SubagentDescription() string { return in.Description }
 
 func (in testTaskInput) SubagentPrompt() string { return in.Prompt }
-
-func TestSubagentTaskInputRequiresTypedDefaultBinding(t *testing.T) {
-	task := testTaskInput{Description: "inspect auth", Prompt: "Find where auth failures are handled."}
-	for _, test := range []struct {
-		name        string
-		bindings    core.Bindings
-		description string
-		prompt      string
-	}{
-		{name: "typed default", bindings: core.Input(task), description: task.Description, prompt: task.Prompt},
-		{name: "dynamic map", bindings: core.Input(map[string]any{"description": task.Description, "prompt": task.Prompt})},
-		{name: "non-default binding", bindings: namedBinding("task", task)},
-		{name: "nil bindings"},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			description, prompt := subagentTaskInput(test.bindings)
-			if description != test.description || prompt != test.prompt {
-				t.Fatalf("subagentTaskInput = %q, %q; want %q, %q", description, prompt, test.description, test.prompt)
-			}
-		})
-	}
-}
 
 func namedBinding(name string, value any) core.Bindings {
 	var bindings core.Bindings

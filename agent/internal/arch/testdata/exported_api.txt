@@ -316,7 +316,7 @@ event: type NamedSubtreeListener struct { *NamedListener }
 event: type PlanCreated struct { Header Plan planning.PlanDescriptor }
 event: type PlanningStarted struct { Header State core.WorldState }
 event: type ProcessCompleted struct { Header Goal core.GoalDescriptor }
-event: type ProcessCreated struct { Header ParentID string Bindings core.Bindings }
+event: type ProcessCreated struct { Header ParentID string }
 event: type ProcessFailed struct { Header Err error }
 event: type ProcessKilled struct { Header Reason string }
 event: type ProcessStuck struct { Header State core.WorldState Reason string }

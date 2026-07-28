@@ -70,20 +70,21 @@ type AgentUndeployed struct {
 
 func (AgentUndeployed) Kind() Kind { return KindAgentUndeployed }
 
-// ProcessCreated fires when a new Process is registered on the engine.
+// ProcessCreated fires when a new Process is registered on the engine. It
+// carries lifecycle identity only.
+//
+// It deliberately does not carry the process input. Bindings hold arbitrary
+// host values, and copying the map still hands every listener the same pointers
+// the first action is about to work on — mutable shared state on an observation
+// channel. A host that needs the input reads it from the process it names,
+// where its own concrete types are still in reach.
 type ProcessCreated struct {
 	Header
 	// ParentID is the immediate owning process. It is empty for a root process.
 	ParentID string
-	Bindings core.Bindings
 }
 
 func (ProcessCreated) Kind() Kind { return KindProcessCreated }
-
-func (e ProcessCreated) cloneEvent() Event {
-	e.Bindings = e.Bindings.Clone()
-	return e
-}
 
 // ProcessCompleted fires when the process reaches its goal successfully.
 type ProcessCompleted struct {

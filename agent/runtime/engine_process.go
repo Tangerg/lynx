@@ -23,38 +23,38 @@ func (e *Engine) admitProcessRun(
 	deployment *Deployment,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, core.Bindings, error) {
-	process, eventBindings, err := e.buildProcessFromDeployment(deployment, bindings, options)
+) (*Process, error) {
+	process, err := e.buildProcessFromDeployment(deployment, bindings, options)
 	if err != nil {
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
 	started, err := process.beginRun()
 	if err != nil {
 		process.releaseDeployment()
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
 	if !started {
 		process.releaseDeployment()
-		return nil, core.Bindings{}, errors.New("runtime.Engine.admitProcessRun: fresh process rejected its first run")
+		return nil, errors.New("runtime.Engine.admitProcessRun: fresh process rejected its first run")
 	}
 	if !e.processes.insert(process) {
 		_, _ = process.state.endRun()
 		process.releaseDeployment()
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.admitProcessRun: %w: duplicate ID %q", ErrProcessIdentity, process.id)
+		return nil, fmt.Errorf("runtime.Engine.admitProcessRun: %w: duplicate ID %q", ErrProcessIdentity, process.id)
 	}
-	return process, eventBindings, nil
+	return process, nil
 }
 
 func (e *Engine) buildProcessFromDeployment(
 	deployment *Deployment,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, core.Bindings, error) {
+) (*Process, error) {
 	if deployment == nil || deployment.agent == nil {
-		return nil, core.Bindings{}, errors.New("runtime.Engine.buildProcessFromDeployment: deployment is nil")
+		return nil, errors.New("runtime.Engine.buildProcessFromDeployment: deployment is nil")
 	}
 	if !e.catalog.retain(deployment) {
-		return nil, core.Bindings{}, fmt.Errorf(
+		return nil, fmt.Errorf(
 			"runtime.Engine.buildProcessFromDeployment: %w: %s",
 			ErrDeploymentNotFound,
 			deployment.Ref(),
@@ -69,34 +69,34 @@ func (e *Engine) buildProcessFromDeployment(
 	agent := deployment.agent
 	processOptions, err := snapshotProcessOptions(options)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	dependencies, err := e.prepareProcessDependencies(options.Dependencies)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	bindings = bindings.Clone()
 
 	blackboard, err := e.resolveBlackboard(options.Blackboard)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	if err := bindBlackboardSeed(blackboard, bindings); err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 
 	planner, err := e.resolvePlanner(agent, processOptions.extensions)
 	if err != nil {
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
 
 	domain, err := planning.DomainForAgent(agent)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: domain: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: domain: %w", err)
 	}
 	processID, err := nextProcessID(e.idGenerator())
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.buildProcessFromDeployment: %w", err)
 	}
 	process := newProcess(processID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 	process.deploymentRetained = true
@@ -105,7 +105,7 @@ func (e *Engine) buildProcessFromDeployment(
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
 	process.wireRuntimeDeps(processOptions.extensions)
-	return process, bindings, nil
+	return process, nil
 }
 
 func (e *Engine) deploymentForProcess(ctx context.Context, agent *core.Agent) (*Deployment, error) {
@@ -122,15 +122,15 @@ func (e *Engine) createChild(
 	parent *Process,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Process, core.Bindings, error) {
+) (*Process, error) {
 	if deployment == nil || deployment.agent == nil {
-		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: deployment is nil")
+		return nil, errors.New("runtime.Engine.createChild: deployment is nil")
 	}
 	if parent == nil {
-		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: parent process is nil")
+		return nil, errors.New("runtime.Engine.createChild: parent process is nil")
 	}
 	if options.Blackboard == nil {
-		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: child blackboard is nil")
+		return nil, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
 	// A child shares its parent's event stream: process-scope
 	// SubtreeEventListener extensions propagate down so the whole delegation
@@ -143,29 +143,29 @@ func (e *Engine) createChild(
 	// callers that don't observe per-process.
 	extensions, err := parent.childExtensions(options.Extensions)
 	if err != nil {
-		return nil, core.Bindings{}, fmt.Errorf("runtime.Engine.createChild: extensions: %w", err)
+		return nil, fmt.Errorf("runtime.Engine.createChild: extensions: %w", err)
 	}
 	options.Extensions = extensions
 
-	child, eventBindings, err := e.buildProcessFromDeployment(deployment, bindings, options)
+	child, err := e.buildProcessFromDeployment(deployment, bindings, options)
 	if err != nil {
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
 	started, err := child.beginRun()
 	if err != nil {
 		child.releaseDeployment()
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
 	if !started {
 		child.releaseDeployment()
-		return nil, core.Bindings{}, errors.New("runtime.Engine.createChild: fresh child rejected its first run")
+		return nil, errors.New("runtime.Engine.createChild: fresh child rejected its first run")
 	}
 	if err := e.attachChild(parent, child); err != nil {
 		_, _ = child.state.endRun()
 		child.releaseDeployment()
-		return nil, core.Bindings{}, err
+		return nil, err
 	}
-	return child, eventBindings, nil
+	return child, nil
 }
 
 func (e *Engine) attachChild(parent, child *Process) error {

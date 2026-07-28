@@ -232,7 +232,7 @@ func TestChildAdmissionIsAtomicWithParentKill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		child, _, err := engine.buildProcessFromDeployment(childDeployment, core.Bindings{}, core.ProcessOptions{})
+		child, err := engine.buildProcessFromDeployment(childDeployment, core.Bindings{}, core.ProcessOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}

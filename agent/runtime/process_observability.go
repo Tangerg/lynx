@@ -8,7 +8,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 )
 
@@ -37,11 +36,10 @@ func (p *Process) eventHeader() event.Header {
 	return event.NewHeader(p.id)
 }
 
-func (p *Process) publishCreated(ctx context.Context, bindings core.Bindings) {
+func (p *Process) publishCreated(ctx context.Context) {
 	p.publishEvent(normalizeContext(ctx), event.ProcessCreated{
 		Header:   p.eventHeader(),
 		ParentID: p.ParentID(),
-		Bindings: bindings,
 	})
 }
 
