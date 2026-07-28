@@ -424,6 +424,7 @@ func (e *Engine) killProcess(ctx context.Context, id string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("runtime.Engine.Kill: acquire process tree: %w", err)
 	}
+	defer releaseMutation()
 	if !e.processes.available(process) {
 		releaseMutation()
 		return false, processNotFoundError("kill process", id)
@@ -496,6 +497,7 @@ func (e *Engine) KillChildren(ctx context.Context, parentID string) ([]string, e
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.KillChildren: acquire process tree: %w", err)
 	}
+	defer releaseMutation()
 	if !e.processes.available(parent) {
 		releaseMutation()
 		return nil, processNotFoundError("kill child processes", parentID)

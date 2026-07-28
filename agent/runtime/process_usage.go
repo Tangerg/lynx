@@ -24,6 +24,13 @@ func (p *Process) Usage() core.Usage {
 // process tree. Actions are charged before execution. Model calls are reserved
 // before I/O and committed with their response usage, preventing concurrent
 // siblings from admitting work against the same remaining model-call capacity.
+//
+// This is the outer lock: a charge that touches both the tree aggregate and one
+// process's own tally takes this mutex first and processBudget.mu second, never
+// the reverse. One authority is shared by every process in the tree while each
+// processBudget.mu is private, so a single reversed site deadlocks the whole
+// tree's budget path against itself — and a deadlock is exactly what the race
+// detector cannot see.
 type budgetAuthority struct {
 	mu sync.Mutex
 

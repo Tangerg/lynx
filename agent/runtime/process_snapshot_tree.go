@@ -34,6 +34,7 @@ func (e *Engine) SnapshotTree(ctx context.Context, processID string) (core.Proce
 	if err != nil {
 		return core.ProcessSnapshotTree{}, fmt.Errorf("runtime.Engine.SnapshotTree: acquire process tree: %w", err)
 	}
+	defer releaseMutation()
 	if !e.processes.available(process) {
 		releaseMutation()
 		return core.ProcessSnapshotTree{}, processNotFoundError("snapshot process tree", processID)

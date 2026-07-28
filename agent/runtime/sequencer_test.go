@@ -82,6 +82,59 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	})
 }
 
+// TestLocalSequencerReleaseCannotEvictTheNextOwner pins why releaseFunc wraps
+// its release in sync.OnceFunc. Every mutation both defers its release and calls
+// it early, so the release runs twice on every path. A second real release would
+// find the queue empty — the waiter it just handed the key to is no longer in it
+// — delete the gate, and admit the next caller while the current owner still
+// believes it holds the key.
+func TestLocalSequencerReleaseCannotEvictTheNextOwner(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		sequencer := newProcessTreeSequencer()
+		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		granted := make(chan func(), 1)
+		go func() {
+			release, err := sequencer.acquire(t.Context(), "session-1")
+			if err == nil {
+				granted <- release
+			}
+		}()
+		synctest.Wait()
+
+		releaseFirst()
+		synctest.Wait()
+		releaseSecond := <-granted
+
+		releaseFirst()
+
+		third := make(chan func(), 1)
+		go func() {
+			release, err := sequencer.acquire(t.Context(), "session-1")
+			if err == nil {
+				third <- release
+			}
+		}()
+		synctest.Wait()
+		select {
+		case <-third:
+			t.Fatal("second release evicted the current owner: a third caller acquired a held key")
+		default:
+		}
+
+		releaseSecond()
+		synctest.Wait()
+		releaseThird := <-third
+		releaseThird()
+		if len(sequencer.gates) != 0 {
+			t.Fatalf("retained gates = %d, want no idle per-session state", len(sequencer.gates))
+		}
+	})
+}
+
 func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
 	sequencer := newProcessTreeSequencer()
 	releaseFirst, err := sequencer.acquire(t.Context(), "session-1")

@@ -90,6 +90,11 @@ func (s *processTreeSequencer) cancelWaiter(key string, gate *sequenceGate, targ
 	return false
 }
 
+// releaseFunc returns the new owner's release. It is idempotent so that a
+// caller can both defer it and release early: early because event listeners are
+// caller code that may reenter the Engine, deferred because a panic between the
+// two would otherwise hold the key forever and stall every later mutation on
+// that process tree.
 func (s *processTreeSequencer) releaseFunc(key string, gate *sequenceGate) func() {
 	return sync.OnceFunc(func() { s.release(key, gate) })
 }
