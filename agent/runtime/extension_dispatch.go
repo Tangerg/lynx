@@ -99,7 +99,6 @@ func supportsProcessScope(extension core.Extension) bool {
 		core.GoalApprover,
 		core.ChatProvider,
 		core.InteractionCostProjector,
-		core.InteractionObserver,
 		core.StopPolicy,
 		core.ToolGroupResolver,
 		planning.Planner,

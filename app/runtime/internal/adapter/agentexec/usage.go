@@ -11,7 +11,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/interaction"
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -22,9 +24,10 @@ var usageLedgerKey = core.MustDependencyKey[*usageLedger]("lyra.usage")
 // complete process tree. Agent tracks only execution counters; this ledger
 // retains the model breakdown required by Runtime output and persistence.
 type usageLedger struct {
-	mu     sync.RWMutex
-	models map[string]accounting.ModelUsage
-	total  accounting.ModelUsage
+	mu            sync.RWMutex
+	models        map[string]accounting.ModelUsage
+	total         accounting.ModelUsage
+	projectionErr error
 }
 
 func newUsageLedger(snapshot accounting.Snapshot) (*usageLedger, error) {
@@ -67,7 +70,7 @@ func (l *usageLedger) record(response *chat.Response, cost float64) error {
 		return errors.New("agentexec: usage ledger is nil")
 	}
 	if response == nil {
-		return errors.New("agentexec: record usage from nil model response")
+		return l.reject(errors.New("agentexec: record usage from nil model response"))
 	}
 	model := cmp.Or(response.Model, "unknown")
 	delta := accounting.ModelUsage{
@@ -77,29 +80,45 @@ func (l *usageLedger) record(response *chat.Response, cost float64) error {
 		Calls:      1,
 	}
 	if err := delta.Validate(); err != nil {
-		return fmt.Errorf("agentexec: record model usage: %w", err)
+		return l.reject(fmt.Errorf("agentexec: record model usage: %w", err))
 	}
 
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	if l.projectionErr != nil {
+		return l.projectionErr
+	}
 	current, exists := l.models[model]
 	nextModel := delta
 	if exists {
 		nextModel = current
 		if err := addModelUsage(&nextModel, delta); err != nil {
-			return fmt.Errorf("agentexec: record model usage: %w", err)
+			return l.rejectLocked(fmt.Errorf("agentexec: record model usage: %w", err))
 		}
 	}
 	nextTotal := l.total
 	if err := addModelUsage(&nextTotal, delta); err != nil {
-		return fmt.Errorf("agentexec: record total usage: %w", err)
+		return l.rejectLocked(fmt.Errorf("agentexec: record total usage: %w", err))
 	}
 	if err := validateFrameworkUsageCapacity(nextTotal); err != nil {
-		return fmt.Errorf("agentexec: record total usage: %w", err)
+		return l.rejectLocked(fmt.Errorf("agentexec: record total usage: %w", err))
 	}
 	l.models[model] = nextModel
 	l.total = nextTotal
 	return nil
+}
+
+func (l *usageLedger) reject(err error) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.rejectLocked(err)
+}
+
+func (l *usageLedger) rejectLocked(err error) error {
+	if l.projectionErr == nil {
+		l.projectionErr = err
+	}
+	return l.projectionErr
 }
 
 func addModelUsage(total *accounting.ModelUsage, delta accounting.ModelUsage) error {
@@ -156,30 +175,33 @@ func validateFrameworkUsageCapacity(usage accounting.ModelUsage) error {
 	return nil
 }
 
-func (l *usageLedger) snapshot() accounting.Snapshot {
-	snapshot, _ := l.state()
-	return snapshot
+func (l *usageLedger) snapshot() (accounting.Snapshot, error) {
+	snapshot, _, err := l.state()
+	return snapshot, err
 }
 
-func (l *usageLedger) output(reply string, stopReason agent.InteractionStopReason) TurnOutput {
-	snapshot, total := l.state()
+func (l *usageLedger) output(reply string, stopReason agent.InteractionStopReason) (TurnOutput, error) {
+	snapshot, total, err := l.state()
+	if err != nil {
+		return TurnOutput{}, err
+	}
 	return TurnOutput{
 		Reply:        reply,
 		Usage:        total.TokenUsage,
 		UsageByModel: slices.Clone(snapshot.Models),
 		CostUSD:      total.CostUSD,
 		StopReason:   stopReason,
-	}
+	}, nil
 }
 
-func (l *usageLedger) totals() (accounting.TokenUsage, float64) {
-	_, total := l.state()
-	return total.TokenUsage, total.CostUSD
+func (l *usageLedger) totals() (accounting.TokenUsage, float64, error) {
+	_, total, err := l.state()
+	return total.TokenUsage, total.CostUSD, err
 }
 
-func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage) {
+func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage, error) {
 	if l == nil {
-		return accounting.Snapshot{}, accounting.ModelUsage{}
+		return accounting.Snapshot{}, accounting.ModelUsage{}, errors.New("agentexec: usage ledger is nil")
 	}
 	l.mu.RLock()
 	defer l.mu.RUnlock()
@@ -192,7 +214,7 @@ func (l *usageLedger) state() (accounting.Snapshot, accounting.ModelUsage) {
 	for _, model := range models {
 		snapshot.Models = append(snapshot.Models, l.models[model])
 	}
-	return snapshot, l.total
+	return snapshot, l.total, l.projectionErr
 }
 
 type interactionProjection struct {
@@ -201,6 +223,11 @@ type interactionProjection struct {
 	usage       *usageLedger
 	observation *toolObservation
 }
+
+var (
+	_ core.InteractionCostProjector = (*interactionProjection)(nil)
+	_ agentruntime.EventListener    = (*interactionProjection)(nil)
+)
 
 func (*interactionProjection) Name() string { return "lyra:interaction-projection" }
 
@@ -217,44 +244,57 @@ func (p *interactionProjection) ProjectInteractionCost(
 	return p.engine.pricing(resolvedProvider, model, &response.Usage), nil
 }
 
-func (p *interactionProjection) ObserveInteraction(
-	_ context.Context,
-	process core.ProcessView,
-	boundary interaction.Event,
-) error {
+func (p *interactionProjection) OnEvent(_ context.Context, published event.Event) {
 	if p == nil {
-		return nil
+		return
 	}
+	interactionBoundary, ok := published.(event.InteractionBoundary)
+	if !ok {
+		return
+	}
+	process := p.processRef(interactionBoundary.ProcessID())
+	boundary := interactionBoundary.Boundary
 	if p.observation != nil {
 		switch boundary.Kind {
 		case interaction.EventToolCall:
 			if boundary.ToolCall != nil {
-				p.observation.begin(process, boundary.Round, *boundary.ToolCall)
+				p.observation.beginRef(process, boundary.Round, *boundary.ToolCall)
 			}
 		case interaction.EventToolResult:
 			if boundary.ToolResult != nil {
-				p.observation.result(process, boundary.Round, *boundary.ToolResult)
+				p.observation.resultRef(process, boundary.Round, *boundary.ToolResult)
 			}
 		}
 	}
 	if boundary.Kind != interaction.EventModelResponse {
-		return nil
+		return
 	}
 	if err := p.usage.record(boundary.Response, boundary.Cost); err != nil {
-		return err
+		return
 	}
 	if p.observation == nil || p.observation.target == nil ||
 		(boundary.Response.Usage.TotalTokens() == 0 && boundary.Response.Model == "") {
-		return nil
+		return
 	}
-	cumulative, cumulativeCost := p.usage.totals()
+	cumulative, cumulativeCost, err := p.usage.totals()
+	if err != nil {
+		return
+	}
 	p.observation.target.OnUsage(
-		processRef(process),
+		process,
 		cumulative,
 		cumulativeCost,
 		boundary.Response.Usage.InputTokens,
 	)
-	return nil
+}
+
+func (p *interactionProjection) processRef(processID string) ProcessRef {
+	if p.engine != nil && p.engine.runtime != nil {
+		if process, ok := p.engine.runtime.Process(processID); ok {
+			return processRef(process)
+		}
+	}
+	return ProcessRef{ID: processID}
 }
 
 func tokenUsageOf(usage chat.Usage) accounting.TokenUsage {

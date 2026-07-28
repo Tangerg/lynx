@@ -28,7 +28,10 @@ func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 		}
 	}
 
-	got := ledger.snapshot()
+	got, err := ledger.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := accounting.Snapshot{Models: []accounting.ModelUsage{
 		{Model: "alpha", TokenUsage: accounting.TokenUsage{PromptTokens: 10, CompletionTokens: 6}, CostUSD: 0.5, Calls: 2},
 		{Model: "beta", TokenUsage: accounting.TokenUsage{PromptTokens: 5, CompletionTokens: 1}, CostUSD: 0.4, Calls: 1},
@@ -43,7 +46,11 @@ func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 	}
 
 	got.Models[0].PromptTokens = 999
-	if fresh := ledger.snapshot(); fresh.Models[0].PromptTokens != 10 {
+	fresh, err := ledger.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Models[0].PromptTokens != 10 {
 		t.Fatalf("snapshot aliases ledger state: %+v", fresh.Models[0])
 	}
 
@@ -51,7 +58,11 @@ func TestUsageLedgerAggregatesByModelAndOwnsSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restore ledger: %v", err)
 	}
-	if restoredSnapshot := restored.snapshot(); len(restoredSnapshot.Models) != 2 ||
+	restoredSnapshot, err := restored.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(restoredSnapshot.Models) != 2 ||
 		restoredSnapshot.Models[0] != want.Models[0] ||
 		restoredSnapshot.Models[1] != want.Models[1] {
 		t.Fatalf("restored snapshot = %+v, want %+v", restoredSnapshot, want)
@@ -76,7 +87,10 @@ func TestUsageLedgerRecordsConcurrently(t *testing.T) {
 	}
 	group.Wait()
 
-	snapshot := ledger.snapshot()
+	snapshot, err := ledger.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(snapshot.Models) != 1 {
 		t.Fatalf("models = %+v, want one aggregate", snapshot.Models)
 	}
@@ -96,7 +110,10 @@ func TestUsageLedgerRejectsCrossModelOverflowAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUsageLedger: %v", err)
 	}
-	before := ledger.snapshot()
+	before, err := ledger.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = ledger.record(&chat.Response{
 		Model: "second",
 		Usage: chat.Usage{InputTokens: 1},
@@ -104,7 +121,10 @@ func TestUsageLedgerRejectsCrossModelOverflowAtomically(t *testing.T) {
 	if err == nil {
 		t.Fatal("cross-model overflow was accepted")
 	}
-	after := ledger.snapshot()
+	after, projectionErr := ledger.snapshot()
+	if !errors.Is(projectionErr, err) {
+		t.Fatalf("snapshot error = %v, want %v", projectionErr, err)
+	}
 	if len(after.Models) != 1 || after.Models[0] != before.Models[0] {
 		t.Fatalf("overflow partially mutated ledger: before=%+v after=%+v", before, after)
 	}
@@ -119,12 +139,18 @@ func TestUsageLedgerRejectsCostCapacityLossAtomically(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newUsageLedger: %v", err)
 	}
-	before := ledger.snapshot()
+	before, err := ledger.snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = ledger.record(&chat.Response{Model: "second"}, 1)
 	if err == nil {
 		t.Fatal("cost increment beyond representable capacity was accepted")
 	}
-	after := ledger.snapshot()
+	after, projectionErr := ledger.snapshot()
+	if !errors.Is(projectionErr, err) {
+		t.Fatalf("snapshot error = %v, want %v", projectionErr, err)
+	}
 	if len(after.Models) != 1 || after.Models[0] != before.Models[0] {
 		t.Fatalf("rejected cost partially mutated ledger: before=%+v after=%+v", before, after)
 	}

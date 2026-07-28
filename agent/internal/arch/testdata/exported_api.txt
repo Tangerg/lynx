@@ -251,7 +251,6 @@ core: type GoalDescriptor struct { }
 core: type IDGenerator interface { Extension Next() string }
 core: type Interaction struct { ID string Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Stream func(*chat.Response) }
 core: type InteractionCostProjector interface { Extension ProjectInteractionCost( ctx context.Context, process ProcessView, response *chat.Response, ) (float64, error) }
-core: type InteractionObserver interface { Extension ObserveInteraction( ctx context.Context, process ProcessView, boundary interaction.Event, ) error }
 core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
 core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Blackboard Blackboard Dependencies *Dependencies MaxToolRounds int ActionTools func(context.Context, []string) ([]tools.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []string }

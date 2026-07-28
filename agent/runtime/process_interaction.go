@@ -381,28 +381,5 @@ func (p *Process) publishInteractionBoundary(ctx context.Context, owner string, 
 		InteractionID: owner,
 		Boundary:      boundary.Clone(),
 	})
-	var observerErr error
-	for _, observer := range collectExtensions[core.InteractionObserver](p.combinedExtensions()) {
-		if err := callInteractionObserver(ctx, observer, p, boundary.Clone()); err != nil {
-			observerErr = errors.Join(observerErr, err)
-		}
-	}
-	return observerErr
-}
-
-func callInteractionObserver(
-	ctx context.Context,
-	observer extensionCapability[core.InteractionObserver],
-	process core.ProcessView,
-	boundary interaction.Event,
-) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("interaction observer %q panicked", observer.name), recovered)
-		}
-	}()
-	if err := observer.value.ObserveInteraction(ctx, process, boundary); err != nil {
-		return fmt.Errorf("runtime: interaction observer %q: %w", observer.name, err)
-	}
 	return nil
 }

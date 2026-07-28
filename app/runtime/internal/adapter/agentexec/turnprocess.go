@@ -187,7 +187,10 @@ func (p *turnProcess) persistWaitingCheckpoint(status core.ProcessStatus) error 
 	if p.usage == nil {
 		return errors.New("agentexec: persist process tree: usage ledger is missing")
 	}
-	usage := p.usage.snapshot()
+	usage, err := p.usage.snapshot()
+	if err != nil {
+		return fmt.Errorf("agentexec: capture usage projection: %w", err)
+	}
 	if err := validateCheckpointUsage(tree, usage); err != nil {
 		return fmt.Errorf("agentexec: validate checkpoint usage: %w", err)
 	}

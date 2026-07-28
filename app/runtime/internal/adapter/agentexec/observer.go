@@ -228,7 +228,10 @@ func modelToolCallID(processID string, round int, callID string) string {
 }
 
 func (o *toolObservation) begin(process core.ProcessView, round int, call chat.ToolCall) {
-	ref := processRef(process)
+	o.beginRef(processRef(process), round, call)
+}
+
+func (o *toolObservation) beginRef(ref ProcessRef, round int, call chat.ToolCall) {
 	observed := &observedModelCall{
 		id: modelToolCallID(ref.ID, round, call.ID), process: ref,
 		name: call.Name, arguments: call.Arguments, started: make(chan struct{}),
@@ -311,7 +314,10 @@ func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments,
 // completion (effective arguments, mutation paths, and original error), so the
 // matching model result only retires the deduplication marker.
 func (o *toolObservation) result(process core.ProcessView, round int, result chat.ToolResult) {
-	ref := processRef(process)
+	o.resultRef(processRef(process), round, result)
+}
+
+func (o *toolObservation) resultRef(ref ProcessRef, round int, result chat.ToolResult) {
 	id := modelToolCallID(ref.ID, round, result.ID)
 	key := processToolCallKey{processID: ref.ID, callID: result.ID}
 	o.mu.Lock()

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -126,20 +125,4 @@ type InteractionCostProjector interface {
 		process ProcessView,
 		response *chat.Response,
 	) (float64, error)
-}
-
-// InteractionObserver receives every validated managed-interaction boundary
-// after the runtime has applied its own state transition. All observers run in
-// extension registration order; an error or panic fails the interaction.
-// Durable product accounting, UI projection, and audit export belong here
-// rather than on individual Interaction values. Valid at engine and process
-// scope.
-type InteractionObserver interface {
-	Extension
-
-	ObserveInteraction(
-		ctx context.Context,
-		process ProcessView,
-		boundary interaction.Event,
-	) error
 }

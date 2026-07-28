@@ -476,7 +476,7 @@ func (m *managedFinalModel) Calls() int {
 type managedInteractionExtension struct {
 	name    string
 	cost    func(*chat.Response) (float64, error)
-	observe func(interaction.Event) error
+	observe func(interaction.Event)
 }
 
 func (e managedInteractionExtension) Name() string { return e.name }
@@ -492,41 +492,41 @@ func (e managedInteractionExtension) ProjectInteractionCost(
 	return e.cost(response)
 }
 
-func (e managedInteractionExtension) ObserveInteraction(
-	_ context.Context,
-	_ core.ProcessView,
-	boundary interaction.Event,
-) error {
+func (e managedInteractionExtension) OnEvent(_ context.Context, published event.Event) {
 	if e.observe == nil {
-		return nil
+		return
 	}
-	return e.observe(boundary)
+	boundary, ok := published.(event.InteractionBoundary)
+	if ok {
+		e.observe(boundary.Boundary)
+	}
 }
 
-func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T) {
+func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 	model := &managedFinalModel{}
 	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
-	observerErr := errors.New("observer stopped")
-	a := agent.New(agent.AgentConfig{Name: "managed-observer-failure", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.AgentConfig{Name: "managed-listener-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
 		}
-		_, err = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
-		return "", err
+		result, err := pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
+		if err != nil {
+			return "", err
+		}
+		return result.Final.Response.Text(), nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
 	engine := agent.MustNewEngine(runtime.Config{
 		Chat: core.ChatCapability{Model: model},
 		Extensions: []core.Extension{managedInteractionExtension{
-			name: "observer-failure",
-			observe: func(boundary interaction.Event) error {
+			name: "listener-panic",
+			observe: func(boundary interaction.Event) {
 				if boundary.Kind == interaction.EventModelResponse {
-					return observerErr
+					panic("listener stopped")
 				}
-				return nil
 			},
 		}},
 	})
@@ -536,8 +536,11 @@ func TestManagedInteractionReturnsObserverFailureAfterModelResponse(t *testing.T
 	if err != nil {
 		t.Fatalf("Run control-flow error = %v", err)
 	}
-	if proc == nil || !errors.Is(proc.Failure(), observerErr) {
-		t.Fatalf("process failure = %v", proc.Failure())
+	if proc == nil {
+		t.Fatal("Run returned nil process")
+	}
+	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
+		t.Fatalf("process status=%v failure=%v", proc.Status(), proc.Failure())
 	}
 	if model.Calls() != 1 {
 		t.Fatalf("model calls = %d, want one action execution", model.Calls())
@@ -570,11 +573,10 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 		Extensions: []core.Extension{managedInteractionExtension{
 			name: "cost-projection",
 			cost: func(*chat.Response) (float64, error) { return 0.25, nil },
-			observe: func(boundary interaction.Event) error {
+			observe: func(boundary interaction.Event) {
 				if boundary.Kind == interaction.EventModelResponse {
 					observedCost = boundary.Cost
 				}
-				return nil
 			},
 		}},
 	})
@@ -616,20 +618,18 @@ func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 					response.Model = "projector-mutated"
 					return 0.25, nil
 				},
-				observe: func(boundary interaction.Event) error {
+				observe: func(boundary interaction.Event) {
 					if boundary.Kind == interaction.EventModelResponse {
 						boundary.Response.Model = "observer-mutated"
 					}
-					return nil
 				},
 			},
 			managedInteractionExtension{
 				name: "recording-observer",
-				observe: func(boundary interaction.Event) error {
+				observe: func(boundary interaction.Event) {
 					if boundary.Kind == interaction.EventModelResponse {
 						observedModel = boundary.Response.Model
 					}
-					return nil
 				},
 			},
 		},
@@ -672,11 +672,10 @@ func TestManagedInteractionContainsCostProjectorPanic(t *testing.T) {
 			cost: func(*chat.Response) (float64, error) {
 				panic(cause)
 			},
-			observe: func(boundary interaction.Event) error {
+			observe: func(boundary interaction.Event) {
 				if boundary.Kind == interaction.EventModelResponse {
 					observedResponse = true
 				}
-				return nil
 			},
 		}},
 	})
