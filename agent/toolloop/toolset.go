@@ -9,7 +9,6 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -36,41 +35,18 @@ func (s *runnerState) validateInput() error {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInput)
 	}
 	for _, definition := range s.request.Tools {
-		tool, ok, err := resolveTool(s.resolver, definition.Name)
+		hosted, matched, err := executableFor(s.resolver, definition)
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidInput, err)
 		}
-		if !ok || valueIsNil(tool) {
+		if hosted.tool == nil {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInput, definition.Name)
 		}
-		executableDefinition, err := toolDefinition(tool, definition.Name)
-		if err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidInput, err)
-		}
-		if !sameToolDefinition(definition, executableDefinition) {
+		if !matched {
 			return fmt.Errorf("%w: advertised tool %q definition does not match executable tool", ErrInvalidInput, definition.Name)
 		}
 	}
 	return nil
-}
-
-func resolveTool(resolver ToolResolver, name string) (tool tools.Tool, ok bool, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool resolver %T Resolve(%q) panicked", resolver, name), recovered)
-		}
-	}()
-	tool, ok = resolver.Resolve(name)
-	return tool, ok, nil
-}
-
-func toolDefinition(tool tools.Tool, name string) (definition chat.ToolDefinition, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %q Definition panicked", name), recovered)
-		}
-	}()
-	return tool.Definition(), nil
 }
 
 func toolsetDigest(definitions []chat.ToolDefinition) (string, error) {

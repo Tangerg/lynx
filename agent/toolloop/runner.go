@@ -12,10 +12,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/interaction"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/internal/toolcall"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 var (
@@ -291,7 +289,7 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 		}
 		resume := state.resume
 		state.resume = nil
-		result, pending, err := invokeTool(ctx, call, plans[position].tool, resume)
+		result, pending, err := invokeTool(ctx, call, plans[position].hosted, resume)
 		if err != nil {
 			yield(Event{}, err)
 			return false, false
@@ -344,7 +342,7 @@ func (r *Runner) runSegment(
 	end int,
 ) error {
 	if end-start == 1 {
-		result, pending, err := invokeTool(ctx, state.calls[start], plans[start].tool, nil)
+		result, pending, err := invokeTool(ctx, state.calls[start], plans[start].hosted, nil)
 		if err != nil {
 			return err
 		}
@@ -359,7 +357,7 @@ func (r *Runner) runSegment(
 	group.SetLimit(max(1, r.maxConcurrentCalls))
 	for index := start; index < end; index++ {
 		group.Go(func() error {
-			result, pending, err := invokeTool(groupContext, state.calls[index], plans[index].tool, nil)
+			result, pending, err := invokeTool(groupContext, state.calls[index], plans[index].hosted, nil)
 			outcomes[index-start] = toolOutcome{result: result, pending: pending, err: err}
 			return err
 		})
@@ -465,18 +463,14 @@ func (r *Runner) mergePromotions(state *runnerState) error {
 		if _, ok := advertised[def.Name]; ok {
 			continue
 		}
-		tool, ok, err := resolveTool(state.resolver, def.Name)
+		// A promotion that no longer resolves, or that no longer describes
+		// itself the way it was promoted, is dropped rather than rejected: the
+		// round is still valid without it.
+		_, matched, err := executableFor(state.resolver, def)
 		if err != nil {
 			return err
 		}
-		if !ok || valueIsNil(tool) {
-			continue
-		}
-		executableDefinition, err := toolDefinition(tool, def.Name)
-		if err != nil {
-			return err
-		}
-		if !sameToolDefinition(def, executableDefinition) {
+		if !matched {
 			continue
 		}
 		advertised[def.Name] = struct{}{}
@@ -516,13 +510,13 @@ func (s *runnerState) settled(index int, result chat.ToolResult, pending *Pendin
 func invokeTool(
 	ctx context.Context,
 	call chat.ToolCall,
-	tool tools.Tool,
+	hosted hostedTool,
 	resume *Resume,
 ) (chat.ToolResult, *PendingCall, error) {
 	if err := ctx.Err(); err != nil {
 		return chat.ToolResult{}, nil, err
 	}
-	if valueIsNil(tool) {
+	if hosted.tool == nil {
 		return chat.ToolResult{
 			ID:      call.ID,
 			Name:    call.Name,
@@ -534,7 +528,7 @@ func invokeTool(
 	if resume != nil {
 		ctx = withResume(ctx, *resume)
 	}
-	output, err := callRuntimeTool(ctx, tool, call.Arguments)
+	output, err := hosted.call(ctx, call.Arguments)
 	if err == nil {
 		return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, nil, nil
 	}
@@ -575,18 +569,6 @@ func invokeTool(
 		Result:  fmt.Sprintf("error: tool %q failed: %s", call.Name, err),
 		IsError: true,
 	}, nil, nil
-}
-
-// callRuntimeTool contains panics at the executable extension boundary. A tool
-// panic is recoverable model feedback, not permission for one plugin goroutine
-// to terminate the host process or discard sibling results.
-func callRuntimeTool(ctx context.Context, tool tools.Tool, arguments string) (output string, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New("tool panicked", recovered)
-		}
-	}()
-	return tool.Call(ctx, arguments)
 }
 
 func (r *Runner) checkpoint(state *runnerState) (*Checkpoint, error) {

@@ -3,9 +3,7 @@ package toolloop
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // ConcurrentTool is the optional capability Runner consumes to schedule
@@ -28,7 +26,7 @@ type ConcurrentTool interface {
 }
 
 type callPlan struct {
-	tool       tools.Tool
+	hosted     hostedTool
 	concurrent bool
 	key        string
 	direct     bool
@@ -42,20 +40,20 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 			allDirect = false
 			continue
 		}
-		tool, ok, err := resolveTool(resolver, call.Name)
+		hosted, ok, err := resolveHosted(resolver, call.Name)
 		if err != nil {
 			return nil, false, err
 		}
-		if !ok || valueIsNil(tool) {
+		if !ok {
 			allDirect = false
 			continue
 		}
-		direct, err := returnsDirectRuntime(tool)
+		direct, err := hosted.returnsDirect()
 		if err != nil {
 			return nil, false, fmt.Errorf("tool %q: %w", call.Name, err)
 		}
-		plan := callPlan{tool: tool, direct: direct}
-		plan.key, plan.concurrent, err = concurrencyKey(tool, call.Name, call.Arguments)
+		plan := callPlan{hosted: hosted, direct: direct}
+		plan.key, plan.concurrent, err = hosted.concurrencyKey(call.Arguments)
 		if err != nil {
 			return nil, false, err
 		}
@@ -63,25 +61,6 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 		allDirect = allDirect && plan.direct
 	}
 	return plans, allDirect, nil
-}
-
-// concurrencyKey owns both halves of asking a tool how it schedules: finding the
-// declaration through the wrapping chain and calling it.
-func concurrencyKey(tool tools.Tool, name, arguments string) (key string, concurrent bool, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %q concurrency lookup panicked", name), recovered)
-		}
-	}()
-	declared, ok, err := tools.Capability[ConcurrentTool](tool)
-	if err != nil {
-		return "", false, fmt.Errorf("tool %q concurrency lookup: %w", name, err)
-	}
-	if !ok {
-		return "", false, nil
-	}
-	key, concurrent = declared.ConcurrencyKey(arguments)
-	return key, concurrent, nil
 }
 
 // segmentEnd returns the exclusive end of the longest consecutive call range

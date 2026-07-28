@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -118,7 +117,7 @@ func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error) {
 		if !ok {
 			continue
 		}
-		names, err := deferredToolNames(candidate, deferring)
+		names, err := hostedTool{tool: candidate}.deferredNames(deferring)
 		if err != nil {
 			return nil, err
 		}
@@ -135,7 +134,7 @@ func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error) {
 		if valueIsNil(candidate) {
 			continue
 		}
-		definition, err := advertisedDefinition(candidate)
+		definition, err := hostedTool{tool: candidate}.definition()
 		if err != nil {
 			return nil, err
 		}
@@ -148,22 +147,4 @@ func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error) {
 		return strings.Compare(left.Name, right.Name)
 	})
 	return manifest, nil
-}
-
-func deferredToolNames(tool tools.Tool, deferred DeferredTool) (names []string, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %T deferred-name lookup panicked", tool), recovered)
-		}
-	}()
-	return deferred.DeferredToolNames(), nil
-}
-
-func advertisedDefinition(tool tools.Tool) (definition chat.ToolDefinition, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %T definition lookup panicked", tool), recovered)
-		}
-	}()
-	return tool.Definition(), nil
 }

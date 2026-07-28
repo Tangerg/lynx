@@ -1,10 +1,8 @@
 package toolloop
 
 import (
-	"fmt"
 	"reflect"
 
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/tools"
 )
 
@@ -43,22 +41,6 @@ func (directRuntimeTool) ReturnsDirect() bool { return true }
 // Unwrap exposes the decorated tool so its optional capabilities remain
 // discoverable; this decorator overrides only the direct-return marker.
 func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
-
-func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("tool %T direct-return lookup panicked", tool), recovered)
-		}
-	}()
-	marker, ok, err := tools.Capability[DirectTool](tool)
-	if err != nil {
-		return false, fmt.Errorf("tool %T direct-return lookup: %w", tool, err)
-	}
-	if !ok {
-		return false, nil
-	}
-	return marker.ReturnsDirect(), nil
-}
 
 func valueIsNil(value any) bool {
 	if value == nil {
