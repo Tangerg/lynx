@@ -22,6 +22,7 @@
 .: type ActionConfig = core.ActionConfig
 .: type Agent = core.Agent
 .: type AgentConfig = core.AgentConfig
+.: type AgentDescriptor = core.AgentDescriptor
 .: type Bindings = core.Bindings
 .: type ChatCapability = core.ChatCapability
 .: type ChildOptionsFunc = core.ChildOptionsFunc
@@ -67,6 +68,7 @@ core: func (a *Agent) Actions() []Action
 core: func (a *Agent) Conditions() []Condition
 core: func (a *Agent) DecodeBlackboard(named map[string]TaggedValue, objects []TaggedValue) (Bindings, []any, error)
 core: func (a *Agent) Description() string
+core: func (a *Agent) Descriptor() AgentDescriptor
 core: func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]TaggedValue, []TaggedValue, error)
 core: func (a *Agent) Goals() []*Goal
 core: func (a *Agent) Name() string
@@ -110,6 +112,16 @@ core: func (d ActionDescriptor) Outputs() []Binding
 core: func (d ActionDescriptor) Preconditions() ConditionSet
 core: func (d ActionDescriptor) Repeatable() bool
 core: func (d ActionDescriptor) ToolGroups() []string
+core: func (d AgentDescriptor) Actions() []ActionDescriptor
+core: func (d AgentDescriptor) Conditions() []ConditionDescriptor
+core: func (d AgentDescriptor) Description() string
+core: func (d AgentDescriptor) Goals() []GoalDescriptor
+core: func (d AgentDescriptor) Name() string
+core: func (d AgentDescriptor) PlannerName() string
+core: func (d AgentDescriptor) SnapshotState() []Binding
+core: func (d AgentDescriptor) Version() string
+core: func (d ConditionDescriptor) Cost() float64
+core: func (d ConditionDescriptor) Name() string
 core: func (d GoalDescriptor) Description() string
 core: func (d GoalDescriptor) Inputs() []Binding
 core: func (d GoalDescriptor) Name() string
@@ -205,6 +217,7 @@ core: type ActionMiddleware interface { Extension RunAction( ctx context.Context
 core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition SnapshotState []Binding PlannerName string }
+core: type AgentDescriptor struct { }
 core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
@@ -215,8 +228,9 @@ core: type Budget struct { CostLimit float64 ActionLimit int ModelCallLimit int 
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
 core: type ChatMiddleware struct { CallMiddlewares []chat.CallMiddleware StreamMiddlewares []chat.StreamMiddleware }
 core: type ChatProvider interface { Extension Chat(process ProcessView) ChatCapability }
-core: type ChildOptionsFunc func( ctx context.Context, parent ProcessView, child *Agent, ) (ProcessOptions, error)
+core: type ChildOptionsFunc func( ctx context.Context, parent ProcessView, child AgentDescriptor, ) (ProcessOptions, error)
 core: type Condition interface { Name() string Cost() float64 Evaluate(ctx context.Context, env *ConditionEnv) Truth }
+core: type ConditionDescriptor struct { }
 core: type ConditionEnv struct { Process ProcessView Blackboard BlackboardReader RunInteraction func(context.Context, Interaction) (interaction.Result, error) }
 core: type ConditionFunc func(ctx context.Context, env *ConditionEnv) Truth
 core: type ConditionSet map[string]Truth
@@ -227,7 +241,7 @@ core: type Extension interface { Name() string }
 core: type FuncAction[In, Out any] struct { }
 core: type FuncCondition struct { }
 core: type Goal struct { }
-core: type GoalApprover interface { Extension Approve(process ProcessView, goal *Goal) bool }
+core: type GoalApprover interface { Extension Approve(process ProcessView, goal GoalDescriptor) bool }
 core: type GoalConfig struct { Name string Description string Preconditions []string Inputs []Binding Value ScoreFunc }
 core: type GoalDescriptor struct { }
 core: type IDGenerator interface { Extension Next() string }
@@ -243,7 +257,7 @@ core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptio
 core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` }
 core: type ProcessSnapshotTree struct { RootID string Snapshots []ProcessSnapshot }
 core: type ProcessStatus int8
-core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() *Goal Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
+core: type ProcessView interface { ID() string ParentID() string Deployment() DeploymentRef StartedAt() time.Time Status() ProcessStatus Goal() GoalDescriptor Blackboard() BlackboardReader Failure() error Suspension() *interaction.Suspension WorldState() WorldState Usage() Usage }
 core: type PromptCondition struct { }
 core: type PromptConditionConfig struct { Name string Prompt PromptFunc Parse ParseTruthFunc Cost float64 }
 core: type PromptConfig struct { System string Options *chat.Options Tools []tools.Tool DisableActionTools bool MaxToolRounds int }
@@ -431,23 +445,23 @@ planning: type Plan struct { }
 planning: type PlanDescriptor struct { }
 planning: type Planner interface { core.Extension PlanToGoal( ctx context.Context, state core.WorldState, domain *Domain, goal *core.Goal, options Options, ) (*Plan, error) }
 planning: type State struct { }
-routing: func (c Candidate) Agent() *core.Agent
+routing: func (c Candidate) Agent() core.AgentDescriptor
 routing: func (c Candidate) Deployment() core.DeploymentRef
-routing: func (c Candidate) Goal() *core.Goal
+routing: func (c Candidate) Goal() core.GoalDescriptor
 routing: func (c Candidate) String() string
 routing: func (r *Router) Candidates() []Candidate
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
 routing: func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error)
 routing: type Candidate struct { }
 routing: type Choice struct { Candidate Confidence float64 Rationale string }
-routing: type Config struct { MinConfidence float64 AgentFilter func(*core.Agent) bool GoalFilter func(*core.Agent, *core.Goal) bool }
+routing: type Config struct { MinConfidence float64 AgentFilter func(core.AgentDescriptor) bool GoalFilter func(core.AgentDescriptor, core.GoalDescriptor) bool }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
 routing: type Runtime interface { ActiveDeployments() []*runtime.Deployment }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 runtime: const ( DefaultMaxChildDepth = 8 )
 runtime: func (c RunCompletion) Error() error
-runtime: func (d *Deployment) Agent() *core.Agent
+runtime: func (d *Deployment) Descriptor() core.AgentDescriptor
 runtime: func (d *Deployment) Ref() core.DeploymentRef
 runtime: func (e *DeploymentConflictError) Error() string
 runtime: func (e *DeploymentConflictError) Unwrap() error
@@ -481,7 +495,7 @@ runtime: func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) err
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) Failure() error
-runtime: func (p *Process) Goal() *core.Goal
+runtime: func (p *Process) Goal() core.GoalDescriptor
 runtime: func (p *Process) ID() string
 runtime: func (p *Process) ParentID() string
 runtime: func (p *Process) StartedAt() time.Time

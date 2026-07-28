@@ -29,6 +29,7 @@ const compiledDefinitionFormat = 1
 // executable implementation associated with a DeploymentRef is compatible.
 type Deployment struct {
 	agent      *core.Agent
+	descriptor core.AgentDescriptor
 	ref        core.DeploymentRef
 	definition []byte
 }
@@ -45,14 +46,13 @@ func (d *Deployment) Ref() core.DeploymentRef {
 	return d.ref
 }
 
-// Agent returns the immutable compiled agent declaration. Agent, Goal,
-// and built-in action metadata expose defensive collection snapshots, so the
-// deployment can share one stable definition without cloning it per read.
-func (d *Deployment) Agent() *core.Agent {
+// Descriptor returns the immutable, non-executable declaration compiled into
+// this deployment.
+func (d *Deployment) Descriptor() core.AgentDescriptor {
 	if d == nil {
-		return nil
+		return core.AgentDescriptor{}
 	}
-	return d.agent
+	return d.descriptor
 }
 
 func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
@@ -97,6 +97,7 @@ func (c deploymentCompiler) compileSnapshot(agent *core.Agent) (*Deployment, err
 	}
 	return &Deployment{
 		agent:      agent,
+		descriptor: agent.Descriptor(),
 		ref:        ref,
 		definition: slices.Clone(definition),
 	}, nil

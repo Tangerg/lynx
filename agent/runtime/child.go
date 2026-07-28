@@ -183,7 +183,7 @@ func configureChildProcessOptions(
 		return options, nil
 	}
 	configure := parent.options.childOptions
-	configured, err := configure(normalizeContext(ctx), parent, deployment.agent)
+	configured, err := configure(normalizeContext(ctx), parent, deployment.Descriptor())
 	if err != nil {
 		return core.ProcessOptions{}, err
 	}

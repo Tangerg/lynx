@@ -43,7 +43,7 @@ func (processView) ParentID() string                    { return "" }
 func (processView) Deployment() core.DeploymentRef      { return core.DeploymentRef{} }
 func (processView) StartedAt() time.Time                { return time.Time{} }
 func (processView) Status() core.ProcessStatus          { return core.StatusRunning }
-func (processView) Goal() *core.Goal                    { return nil }
+func (processView) Goal() core.GoalDescriptor           { return core.GoalDescriptor{} }
 func (processView) Blackboard() core.BlackboardReader   { return nil }
 func (processView) Failure() error                      { return nil }
 func (processView) Suspension() *interaction.Suspension { return nil }

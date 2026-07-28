@@ -84,7 +84,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		configured []string
 	)
 	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
-		ChildOptions: func(_ context.Context, _ core.ProcessView, child *core.Agent) (core.ProcessOptions, error) {
+		ChildOptions: func(_ context.Context, _ core.ProcessView, child core.AgentDescriptor) (core.ProcessOptions, error) {
 			dependencies := engine.Dependencies().Child()
 			if err := core.RegisterDependency(dependencies, childPolicyKey, child.Name()); err != nil {
 				return core.ProcessOptions{}, err
@@ -213,7 +213,7 @@ func TestChildOptionsCannotCarryASecondBudget(t *testing.T) {
 
 	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
 		Budget: core.Budget{ModelCallLimit: 4},
-		ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
+		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Budget: core.Budget{ModelCallLimit: 1}}, nil
 		},
 	})

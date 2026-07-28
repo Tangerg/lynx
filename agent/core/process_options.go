@@ -15,7 +15,7 @@ import (
 type ChildOptionsFunc func(
 	ctx context.Context,
 	parent ProcessView,
-	child *Agent,
+	child AgentDescriptor,
 ) (ProcessOptions, error)
 
 // ProcessOptions is the per-process configuration bundle. Its zero value is
@@ -37,9 +37,9 @@ type ProcessOptions struct {
 
 	// ChildOptions configures every child process spawned by this process,
 	// including agent-as-tool and workflow children. The callback receives the
-	// read-only parent and exact child definition. A nil returned Blackboard
-	// keeps the selected RunChild inheritance mode; other returned fields
-	// configure the child normally.
+	// read-only parent and an inert description of the exact child definition. A
+	// nil returned Blackboard keeps the selected RunChild inheritance mode;
+	// other returned fields configure the child normally.
 	//
 	// The callback itself is inherited by descendants unless the returned
 	// ProcessOptions supplies a different non-nil ChildOptions, so one explicit

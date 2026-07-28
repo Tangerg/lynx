@@ -137,7 +137,9 @@ func (p *Process) Deployment() core.DeploymentRef {
 	return p.deployment.Ref()
 }
 
-func (p *Process) Status() core.ProcessStatus  { return p.state.status() }
-func (p *Process) Goal() *core.Goal            { return p.state.goal() }
-func (p *Process) WorldState() core.WorldState { return p.state.worldState() }
-func (p *Process) Failure() error              { return p.state.failure() }
+func (p *Process) Status() core.ProcessStatus { return p.state.status() }
+func (p *Process) Goal() core.GoalDescriptor  { return p.state.goal().Descriptor() }
+func (p *Process) WorldState() core.WorldState {
+	return p.state.worldState()
+}
+func (p *Process) Failure() error { return p.state.failure() }

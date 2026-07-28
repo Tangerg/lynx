@@ -212,3 +212,59 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 		t.Fatalf("Agent leaked snapshot state storage: %#v", state)
 	}
 }
+
+func TestAgentDescriptorOwnsItsNonExecutableProjection(t *testing.T) {
+	action := fakeAction{meta: core.ActionMetadata{
+		Name:          "act",
+		Description:   "perform work",
+		Inputs:        []core.Binding{core.NewBinding[snapshotStateSample]("input")},
+		Preconditions: core.ConditionSet{"ready": core.True},
+		Cost: func(core.WorldState) float64 {
+			t.Fatal("descriptor invoked action scoring policy")
+			return 0
+		},
+	}}
+	agent := core.NewAgent(core.AgentConfig{
+		Name:          "described",
+		Description:   "description",
+		Version:       "1.2.3",
+		Actions:       []core.Action{action},
+		Goals:         []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"ready"}})},
+		Conditions:    []core.Condition{fakeCondition{name: "ready", cost: 2}},
+		SnapshotState: []core.Binding{core.NewBinding[snapshotStateSample]("state")},
+		PlannerName:   "goap",
+	})
+
+	descriptor := agent.Descriptor()
+	actions := descriptor.Actions()
+	actionInputs := actions[0].Inputs()
+	actionPreconditions := actions[0].Preconditions()
+	goals := descriptor.Goals()
+	goalConditions := goals[0].RequiredConditions()
+	conditions := descriptor.Conditions()
+	state := descriptor.SnapshotState()
+	actions[0] = core.ActionDescriptor{}
+	actionInputs[0].Name = "leaked"
+	actionPreconditions["ready"] = core.False
+	goals[0] = core.GoalDescriptor{}
+	goalConditions[0] = "leaked"
+	conditions[0] = core.ConditionDescriptor{}
+	state[0].Name = "leaked"
+
+	if descriptor.Name() != "described" ||
+		descriptor.Description() != "description" ||
+		descriptor.Version() != "1.2.3" ||
+		descriptor.PlannerName() != "goap" {
+		t.Fatal("AgentDescriptor lost scalar definition data")
+	}
+	if descriptor.Actions()[0].Name() != "act" ||
+		descriptor.Actions()[0].Inputs()[0].Name != "input" ||
+		descriptor.Actions()[0].Preconditions()["ready"] != core.True ||
+		descriptor.Goals()[0].Name() != "done" ||
+		descriptor.Goals()[0].RequiredConditions()[0] != "ready" ||
+		descriptor.Conditions()[0].Name() != "ready" ||
+		descriptor.Conditions()[0].Cost() != 2 ||
+		descriptor.SnapshotState()[0].Name != "state" {
+		t.Fatal("AgentDescriptor leaked accessor storage")
+	}
+}

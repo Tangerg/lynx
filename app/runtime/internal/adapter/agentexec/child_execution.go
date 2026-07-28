@@ -48,7 +48,7 @@ func childOptions(
 	}).options
 }
 
-func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ *core.Agent) (core.ProcessOptions, error) {
+func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ core.AgentDescriptor) (core.ProcessOptions, error) {
 	if p.dependencies == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: child execution requires engine dependencies")
 	}

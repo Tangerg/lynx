@@ -317,7 +317,7 @@ func approveGoalWith(approver extensionCapability[core.GoalApprover], process co
 			err = panicerr.New(fmt.Sprintf("goal approver %q panicked", approver.name), recovered)
 		}
 	}()
-	return approver.value.Approve(process, goal), nil
+	return approver.value.Approve(process, goal.Descriptor()), nil
 }
 
 // runToolGroupResolvers walks resolvers in order; the first resolver

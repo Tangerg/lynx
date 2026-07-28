@@ -626,8 +626,16 @@ func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	if validator.seen == nil || validator.seen == definition || validator.seen != deployment.Agent() {
-		t.Fatalf("validator agent = %p, source = %p, deployment = %p", validator.seen, definition, deployment.Agent())
+	if validator.seen == nil || validator.seen == definition {
+		t.Fatalf("validator agent = %p, source = %p", validator.seen, definition)
+	}
+	seen := validator.seen.Descriptor()
+	deployed := deployment.Descriptor()
+	if seen.Name() != deployed.Name() ||
+		seen.Version() != deployed.Version() ||
+		len(seen.Actions()) != len(deployed.Actions()) ||
+		len(seen.Goals()) != len(deployed.Goals()) {
+		t.Fatalf("validator received definition %q, deployment describes %q", seen.Name(), deployed.Name())
 	}
 }
 
@@ -683,13 +691,13 @@ func TestDeploy_ReportsAllProblems(t *testing.T) {
 // vetoApprover blocks every goal it sees.
 type vetoApprover struct{ name string }
 
-func (v vetoApprover) Name() string                                { return v.name }
-func (vetoApprover) Approve(_ core.ProcessView, _ *core.Goal) bool { return false }
+func (v vetoApprover) Name() string                                         { return v.name }
+func (vetoApprover) Approve(_ core.ProcessView, _ core.GoalDescriptor) bool { return false }
 
 type panickingApprover struct{ cause error }
 
 func (panickingApprover) Name() string { return "panic-approver" }
-func (a panickingApprover) Approve(core.ProcessView, *core.Goal) bool {
+func (a panickingApprover) Approve(core.ProcessView, core.GoalDescriptor) bool {
 	panic(a.cause)
 }
 

@@ -17,7 +17,7 @@ type ProcessView interface {
 	Deployment() DeploymentRef
 	StartedAt() time.Time
 	Status() ProcessStatus
-	Goal() *Goal
+	Goal() GoalDescriptor
 	Blackboard() BlackboardReader
 	Failure() error
 	Suspension() *interaction.Suspension

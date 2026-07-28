@@ -16,6 +16,7 @@ import (
 type (
 	Agent            = core.Agent
 	AgentConfig      = core.AgentConfig
+	AgentDescriptor  = core.AgentDescriptor
 	Action           = core.Action
 	ActionConfig     = core.ActionConfig
 	Goal             = core.Goal

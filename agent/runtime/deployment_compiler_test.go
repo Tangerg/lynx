@@ -334,16 +334,19 @@ func TestAgentRegistryReturnsStableImmutableDeployments(t *testing.T) {
 	if len(listed) != 2 || listed[0].Ref().Name != "alpha" || listed[1].Ref().Name != "zebra" {
 		t.Fatalf("registry order = %#v", []string{listed[0].Ref().Name, listed[1].Ref().Name})
 	}
-	definition := listed[0].Agent()
+	definition := listed[0].Descriptor()
 	actions := definition.Actions()
 	goals := definition.Goals()
-	actions[0] = nil
-	goals[0] = nil
-	pre := definition.Goals()[0].RequiredConditions()
+	pre := goals[0].RequiredConditions()
+	actions[0] = core.ActionDescriptor{}
+	goals[0] = core.GoalDescriptor{}
 	pre[0] = "mutated"
 
-	again := listed[0].Agent()
-	if again != definition || again.Description() != "fixture" || again.Goals()[0].RequiredConditions()[0] != "finish" {
+	again := listed[0].Descriptor()
+	if again.Description() != "fixture" ||
+		again.Actions()[0].Name() == "" ||
+		again.Goals()[0].Name() == "" ||
+		again.Goals()[0].RequiredConditions()[0] != "finish" {
 		t.Fatalf("deployment definition leaked mutation: %#v", again)
 	}
 }

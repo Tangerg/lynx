@@ -66,6 +66,9 @@ Agent 只生产和消费 `ProcessSnapshot` / `ProcessSnapshotTree` 值；Host �
 `(ActionStatus, error)`：status 表达 Waiting/Paused 等生命周期结果，error 表达失败或
 replan。Middleware 不得自行运行 Planner，也不能把错误改藏到 context 或 Blackboard。
 
+`GoalApprover` 接收 `GoalDescriptor`，`ProcessView.Goal` 也返回该值；审批与观察代码不能调用
+Goal score policy。完整 `*Goal` 仅留在 Planner 和 Runtime 的受信执行路径。
+
 `ToolMiddleware.WrapTool` 只包装已解析的 `tools.Tool`。鉴权、redaction、tracing 和明确的
 调用级 retry 可以放在这里；模型轮次、HITL、usage、checkpoint 与 tool-loop 终止属于
 framework-managed interaction。包装器只需声明 `tools.WrappingTool`（`Unwrap`），被包装

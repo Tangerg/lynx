@@ -1906,8 +1906,10 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 
 ### P23：可执行能力与观察投影边界收口
 
-- [x] 新增不可执行、不可变的 Action/Goal/Plan descriptor；生命周期事件和
-  Action/Tool middleware 不再暴露 executable Action、planner score function 或可变定义容器。
+- [x] 新增不可执行、不可变的 Agent/Action/Condition/Goal/Plan descriptor；Deployment 查询、
+  routing Candidate/filter、ProcessView、GoalApprover、ChildOptions、生命周期事件和
+  Action/Tool middleware 不再暴露 executable definition、planner score function 或可变定义容器。
+  完整 Agent/Goal 只留在 Engine 执行器、Planner 和 deploy-time AgentValidator。
 - [x] `ProcessCompleted` 不再携带任意应用 Result；App 在自己的 adapter 边界按 ProcessID
   查询 live process result，并继续负责 subagent hook 的产品投影。
 - [x] 通用 tool decorator traversal 从 `agent/toolloop` 下沉到 `tools`；malformed chain、
@@ -2207,9 +2209,11 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 ### ADR-AF-023：观察面只暴露 inert definition，产品结果由 Host 查询
 
 - 状态：已接受并实现。
-- observation：Agent lifecycle event 与 middleware 只接收不可执行的
-  `ActionDescriptor`/`GoalDescriptor`/`PlanDescriptor`；score function、Action.Execute 和
-  planner control object 不进入观察面。
+- observation：Deployment、routing、ProcessView、GoalApprover、ChildOptions、Agent lifecycle
+  event 与 middleware 只接收不可执行的
+  `AgentDescriptor`/`ActionDescriptor`/`ConditionDescriptor`/`GoalDescriptor`/`PlanDescriptor`；
+  score function、Action.Execute、Condition.Evaluate、StuckPolicy 和 planner control object
+  不进入观察、选择或配置面。
 - result：`ProcessCompleted` 只表达 lifecycle completion，不承载任意业务对象。Host 若要
   生成产品 hook/event，按 ProcessID 从自己持有的 execution adapter 查询结果。
 - tool protocol：通用 decorator traversal 归 `tools.WrappingTool`/`tools.Capability`；
@@ -2228,6 +2232,7 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-28 | 深化 P23：Deployment、routing、ProcessView、GoalApprover 与 ChildOptions 全部改用 inert descriptor；完整 Agent/Goal 仅保留在受信执行路径，删除公开 executable definition 兼容入口 | Codex |
 | 2026-07-28 | 完成 P23：event/middleware 只暴露 inert descriptors，任意应用 Result 移出 Framework event bus；通用 tool wrapper protocol 下沉 tools 并显式错误化；删除 Utility magic Goal、workflow 默认模型文案和词法 ownership denylist；App consumer、API baseline、文档与完整门禁直接迁移 | Codex |
 | 2026-07-27 | 完成 P22：Goal 回归纯规划抽象；删除 Goal tool fan-out、standalone AgentTool/Host waiting JSON、ToolGroup 单字段 requirement/权限/发行坐标/Info 重复合同和 agent/toolpolicy；Supervisor 改为显式 tools；App/示例/基线/架构守卫与完整门禁直接迁移 | Codex |
 | 2026-07-27 | 完成 P21：删除单节点 snapshot/restore、局部 remove/prune 和后台 child 双轨 API；完整根树统一 registry/budget/checkpoint 生命周期，snapshot v8 拒绝不稳定状态；ChatMiddleware 与 Prompt limit 拆分组合；新增安全 deployment forget 原语并清理 exactly-once 文档暗示 | Codex |

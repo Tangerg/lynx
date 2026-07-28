@@ -184,7 +184,7 @@ func TestRouter_AgentFilter(t *testing.T) {
 			"internal:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 0.99,
 		},
 	}, routing.Config{
-		AgentFilter: func(a *core.Agent) bool { return a.Name() != "internal" },
+		AgentFilter: func(a core.AgentDescriptor) bool { return a.Name() != "internal" },
 	})
 
 	candidates := auto.Candidates()
@@ -215,12 +215,18 @@ func TestCandidateKeepsExactImmutableIdentity(t *testing.T) {
 
 	candidate := router.Candidates()[0]
 	actions := candidate.Agent().Actions()
-	actions[0] = nil
+	actions[0] = core.ActionDescriptor{}
+	goals := candidate.Agent().Goals()
+	goals[0] = core.GoalDescriptor{}
 
-	if candidate.Deployment() != deployment.Ref() || candidate.Agent() != deployment.Agent() {
+	if candidate.Deployment() != deployment.Ref() ||
+		candidate.Agent().Name() != deployment.Descriptor().Name() {
 		t.Fatalf("candidate identity drifted: %s / %s", candidate.Deployment(), deployment.Ref())
 	}
-	if candidate.Goal() == nil || candidate.Agent().Actions()[0] == nil || candidate.String() == "<invalid candidate>" {
+	if candidate.Goal().Name() == "" ||
+		candidate.Agent().Actions()[0].Name() == "" ||
+		candidate.Agent().Goals()[0].Name() == "" ||
+		candidate.String() == "<invalid candidate>" {
 		t.Fatal("candidate leaked definition mutation or lost its goal identity")
 	}
 }

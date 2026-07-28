@@ -93,7 +93,7 @@ type AgentValidator interface {
 type GoalApprover interface {
 	Extension
 
-	Approve(process ProcessView, goal *Goal) bool
+	Approve(process ProcessView, goal GoalDescriptor) bool
 }
 
 // ChatProvider overrides which provider-neutral chat capabilities a process's

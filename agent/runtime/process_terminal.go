@@ -107,7 +107,7 @@ func (p *Process) publishTerminalEvent(ctx context.Context) {
 	case core.StatusCompleted:
 		p.publishEvent(ctx, event.ProcessCompleted{
 			Header: p.eventHeader(),
-			Goal:   p.Goal().Descriptor(),
+			Goal:   p.Goal(),
 		})
 	case core.StatusFailed:
 		p.publishEvent(ctx, event.ProcessFailed{

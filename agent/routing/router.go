@@ -21,31 +21,31 @@ const (
 // pairing each with each of its goals.
 type Candidate struct {
 	deployment core.DeploymentRef
-	agent      *core.Agent
-	goal       *core.Goal
+	agent      core.AgentDescriptor
+	goal       core.GoalDescriptor
 }
 
-func newCandidate(deployment core.DeploymentRef, agent *core.Agent, goal *core.Goal) Candidate {
+func newCandidate(deployment core.DeploymentRef, agent core.AgentDescriptor, goal core.GoalDescriptor) Candidate {
 	return Candidate{deployment: deployment, agent: agent, goal: goal}
 }
 
 // Deployment returns the exact immutable definition identity being ranked.
 func (c Candidate) Deployment() core.DeploymentRef { return c.deployment }
 
-// Agent returns the immutable agent definition being ranked.
-func (c Candidate) Agent() *core.Agent { return c.agent }
+// Agent returns the non-executable agent description being ranked.
+func (c Candidate) Agent() core.AgentDescriptor { return c.agent }
 
-// Goal returns the immutable target being ranked.
-func (c Candidate) Goal() *core.Goal { return c.goal }
+// Goal returns the non-executable target being ranked.
+func (c Candidate) Goal() core.GoalDescriptor { return c.goal }
 
 // String renders "<agent>:<goal>" — used by the LLM prompt and by
 // human-readable logging.
 func (c Candidate) String() string {
-	if c.goal == nil {
+	if c.goal.Name() == "" {
 		return invalidCandidate
 	}
 	name := c.deployment.Name
-	if name == "" && c.agent != nil {
+	if name == "" {
 		name = c.agent.Name()
 	}
 	if name == "" {
@@ -97,11 +97,11 @@ type Config struct {
 	// AgentFilter, when non-nil, restricts the candidate pool to agents the
 	// predicate returns true for. Why a caller narrows the pool is its own
 	// concern; the router only applies the predicate.
-	AgentFilter func(*core.Agent) bool
+	AgentFilter func(core.AgentDescriptor) bool
 
 	// GoalFilter, when non-nil, restricts which goals on each
 	// surviving agent become candidates.
-	GoalFilter func(*core.Agent, *core.Goal) bool
+	GoalFilter func(core.AgentDescriptor, core.GoalDescriptor) bool
 }
 
 // Router is the orchestrator. Construct with [New].
@@ -134,15 +134,15 @@ func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
 func (r *Router) Candidates() []Candidate {
 	var candidates []Candidate
 	for _, deployment := range r.runtime.ActiveDeployments() {
-		agent := deployment.Agent()
-		if agent == nil {
+		agent := deployment.Descriptor()
+		if agent.Name() == "" {
 			continue
 		}
 		if r.config.AgentFilter != nil && !r.config.AgentFilter(agent) {
 			continue
 		}
 		for _, goal := range agent.Goals() {
-			if goal == nil {
+			if goal.Name() == "" {
 				continue
 			}
 			if r.config.GoalFilter != nil && !r.config.GoalFilter(agent, goal) {
@@ -172,7 +172,7 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 		return Choice{}, fmt.Errorf("routing: ranker returned %d choices for %d candidates", len(choices), len(candidates))
 	}
 	for i := range candidates {
-		if choices[i].Deployment() != candidates[i].Deployment() || choices[i].Goal() == nil ||
+		if choices[i].Deployment() != candidates[i].Deployment() ||
 			choices[i].Goal().Name() != candidates[i].Goal().Name() {
 			return Choice{}, fmt.Errorf("routing: ranker changed candidate at index %d", i)
 		}

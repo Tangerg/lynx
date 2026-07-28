@@ -66,6 +66,21 @@ type Agent struct {
 	config AgentConfig
 }
 
+// AgentDescriptor is the immutable, non-executable projection of an agent
+// definition. It exposes identity, planning declarations, and state schema
+// while deliberately excluding actions, conditions, and recovery policies
+// that can execute caller code.
+type AgentDescriptor struct {
+	name          string
+	description   string
+	version       string
+	actions       []ActionDescriptor
+	goals         []GoalDescriptor
+	conditions    []ConditionDescriptor
+	snapshotState []Binding
+	plannerName   string
+}
+
 // NewAgent constructs a read-only definition from config. Slice fields and the
 // semantic version are copied. Executable Action and Condition implementations
 // remain referenced as SPI values; Engine deployment snapshots their
@@ -155,6 +170,69 @@ func (a *Agent) PlannerName() string {
 	}
 	return a.config.PlannerName
 }
+
+// Descriptor projects the definition into an inert value suitable for
+// selection, policy, and observation boundaries.
+func (a *Agent) Descriptor() AgentDescriptor {
+	if a == nil {
+		return AgentDescriptor{}
+	}
+	descriptor := AgentDescriptor{
+		name:          a.config.Name,
+		description:   a.config.Description,
+		version:       a.config.Version,
+		actions:       make([]ActionDescriptor, len(a.config.Actions)),
+		goals:         make([]GoalDescriptor, len(a.config.Goals)),
+		conditions:    make([]ConditionDescriptor, len(a.config.Conditions)),
+		snapshotState: slices.Clone(a.config.SnapshotState),
+		plannerName:   a.config.PlannerName,
+	}
+	for index, action := range a.config.Actions {
+		if action != nil {
+			descriptor.actions[index] = action.Metadata().Descriptor()
+		}
+	}
+	for index, goal := range a.config.Goals {
+		descriptor.goals[index] = goal.Descriptor()
+	}
+	for index, condition := range a.config.Conditions {
+		if condition != nil {
+			descriptor.conditions[index] = ConditionDescriptor{
+				name: condition.Name(),
+				cost: condition.Cost(),
+			}
+		}
+	}
+	return descriptor
+}
+
+// Name returns the definition's identity.
+func (d AgentDescriptor) Name() string { return d.name }
+
+// Description returns the caller-supplied human-readable purpose.
+func (d AgentDescriptor) Description() string { return d.description }
+
+// Version returns the optional semantic version string.
+func (d AgentDescriptor) Version() string { return d.version }
+
+// Actions returns independent non-executable action descriptions.
+func (d AgentDescriptor) Actions() []ActionDescriptor { return slices.Clone(d.actions) }
+
+// Goals returns independent non-executable goal descriptions.
+func (d AgentDescriptor) Goals() []GoalDescriptor { return slices.Clone(d.goals) }
+
+// Conditions returns independent non-executable condition descriptions.
+func (d AgentDescriptor) Conditions() []ConditionDescriptor {
+	return slices.Clone(d.conditions)
+}
+
+// SnapshotState returns an independent snapshot of the declared state schema.
+func (d AgentDescriptor) SnapshotState() []Binding {
+	return slices.Clone(d.snapshotState)
+}
+
+// PlannerName returns the requested planner extension name.
+func (d AgentDescriptor) PlannerName() string { return d.plannerName }
 
 // Validate checks all built-in invariants required by deployment: identity,
 // unique capabilities, and conservative goal reachability.

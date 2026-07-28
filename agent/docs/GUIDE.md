@@ -120,6 +120,12 @@ Deployment digest 共用同一归一规则，避免执行语义和缓存身份�
 - `Engine.Deployment(ref)` 可读取活动或历史部署；
 - `Engine.Undeploy(ctx, name)` 只移除活动路由，不破坏历史定义。
 
+`Deployment` 只通过 `Descriptor` 暴露不可执行的 `AgentDescriptor`。该描述符包含 Agent
+身份、Action/Goal/Condition 声明与 snapshot state schema，但不含 `Action.Execute`、
+`Condition.Evaluate`、score function 或 `StuckPolicy`。路由 Candidate 和 filter 同样只接收
+Agent/Goal descriptor；只有 Engine 内部执行器、Planner 和 deploy-time `AgentValidator`
+持有完整定义。
+
 `NewAction[In, Out]` 默认生成一个名为 `it` 的输入和输出 Binding。需要自定义名字或多个
 Binding 时，使用 `ActionConfig.Inputs`、`Outputs` 和 `core.NewBinding[T]`。`ActionConfig`
 保持可用零值，常用可选项包括：
@@ -164,7 +170,8 @@ Agent 不定义 Store，也不执行 I/O、事务、幂等、重试或保留策�
 同一 Engine 内，同一 Process 同时只能有一个 active run 驱动执行。这是本机生命周期不变量，
 不是分布式 owner 协议。
 
-观察者只应依赖 `core.ProcessView`。Action 的可变能力集中在 `ProcessContext`：Blackboard、
+观察者只应依赖 `core.ProcessView`，其 `Goal` 返回不可执行的 `GoalDescriptor`。
+`GoalApprover` 也只接收该描述符。Action 的可变能力集中在 `ProcessContext`：Blackboard、
 Dependencies、Chat、Prompt、Suspend、Terminate 和 Usage 记录不会进入公开 ProcessView 或
 ambient context。
 
@@ -366,7 +373,8 @@ Child API 的状态继承是明确契约：
 
 Child 使用精确 Deployment、整棵树共享的预算准入器，并仅继承父 Process 显式注册的
 `SubtreeEventListener`；普通 `EventListener` 只观察注册它的 Process。其他 Process extension、
-chat middleware、history partition 和 dependency override 都由 Host 的 `ChildOptions` 显式配置。
+chat middleware、history partition 和 dependency override 都由 Host 的 `ChildOptions` 显式配置；
+callback 只获得 child 的 `AgentDescriptor`，不能通过配置策略取得或执行 child Action。
 
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
 `ScatterGather`、`Consensus` 和 `Supervisor` 最终都编译回普通 Agent。需要在构造期部署

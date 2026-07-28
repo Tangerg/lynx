@@ -27,7 +27,7 @@ func TestRunChildReturnsExtensionNamePanic(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
 	cause := errors.New("child extension identity unavailable")
 	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{
-		ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
+		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Extensions: []core.Extension{panickingChildExtension{cause: cause}}}, nil
 		},
 	})
@@ -51,7 +51,7 @@ func TestRunChildRejectsASecondTreeBudget(t *testing.T) {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
 
 	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{
-		ChildOptions: func(context.Context, core.ProcessView, *core.Agent) (core.ProcessOptions, error) {
+		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Budget: core.Budget{ActionLimit: 1}}, nil
 		},
 	})

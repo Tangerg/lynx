@@ -34,6 +34,20 @@ type Condition interface {
 	Evaluate(ctx context.Context, env *ConditionEnv) Truth
 }
 
+// ConditionDescriptor is the immutable, non-executable projection of a
+// condition. It carries the planner's static evaluation-cost hint but no
+// Evaluate capability.
+type ConditionDescriptor struct {
+	name string
+	cost float64
+}
+
+// Name returns the condition's identity.
+func (d ConditionDescriptor) Name() string { return d.name }
+
+// Cost returns the condition's static evaluation-cost hint.
+func (d ConditionDescriptor) Cost() float64 { return d.cost }
+
 // ConditionFunc is the function shape used by NewCondition — exported so
 // callers can name parameters in their own code without re-typing the
 // signature.
