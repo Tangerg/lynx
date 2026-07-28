@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
@@ -502,4 +503,90 @@ func exportedStructs(t *testing.T, dir string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// TestValueConstraintsAgreeAcrossArtifacts is the Go/schema half of contract §11.4
+// gate 6: every declared value constraint is stated by BOTH emitters.
+//
+// One declaration feeds two independent emitters — the Go validator writes a
+// `required(...)` call, the schema writes `minLength`, and a nested path takes a
+// third code path (an allOf branch on the request, because the rule belongs to the
+// request and not to every carrier of the shared type). Construction does not make
+// them agree; only reading both artifacts back does. The TypeScript half lands with
+// the TS validator, which reads the schema this pins.
+func TestValueConstraintsAgreeAcrossArtifacts(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "contract")
+
+	var bundle struct {
+		Defs map[string]json.RawMessage `json:"$defs"`
+	}
+	if err := json.Unmarshal(readArtifact(t, dir, "schema.json"), &bundle); err != nil {
+		t.Fatalf("decode schema.json: %v", err)
+	}
+	validator := string(readArtifact(t, filepath.Join(root, validatorDir), validatorFile))
+
+	for _, spec := range dispatch.WireShapes().ValueConstraints() {
+		shape := spec.GoType.Name()
+		definition, ok := bundle.Defs[shape]
+		if !ok {
+			t.Errorf("%s carries value constraints and the bundle does not define it", shape)
+			continue
+		}
+		for _, constraint := range spec.Constraints {
+			keyword, helper := "minLength", "required"
+			if constraint.Kind == dispatch.ConstraintPositive {
+				keyword, helper = "minimum", "positive"
+			}
+			// The schema states the rule somewhere inside the request's definition —
+			// on the property for a direct field, in an allOf branch for a nested one.
+			if !constraintInSchema(t, definition, constraint.Field, keyword) {
+				t.Errorf("%s.%s is declared %s and schema.json states no %s for it",
+					shape, constraint.Field, constraint.Kind, keyword)
+			}
+			call := helper + `("` + constraint.Field + `"`
+			if !strings.Contains(validator, call) {
+				t.Errorf("%s.%s is declared %s and the generated validator has no %s call",
+					shape, constraint.Field, constraint.Kind, helper)
+			}
+		}
+	}
+}
+
+// constraintInSchema reports whether the definition constrains the last segment of
+// a dotted path with the given keyword, at any depth.
+func constraintInSchema(t *testing.T, definition json.RawMessage, path, keyword string) bool {
+	t.Helper()
+
+	var decoded any
+	if err := json.Unmarshal(definition, &decoded); err != nil {
+		t.Fatalf("decode definition: %v", err)
+	}
+	segments := strings.Split(path, ".")
+	return statesKeyword(decoded, segments[len(segments)-1], keyword)
+}
+
+func statesKeyword(node any, property, keyword string) bool {
+	switch typed := node.(type) {
+	case map[string]any:
+		if properties, ok := typed["properties"].(map[string]any); ok {
+			if constrained, ok := properties[property].(map[string]any); ok {
+				if _, stated := constrained[keyword]; stated {
+					return true
+				}
+			}
+		}
+		for _, value := range typed {
+			if statesKeyword(value, property, keyword) {
+				return true
+			}
+		}
+	case []any:
+		for _, value := range typed {
+			if statesKeyword(value, property, keyword) {
+				return true
+			}
+		}
+	}
+	return false
 }

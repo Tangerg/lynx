@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `IN PROGRESS` | 见下（**13/14** —— Go validator 已生成，TS validator 待补） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落 + gate 9 半落，3 项待 B3 余量，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 6 项已落 + gate 6/9 各半落，2 项待 TS validator，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -568,7 +568,8 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 13 | business error type/code 单一源 | ✅ `c83d041f3`（error registry 由 sentinel↔code 生成） |
 | 4 | OpenRPC / JSON Schema 可解析 | ✅ `TestGeneratedSchemasResolve` + `TestOpenRPCDescribesEveryMethod` —— 自带 `$ref` 解析器（无网络、无 vendored validator），并禁"定义了但无人引用"的孤儿 shape |
 | 9 | TS types / validators / client stubs 可编译 | ⚠️ 部分：**TS types 已生成且前端 `npm run check` 全绿**（typecheck + oxlint + prettier + 173 test file / 841 test + knip + 8 个结构脚本 + bundle 预算）；validators / stubs 待 B3 余 2 类 |
-| 6 / 10 / 14 | 三方约束等价 / canonical samples 三方 / state key fixture | ⏸ 待 B3 余 2 类产物（gate 10 还需先把两处 sample 合成一处，见上） |
+| 6 | 三方约束等价 | ⚠️ **Go↔schema 半边已落**：`TestValueConstraintsAgreeAcrossArtifacts` 回读两份产物 —— 一份声明喂两个独立 emitter（Go 发 `required(...)`、schema 发 `minLength`，嵌套路径走第三条 allOf 代码路径），构造**不**保证它们一致，只有回读才保证。TS 半边随 TS validator 落 |
+| 10 / 14 | canonical samples 三方 / state key fixture | ⏸ 待 TS validator（gate 10 还需先把两处 sample 合成一处，见上） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
 | 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
