@@ -35,7 +35,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	}
 
 	observer := &turnObserver{dispatcher: s, st: st}
-	subagents := newSubagentLifecycle(st.handle.SessionID, st.cwd, st.hooks)
+	subagents := newSubagentLifecycle(st.handle.SessionID, st.cwd, st.hooks, s.engine.ProcessResult)
 	var eventListener core.Extension
 	if subagents != nil {
 		eventListener = subagents.listener(st.handle.TurnID)

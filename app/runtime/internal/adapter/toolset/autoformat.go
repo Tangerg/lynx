@@ -16,7 +16,10 @@ import (
 
 func withAutoFormat(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := resolvedMutationPaths(inner, arguments, workdir)
+		paths, err := resolvedMutationPaths(inner, arguments, workdir)
+		if err != nil {
+			return "", fmt.Errorf("inspect mutation paths before formatting: %w", err)
+		}
 		out, err := inner.Call(ctx, arguments)
 		if err != nil || len(paths) == 0 {
 			return out, err

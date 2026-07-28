@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -35,13 +36,17 @@ func (catalogTool) Call(context.Context, string) (string, error) { return "", ni
 func TestDeferredManifestSurvivesObservation(t *testing.T) {
 	middleware := &toolObserverMiddleware{observation: newToolObservation(noopObserver{}, nil, 0)}
 	observed := []tools.Tool{
-		middleware.WrapTool(nil, nil, deferringSearchTool{}),
-		middleware.WrapTool(nil, nil, catalogTool{name: "catalog_a"}),
-		middleware.WrapTool(nil, nil, catalogTool{name: "read"}),
+		middleware.WrapTool(nil, core.ActionDescriptor{}, deferringSearchTool{}),
+		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "catalog_a"}),
+		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "read"}),
 	}
 
+	manifest, err := toolloop.Advertise(observed)
+	if err != nil {
+		t.Fatalf("Advertise: %v", err)
+	}
 	var advertised []string
-	for _, definition := range toolloop.Advertise(observed) {
+	for _, definition := range manifest {
 		advertised = append(advertised, definition.Name)
 	}
 	if len(advertised) != 2 || advertised[0] != "read" || advertised[1] != "search_tools" {

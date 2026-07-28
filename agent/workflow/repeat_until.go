@@ -83,16 +83,14 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
 
 	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
-		name:              config.Name,
-		description:       config.Description,
-		actionName:        config.Name + "-task",
-		actionDescription: "loop body — produces a candidate Out",
-		doneKey:           acceptKey,
-		goalDescription:   "produce acceptable " + core.TypeName[Out](),
-		maxIterations:     maxIterations,
-		stateBinding:      historyState,
-		newState:          func() *History[Out] { return &History[Out]{} },
-		count:             (*History[Out]).Count,
+		name:          config.Name,
+		description:   config.Description,
+		actionName:    config.Name + "-task",
+		doneKey:       acceptKey,
+		maxIterations: maxIterations,
+		stateBinding:  historyState,
+		newState:      func() *History[Out] { return &History[Out]{} },
+		count:         (*History[Out]).Count,
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
 			output, err := config.Task(ctx, process, input, history)
 			if err != nil {

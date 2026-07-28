@@ -10,13 +10,11 @@ import (
 // loop-oriented builders in this package. The public builders retain their
 // domain-specific configuration and only supply their state and stopping rule.
 type repeatWorkflowConfig[In, Out, State any] struct {
-	name              string
-	description       string
-	actionName        string
-	actionDescription string
-	doneKey           string
-	goalDescription   string
-	maxIterations     int
+	name          string
+	description   string
+	actionName    string
+	doneKey       string
+	maxIterations int
 
 	stateBinding core.Binding
 	newState     func() State
@@ -67,9 +65,8 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 			return config.run(ctx, process, input, state)
 		},
 		core.ActionConfig{
-			Description: config.actionDescription,
-			Repeatable:  true,
-			Effects:     []string{config.doneKey},
+			Repeatable: true,
+			Effects:    []string{config.doneKey},
 		},
 	)
 
@@ -85,7 +82,6 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 		SnapshotState: snapshotState,
 		Goals: []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{
 			Name:          config.name,
-			Description:   config.goalDescription,
 			Preconditions: []string{config.doneKey},
 		})},
 	})

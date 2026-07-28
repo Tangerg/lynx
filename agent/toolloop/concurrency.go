@@ -66,16 +66,17 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 }
 
 // concurrencyKey owns both halves of asking a tool how it schedules: finding the
-// declaration through the wrapping chain and calling it. Keeping the lookup
-// inside this recover is what attributes a non-terminating chain to the tool
-// instead of relying on some earlier caller having already walked it.
+// declaration through the wrapping chain and calling it.
 func concurrencyKey(tool tools.Tool, name, arguments string) (key string, concurrent bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New(fmt.Sprintf("tool %q concurrency lookup panicked", name), recovered)
 		}
 	}()
-	declared, ok := Capability[ConcurrentTool](tool)
+	declared, ok, err := tools.Capability[ConcurrentTool](tool)
+	if err != nil {
+		return "", false, fmt.Errorf("tool %q concurrency lookup: %w", name, err)
+	}
 	if !ok {
 		return "", false, nil
 	}

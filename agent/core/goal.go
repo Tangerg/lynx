@@ -32,6 +32,16 @@ type Goal struct {
 	value         ScoreFunc
 }
 
+// GoalDescriptor is the immutable, non-executable projection of a planning
+// target. It deliberately excludes Value: observers can describe a goal without
+// invoking planner policy.
+type GoalDescriptor struct {
+	name          string
+	description   string
+	preconditions []string
+	inputs        []Binding
+}
+
 // NewGoal constructs an immutable goal from config.
 func NewGoal(config GoalConfig) *Goal {
 	return &Goal{
@@ -56,6 +66,33 @@ func (g *Goal) Description() string {
 	}
 	return g.description
 }
+
+// Descriptor projects the goal into an inert value suitable for events.
+func (g *Goal) Descriptor() GoalDescriptor {
+	if g == nil {
+		return GoalDescriptor{}
+	}
+	return GoalDescriptor{
+		name:          g.name,
+		description:   g.description,
+		preconditions: slices.Clone(g.preconditions),
+		inputs:        slices.Clone(g.inputs),
+	}
+}
+
+// Name returns the goal's identity.
+func (d GoalDescriptor) Name() string { return d.name }
+
+// Description returns the caller-supplied human-readable purpose.
+func (d GoalDescriptor) Description() string { return d.description }
+
+// RequiredConditions returns an independent snapshot of the named requirements.
+func (d GoalDescriptor) RequiredConditions() []string {
+	return slices.Clone(d.preconditions)
+}
+
+// Inputs returns an independent snapshot of the typed requirements.
+func (d GoalDescriptor) Inputs() []Binding { return slices.Clone(d.inputs) }
 
 func (g *Goal) validate() error {
 	if g == nil {

@@ -108,16 +108,14 @@ func Loop[In, Out any](
 	historyState := core.NewBinding[*History[Out]](config.Name + historyStateSuffix)
 
 	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *History[Out]]{
-		name:              config.Name,
-		description:       config.Description,
-		actionName:        config.Name + "-iter",
-		actionDescription: "loop body iteration (sub-agent run)",
-		doneKey:           doneKey,
-		goalDescription:   "produce acceptable " + core.TypeName[Out](),
-		maxIterations:     maxIterations,
-		stateBinding:      historyState,
-		newState:          func() *History[Out] { return &History[Out]{} },
-		count:             (*History[Out]).Count,
+		name:          config.Name,
+		description:   config.Description,
+		actionName:    config.Name + "-iter",
+		doneKey:       doneKey,
+		maxIterations: maxIterations,
+		stateBinding:  historyState,
+		newState:      func() *History[Out] { return &History[Out]{} },
+		count:         (*History[Out]).Count,
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history *History[Out]) (Out, error) {
 			var zero Out
 			child, err := childRuntime.RunChild(ctx, bodyDeployment, input)

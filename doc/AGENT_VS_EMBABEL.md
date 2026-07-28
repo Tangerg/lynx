@@ -167,7 +167,7 @@ class HoroscopeAgent {
 // agent/core
 type AgentConfig struct { Name, Description, Version string; Actions []Action; Goals []*Goal; Conditions []Condition; PlannerName string; StuckPolicy StuckPolicy }
 func NewAgent(config AgentConfig) *Agent               // read-only 定义聚合,构造期防御性快照
-type ActionMetadata struct { Name string; Inputs, Outputs []Binding; Preconditions, Effects ConditionSet; Cost, Value ScoreFunc; ToolGroups []ToolGroupRequirement; ... }
+type ActionMetadata struct { Name string; Inputs, Outputs []Binding; Preconditions, Effects ConditionSet; Cost, Value ScoreFunc; ToolGroups []string; ... }
 // NewAction[In,Out](...) 捕获 In/Out 的 reflect.Type → 生成 input/output Binding
 func NewBinding[T any](name string) Binding            // reflect.TypeFor[T](),指针归一,pkgpath 限定
 func NewOutputGoal[T any](config GoalConfig) *Goal      // precondition = "类型 T 的产物在黑板上"
@@ -416,7 +416,8 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
 - **RAG 焊进框架**(§11)—— 独立 `rag` 模块。
 - **「人格」日志主题**(§12)—— 表现层留 app。
 - **Spring Shell 交互面**—— agent 只是内核,shell 在 app 层。
-- **Utility「Nirvana」永不完成 goal(给 chat 用)**—— lynx 用 `reactive` planner + `toolloop` 跑 chat turn。
+- **Utility「Nirvana」魔法 goal 名称（给 chat 用）**—— lynx 不让 Goal 名称改变 planner
+  控制流；chat turn 使用显式 `reactive` planner + `toolloop`。
 
 ## 15. lynx agent 有、而 Embabel 没有(或更弱)
 

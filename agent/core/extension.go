@@ -28,10 +28,13 @@ type Extension interface {
 	Name() string
 }
 
-// ActionMiddleware wraps a single [Action] execution — the
-// canonical around-call hook for timing, audit logging, ambient
-// context propagation (auth / tenancy / OTel baggage),
-// circuit-breaker / rate-limit (skip next to short-circuit).
+// ActionMiddleware wraps one action execution without receiving the executable
+// [Action] itself. The descriptor is an inert definition snapshot; next is the
+// middleware's only execution authority.
+//
+// It is the canonical around-call hook for timing, audit logging, ambient
+// context propagation (auth / tenancy / OTel baggage), and circuit-breaker /
+// rate-limit behavior (skip next to short-circuit).
 // Composition is onion-style: the first registered interceptor is
 // the outermost layer. The runtime invokes the wrapped chain at most once even
 // if middleware calls next repeatedly, and converts middleware panics into
@@ -42,7 +45,7 @@ type ActionMiddleware interface {
 	RunAction(
 		ctx context.Context,
 		process ProcessView,
-		action Action,
+		action ActionDescriptor,
 		next func() (ActionStatus, error),
 	) (ActionStatus, error)
 }
@@ -55,10 +58,10 @@ type ActionMiddleware interface {
 //
 // Typical uses: per-call tracing, auth / scope checks, redaction.
 //
-// A wrapper declares toolloop.WrappingTool and the tool it stands in for
-// keeps every optional capability it declared — one method, whatever the set of
-// capabilities grows to. Re-implementing them one by one is what silently drops
-// the ones a wrapper forgot. A policy that means to narrow scheduling or
+// A wrapper declares [tools.WrappingTool], so the tool it stands in for keeps
+// every optional capability it declared — one method, whatever the set of
+// capabilities grows to. Re-implementing capabilities one by one silently
+// drops the ones a wrapper forgot. A policy that means to narrow scheduling or
 // continuation semantics declares the capability itself, which takes precedence
 // over the wrapped tool's, or omits Unwrap to hide the tool entirely.
 // Valid at engine and process scope.
@@ -67,7 +70,7 @@ type ToolMiddleware interface {
 
 	WrapTool(
 		process ProcessView,
-		action Action,
+		action ActionDescriptor,
 		tool tools.Tool,
 	) tools.Tool
 }

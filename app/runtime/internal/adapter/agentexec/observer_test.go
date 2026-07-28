@@ -117,12 +117,12 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	observation := newToolObservation(noopObserver{}, nil, 0)
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
 
-	direct, ok := toolloop.Capability[toolloop.DirectTool](keyed)
-	if !ok || !direct.ReturnsDirect() {
+	direct, ok, err := tools.Capability[toolloop.DirectTool](keyed)
+	if err != nil || !ok || !direct.ReturnsDirect() {
 		t.Fatal("the observed tool's return-direct marker is unreachable")
 	}
-	concurrent, ok := toolloop.Capability[toolloop.ConcurrentTool](keyed)
-	if !ok {
+	concurrent, ok, err := tools.Capability[toolloop.ConcurrentTool](keyed)
+	if err != nil || !ok {
 		t.Fatal("the observed tool's scheduling capability is unreachable")
 	}
 	if key, allowed := concurrent.ConcurrencyKey(`{}`); key != "resource" || !allowed {
@@ -130,8 +130,8 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	}
 
 	mutating := &observedTool{inner: mutatingTool{}, observation: observation}
-	reporter, ok := toolloop.Capability[tools.FileMutationReporter](mutating)
-	if !ok {
+	reporter, ok, err := tools.Capability[tools.FileMutationReporter](mutating)
+	if err != nil || !ok {
 		t.Fatal("the observed tool's file-mutation report is unreachable")
 	}
 	if paths, err := reporter.MutationPaths(`{}`); err != nil || len(paths) == 0 {
@@ -139,13 +139,13 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	}
 
 	plain := &observedTool{inner: plainTool{}, observation: observation}
-	if _, ok := toolloop.Capability[toolloop.DirectTool](plain); ok {
+	if _, ok, err := tools.Capability[toolloop.DirectTool](plain); err != nil || ok {
 		t.Fatal("a plain tool became return-direct through observation")
 	}
-	if _, ok := toolloop.Capability[tools.FileMutationReporter](plain); ok {
+	if _, ok, err := tools.Capability[tools.FileMutationReporter](plain); err != nil || ok {
 		t.Fatal("a plain tool gained a file-mutation report through observation")
 	}
-	if _, ok := toolloop.Capability[toolloop.ConcurrentTool](plain); ok {
+	if _, ok, err := tools.Capability[toolloop.ConcurrentTool](plain); err != nil || ok {
 		t.Fatal("a plain tool gained a scheduling declaration through observation")
 	}
 }

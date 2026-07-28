@@ -36,7 +36,11 @@ var protectedDirs = []string{".git"}
 func withPathGuard(inner tools.Tool, workdir string) tools.Tool {
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
 		isolated := turnctx.TurnIsolated(ctx)
-		for _, path := range mutationPaths(inner, arguments) {
+		paths, err := mutationPaths(inner, arguments)
+		if err != nil {
+			return "", fmt.Errorf("inspect mutation paths: %w", err)
+		}
+		for _, path := range paths {
 			if refusal, ok := guardMutationPath(workdir, path, isolated); !ok {
 				return refusal, nil
 			}

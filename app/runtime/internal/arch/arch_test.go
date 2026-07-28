@@ -441,7 +441,7 @@ func TestUseCasesDoNotDependOnConcreteAgentEngine(t *testing.T) {
 // TestAgentExecDelegatesManagedExecution pins what the rule is actually about:
 // the framework's managed interaction drives the tool loop and records framework
 // usage, so this adapter must never construct a runner or record usage itself.
-// The prohibition is stated per behaviour rather than as a ban on naming the
+// The prohibition is stated per behavior rather than as a ban on naming the
 // package, because touching a pure value helper there — the manifest projection
 // that pairs with PromoteTools — drives nothing and records nothing. Only
 // NewRunner can produce a Runner, so forbidding it forbids driving a loop.

@@ -21,11 +21,20 @@ func TestGoalOwnsConfigurationCollections(t *testing.T) {
 	returnedInputs := goal.Inputs()
 	returnedPreconditions[0] = "leaked"
 	returnedInputs[0].Name = "leaked"
+	descriptor := goal.Descriptor()
+	descriptorConditions := descriptor.RequiredConditions()
+	descriptorInputs := descriptor.Inputs()
+	descriptorConditions[0] = "descriptor-leaked"
+	descriptorInputs[0].Name = "descriptor-leaked"
 
 	if goal.Name() != "done" || goal.Description() != "finish" || goal.Value(nil) != 3 {
 		t.Fatalf("goal scalar behavior drifted: %q %q %v", goal.Name(), goal.Description(), goal.Value(nil))
 	}
 	if goal.RequiredConditions()[0] != "ready" || goal.Inputs()[0].Name != "input" {
 		t.Fatal("Goal leaked caller or accessor slice storage")
+	}
+	if descriptor.Name() != "done" || descriptor.Description() != "finish" ||
+		descriptor.RequiredConditions()[0] != "ready" || descriptor.Inputs()[0].Name != "input" {
+		t.Fatal("GoalDescriptor leaked accessor slice storage")
 	}
 }

@@ -95,7 +95,7 @@ func mergeExtensions(first, second []extensionEntry) []extensionEntry {
 // toolResolverFor builds the action-scoped resolver exposed by ProcessContext.
 // Process extensions resolve first, while middleware wraps engine-first so the
 // process-scoped decorator is outermost.
-func (p *Process) toolResolverFor(action core.Action) func(context.Context, []string) ([]tools.Tool, error) {
+func (p *Process) toolResolverFor(action core.ActionDescriptor) func(context.Context, []string) ([]tools.Tool, error) {
 	resolvers := collectExtensions[core.ToolGroupResolver](p.combinedExtensionsResolverFirst())
 	middleware := collectExtensions[core.ToolMiddleware](p.combinedExtensions())
 	if len(resolvers) == 0 {

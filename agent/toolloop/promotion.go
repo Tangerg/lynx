@@ -2,10 +2,12 @@ package toolloop
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
 )
@@ -104,15 +106,23 @@ type DeferredTool interface {
 // Definitions are cloned and ordered by name, so one candidate set yields one
 // manifest regardless of iteration order. Callers that want to advertise a
 // different subset can build the manifest themselves; this is the projection
-// that matches promotion.
-func Advertise(candidates []tools.Tool) []chat.ToolDefinition {
+// that matches promotion. A malformed wrapping chain is returned as
+// [tools.ErrInvalidWrappingChain].
+func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error) {
 	var withheld map[string]struct{}
 	for _, candidate := range candidates {
-		deferring, ok := Capability[DeferredTool](candidate)
+		deferring, ok, err := tools.Capability[DeferredTool](candidate)
+		if err != nil {
+			return nil, fmt.Errorf("toolloop.Advertise: %w", err)
+		}
 		if !ok {
 			continue
 		}
-		for _, name := range deferring.DeferredToolNames() {
+		names, err := deferredToolNames(candidate, deferring)
+		if err != nil {
+			return nil, err
+		}
+		for _, name := range names {
 			if withheld == nil {
 				withheld = make(map[string]struct{})
 			}
@@ -125,7 +135,10 @@ func Advertise(candidates []tools.Tool) []chat.ToolDefinition {
 		if valueIsNil(candidate) {
 			continue
 		}
-		definition := candidate.Definition()
+		definition, err := advertisedDefinition(candidate)
+		if err != nil {
+			return nil, err
+		}
 		if _, hidden := withheld[definition.Name]; hidden {
 			continue
 		}
@@ -134,5 +147,23 @@ func Advertise(candidates []tools.Tool) []chat.ToolDefinition {
 	slices.SortFunc(manifest, func(left, right chat.ToolDefinition) int {
 		return strings.Compare(left.Name, right.Name)
 	})
-	return manifest
+	return manifest, nil
+}
+
+func deferredToolNames(tool tools.Tool, deferred DeferredTool) (names []string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %T deferred-name lookup panicked", tool), recovered)
+		}
+	}()
+	return deferred.DeferredToolNames(), nil
+}
+
+func advertisedDefinition(tool tools.Tool) (definition chat.ToolDefinition, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = panicerr.New(fmt.Sprintf("tool %T definition lookup panicked", tool), recovered)
+		}
+	}()
+	return tool.Definition(), nil
 }

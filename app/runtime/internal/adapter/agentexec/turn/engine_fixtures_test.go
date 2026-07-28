@@ -22,6 +22,7 @@ import (
 type testEngine interface {
 	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
 	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
+	ProcessResult(processID string) (any, bool)
 }
 
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
@@ -155,6 +156,8 @@ type stubEngine struct {
 
 	lastProcess atomic.Pointer[stubTurnProcess]
 }
+
+func (*stubEngine) ProcessResult(string) (any, bool) { return nil, false }
 
 func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	s.runTurnCalls.Add(1)

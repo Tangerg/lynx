@@ -192,7 +192,7 @@ func TestTeamRejectsDuplicateMemberSnapshotState(t *testing.T) {
 	}
 }
 
-func TestTeamBuildsDefaultDescription(t *testing.T) {
+func TestTeamDoesNotInventDescription(t *testing.T) {
 	definition, err := workflow.Team(workflow.TeamConfig{
 		Name:   "auto",
 		Agents: []*core.Agent{teamAgentA(), teamAgentB()},
@@ -200,7 +200,7 @@ func TestTeamBuildsDefaultDescription(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(definition.Description(), "synthetic team across 2 agents") {
-		t.Fatalf("description = %q", definition.Description())
+	if definition.Description() != "" {
+		t.Fatalf("description = %q, want empty caller-owned copy", definition.Description())
 	}
 }

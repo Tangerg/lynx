@@ -79,8 +79,15 @@ func TestPlanOwnsActionChain(t *testing.T) {
 	actions[0] = nil
 	returned := plan.Actions()
 	returned[0] = nil
+	descriptor := plan.Descriptor()
+	describedActions := descriptor.Actions()
+	describedActions[0] = core.ActionDescriptor{}
 
 	if plan.Actions()[0] != action || plan.Goal() != goal {
 		t.Fatal("Plan leaked caller or accessor slice storage")
+	}
+	if descriptor.Complete() || descriptor.Goal().Name() != "done" ||
+		len(descriptor.Actions()) != 1 || descriptor.Actions()[0].Name() != "owned" {
+		t.Fatal("PlanDescriptor leaked accessor slice storage or lost plan identity")
 	}
 }

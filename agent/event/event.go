@@ -88,8 +88,7 @@ func (e ProcessCreated) cloneEvent() Event {
 // ProcessCompleted fires when the process reaches its goal successfully.
 type ProcessCompleted struct {
 	Header
-	Goal   *core.Goal
-	Result any
+	Goal core.GoalDescriptor
 }
 
 func (ProcessCompleted) Kind() Kind { return KindProcessCompleted }
@@ -155,7 +154,7 @@ func (PlanningStarted) Kind() Kind { return KindPlanningStarted }
 // PlanCreated fires when the planner returns a non-nil plan.
 type PlanCreated struct {
 	Header
-	Plan *planning.Plan
+	Plan planning.PlanDescriptor
 }
 
 func (PlanCreated) Kind() Kind { return KindPlanCreated }
@@ -169,27 +168,22 @@ type ReplanRequested struct {
 
 func (ReplanRequested) Kind() Kind { return KindReplanRequested }
 
-// ActionStarted fires before an action is invoked. Listeners receive the
-// action's description, not the action: an observation channel has no business
-// handing out something executable.
+// ActionStarted fires before an action is invoked. Listeners receive an inert
+// descriptor: an observation channel has no business handing out executable
+// actions or planner score functions.
 type ActionStarted struct {
 	Header
-	Action    core.ActionMetadata
+	Action    core.ActionDescriptor
 	StartedAt time.Time
 }
 
 func (ActionStarted) Kind() Kind { return KindActionStarted }
 
-func (e ActionStarted) cloneEvent() Event {
-	e.Action = e.Action.Clone()
-	return e
-}
-
 // ActionFinished fires after an action invocation terminates. Action carries the
 // description for the same reason as [ActionStarted].
 type ActionFinished struct {
 	Header
-	Action   core.ActionMetadata
+	Action   core.ActionDescriptor
 	Status   core.ActionStatus
 	Duration time.Duration
 	Err      error
@@ -197,15 +191,10 @@ type ActionFinished struct {
 
 func (ActionFinished) Kind() Kind { return KindActionFinished }
 
-func (e ActionFinished) cloneEvent() Event {
-	e.Action = e.Action.Clone()
-	return e
-}
-
 // GoalAchieved fires when the planner returns an empty plan for a non-nil goal.
 type GoalAchieved struct {
 	Header
-	Goal *core.Goal
+	Goal core.GoalDescriptor
 }
 
 func (GoalAchieved) Kind() Kind { return KindGoalAchieved }

@@ -208,6 +208,10 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: register action tools: %w", err)
 	}
+	manifest, err := toolloop.Advertise(actionTools)
+	if err != nil {
+		return preparedTurn{}, fmt.Errorf("agentexec: build advertised tool manifest: %w", err)
+	}
 
 	parts := make([]chat.Part, 0, len(images)+1)
 	if message != "" {
@@ -223,7 +227,7 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	messages = append(messages, chat.NewUserMessage(parts...))
 	request := &chat.Request{
 		Messages: messages,
-		Tools:    toolloop.Advertise(actionTools),
+		Tools:    manifest,
 	}
 	if options != nil {
 		request.Options = options.Clone()

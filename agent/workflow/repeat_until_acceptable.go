@@ -100,17 +100,15 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	feedbackState := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
 
 	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, *AttemptHistory[Out]]{
-		name:              config.Name,
-		description:       config.Description,
-		actionName:        config.Name + "-task",
-		actionDescription: "evaluator-optimizer loop body — produces, scores, keeps the best",
-		doneKey:           acceptKey,
-		goalDescription:   "produce best-scoring " + core.TypeName[Out](),
-		maxIterations:     maxIterations,
-		stateBinding:      historyState,
-		newState:          func() *AttemptHistory[Out] { return &AttemptHistory[Out]{} },
-		count:             (*AttemptHistory[Out]).Count,
-		snapshotState:     []core.Binding{feedbackState},
+		name:          config.Name,
+		description:   config.Description,
+		actionName:    config.Name + "-task",
+		doneKey:       acceptKey,
+		maxIterations: maxIterations,
+		stateBinding:  historyState,
+		newState:      func() *AttemptHistory[Out] { return &AttemptHistory[Out]{} },
+		count:         (*AttemptHistory[Out]).Count,
+		snapshotState: []core.Binding{feedbackState},
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history *AttemptHistory[Out]) (Out, error) {
 			var zero Out
 

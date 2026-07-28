@@ -22,6 +22,12 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 		sessionID: "sess",
 		cwd:       "/work",
 		hooks:     bound,
+		result: func(processID string) (any, bool) {
+			if processID == "child" {
+				return "auth failures are handled in middleware", true
+			}
+			return nil, false
+		},
 	}
 	listener := lifecycle.listener("turn")
 
@@ -36,7 +42,6 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 	})
 	listener.OnEvent(context.Background(), event.ProcessCompleted{
 		Header: event.NewHeader("child"),
-		Result: "auth failures are handled in middleware",
 	})
 
 	if len(rec.inputs) != 2 {
@@ -103,11 +108,11 @@ func TestSubagentLifecycleRejectsMismatchedReturnedRoot(t *testing.T) {
 
 func TestSubagentLifecycleExistsOnlyForRelevantHooks(t *testing.T) {
 	stopOnly := hooks.NewBound([]hooks.Hook{{Event: hooks.Stop}}, nil)
-	if lifecycle := newSubagentLifecycle("session", "/work", stopOnly); lifecycle != nil {
+	if lifecycle := newSubagentLifecycle("session", "/work", stopOnly, nil); lifecycle != nil {
 		t.Fatal("installed a subtree listener for unrelated hooks")
 	}
 	subagent := hooks.NewBound([]hooks.Hook{{Event: hooks.SubagentStart}}, nil)
-	if lifecycle := newSubagentLifecycle("session", "/work", subagent); lifecycle == nil {
+	if lifecycle := newSubagentLifecycle("session", "/work", subagent, nil); lifecycle == nil {
 		t.Fatal("did not install a subtree listener for subagent hooks")
 	}
 }

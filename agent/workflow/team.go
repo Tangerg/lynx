@@ -44,13 +44,9 @@ func Team(config TeamConfig) (*core.Agent, error) {
 		snapshotState = append(snapshotState, agent.SnapshotState()...)
 	}
 
-	description := config.Description
-	if description == "" {
-		description = fmt.Sprintf("synthetic team across %d agents", len(config.Agents))
-	}
 	team := core.NewAgent(core.AgentConfig{
 		Name:          config.Name,
-		Description:   description,
+		Description:   config.Description,
 		Actions:       actions,
 		Goals:         goals,
 		Conditions:    conditions,

@@ -108,14 +108,12 @@ func Sequence[In, Out any](
 			}
 			return output, nil
 		},
-		core.ActionConfig{
-			Description: "run sub-agents in declared order",
-		},
+		core.ActionConfig{},
 	)
 
 	return core.NewAgent(core.AgentConfig{
 		Name:    name,
 		Actions: []core.Action{pipeline},
-		Goals:   []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: name, Description: "produce " + core.TypeName[Out]()})},
+		Goals:   []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: name})},
 	}), nil
 }

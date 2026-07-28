@@ -48,11 +48,7 @@ type ActionMetadata struct {
 	ClearWorkingState bool // On success, clear working state before binding output.
 }
 
-// Clone returns a copy that shares no mutable state with m: its binding slices,
-// condition maps, and tool-group list are independent. Callers that hand
-// metadata to more than one observer need this, since a value type alone still
-// shares the containers behind those fields.
-func (m ActionMetadata) Clone() ActionMetadata {
+func (m ActionMetadata) clone() ActionMetadata {
 	m.Inputs = slices.Clone(m.Inputs)
 	m.Outputs = slices.Clone(m.Outputs)
 	m.Preconditions = maps.Clone(m.Preconditions)
@@ -60,6 +56,64 @@ func (m ActionMetadata) Clone() ActionMetadata {
 	m.ToolGroups = slices.Clone(m.ToolGroups)
 	return m
 }
+
+// ActionDescriptor is the immutable, non-executable projection of an action.
+// Planners consume [ActionMetadata], which includes dynamic score functions;
+// observers and middleware receive this narrower value so they cannot execute
+// the action or invoke planner policy.
+type ActionDescriptor struct {
+	name              string
+	description       string
+	inputs            []Binding
+	outputs           []Binding
+	preconditions     ConditionSet
+	effects           ConditionSet
+	repeatable        bool
+	toolGroups        []string
+	clearWorkingState bool
+}
+
+// Descriptor projects planner metadata into an inert value.
+func (m ActionMetadata) Descriptor() ActionDescriptor {
+	return ActionDescriptor{
+		name:              m.Name,
+		description:       m.Description,
+		inputs:            slices.Clone(m.Inputs),
+		outputs:           slices.Clone(m.Outputs),
+		preconditions:     maps.Clone(m.Preconditions),
+		effects:           maps.Clone(m.Effects),
+		repeatable:        m.Repeatable,
+		toolGroups:        slices.Clone(m.ToolGroups),
+		clearWorkingState: m.ClearWorkingState,
+	}
+}
+
+// Name returns the action's identity.
+func (d ActionDescriptor) Name() string { return d.name }
+
+// Description returns the caller-supplied human-readable purpose.
+func (d ActionDescriptor) Description() string { return d.description }
+
+// Inputs returns an independent snapshot of the action's inputs.
+func (d ActionDescriptor) Inputs() []Binding { return slices.Clone(d.inputs) }
+
+// Outputs returns an independent snapshot of the action's outputs.
+func (d ActionDescriptor) Outputs() []Binding { return slices.Clone(d.outputs) }
+
+// Preconditions returns an independent snapshot of the action's requirements.
+func (d ActionDescriptor) Preconditions() ConditionSet { return maps.Clone(d.preconditions) }
+
+// Effects returns an independent snapshot of the action's declared effects.
+func (d ActionDescriptor) Effects() ConditionSet { return maps.Clone(d.effects) }
+
+// Repeatable reports whether the planner may select the action more than once.
+func (d ActionDescriptor) Repeatable() bool { return d.repeatable }
+
+// ToolGroups returns an independent snapshot of the action's tool groups.
+func (d ActionDescriptor) ToolGroups() []string { return slices.Clone(d.toolGroups) }
+
+// ClearsWorkingState reports whether success resets process working state.
+func (d ActionDescriptor) ClearsWorkingState() bool { return d.clearWorkingState }
 
 // ActionRunConditionPrefix prefixes the conventional "this action has run"
 // condition keys minted by [ActionMetadata.RunCondition].

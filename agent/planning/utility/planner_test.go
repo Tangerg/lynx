@@ -42,33 +42,19 @@ func newAction(name string, pre, eff core.ConditionSet, cost, value float64) cor
 
 // --- Planner (classic Utility) ----------------------------------------------
 
-func TestUtility_NirvanaPicksHighestNetValue(t *testing.T) {
+func TestUtilityPicksHighestNetValue(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
+	goal := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+	low := newAction("low", nil, core.ConditionSet{"done": core.True}, 1, 2)
+	high := newAction("high", nil, core.ConditionSet{"done": core.True}, 1, 10)
+	domain := mustDomain(t, []core.Action{low, high}, []*core.Goal{goal}, nil)
 
-	low := newAction("low", nil, core.ConditionSet{"a": core.True}, 1, 2)    // net = 1
-	high := newAction("high", nil, core.ConditionSet{"a": core.True}, 1, 10) // net = 9
-
-	domain := mustDomain(t, []core.Action{low, high}, []*core.Goal{g}, nil)
-	pl, err := utility.NewPlanner().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
+	plan, err := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, goal, planning.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "high" {
-		t.Fatalf("expected 'high' picked, got %#v", pl)
-	}
-}
-
-func TestUtility_NirvanaWithNoActionsReturnsNil(t *testing.T) {
-	g := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
-	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
-
-	pl, err := utility.NewPlanner().PlanToGoal(context.Background(), planning.NewState(nil), domain, g, planning.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if pl != nil {
-		t.Errorf("expected nil plan for open-ended goal with no actions, got %#v", pl)
+	if plan == nil || len(plan.Actions()) != 1 || plan.Actions()[0].Metadata().Name != "high" {
+		t.Fatalf("plan = %#v, want highest-net action", plan)
 	}
 }
 
@@ -141,7 +127,7 @@ func TestUtilityRejectsInvalidActionScores(t *testing.T) {
 			action := &fakeAction{meta: core.ActionMetadata{
 				Name: "invalid", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost, Value: test.value,
 			}}
-			goal := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
+			goal := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
 			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 			_, err := utility.NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
 			if err == nil || !strings.Contains(err.Error(), test.contains) {
@@ -154,7 +140,7 @@ func TestUtilityRejectsInvalidActionScores(t *testing.T) {
 	}
 }
 
-// --- GoalFirst ----------------------------------------------------------
+// --- GoalFirst --------------------------------------------------------------
 
 func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	// Goal already satisfied AND a high-value action is still
@@ -179,19 +165,6 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	}
 }
 
-func TestHybridUtility_NirvanaSemanticsMatchClassic(t *testing.T) {
-	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})
-
-	a := newAction("a", nil, core.ConditionSet{"x": core.True}, 1, 5)
-	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
-
-	pl, _ := utility.NewGoalFirst().PlanToGoal(context.Background(), start, domain, g, planning.Options{})
-	if pl == nil || len(pl.Actions()) != 1 {
-		t.Fatalf("hybrid open-ended goal: want 1-step plan, got %#v", pl)
-	}
-}
-
 func TestHybridUtility_OneStepReachesGoal(t *testing.T) {
 	start := planning.NewState(nil)
 	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
@@ -206,18 +179,6 @@ func TestHybridUtility_OneStepReachesGoal(t *testing.T) {
 }
 
 // --- helpers ---------------------------------------------------------------
-
-func TestIsNirvana(t *testing.T) {
-	if !utility.IsOpenEnded(core.NewGoal(core.GoalConfig{Name: utility.OpenEndedGoalName})) {
-		t.Error("expected true for open-ended goal goal")
-	}
-	if utility.IsOpenEnded(core.NewGoal(core.GoalConfig{Name: "real"})) {
-		t.Error("expected false for real goal")
-	}
-	if utility.IsOpenEnded(nil) {
-		t.Error("expected false for nil goal")
-	}
-}
 
 func TestPlanner_NameIsStable(t *testing.T) {
 	if utility.NewPlanner().Name() != "utility" {

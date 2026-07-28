@@ -15,6 +15,7 @@ import (
 type engineDep interface {
 	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)
 	RestoreTurn(ctx context.Context, processID string, request agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error)
+	ProcessResult(processID string) (any, bool)
 }
 
 // SteeringSink persists queued steering after the current turn finishes.

@@ -14,21 +14,6 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-// OpenEndedGoalName is the conventional name for the unsatisfiable
-// "keep firing useful things" goal. A planner finding a goal
-// with this exact Name treats it as never-satisfied and emits a
-// one-action plan as long as any applicable action remains.
-//
-// Combine with a real goal under [NewGoalFirst] for "iterate
-// until done" pipelines: the real goal terminates; the open-ended goal keeps
-// producing opportunistic work until then.
-const OpenEndedGoalName = "lynx:agent:goal:open-ended"
-
-// IsOpenEnded reports whether goal is the conventional unsatisfiable goal.
-func IsOpenEnded(goal *core.Goal) bool {
-	return goal != nil && goal.Name() == OpenEndedGoalName
-}
-
 const attrAnyApplicable = "agent.actions.any_applicable"
 
 var plannerTracer = otel.Tracer(planning.TracerName)
@@ -51,9 +36,8 @@ func (p *Planner) Name() string { return planning.UtilityPlannerName }
 
 // PlanToGoal implements the classic shape: pick the top-net-value
 // applicable action and emit a one-step plan when it reaches the
-// goal (or whenever the goal is open-ended). When no applicable action
-// exists, return the empty plan only if the goal is already
-// satisfied.
+// goal. When no applicable action exists, return the empty plan only if the
+// goal is already satisfied.
 func (p *Planner) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
@@ -66,9 +50,8 @@ func (p *Planner) PlanToGoal(
 
 // GoalFirst is the goal-satisfaction-first variant: checks "is
 // goal already satisfied?" BEFORE selecting an action, so the
-// process terminates cleanly the moment the real goal lands rather
-// than continuing to pick incidental high-value actions. Pairs with
-// an open-ended goal for iterate-then-stop pipelines.
+// process terminates cleanly the moment the goal lands rather than continuing
+// to pick incidental high-value actions.
 type GoalFirst struct{}
 
 // NewGoalFirst returns a goal-first utility planner.
@@ -81,8 +64,8 @@ func (p *GoalFirst) Name() string { return planning.GoalFirstUtilityPlannerName 
 // satisfied-goal short-circuit: when goal.SatisfiedBy(start) the
 // planner returns the empty plan immediately, even if other
 // applicable actions exist. The empty plan's net value (0) beats
-// any negative-value action the open-ended goal might still produce, so the
-// process picks termination over opportunistic noise.
+// any negative-value action, so the process picks termination over
+// opportunistic noise.
 func (p *GoalFirst) PlanToGoal(
 	ctx context.Context,
 	start core.WorldState,
@@ -128,13 +111,6 @@ func planUtility(
 		return nil, err
 	}
 	span.SetAttributes(attribute.Bool(attrAnyApplicable, firstAction != nil))
-
-	if IsOpenEnded(goal) {
-		if firstAction == nil {
-			return nil, nil
-		}
-		return planning.NewPlan([]core.Action{firstAction}, goal), nil
-	}
 
 	if goalFirst && goal.SatisfiedBy(start) {
 		return planning.NewPlan(nil, goal), nil

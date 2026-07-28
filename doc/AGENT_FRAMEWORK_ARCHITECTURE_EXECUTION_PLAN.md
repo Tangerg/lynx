@@ -1,16 +1,16 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P22 framework/application tool boundary 收口完成）
+> 状态：持续开发（P23 可执行能力与观察投影边界收口完成）
 > 建立日期：2026-07-15
-> 最后更新：2026-07-27
+> 最后更新：2026-07-28
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
 
 本文档是 Agent Framework 后续架构调整的唯一执行基准，负责记录目标定位、边界、目标架构、阶段任务、验收标准、进度、风险和设计决策。实施过程中如果代码便利性与本文冲突，以本文为准；如果事实证明本文的方向不成立，必须先更新第 17 节决策记录，再修改代码。
 
-P0–P21 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
-旧标识符只说明当时被删除的设计。当前合同以 P22、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
+P0–P22 的问题清单、候选方案和阶段日志作为决策历史保留，不再构成当前 API 规范；其中出现的
+旧标识符只说明当时被删除的设计。当前合同以 P23、最新 ADR、GoDoc、`agent/docs/GUIDE.md`
 和 exported API baseline 为准，禁止从历史阶段恢复已删除的兼容路径。
 
 上位约束是 [`../CLAUDE.md`](../CLAUDE.md)、[`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md) 和 [`../REFACTORING.md`](../REFACTORING.md)。Core 的稳定协议边界以 [`../core/CLAUDE.md`](../core/CLAUDE.md) 为准。本文只规划 Agent Framework，不重新打开已经关闭的 Core 架构重构。
@@ -1904,6 +1904,24 @@ checkpoint 的宿主兼容判断、提交时间、事务和清理策略完整归
 Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy；应用策略只在 Host
 组合根和 App Runtime 中出现。
 
+### P23：可执行能力与观察投影边界收口
+
+- [x] 新增不可执行、不可变的 Action/Goal/Plan descriptor；生命周期事件和
+  Action/Tool middleware 不再暴露 executable Action、planner score function 或可变定义容器。
+- [x] `ProcessCompleted` 不再携带任意应用 Result；App 在自己的 adapter 边界按 ProcessID
+  查询 live process result，并继续负责 subagent hook 的产品投影。
+- [x] 通用 tool decorator traversal 从 `agent/toolloop` 下沉到 `tools`；malformed chain、
+  `Unwrap`、广告期 definition、Direct/Deferred/Concurrent capability panic 和
+  mutation-discovery error 全部显式失败，不再通过 panic 或静默降级改变调度与文件保护语义。
+- [x] 删除 Utility planner 的特殊 Goal 名称控制流和 workflow 生成的默认模型文案；删除按
+  identifier 关键词猜测 ownership 的 denylist，模型文案守卫只检查真实 chat/definition 边界。
+- [x] 直接迁移 App、tests、GoDoc、API baseline 与对照文档；Tools/Agent/App build、vet、
+  普通 test、lint、Tools/Agent full race、App agentexec/toolset race、tidy 与 diff check 全绿。
+
+退出标准：观察者只能获得 inert definition；应用结果不穿过 Framework event bus；通用工具
+装饰协议不依赖 Agent；Goal 名称不携带 planner 私有控制协议；Framework 不生成产品文案，
+也不用词法黑名单伪装职责证明。
+
 ---
 
 ## 15. 当前进度
@@ -1935,15 +1953,16 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 | P20 Accounting ownership boundary | 完成 | 5/5 | Agent 只保留通用执行计数；App 独立拥有 per-model USD ledger、事务提交与恢复一致性 |
 | P21 完整树与稳定 checkpoint | 完成 | 6/6 | 完整根树单一生命周期、稳定状态恢复、结构化 child、聊天配置拆分与 deployment retention 原语 |
 | P22 Framework/Application 工具边界 | 完成 | 5/5 | Goal 纯规划、typed child AgentTool、role-only ToolGroup、Host-owned publication/policy |
-| **总计** | **完成** | **161/161（100%）** | **P0–P22 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
+| P23 可执行能力与观察投影边界 | 完成 | 5/5 | inert descriptors、Host-owned result projection、base tool protocol、caller-owned model copy |
+| **总计** | **完成** | **166/166（100%）** | **P0–P23 当前计划项全部关闭；仓库仍处开发期，不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P22 Framework/Application 工具边界收口，5/5，已关闭。
+- 当前阶段：P23 可执行能力与观察投影边界收口，5/5，已关闭。
 - 下一任务：继续按开发期节奏审计真实新问题；本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：Goal 发布元数据、standalone/waiting Host projection、ToolGroup 权限/发行坐标和
-  Agent toolpolicy 全部移出 Framework；Supervisor 改为显式工具装配。
+- 最近完成：event/middleware 改为 inert descriptor，任意应用 Result 移出 event bus；
+  tool wrapper protocol 下沉 tools；Goal magic name、framework 默认模型文案和词法 denylist 删除。
 
 ### 15.3 进度更新规则
 
@@ -2135,8 +2154,8 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   `ErrProcessSnapshotLost` 收口，不把宿主兼容策略伪装成 Agent deployment mismatch。
 - wire/schema：Agent snapshot 直接升级 v6 并拒绝旧 `captured_at`；SQLite schema 直接升级
   v26，以独立 `build_id`/`committed_at` 列保存应用元数据，不做旧 shape 兼容。
-- 守卫：Agent 全生产代码 AST guard 同时覆盖公开与私有标识符，禁止 Host BuildID、提交
-  时间、Session/Conversation、Store/Repository/Transaction/persistence 概念重新进入。
+- 治理：依赖方向、runtime JSON state inventory、exported API baseline 与 ownership review
+  共同守住边界；ADR-AF-023 删除按标识符关键词猜测职责的 AST denylist。
 
 ### ADR-AF-020：Framework 只拥有执行资源聚合，产品账本归 Host
 
@@ -2151,8 +2170,8 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   恢复前比较 cost/token/call 聚合，任一漂移按 snapshot loss fail closed。
 - wire/schema：Agent snapshot 升级 v7，以 `OwnUsage` 替代详细调用数组；SQLite schema
   升级 v27，以 infra-owned strict snake_case codec 保存 App usage，不读旧 shape。
-- 守卫：Agent AST guard 禁止 detailed accounting 类型、USD、usage ledger 与产品默认
-  Budget 重新进入；App Domain 不保留 Agent SDK 例外。
+- 治理：执行 Usage 的公开 API/wire baseline 与 App 自有账本测试共同守住边界；不以
+  `cost`/`model` 等可能合法的词汇黑名单替代领域审查。App Domain 不保留 Agent SDK 例外。
 
 ### ADR-AF-021：Process tree 是捕获、恢复、聚合与释放的唯一生命周期单位
 
@@ -2182,8 +2201,26 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
   catalog 和审批属于应用装配。
 - policy：删除 Agent Once/Gate policy；Framework 保留 ToolMiddleware 与当前 ToolCall identity
   原语，但不实现幂等、once-only、事务、补偿或产品授权。
-- guard：架构测试禁止删除的 Host projection/policy 标识重新进入生产 Agent，并要求 runtime
-  新增 named JSON struct 必须被审查为 Framework execution state。
+- 治理：runtime named JSON struct 必须被审查为 Framework execution state；ToolGroup/Goal
+  的公开 shape 由 API/deployment golden 固定。Host policy 边界按语义审查，不使用词法黑名单。
+
+### ADR-AF-023：观察面只暴露 inert definition，产品结果由 Host 查询
+
+- 状态：已接受并实现。
+- observation：Agent lifecycle event 与 middleware 只接收不可执行的
+  `ActionDescriptor`/`GoalDescriptor`/`PlanDescriptor`；score function、Action.Execute 和
+  planner control object 不进入观察面。
+- result：`ProcessCompleted` 只表达 lifecycle completion，不承载任意业务对象。Host 若要
+  生成产品 hook/event，按 ProcessID 从自己持有的 execution adapter 查询结果。
+- tool protocol：通用 decorator traversal 归 `tools.WrappingTool`/`tools.Capability`；
+  Agent 只拥有 Direct/Deferred/Concurrent 等自己的消费策略。错误 traversal 不允许 panic
+  或静默退化为错误的调度、审批、路径锁语义。
+- semantic identity：Goal/Action 名称只做身份与描述，不触发隐藏 planner 模式；workflow
+  builder 不生成产品文案。模型文案 architecture guard 只检查真实 message/description
+  construction，不扫描任意词汇或多行字符串。
+- breaking：旧 event fields、middleware signatures、`ActionMetadata.Clone`、
+  `toolloop.Capability`/`WrappingTool`、单返回值 `Advertise` 和 Utility magic-goal API 直接
+  删除；所有仓内消费者一次性迁移，不留 alias、shim 或双路径。
 
 ---
 
@@ -2191,6 +2228,7 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-07-28 | 完成 P23：event/middleware 只暴露 inert descriptors，任意应用 Result 移出 Framework event bus；通用 tool wrapper protocol 下沉 tools 并显式错误化；删除 Utility magic Goal、workflow 默认模型文案和词法 ownership denylist；App consumer、API baseline、文档与完整门禁直接迁移 | Codex |
 | 2026-07-27 | 完成 P22：Goal 回归纯规划抽象；删除 Goal tool fan-out、standalone AgentTool/Host waiting JSON、ToolGroup 单字段 requirement/权限/发行坐标/Info 重复合同和 agent/toolpolicy；Supervisor 改为显式 tools；App/示例/基线/架构守卫与完整门禁直接迁移 | Codex |
 | 2026-07-27 | 完成 P21：删除单节点 snapshot/restore、局部 remove/prune 和后台 child 双轨 API；完整根树统一 registry/budget/checkpoint 生命周期，snapshot v8 拒绝不稳定状态；ChatMiddleware 与 Prompt limit 拆分组合；新增安全 deployment forget 原语并清理 exactly-once 文档暗示 | Codex |
 | 2026-07-27 | 完成 P20：Agent 删除 ModelCall/EmbeddingCall/CostUSD 明细与隐式产品预算，只保留通用 Usage；App 建立 per-model USD ledger，与 process tree/BuildID 原子提交并校验恢复一致性；snapshot v7、SQLite v27、strict codec、溢出/竞态/架构守卫与 consumer 直接迁移完成 | Codex |
@@ -2245,6 +2283,7 @@ Agent 不提供 standalone publication、Host waiting DTO 或 once-only policy�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-07-28 | P23 executable/observation boundary | 修改前 HEAD `5244c3c95` 已确认与远端同步。Tools/Agent/App build、vet、普通 test、lint 全绿；Tools/Agent full race 与 App agentexec/toolset race 全绿；三模块 `go mod tidy -diff`、Agent API/wire/arch 与 `git diff --check` 通过。Agent API baseline 601 行/root 51，SHA-256 `1036c533418cb715a57d60d47de6764033f5ee1302606413f84927c64326e8f4`；wire 145 行、SHA-256 `4a929637bb6a27148de518f980dcde1bb3ee088048d6b6e0898165a4c61bc3c8`，wire 语义未变 | 166/166 关闭；形成独立提交并 push，不创建 tag/release |
 | 2026-07-27 | P22 Framework/Application tool boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/toolset/bootstrap/arch 高风险 race、golangci-lint、tidy 与旧符号/diff 扫描全绿。Agent API baseline 605 行/root 53，SHA-256 `81297fbf849289df6be03d4120cb352c76b52583ab5c7a3d73d26832e7a63e9c`；wire fixture 156 行且语义不变；deployment digest `9c4e3c095834c2a28d62ade6552484714285dd8b56c5618fde6b582e04e5faaa` 只编码 role 字符串等纯规划/执行声明 | 161/161 关闭；不提交、不 push、不 tag/release |
 | 2026-07-27 | P20 Accounting ownership boundary | Agent/App 全量 build、vet、普通 test、Agent full race、App agentexec/turn/SQLite/bootstrap/runsegment/arch race、golangci-lint、tidy 与 diff check 全绿；恢复累计、usage 漂移、strict codec、跨 child/model overflow 与 cost callback panic 测试通过。Agent API baseline 658 行，SHA-256 `d9f5583c4e406ca60a8f3e51b9758285e9ef99d17e44bdbf08b9ca56a722902f`；wire golden 453 行，SHA-256 `d74ab364cb693123620aaf7e0a8a1d296e8c56d0d12e7e37be8377c1a251293a` | 150/150 关闭；不提交、不 push、不 tag/release |
 | 2026-07-27 | P19 Host checkpoint metadata 收口 | Agent/App 全量 build、vet、普通 test、完整 race、golangci-lint、tidy 与 diff check 全绿；snapshot v6、SQLite v26、BuildID mismatch、整树单一 committed_at 与 AST boundary guard 测试通过。Agent API baseline 672 行，SHA-256 `887567263812e5dce811ce90cf6971095d661fa9c7d5be49ae1837e827ba117f`；wire golden 474 行，SHA-256 `9dbb7d1a83c1c497041fcc502a11ef2dd3fb4d36d91fb23fa30f73994f9ba4fa` | 145/145 关闭；不提交、不 push、不 tag/release |

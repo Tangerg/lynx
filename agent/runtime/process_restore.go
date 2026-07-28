@@ -192,7 +192,7 @@ func (e *Engine) restoreSnapshotSubtree(
 		return nil, fmt.Errorf("rebuild process %q: %w", snapshot.ID, err)
 	}
 	if parent != nil {
-		// Depth follows the restored parent link rather than travelling in the
+		// Depth follows the restored parent link rather than traveling in the
 		// snapshot, so the tree is the only place it is expressed.
 		process.depth = parent.depth + 1
 		parent.budget.addChild(process)

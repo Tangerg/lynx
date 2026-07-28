@@ -105,11 +105,9 @@ func checkStopPolicy(policy core.StopPolicy, process core.ProcessView, name stri
 func (p *Process) publishTerminalEvent(ctx context.Context) {
 	switch p.Status() {
 	case core.StatusCompleted:
-		result, _ := core.Last[any](p.Blackboard())
 		p.publishEvent(ctx, event.ProcessCompleted{
 			Header: p.eventHeader(),
-			Goal:   p.Goal(),
-			Result: result,
+			Goal:   p.Goal().Descriptor(),
 		})
 	case core.StatusFailed:
 		p.publishEvent(ctx, event.ProcessFailed{
@@ -130,7 +128,7 @@ func (p *Process) completeForGoal(ctx context.Context, goal *core.Goal) {
 	p.state.pursue(goal)
 	p.publishEvent(ctx, event.GoalAchieved{
 		Header: p.eventHeader(),
-		Goal:   goal,
+		Goal:   goal.Descriptor(),
 	})
 }
 

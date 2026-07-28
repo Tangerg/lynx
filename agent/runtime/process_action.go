@@ -24,7 +24,7 @@ const (
 // buildProcessContext assembles the action-scoped capabilities exposed to one
 // execution. A fresh value keeps tool requirements and interaction state from
 // leaking between actions.
-func (p *Process) buildProcessContext(actionToolGroups []string, action core.Action) *core.ProcessContext {
+func (p *Process) buildProcessContext(action core.ActionDescriptor) *core.ProcessContext {
 	config := core.ProcessContextConfig{
 		Process:       p,
 		Control:       processControl{process: p},
@@ -33,10 +33,10 @@ func (p *Process) buildProcessContext(actionToolGroups []string, action core.Act
 		MaxToolRounds: p.effectiveMaxToolRounds(),
 		ActionTools:   p.toolResolverFor(action),
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
-			return p.runInteraction(ctx, action.Metadata().Name, input)
+			return p.runInteraction(ctx, action.Name(), input)
 		},
 		ToolCallCancel:   p.signals.registerToolCallCancel,
-		ActionToolGroups: actionToolGroups,
+		ActionToolGroups: action.ToolGroups(),
 	}
 	return core.NewProcessContext(config)
 }
@@ -48,11 +48,12 @@ func (p *Process) buildProcessContext(actionToolGroups []string, action core.Act
 // side effects; the framework never replays an Action.
 func (p *Process) executeAction(ctx context.Context, action core.Action) (core.ActionStatus, *core.ReplanRequest, error) {
 	metadata := action.Metadata()
+	descriptor := metadata.Descriptor()
 	startedAt := time.Now()
 
 	p.publishEvent(ctx, event.ActionStarted{
 		Header:    p.eventHeader(),
-		Action:    metadata,
+		Action:    descriptor,
 		StartedAt: startedAt,
 	})
 
@@ -63,9 +64,9 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	)
 	defer span.End()
 
-	processContext := p.buildProcessContext(metadata.ToolGroups, action)
+	processContext := p.buildProcessContext(descriptor)
 
-	status, lastErr := p.invokeActionChain(ctx, action, func() (core.ActionStatus, error) {
+	status, lastErr := p.invokeActionChain(ctx, descriptor, func() (core.ActionStatus, error) {
 		return p.invokeAction(ctx, action, processContext)
 	})
 	status, lastErr = validateActionResult(metadata.Name, status, lastErr)
@@ -101,7 +102,7 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 
 	p.publishEvent(ctx, event.ActionFinished{
 		Header:   p.eventHeader(),
-		Action:   metadata,
+		Action:   descriptor,
 		Status:   status,
 		Duration: duration,
 		Err:      lastErr,
@@ -156,7 +157,7 @@ func (p *Process) invokeAction(ctx context.Context, action core.Action, processC
 
 func (p *Process) invokeActionChain(
 	ctx context.Context,
-	action core.Action,
+	action core.ActionDescriptor,
 	base func() (core.ActionStatus, error),
 ) (status core.ActionStatus, err error) {
 	defer func() {

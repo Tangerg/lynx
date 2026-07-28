@@ -144,9 +144,7 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 			}
 			return scatterOutput[Element]{Items: items}, nil
 		},
-		core.ActionConfig{
-			Description: "fan-out generators in parallel",
-		},
+		core.ActionConfig{},
 	)
 
 	gather := core.NewAction[scatterOutput[Element], Result](
@@ -154,15 +152,13 @@ func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Eleme
 		func(ctx context.Context, process *core.ProcessContext, input scatterOutput[Element]) (Result, error) {
 			return joiner(ctx, process, input.Items)
 		},
-		core.ActionConfig{
-			Description: "consolidate parallel results",
-		},
+		core.ActionConfig{},
 	)
 
 	return core.NewAgent(core.AgentConfig{
 		Name:        name,
 		Description: description,
 		Actions:     []core.Action{scatter, gather},
-		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: name, Description: "produce " + core.TypeName[Result]()})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Result](core.GoalConfig{Name: name})},
 	}), nil
 }

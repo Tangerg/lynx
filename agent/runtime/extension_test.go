@@ -139,13 +139,13 @@ func TestRestoreTreeBuildCallbacksRunOutsideProcessTreeMutation(t *testing.T) {
 }
 
 func (m actionMiddlewareFunc) Name() string { return m.name }
-func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+func (m actionMiddlewareFunc) RunAction(_ context.Context, _ core.ProcessView, _ core.ActionDescriptor, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	return m.run(next)
 }
 
 func (i orderedInterceptor) Name() string { return i.name }
 
-func (i orderedInterceptor) RunAction(_ context.Context, _ core.ProcessView, _ core.Action, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
+func (i orderedInterceptor) RunAction(_ context.Context, _ core.ProcessView, _ core.ActionDescriptor, next func() (core.ActionStatus, error)) (core.ActionStatus, error) {
 	i.recorder.record(i.name + ":enter")
 	status, err := next()
 	i.recorder.record(i.name + ":exit")

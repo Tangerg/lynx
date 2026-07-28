@@ -3,6 +3,7 @@ package toolloop_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"testing"
 
@@ -154,12 +155,15 @@ func (t advertiseTool) DeferredToolNames() []string { return t.deferred }
 // name order.
 func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
 	search := advertiseTool{name: "search_tools", deferred: []string{"catalog_b", "catalog_a", "absent"}}
-	manifest := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tools.Tool{
 		advertiseTool{name: "read"},
 		advertiseTool{name: "catalog_a"},
 		advertiseTool{name: "catalog_b"},
 		search,
 	})
+	if err != nil {
+		t.Fatalf("Advertise: %v", err)
+	}
 
 	var names []string
 	for _, definition := range manifest {
@@ -173,10 +177,13 @@ func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
 // TestAdvertiseKeepsEveryToolWithoutDeferral pins that the projection is
 // transparent when no tool withholds anything.
 func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
-	manifest := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tools.Tool{
 		advertiseTool{name: "write"},
 		advertiseTool{name: "read"},
 	})
+	if err != nil {
+		t.Fatalf("Advertise: %v", err)
+	}
 	if len(manifest) != 2 || manifest[0].Name != "read" || manifest[1].Name != "write" {
 		t.Fatalf("manifest = %+v, want both tools in name order", manifest)
 	}
@@ -197,11 +204,14 @@ func (w wrappingAdvertiseTool) Unwrap() tools.Tool { return w.inner }
 // not cost the inner tool its deferral — losing it would advertise the catalog
 // the deferral exists to withhold, with no error anywhere.
 func TestAdvertiseSeesThroughDecorators(t *testing.T) {
-	manifest := toolloop.Advertise([]tools.Tool{
+	manifest, err := toolloop.Advertise([]tools.Tool{
 		wrappingAdvertiseTool{inner: advertiseTool{name: "search_tools", deferred: []string{"catalog_a"}}},
 		wrappingAdvertiseTool{inner: advertiseTool{name: "catalog_a"}},
 		wrappingAdvertiseTool{inner: advertiseTool{name: "read"}},
 	})
+	if err != nil {
+		t.Fatalf("Advertise: %v", err)
+	}
 
 	var names []string
 	for _, definition := range manifest {
@@ -209,6 +219,41 @@ func TestAdvertiseSeesThroughDecorators(t *testing.T) {
 	}
 	if len(names) != 2 || names[0] != "read" || names[1] != "search_tools" {
 		t.Fatalf("manifest = %v, want the deferral honored through the decorator", names)
+	}
+}
+
+func TestAdvertiseRejectsMalformedWrappingChain(t *testing.T) {
+	wrapped := &wrappingAdvertiseTool{}
+	wrapped.inner = wrapped
+
+	manifest, err := toolloop.Advertise([]tools.Tool{wrapped})
+	if manifest != nil || !errors.Is(err, tools.ErrInvalidWrappingChain) {
+		t.Fatalf("Advertise() = %#v, %v; want nil, ErrInvalidWrappingChain", manifest, err)
+	}
+}
+
+type panickingDeferredTool struct{ advertiseTool }
+
+func (panickingDeferredTool) DeferredToolNames() []string { panic("deferred failure") }
+
+type panickingDefinitionTool struct{}
+
+func (panickingDefinitionTool) Definition() chat.ToolDefinition { panic("definition failure") }
+func (panickingDefinitionTool) Call(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func TestAdvertiseReturnsCapabilityPanics(t *testing.T) {
+	for name, tool := range map[string]tools.Tool{
+		"deferred names": panickingDeferredTool{advertiseTool{name: "deferred"}},
+		"definition":     panickingDefinitionTool{},
+	} {
+		t.Run(name, func(t *testing.T) {
+			manifest, err := toolloop.Advertise([]tools.Tool{tool})
+			if manifest != nil || err == nil {
+				t.Fatalf("Advertise() = %#v, %v; want nil and panic error", manifest, err)
+			}
+		})
 	}
 }
 

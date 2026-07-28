@@ -101,10 +101,24 @@ core: func (d *Dependencies) Child() *Dependencies
 core: func (d *Dependencies) Freeze()
 core: func (d *Dependencies) Frozen() bool
 core: func (d *Dependencies) Parent() *Dependencies
+core: func (d ActionDescriptor) ClearsWorkingState() bool
+core: func (d ActionDescriptor) Description() string
+core: func (d ActionDescriptor) Effects() ConditionSet
+core: func (d ActionDescriptor) Inputs() []Binding
+core: func (d ActionDescriptor) Name() string
+core: func (d ActionDescriptor) Outputs() []Binding
+core: func (d ActionDescriptor) Preconditions() ConditionSet
+core: func (d ActionDescriptor) Repeatable() bool
+core: func (d ActionDescriptor) ToolGroups() []string
+core: func (d GoalDescriptor) Description() string
+core: func (d GoalDescriptor) Inputs() []Binding
+core: func (d GoalDescriptor) Name() string
+core: func (d GoalDescriptor) RequiredConditions() []string
 core: func (d StuckDecision) String() string
 core: func (d StuckDecision) Valid() bool
 core: func (f *ProcessFailure) Error() string
 core: func (g *Goal) Description() string
+core: func (g *Goal) Descriptor() GoalDescriptor
 core: func (g *Goal) Inputs() []Binding
 core: func (g *Goal) Name() string
 core: func (g *Goal) Preconditions() ConditionSet
@@ -115,7 +129,7 @@ core: func (g *UUIDGenerator) Name() string
 core: func (k DependencyKey[T]) Name() string
 core: func (m *ChatMiddleware) Empty() bool
 core: func (m ActionMetadata) Applicable(state ConditionSet) bool
-core: func (m ActionMetadata) Clone() ActionMetadata
+core: func (m ActionMetadata) Descriptor() ActionDescriptor
 core: func (m ActionMetadata) RunCondition() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tools.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard
@@ -184,9 +198,10 @@ core: func TypeName[T any]() string
 core: func WithProcessView(ctx context.Context, process ProcessView) context.Context
 core: type Action interface { Metadata() ActionMetadata Execute(ctx context.Context, process *ProcessContext) (ActionStatus, error) }
 core: type ActionConfig struct { Description string Preconditions []string Effects []string Repeatable bool Cost ScoreFunc Value ScoreFunc ToolGroups []string Inputs []Binding Outputs []Binding ClearWorkingState bool }
+core: type ActionDescriptor struct { }
 core: type ActionFunc[In, Out any] func(ctx context.Context, process *ProcessContext, input In) (Out, error)
 core: type ActionMetadata struct { Name string Description string Inputs []Binding Outputs []Binding Preconditions ConditionSet Effects ConditionSet Repeatable bool ToolGroups []string Cost ScoreFunc Value ScoreFunc ClearWorkingState bool }
-core: type ActionMiddleware interface { Extension RunAction( ctx context.Context, process ProcessView, action Action, next func() (ActionStatus, error), ) (ActionStatus, error) }
+core: type ActionMiddleware interface { Extension RunAction( ctx context.Context, process ProcessView, action ActionDescriptor, next func() (ActionStatus, error), ) (ActionStatus, error) }
 core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition SnapshotState []Binding PlannerName string }
@@ -214,6 +229,7 @@ core: type FuncCondition struct { }
 core: type Goal struct { }
 core: type GoalApprover interface { Extension Approve(process ProcessView, goal *Goal) bool }
 core: type GoalConfig struct { Name string Description string Preconditions []string Inputs []Binding Value ScoreFunc }
+core: type GoalDescriptor struct { }
 core: type IDGenerator interface { Extension Next() string }
 core: type Interaction struct { ID string Request *chat.Request Tools interaction.ToolResolver Limits interaction.Limits Stream func(*chat.Response) }
 core: type InteractionCostProjector interface { Extension ProjectInteractionCost( ctx context.Context, process ProcessView, response *chat.Response, ) (float64, error) }
@@ -243,7 +259,7 @@ core: type TerminationScope int
 core: type TerminationSignal struct { Scope TerminationScope Reason string }
 core: type ToolGroup interface { Tools(ctx context.Context) ([]tools.Tool, error) }
 core: type ToolGroupResolver interface { Extension Resolve(ctx context.Context, role string) (ToolGroup, bool, error) }
-core: type ToolMiddleware interface { Extension WrapTool( process ProcessView, action Action, tool tools.Tool, ) tools.Tool }
+core: type ToolMiddleware interface { Extension WrapTool( process ProcessView, action ActionDescriptor, tool tools.Tool, ) tools.Tool }
 core: type Truth int8
 core: type UUIDGenerator struct{}
 core: type Usage struct { Cost float64 `json:"cost"` Tokens int64 `json:"tokens"` ModelCalls int `json:"model_calls"` Actions int `json:"actions"` }
@@ -283,12 +299,12 @@ event: func NewHeader(processID string) Header
 event: func NewMulticast() *Multicast
 event: func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener
 event: func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener
-event: type ActionFinished struct { Header Action core.ActionMetadata Status core.ActionStatus Duration time.Duration Err error }
-event: type ActionStarted struct { Header Action core.ActionMetadata StartedAt time.Time }
+event: type ActionFinished struct { Header Action core.ActionDescriptor Status core.ActionStatus Duration time.Duration Err error }
+event: type ActionStarted struct { Header Action core.ActionDescriptor StartedAt time.Time }
 event: type AgentDeployed struct { Header Deployment core.DeploymentRef }
 event: type AgentUndeployed struct { Header Deployment core.DeploymentRef }
 event: type Event interface { Timestamp() time.Time ProcessID() string Kind() Kind }
-event: type GoalAchieved struct { Header Goal *core.Goal }
+event: type GoalAchieved struct { Header Goal core.GoalDescriptor }
 event: type Header struct { }
 event: type InteractionBoundary struct { Header Deployment core.DeploymentRef InteractionID string Boundary interaction.Event }
 event: type Kind string
@@ -297,9 +313,9 @@ event: type ListenerFunc func(context.Context, Event)
 event: type Multicast struct { }
 event: type NamedListener struct { }
 event: type NamedSubtreeListener struct { *NamedListener }
-event: type PlanCreated struct { Header Plan *planning.Plan }
+event: type PlanCreated struct { Header Plan planning.PlanDescriptor }
 event: type PlanningStarted struct { Header State core.WorldState }
-event: type ProcessCompleted struct { Header Goal *core.Goal Result any }
+event: type ProcessCompleted struct { Header Goal core.GoalDescriptor }
 event: type ProcessCreated struct { Header ParentID string Bindings core.Bindings }
 event: type ProcessFailed struct { Header Err error }
 event: type ProcessKilled struct { Header Reason string }
@@ -362,12 +378,10 @@ planning/reactive: func (p *Planner) Name() string
 planning/reactive: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (result *planning.Plan, err error)
 planning/reactive: func NewPlanner() *Planner
 planning/reactive: type Planner struct{}
-planning/utility: const OpenEndedGoalName = "lynx:agent:goal:open-ended"
 planning/utility: func (p *GoalFirst) Name() string
 planning/utility: func (p *GoalFirst) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (*planning.Plan, error)
 planning/utility: func (p *Planner) Name() string
 planning/utility: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (*planning.Plan, error)
-planning/utility: func IsOpenEnded(goal *core.Goal) bool
 planning/utility: func NewGoalFirst() *GoalFirst
 planning/utility: func NewPlanner() *Planner
 planning/utility: type GoalFirst struct{}
@@ -382,6 +396,9 @@ planning: func (d *Domain) KnownConditions() iter.Seq[ConditionRef]
 planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
 planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
 planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
+planning: func (d PlanDescriptor) Actions() []core.ActionDescriptor
+planning: func (d PlanDescriptor) Complete() bool
+planning: func (d PlanDescriptor) Goal() core.GoalDescriptor
 planning: func (e Exclusions) Contains(name string) bool
 planning: func (e Exclusions) With(name string) Exclusions
 planning: func (k ConditionKind) String() string
@@ -390,6 +407,7 @@ planning: func (p *Plan) Actions() []core.Action
 planning: func (p *Plan) ActionsValue(worldState core.WorldState) float64
 planning: func (p *Plan) Complete() bool
 planning: func (p *Plan) Cost(worldState core.WorldState) float64
+planning: func (p *Plan) Descriptor() PlanDescriptor
 planning: func (p *Plan) Goal() *core.Goal
 planning: func (p *Plan) NetValue(worldState core.WorldState) float64
 planning: func (p *Plan) Value(worldState core.WorldState) float64
@@ -410,6 +428,7 @@ planning: type Domain struct { }
 planning: type Exclusions struct { }
 planning: type Options struct { ExcludedActions Exclusions MaxIterations int }
 planning: type Plan struct { }
+planning: type PlanDescriptor struct { }
 planning: type Planner interface { core.Extension PlanToGoal( ctx context.Context, state core.WorldState, domain *Domain, goal *core.Goal, options Options, ) (*Plan, error) }
 planning: type State struct { }
 routing: func (c Candidate) Agent() *core.Agent
@@ -516,8 +535,7 @@ toolloop: func (p PendingCall) Validate() error
 toolloop: func (r *Runner) Resume(ctx context.Context, checkpoint *Checkpoint, resolver ToolResolver, resume Resume) iter.Seq2[Event, error]
 toolloop: func (r *Runner) Run(ctx context.Context, request *chat.Request, resolver ToolResolver) iter.Seq2[Event, error]
 toolloop: func (s CallStatus) Valid() bool
-toolloop: func Advertise(candidates []tools.Tool) []chat.ToolDefinition
-toolloop: func Capability[T any](tool tools.Tool) (T, bool)
+toolloop: func Advertise(candidates []tools.Tool) ([]chat.ToolDefinition, error)
 toolloop: func Direct(tool tools.Tool) tools.Tool
 toolloop: func NewRunner(model chat.Model, config Config) (*Runner, error)
 toolloop: func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition)
@@ -538,7 +556,6 @@ toolloop: type PendingCall struct { ID string `json:"id"` Reason string `json:"r
 toolloop: type Resume = interaction.Resume
 toolloop: type Runner struct { }
 toolloop: type ToolResolver = interaction.ToolResolver
-toolloop: type WrappingTool interface { Unwrap() tools.Tool }
 toolloop: var ( ErrInvalidCheckpoint = errors.New("toolloop: invalid checkpoint") ErrAmbiguousToolCalls = errors.New("toolloop: ambiguous tool calls") )
 toolloop: var ( ErrInvalidConfig = errors.New("toolloop: invalid config") ErrInvalidInput = errors.New("toolloop: invalid input") ErrRoundLimit = errors.New("toolloop: round limit reached") )
 toolloop: var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")

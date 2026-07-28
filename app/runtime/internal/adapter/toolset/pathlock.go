@@ -108,7 +108,11 @@ func (t *pathLockedTool) Definition() chat.ToolDefinition { return t.inner.Defin
 func (t *pathLockedTool) Unwrap() tools.Tool { return t.inner }
 
 func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, error) {
-	for _, path := range resolvedMutationPaths(t.inner, arguments, t.workdir) {
+	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	if err != nil {
+		return "", err
+	}
+	for _, path := range paths {
 		release, err := t.locker.acquire(ctx, path)
 		if err != nil {
 			return "", err
@@ -122,15 +126,18 @@ func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurren
 	// Read the declaration through the wrapping chain: the tool underneath is
 	// itself decorated, and a one-level look would silently make every guarded
 	// file tool exclusive.
-	capability, ok := toolloop.Capability[toolloop.ConcurrentTool](t.inner)
-	if !ok {
+	capability, ok, err := tools.Capability[toolloop.ConcurrentTool](t.inner)
+	if err != nil || !ok {
 		return "", false
 	}
 	key, concurrent = capability.ConcurrencyKey(arguments)
 	if !concurrent {
 		return "", false
 	}
-	paths := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	if err != nil {
+		return "", false
+	}
 	switch len(paths) {
 	case 0:
 		return key, true

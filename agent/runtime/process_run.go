@@ -236,7 +236,7 @@ func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (
 	p.state.pursue(planResult.Goal())
 	p.publishEvent(ctx, event.PlanCreated{
 		Header: p.eventHeader(),
-		Plan:   planResult,
+		Plan:   planResult.Descriptor(),
 	})
 	return planResult, false
 }

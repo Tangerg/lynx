@@ -23,8 +23,8 @@ type DirectTool interface {
 
 // Direct marks a runtime Tool so a round consisting entirely of direct tools
 // completes with its final ToolResult instead of making another model call.
-// It reports itself as a [WrappingTool], so every optional capability of the
-// tool it wraps — scheduling, deferral, a host's own — stays discoverable
+// It reports itself as a [tools.WrappingTool], so every optional capability of
+// the tool it wraps — scheduling, deferral, a host's own — stays discoverable
 // through it.
 // Nil input remains nil and is rejected by tools.Registry or Runner.Run.
 func Direct(tool tools.Tool) tools.Tool {
@@ -45,15 +45,15 @@ func (directRuntimeTool) ReturnsDirect() bool { return true }
 func (t directRuntimeTool) Unwrap() tools.Tool { return t.Tool }
 
 func returnsDirectRuntime(tool tools.Tool) (direct bool, err error) {
-	// Registered before the lookup, not after it: walking the wrapping chain runs
-	// the tool's own Unwrap, and a chain that does not end reports itself by
-	// panicking. Both belong to the tool, so both are attributed to it.
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New(fmt.Sprintf("tool %T direct-return lookup panicked", tool), recovered)
 		}
 	}()
-	marker, ok := Capability[DirectTool](tool)
+	marker, ok, err := tools.Capability[DirectTool](tool)
+	if err != nil {
+		return false, fmt.Errorf("tool %T direct-return lookup: %w", tool, err)
+	}
 	if !ok {
 		return false, nil
 	}

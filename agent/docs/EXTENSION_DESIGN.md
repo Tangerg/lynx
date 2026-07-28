@@ -61,13 +61,14 @@ Agent 只生产和消费 `ProcessSnapshot` / `ProcessSnapshotTree` 值；Host �
 
 ## 4. Middleware 边界
 
-`ActionMiddleware.RunAction` 包围单次 Action 调用。`next` 与 middleware 都返回
+`ActionMiddleware.RunAction` 包围单次 Action 调用，但只接收不可执行的
+`ActionDescriptor`；唯一执行权是 `next`。`next` 与 middleware 都返回
 `(ActionStatus, error)`：status 表达 Waiting/Paused 等生命周期结果，error 表达失败或
 replan。Middleware 不得自行运行 Planner，也不能把错误改藏到 context 或 Blackboard。
 
 `ToolMiddleware.WrapTool` 只包装已解析的 `tools.Tool`。鉴权、redaction、tracing 和明确的
 调用级 retry 可以放在这里；模型轮次、HITL、usage、checkpoint 与 tool-loop 终止属于
-framework-managed interaction。包装器只需声明 `toolloop.WrappingTool`（`Unwrap`），被包装
+framework-managed interaction。包装器只需声明 `tools.WrappingTool`（`Unwrap`），被包装
 工具声明的全部可选能力即自动保留 —— 逐个重新实现只会漏掉忘记的那个；要刻意收窄调度或
 continuation 语义，就由包装器自己声明该能力（外层优先），或不声明 `Unwrap` 完全隐藏。
 

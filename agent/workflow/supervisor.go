@@ -108,6 +108,6 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 		Name:        config.Name,
 		Description: config.Description,
 		Actions:     []core.Action{orchestrate},
-		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name, Description: "produce " + core.TypeName[Out]()})},
+		Goals:       []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{Name: config.Name})},
 	}), nil
 }

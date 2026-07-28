@@ -70,8 +70,8 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 	workdir := t.TempDir()
 	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)), newPathLocker(), workdir)
-	policy, ok := toolloop.Capability[toolloop.ConcurrentTool](tool)
-	if !ok {
+	policy, ok, err := tools.Capability[toolloop.ConcurrentTool](tool)
+	if err != nil || !ok {
 		t.Fatal("path-locked apply_patch does not expose concurrency policy")
 	}
 	key, concurrent := policy.ConcurrencyKey(`{"patch":"--- a/one.txt\n+++ b/one.txt\n--- a/two.txt\n+++ b/two.txt\n"}`)
@@ -101,8 +101,8 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 		workdir,
 	)
 
-	reporter, ok := toolloop.Capability[tools.FileMutationReporter](assembled)
-	if !ok {
+	reporter, ok, err := tools.Capability[tools.FileMutationReporter](assembled)
+	if err != nil || !ok {
 		t.Fatal("the assembled edit tool no longer reports its file mutations")
 	}
 	paths, err := reporter.MutationPaths(pathArguments("real.txt"))
@@ -116,8 +116,8 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 
 func concurrentKey(t *testing.T, tool tools.Tool, arguments string) string {
 	t.Helper()
-	policy, ok := toolloop.Capability[toolloop.ConcurrentTool](tool)
-	if !ok {
+	policy, ok, err := tools.Capability[toolloop.ConcurrentTool](tool)
+	if err != nil || !ok {
 		t.Fatalf("tool %q does not expose concurrency policy", tool.Definition().Name)
 	}
 	key, concurrent := policy.ConcurrencyKey(arguments)

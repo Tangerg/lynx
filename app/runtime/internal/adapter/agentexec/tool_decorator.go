@@ -3,10 +3,10 @@ package agentexec
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
@@ -35,7 +35,7 @@ func (d *toolObserverMiddleware) Name() string { return "tool-observer" }
 // observer into every Call so start / end notifications fire.
 // Action is intentionally ignored — Lyra emits per-tool, not
 // per-action, events.
-func (d *toolObserverMiddleware) WrapTool(_ core.ProcessView, _ core.Action, tool tools.Tool) tools.Tool {
+func (d *toolObserverMiddleware) WrapTool(_ core.ProcessView, _ core.ActionDescriptor, tool tools.Tool) tools.Tool {
 	return &observedTool{inner: tool, observation: d.observation}
 }
 
@@ -64,9 +64,16 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	// Both lookups walk the wrapping chain: the resolved tool arrives already
 	// decorated, so a one-level look would hand the approval gate an empty
 	// target for exactly the tools whose blast radius matters most.
-	mutations, _ := toolloop.Capability[tools.FileMutationReporter](o.inner)
+	mutations, _, err := tools.Capability[tools.FileMutationReporter](o.inner)
+	if err != nil {
+		return "", fmt.Errorf("agentexec: inspect tool mutation capability: %w", err)
+	}
 	target := ToolApprovalTarget{FileMutations: mutations}
-	if identity, ok := toolloop.Capability[mcpToolIdentity](o.inner); ok {
+	identity, ok, err := tools.Capability[mcpToolIdentity](o.inner)
+	if err != nil {
+		return "", fmt.Errorf("agentexec: inspect MCP tool identity: %w", err)
+	}
+	if ok {
 		server, remote := identity.MCPToolIdentity()
 		if server != "" && remote != "" {
 			target.MCP = mcpserver.ToolRef{Server: server, Tool: remote}
@@ -113,8 +120,8 @@ func (o *observedTool) successfulMutationPaths(arguments string, callErr error) 
 	if callErr != nil {
 		return nil
 	}
-	reporter, ok := toolloop.Capability[tools.FileMutationReporter](o.inner)
-	if !ok {
+	reporter, ok, err := tools.Capability[tools.FileMutationReporter](o.inner)
+	if err != nil || !ok {
 		return nil
 	}
 	paths, err := reporter.MutationPaths(arguments)

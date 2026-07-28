@@ -43,6 +43,20 @@ type Engine struct {
 	chatMiddlewareBuilder  chatMiddlewareBuilder
 }
 
+// ProcessResult returns the latest live result for an application projection.
+// Agent events intentionally carry no arbitrary business object; the Host reads
+// a result explicitly while it still owns the process tree.
+func (e *Engine) ProcessResult(processID string) (any, bool) {
+	if e == nil || e.runtime == nil {
+		return nil, false
+	}
+	process, ok := e.runtime.Process(processID)
+	if !ok {
+		return nil, false
+	}
+	return core.Last[any](process.Blackboard())
+}
+
 // New constructs an execution engine. It rejects missing required dependencies
 // and deployment failures synchronously.
 func New(ctx context.Context, config Config) (*Engine, error) {

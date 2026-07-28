@@ -14,7 +14,7 @@ func TestEnginePublicSurfaceIsExecutionOnly(t *testing.T) {
 		methods = append(methods, engineType.Method(index).Name)
 	}
 	slices.Sort(methods)
-	want := []string{"RestoreTurn", "ResumableProcess", "StartTurn"}
+	want := []string{"ProcessResult", "RestoreTurn", "ResumableProcess", "StartTurn"}
 	if !slices.Equal(methods, want) {
 		t.Fatalf("Engine methods = %v, want execution-only surface %v", methods, want)
 	}

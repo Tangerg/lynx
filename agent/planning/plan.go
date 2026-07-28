@@ -17,6 +17,14 @@ type Plan struct {
 	goal    *core.Goal
 }
 
+// PlanDescriptor is the immutable, non-executable projection of a plan.
+// It is the observation shape; the executable Plan remains private to planning
+// and runtime control flow.
+type PlanDescriptor struct {
+	actions []core.ActionDescriptor
+	goal    core.GoalDescriptor
+}
+
 // NewPlan constructs a complete planner result and snapshots the action chain.
 func NewPlan(actions []core.Action, goal *core.Goal) *Plan {
 	return &Plan{actions: slices.Clone(actions), goal: goal}
@@ -37,6 +45,32 @@ func (p *Plan) Goal() *core.Goal {
 	}
 	return p.goal
 }
+
+// Descriptor projects a plan without exposing executable actions or score
+// functions.
+func (p *Plan) Descriptor() PlanDescriptor {
+	if p == nil {
+		return PlanDescriptor{}
+	}
+	actions := make([]core.ActionDescriptor, len(p.actions))
+	for index, action := range p.actions {
+		if action != nil {
+			actions[index] = action.Metadata().Descriptor()
+		}
+	}
+	return PlanDescriptor{actions: actions, goal: p.goal.Descriptor()}
+}
+
+// Actions returns an independent snapshot of the ordered action descriptions.
+func (d PlanDescriptor) Actions() []core.ActionDescriptor {
+	return slices.Clone(d.actions)
+}
+
+// Goal returns the plan's inert target description.
+func (d PlanDescriptor) Goal() core.GoalDescriptor { return d.goal }
+
+// Complete reports whether the descriptor contains no action to execute.
+func (d PlanDescriptor) Complete() bool { return len(d.actions) == 0 }
 
 // Complete reports whether no more work is needed for this goal.
 func (p *Plan) Complete() bool {

@@ -14,6 +14,8 @@ type closeOnRestoreEngine struct {
 	process    agentexec.TurnProcess
 }
 
+func (*closeOnRestoreEngine) ProcessResult(string) (any, bool) { return nil, false }
+
 func (*closeOnRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	return nil, errors.New("unexpected StartTurn")
 }
@@ -28,6 +30,8 @@ type gatedRestoreEngine struct {
 	release chan struct{}
 	process agentexec.TurnProcess
 }
+
+func (*gatedRestoreEngine) ProcessResult(string) (any, bool) { return nil, false }
 
 func (*gatedRestoreEngine) StartTurn(context.Context, agentexec.TurnRequest) (agentexec.TurnProcess, error) {
 	return nil, errors.New("unexpected StartTurn")

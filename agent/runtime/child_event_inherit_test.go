@@ -137,9 +137,16 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		if ev.ProcessID() != childID {
 			continue
 		}
-		out, ok := ev.Result.(subOutput)
+		if ev.Goal.Name() == "" {
+			t.Fatal("child ProcessCompleted omitted its goal descriptor")
+		}
+		child, ok := engine.Process(childID)
+		if !ok {
+			t.Fatalf("completed child process %s is not queryable", childID)
+		}
+		out, ok := core.Result[subOutput](child)
 		if !ok || out.Doubled != 42 {
-			t.Fatalf("child ProcessCompleted result = %#v, want subOutput{42}", ev.Result)
+			t.Fatalf("child process result = %#v, want subOutput{42}", out)
 		}
 		return
 	}

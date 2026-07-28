@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,36 @@ import (
 
 type pathGuardArgs struct {
 	FilePath string `json:"file_path"`
+}
+
+type failingMutationReporter struct {
+	tools.Tool
+	err error
+}
+
+func (f failingMutationReporter) MutationPaths(string) ([]string, error) {
+	return nil, f.err
+}
+
+func TestWithPathGuardFailsClosedWhenMutationDiscoveryFails(t *testing.T) {
+	cause := errors.New("mutation discovery failed")
+	called := false
+	inner, _ := tools.New[pathGuardArgs, string](
+		tools.Config{Name: "write", Description: "stub"},
+		func(context.Context, pathGuardArgs) (string, error) {
+			called = true
+			return "wrote", nil
+		},
+	)
+
+	_, err := withPathGuard(failingMutationReporter{Tool: inner, err: cause}, t.TempDir()).
+		Call(t.Context(), `{"file_path":"safe.txt"}`)
+	if !errors.Is(err, cause) {
+		t.Fatalf("Call error = %v, want mutation-discovery cause", err)
+	}
+	if called {
+		t.Fatal("path guard executed the tool without authoritative mutation paths")
+	}
 }
 
 // TestWithPathGuard verifies the VCS-metadata write barrier: writes whose

@@ -55,7 +55,10 @@ func withEditGuard(inner tools.Tool, tr *editguardstate.Tracker, workdir string)
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := mutationPaths(inner, arguments)
+		paths, err := mutationPaths(inner, arguments)
+		if err != nil {
+			return "", fmt.Errorf("inspect mutation paths before edit: %w", err)
+		}
 		for _, path := range paths {
 			abs := pathidentity.Canonical(workdir, path)
 			if !isExistingFile(abs) {
@@ -161,7 +164,10 @@ func withEditDiagnostics(inner tools.Tool, ci *codeintel.Analyzer, root string) 
 		return inner
 	}
 	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths := mutationPaths(inner, arguments)
+		paths, err := mutationPaths(inner, arguments)
+		if err != nil {
+			return "", fmt.Errorf("inspect mutation paths before diagnostics: %w", err)
+		}
 		path := ""
 		if len(paths) == 1 {
 			path = paths[0]

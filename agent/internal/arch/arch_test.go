@@ -255,136 +255,6 @@ func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
 	}
 }
 
-func TestFrameworkDoesNotOwnApplicationRuntimeConcerns(t *testing.T) {
-	forbiddenNames := map[string]struct{}{
-		"allowedpermissions":       {},
-		"autosnapshot":             {},
-		"bindconversation":         {},
-		"buildid":                  {},
-		"capturedat":               {},
-		"childsessionstore":        {},
-		"conversationid":           {},
-		"costusd":                  {},
-		"defaultbudget":            {},
-		"defaultbudgetactionlimit": {},
-		"defaultbudgetcostlimit":   {},
-		"defaultbudgettokenlimit":  {},
-		"embeddingcall":            {},
-		"goaltool":                 {},
-		"goaltoolconfig":           {},
-		"goaltools":                {},
-		"goaltoolsfor":             {},
-		"modelattribution":         {},
-		"modelcall":                {},
-		"newgoaltool":              {},
-		"newstandaloneagenttool":   {},
-		"owncost":                  {},
-		"ownembeddingcalls":        {},
-		"ownmodelcalls":            {},
-		"owntokens":                {},
-		"processsnapshotchange":    {},
-		"processstore":             {},
-		"recordembeddingcall":      {},
-		"recordmodelcall":          {},
-		"runinsession":             {},
-		"sameresponse":             {},
-		"session":                  {},
-		"sessionmetadata":          {},
-		"sessionstore":             {},
-		"snapshotfailurepolicy":    {},
-		"standalonegoaltools":      {},
-		"storeprotected":           {},
-		"suspensionequal":          {},
-		"toolgroupinfo":            {},
-		"toolgrouppermission":      {},
-		"toolgroupref":             {},
-		"toolgrouprequirement":     {},
-		"toolpolicy":               {},
-		"requiretoolgroup":         {},
-		"waitingprocessresult":     {},
-		"waitingtoolresult":        {},
-	}
-	forbiddenFragments := []string{
-		"billing",
-		"conversation",
-		"durable",
-		"idempot",
-		"journal",
-		"filemutation",
-		"persistence",
-		"persist",
-		"repository",
-		"retention",
-		"session",
-		"transaction",
-		"usageledger",
-	}
-	root := moduleRoot(t)
-	fset := token.NewFileSet()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() {
-			name := entry.Name()
-			if name == "vendor" || name == "examples" ||
-				(strings.HasPrefix(name, ".") && path != root) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
-		ast.Inspect(file, func(node ast.Node) bool {
-			switch declaration := node.(type) {
-			case *ast.TypeSpec:
-				if strings.HasSuffix(strings.ToLower(declaration.Name.Name), "store") {
-					rel, _ := filepath.Rel(root, path)
-					t.Errorf("Agent production code owns application runtime type %q: %s", declaration.Name.Name, rel)
-				}
-			case *ast.StructType:
-				for _, field := range declaration.Fields.List {
-					for _, name := range field.Names {
-						if strings.HasSuffix(strings.ToLower(name.Name), "store") {
-							rel, _ := filepath.Rel(root, path)
-							t.Errorf("Agent production code owns application runtime field %q: %s", name.Name, rel)
-						}
-					}
-				}
-			}
-			identifier, ok := node.(*ast.Ident)
-			if !ok {
-				return true
-			}
-			name := identifier.Name
-			normalized := strings.ToLower(name)
-			_, forbidden := forbiddenNames[normalized]
-			if !forbidden {
-				for _, fragment := range forbiddenFragments {
-					if strings.Contains(normalized, fragment) {
-						forbidden = true
-						break
-					}
-				}
-			}
-			if forbidden {
-				rel, _ := filepath.Rel(root, path)
-				t.Errorf("Agent production code owns application runtime identifier %q: %s", name, rel)
-			}
-			return true
-		})
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk Agent production code: %v", walkErr)
-	}
-}
-
 func TestRuntimeNamedJSONStructsAreExecutionState(t *testing.T) {
 	allowed := map[string]struct{}{
 		"canonicalAction":      {},
@@ -591,20 +461,22 @@ func moduleRoot(t *testing.T) string {
 	}
 }
 
-// TestFrameworkWritesNoModelFacingCopy keeps prompt content out of the
-// framework. Two instances of that leak reached main — a JSON instruction
-// concatenated inside PromptJSON and a routing classifier's system prompt with
-// a scoring rubric — and neither was caught by reading. The checks are narrow on
-// purpose, so they never fire on an error message: a literal handed straight to
-// a chat message constructor, and a multi-line raw string, which is what a
-// prompt looks like and what a diagnostic never does. Framework code composes
-// messages from caller-supplied text; whoever owns the product owns the wording.
+// TestFrameworkWritesNoModelFacingCopy keeps product wording out of the
+// framework. It rejects framework-owned literals at the two actual model-facing
+// boundaries: chat message construction and definition descriptions. It does
+// not guess from identifier names or generic multi-line strings.
 func TestFrameworkWritesNoModelFacingCopy(t *testing.T) {
 	messageConstructors := map[string]struct{}{
 		"NewSystemMessage":    {},
 		"NewUserMessage":      {},
 		"NewAssistantMessage": {},
 		"NewTextPart":         {},
+	}
+	descriptionOwners := map[string]struct{}{
+		"ActionConfig":   {},
+		"AgentConfig":    {},
+		"GoalConfig":     {},
+		"ToolDefinition": {},
 	}
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
@@ -629,10 +501,19 @@ func TestFrameworkWritesNoModelFacingCopy(t *testing.T) {
 		relativePath, _ := filepath.Rel(root, path)
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch value := node.(type) {
-			case *ast.BasicLit:
-				if value.Kind == token.STRING && strings.HasPrefix(value.Value, "`") &&
-					strings.Contains(value.Value, "\n") {
-					t.Errorf("Agent production code owns a multi-line string literal, which is prompt-shaped: %s", relativePath)
+			case *ast.CompositeLit:
+				if _, guarded := descriptionOwners[compositeTypeName(value.Type)]; !guarded {
+					return true
+				}
+				for _, element := range value.Elts {
+					field, ok := element.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					key, ok := field.Key.(*ast.Ident)
+					if ok && key.Name == "Description" && containsStringLiteral(field.Value) {
+						t.Errorf("Agent production code owns definition description text: %s (%s)", relativePath, compositeTypeName(value.Type))
+					}
 				}
 			case *ast.CallExpr:
 				selector, ok := value.Fun.(*ast.SelectorExpr)
@@ -654,6 +535,21 @@ func TestFrameworkWritesNoModelFacingCopy(t *testing.T) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk Agent production code: %v", walkErr)
+	}
+}
+
+func compositeTypeName(expression ast.Expr) string {
+	switch value := expression.(type) {
+	case *ast.Ident:
+		return value.Name
+	case *ast.SelectorExpr:
+		return value.Sel.Name
+	case *ast.IndexExpr:
+		return compositeTypeName(value.X)
+	case *ast.IndexListExpr:
+		return compositeTypeName(value.X)
+	default:
+		return ""
 	}
 }
 

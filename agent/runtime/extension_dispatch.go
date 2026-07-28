@@ -201,7 +201,7 @@ func lastExtension[T any](extensions []extensionEntry) (extensionCapability[T], 
 // closure invoked once every interceptor has called next().
 func (p *Process) runActionChain(
 	ctx context.Context,
-	action core.Action,
+	action core.ActionDescriptor,
 	base func() (core.ActionStatus, error),
 ) (core.ActionStatus, error) {
 	actionMiddleware := collectExtensions[core.ActionMiddleware](p.combinedExtensions())
@@ -225,7 +225,7 @@ func runActionMiddleware(
 	ctx context.Context,
 	middleware extensionCapability[core.ActionMiddleware],
 	process core.ProcessView,
-	action core.Action,
+	action core.ActionDescriptor,
 	next func() (core.ActionStatus, error),
 ) (status core.ActionStatus, err error) {
 	defer func() {
@@ -242,7 +242,7 @@ func runActionMiddleware(
 // return its input unchanged to no-op.
 func (p *Process) wrapTool(
 	toolMiddleware []extensionCapability[core.ToolMiddleware],
-	action core.Action,
+	action core.ActionDescriptor,
 	tool tools.Tool,
 ) (tools.Tool, error) {
 	for _, middleware := range toolMiddleware {
@@ -261,7 +261,7 @@ func (p *Process) wrapTool(
 func wrapToolWith(
 	middleware extensionCapability[core.ToolMiddleware],
 	process core.ProcessView,
-	action core.Action,
+	action core.ActionDescriptor,
 	tool tools.Tool,
 ) (wrapped tools.Tool, err error) {
 	defer func() {

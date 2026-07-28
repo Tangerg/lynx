@@ -20,14 +20,20 @@ type subagentLifecycle struct {
 	sessionID string
 	cwd       string
 	hooks     *hooks.Bound
+	result    func(string) (any, bool)
 	subagents map[string]hooks.SubagentInput
 }
 
-func newSubagentLifecycle(sessionID, cwd string, bound *hooks.Bound) *subagentLifecycle {
+func newSubagentLifecycle(
+	sessionID string,
+	cwd string,
+	bound *hooks.Bound,
+	result func(string) (any, bool),
+) *subagentLifecycle {
 	if !bound.Handles(hooks.SubagentStart, hooks.SubagentStop) {
 		return nil
 	}
-	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound}
+	return &subagentLifecycle{sessionID: sessionID, cwd: cwd, hooks: bound, result: result}
 }
 
 // confirmRoot binds a restored process, or verifies that the synchronous
@@ -95,7 +101,11 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
-		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookValue(ev.Result), "")
+		var result any
+		if l.result != nil {
+			result, _ = l.result(e.ProcessID())
+		}
+		l.runSubagentStopHook(ctx, e, hooks.SubagentCompleted, summarizeHookValue(result), "")
 	case event.ProcessFailed:
 		l.runSubagentStopHook(ctx, e, hooks.SubagentFailed, "", errorString(ev.Err))
 	case event.ProcessKilled:

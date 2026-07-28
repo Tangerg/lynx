@@ -4,18 +4,22 @@ import (
 	"encoding/json"
 	"slices"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/tools"
 )
 
-func mutationPaths(tool tools.Tool, arguments string) []string {
+func mutationPaths(tool tools.Tool, arguments string) ([]string, error) {
 	var paths []string
-	if reporter, ok := toolloop.Capability[tools.FileMutationReporter](tool); ok {
+	reporter, ok, err := tools.Capability[tools.FileMutationReporter](tool)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
 		reported, err := reporter.MutationPaths(arguments)
-		if err == nil {
-			paths = append(paths, reported...)
+		if err != nil {
+			return nil, err
 		}
+		paths = append(paths, reported...)
 	}
 	if len(paths) == 0 {
 		var a struct {
@@ -26,15 +30,18 @@ func mutationPaths(tool tools.Tool, arguments string) []string {
 			paths = append(paths, a.Path)
 		}
 	}
-	return cleanPathList(paths)
+	return cleanPathList(paths), nil
 }
 
-func resolvedMutationPaths(tool tools.Tool, arguments, workdir string) []string {
-	paths := mutationPaths(tool, arguments)
+func resolvedMutationPaths(tool tools.Tool, arguments, workdir string) ([]string, error) {
+	paths, err := mutationPaths(tool, arguments)
+	if err != nil {
+		return nil, err
+	}
 	for i, path := range paths {
 		paths[i] = pathidentity.Canonical(workdir, path)
 	}
-	return cleanPathList(paths)
+	return cleanPathList(paths), nil
 }
 
 func cleanPathList(paths []string) []string {

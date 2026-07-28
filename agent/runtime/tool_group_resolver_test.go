@@ -104,7 +104,7 @@ func (g panickingToolGroup) Tools(context.Context) ([]tools.Tool, error) {
 type panickingToolMiddleware struct{ cause error }
 
 func (panickingToolMiddleware) Name() string { return "panic-tools" }
-func (m panickingToolMiddleware) WrapTool(core.ProcessView, core.Action, tools.Tool) tools.Tool {
+func (m panickingToolMiddleware) WrapTool(core.ProcessView, core.ActionDescriptor, tools.Tool) tools.Tool {
 	panic(m.cause)
 }
 
