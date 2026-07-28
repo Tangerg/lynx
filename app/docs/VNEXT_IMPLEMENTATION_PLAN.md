@@ -60,7 +60,7 @@
 | 批次 | 名称 | 状态 | 说明 |
 |---|---|---|---|
 | A | 协议文档事实对齐 | `TODO` | 零代码变化 |
-| A′ | 现役泄露治本（**前置**） | `IN PROGRESS` | 5 slice（A′5 实施中发现）；A′1/A′2/A′3/A′5 `DONE`，**A′4 待确认范围** |
+| A′ | 现役泄露治本（**前置**） | `DONE` | 5 slice 全 `DONE`（A′5 为实施中发现追加）；三个现役泄露消除，5 个守卫落地 |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
 | B′ | 权威读面 + store cutover | `TODO` | 5 slice，落 main，**建议起点** |
 | C | vNext 原子切换 | `TODO` | 16 stacked commit，一条 cutover 分支 |
@@ -322,9 +322,9 @@ vNext 要求 cursor 是 **server-issued opaque keyset token**，内含 `formatVe
 现有 12 个 delivery 守卫都是过去泄露的化石。本轮该留下 6 个新的：
 
 ```go
-TestDeliveryDoesNotAuthorDomainText        // ✅ DONE (4571e91e9)
-TestDeliveryDoesNotImplementQuerySemantics // A′4 长出：禁 pageByCursor / 切片过滤 / 排序
-TestDeliveryReadsRunsFromDurableProjection // A′3 长出：禁 delivery 调 coordinator.List() 取 Run 事实
+TestDeliveryDoesNotAuthorDomainText        // ✅ DONE (4571e91e9 + 98399fab6)
+TestDeliveryDoesNotImplementQuerySemantics // ✅ DONE (dfcadad95)
+TestDeliveryReadsRunsFromDurableProjection // ✅ DONE (03943f663)
 TestSystemInvariantsStayInApplication      // D3 长出：禁 delivery 出现 SystemInvariantSpec
 TestDeliveryDoesNotComputeMetrics          // C 预埋
 TestRunWireShapesShareOneDefinition        // C 预埋
@@ -332,6 +332,8 @@ TestRunWireShapesShareOneDefinition        // C 预埋
 
 **A′1 的守卫比原计划强，理由值得记下**：原计划写的是「禁 default 文案字面量」，但泄露的实际形态是**文案藏在一个看起来像 mapper 的 helper 里**（`presentProblemDetail`），禁字面量赋值挡不住它。落地形态改为：*在 `presenter_run.go` / `artifact_encode.go` 里，字符串字面量只能是给程序员的诊断*（豁免 import path / `panic` / `errors.New` / `fmt.Errorf` / 空串）。已验证：把文案塞进新 helper 里也会被咬到。
 > 教训：守卫要挡**形态**，不是挡**符号名**。换个函数名就绕过的守卫等于没有。
+
+**A′4 的守卫同样按形态写**：除了禁回 `pageByCursor` 与两个页宽常量，更关键的是**禁 delivery 调用 `keyset.Decode/Encode/Limit/PageOf`** —— delivery 可以命名"这个 cursor 被拒了"（映射成 `invalid_params`），但不能运行任何分页机制。已验证：在 handler 里加一行 `keyset.Limit` 立刻被咬。
 
 契约 §14.6 那句「validator 的依赖图不包含 store/dispatcher/executor」**已有等价守卫**，不用新建。
 
@@ -422,7 +424,7 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 | A′1 | 泄露 1 治本：Problem/Outcome detail **单一作者**。为 `RunLost / DeniedByUser / ToolFailed / Internal` 四个 kind 找回产生点并在那里写全；删 delivery 的 6 处默认文案（4 个 problem kind + 2 个 outcome kind）。领域无话可说的 → wire 省略字段 | `DONE` | `2a75bc6ae`（前端）+ `4571e91e9`（后端） |
 | A′2 | D6：`Retryable` 三处删除（`domain/execution/transcript` + `delivery/dispatch` spec 表 + wire/Artifact 映射），按 kind 直接决定 `retryAfterSeconds` | `DONE` | `0b7888f8c`（后端）+ `b3f3fb6b3`（前端） |
 | A′3 | 泄露 2 治本：`ListRuns` 改读 durable projection，删 live registry 读取与硬编码 status。**三态留给 C1** —— 本 slice 只做「单一真相源」 | `DONE` | `03943f663` |
-| A′4 | 泄露 3 治本：过滤 / 排序 / cursor 编解码下沉；delivery 只传 opaque token。**范围已按实施发现修正 —— 见下方 ⚠️** | `TODO`（待确认范围） | — |
+| A′4 | 泄露 3 治本：过滤 / 排序 / cursor 编解码下沉；delivery 只传 opaque token。**按 A′4-全 + 真 keyset 执行（见下方 ⚠️）** | `DONE` | `2130ba78d`（keyset 原语）+ `f87d7f9ca`（items.list）+ `dfcadad95`（余下四面 + 守卫） |
 | A′5 | 同一泄露的相邻面（A′1 实施中发现）：`mcp_projection.go` / `providers.go` 由 domain enum 编造 5 句英文 detail。**enum→enum 映射留 delivery（本职），enum→人话移入 locale catalog**。⚠️ 与 A′1 不同，**有前端半部** —— 这两个面板走 `errorDetail()`，其 fallback 是裸 symbol | `DONE` | `98399fab6`（后端）+ `5d3b2f2a7`（前端） |
 
 **A′5 顺带治掉的根**：`errorDetail()` 的 `?? type` fallback 就是"裸符号能露出来"的总根 —— 它让这个 reader **永远无法回答"runtime 什么也没说"**，于是把「该由 UI 供词」的信号提前填满了。已改为只返 detail；要文案的走 `describeProblem` / `rpcErrorText` 单一入口。**这条 fallback 原先零测试覆盖**，现已钉住。
@@ -436,9 +438,9 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 
 ---
 
-#### ⚠️ A′4 范围修正（2026-07-28 实施中发现，**待用户确认**）
+#### ⚠️ A′4 范围修正（2026-07-28 实施中发现，**已按 A′4-全 + 真 keyset 完成**）
 
-计划原文说 A′4 含「`items.list` 全量物化」的治本。**做不到**，原因是两条硬事实：
+计划原文说 A′4 含「`items.list` 全量物化」的治本，并把 durable keyset 推给 B′4。**两处都判断错了**，实施时纠正：
 
 **事实 1 —— `pageByCursor` 的签名本身就要求全量物化。**
 
@@ -448,8 +450,9 @@ func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, ma
 
 它拿全量 slice 线性扫描找 cursor 锚点。真 keyset 分页必须在 SQL 里 `WHERE (sort_key) > (anchor) LIMIT n` —— 那需要 durable 排序键：
 - `runs.list`：**今天就可以**（A′3 已落 `ORDER BY started_at, run_id`）。
-- `items.list`：**需要 B′4 的 `sequence` 唯一排序键**（现在没有）。
-- `interrupts.list`：**需要 B′4 的 root-owned aggregate keyset**。
+- `items.list`：**`history_items.seq` 是 AUTOINCREMENT 主键、且 `idx_history_items_session(session_id, seq)` 早已存在** —— B′4 打算"新增"的 durable sequence 本来就在。**不依赖 B′。**
+- `interrupts.list`：`(created_at, run_id)` 可用，`run_id` 是主键。**不依赖 B′**（root-owned aggregate 是 C6 的语义收紧，与分页机制无关）。
+- `sessions.list` / `schedules.list`：`(favorite, updated_at, id)` / `(created_at, id)` 都有索引。**不依赖 B′。**
 
 **事实 2 —— `pageByCursor` 有 5 个调用点，跨 4 个域，不是计划设想的 2 个。**
 
@@ -470,13 +473,23 @@ func pageByCursor[T any](elems []T, key func(T) string, cursor string, limit, ma
 | **A′4-窄** | 只动 §4.2 点名的三个（runs / interrupts / items）的分页归属 | 小 | `pageByCursor` 仍留在 delivery 供 sessions / schedules 用 → **守卫 `TestDeliveryDoesNotImplementQuerySemantics` 落不了地** |
 | **A′4-全** | 分页机制移入 `component/`（域中立原语），**5 个调用点各自的 application coordinator 做分页**，delivery 一件不留 | 3 个 application 包 + 1 个新 component 包 + 5 个 handler + 新 sentinel（`queries` 不能返 `protocol.ErrInvalidParams`，需自己的错误由 delivery 映射） | 泄露 3 的**所有权**彻底清掉，守卫可落地；B′4 之后只是把内存分页换成 SQL keyset，**port 签名不变** |
 
-**我的建议：A′4-全。** 理由：port 签名在两种方案下都一样，B′4 换的只是实现；而 A′4-窄 会让守卫悬空，等于 A′ 的 DoD 交不齐。
+**已执行：A′4-全 + 真 keyset。** 内存分页那个中间态被完全跳过 —— 它会被 B′4 推翻，正是要防的返工。落地形态：
 
-**无论哪种，这两件都必须留到后面**（不是妥协，是依赖）：
-- `items.list` 的全量物化 → **B′4**（要 `sequence` 索引）
-- cursor 换成契约要求的 opaque keyset token（`formatVersion + method + normalized filters + sort tuple` + 完整性保护）→ **C13**（cursor 格式是 client-visible，属原子切换）
+```text
+component/keyset/          cursor 编解码 + limit 收敛 + 过取一行的 Page[T]
+                           token = formatVersion + method + filters 指纹 + sort tuple
+                           跨 method / 跨 filters / 损坏 → ErrInvalidCursor（不静默重置）
+5 个 store                 各自 ORDER BY 上加 keyset 谓词 + LIMIT
+3 个 application 包        各自持有 filters + order + cursor + 页宽上限
+delivery                   只传 opaque token；把拒绝映射成 invalid_params
+```
 
-> 台账已把 A′4 标为 `TODO（待确认范围）`，不要在确认前按原文执行。
+**顺带治掉的两处**：
+- `sessions.list` 原先把**每个** session 都做完 fs + live-run 富化，再由 delivery 切出 100 条 —— 现在只富化本页。
+- 两个 port 收窄：无分页的 interrupt 读、整体 transcript 读**都没有消费者了**，直接删（而非留成比实际驱动更宽的 seam）。
+
+**B′4 因此大幅缩小**：durable keyset 已在，剩下的只是 `runs` 补列后把 `AdmittedRun` 读面变宽（C4 的全历史 / status filter 才需要）。
+**C13 只剩 replay cursor**（`processEpoch` / `headEventId`）—— query cursor 已是契约要求的形态。
 
 > ✅ **A′2 的 wire 问题已在实施时查清（2026-07-28）**，结论比预设的更干净：
 >
