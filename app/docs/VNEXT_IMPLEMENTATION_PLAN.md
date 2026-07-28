@@ -572,7 +572,8 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 10 | canonical samples 三方 | ✅ **真三方**：binding 收成一份（`protocol/canonical_samples.go`，非测试代码，生成器投影进 manifest 与 `wire.samples.generated.ts`），84 个 fixture 各过三关 —— Go round-trip / TS 编译出的 checks / **ajv 读已发布的 `contract/schema.json`**。第三关不可省：前两关都从同一棵 schema 树派生，编译器里的 bug 会让它们互相认同；只有一个没参与生产的实现能回答"第三方拿到的那份文档接受运行时真发的帧吗"。三关各带反例（缺 required / variant 串字段），否则 84 个合法样本对"什么都接受"的 schema 也全过 |
 | 14 | state key fixture | ⏸ 待编（`StateKeySpec` 已声明 recovery/scope/writer/payload 且注册期校验 recovery 是已注册方法；缺 event↔query 同形 fixture，`state.changed` 那半依赖 C） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
-| 8 / 11 | invariant integration fixture / list query fixture | ⏸ 待编（invariant key 已在 `application/contract` 声明齐，fixture 侧未建） |
+| 8 | invariant integration fixture | ⏸ 待编 —— **本轮已把证据审完**，见下「gate 8 证据审计」：13 个 (invariant, boundary) 对里 10 个已有跨 projection fixture，3 个是真缺口 |
+| 11 | list query fixture | ⏸ 待编（`sqlite:TestListRunning{OrdersByAdmission,SeeksPastItsAnchor,SeesOnlyWorkInProgress}` 已覆盖固定排序与 cursor seek 的一半；缺 scope/filter cursor binding 与"下一页方向"的成套 fixture） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
 #### ✅ B3 完成（2026-07-29）：14/14 产物
@@ -770,6 +771,37 @@ validator / JSON Schema **分别验证同一批 fixture**，"同一批"要有指
   所以 Registry **本身**就是 Go 的共读源；再生成一份 `const MethodRunsStart = "runs.start"` 而 dispatch 自己不消费，
   才是新的第二个源。第 5 类产物（method constants + typed client stubs）因此**只对 TypeScript 有意义**（TS 读不到
   Registry）。gate 2 的"discovery 与 dispatcher 相等"由此**构造上成立**。
+
+#### ⚠️ gate 8 证据审计（2026-07-29，实现前先做完的功课）
+
+`SystemInvariantSpec` 的 `Boundaries` 是复数且注释写明「多个 = 有多种破法，每种都必须守住」，所以 gate 8 的诚实形态是
+**每个 (invariant, boundary) 对都要有一个跨 projection fixture**，不是"每个 invariant 有一个测试"。6 个 invariant 展开
+成 13 对，逐对查过现有测试后：
+
+| invariant | boundary | 证据 |
+|---|---|---|
+| session_has_at_most_one_open_run | runs.admission | ✅ `sqlite:TestRunAdmitEnforcesOneActivePerSession` |
+| | runsegment.opening | ❌ **缺口** —— 需要：已 park 的 session 再来一次 `CommitOpening{Admit}` 必须失败且**什么都不写** |
+| terminal_run_carries_its_result | runsegment.event | ⚠️ `runsegment:TestCommitEventRecordsGoalTurnWithTerminalRun` 只断言 run 落到 `terminal`，没断言 result 随之落盘；牙齿在 `sqlite:TestTerminalizeRejectsUnknownOutcome`，但那条是单表的，不算跨 projection |
+| | runs.recovery | ✅ `sqlite:TestReconcileOrphansRepairsWholeDurableLifecycle` |
+| | sessions.import | ⚠️ `Snapshot.Validate()` 确实拒 "state outcome mismatch" / "missing finished time"（`TestValidateSnapshotRejectsInconsistentPortableState`），但那是纯函数单测；**缺**一条走 import 写集、证明这类 artifact 进不来的 fixture |
+| parked_run_has_exactly_one_open_interrupt_set | runsegment.event | ✅ `runsegment:TestCommitEventParkProducesBootResumableTriplet`（park → boot reconcile 不动它 → 再 admit 得 `ErrSessionBusy`） |
+| | runs.recovery | ✅ `sqlite:TestReconcileOrphans{SweepsInterruptedWithoutRecord,RejectsPartialParkWithoutMutatingIt}` |
+| dropped_run_leaves_nothing_behind | sessions.rollback | ✅ `bootstrap:TestApplyRollbackDropsRunsAndFreesAdmission` |
+| | sessions.delete | ✅ `bootstrap:TestApplyDeleteRemovesRunRows` |
+| imported_session_keeps_its_identity | sessions.import | ✅ `bootstrap:TestApplyRestoreClearsSessionOwnedProjections`（按给定 id restore，并清掉 session 私有投影） |
+| goal_never_outlives_its_session | goals.lifecycle | ✅ `sqlite:TestGoalStore_CompareAndSwap` + `TestGoalStore_ClearThenRecreateRejectsStaleLease` |
+| | sessions.delete | ✅ `bootstrap:TestApplyDeleteClearsSessionGoal` + `sqlite:TestGoalStoreCascadesWithSessionDeletion` |
+| | sessions.rollback | ❌ **缺口** —— rollback **不删父 session**，所以它的 goal 合法地活着；这条在 rollback 边界的含义是「被丢掉的 subtask 子 session 的 goal 必须跟着走」，现有 `TestApplyRollbackDeletesSubtaskSetAtomically` 只证原子性，没证 goal |
+
+**机制定案（勿重新推导）**：`internal/arch` 一张 (invariant, boundary) → fixture 的证据索引 + 四向校验：声明的每对都在索引里、
+索引里没有多余对、被点名的 test 确实存在（AST）、且**该 test 的 godoc 里写了 invariant key**（双向可查，读 fixture 的人
+也知道它是承重的）。**不采用**「fixture 里调 `Covers(t, key, boundary)` 运行时登记」：Go 的 test binary 按包分，跨包的
+全局登记表根本汇不到一起，而要靠 AST 反查 `contract.BoundaryX` 这个标识符对应哪个字面量，又得再手写一张 name→value 表。
+
+**为什么本轮没直接写**：上面 3 个 ❌ / 2 个 ⚠️ 要么得新写跨 projection fixture，要么得判定「某条既有测试算不算这条
+invariant 在这个 boundary 上的证据」。把判断错的映射写进索引，等于**发布一个假的覆盖声明** —— 那正是第二法则要打回的
+「看起来修好了」。所以本轮只把功课做完落进文档，实现留给下一轮按上表逐对补齐。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 
