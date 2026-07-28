@@ -134,7 +134,6 @@ export function onRunFinished(
       error: {
         message: result?.error?.detail,
         code: result?.error?.type,
-        retryable: result?.error?.retryable,
         retryAfterSeconds: result?.error?.retryAfterSeconds,
       },
     };

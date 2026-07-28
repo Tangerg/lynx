@@ -128,16 +128,14 @@ export interface RunState {
  *  failure surfaced to the banner). UI shows it as a dismissible banner;
  *  cleared the next time a run starts. */
 export interface RunError {
-  /** What the runtime said went wrong (ProblemData.detail ?? type). Absent when
-   *  it said nothing — the banner supplies the words in that case, because a
-   *  fallback sentence in the fold is one locale's copy in the layer that folds
-   *  wire events. */
+  /** The per-occurrence note the runtime reported (ProblemData.detail). Absent
+   *  when it said nothing — the banner supplies the words from `code` in that
+   *  case, because a fallback sentence in the fold is one locale's copy in the
+   *  layer that folds wire events. */
   message?: string;
+  /** The symbolic problem type. Everything that branches on the failure — copy,
+   *  the Retry affordance — reads this, never a derived flag. */
   code?: string;
-  /** Transient failure worth retrying (429 / 5xx / timeout) — gates the banner's
-   *  Retry affordance off (a permanent error like bad-credentials / invalid
-   *  params isn't fixed by resending). From ProblemData.retryable. */
-  retryable?: boolean;
   /** Provider-requested backoff in seconds (ProblemData.retryAfterSeconds) —
    *  drives the Retry countdown. Absent when the provider sent none. */
   retryAfterSeconds?: number;

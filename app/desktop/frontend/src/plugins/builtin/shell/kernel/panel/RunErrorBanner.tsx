@@ -32,6 +32,15 @@ function findLastUserText(): string {
   return last ? flattenText(last.blocks).trim() : "";
 }
 
+// Resending the same text cannot clear these — the credential, the request
+// shape, or the provider's verdict on it is what has to change.
+//
+// This used to read a `retryable` flag off the wire, which never worked: the
+// runtime omits the field when false, so the guard could not tell "don't retry"
+// from "nothing said" and was silently always true. Behavior branches on the
+// symbolic type, which is the one thing a problem always carries.
+const UNRETRYABLE: readonly string[] = ["invalid_api_key", "invalid_params", "provider_rejected"];
+
 // RunErrorBanner — surfaces an run error.
 //
 // The reducer parks the error message on `state.error` until the next
@@ -86,9 +95,7 @@ export function RunErrorBanner() {
     send(agentTextInput(retryText));
   };
 
-  // Offer Retry only when there's text to resend AND the error isn't a
-  // permanent one (bad credentials / invalid params): resending won't fix those.
-  const canRetry = canSend && Boolean(retryText) && error?.retryable !== false;
+  const canRetry = canSend && Boolean(retryText) && !UNRETRYABLE.includes(error?.code ?? "");
 
   return (
     <AnimatePresence initial={false}>
