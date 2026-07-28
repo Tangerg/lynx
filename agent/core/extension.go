@@ -9,10 +9,8 @@ import (
 )
 
 // Extension is the marker every plug-in capability shares. Name is read once
-// and frozen at its registration boundary for dedup, logging / tracing
-// attribution, and introspection. Framework construction reports nil, empty,
-// or duplicate registrations as errors; its explicit Must constructor is the
-// panic-on-error convenience.
+// and frozen at its registration boundary, so a later change to what Name
+// returns cannot alter how an already-registered value is identified.
 //
 // A type that wants to be plugged in implements Extension plus any
 // subset of the capability interfaces below — the runtime detects
@@ -32,12 +30,9 @@ type Extension interface {
 // [Action] itself. The descriptor is an inert definition snapshot; next is the
 // middleware's only execution authority.
 //
-// It is the canonical around-call hook for timing, audit logging, ambient
-// context propagation (auth / tenancy / OTel baggage), and circuit-breaker /
-// rate-limit behavior (skip next to short-circuit).
-// Composition is onion-style: the first registered interceptor is
-// the outermost layer. The runtime invokes the wrapped chain at most once even
-// if middleware calls next repeatedly, and converts middleware panics into
+// Skipping next short-circuits the action. Composition is onion-style, the
+// first registered interceptor outermost, and the wrapped chain runs at most
+// once however many times a middleware calls next. A middleware panic becomes
 // [ActionFailed]. Valid at engine and process scope.
 type ActionMiddleware interface {
 	Extension
@@ -55,8 +50,6 @@ type ActionMiddleware interface {
 // Composition is wrap-style: first registered is innermost.
 // A panic or nil result makes tool resolution fail with an error attributed to
 // the middleware; it cannot leak into the host or silently remove a tool.
-//
-// Typical uses: per-call tracing, auth / scope checks, redaction.
 //
 // A wrapper declares [tools.WrappingTool], so the tool it stands in for keeps
 // every optional capability it declared — one method, whatever the set of

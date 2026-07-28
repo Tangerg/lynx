@@ -21,10 +21,6 @@ var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
 // BlackboardReader is the read-only slice of [Blackboard] — passed to
 // contexts that observe state but should not mutate it (e.g. condition
 // evaluation, world-state determination, planner introspection).
-//
-// Splitting reader from writer is structural, not nominal: a custom
-// Blackboard automatically satisfies both halves by satisfying the full
-// interface.
 type BlackboardReader interface {
 	ID() string
 
@@ -50,8 +46,8 @@ type BlackboardReader interface {
 	// Condition reads boolean state set via [BlackboardWriter.StoreCondition].
 	Condition(key string) (bool, bool)
 
-	// Inspect is for human consumption — verbose=true dumps everything,
-	// false produces a compact summary.
+	// Inspect renders state for a human reader. The form is not a contract; do
+	// not parse it.
 	Inspect(verbose bool) string
 }
 
@@ -81,10 +77,8 @@ type BlackboardWriter interface {
 	Hide(target any) error
 
 	// StoreCondition records boolean state that is NOT derived from object
-	// presence (e.g. "user_authenticated"). The planner consults these
-	// alongside type bindings. It reports a failure to commit the write for the
-	// same reason the value writers do: a blackboard backed by anything other
-	// than memory has one, and its only alternative would be to panic.
+	// presence (e.g. "user_authenticated"). The planner consults these alongside
+	// type bindings.
 	StoreCondition(key string, value bool) error
 }
 
@@ -100,12 +94,10 @@ type BlackboardWriter interface {
 // engine-scoped only; [ProcessOptions.Blackboard] is the explicit per-process
 // override.
 //
-// Values are portable immutable snapshots: implementations take ownership on
-// write and return ownership-isolated copies on read. Runtime handles and other
-// non-portable capabilities belong in [Dependencies], not planner state.
-//
-// Ownership is taken of the value's portable form, so a stored type's Go state
-// survives only where that form carries it. A write whose state would be
+// Ownership is taken of a value's portable form on write, and a read returns a
+// copy rebuilt from it, so a stored type's Go state survives only where that
+// form carries it. Runtime handles and other non-portable capabilities belong in
+// [Dependencies], not in planner state. A write whose state would be
 // dropped — unexported fields, an interface-typed field whose concrete type
 // cannot be recovered — is rejected with [ErrUnportableValue] rather than
 // silently truncated. A type that needs unexported state on the blackboard owns
@@ -152,8 +144,7 @@ func Get[T any](blackboard BlackboardReader, name string) (T, bool) {
 }
 
 // Objects filters the blackboard's object list to entries
-// assignable to T, preserving insertion order. Useful when an action
-// collects "all citations" or "all decisions made so far".
+// assignable to T, preserving insertion order.
 func Objects[T any](blackboard BlackboardReader) []T {
 	if blackboard == nil {
 		return nil

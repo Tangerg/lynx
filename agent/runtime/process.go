@@ -12,24 +12,13 @@ import (
 // read, control, and usage capabilities that runtime composition grants
 // separately to consumers.
 //
-// Internal layout — four concerns kept as named sub-struct fields so
-// related fields & methods cluster together while the access path stays
-// explicit at every call site:
-//
-//   - state    mu-protected status / goal / failure / exclusions.
-//   - budget   subtree usage plus the tree-shared admission authority.
-//   - signals  channel + atomic-based signaling primitives
-//     (terminate / toolCallCancel) — no
-//     shared lock, all built on lock-free primitives.
-//   - nested   nested-child ownership and suspension staging; owns a separate
-//     mutex because sibling AgentTools may update it
-//     concurrently.
-//
-// processState checkpoint ownership serializes suspension transitions and
-// portable capture without holding a mutex across extension callbacks. The
-// other top-level fields are assembled before registry publication (id /
-// deployment / options / blackboard / state reader / planner / domain /
-// engine). deploymentRetained is released only with complete-tree removal.
+// Concerns are grouped into named sub-structs so each carries its own
+// synchronization: nested holds a mutex of its own because sibling AgentTools
+// update it concurrently, while signals is lock-free throughout. state owns
+// checkpointing so a suspension transition and a portable capture serialize
+// against each other without any lock being held across an extension callback.
+// Every remaining field is assembled before the process is published to the
+// registry and never written again.
 type Process struct {
 	id                 string
 	parentID           string

@@ -7,11 +7,9 @@ import (
 	"math"
 )
 
-// ChildOptionsFunc supplies explicit per-child process configuration. It runs
-// only when a parent ProcessOptions installs it, so the framework's default
-// minimal child inheritance remains unchanged. Parallel child creation may call
-// the same function concurrently; the implementation owns synchronization for
-// captured mutable state.
+// ChildOptionsFunc supplies explicit per-child process configuration. Parallel
+// child creation may call it concurrently, so an implementation owns
+// synchronization for whatever mutable state it captures.
 type ChildOptionsFunc func(
 	ctx context.Context,
 	parent ProcessView,
@@ -26,12 +24,8 @@ type ChildOptionsFunc func(
 // stored inside those containers must themselves remain safe for their declared
 // lifetime.
 //
-// Choosing a struct over the functional-options pattern keeps defaults
-// and validation in one place and avoids polluting the
-// package namespace with ~10 `With…` constructors. Direct struct-
-// literal init is the intended ergonomics. Cross-cutting concerns
-// (audit, verbosity, throttling, RBAC) belong on extensions registered
-// via [ProcessOptions.Extensions]; ProcessOptions itself stays minimal.
+// Cross-cutting behaviour belongs on an extension registered via
+// [ProcessOptions.Extensions], not on a new field here.
 type ProcessOptions struct {
 	Blackboard Blackboard
 

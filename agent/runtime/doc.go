@@ -2,18 +2,16 @@
 // holds deployed agents, builds [Process] instances, drives the
 // plan / act / observe / repeat loop, and wires every plug-in point.
 //
-// The runtime's behavioral plug-in mechanism is the [core.Extension]
-// registry. Cross-cutting concerns — event listeners, action
-// and tool middleware, agent validators, goal approvers,
-// tool-group resolvers, id generators, blackboard prototypes, and planners
-// — are Extensions that the Engine discovers by type
-// assertion at dispatch time. Per-process Extensions merge with the
-// Engine-scoped set when a process is created, so per-call
-// overrides remain idiomatic. Stable execution dependencies such as chat,
-// chat middleware, Prompt limits, and child-depth limits remain explicit
-// fields on [Config]; they are not hidden in the extension registry. Product data management and
-// identity stay outside this package; runtime only captures and rebuilds
-// portable process values.
+// Behavioral plug-ins all arrive through one mechanism: a [core.Extension]
+// whose capabilities the Engine discovers by type assertion at dispatch time.
+// See [Config.Extensions] for the capabilities that mechanism carries.
+// Per-process Extensions merge with the Engine-scoped set at process creation,
+// so a per-call override needs no separate seam. Execution dependencies that
+// every run needs — chat, chat middleware, Prompt limits, child depth — stay
+// explicit fields on [Config] instead, so a missing one is a construction error
+// rather than a silently absent extension. Product data and identity stay
+// outside this package; runtime only captures and rebuilds portable process
+// values.
 //
 // Process lifecycle:
 //

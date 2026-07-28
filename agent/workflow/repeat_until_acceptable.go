@@ -112,7 +112,6 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history AttemptHistory[Out]) (Out, AttemptHistory[Out], error) {
 			var zero Out
 
-			// The task sees prior outputs so it can revise.
 			output, err := config.Task(ctx, process, input, newHistory(history.outputs()))
 			if err != nil {
 				return zero, history, err

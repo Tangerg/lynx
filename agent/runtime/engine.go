@@ -9,11 +9,10 @@ import (
 )
 
 const (
-	// DefaultMaxChildDepth limits recursive delegation. A root process has
-	// depth zero, so this value permits eight nested child levels. Unlike cost
-	// or round limits, an unbounded value here is a framework failure mode
-	// rather than a host policy: every level keeps a registered process alive in
-	// the tree. The framework therefore carries a rail and lets Config move it.
+	// DefaultMaxChildDepth bounds recursive delegation, counting a root process
+	// as depth zero. Unlike cost or round limits this is a framework rail rather
+	// than host policy: every level keeps another registered process alive in the
+	// tree, so an unbounded default would be a failure mode. Config can move it.
 	DefaultMaxChildDepth = 8
 )
 
@@ -21,13 +20,10 @@ const (
 // agents, builds processes, dispatches events, and exposes the
 // resume API for HITL.
 //
-// Pluggable behavior (event listeners, action and tool middleware,
-// agent validators, goal approvers, tool-group resolvers, id generators,
-// planners, and blackboard prototypes)
-// flows through one mechanism: registered [core.Extension]s.
-// Engine-scoped extensions live on [Config.Extensions];
-// per-process extensions live on [core.ProcessOptions.Extensions]
-// and merge with engine extensions at dispatch time.
+// Pluggable behavior flows through one mechanism: registered
+// [core.Extension]s, enumerated on [Config.Extensions]. Engine-scoped ones live
+// there; per-process ones live on [core.ProcessOptions.Extensions] and merge
+// with the engine set at dispatch time.
 type Engine struct {
 	catalog   deploymentRegistry // immutable deployments and active routes
 	processes processRegistry    // created and restored processes
@@ -58,8 +54,7 @@ type Config struct {
 	Chat core.ChatCapability
 
 	// ChatMiddleware is applied to every managed Interact and Prompt model
-	// call. Typical uses: content safeguard, request/response logging, and
-	// global quota. Optional — nil / empty means "no global wrapping".
+	// call. Optional — nil / empty means "no global wrapping".
 	ChatMiddleware *core.ChatMiddleware
 
 	// MaxToolRounds bounds the tool rounds of every managed interaction by

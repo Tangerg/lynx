@@ -40,34 +40,14 @@ func (f ListenerFunc) OnEvent(ctx context.Context, event Event) { f(ctx, event) 
 // a [core.Extension] (it has Name) that observes events published in its
 // registration scope.
 //
-// Drop into Config.Extensions to observe every process, or into
-// ProcessOptions.Extensions to observe one process. Use this when you want
-// channel-backed / stream-style event consumption without writing a
-// full Listener struct: capture a channel in the closure, push from
-// fn, range from a consumer goroutine.
+// It turns event consumption into a closure, which is what makes stream-style
+// delivery possible without a listener type: capture a channel in fn and range
+// it from a consumer goroutine. Delivery is synchronous with publication, so fn
+// must not block the tick — a full channel is the closure's problem to decide.
 //
-// Example — channel-backed streaming:
-//
-//	ch := make(chan event.Event, 64)
-//	listener := event.NewNamedListener("sse-stream", func(_ context.Context, e event.Event) {
-//	    select {
-//	    case ch <- e:
-//	    default:
-//	        // drop on backpressure — caller-defined policy
-//	    }
-//	})
-//	opts := core.ProcessOptions{Extensions: []core.Extension{listener}}
-//	go func() {
-//	    defer close(ch)
-//	    _, _ = engine.Run(ctx, agent, bindings, opts)
-//	}()
-//	for e := range ch { sseSend(e) }
-//
-// Use [NewNamedSubtreeListener] when a process-scoped listener must also
-// observe descendants. The fn closure is responsible for any filtering by
-// ProcessID(). nil fn makes
-// OnEvent a no-op — useful for tests that want to verify "registered
-// but did nothing".
+// Use [NewNamedSubtreeListener] when a process-scoped listener must also observe
+// descendants; fn owns any filtering by ProcessID. A nil fn makes OnEvent a
+// no-op.
 type NamedListener struct {
 	name string
 	fn   func(context.Context, Event)
