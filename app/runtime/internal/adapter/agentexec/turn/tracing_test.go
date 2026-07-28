@@ -44,7 +44,7 @@ func installTurnTraceCapture(t *testing.T) (*sdktrace.TracerProvider, *tracetest
 // code under test uses the global one — and a sibling test's drive or cleanup
 // goroutine can still be ending its span after this test resets it. Asserting a
 // total span count therefore measures other tests' timing, not this turn's
-// behaviour. Selecting by run id measures only what this turn recorded.
+// behavior. Selecting by run id measures only what this turn recorded.
 func turnSpan(spans tracetest.SpanStubs, turnID string) (tracetest.SpanStub, bool) {
 	for _, span := range spans {
 		for _, attr := range span.Attributes {
