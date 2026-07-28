@@ -599,9 +599,25 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 	store := newMemStore()
 	g, _ := goal.New("s1", "obj", modelref.Selection{}, goal.Budget{}, "lease-active", time.Unix(0, 0))
 	_, _, _ = store.Save(context.Background(), g, goal.Version{})
-	d := newDriver(t, store) // no script needed; Start is rejected before any run
+	// Refusing also restores the in-process drive for the active row it found, so
+	// the fake has to have a turn to serve. Scripting none asserted the opposite
+	// — that adoption never happens — and passed only when the assertion outran
+	// the loop the refusal had just launched.
+	started := make(chan struct{}, 1)
+	fake := &fakeRuns{
+		t: t, store: store, script: []turn{{outcome: execution.OutcomeCompleted}},
+		hold: make(chan struct{}), started: started,
+	}
+	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	cleanupDriver(t, d)
+
 	if _, err := d.Start(context.Background(), "s1", "obj2", modelref.Selection{}, goal.Budget{}); err != goals.ErrGoalActive {
 		t.Fatalf("Start on active goal = %v, want ErrGoalActive", err)
+	}
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Start on an active goal did not restore its drive")
 	}
 }
 
