@@ -75,80 +75,99 @@ func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	return c.fn(ctx, env)
 }
 
-type andCondition struct{ left, right Condition }
+// operand is one side of a condition combinator. The combinators are public and
+// accept any Condition, so a nil side is a real state rather than a caller
+// error: it names itself, contributes no cost, and evaluates to Unknown — which
+// is what three-valued logic already says about something not known.
+//
+// The nil check lives here so each combinator can read its sides directly. It is
+// a plain field rather than an embedded Condition because an embedded interface
+// would promote any method this type does not override, turning a future
+// addition to Condition into a nil panic instead of a compile error.
+type operand struct{ condition Condition }
 
-// And returns a condition that is true only when both operands are true.
-func And(left, right Condition) Condition { return &andCondition{left, right} }
-
-func (c *andCondition) Name() string {
-	return "(" + conditionName(c.left) + " AND " + conditionName(c.right) + ")"
-}
-
-func (c *andCondition) Cost() float64 {
-	return conditionCost(c.left) + conditionCost(c.right)
-}
-
-func (c *andCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	left := evaluateCondition(ctx, c.left, env)
-	if left == False {
-		return False
-	}
-	return left.And(evaluateCondition(ctx, c.right, env))
-}
-
-type orCondition struct{ left, right Condition }
-
-// Or returns a condition that is true when either operand is true.
-func Or(left, right Condition) Condition { return &orCondition{left, right} }
-
-func (c *orCondition) Name() string {
-	return "(" + conditionName(c.left) + " OR " + conditionName(c.right) + ")"
-}
-
-func (c *orCondition) Cost() float64 {
-	return conditionCost(c.left) + conditionCost(c.right)
-}
-
-func (c *orCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	left := evaluateCondition(ctx, c.left, env)
-	if left == True {
-		return True
-	}
-	return left.Or(evaluateCondition(ctx, c.right, env))
-}
-
-type notCondition struct{ inner Condition }
-
-// Not returns the three-valued negation of inner.
-func Not(inner Condition) Condition { return &notCondition{inner} }
-
-func (c *notCondition) Name() string  { return "(NOT " + conditionName(c.inner) + ")" }
-func (c *notCondition) Cost() float64 { return conditionCost(c.inner) }
-
-func (c *notCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	return evaluateCondition(ctx, c.inner, env).Not()
-}
-
-func conditionName(condition Condition) string {
-	if condition == nil {
+func (o operand) Name() string {
+	if o.condition == nil {
 		return "<nil>"
 	}
-	if name := condition.Name(); name != "" {
+	if name := o.condition.Name(); name != "" {
 		return name
 	}
 	return "<unnamed>"
 }
 
-func conditionCost(condition Condition) float64 {
-	if condition == nil {
+func (o operand) Cost() float64 {
+	if o.condition == nil {
 		return 0
 	}
-	return condition.Cost()
+	return o.condition.Cost()
 }
 
-func evaluateCondition(ctx context.Context, condition Condition, env *ConditionEnv) Truth {
-	if condition == nil {
+func (o operand) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
+	if o.condition == nil {
 		return Unknown
 	}
-	return condition.Evaluate(ctx, env)
+	return o.condition.Evaluate(ctx, env)
+}
+
+// binaryCondition is the half And and Or share: two sides, a parenthesized name
+// around an operator, and a cost that is the sum of both sides. Evaluate stays
+// with each of them, since that is the only part where they actually differ —
+// which Truth short-circuits, and how the two results fold.
+type binaryCondition struct{ left, right operand }
+
+func newBinaryCondition(left, right Condition) binaryCondition {
+	return binaryCondition{left: operand{condition: left}, right: operand{condition: right}}
+}
+
+func (c binaryCondition) Cost() float64 { return c.left.Cost() + c.right.Cost() }
+
+func (c binaryCondition) name(operator string) string {
+	return "(" + c.left.Name() + " " + operator + " " + c.right.Name() + ")"
+}
+
+type andCondition struct{ binaryCondition }
+
+// And returns a condition that is true only when both operands are true.
+func And(left, right Condition) Condition {
+	return &andCondition{newBinaryCondition(left, right)}
+}
+
+func (c *andCondition) Name() string { return c.name("AND") }
+
+func (c *andCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
+	left := c.left.Evaluate(ctx, env)
+	if left == False {
+		return False
+	}
+	return left.And(c.right.Evaluate(ctx, env))
+}
+
+type orCondition struct{ binaryCondition }
+
+// Or returns a condition that is true when either operand is true.
+func Or(left, right Condition) Condition {
+	return &orCondition{newBinaryCondition(left, right)}
+}
+
+func (c *orCondition) Name() string { return c.name("OR") }
+
+func (c *orCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
+	left := c.left.Evaluate(ctx, env)
+	if left == True {
+		return True
+	}
+	return left.Or(c.right.Evaluate(ctx, env))
+}
+
+type notCondition struct{ inner operand }
+
+// Not returns the three-valued negation of inner.
+func Not(inner Condition) Condition { return &notCondition{operand{condition: inner}} }
+
+func (c *notCondition) Name() string  { return "(NOT " + c.inner.Name() + ")" }
+func (c *notCondition) Cost() float64 { return c.inner.Cost() }
+
+func (c *notCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
+	return c.inner.Evaluate(ctx, env).Not()
 }
