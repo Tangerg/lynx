@@ -129,6 +129,15 @@ type MethodMeta struct {
 	Params reflect.Type
 	Result reflect.Type
 	Event  reflect.Type
+
+	// ResultNullable says the success result may be JSON null: the method answers
+	// "there is none" with an absent value instead of an error.
+	//
+	// It cannot be derived. Nearly every handler returns a pointer, and for all but
+	// one of them nil is impossible — so pointer-ness says nothing, and without this
+	// the published schema would name a shape the runtime may legitimately not send,
+	// leaving a client that validates its results to reject a correct frame.
+	ResultNullable bool
 }
 
 // Features returns every feature key this method's rules can require, in
@@ -190,6 +199,9 @@ func (m MethodMeta) validate() error {
 	}
 	if (m.Kind == KindStream) != (m.Event != nil) {
 		return fmt.Errorf("%s: a stream declares its event type and only a stream has one", m.Name)
+	}
+	if m.ResultNullable && (m.Result == nil || m.Result.Kind() != reflect.Pointer) {
+		return fmt.Errorf("%s: a nullable result needs a pointer to be nil", m.Name)
 	}
 	for _, rule := range m.CapabilityRules {
 		if len(rule.Requires) == 0 {

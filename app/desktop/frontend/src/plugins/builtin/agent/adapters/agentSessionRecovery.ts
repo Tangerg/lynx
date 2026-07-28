@@ -1,5 +1,5 @@
 import type { LyraClient, RunEvent, RunId, RunRef, StreamingResult } from "@/rpc";
-import { asRunId, asSessionId, collectPages } from "@/rpc";
+import { asRunId, asSegmentId, asSessionId, collectPages } from "@/rpc";
 import type { FoldEvent } from "./agentStore";
 
 interface AgentSessionRecoveryOptions {
@@ -84,7 +84,13 @@ async function attachRootRun(options: AgentSessionRecoveryOptions, run: RunRef):
   // segment.started keys the segment correctly — the replayed real segment.started then
   // carries the same segmentId and won't re-reset the streaming readout.
   options.applyEvents([
-    { event: { type: "segment.started", run }, segmentId: stream.result.segmentId },
+    { event: { type: "segment.started", run }, segmentId: asSegmentId(stream.result.segmentId) },
   ]);
-  await options.pump(stream, ctrl.signal);
+  // The subscribe response is the wire's own shape now, so its ids are plain
+  // strings and this is their parse site — the same rule runtimeRunsGateway
+  // follows for a run it opens.
+  await options.pump(
+    { result: { runId: asRunId(stream.result.runId) }, events: stream.events },
+    ctrl.signal,
+  );
 }

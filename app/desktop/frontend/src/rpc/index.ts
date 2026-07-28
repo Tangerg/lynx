@@ -150,6 +150,7 @@ export type {
   Page,
   PageQuery,
 } from "./wire.generated";
+export type { WireFeature } from "./wire.methods.generated";
 export {
   streamRunEvents,
   streamWorkspaceEvents,

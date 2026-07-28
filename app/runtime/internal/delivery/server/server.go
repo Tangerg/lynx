@@ -384,31 +384,33 @@ func capabilitiesFor(features featureAvailability) protocol.ServerCapabilities {
 		// and the one clients trust, since this is what discovery advertises (§9).
 		StreamingMethods: dispatch.Contract().StreamMethods(),
 		// Open features map (§9): advertise a new capability by adding a key.
-		// Known keys absent here default to off on the client.
+		// Known keys absent here default to off on the client. The keys come from
+		// protocol's published vocabulary rather than being spelled here, so this map
+		// and the capability rules that gate a method cannot drift by a typo.
 		Features: map[string]protocol.FeatureCapability{
-			"reasoning": capability(true),
-			"mcp":       capability(true),
-			"memory":    capability(features.memory),
-			"skills":    capability(true),
-			"git":       capability(features.git),
-			"fileWatch": capability(features.fileWatch),
-			"lsp":       capability(true),
+			protocol.FeatureReasoning: capability(true),
+			protocol.FeatureMCP:       capability(true),
+			protocol.FeatureMemory:    capability(features.memory),
+			protocol.FeatureSkills:    capability(true),
+			protocol.FeatureGit:       capability(features.git),
+			protocol.FeatureFileWatch: capability(features.fileWatch),
+			protocol.FeatureLSP:       capability(true),
 
-			"sessionExport": capability(true),
+			protocol.FeatureSessionExport: capability(true),
 			// File checkpoints (restoreType on rollback) ride the shadow-git
 			// store, which needs the git binary — same gate as the git feature.
-			"checkpoints": capability(features.git),
-			"multimodal":  capability(true),
-			"relocate":    capability(true),
-			"todos":       capability(features.todos),
-			"compaction":  capability(true),
-			"goals":       capability(features.goals),
-			"agentMemory": capability(features.agentMemory),
-			"schedules":   capability(features.schedules),
-			"codebase":    capability(features.codebase),
+			protocol.FeatureCheckpoints: capability(features.git),
+			protocol.FeatureMultimodal:  capability(true),
+			protocol.FeatureRelocate:    capability(true),
+			protocol.FeatureTodos:       capability(features.todos),
+			protocol.FeatureCompaction:  capability(true),
+			protocol.FeatureGoals:       capability(features.goals),
+			protocol.FeatureAgentMemory: capability(features.agentMemory),
+			protocol.FeatureSchedules:   capability(features.schedules),
+			protocol.FeatureCodebase:    capability(features.codebase),
 			// Off until the corresponding engine support lands:
-			"subagents":   capability(false),
-			"clientTools": capability(false),
+			protocol.FeatureSubagents:   capability(false),
+			protocol.FeatureClientTools: capability(false),
 		},
 		// No process-wide run cap is enforced. Leave maxConcurrentRuns omitted
 		// rather than advertising a hard limit the admission layer does not own.

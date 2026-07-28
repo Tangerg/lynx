@@ -12,9 +12,8 @@
 // result is global and runtime-lifetime.
 
 import { create } from "zustand";
-import type { ServerCapabilities } from "@/rpc";
+import type { ServerCapabilities, WireFeature } from "@/rpc";
 import { configureRuntimeCapabilityPort } from "../application/ports/capabilities";
-import type { RuntimeCapability } from "../domain/capability";
 
 interface RuntimeState {
   /** What the server can do. Null before discovery. */
@@ -37,14 +36,14 @@ export const useRuntimeStore = create<RuntimeState>((set) => ({
  * Returns false before discovery — UI must treat that as "feature off"
  * (don't show a button users can't actually use).
  */
-export function useServerFeature(feature: RuntimeCapability): boolean {
+export function useServerFeature(feature: WireFeature): boolean {
   return useRuntimeStore((s) => s.capabilities?.features[feature]?.enabled === true);
 }
 
 /** Imperative twin of {@link useServerFeature} for non-React call sites
  *  (palette commands, context-menu handlers, module-level wiring). Same
  *  pre-discovery default: false. */
-export function serverFeature(feature: RuntimeCapability): boolean {
+export function serverFeature(feature: WireFeature): boolean {
   return useRuntimeStore.getState().capabilities?.features[feature]?.enabled === true;
 }
 

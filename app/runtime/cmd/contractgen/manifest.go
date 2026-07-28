@@ -14,6 +14,7 @@ import (
 // from the code — which is the only way to notice.
 type manifest struct {
 	Protocol         protocol.ProtocolRange `json:"protocol"`
+	Features         []string               `json:"features"`
 	Methods          []methodEntry          `json:"methods"`
 	Notifications    []string               `json:"notifications"`
 	StreamingMethods []string               `json:"streamingMethods"`
@@ -128,6 +129,7 @@ func build(walked *schemaSet) manifest {
 	shapes := dispatch.WireShapes()
 	return manifest{
 		Protocol:         protocol.SupportedProtocolRange(),
+		Features:         protocol.Features,
 		Methods:          methods(registry),
 		Notifications:    []string{dispatch.NotificationRunEvent, dispatch.NotificationWorkspaceEvent},
 		StreamingMethods: registry.StreamMethods(),
@@ -271,7 +273,7 @@ func topics(shapes *dispatch.Shapes) []topicEntry {
 // (AUX_API §1).
 func topicFeature(topic string) string {
 	if topic == string(protocol.WorkspaceEventFilesChanged) {
-		return "fileWatch"
+		return protocol.FeatureFileWatch
 	}
 	return ""
 }

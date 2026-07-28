@@ -9,4 +9,5 @@ src/lib/shiki.ts
 # come from the Contract Registry, so their formatting is the generator's, not
 # prettier's.
 src/rpc/wire.generated.ts
+src/rpc/wire.methods.generated.ts
 src/rpc/wire.validate.generated.ts

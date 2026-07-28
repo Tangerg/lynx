@@ -91,7 +91,7 @@ func registerWorkspace(r *Registry) {
 		Name: "workspace.subscribe",
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "watches", Operator: OperatorPresent}},
-			Requires: []string{featureFileWatch},
+			Requires: []string{protocol.FeatureFileWatch},
 		}},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceSubscribeRequest) (*protocol.WorkspaceSubscribeResponse, iter.Seq[protocol.WorkspaceEvent], error) {
@@ -103,7 +103,7 @@ func registerSkills(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "skills.discovered.list",
 		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.Skill], error) {
 		return d.api.ListDiscoveredSkills(ctx, in)
@@ -111,7 +111,7 @@ func registerSkills(r *Registry) {
 
 	Unary(r, MethodMeta{
 		Name:            "skills.library.list",
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.ManagedSkill], error) {
 		return d.api.ListManagedSkills(ctx, in)
@@ -120,7 +120,7 @@ func registerSkills(r *Registry) {
 	UnaryAck(r, MethodMeta{
 		Name:            "skills.library.archive",
 		Idempotency:     IdempotencyReplayResponse,
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillNameRequest) error {
 		return d.api.ArchiveSkill(ctx, in)
@@ -129,7 +129,7 @@ func registerSkills(r *Registry) {
 	UnaryAck(r, MethodMeta{
 		Name:            "skills.library.restore",
 		Idempotency:     IdempotencyReplayResponse,
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillNameRequest) error {
 		return d.api.RestoreSkill(ctx, in)
@@ -137,7 +137,7 @@ func registerSkills(r *Registry) {
 
 	Unary(r, MethodMeta{
 		Name:            "skills.drafts.list",
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.SkillDraft], error) {
 		return d.api.ListSkillDrafts(ctx, in)
@@ -145,7 +145,7 @@ func registerSkills(r *Registry) {
 
 	UnaryAck(r, MethodMeta{
 		Name:            "skills.drafts.promote",
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillDraftRef) error {
 		return d.api.PromoteSkillDraft(ctx, in)
@@ -153,7 +153,7 @@ func registerSkills(r *Registry) {
 
 	UnaryAck(r, MethodMeta{
 		Name:            "skills.drafts.reject",
-		CapabilityRules: requires(featureSkills),
+		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillDraftRef) error {
 		return d.api.RejectSkillDraft(ctx, in)

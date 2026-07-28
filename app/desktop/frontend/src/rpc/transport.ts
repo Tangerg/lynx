@@ -9,6 +9,7 @@
 // Response correlation by `id` is the RpcClient's job, not Transport's.
 
 import type { RpcMessage } from "./types";
+import type { WireMethodName } from "./wire.methods.generated";
 
 /**
  * CLIENT-SYNTHETIC notification a transport injects into its own inbound
@@ -23,8 +24,9 @@ export const STREAM_DOWN_METHOD = "transport.streamDown";
 
 /** The one non-run streaming method (AUX_API §3.1). Named here — next to the
  *  STREAM_DOWN synthetic that special-cases it — so the transport, the stream
- *  layer, and the subscriber plugin all share one literal. */
-export const WORKSPACE_SUBSCRIBE_METHOD = "workspace.subscribe";
+ *  layer, and the subscriber plugin all share one literal, and checked against the
+ *  published method surface so the literal cannot outlive the method. */
+export const WORKSPACE_SUBSCRIBE_METHOD = "workspace.subscribe" satisfies WireMethodName;
 
 export interface StreamDownParams {
   runIds: string[];

@@ -3,6 +3,27 @@
     "current": "2026-07-19",
     "minSupported": "2026-07-19"
   },
+  "features": [
+    "reasoning",
+    "multimodal",
+    "compaction",
+    "todos",
+    "goals",
+    "agentMemory",
+    "memory",
+    "skills",
+    "mcp",
+    "schedules",
+    "codebase",
+    "git",
+    "checkpoints",
+    "fileWatch",
+    "lsp",
+    "sessionExport",
+    "relocate",
+    "subagents",
+    "clientTools"
+  ],
   "methods": [
     {
       "name": "runtime.discover",

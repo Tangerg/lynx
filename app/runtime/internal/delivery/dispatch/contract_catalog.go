@@ -95,7 +95,7 @@ func registerMemory(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "memory.list",
 		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
-		CapabilityRules: requires(featureMemory),
+		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceListQuery) (*protocol.Page[protocol.MemoryEntry], error) {
 		return d.api.ListMemory(ctx, in)
@@ -104,7 +104,7 @@ func registerMemory(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "memory.get",
 		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
-		CapabilityRules: requires(featureMemory),
+		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.GetMemoryRequest) (*protocol.MemoryEntry, error) {
 		return d.api.GetMemory(ctx, in)
@@ -114,7 +114,7 @@ func registerMemory(r *Registry) {
 		Name:            "memory.update",
 		Idempotency:     IdempotencyReplayResponse,
 		Errors:          []string{protocol.ErrCwdUnavailable.Error()},
-		CapabilityRules: requires(featureMemory),
+		CapabilityRules: requires(protocol.FeatureMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateMemoryRequest) error {
 		return d.api.UpdateMemory(ctx, in)
@@ -124,7 +124,7 @@ func registerMemory(r *Registry) {
 func registerAgentMemory(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "agentMemory.list",
-		CapabilityRules: requires(featureAgentMemory),
+		CapabilityRules: requires(protocol.FeatureAgentMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.AgentMemoryListRequest) (*protocol.AgentMemoryList, error) {
 		return d.api.ListAgentMemory(ctx, in)
@@ -132,7 +132,7 @@ func registerAgentMemory(r *Registry) {
 
 	UnaryAck(r, MethodMeta{
 		Name:            "agentMemory.review",
-		CapabilityRules: requires(featureAgentMemory),
+		CapabilityRules: requires(protocol.FeatureAgentMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.AgentMemoryReviewRequest) error {
 		return d.api.ReviewAgentMemory(ctx, in)
@@ -140,7 +140,7 @@ func registerAgentMemory(r *Registry) {
 
 	Unary(r, MethodMeta{
 		Name:            "agentMemory.update",
-		CapabilityRules: requires(featureAgentMemory),
+		CapabilityRules: requires(protocol.FeatureAgentMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.AgentMemoryUpdateRequest) (*protocol.AgentMemoryItem, error) {
 		return d.api.UpdateAgentMemory(ctx, in)
@@ -148,7 +148,7 @@ func registerAgentMemory(r *Registry) {
 
 	UnaryAck(r, MethodMeta{
 		Name:            "agentMemory.delete",
-		CapabilityRules: requires(featureAgentMemory),
+		CapabilityRules: requires(protocol.FeatureAgentMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.AgentMemoryItemRequest) error {
 		return d.api.DeleteAgentMemory(ctx, in)
@@ -156,7 +156,7 @@ func registerAgentMemory(r *Registry) {
 
 	Unary(r, MethodMeta{
 		Name:            "agentMemory.add",
-		CapabilityRules: requires(featureAgentMemory),
+		CapabilityRules: requires(protocol.FeatureAgentMemory),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.AgentMemoryAddRequest) (*protocol.AgentMemoryItem, error) {
 		return d.api.AddAgentMemory(ctx, in)

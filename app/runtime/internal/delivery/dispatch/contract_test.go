@@ -52,6 +52,25 @@ func TestStreamMethodsAreTheStreamingContract(t *testing.T) {
 	}
 }
 
+// TestCapabilityRulesNameAPublishedFeature keeps the gate and the advertisement
+// speaking one vocabulary.
+//
+// A rule requiring a feature discovery never advertises is a method NO build can
+// call: the gate reads the advertised map, an unknown key reads as disabled, and
+// every request comes back capability_not_negotiated. The constants make that
+// unlikely; this makes it impossible.
+func TestCapabilityRulesNameAPublishedFeature(t *testing.T) {
+	t.Parallel()
+
+	for _, meta := range contract.Metas() {
+		for _, feature := range meta.Features() {
+			if !slices.Contains(protocol.Features, feature) {
+				t.Errorf("%s requires %q, which protocol does not publish", meta.Name, feature)
+			}
+		}
+	}
+}
+
 // TestReplayPolicyCoversEveryMutation guards the invariant the deleted
 // replay-protected list used to carry by hand: a method that opens a run replays
 // by re-attaching, never by handing back a cached ack alone.

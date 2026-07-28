@@ -42,7 +42,7 @@ func registerSessions(r *Registry) {
 		},
 		CapabilityRules: []CapabilityRule{{
 			When:     []FieldCondition{{Field: "cwd", Operator: OperatorPresent}},
-			Requires: []string{featureRelocate},
+			Requires: []string{protocol.FeatureRelocate},
 		}},
 		Stability: stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
@@ -86,11 +86,11 @@ func registerSessions(r *Registry) {
 		CapabilityRules: []CapabilityRule{
 			{
 				When:     []FieldCondition{{Field: "restoreType", Operator: OperatorEquals, Value: string(protocol.RestoreFiles)}},
-				Requires: []string{featureCheckpoints},
+				Requires: []string{protocol.FeatureCheckpoints},
 			},
 			{
 				When:     []FieldCondition{{Field: "restoreType", Operator: OperatorEquals, Value: string(protocol.RestoreBoth)}},
-				Requires: []string{featureCheckpoints},
+				Requires: []string{protocol.FeatureCheckpoints},
 			},
 		},
 		Stability: stable,
@@ -101,7 +101,7 @@ func registerSessions(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "sessions.export",
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
-		CapabilityRules: requires(featureSessionExport),
+		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 		return d.api.ExportSession(ctx, in)
@@ -110,7 +110,7 @@ func registerSessions(r *Registry) {
 	Unary(r, MethodMeta{
 		Name:            "sessions.import",
 		Idempotency:     IdempotencyReplayResponse,
-		CapabilityRules: requires(featureSessionExport),
+		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
 	}, func(d *Dispatcher, ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 		return d.api.ImportSession(ctx, in)

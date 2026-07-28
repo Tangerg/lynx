@@ -8,13 +8,13 @@
 // carry the whole run tree and end on the root segment's `segment.finished`
 // (see ./stream).
 
-import type { RpcClient } from "./client";
+import type { RpcCallOptions, RpcClient } from "./client";
 import { isErrorType, RpcError } from "./errors";
-import type { RunId, SegmentId, SessionId } from "./ids";
+import type { RunId, SessionId } from "./ids";
 import type {
   AgentDoc,
   ApprovalMode,
-  ApprovalRule,
+  ApprovalModeResult,
   ConfigureMCPServerRequest,
   ConfigureProviderRequest,
   CreateSessionRequest,
@@ -29,10 +29,12 @@ import type {
   HooksListResult,
   ImportSessionResponse,
   DiscoverResponse,
-  CodebaseHit,
+  CodebaseReindexResponse,
+  CodebaseSearchResult,
   CodebaseStatus,
   EmbeddingRole,
   InvokeToolRequest,
+  ListApprovalRulesResult,
   ListItemsResponse,
   McpServer,
   McpServerConfig,
@@ -54,6 +56,7 @@ import type {
   RunEvent,
   Recipe,
   RunRef,
+  RunScheduleNowResponse,
   Schedule,
   CreateScheduleRequest,
   Session,
@@ -69,6 +72,7 @@ import type {
   GoalBudget,
   StartRunRequest,
   WorkspaceSubscribeRequest,
+  WorkspaceSubscribeResponse,
   ToolSpec,
   UpdateSessionRequest,
   Usage,
@@ -79,12 +83,25 @@ import type {
   WorkspaceFileChange,
 } from "./wire.generated";
 import { streamRunEvents, streamWorkspaceEvents } from "./stream";
+import type { WireMethodName, WireParams, WireResult } from "./wire.methods.generated";
 import { WORKSPACE_SUBSCRIBE_METHOD } from "./transport";
 
 export interface StreamingResult<R, E> {
   result: R;
   events: AsyncIterable<E>;
 }
+
+// How THIS client calls, composed from what the contract publishes: the generated
+// table fixes the method names and the shapes each one carries, and the options are
+// this transport's business (§12 keeps the wire narrow and lets the SDK add the
+// handles). Before it, every call site below restated its own method name and result
+// type, so a method renamed in the Registry surfaced as a runtime method_not_found
+// instead of a compile error.
+type WireCall = <M extends WireMethodName>(
+  method: M,
+  params: WireParams<M>,
+  options?: RpcCallOptions,
+) => Promise<WireResult<M>>;
 
 // Invariant shared by every streaming method: the subscription is opened
 // BEFORE the call (head-drop race, see runs.start), so if the call REJECTS
@@ -199,7 +216,7 @@ export interface Methods {
     subscribe: (
       runId: RunId,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<{ runId: RunId; segmentId: SegmentId }, RunEvent>>;
+    ) => Promise<StreamingResult<StartRunResponse, RunEvent>>;
     cancel: (runId: RunId, reason?: string) => Promise<void>;
     // Mid-run steering (§6): inject a user message into the running run so the
     // model reads it next tool round. run_not_found if no longer actively running.
@@ -260,7 +277,7 @@ export interface Methods {
     subscribe: (
       params?: WorkspaceSubscribeRequest,
       signal?: AbortSignal,
-    ) => Promise<StreamingResult<Record<string, never>, WorkspaceEvent>>;
+    ) => Promise<StreamingResult<WorkspaceSubscribeResponse, WorkspaceEvent>>;
   };
   // Prompt recipes (§7.5): the parameterized prompt templates discovered for a
   // cwd (project over global). The client expands a chosen recipe's body and
@@ -337,11 +354,13 @@ export interface Methods {
   // The @codebase semantic index (codebase.*): semantic code search, index
   // status, and a background reindex. Needs a configured embedding role.
   codebase: {
-    search: (params: { cwd?: string; query: string; limit?: number }) => Promise<{
-      hits: CodebaseHit[];
-    }>;
+    search: (params: {
+      cwd?: string;
+      query: string;
+      limit?: number;
+    }) => Promise<CodebaseSearchResult>;
     status: (cwd?: string) => Promise<CodebaseStatus>;
-    reindex: (cwd?: string) => Promise<{ operationId: string }>;
+    reindex: (cwd?: string) => Promise<CodebaseReindexResponse>;
   };
   tools: {
     list: () => Promise<Page<ToolSpec>>;
@@ -399,11 +418,11 @@ export interface Methods {
   };
   // Approval runtime control (B9) — global stance + remember management. Not gated.
   approval: {
-    getMode: () => Promise<{ mode: ApprovalMode }>;
-    setMode: (mode: ApprovalMode) => Promise<{ mode: ApprovalMode }>;
+    getMode: () => Promise<ApprovalModeResult>;
+    setMode: (mode: ApprovalMode) => Promise<ApprovalModeResult>;
     // Rules visible from the session: its session rules + its project's rules
     // + all global rules (the runtime resolves the session cwd).
-    listRules: (sessionId: SessionId) => Promise<{ rules: ApprovalRule[] }>;
+    listRules: (sessionId: SessionId) => Promise<ListApprovalRulesResult>;
     // Remove one rule by id; clear-all = loop the visible ids.
     forgetRule: (id: string) => Promise<void>;
   };
@@ -420,34 +439,34 @@ export interface Methods {
       },
     ) => Promise<Schedule>;
     delete: (id: string) => Promise<void>;
-    runNow: (id: string) => Promise<{ sessionId: SessionId; runId: RunId }>;
+    runNow: (id: string) => Promise<RunScheduleNowResponse>;
   };
 }
 
 export function createMethods(client: RpcClient): Methods {
   const mutations = new MutationAttempts();
-  const mutate = <R, P>(method: string, params: P, signal?: AbortSignal) =>
-    mutations.call<R, P>(client, method, params, signal);
+  const call: WireCall = (method, params, options) => client.call(method, params, options);
+  const mutate = <M extends WireMethodName>(
+    method: M,
+    params: WireParams<M>,
+    signal?: AbortSignal,
+  ): Promise<WireResult<M>> => mutations.call(client, method, params, signal);
 
   return {
     runtime: {
-      discover: () => client.call<DiscoverResponse>("runtime.discover", {}),
+      discover: () => call("runtime.discover", {}),
     },
     sessions: {
-      list: (query) => client.call<Page<Session>>("sessions.list", query ?? {}),
-      get: (sessionId) => client.call<Session>("sessions.get", { sessionId }),
-      create: (params, signal) =>
-        mutate<Session, CreateSessionRequest>("sessions.create", params ?? {}, signal),
-      update: (params) => mutate<Session, UpdateSessionRequest>("sessions.update", params),
-      delete: (sessionId) =>
-        mutate<void, { sessionId: SessionId }>("sessions.delete", { sessionId }),
-      fork: (params) => mutate<Session, ForkSessionRequest>("sessions.fork", params),
-      rollback: (params) =>
-        mutate<RollbackSessionResponse, RollbackSessionRequest>("sessions.rollback", params),
-      export: (sessionId, format) =>
-        client.call<ExportSessionResponse>("sessions.export", { sessionId, format }),
+      list: (query) => call("sessions.list", query ?? {}),
+      get: (sessionId) => call("sessions.get", { sessionId }),
+      create: (params, signal) => mutate("sessions.create", params ?? {}, signal),
+      update: (params) => mutate("sessions.update", params),
+      delete: (sessionId) => mutate("sessions.delete", { sessionId }),
+      fork: (params) => mutate("sessions.fork", params),
+      rollback: (params) => mutate("sessions.rollback", params),
+      export: (sessionId, format) => call("sessions.export", { sessionId, format }),
       import: (artifact) =>
-        mutate<ImportSessionResponse, { artifact: SessionArtifact }>("sessions.import", {
+        mutate("sessions.import", {
           artifact,
         }),
     },
@@ -459,18 +478,14 @@ export function createMethods(client: RpcClient): Methods {
         // response immediately; binding only after `call` resolves could drop
         // the head (see streamRunEvents).
         const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () =>
-          mutate<StartRunResponse, StartRunRequest>("runs.start", params, signal),
-        );
+        const result = await callOrDispose(stream, () => mutate("runs.start", params, signal));
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
       resume: async (params, signal) => {
         // A resume opens a NEW segment of the SAME run — bind the tree to it.
         const stream = streamRunEvents(client, signal);
-        const result = await callOrDispose(stream, () =>
-          mutate<StartRunResponse, ResumeRunRequest>("runs.resume", params, signal),
-        );
+        const result = await callOrDispose(stream, () => mutate("runs.resume", params, signal));
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
@@ -479,150 +494,135 @@ export function createMethods(client: RpcClient): Methods {
         // bind the tree to that segmentId (same deferred-bind head-drop guard).
         const stream = streamRunEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<{ runId: RunId; segmentId: SegmentId }>(
-            "runs.subscribe",
-            { runId },
-            { signal },
-          ),
+          call("runs.subscribe", { runId }, { signal }),
         );
         stream.bind(result.runId, result.segmentId);
         return { result, events: stream.events };
       },
-      cancel: (runId, reason) =>
-        mutate<void, { runId: RunId; reason?: string }>("runs.cancel", { runId, reason }),
-      steer: (runId, message) =>
-        mutate<void, { runId: RunId; message: string }>("runs.steer", { runId, message }),
-      list: (query) => client.call<Page<RunRef>>("runs.list", query ?? {}),
-      listOpenInterrupts: (query) =>
-        client.call<Page<OpenInterrupt>>("runs.listOpenInterrupts", query ?? {}),
+      cancel: (runId, reason) => mutate("runs.cancel", { runId, reason }),
+      steer: (runId, message) => mutate("runs.steer", { runId, message }),
+      list: (query) => call("runs.list", query ?? {}),
+      listOpenInterrupts: (query) => call("runs.listOpenInterrupts", query ?? {}),
     },
     items: {
-      list: (params) => client.call<ListItemsResponse>("items.list", params),
+      list: (params) => call("items.list", params),
     },
     workspace: {
-      listFileChanges: (cwd) =>
-        client.call<Page<WorkspaceFileChange>>("workspace.listFileChanges", { cwd }),
-      getDiff: (params) => client.call<Diff>("workspace.getDiff", params ?? {}),
-      getFileHead: (params) => client.call<FileHead>("workspace.getFileHead", params),
-      grep: (params) => client.call<GrepResult>("workspace.grep", params),
-      listFiles: (params) => client.call<Page<FileEntry>>("workspace.listFiles", params),
-      readFile: (params) => client.call<FileContent>("workspace.readFile", params),
-      listProjects: () => client.call<Page<Project>>("workspace.listProjects"),
+      listFileChanges: (cwd) => call("workspace.listFileChanges", { cwd }),
+      getDiff: (params) => call("workspace.getDiff", params ?? {}),
+      getFileHead: (params) => call("workspace.getFileHead", params),
+      grep: (params) => call("workspace.grep", params),
+      listFiles: (params) => call("workspace.listFiles", params),
+      readFile: (params) => call("workspace.readFile", params),
+      listProjects: () => call("workspace.listProjects", {}),
       subscribe: async (params, signal) => {
         const stream = streamWorkspaceEvents(client, signal);
         const result = await callOrDispose(stream, () =>
-          client.call<Record<string, never>>(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, { signal }),
+          call(WORKSPACE_SUBSCRIBE_METHOD, params ?? {}, { signal }),
         );
         return { result, events: stream.events };
       },
     },
     recipes: {
-      list: (cwd) => client.call<Page<Recipe>>("recipes.list", { cwd }),
+      list: (cwd) => call("recipes.list", { cwd }),
     },
     hooks: {
-      list: (cwd) => client.call<HooksListResult>("hooks.list", { cwd }),
+      list: (cwd) => call("hooks.list", { cwd }),
       setTrust: (projectRoot, trusted) =>
-        mutate<void, { projectRoot: string; trusted: boolean }>("hooks.setTrust", {
+        mutate("hooks.setTrust", {
           projectRoot,
           trusted,
         }),
     },
     skills: {
-      listDiscovered: (cwd) => client.call<Page<Skill>>("skills.discovered.list", { cwd }),
-      listLibrary: () => client.call<Page<ManagedSkill>>("skills.library.list"),
-      archive: (name) => mutate<void, { name: string }>("skills.library.archive", { name }),
-      restore: (name) => mutate<void, { name: string }>("skills.library.restore", { name }),
-      listDrafts: () => client.call<Page<SkillDraft>>("skills.drafts.list"),
-      promoteDraft: (ref) => mutate<void, SkillDraftRef>("skills.drafts.promote", ref),
-      rejectDraft: (ref) => mutate<void, SkillDraftRef>("skills.drafts.reject", ref),
+      listDiscovered: (cwd) => call("skills.discovered.list", { cwd }),
+      listLibrary: () => call("skills.library.list", {}),
+      archive: (name) => mutate("skills.library.archive", { name }),
+      restore: (name) => mutate("skills.library.restore", { name }),
+      listDrafts: () => call("skills.drafts.list", {}),
+      promoteDraft: (ref) => mutate("skills.drafts.promote", ref),
+      rejectDraft: (ref) => mutate("skills.drafts.reject", ref),
     },
     agentDocs: {
-      list: (cwd) => client.call<Page<AgentDoc>>("agentDocs.list", { cwd }),
+      list: (cwd) => call("agentDocs.list", { cwd }),
     },
     mcp: {
-      listConfigs: (query) => client.call<Page<McpServerConfig>>("mcp.configs.list", query ?? {}),
-      configure: (params) =>
-        mutate<McpServerConfig, ConfigureMCPServerRequest>("mcp.configs.configure", params),
-      remove: (name) => mutate<void, { name: string }>("mcp.configs.remove", { name }),
+      listConfigs: (query) => call("mcp.configs.list", query ?? {}),
+      configure: (params) => mutate("mcp.configs.configure", params),
+      remove: (name) => mutate("mcp.configs.remove", { name }),
       setEnabled: (name, enabled) =>
-        mutate<void, { name: string; enabled: boolean }>("mcp.configs.setEnabled", {
+        mutate("mcp.configs.setEnabled", {
           name,
           enabled,
         }),
-      test: (params) => client.call<McpTestResult>("mcp.configs.test", params),
-      listServers: () => client.call<Page<McpServer>>("mcp.servers.list"),
-      listTools: (server) => client.call<Page<McpTool>>("mcp.tools.list", server ? { server } : {}),
-      reconnect: (server) => mutate<void, { server: string }>("mcp.servers.reconnect", { server }),
-      authorize: (server) => mutate<void, { server: string }>("mcp.servers.authorize", { server }),
+      test: (params) => call("mcp.configs.test", params),
+      listServers: () => call("mcp.servers.list", {}),
+      listTools: (server) => call("mcp.tools.list", server ? { server } : {}),
+      reconnect: (server) => mutate("mcp.servers.reconnect", { server }),
+      authorize: (server) => mutate("mcp.servers.authorize", { server }),
     },
     providers: {
-      list: () => client.call<Page<Provider>>("providers.list"),
-      configure: (params) =>
-        mutate<Provider, ConfigureProviderRequest>("providers.configure", params),
-      test: (provider) => client.call<ProviderTestResult>("providers.test", { provider }),
+      list: () => call("providers.list", {}),
+      configure: (params) => mutate("providers.configure", params),
+      test: (provider) => call("providers.test", { provider }),
     },
     models: {
-      list: (provider) => client.call<Page<Model>>("models.list", provider ? { provider } : {}),
-      getUtilityRole: () => client.call<UtilityRole>("models.getUtilityRole"),
-      setUtilityRole: (params) => mutate<UtilityRole, UtilityRole>("models.setUtilityRole", params),
-      getEmbeddingRole: () => client.call<EmbeddingRole>("models.getEmbeddingRole"),
-      setEmbeddingRole: (params) =>
-        mutate<EmbeddingRole, EmbeddingRole>("models.setEmbeddingRole", params),
+      list: (provider) => call("models.list", provider ? { provider } : {}),
+      getUtilityRole: () => call("models.getUtilityRole", {}),
+      setUtilityRole: (params) => mutate("models.setUtilityRole", params),
+      getEmbeddingRole: () => call("models.getEmbeddingRole", {}),
+      setEmbeddingRole: (params) => mutate("models.setEmbeddingRole", params),
     },
     codebase: {
-      search: (params) => client.call<{ hits: CodebaseHit[] }>("codebase.search", params),
-      status: (cwd) => client.call<CodebaseStatus>("codebase.status", { cwd }),
-      reindex: (cwd) =>
-        mutate<{ operationId: string }, { cwd?: string }>("codebase.reindex", { cwd }),
+      search: (params) => call("codebase.search", params),
+      status: (cwd) => call("codebase.status", { cwd }),
+      reindex: (cwd) => mutate("codebase.reindex", { cwd }),
     },
     tools: {
-      list: () => client.call<Page<ToolSpec>>("tools.list"),
-      invoke: (params) => mutate<unknown, InvokeToolRequest>("tools.invoke", params),
+      list: () => call("tools.list", {}),
+      invoke: (params) => mutate("tools.invoke", params),
     },
     usage: {
-      session: (sessionId) => client.call<Usage>("usage.session", { sessionId }),
-      summary: (params) => client.call<UsageSummary>("usage.summary", params ?? {}),
+      session: (sessionId) => call("usage.session", { sessionId }),
+      summary: (params) => call("usage.summary", params ?? {}),
     },
     memory: {
-      list: (cwd) => client.call<Page<MemoryEntry>>("memory.list", { cwd }),
-      get: (scope, cwd) => client.call<MemoryEntry>("memory.get", { scope, cwd }),
-      update: (params) => mutate<void, typeof params>("memory.update", params),
+      list: (cwd) => call("memory.list", { cwd }),
+      get: (scope, cwd) => call("memory.get", { scope, cwd }),
+      update: (params) => mutate("memory.update", params),
     },
     agentMemory: {
-      list: (params) => client.call<AgentMemoryList>("agentMemory.list", params ?? {}),
+      list: (params) => call("agentMemory.list", params ?? {}),
       review: (id, decision) =>
-        mutate<void, { id: string; decision: "approve" | "reject" }>("agentMemory.review", {
+        mutate("agentMemory.review", {
           id,
           decision,
         }),
-      update: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.update", params),
-      delete: (id) => mutate<void, { id: string }>("agentMemory.delete", { id }),
-      add: (params) => mutate<AgentMemoryItem, typeof params>("agentMemory.add", params),
+      update: (params) => mutate("agentMemory.update", params),
+      delete: (id) => mutate("agentMemory.delete", { id }),
+      add: (params) => mutate("agentMemory.add", params),
     },
     goals: {
-      get: (sessionId) => client.call<Goal | null>("goals.get", { sessionId }),
-      start: (params) => mutate<Goal, typeof params>("goals.start", params),
-      stop: (sessionId) => mutate<Goal, { sessionId: SessionId }>("goals.stop", { sessionId }),
-      resume: (sessionId) => mutate<Goal, { sessionId: SessionId }>("goals.resume", { sessionId }),
+      get: (sessionId) => call("goals.get", { sessionId }),
+      start: (params) => mutate("goals.start", params),
+      stop: (sessionId) => mutate("goals.stop", { sessionId }),
+      resume: (sessionId) => mutate("goals.resume", { sessionId }),
     },
     feedback: {
-      create: (params) => mutate<void, FeedbackRequest>("feedback.create", params),
+      create: (params) => mutate("feedback.create", params),
     },
     approval: {
-      getMode: () => client.call<{ mode: ApprovalMode }>("approval.getMode"),
-      setMode: (mode) =>
-        mutate<{ mode: ApprovalMode }, { mode: ApprovalMode }>("approval.setMode", { mode }),
-      listRules: (sessionId) =>
-        client.call<{ rules: ApprovalRule[] }>("approval.listRules", { sessionId }),
-      forgetRule: (id) => mutate<void, { id: string }>("approval.forgetRule", { id }),
+      getMode: () => call("approval.getMode", {}),
+      setMode: (mode) => mutate("approval.setMode", { mode }),
+      listRules: (sessionId) => call("approval.listRules", { sessionId }),
+      forgetRule: (id) => mutate("approval.forgetRule", { id }),
     },
     schedules: {
-      list: (query) => client.call<Page<Schedule>>("schedules.list", query ?? {}),
-      create: (params) => mutate<Schedule, CreateScheduleRequest>("schedules.create", params),
-      update: (params) => mutate<Schedule, typeof params>("schedules.update", params),
-      delete: (id) => mutate<void, { id: string }>("schedules.delete", { id }),
-      runNow: (id) =>
-        mutate<{ sessionId: SessionId; runId: RunId }, { id: string }>("schedules.runNow", { id }),
+      list: (query) => call("schedules.list", query ?? {}),
+      create: (params) => mutate("schedules.create", params),
+      update: (params) => mutate("schedules.update", params),
+      delete: (id) => mutate("schedules.delete", { id }),
+      runNow: (id) => mutate("schedules.runNow", { id }),
     },
   };
 }

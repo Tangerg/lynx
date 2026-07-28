@@ -1,10 +1,9 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
-import type { ServerCapabilities } from "@/rpc";
-import type { RuntimeCapability } from "../../domain/capability";
+import type { ServerCapabilities, WireFeature } from "@/rpc";
 
 export interface RuntimeCapabilityPort {
-  useCapability(capability: RuntimeCapability): boolean;
-  hasCapability(capability: RuntimeCapability): boolean;
+  useCapability(capability: WireFeature): boolean;
+  hasCapability(capability: WireFeature): boolean;
   supportsStreamingMethod(method: string): boolean;
   subscribe(onChange: () => void): () => void;
   replace(capabilities: ServerCapabilities): void;

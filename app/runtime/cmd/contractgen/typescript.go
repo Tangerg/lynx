@@ -30,12 +30,20 @@ import (
 const tsFileName = "wire.generated.ts"
 
 type tsEmitter struct {
-	set *schemaSet
+	tsTypes
 	out strings.Builder
 }
 
+// tsTypes answers "how does TypeScript spell this?" for a schema node or a Go
+// type. Both generated modules ask it — the shapes module to declare a type, the
+// methods module to name a method's frames — and two answers to that question
+// would be two spellings of one shape.
+type tsTypes struct {
+	set *schemaSet
+}
+
 func newTypeScript(set *schemaSet, notifications []string) string {
-	emitter := &tsEmitter{set: set}
+	emitter := &tsEmitter{tsTypes: tsTypes{set: set}}
 	emitter.header()
 	emitter.notifications(notifications)
 
@@ -249,7 +257,7 @@ func (e *tsEmitter) narrow(baseChild, narrowing *schema) string {
 }
 
 // resolve follows a reference to the definition it names.
-func (e *tsEmitter) resolve(node *schema) *schema {
+func (e tsTypes) resolve(node *schema) *schema {
 	name, ok := strings.CutPrefix(node.Ref, refPrefix)
 	if !ok {
 		return nil
@@ -258,7 +266,7 @@ func (e *tsEmitter) resolve(node *schema) *schema {
 }
 
 // typeOf renders a schema node as a TypeScript type expression.
-func (e *tsEmitter) typeOf(node *schema) string {
+func (e tsTypes) typeOf(node *schema) string {
 	if node.Ref != "" {
 		name, _ := strings.CutPrefix(node.Ref, refPrefix)
 		return name
@@ -286,7 +294,7 @@ func (e *tsEmitter) typeOf(node *schema) string {
 	return unionOf(parts)
 }
 
-func (e *tsEmitter) keyword(name string, node *schema) string {
+func (e tsTypes) keyword(name string, node *schema) string {
 	switch name {
 	case "string":
 		return "string"
@@ -327,7 +335,7 @@ func (e *tsEmitter) keyword(name string, node *schema) string {
 }
 
 // typeName is the published name of a Go type, as TypeScript spells it.
-func (e *tsEmitter) typeName(t reflect.Type) string {
+func (e tsTypes) typeName(t reflect.Type) string {
 	if t == nil {
 		return "unknown"
 	}

@@ -52,22 +52,6 @@ const (
 // experimental method reads as a deliberate exception rather than a typo.
 const stable = protocol.StabilityStable
 
-// Feature keys gating a method group (API.md §9). Declared here so a rule and
-// the advertised capability map cannot diverge by a typo.
-const (
-	featureMemory        = "memory"
-	featureAgentMemory   = "agentMemory"
-	featureCodebase      = "codebase"
-	featureGoals         = "goals"
-	featureSchedules     = "schedules"
-	featureFileWatch     = "fileWatch"
-	featureMCP           = "mcp"
-	featureSkills        = "skills"
-	featureSessionExport = "sessionExport"
-	featureCheckpoints   = "checkpoints"
-	featureRelocate      = "relocate"
-)
-
 // requires builds the common rule: the whole method needs these features.
 func requires(features ...string) []CapabilityRule {
 	return []CapabilityRule{{Requires: features}}
