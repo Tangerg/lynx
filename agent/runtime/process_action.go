@@ -88,18 +88,21 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 		lastErr = errors.Join(lastErr, cleanupErr)
 	}
 
-	duration := time.Since(startedAt)
-	p.recordActionMetric(ctx, status, duration)
-
 	if status == core.ActionSucceeded {
 		// The action-run condition gates non-repeatable actions. Set it only on
 		// success so a future plan may still select an unsuccessful action. A
-		// failure to record it must reach the tick: the planner would otherwise
-		// keep re-selecting an action that already ran.
+		// failure to record it invalidates the whole action result: publishing
+		// success would make the event stream and metrics disagree with the
+		// process outcome and let the planner select the action again.
 		if err := p.blackboard.StoreCondition(metadata.RunCondition(), true); err != nil {
+			status = core.ActionFailed
+			replan = nil
 			lastErr = errors.Join(lastErr, fmt.Errorf("record action %q run condition: %w", metadata.Name, err))
 		}
 	}
+
+	duration := time.Since(startedAt)
+	p.recordActionMetric(ctx, status, duration)
 
 	span.SetAttributes(attribute.String(attrActionStatus, status.String()))
 	finishSpanWithError(span, lastErr)

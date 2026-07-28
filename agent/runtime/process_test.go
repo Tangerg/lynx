@@ -33,6 +33,15 @@ func (a *fixedResultAction) Execute(context.Context, *core.ProcessContext) (core
 
 type actionFinishedCapture struct{ event *event.ActionFinished }
 
+type conditionFailingBlackboard struct {
+	core.Blackboard
+	cause error
+}
+
+func (b conditionFailingBlackboard) StoreCondition(string, bool) error {
+	return b.cause
+}
+
 type stuckPolicyFunc func(context.Context, core.ProcessView, core.BlackboardWriter) core.StuckResult
 
 func (f stuckPolicyFunc) Recover(ctx context.Context, process core.ProcessView, blackboard core.BlackboardWriter) core.StuckResult {
@@ -222,6 +231,38 @@ func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
 	}
 	if usage := process.Usage(); usage.Actions != 1 {
 		t.Fatalf("action usage = %d, want one action run", usage.Actions)
+	}
+}
+
+func TestRunFailsWhenActionRunConditionCannotBeRecorded(t *testing.T) {
+	cause := errors.New("store condition sentinel")
+	action := &fixedResultAction{
+		metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}},
+		status:   core.ActionSucceeded,
+	}
+	capture := &actionFinishedCapture{}
+	definition := agent.New(agent.AgentConfig{
+		Name:    "run-condition-write-failure",
+		Actions: []agent.Action{action},
+		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+	})
+	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{capture}})
+	blackboard, err := engine.NewBlackboard(definition)
+	if err != nil {
+		t.Fatalf("NewBlackboard: %v", err)
+	}
+
+	process, err := engine.Run(t.Context(), definition, core.Bindings{}, core.ProcessOptions{
+		Blackboard: conditionFailingBlackboard{Blackboard: blackboard, cause: cause},
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusFailed || !errors.Is(process.Failure(), cause) {
+		t.Fatalf("status/failure = %s/%v, want failed with cause", process.Status(), process.Failure())
+	}
+	if capture.event == nil || capture.event.Status != core.ActionFailed || !errors.Is(capture.event.Err, cause) {
+		t.Fatalf("ActionFinished = %#v, want failed with cause", capture.event)
 	}
 }
 
