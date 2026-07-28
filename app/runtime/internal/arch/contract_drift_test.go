@@ -3,9 +3,13 @@ package arch
 import (
 	"bytes"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,6 +86,44 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 	for section, count := range sections {
 		if count == 0 {
 			t.Errorf("manifest section %q is empty; the drift gate would pass on nothing", section)
+		}
+	}
+}
+
+// TestRequestConstraintsStayPure is contract §11.4 gate 7: a DTO validator's
+// dependency graph contains no store, dispatcher or executor.
+//
+// The whole reason a constraint may live on the request type is that checking it
+// costs nothing and can never fail for an environmental reason. Give a Validate()
+// a repository and two things break at once: "invalid_params" starts meaning
+// "the database was slow", and the generated TS validator — which has no
+// repository — stops being equivalent to the Go one.
+func TestRequestConstraintsStayPure(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "delivery", "protocol", "request_constraints.go")
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, spec := range file.Imports {
+		imported := strings.Trim(spec.Path.Value, `"`)
+		if strings.Contains(imported, "/internal/") {
+			t.Errorf("request constraints import %q; a shape constraint may only read the value it validates", imported)
+		}
+	}
+	// Validate must also be reachable without a context: a check that needs one is
+	// a check that does I/O.
+	full, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, decl := range full.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Name.Name != "Validate" || fn.Recv == nil {
+			continue
+		}
+		if fn.Type.Params != nil && len(fn.Type.Params.List) != 0 {
+			t.Errorf("%s.Validate takes parameters; a shape constraint reads only its own value", exprString(fn.Recv.List[0].Type))
 		}
 	}
 }
