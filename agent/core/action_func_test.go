@@ -104,7 +104,6 @@ type fakeBlackboard struct {
 }
 
 func (f fakeBlackboard) Name() string { return "fake-blackboard" }
-func (f fakeBlackboard) ID() string   { return "fake" }
 func (f fakeBlackboard) Load(string) (any, bool) {
 	return f.value, f.ok
 }
@@ -119,7 +118,6 @@ func (f fakeBlackboard) Objects() []any {
 	return []any{f.value}
 }
 func (f fakeBlackboard) Condition(string) (bool, bool)     { return false, false }
-func (f fakeBlackboard) Inspect(bool) string               { return "fake" }
 func (f fakeBlackboard) Store(string, any) error           { return nil }
 func (f fakeBlackboard) Add(any) error                     { return nil }
 func (f fakeBlackboard) Bind(any) error                    { return nil }

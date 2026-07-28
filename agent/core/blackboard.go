@@ -2,9 +2,7 @@ package core
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
-	"strings"
 
 	pkgstrings "github.com/Tangerg/lynx/pkg/strings"
 )
@@ -22,8 +20,6 @@ var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
 // contexts that observe state but should not mutate it (e.g. condition
 // evaluation, world-state determination, planner introspection).
 type BlackboardReader interface {
-	ID() string
-
 	// Load returns an ownership-isolated copy of the value stored at key.
 	// Mutating the returned value never changes blackboard state; callers commit
 	// changes by storing a replacement.
@@ -45,10 +41,6 @@ type BlackboardReader interface {
 
 	// Condition reads boolean state set via [BlackboardWriter.StoreCondition].
 	Condition(key string) (bool, bool)
-
-	// Inspect renders state for a human reader. The form is not a contract; do
-	// not parse it.
-	Inspect(verbose bool) string
 }
 
 // BlackboardWriter is the mutation slice of [Blackboard].
@@ -191,28 +183,4 @@ func TypeKey(value any) string {
 		return ""
 	}
 	return string(pkgstrings.AsCamelCase(name).ToSnakeCase())
-}
-
-// FormatBlackboard helps custom Blackboard implementations format consistent
-// debug strings; the in-memory blackboard's Inspect delegates to it.
-func FormatBlackboard(blackboard BlackboardReader, verbose bool) string {
-	if blackboard == nil {
-		return "<nil blackboard>"
-	}
-
-	// Objects reconstructs every value it returns, so ask once: the count and
-	// the listing describe the same snapshot, and a second call would rebuild
-	// the whole list to discard it.
-	objects := blackboard.Objects()
-
-	var out strings.Builder
-	fmt.Fprintf(&out, "Blackboard{id=%s objects=%d}", blackboard.ID(), len(objects))
-	if !verbose {
-		return out.String()
-	}
-
-	for i, object := range objects {
-		fmt.Fprintf(&out, "\n  [%d] %T = %+v", i, object, object)
-	}
-	return out.String()
 }

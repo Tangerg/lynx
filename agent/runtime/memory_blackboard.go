@@ -9,8 +9,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/google/uuid"
-
 	"github.com/Tangerg/lynx/agent/core"
 )
 
@@ -24,8 +22,6 @@ const inMemoryBlackboardName = "in-memory-blackboard"
 // All public methods are safe for concurrent use. Reads use RLock, writes
 // use Lock.
 type inMemoryBlackboard struct {
-	id string
-
 	mu         sync.RWMutex
 	named      map[string]storedBlackboardValue
 	objects    []storedBlackboardValue
@@ -35,7 +31,6 @@ type inMemoryBlackboard struct {
 
 func newInMemoryBlackboard() *inMemoryBlackboard {
 	return &inMemoryBlackboard{
-		id:         uuid.NewString(),
 		named:      map[string]storedBlackboardValue{},
 		conditions: map[string]bool{},
 	}
@@ -93,8 +88,6 @@ func (v storedBlackboardValue) clone() storedBlackboardValue {
 // Name() shows up in extension lists / debug output but is otherwise
 // not load-bearing.
 func (b *inMemoryBlackboard) Name() string { return inMemoryBlackboardName }
-
-func (b *inMemoryBlackboard) ID() string { return b.id }
 
 // Store saves under key and appends to the ordered objects list. The
 // dual-record is what makes "give me the latest of type T" work via
@@ -219,10 +212,6 @@ func (b *inMemoryBlackboard) Condition(key string) (bool, bool) {
 
 	value, ok := b.conditions[key]
 	return value, ok
-}
-
-func (b *inMemoryBlackboard) Inspect(verbose bool) string {
-	return core.FormatBlackboard(b, verbose)
 }
 
 // Clone produces a child blackboard inheriting the parent's full state: named

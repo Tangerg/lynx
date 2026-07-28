@@ -182,7 +182,6 @@ core: func (u Usage) Validate() error
 core: func And(left, right Condition) Condition
 core: func ConditionInteractionID(name string) string
 core: func FixedScore(value float64) ScoreFunc
-core: func FormatBlackboard(blackboard BlackboardReader, verbose bool) string
 core: func Get[T any](blackboard BlackboardReader, name string) (T, bool)
 core: func Input(value any) Bindings
 core: func Last[T any](blackboard BlackboardReader) (T, bool)
@@ -225,7 +224,7 @@ core: type AgentValidator interface { Extension Validate(agent *Agent) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
 core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() (Blackboard, error) ClearWorkingState() error }
-core: type BlackboardReader interface { ID() string Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) Inspect(verbose bool) string }
+core: type BlackboardReader interface { Load(key string) (any, bool) Lookup(variable, typeName string) (any, bool) HasValue(variable, typeName string) bool Objects() []any Condition(key string) (bool, bool) }
 core: type BlackboardWriter interface { Store(key string, value any) error Add(value any) error Bind(value any) error StoreAll(bindings Bindings) error Hide(target any) error StoreCondition(key string, value bool) error }
 core: type Budget struct { CostLimit float64 ActionLimit int ModelCallLimit int TokenLimit int64 }
 core: type ChatCapability struct { Model chat.Model Streamer chat.Streamer }
