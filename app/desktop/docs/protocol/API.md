@@ -429,11 +429,27 @@ interface QuestionOption {
 
 ```ts
 interface ToolInvocation {
-  name: string; // 工具身份（稳定）；MCP 用 "<server>.<tool>"
+  name: string; // 工具身份（稳定）；MCP 见下方「两个 MCP 工具身份」
   arguments: Record<string, unknown>; // 已解析 JSON 对象（永不回传 JSON 字符串）
   result?: unknown; // best-effort JSON 输出；item.started 壳上无，item.completed 上权威落定
 }
 ```
+
+**两个 MCP 工具身份（必读，二者不可互换）**：
+
+| 出现处                                          | 值                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------ |
+| `McpTool.name`（`mcp.tools.list`，§4.10）        | MCP server **原样播报**的远端工具名（可含 `.` / 任意字符、任意长度）     |
+| `ToolInvocation.name`（toolCall Item / 审批载荷） | **模型可见名** `sanitize("<server>_<tool>")`：非 `[A-Za-z0-9_-]` 一律换 `_`，超 64 字符截断 |
+
+模型可见名是**有损**的：不同 `(server, tool)` 对可能塌成同一个字符串（如 `("a_b","c")` 与 `("a","b_c")` 都得 `a_b_c`）。
+因此：
+
+- 客户端要把一次 toolCall 关联回 `mcp.tools.list` 的条目时，**不能**指望反解 `ToolInvocation.name`；需要精确身份就按
+  `(server, tool)` 对匹配。
+- `mcp.configs.*` 的 `disabledTools` / `autoApproveTools` 用**远端原名**（在其 server 条目内寻址，不受塌名影响）。
+- 审批记忆（`remember`，AUX_API §6）的 key 是 `ToolInvocation.name`，即**模型可见名** —— 塌名的两个 MCP 工具会共享
+  一条规则。这是当前形态的已知后果，非疏漏。
 
 设计后果（一次性消除一整串旧形状缺陷）：
 
@@ -464,15 +480,22 @@ text }`（`durable=false`，可丢）预览；客户端**不可**把流式累积
 JSON 树兜底渲染（`arguments` 必为对象 → 树；`result` 是 JSON → 美化展开，非 JSON → 原始文本）。富 result 形状复用
 §4.5 的可复用结构（`DiffRow` / `FileEdit` / `SearchHit` / `WebSearchResult`）。
 
-| name（约定）             | arguments（取值键） | result（取值键）                         | 富渲染卡片                                                             |
-| ------------------------ | ------------------- | ---------------------------------------- | ---------------------------------------------------------------------- |
-| `shell`                  | `command`           | `{ exitCode, output, outputTruncated? }` | 命令卡片（output = 合并 stdout+stderr 全文；截断置 `outputTruncated`） |
-| `edit` / `write`         | `path`, …           | `{ changes: FileEdit[] }`                | diff 卡片                                                              |
-| `grep` / `glob`          | `query` / `pattern` | `{ hits: SearchHit[] }`                  | 本地搜索卡片                                                           |
-| `webSearch`              | `query`             | `{ results: WebSearchResult[] }`         | 网络结果卡片                                                           |
-| `read`                   | `path`, `range?`    | `{ content }`                            |                                                                        |
-| `<server>.<tool>`（MCP） | 工具自定义          | 工具自定义                               | JSON 树（默认）                                                        |
-| `subagent`               | `prompt` / `task`   | `{ summary, childRunId? }`               |                                                                        |
+| name（约定）             | arguments（取值键）                        | result（取值键）                                              | 富渲染卡片                                     |
+| ------------------------ | ------------------------------------------ | ------------------------------------------------------------- | ---------------------------------------------- |
+| `shell`                  | `command`, `timeout?`                      | `{ output, exitCode? }`                                       | 命令卡片（output = stdout，非空 stderr 追加其后） |
+| `edit`                   | `file_path`, `old_string`, `new_string`    | `{ changes: FileEdit[] }`                                     | diff 卡片                                      |
+| `write`                  | `file_path`                                | `{ changes: FileEdit[] }`（无 `diff`）                        | diff 卡片                                      |
+| `grep`                   | `pattern`, `path?`, `glob?`, `output_mode?` | `{ hits: SearchHit[] }`                                       | 本地搜索卡片                                   |
+| `glob`                   | `pattern`, `path?`                         | `{ hits: SearchHit[] }`（只有 `path`）                        | 本地搜索卡片                                   |
+| `web_search`             | `query`                                    | `{ results: WebSearchResult[] }`                              | 网络结果卡片                                   |
+| `read`                   | `file_path`, `offset?`, `limit?`           | `{ content, start_line, end_line, total_lines, truncated? }`  |                                                |
+| `task`                   | `description`, `prompt`                    | 字符串（子 agent 的最终答复）                                 |                                                |
+| `<server>_<tool>`（MCP） | 工具自定义                                 | 工具自定义                                                    | JSON 树（默认）                                |
+
+⚠️ **`result` 的键风格按工具而分**：上表中被 runtime 归一化过的（`shell` / `edit` / `write` / `grep` / `glob` /
+`web_search`）用 camelCase；**未归一化的工具原样透传其模型侧形状**，因此 `read` 是 snake_case（`start_line` …）。
+未归一化的工具没有约定可依，客户端一律 JSON 兜底渲染。归一化是**幂等**的：结果里已有目标键（`output` / `changes` /
+`hits`）时原样返回。
 
 > 新工具只需在客户端展示注册表登记一行、约定其 `result` 形状即可富渲染；不约定也能 JSON 兜底渲染、开箱即用。
 > **协议核心永不感知这张表。**
@@ -585,8 +608,8 @@ interface ProblemData {
   channel?: "rpc" | "run" | "tool"; // 自描述：本错误从哪条通道来（§8.1）——免客户端反推
   detail?: string; // 本次发生的人读说明（per-occurrence）
   docUrl?: string; // 可选：指向该 type 的文档（降对接门槛；缺省时按 §8.2 符号名查表即可）
-  retryable?: boolean;
-  retryAfterSeconds?: number; // 可重试时的最早重试时机（如 provider 限流回传的退避）
+  retryable?: boolean; // ⚠️ 声明着但**无产生点**：runtime 永不置它，wire 上恒缺席。见下
+  retryAfterSeconds?: number; // 该 type 值得等的话，最早重试时机（如 provider 限流回传的退避）
   errors?: FieldError[]; // 字段级错误（invalid_params / 表单校验，按 field 寻址）
   [key: string]: unknown; // 仍可附加 type-specific 扩展成员
 }
@@ -595,6 +618,13 @@ interface FieldError {
   detail: string;
 } // field = 出错字段名（params 里的 key）
 ```
+
+> ⚠️ **`retryable` 是一个没有作者的字段。** runtime 已删掉它的全部产生点：那个布尔量除了"这个 kind"之外不携带任何
+> 信息，等于把同一事实存两份。**客户端的重试门禁一律按 `type` 判**（`rate_limited` / `timeout` /
+> `provider_unavailable` 值得等；`invalid_api_key` / `provider_rejected` / `invalid_params` 不值得），
+> **绝不**读 `retryable`，也**绝不**由 `type` 反推填它 —— 那正是被删掉的那份重复。
+> 由于 `retryable` 的 json tag 带 `omitempty`，`false` 与"缺席"在 wire 上不可区分，任何 `retryable !== false`
+> 形式的门禁恒为真、从上线起就没生效过。该字段随下一次 `protocolVersion` 切换从 wire 删除。
 
 ### 4.7 工具规格
 
@@ -707,8 +737,10 @@ interface AgentDoc {
   title?: string;
   scope: "cwd" | "projectRoot" | "home";
 }
-// status: 5 态（AUX_API §5.1）。toolCount 内联，省去 listServers⨝listTools。
-// error 仅 status:"failed" 时给出（dial 失败原因，type:"mcp_dial_failed"）。
+// status: 闭合 5 值（AUX_API §5.1），但 runtime 今天**只产出 4 个** —— "disconnected" 无产生点
+// （domain 的连接状态机只有 connecting/connected/failed/needsAuth）。客户端仍须容忍它（闭合联合的成员）。
+// toolCount 内联，省去 listServers⨝listTools。
+// error 在 status:"failed"（type:"mcp_dial_failed"）与 status:"needsAuth"（type:"mcp_authorization_required"）时给出。
 // authStatus 省略 = 未跟踪；可区分的 401/OAuth 登录缺失映射为 needsAuth。
 interface McpServer {
   name: string;
@@ -720,10 +752,54 @@ interface McpServer {
 }
 interface McpTool {
   server: string;
-  name: string;
+  name: string; // server 播报的**原名**（≠ 模型可见名，见 §4.4）
   description?: string;
   inputSchema?: Record<string, unknown>;
 }
+
+// 可编辑注册表条目（mcp.configs.list）。刻意**不含** live 状态（status / toolCount / error）——
+// 那是 McpServer 的事，两个形状不交叉污染。
+interface McpServerConfig {
+  name: string;
+  type: "stdio" | "streamableHttp"; // 判别键仍叫 type（§2.1）
+  enabled: boolean;
+  description?: string;
+  url?: string; // http
+  authorizationMasked?: string; // http；"" = 无 token；永不回传原值
+  headers?: Record<string, string>; // http；附加请求头（不打码）
+  command?: string; // stdio
+  args?: string[];
+  env?: Record<string, string>; // stdio；KEY→value，**替换**子进程环境
+  dir?: string;
+  timeoutSeconds?: number; // 连接握手上限；0 = 不限
+  disabledTools?: string[]; // 对模型隐藏；用**远端原名**（§4.4）
+  autoApproveTools?: string[]; // 跳过审批门；用**远端原名**
+}
+
+// configure / test 的入参 = McpServerConfig 的可写字段，但 authorization 是**原始** token。
+// 对**已存在**的 server 传空 authorization：仅当 HTTP endpoint origin 未变时保留已存 token
+// ——这样改别的字段不必重输密钥，而换 URL 又不会把凭证带到另一个 origin。
+interface ConfigureMCPServerRequest {
+  name: string;
+  type: "stdio" | "streamableHttp";
+  enabled: boolean;
+  description?: string;
+  url?: string;
+  authorization?: string; // 原始 bearer token（http）
+  headers?: Record<string, string>;
+  command?: string;
+  args?: string[];
+  env?: Record<string, string>;
+  dir?: string;
+  timeoutSeconds?: number;
+  disabledTools?: string[];
+  autoApproveTools?: string[];
+}
+
+interface McpTestResult {
+  ok: boolean;
+  error?: ProblemData;
+} // 与 ProviderTestResult 同构
 
 interface MemoryEntry {
   scope: "cwd" | "projectRoot" | "home";
@@ -779,9 +855,16 @@ type StreamEvent =
 interface RunProgress {
   step?: number; // 已走的 agent 步数
   usage?: Usage; // 至此累计用量（成本读 usage.costUsd）
-  activity?: string; // 人读的当前动作（"calling tool: shell"）
+  contextTokens?: number; // 最近一轮的 prompt token 数 = 上下文窗口的"当前占用"
+  activity?: string; // 人读的当前动作（"Running command"）
 }
 ```
+
+> **`contextTokens` 不是 `usage.inputTokens`**：前者是**此刻**窗口占了多少（会在压缩后回落），后者是跨轮**累计**
+> 只增。配 `models.list` 的 `contextWindow` 做占用条。
+> 与 `RunProgress` 其余字段一样 ephemeral，但**它没有 durable 落点** —— `segment.finished.result` 不携带占用读数。
+> 后果是明确的：重连或历史回放的客户端在下一个 `segment.progress` 到达前**不知道**当前占用（不是拿到旧值，是没有值）。
+> 这与 §5.2 的落点规则并不冲突 —— 该规则管的是"预览通道的终值去哪"，而占用是瞬时读数、没有"终值"这回事。
 
 ### 5.1 ItemDelta
 
@@ -842,7 +925,9 @@ completed item 一样必发权威终值。
 
 无共享状态时 `state.snapshot` 可省略。
 
-**first-party 共享 key**：`todos` —— 模型的任务清单（`todo_write` 工具全量替换后投影），值是 `TodoSnapshot[]`（`{ id, text, status: "pending"|"in_progress"|"completed" }`，id 为位置序、随整表替换而非持久身份）。客户端读 `shared.todos` 渲染任务面板，无需 join 工具结果（`todo_write` 结果本身仅面向模型）。第三方 key 遵 §2.6 命名空间。
+**first-party 共享 key**：`todos` —— 模型的任务清单（`todo_write` 工具全量替换后投影），值是 `TodoSnapshot[]`（形状见
+附录 C.4；`id` 为位置序、随整表替换而非持久身份）。客户端读 `state.todos` 渲染任务面板，无需 join 工具结果
+（`todo_write` 结果本身仅面向模型）。第三方 key 遵 §2.6 命名空间。
 
 ### 5.4 Run 树
 
@@ -1186,9 +1271,11 @@ createdAt, finishedAt, updatedAt, messageMark }`；`outcome.result` 是可空的
 
 把一条用户消息**注入正在跑的 run**，模型在**下一个工具轮**读到它（mid-run steering，§6）—— 区别于 `runs.resume`（应答 interrupt）和 `runs.start`（开新回合）。引擎在每个延续轮的请求里把该消息追加在最新工具结果之后（memory 中间件随即持久化进历史），所以它落在正确位置、且后续轮 + 下一回合都可见。
 
-- 入参 `{ runId: string; message: string }`；返回无。
+- 入参 `{ runId: string; message: string }`；返回无。空 `message` 静默丢弃（非错误）。
 - 仅对**正在跑**（actively pumping）的 run 有效：驻留中（等 interrupt，应走 `runs.resume`）或已结束的 run 报 `run_not_found`。
-- 时机是 best-effort：若 run 已无后续工具轮（正出最终答复），该消息落到下一回合（与既有 next-turn steering 回退一致），不丢。
+- 时机是 best-effort：若 run 已无后续工具轮（正出最终答复），该消息落到下一回合（next-turn 回退），不丢。
+- **被注入的消息在流上是一条 durable `userMessage` Item**（`item.started` + `item.completed`，归属同一个 `runId`），
+  所以它进历史、进重连回放、进 `items.list` —— 客户端不需要为"插话"另建一种气泡。
 
 #### `runs.list`
 
@@ -1245,6 +1332,12 @@ createdAt, finishedAt, updatedAt, messageMark }`；`outcome.result` 是可空的
 | `mcp.servers.list`             | `{ cursor?; limit? }`                                                                   | `Page<McpServer>`                                                  | MCP 全局，不收 cwd；含 boot 失败的 server（status:"failed" + error）                                                                            |
 | `mcp.tools.list`               | `{ server?: string; cursor?; limit? }`                                                  | `Page<McpTool>`                                                    |                                                                                                                                                 |
 | `mcp.servers.reconnect`        | `{ server: string }`                                                                    | 无（异步）                                                         | 结果走推送，见下                                                                                                                                |
+| `mcp.servers.authorize`        | `{ server: string }`                                                                    | 无（异步）                                                         | 启动 HTTP MCP server 的交互式 OAuth 登录（开浏览器 + loopback 回跳 + 换 code）；与 reconnect 同一推送路径                                       |
+| `mcp.configs.list`             | `{ cursor?; limit? }`                                                                   | `Page<McpServerConfig>`                                            | **可编辑注册表**（bearer token 已打码）；不含 live 状态 —— 那按 name 从 `mcp.servers.list` 读                                                    |
+| `mcp.configs.configure`        | `ConfigureMCPServerRequest`                                                             | `McpServerConfig`                                                  | upsert 并应用到 live 连接；`name` 空 → `invalid_params`                                                                                         |
+| `mcp.configs.remove`           | `{ name: string }`                                                                      | 无                                                                 | 从注册表 + live 集删除；随后的 `mcp.serverChanged` **省略 `status`**（条目已不存在）                                                             |
+| `mcp.configs.setEnabled`       | `{ name: string; enabled: boolean }`                                                    | 无                                                                 | enable → 拨号，disable → 移出 live 集；推送结果状态                                                                                             |
+| `mcp.configs.test`             | `ConfigureMCPServerRequest`                                                             | `McpTestResult`                                                    | 一次性探测（临时拨号 + tools/list），**不落库**                                                                                                 |
 | `hooks.list`                   | `WorkspaceQuery`                                                                        | `HooksListResult`                                                  | 该 cwd 发现的生命周期 hook（全局 + 项目）+ 项目信任态；见下                                                                                     |
 | `hooks.setTrust`               | `{ projectRoot: string; trusted: boolean }`                                             | 无                                                                 | 信任 / 撤销某项目的 hook（下一个 turn 生效）；见下                                                                                              |
 | `workspace.subscribe` — Stream | `{ watches?: WatchSpec[] }`                                                             | Stream（`notifications.workspace.event`，params `WorkspaceEvent`） | 流式方法（在 `streamingMethods`）；`watches` 受 `features.fileWatch`                                                                            |
@@ -1291,8 +1384,9 @@ fd;且我们用不了 fd-廉价的 FSEvents)。改为两路覆盖,跨平台(inot
   变更文件路径(相对 `cwd`)。无需 watch、无竞态。`shell` 的文件改动不发(参数无法判定;若是 git 操作则走上面的 `.git` 监视)。
   纯外部进程编辑(非 git、非 agent)不实时,降级到下次 git 操作 / 手动刷新(同 Claude Code 取舍)。
 - 客户端用 `cwd` 区分 `files.changed` 属于哪个项目;`resync` 无 paths,语义是"该 cwd 重拉"。
-- **`mcp.servers.reconnect`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递，**保证顺序 `connecting → (connected | failed)`**
-  （client 按钮 loading 绑 `connecting`,终态解除）。重连成功热刷新工具集,模型即时可见新工具。`status` 省略 = 条目已不存在。
+- **`mcp.servers.reconnect`** / **`mcp.servers.authorize`** 无同步返回 —— 结果经 `mcp.serverChanged` 投递，**保证顺序
+  `connecting → (connected | failed | needsAuth)`**（client 按钮 loading 绑 `connecting`,终态解除）。重连成功热刷新工具集,
+  模型即时可见新工具。`status` 省略 = 条目已不存在。未知 / 已禁用的 server 名同步返 `invalid_params`（不进推送）。
 
 > `getDiff` / `getFileHead` / `grep` 返回的是**单一聚合结果**（非集合列表），故保留专用 shape、不套 `Page<T>`；但仍守
 > "no silent caps"——截断都**自描述**：`grep` 由 `GrepResult.total ≥ matches.length`、`getDiff` 由 `Diff.truncated`。
@@ -1634,7 +1728,8 @@ interface Goal {
 
 - **`channel`** —— 自描述错误属于 rpc/run/tool 哪条通道（§8.1）。
 - **`docUrl`** —— 可选，指向该 `type` 的文档页（对标 Stripe `doc_url`）；缺省时客户端按 §8.2 符号名查表即可。
-- **`retryAfterSeconds`** —— 可重试错误（典型 `rate_limited`）回传的最早重试时机；client 退避以此为准。
+- **`retryAfterSeconds`** —— 值得等的 kind（`rate_limited` / `timeout` / `provider_unavailable`）回传的最早重试时机；
+  client 退避以此为准。**是否附带由 `type` 直接决定**，不经 `retryable` 中间量（§4.6）。
 - **`errors: FieldError[]`** —— 字段级校验错误（典型 `invalid_params`、provider 配置 / `question` 答案表单）；
   `field` = 出错 params key，UI 可逐字段标红。
 
@@ -1649,13 +1744,26 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 - **run 级 / 执行期**（通道 b/c，**无数字码**，仅 `ProblemData.type`）：`tool_failed`（工具执行失败）、`denied_by_user`
   （HITL 用户拒绝该工具，§6）、`agent_stuck`（agent loop 无前进进度被守卫终止 —— run 终态错误，区别于落 `internal_error` 的意外失败），以及 **provider 失败按模式拆出的稳定符号**（落在 `segment.finished` 终态 `result.error`，`channel:"run"`）：
   - `run_lost` —— runtime 重启时发现 executor 已消失且没有可恢复 interrupt；启动恢复会把该 Run 及仍在 running 的 Item 原子收敛到终态。
-  - `rate_limited` —— 被限流（429 / overloaded / quota），`retryable:true` + `retryAfterSeconds`。
-  - `invalid_api_key` —— 凭证被拒（401 / 403），**不可重试**，UI 引导改 key。
-  - `timeout` —— 请求超时 / 连接失败，`retryable:true`。
-  - `provider_unavailable` —— provider 临时不可用（5xx），`retryable:true`。
-  - `provider_rejected` —— provider 判定请求非法（400），**不可重试**；与 §8.2 RPC 级 `invalid_request`（-32600，坏 envelope）**同名不同物**，靠 `channel` 区分。
+  - `rate_limited` —— 被限流（429 / overloaded / quota）；**值得等**，带 `retryAfterSeconds`。
+  - `invalid_api_key` —— 凭证被拒（401 / 403），**等也没用**，UI 引导改 key。
+  - `timeout` —— 请求超时 / 连接失败；**值得等**。
+  - `provider_unavailable` —— provider 临时不可用（5xx）；**值得等**。
+  - `provider_rejected` —— provider 判定请求非法（400），**等也没用**；与 §8.2 RPC 级 `invalid_request`（-32600，坏 envelope）**同名不同物**，靠 `channel` 区分。
   - `provider_error` —— 兜底的未归类 provider 失败（也是 §8.2 RPC 级 `-32001` 的符号）。
-    客户端**只按 `type`（+ `retryable`）分支**，绝不 substring-match `detail`。`denied_by_user` 是**用户**在 HITL 里拒绝工具（item 级，无码）；直接诊断工具不进入审批策略。
+  - `internal_error` —— 未归类失败，三条通道通用兜底；完整错误只进 span，不上 wire。
+
+  客户端**只按 `type` 分支**（**不读 `retryable`**，§4.6），绝不 substring-match `detail`。`denied_by_user` 是**用户**在
+  HITL 里拒绝工具（item 级，无码）；直接诊断工具不进入审批策略。
+
+- **内联状态级**（第四类，**既不带数字码、也不走上面三条通道**）：它们骑在**某个查询自己的结果**里，表达"这个东西
+  当前坏在哪"，而不是"你这次调用失败了"。故调用**成功**返回，problem 挂在结果字段上：
+  - `mcp_dial_failed` —— `McpServer.error`（`status:"failed"`）与 `McpTestResult.error`：MCP 连接或其探测未成功。
+  - `mcp_authorization_required` —— `McpServer.error`（`status:"needsAuth"`）：HTTP MCP server 需要一次交互式登录。
+  - `provider_not_configured` —— `ProviderTestResult.error`：该 provider 还没有凭证。
+  - `provider_test_failed` —— `ProviderTestResult.error`：provider 不可达或拒绝了探测。
+
+  **它们没有 `detail`**：一句英文人话对多语言 UI 是负资产，文案归客户端按 `type` 查本地文案表（§8.2 的"按符号名查表"
+  在这里是唯一途径，不是退路）。`channel` 同样省略 —— 落点本身已表达它属于哪个查询。
 
 ---
 
@@ -1678,7 +1786,7 @@ interface ClientCapabilities {
   events: string[]; // 渲染得了的事件 type
   features: Record<string, { enabled: boolean }>;
   interruptTypes?: ("approval" | "question" | "toolResult")[]; // 能处理的 HITL 类型（防挂死，§6.2）
-  excludedEvents?: string[]; // 本 request/stream 抑制某些高频事件，如 ["item.delta"]
+  excludedEvents?: string[]; // 本 request/stream 抑制某些高频事件，如 ["item.delta"]；**只对 ephemeral 生效**（见下）
 }
 ```
 
@@ -1713,6 +1821,10 @@ interface ClientCapabilities {
 - server 不得在本 request/stream 发出 `clientCapabilities.events` 集合外的事件类型（已知 payload 上的未知未来字段除外）；client 必须忽略未知字段。
 - server **必须不**产出 client 未在 `interruptTypes` 声明的 open interrupt（§6.2）。
 - `features.subagents` 关 → 不产出子 Run；`features.clientTools` 关 → 不产出 `toolResult` interrupt。
+- **`excludedEvents` 只能抑制 ephemeral 事件。** 对 durable 类型（§5.2 推导表里 ✅ 的那些）该列表被**忽略** ——
+  否则客户端就能把自己 opt-out 出正确性，而 §5.2 的保证恰恰是"丢掉每个 ephemeral 仍必然收敛"。想少收东西就少声明
+  `events`（那条是硬门禁，durable 也挡），不要指望用 `excludedEvents` 挡权威帧。
+- `excludedEvents` **不作用于 workspace 事件流**（AUX_API §3）：那条流的收敛范围由订阅本身决定，不由排除表决定。
 
 ---
 
@@ -1777,7 +1889,6 @@ toolCall Item 下（**子树，`features.subagents` 门控**）。延续（resum
 
 ## 13. v2 明确不做
 
-- 经 `runs.send` 的 mid-run steering（留 v2.x，additive）。
 - server→client JSON-RPC request。
 - 远程多用户鉴权（协议层零 user 概念；鉴权由更外层 / 未来 facade 解决）。
 - JSON-RPC batch。
@@ -1799,7 +1910,7 @@ toolCall Item 下（**子树，`features.subagents` 门控**）。延续（resum
   本基线消除的两类历史 bug（`items` vs `data` 字段名漂移、completed 缺权威落点）正是这层测试当场能抓的。
 - CI 卡 drift：生成的 TS / schema 与 SSOT 不一致即红。
 
-> **这是迁移的硬前置项，不是"以后再补"**。§4.4 去领域化后，富 `result` 形状（§4.4.2 的 `shell`→`{exitCode,output,outputTruncated}`、
+> **这是迁移的硬前置项，不是"以后再补"**。§4.4 去领域化后，富 `result` 形状（§4.4.2 的 `shell`→`{output,exitCode}`、
 > `grep`→`{hits}` 等约定）**不再被 wire 联合机器保证**——它们是非规范展示约定。唯一能阻止这些约定在前后端间无声漂移的，
 > 就是黄金样本 + 从 SSOT 导出的 schema。**故迁移前必须先立起这层闸**，否则正好放任 G1 本想消除的那类约定漂移 bug。
 
@@ -1946,12 +2057,17 @@ interface ApprovalRule {
 `state.snapshot{todos}` 通道（§5.3，无新事件类型）；重连通过 `runs.subscribe` 重放权威快照，不另设可能与事件投影漂移的冷读 RPC。
 
 ```ts
-interface TodoItem {
-  id: string;
+interface TodoSnapshot {
+  id: string; // 位置序（随整表替换），不是持久身份
   text: string;
   status: "pending" | "in_progress" | "completed";
+  blockedReason?: string; // 模型自述"这条卡在什么上"
+  nextAction?: string; // 模型自述"下一步做什么"
 }
 ```
+
+> 类型名是 `TodoSnapshot`（与 §5.3 一致）—— 它是一份快照里的一条，不是有身份的实体，命名刻意不叫 `TodoItem`
+> （`Item` 在本协议里专指 §4.3 的 transcript Item，复用会读成两回事）。
 
 ---
 

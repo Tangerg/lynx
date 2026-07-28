@@ -8,25 +8,23 @@
 // rule in one place and its owner merely forwarding.
 
 export type ToolCategory =
-  | "command" // shell / run_in_background → { command } + { exitCode, output, outputTruncated? } or a plain-string ack
-  | "fileEdit" // edit / write → { path } + { changes: FileEdit[] }
-  | "search" // grep / glob → { query|pattern } + { hits: SearchHit[] }
-  | "webSearch" // webSearch → { query } + { results: WebSearchResult[] }
-  | "read" // read → { path, range? } + { content }
-  | "subagent" // subagent → { prompt|task } + { summary, childRunId? }
-  | "generic"; // MCP "<server>.<tool>" / anything unknown → JSON tree
+  | "command" // shell → { command } + { output, exitCode? }, or a plain-string ack when backgrounded
+  | "fileEdit" // edit / write → { file_path } + { changes: FileEdit[] }
+  | "search" // grep / glob → { pattern } + { hits: SearchHit[] }
+  | "webSearch" // web_search → { query } + { results: WebSearchResult[] }
+  | "read" // read → { file_path, offset?, limit? } + { content, start_line, … }
+  | "subagent" // task → { description, prompt } + a plain-string reply
+  | "generic"; // MCP "<server>_<tool>" / anything unknown → JSON tree
 
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
   shell: "command",
-  run_in_background: "command", // bg counterpart of shell: { command } in, plain-string ack out
   edit: "fileEdit",
   write: "fileEdit",
   grep: "search",
   glob: "search",
   web_search: "webSearch",
   read: "read",
-  subagent: "subagent",
-  task: "subagent", // the runtime's subagent tool (spawns a child run, returns its reply)
+  task: "subagent", // the runtime's delegation tool (spawns a child run, returns its reply)
 };
 // lsp / lsp_diagnostics / skill / ask_user / shell_output / shell_kill stay
 // "generic" on purpose: their labels, icons, and previews key on the tool NAME

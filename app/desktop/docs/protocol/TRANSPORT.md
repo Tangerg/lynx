@@ -40,7 +40,7 @@ API 定义 JSON-RPC 方法、资源、事件语义；transport 定义 message �
 | 响应 method 标签 | `X-Method`                                                                    |
 | 响应 server 标签 | `X-Server`                                                                    |
 | 本地门禁 token   | `Authorization: Bearer <token>`                                               |
-| 流重放游标       | `Last-Event-Id`（仅 `runs.subscribe` / `background.subscribe` 续流，§9.2）    |
+| 流重放游标       | `Last-Event-Id`（仅 `runs.subscribe` 续流，§9.2）                             |
 
 规则与易错点：
 
@@ -192,7 +192,7 @@ body：
   { "jsonrpc": "2.0", "id": "1", "result": { "id": "ses_..." } }
   ```
 
-- **流式方法**（如 `runs.start` / `runs.resume` / `runs.subscribe` / `background.subscribe`，以
+- **流式方法**（`runs.start` / `runs.resume` / `runs.subscribe` / `workspace.subscribe`，以
   `streamingMethods` 为准）→ `200 text/event-stream`，响应体是这次操作的事件流（§6.4）。
 
 > 流式方法**开流前**的失败（params 非法 / `session_not_found` 等同步错误）仍返 `application/json` +
@@ -207,22 +207,26 @@ HTTP status 只描述传输层失败。
 | ------ | ----------------------------------------------------------------------------------------------------------------------------- |
 | `200`  | JSON-RPC 响应已接受（`application/json` 单条，body 里仍可能含业务 error）**或** 流式响应已开启（`text/event-stream`，§6.4）。 |
 | `204`  | client 通知已接受、同步 dispatch 完毕；无 body。                                                                              |
-| `400`  | HTTP 请求畸形、JSON 非法、或 URL method 与 body method 不一致。                                                               |
+| `400`  | HTTP body 读不出、或 JSON 无法解码成 JSON-RPC message。                                                                       |
 | `401`  | 本地门禁 token 缺失或错误。响应**必带** `WWW-Authenticate: Bearer`（RFC 9110 §15.5.2）。                                      |
 | `404`  | 未知 transport 端点。                                                                                                         |
 | `405`  | HTTP 方法错误。响应**必带** `Allow`（列出该端点支持的方法，RFC 9110 §15.5.6）。                                               |
 | `413`  | HTTP body 超传输上限。                                                                                                        |
-| `415`  | content-type 不支持。                                                                                                         |
-| `500`  | JSON-RPC dispatch 前的适配器失败。                                                                                            |
+| `415`  | content-type 不支持（仅在客户端**发了** content-type 且非 `application/json` 时判定；省略即放行）。                           |
+| `500`  | envelope 之外的适配器失败：响应编码失败、流式响应不可用、handler panic。                                                       |
 
 > 状态码只描述传输层（RFC 9110）。**通知**同步处理完且无 body 用 `204`（非 `202` —— 后者语义是"已收下、
-> 处理未决"）；自相矛盾的请求（method 不一致）归 `400`，**不**用 `409`（409 专表与资源当前状态的冲突）。
+> 处理未决"）。**URL 从不携带 method**（§6.1），故不存在"URL 与 body 的 method 不一致"这种 `400`；envelope 一旦
+> 解码成功，method / params 的一切问题都是 `200` + JSON-RPC error。`409` 不用于传输层。
 
 除 `404` / `405` 等由 HTTP 路由器直接产生的标准响应外，transport 失败使用
 `application/problem+json`，字段为 `{ type, title, status, detail, requestId? }`；`type` 是稳定的
 `urn:lyra:transport:*` 判别键，`requestId` 与响应头 `Request-Id` 相同。客户端不得把 transport problem
 误当作 JSON-RPC `error`。例如 JSON 无法解码为 JSON-RPC message 时返回 `400` +
 `urn:lyra:transport:invalid_request`，而已经解码成功后的 method / params 错误仍返回 `200` JSON-RPC error。
+
+当前的闭合 `type` 集：`invalid_request`（400）、`unauthorized`（401）、`request_too_large`（413）、
+`unsupported_media_type`（415）、`response_encoding_failed` / `streaming_unsupported` / `internal_error`（500）。
 
 **不要**把 `session_not_found` / `path_outside_root` 等业务错误映射成 HTTP status（业务错误走 JSON-RPC
 `error`，见 API.md §8）。
@@ -266,8 +270,8 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run
 
 - **一次操作 = 一条流 = 一个 HTTP 交换**；`curl -N` 即可看全程，日志里一请求对应一操作。
 - 该流承载**整棵 run 树**：子孙 subagent run 的事件并入此流（每帧带自己的 `runId`，客户端用
-  `RunRef.spawnedByItemId` 还原树，API.md §5.4 / §10.3）。`background.subscribe` 的流承载该 task 的
-  `notifications.background.update` 帧。
+  `RunRef.spawnedByItemId` 还原树，API.md §5.4 / §10.3）。`workspace.subscribe` 的流形状相同、但承载
+  `notifications.workspace.event` 帧且**不可重放**（无 SSE `id:`，AUX_API §3）。
 - 网络断开**不取消** run（API.md §3）；run 在服务端继续，客户端按 §9 续流。
 
 ### 6.5 并发与连接预算（HTTP/1.1）
@@ -296,8 +300,9 @@ data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{...}}
 
 规则：
 
-- 只有 `notifications.run.event`（以及 `background.subscribe` 流里的 `notifications.background.update`）等
-  **可重放的事件帧**带 SSE `id:`，且 = 其 `eventId`；JSON-RPC 响应帧（首帧）**不带 `id:`**（一次性 ack，非可重放事件，§9.1）。
+- 只有**可重放的事件帧**带 SSE `id:`，且 = 其 `eventId` —— 今天只有 `notifications.run.event`；JSON-RPC 响应帧
+  （首帧）**不带 `id:`**（一次性 ack，非可重放事件，§9.1）。`notifications.workspace.event` 同样不带（该流按
+  AUX_API §3 明确不补发，靠重订时的全量失效收敛）。
 - `event:` / `retry:` 不使用；客户端忽略未知字段。
 - 心跳用 SSE comment（`: ...` 行）。
 - 流是 **POST** 而非 `EventSource` GET，故门禁 token 照常走 `Authorization: Bearer` —— "`EventSource` 不能设
@@ -335,7 +340,8 @@ server 应保留 durable 事件足够久以支撑续流，但**正确性不得�
 
 某条 run 流断开时（run 在服务端继续）：
 
-1. 客户端对该 run 调 `POST /v2/rpc/runs.subscribe { runId }`，带 `Last-Event-Id: <最后见到的 eventId>`；
+1. 客户端对该 run 调 `POST /v2/rpc`（envelope `method: "runs.subscribe"`、`params: { runId }` —— URL 从不携带
+   method，§6.1），带 `Last-Event-Id: <最后见到的 eventId>`；
 2. server 在新响应流里**重放该 id 之后的 durable 事件**，再接上 live；
 3. 客户端按 `eventId` 与 `itemId` 去重。
 4. 若客户端本地状态仍不完整，调用 `items.list` 重建 durable 历史；`item.completed` / `state.snapshot`

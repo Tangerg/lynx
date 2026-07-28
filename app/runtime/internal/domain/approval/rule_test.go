@@ -30,10 +30,15 @@ func TestQuerySubject(t *testing.T) {
 		wantError             bool
 	}{
 		{tool: "shell", arguments: `{"command":"npm run build"}`, want: "npm run build"},
-		{tool: "run_in_background", arguments: `{"command":"sleep 1"}`, want: "sleep 1"},
+		// A backgrounded command is still the `shell` tool (run_in_background is one
+		// of its arguments, not a tool of its own), so it keeps the command subject.
+		{tool: "shell", arguments: `{"command":"sleep 1","run_in_background":true}`, want: "sleep 1"},
 		{tool: "edit", arguments: `{"file_path":"src/a.go","old":"x"}`, want: "src/a.go"},
 		{tool: "read", arguments: `{"file_path":"go.mod"}`, want: "go.mod"},
-		{tool: "grep", arguments: `{"pattern":"foo"}`}, // no per-tool subject → whole-tool
+		{tool: "write", arguments: `{"file_path":"out.txt"}`, want: "out.txt"},
+		{tool: "download", arguments: `{"file_path":"vendor/x.tgz"}`, want: "vendor/x.tgz"},
+		{tool: "grep", arguments: `{"pattern":"foo"}`},       // no per-tool subject → whole-tool
+		{tool: "shell_kill", arguments: `{"shell_id":"s1"}`}, // ditto — not a command-bearing tool
 		{tool: "shell", arguments: `{"timeout":5}`, wantError: true},
 	}
 	for _, c := range cases {

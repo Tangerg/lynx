@@ -63,7 +63,7 @@ func (r Rule) Validate() error {
 func (q Query) subject() (string, error) {
 	var field string
 	switch q.Tool {
-	case "shell", "run_in_background":
+	case "shell":
 		field = "command"
 	case "read", "write", "edit", "download":
 		field = "file_path"

@@ -8,7 +8,7 @@ import {
   lspToolPreviews,
   shellToolPreviews,
   skillToolPreview,
-  taskToolPreviews,
+  taskToolPreview,
   webSearchToolPreview,
 } from "./toolPreviewContributions";
 
@@ -34,13 +34,8 @@ describe("tool preview contributions", () => {
     expect(keys(diffToolPreviews(Preview))).toEqual(["edit", "write"]);
     expect(keys(fileToolPreview(Preview))).toEqual(["read"]);
     expect(keys(grepToolPreview(Preview))).toEqual(["grep"]);
-    expect(keys(shellToolPreviews(Preview))).toEqual([
-      "shell",
-      "run_in_background",
-      "shell_output",
-      "shell_kill",
-    ]);
-    expect(keys(taskToolPreviews(Preview))).toEqual(["task", "subagent"]);
+    expect(keys(shellToolPreviews(Preview))).toEqual(["shell", "shell_output", "shell_kill"]);
+    expect(keys(taskToolPreview(Preview))).toEqual(["task"]);
   });
 
   it("keeps LSP diagnostics on its dedicated renderer", () => {

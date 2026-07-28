@@ -205,7 +205,7 @@ type QuestionOption struct {
 //   - Tool-level failure does NOT go in Result — it rides the toolCall
 //     Item's Error + status:"incomplete" (§4.3 / §8).
 type ToolInvocation struct {
-	Name      string         `json:"name"`             // tool identity (stable); MCP uses "<server>_<tool>" (underscore; dots sanitized out, see mcp.DefaultNaming)
+	Name      string         `json:"name"`             // tool identity (stable); an MCP tool's is its LOSSY model-facing name — see API.md §4.4, authored by mcpserver.ToolName
 	Arguments map[string]any `json:"arguments"`        // parsed JSON object (always present; never a JSON string)
 	Result    any            `json:"result,omitempty"` // best-effort JSON; absent on item.started, authoritative on item.completed
 }

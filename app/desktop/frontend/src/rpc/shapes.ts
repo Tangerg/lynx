@@ -387,7 +387,11 @@ export type ItemType = Item["type"];
 // client display registry keyed on `name` (API.md §4.4.2). New tools cost the
 // protocol nothing (§13: no first-class typed tool variants).
 export interface ToolInvocation {
-  name: string; // tool identity (stable); MCP uses "<server>.<tool>"
+  // tool identity (stable). An MCP tool's is its LOSSY model-facing name
+  // (sanitize("<server>_<tool>"), capped at 64) — two different (server, tool)
+  // pairs can collapse to one string, so never reverse it to match an
+  // mcp.tools.list entry (API.md §4.4).
+  name: string;
   arguments: Record<string, unknown>; // parsed JSON object (never a JSON string)
   // best-effort JSON output; absent on the item.started shell, authoritative on
   // item.completed. Never double-encoded ({x:1}, not "{\"x\":1}"). Streamed
@@ -1043,7 +1047,7 @@ export type ItemDelta =
   | { type: "content"; index?: number; text: string } // agentMessage text delta
   | { type: "reasoning"; text: string } // reasoning text delta
   | { type: "toolArguments"; argumentsTextDelta: string } // partial JSON text of tool args
-  | { type: "toolOutput"; text: string } // PREVIEW of command stdout — authoritative copy lands on the completed item (commandExecution.output)
+  | { type: "toolOutput"; text: string } // PREVIEW of command stdout — authoritative copy lands on the completed item's tool.result.output
   | { type: "plan"; steps: PlanStep[] }; // current full plan (not a hot char stream)
 
 export type StreamEvent =

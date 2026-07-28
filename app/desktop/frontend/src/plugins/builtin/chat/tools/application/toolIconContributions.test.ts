@@ -12,7 +12,6 @@ describe("tool icon contributions", () => {
   it("maps built-in tool keys to their domain glyphs", () => {
     expect(DEFAULT_TOOL_ICONS).toMatchObject({
       shell: "terminal",
-      run_in_background: "play",
       shell_output: "list",
       shell_kill: "stop",
       read: "eye",
@@ -26,7 +25,6 @@ describe("tool icon contributions", () => {
       lsp_diagnostics: "bug",
       skill: "sparkle",
       task: "spark",
-      subagent: "bot",
       ask_user: "question",
     });
   });

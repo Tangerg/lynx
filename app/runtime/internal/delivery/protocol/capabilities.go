@@ -11,10 +11,13 @@ type ClientCapabilities struct {
 	// InterruptTypes are the HITL interrupt types the client can handle
 	// (see InterruptType). Anti-deadlock (API.md §6.2).
 	InterruptTypes []InterruptType `json:"interruptTypes,omitempty"`
-	// ExcludedEvents lets the client suppress high-frequency
-	// notifications per connection, by event type, e.g. [StreamItemDelta]
-	// (API.md §9). The values are StreamEventTypes (the wire field keeps its
-	// historical "...Methods" name).
+	// ExcludedEvents lets the client suppress high-frequency notifications per
+	// connection, by event type, e.g. [StreamItemDelta] (API.md §9). Only
+	// EPHEMERAL run events are suppressible: dropping a durable one would break
+	// the §5.2 guarantee that a client which discards every ephemeral event still
+	// converges, so the filter ignores this list for durable types rather than
+	// letting a client opt out of correctness. It does not reach the workspace
+	// stream — that stream's scoping is its subscription, not an exclusion list.
 	ExcludedEvents []StreamEventType `json:"excludedEvents,omitempty"`
 }
 

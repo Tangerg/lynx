@@ -8,7 +8,7 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
-import { taskToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
+import { taskToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { MAX_ROWS, Overflow, PREVIEW_WRAP } from "./shared";
 
 function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
@@ -35,7 +35,7 @@ export const taskPreview = definePlugin({
   name: "lyra.builtin.task-preview",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of taskToolPreviews(TaskPreview)) {
+    for (const preview of taskToolPreview(TaskPreview)) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

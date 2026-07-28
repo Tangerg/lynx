@@ -48,8 +48,10 @@ describe("toolLabel — name-keyed specialised tools", () => {
     );
   });
 
-  it("background-shell tools: run_in_background labels the command, pollers the shell id", () => {
-    expect(toolLabel(tool("run_in_background", { command: "npm run dev" }))).toBe("npm run dev");
+  it("shell family: a backgrounded shell still labels its command, pollers the shell id", () => {
+    expect(toolLabel(tool("shell", { command: "npm run dev", run_in_background: true }))).toBe(
+      "npm run dev",
+    );
     expect(toolLabel(tool("shell_output", { shell_id: "bg_1" }))).toBe("bg_1");
     expect(toolLabel(tool("shell_kill", { shell_id: "bg_2" }))).toBe("bg_2");
   });
@@ -70,9 +72,13 @@ describe("toolFields — runtime wire shapes", () => {
     expect(f.exitCode).toBe(0);
   });
 
-  it("run_in_background: passes the plain-string start ack through", () => {
+  it("shell: a backgrounded call's plain-string ack passes through with no exit code", () => {
     const f = toolFields(
-      tool("run_in_background", { command: "npm run dev" }, "Started background shell bg_1."),
+      tool(
+        "shell",
+        { command: "npm run dev", run_in_background: true },
+        "Started background shell bg_1.",
+      ),
     );
     expect(f.result).toBe("Started background shell bg_1.");
     expect(f.exitCode).toBeUndefined();
@@ -129,9 +135,9 @@ describe("toolFields — runtime wire shapes", () => {
   });
 
   it("read: passes the content through as the result body", () => {
-    expect(toolFields(tool("read", { path: "a.go" }, { content: "package main" })).result).toBe(
-      "package main",
-    );
+    expect(
+      toolFields(tool("read", { file_path: "a.go" }, { content: "package main" })).result,
+    ).toBe("package main");
   });
 });
 
@@ -144,6 +150,7 @@ describe("argsText — fn-baked tools suppress the raw JSON echo", () => {
   });
 
   it("generic (MCP) tools keep the JSON args fallback", () => {
-    expect(argsText(tool("linear.create_issue", { title: "t" }))).toContain('"title"');
+    // MCP model-facing names are sanitize("<server>_<tool>") — underscores, no dots.
+    expect(argsText(tool("linear_create_issue", { title: "t" }))).toContain('"title"');
   });
 });

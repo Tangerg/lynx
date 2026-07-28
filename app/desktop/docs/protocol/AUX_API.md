@@ -170,8 +170,11 @@ type WorkspaceEvent = { sequence: number } &
 
 `sequence` 在 runtime 进程内严格单调。客户端常态按事件 `type` 局部失效（各域一个缓存 key）；若收到的 sequence 不是上一条
 `+1`，说明这条 lossy 流发生丢失，必须先全量失效再处理当前事件。重订本身也先全量失效，因此进程重启导致 sequence 重置
-不会误用旧缓存。`clientCapabilities.excludedEvents` 按事件 `type` 抑制（如 `["mcp.serverChanged"]`）。**不变量**：事件 `type`
-在 run（`API.md §5`）/ workspace 两个事件联合内全局唯一，供 excludedEvents 跨域按名匹配。
+不会误用旧缓存。
+⚠️ **`clientCapabilities.excludedEvents` 不作用于本流**（`API.md §9`）—— 它只抑制 run 流里的 ephemeral 事件。本流的
+事件全是"某域已失效"的通知，抑制其中任何一条就等于让客户端持有陈旧缓存而不自知；要少收就别订这条流。
+**不变量仍成立且仍有用**：事件 `type` 在 run（`API.md §5`）/ workspace 两个事件联合内**全局唯一** —— 这让"事件名"
+在整个协议里是单一命名空间（未来按 topic 收敛订阅范围时，名字不必再消歧）。
 
 ---
 
@@ -231,13 +234,20 @@ type McpStatus =
 
 interface McpServer {
   name: string;
-  status: McpStatus;
+  status: McpStatus; // ⚠️ runtime 今天只产出 4 个，"disconnected" 无产生点（见下）
   toolCount?: number;
   authStatus?: "none" | "bearerToken" | "oauth" | "notLoggedIn"; // 省略 = 不跟踪鉴权
-  error?: ProblemData; // 仅 status:"failed"：dial 失败原因
+  error?: ProblemData; // status:"failed" → mcp_dial_failed；status:"needsAuth" → mcp_authorization_required
   description?: string;
 }
 ```
+
+> **`disconnected` 是闭合联合里一个没有作者的值** —— domain 的连接状态机只有 connecting / connected / failed /
+> needsAuth 四态（"没连上"要么是 failed，要么是 needsAuth；"没配置"则该条目根本不在列表里）。客户端仍须容忍它
+> （它在联合里），但不必为它设计任何 UI。
+
+`mcp.servers.authorize` 与 `mcp.configs.*`（可编辑注册表 CRUD + 连接测试）的入参 / 返回 / 类型见 `API.md §7.5` 与
+`API.md §4.10`；它们与 reconnect 共用下面这条推送路径。
 
 #### `mcp.servers.reconnect`
 
@@ -262,10 +272,16 @@ interface McpServer {
   reason?: string }                                          // deny 理由
 ```
 
-- **`remember` 的 KEY = 工具名**（`ToolInvocation.name`）。按参数模式匹配属规则引擎域，不做。
-- **`deny` + `remember` 合法**——记住"拒绝"。**`editedArgs` 一次性**：`remember` 记的是"这个工具"，不是"工具 + 这次的参数"。
-- **`scope`**：v1 **仅 `"session"` 真正持久**（内存，进程生命期）；`"project"` / `"global"` wire 上接受、但在持久化位置落地前
-  **降级为一次性**（不假装记住，不留"接受却不持久化"的债）。
+- **规则的 KEY = 工具名 + 该次调用的 per-tool `subject`**：`shell` 取 `command`、`read`/`write`/`edit`/`download` 取
+  `file_path`，其余工具的 subject 为空串（= 整个工具，任意参数）。subject 由**后端从被批准的调用参数中提取**，客户端
+  不发送它。`subject` 支持 glob（`path.Match`；`*` 不跨 `/`，`**` 无特殊含义）。
+  ⚠️ MCP 工具的 key 是**模型可见名**（塌名后的 `<server>_<tool>`，`API.md §4.4`），塌名的两个工具共享一条规则。
+- **`deny` + `remember` 合法**——记住"拒绝"。**`editedArgs` 一次性**：规则按 subject 匹配，绝不按一次性的参数改写匹配。
+- **`scope`**：三个 scope **全部真持久**（sqlite）—— `session` 绑该会话 id、`project` 绑项目目录、`global` 无 key。
+  会话被删时其 session 规则一并清除。
+- **冲突策略**：最具体的命中规则胜出（scope 窄 > 宽：session > project > global；再 exact subject > glob > 整工具）；
+  同特异度而结论相反时取 **deny**（记住的拒绝不会被同级的放行抵消）。
+- 读与管理面是 `approval.listRules` / `approval.forgetRule`（`API.md §C.2`，含 `ApprovalRule` 形状与稳定 `id`）。
 - 不设 `once`（= 不带 `remember` 的普通 approve）；不设 `ask` / `behavior`（响应本身即那次 ask 的回答，重复）。
 
 审批记忆的读与管理面由 `approval.listRules` / `approval.forgetRule` 提供；全局策略由

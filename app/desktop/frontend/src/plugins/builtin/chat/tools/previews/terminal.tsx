@@ -1,5 +1,5 @@
-// terminal preview — shell + the background-shell family (run_in_background /
-// shell_output / shell_kill), all terminal-style plain text.
+// terminal preview — the shell family (shell / shell_output / shell_kill), all
+// terminal-style plain text.
 
 import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";

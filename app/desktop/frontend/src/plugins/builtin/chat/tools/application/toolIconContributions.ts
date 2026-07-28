@@ -7,7 +7,6 @@ export interface ToolIconContribution {
 // and the no-plugin fallback, so built-in rendering cannot drift.
 export const DEFAULT_TOOL_ICONS: Record<string, string> = {
   shell: "terminal",
-  run_in_background: "play",
   shell_output: "list",
   shell_kill: "stop",
   read: "eye",
@@ -21,7 +20,6 @@ export const DEFAULT_TOOL_ICONS: Record<string, string> = {
   lsp_diagnostics: "bug",
   skill: "sparkle",
   task: "spark",
-  subagent: "bot",
   ask_user: "question",
 };
 

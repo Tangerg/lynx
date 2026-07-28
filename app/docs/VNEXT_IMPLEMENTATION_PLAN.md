@@ -59,7 +59,7 @@
 
 | 批次 | 名称 | 状态 | 说明 |
 |---|---|---|---|
-| A | 协议文档事实对齐 | `TODO` | 零代码变化 |
+| A | 协议文档事实对齐 | `DONE` | wire 零变化；「零代码」判断错了，见 §6 A1 范围修正 |
 | A′ | 现役泄露治本（**前置**） | `DONE` | 5 slice 全 `DONE`（A′5 为实施中发现追加）；三个现役泄露消除，5 个守卫落地 |
 | B | Contract Registry（全量） | `TODO` | 4 slice，可与 B′ 并行 |
 | B′ | 权威读面 + store cutover | `DONE` | B′1 + B′2/B′3（合并）落 main；B′4 逐项核实为已完成 / 余项 `DEFERRED → C`（无 producer），B′5 `DEFERRED → C7` |
@@ -164,7 +164,8 @@ delivery                        → 永不见到它
 
 ### 3.1 方法面 delta
 
-当前 65 个方法。核心面差异：
+当前 **83** 个可派发方法（`dispatch/method_table.go` 实测；计划原写「65」为审计误差，2026-07-29 更正）+ 2 个
+server→client notification。核心面差异：
 
 | 动作 | 方法 |
 |---|---|
@@ -409,11 +410,48 @@ B1 之后由 Registry 的 `Stream[]` 注册自动生成（且 `workspace.subscri
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| A1 | 修 `desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` 中已核实漂移：steer stale 描述、MCP method table、MCP tool identity、`background.subscribe` 残留、错误续流 URL、遗漏字段 | `TODO` | — |
+| A1 | 修 `desktop/docs/protocol/{API,AUX_API,TRANSPORT}.md` 中已核实漂移：steer stale 描述、MCP method table、MCP tool identity、`background.subscribe` 残留、错误续流 URL、遗漏字段 | `DONE` | 见下 |
 
-**影响面**：零代码、零 wire。
+**影响面**：wire 一字未变；**代码有变**（见下方 ⚠️ 范围修正）。
 **DoD**：文档与当前代码逐项一致。
 **价值**：给 Batch B 的 Registry 一个可信输入基线。
+
+#### ⚠️ A1 范围修正（2026-07-29 实施中）：不是"零代码"
+
+计划写「零代码、零 wire」。**wire 确实零变化，但"零代码"错了** —— 同一份漂移在代码里也有副本，只改文档等于把
+「文档与代码一致」做成「文档与另一半代码一致」。逐条核实后，六项点名漂移的实际形态是：
+
+| 计划点名项 | 实际形态 |
+|---|---|
+| steer stale 描述 | §13「v2 明确不做」仍列着 *"经 `runs.send` 的 mid-run steering（留 v2.x）"*，而它早已作为 `runs.steer` 落地。**同一句谎言在代码里也有一份**：`InjectSteering` 的 godoc 写着 *"This is next-turn semantics — not true mid-stream injection"*，而它下面十行的 `steerSource` 就是逐轮 drain 的 mid-run 注入 |
+| MCP method table | §7.5 表缺 6 个方法（`mcp.servers.authorize` + `mcp.configs.*` 五个），§4.10 缺 `McpServerConfig` / `ConfigureMCPServerRequest` / `McpTestResult` 三个类型 —— **`mcp.configs.*` 的 6 个 wire 字段在三份文档里 0 次出现** |
+| MCP tool identity | §4.4 写 `MCP 用 "<server>.<tool>"`。真相是**两个身份**：`McpTool.name` 是远端原名，`ToolInvocation.name` 是 `sanitize("<server>_<tool>")` 截断 64 —— **有损**（`("a_b","c")` 与 `("a","b_c")` 都塌成 `a_b_c`，domain 有测试钉着）。审批 `remember` 的 key 是后者、`disabledTools` 用前者，文档一处都没说 |
+| `background.subscribe` 残留 | TRANSPORT 4 处（header 表 / 流式方法举例 / §6.4 要点 / §7 SSE `id:` 规则），指向一个 §7.7 已宣布删除的方法 |
+| 错误续流 URL | §9.2 写 `POST /v2/rpc/runs.subscribe`，与同文件 §6.1「URL 不再重复 method」自相矛盾（router 只有 `POST /v2/rpc`）。**连带**：`400` 的含义仍写着「URL method 与 body method 不一致」—— 那个分支不存在了；`500` 写「dispatch **前**的适配器失败」，实际三个 500 全在 dispatch **后** |
+| 遗漏字段 | 用 json tag 全集扫三份文档，258 个字段里 9 个 0 次出现：6 个属上面的 `mcp.configs.*`，另 3 个是真遗漏 —— `RunProgress.contextTokens`、`TodoSnapshot.blockedReason` / `.nextAction` |
+
+**顺带查出的、计划没有的：**
+
+1. **`excludedEvents` 文档声称的行为不存在。** AUX_API 写「按事件 `type` 抑制（如 `["mcp.serverChanged"]`）」，但
+   `streamFilter` 只挂在 run 事件上，workspace 事件根本不过滤。且即使在 run 流上，它**只对 ephemeral 生效** —— 这不是
+   缺陷而是**保证**：durable 帧可被 opt-out 就等于客户端能把自己 opt-out 出 §5.2 的收敛性。已按「事实 + 它为什么是对的」
+   写进两份文档与 Go 注释，而不是把文档那句话当目标去实现。
+2. **`bash→shell` 改名留下 6 处死键**（`project_shell_tool_rename` 那轮的残留）：`run_in_background` 与 `subagent`
+   **都不是工具名** —— 前者是 `shell` 的一个**参数**，后者从来没存在过（真名 `task`）。它们出现在后端
+   `toolPresentations` ×2、`approval.Query.subject()` 的 `case` ×1、前端 icon 表 / preview 表 / `TOOL_CATEGORY` ×3，
+   外加 4 个测试**为不存在的工具锁定行为**（含一条 approval subject 提取的断言）。全部删除并把测试改写成真实形态。
+3. **§4.4.2 展示约定表的 arguments 列全错**：`file_path` 被写成 `path`（read/edit/write）、`pattern` 被写成 `query`
+   （grep）、`web_search` 被写成 `webSearch`、`task` 被写成 `subagent`。**result 列反而是对的** —— 因为
+   `normalizeToolResult` 真的把结果归一化成了约定形状。另有 `outputTruncated` **无任何产生点**（后端 0 处），已从表里删。
+4. **`ProblemData.retryable` / `McpServer.status:"disconnected"` 是两个没有作者的 wire 成员**（前者 A′2 删掉了 domain
+   侧来源，后者 domain 状态机只有 4 态）。二者都**只**在文档里标注「声明着但无产生点」+ 禁止从 `type` 反推 —— 删 wire
+   成员属破坏性改动，按契约排在 C10 / C11，不在本 slice 抢跑。
+5. **A′5 的 4 个 inline-status problem type 从未进文档**（`mcp_authorization_required` / `mcp_dial_failed` /
+   `provider_not_configured` / `provider_test_failed`）。它们既不带数字码、也不走 §8.1 三条通道 —— 骑在查询自己的结果
+   里，且**刻意无 `detail`**（文案归客户端 locale 表）。已作为「第四类」写入 §8.4。
+
+**为什么这些代码改动仍属 A1、而非另开 slice**：它们没有一处改变行为或 wire —— 只删死键、修谎注释、改写为不存在的
+工具写的断言。把它们留到"以后"，等于让 Batch B 的 Registry 从一份仍有 6 个幽灵工具名的代码里取事实。
 
 ---
 
@@ -512,7 +550,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 
 | slice | scope | 状态 | commit |
 |---|---|---|---|
-| B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 65 方法；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `TODO` | — |
+| B1 | Registry 骨架 + 方法注册：`MethodMeta{Name,Kind,Idempotency,Errors,CapabilityRules,Stability}`；`Unary[P,R]` / `Stream[P,A,E]` 泛型工厂生成 decode/invoke/encode closure；**dispatcher 直接消费 Registry，删掉第二份 method table**（`dispatch/method_names.go`）；登记全部 83 方法 + 2 notification；`CapabilityRule.When` 支持条件门控（`sessionExport` 无条件；`checkpoints` 仅当 `restoreType ∈ {files,both}`） | `TODO` | — |
 | B2 | Union 与约束 metadata：`UnionSpec` / `ObjectConstraintSpec` / `FieldCondition` / `PresenceRule` / `StateKeySpec`；登记契约 §11.2 点名的 13 类高风险 union（先按当前 shape）。`SystemInvariantSpec` 按 **D3** 注册在 application | `TODO` | — |
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `TODO` | — |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `TODO` | — |

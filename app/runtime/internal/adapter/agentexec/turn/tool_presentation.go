@@ -40,21 +40,19 @@ type toolPresentation struct {
 }
 
 var toolPresentations = map[string]toolPresentation{
-	"shell":             {activity: "Running command", result: presentCommandResult},
-	"run_in_background": {activity: "Running command"},
-	"shell_output":      {activity: "Reading command output"},
-	"shell_kill":        {activity: "Stopping command"},
-	"read":              {activity: "Reading file"},
-	"write":             {activity: "Writing file", result: presentWriteResult},
-	"edit":              {activity: "Editing file", result: presentEditResult},
-	"grep":              {activity: "Searching", result: presentSearchResult},
-	"glob":              {activity: "Finding files", result: presentSearchResult},
-	"web_search":        {activity: "Searching the web", result: presentWebSearchResult},
-	"web_fetch":         {activity: "Fetching a page"},
-	"task":              {activity: "Delegating to a sub-agent"},
-	"subagent":          {activity: "Delegating to a sub-agent"},
-	"ask_user":          {activity: "Waiting for your answer"},
-	"todo_write":        {activity: "Updating the plan"},
+	"shell":        {activity: "Running command", result: presentCommandResult},
+	"shell_output": {activity: "Reading command output"},
+	"shell_kill":   {activity: "Stopping command"},
+	"read":         {activity: "Reading file"},
+	"write":        {activity: "Writing file", result: presentWriteResult},
+	"edit":         {activity: "Editing file", result: presentEditResult},
+	"grep":         {activity: "Searching", result: presentSearchResult},
+	"glob":         {activity: "Finding files", result: presentSearchResult},
+	"web_search":   {activity: "Searching the web", result: presentWebSearchResult},
+	"web_fetch":    {activity: "Fetching a page"},
+	"task":         {activity: "Delegating to a sub-agent"},
+	"ask_user":     {activity: "Waiting for your answer"},
+	"todo_write":   {activity: "Updating the plan"},
 }
 
 type commandResult struct {

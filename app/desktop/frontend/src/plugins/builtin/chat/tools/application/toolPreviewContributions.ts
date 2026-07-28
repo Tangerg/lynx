@@ -43,13 +43,15 @@ export function skillToolPreview(component: ToolPreviewComponent): ToolPreviewCo
   return toolPreviews(component, ["skill"]);
 }
 
-export function taskToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["task", "subagent"]);
+export function taskToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["task"]);
 }
 
-// Background-shell tools all return terminal-style plain text.
+// The whole shell family returns terminal-style plain text. Backgrounding is an
+// ARGUMENT of `shell` (run_in_background), not a tool of its own — shell_output /
+// shell_kill are how you then read and stop it.
 export function shellToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["shell", "run_in_background", "shell_output", "shell_kill"]);
+  return toolPreviews(component, ["shell", "shell_output", "shell_kill"]);
 }
 
 export function webSearchToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
