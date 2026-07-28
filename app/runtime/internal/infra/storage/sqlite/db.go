@@ -13,15 +13,21 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"slices"
-	"strings"
 
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
-// Open dials a SQLite database at path and installs the current schema. Any
-// mismatched development schema is discarded; this pre-release runtime carries
-// exactly one storage shape and no compatibility migrations. The returned *sql.DB is
+// ErrSchemaEpochMismatch reports that the database file was written by a
+// different schema epoch than this build installs. This pre-release runtime
+// carries exactly one storage shape and no compatibility migrations, so such a
+// file is refused rather than rewritten: dropping its tables would destroy the
+// user's sessions, transcripts, and credentials to accommodate a developer's
+// schema change, and that is the user's call, not the runtime's.
+var ErrSchemaEpochMismatch = errors.New("sqlite: schema epoch mismatch")
+
+// Open dials a SQLite database at path and installs the current schema. A file
+// written by another schema epoch is refused with [ErrSchemaEpochMismatch]; a
+// file that holds no schema yet is installed into. The returned *sql.DB is
 // safe for concurrent use; callers share it across every
 // sqlite-backed store (session / transcript / interrupt / provider / message /
 // agent memory). Human-authored knowledge (LYRA.md) is file-backed, not here.
@@ -45,22 +51,36 @@ func Open(path string) (*sql.DB, error) {
 	// concurrent transactions.
 	db.SetMaxOpenConns(1)
 
-	if err := installCurrentSchema(db); err != nil {
+	if err := installCurrentSchema(db, path); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
 	return db, nil
 }
 
-const schemaVersion = 33
+// schemaEpoch identifies the one storage shape this build understands. It is an
+// epoch rather than a version because nothing connects two values: a database
+// stamped with any other number is refused, never upgraded.
+const schemaEpoch = 33
 
-func installCurrentSchema(db *sql.DB) error {
-	var version int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
-		return fmt.Errorf("sqlite: read schema version: %w", err)
+func installCurrentSchema(db *sql.DB, path string) error {
+	var epoch int
+	if err := db.QueryRow(`PRAGMA user_version`).Scan(&epoch); err != nil {
+		return fmt.Errorf("sqlite: read schema epoch: %w", err)
 	}
-	if version != schemaVersion {
-		if err := discardSchema(db); err != nil {
+	if epoch != schemaEpoch {
+		empty, err := holdsNoSchema(db)
+		if err != nil {
 			return err
+		}
+		if !empty {
+			// The WAL sidecars are named because the database is opened in WAL mode:
+			// deleting only the main file leaves a -wal whose salt no longer matches
+			// the one that replaces it.
+			return fmt.Errorf(
+				"%w: %s was written by epoch %d and this build installs %d; "+
+					"pre-release builds do not migrate durable state, so delete that file "+
+					"(along with its -wal and -shm sidecars) to start from an empty one",
+				ErrSchemaEpochMismatch, path, epoch, schemaEpoch)
 		}
 	}
 	stmts := []string{
@@ -469,47 +489,22 @@ func installCurrentSchema(db *sql.DB) error {
 			return fmt.Errorf("sqlite: install current schema: %w", err)
 		}
 	}
-	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaVersion)); err != nil {
-		return fmt.Errorf("sqlite: set schema version: %w", err)
+	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaEpoch)); err != nil {
+		return fmt.Errorf("sqlite: set schema epoch: %w", err)
 	}
 	return nil
 }
 
-func discardSchema(db *sql.DB) error {
-	rows, err := db.Query(`SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`)
-	if err != nil {
-		return fmt.Errorf("sqlite: list stale schema: %w", err)
+// holdsNoSchema reports whether the database carries no tables of its own — the
+// file this process just created. It is the one case where an epoch mismatch is
+// not a mismatch at all: an unstamped empty file has no durable state to lose,
+// so the current schema is installed into it.
+func holdsNoSchema(db *sql.DB) (bool, error) {
+	var tables int
+	if err := db.QueryRow(
+		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
+	).Scan(&tables); err != nil {
+		return false, fmt.Errorf("sqlite: inspect schema: %w", err)
 	}
-	// An FTS5 virtual table owns shadow tables (…_data, _idx, _docsize, …) that
-	// appear here as ordinary tables but cannot be dropped while their parent
-	// exists. Dropping the virtual table removes them, so virtual tables are
-	// dropped first and every drop is IF EXISTS — the pass over the remaining
-	// tables then no-ops on the vanished shadows.
-	var virtual, regular []string
-	for rows.Next() {
-		var table string
-		var createSQL sql.NullString
-		if err := rows.Scan(&table, &createSQL); err != nil {
-			rows.Close()
-			return fmt.Errorf("sqlite: scan stale schema: %w", err)
-		}
-		if createSQL.Valid && strings.HasPrefix(strings.ToUpper(strings.TrimSpace(createSQL.String)), "CREATE VIRTUAL TABLE") {
-			virtual = append(virtual, table)
-		} else {
-			regular = append(regular, table)
-		}
-	}
-	if err := rows.Close(); err != nil {
-		return fmt.Errorf("sqlite: close stale schema rows: %w", err)
-	}
-	if err := rows.Err(); err != nil {
-		return fmt.Errorf("sqlite: list stale schema: %w", err)
-	}
-	for _, table := range slices.Concat(virtual, regular) {
-		quoted := `"` + strings.ReplaceAll(table, `"`, `""`) + `"`
-		if _, err := db.Exec(`DROP TABLE IF EXISTS ` + quoted); err != nil {
-			return fmt.Errorf("sqlite: discard table %q: %w", table, err)
-		}
-	}
-	return nil
+	return tables == 0, nil
 }

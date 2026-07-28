@@ -77,40 +77,37 @@ func TestTranscriptSearchIndexesConversationAndExcludesNoise(t *testing.T) {
 	}
 }
 
-// TestOpenDiscardsSchemaContainingFTS5Table exercises the discard path a future
-// schema bump will hit: an existing DB holds the transcript_search virtual table
-// (and its shadow tables), and a version mismatch must drop it cleanly and
-// rebuild. Regression guard for the FTS5-aware discardSchema.
-func TestOpenDiscardsSchemaContainingFTS5Table(t *testing.T) {
+// The search index is a virtual table, so reopening a populated database
+// re-executes CREATE VIRTUAL TABLE IF NOT EXISTS over an FTS5 table that already
+// owns shadow tables. That has to be a no-op that keeps the index intact — this
+// is the path every restart takes, and it used to be masked by Open dropping the
+// whole schema whenever the epoch moved.
+func TestReopenKeepsTheSearchIndex(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
 	db, err := sqlite.Open(path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	tr := sqlite.NewTranscriptStore(db)
-	if err := tr.AppendItem(t.Context(), msgItem("s1", "u1", transcript.UserMessage, "sapphire indexed row")); err != nil {
+	if err := sqlite.NewTranscriptStore(db).AppendItem(
+		t.Context(), msgItem("s1", "u1", transcript.UserMessage, "sapphire indexed row"),
+	); err != nil {
 		t.Fatalf("seed indexed row: %v", err)
-	}
-	// Force a version mismatch so the next Open discards the FTS5-bearing schema.
-	if _, err := db.Exec(`PRAGMA user_version = 1`); err != nil {
-		t.Fatalf("bump version: %v", err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
 
-	db2, err := sqlite.Open(path)
+	reopened, err := sqlite.Open(path)
 	if err != nil {
-		t.Fatalf("reopen with stale FTS5 schema: %v", err)
+		t.Fatalf("reopen: %v", err)
 	}
-	t.Cleanup(func() { _ = db2.Close() })
-	// The rebuilt search table exists and is empty (old data discarded).
-	hits, err := sqlite.NewTranscriptStore(db2).SearchTranscript(t.Context(), "sapphire", 10)
+	t.Cleanup(func() { _ = reopened.Close() })
+	hits, err := sqlite.NewTranscriptStore(reopened).SearchTranscript(t.Context(), "sapphire", 10)
 	if err != nil {
-		t.Fatalf("search after rebuild: %v", err)
+		t.Fatalf("search after reopen: %v", err)
 	}
-	if len(hits) != 0 {
-		t.Fatalf("rebuilt index has %d stale hits, want 0", len(hits))
+	if len(hits) != 1 {
+		t.Fatalf("reopened index has %d hits, want the seeded row", len(hits))
 	}
 }
 
