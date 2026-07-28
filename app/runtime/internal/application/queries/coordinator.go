@@ -16,12 +16,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// itemPageMethod names the query a page cursor belongs to, so a cursor minted by
-// another read is rejected instead of continuing this one.
+// The query a page cursor belongs to, so a cursor minted by another read is
+// rejected instead of continuing this one. Each is the name of the PUBLISHED method
+// the read serves: the namespace only has to be unique, but spelling it any other
+// way gives one query two names, and then nothing can check that a reader binds its
+// cursors to its own query. [arch.TestPageCursorsBindToTheirOwnMethod] holds the
+// convention.
 const (
 	itemPageMethod      = "items.list"
 	runPageMethod       = "runs.list"
-	interruptPageMethod = "interrupts.list"
+	interruptPageMethod = "runs.listOpenInterrupts"
 )
 
 // Page ceilings, per read. A client asking for more gets this many and a cursor.

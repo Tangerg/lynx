@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -71,7 +73,9 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 }
 
 type crudStores struct {
-	session *crudSessionStore
+	// session is the port, not the fake: one test pages through a store that seeks,
+	// and the harness has no reason to care which fake it is holding.
+	session SessionStore
 }
 
 func (s *crudStores) Session() SessionStore                                { return s.session }
@@ -223,5 +227,90 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 	if store.createCwd != "" {
 		t.Fatalf("missing create cwd wrote session: %q", store.createCwd)
+	}
+}
+
+// pagedSessionStore seeks the way the store does: (favorite, updatedAt, id)
+// descending in favorite and recency, with the id making the order total. A zero
+// anchor is the first page, not a position before every row.
+type pagedSessionStore struct {
+	*crudSessionStore
+	rows []session.Session
+
+	afterID string
+	limit   int
+}
+
+func (s *pagedSessionStore) ListPage(_ context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error) {
+	s.afterID, s.limit = afterID, limit
+	var out []session.Session
+	for _, row := range s.rows {
+		if afterUpdatedAt != 0 || afterID != "" {
+			position := row.UpdatedAt.UnixNano()
+			if row.Favorite != afterFavorite || position > afterUpdatedAt || (position == afterUpdatedAt && row.ID <= afterID) {
+				continue
+			}
+		}
+		if limit > 0 && len(out) == limit {
+			break
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func sessionRows(ids ...string) []session.Session {
+	out := make([]session.Session, 0, len(ids))
+	for i, id := range ids {
+		out = append(out, session.Session{
+			ID: id, Cwd: "/repo", UpdatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
+		})
+	}
+	return out
+}
+
+// TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor covers sessions.list's
+// query properties: the order is fixed (favorites first, then recency, id
+// last so it is total), the next page seeks strictly past the previous one, and a
+// cursor minted by another query is refused rather than restarting from the top —
+// which would hand the client sessions it had already read as if they were new.
+func TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor(t *testing.T) {
+	store := &pagedSessionStore{
+		crudSessionStore: &crudSessionStore{},
+		rows:             sessionRows("ses_1", "ses_2", "ses_3"),
+	}
+	c := New(testDependencies(&crudStores{session: store}, Dependencies{
+		Paths: testCwdResolver{resolved: "/repo"},
+	}))
+	ctx := t.Context()
+
+	first, err := c.ListViewPage(ctx, "", 2)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if store.limit != 3 {
+		t.Fatalf("store asked for %d rows, want the page plus one", store.limit)
+	}
+	if len(first.Rows) != 2 || first.Rows[0].ID != "ses_1" || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want two sessions and a cursor", first.Rows)
+	}
+
+	second, err := c.ListViewPage(ctx, first.NextCursor, 2)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if store.afterID != "ses_2" {
+		t.Fatalf("second page sought past %q, want the first page's last row", store.afterID)
+	}
+	if len(second.Rows) != 1 || second.Rows[0].ID != "ses_3" || second.NextCursor != "" {
+		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
+	}
+
+	foreign := keyset.Encode("runs.list", nil, []string{"1", "0", "ses_1"})
+	if _, err := c.ListViewPage(ctx, foreign, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("cursor from another query err = %v, want ErrInvalidCursor", err)
+	}
+	if _, err := c.ListViewPage(ctx, first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
 	}
 }

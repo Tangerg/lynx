@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
@@ -216,5 +217,83 @@ func TestRunWorkerNoOpWithoutWorker(t *testing.T) {
 	case <-done:
 	case <-time.After(time.Second):
 		t.Fatal("RunWorker blocked without a worker store")
+	}
+}
+
+// pagedRegistry seeks the way the store does: newest created first, id last so the
+// order is total, and a zero anchor is the first page rather than a position before
+// every row.
+type pagedRegistry struct {
+	*runNowRegistry
+	rows []schedule.Schedule
+
+	afterID string
+	limit   int
+}
+
+func (r *pagedRegistry) ListPage(_ context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error) {
+	r.afterID, r.limit = afterID, limit
+	var out []schedule.Schedule
+	for _, row := range r.rows {
+		if afterCreatedAt != 0 || afterID != "" {
+			position := row.CreatedAt.UnixNano()
+			if position > afterCreatedAt || (position == afterCreatedAt && row.ID <= afterID) {
+				continue
+			}
+		}
+		if limit > 0 && len(out) == limit {
+			break
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+func scheduleRows(ids ...string) []schedule.Schedule {
+	out := make([]schedule.Schedule, 0, len(ids))
+	for i, id := range ids {
+		out = append(out, schedule.Schedule{ID: id, CreatedAt: time.Unix(0, int64(len(ids)-i)).UTC()})
+	}
+	return out
+}
+
+// TestListPagePagesNewestFirstAndRefusesAForeignCursor covers schedules.list's query
+// properties: the order is fixed (newest created first, id breaking ties), the
+// next page seeks strictly past the previous one, and a cursor from another query is
+// refused rather than quietly restarting — a schedule shown twice reads as a second
+// schedule that fires on the same cron.
+func TestListPagePagesNewestFirstAndRefusesAForeignCursor(t *testing.T) {
+	registry := &pagedRegistry{runNowRegistry: &runNowRegistry{}, rows: scheduleRows("sch_1", "sch_2", "sch_3")}
+	c := New(Dependencies{Store: registry})
+	ctx := t.Context()
+
+	first, err := c.ListPage(ctx, "", 2)
+	if err != nil {
+		t.Fatalf("first page: %v", err)
+	}
+	if registry.limit != 3 {
+		t.Fatalf("store asked for %d rows, want the page plus one", registry.limit)
+	}
+	if len(first.Rows) != 2 || first.Rows[0].ID != "sch_1" || first.NextCursor == "" {
+		t.Fatalf("first page = %+v, want two schedules and a cursor", first.Rows)
+	}
+
+	second, err := c.ListPage(ctx, first.NextCursor, 2)
+	if err != nil {
+		t.Fatalf("second page: %v", err)
+	}
+	if registry.afterID != "sch_2" {
+		t.Fatalf("second page sought past %q, want the first page's last row", registry.afterID)
+	}
+	if len(second.Rows) != 1 || second.Rows[0].ID != "sch_3" || second.NextCursor != "" {
+		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
+	}
+
+	foreign := keyset.Encode("sessions.list", nil, []string{"0", "sch_1"})
+	if _, err := c.ListPage(ctx, foreign, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("cursor from another query err = %v, want ErrInvalidCursor", err)
+	}
+	if _, err := c.ListPage(ctx, first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
 	}
 }
