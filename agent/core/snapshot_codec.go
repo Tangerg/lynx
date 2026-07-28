@@ -92,10 +92,10 @@ func (a *Agent) SnapshotCodec() SnapshotCodec {
 }
 
 // Declares reports why value's type cannot cross a snapshot, or nil when it
-// can. It is the write-time form of [SnapshotCodec.Encode] for callers that
-// need the verdict before paying to serialize: a blackboard checks it so an
-// undeclared value is refused at the write that introduces it, rather than
-// making the whole process unsnapshottable at some later checkpoint.
+// can. It answers from the declaration table alone, so it costs nothing to ask
+// and cannot catch a declared type whose value fails to encode —
+// [SnapshotCodec.Encode] is the complete check, and what the runtime gates
+// writes on.
 func (c SnapshotCodec) Declares(value any) error {
 	if value == nil {
 		return nil
