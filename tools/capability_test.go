@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools"
@@ -39,14 +40,47 @@ func TestCapabilityTraversesWrappingTools(t *testing.T) {
 	}
 }
 
+// TestCapabilityRejectsWrappingCycles guards the traversal's termination, so it
+// runs the lookup off the test goroutine: if the bound regresses, Capability
+// never returns, and asserting inline would hang the package until Go's global
+// test timeout instead of naming the broken invariant.
 func TestCapabilityRejectsWrappingCycles(t *testing.T) {
-	first := &wrappingTool{}
-	second := &wrappingTool{inner: first}
-	first.inner = second
+	for name, chainOf := range map[string]func() tools.Tool{
+		"two wrappers naming each other": func() tools.Tool {
+			first := &wrappingTool{}
+			second := &wrappingTool{inner: first}
+			first.inner = second
+			return first
+		},
+		"a wrapper naming itself": func() tools.Tool {
+			self := &wrappingTool{}
+			self.inner = self
+			return self
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			type outcome struct {
+				found bool
+				err   error
+			}
+			done := make(chan outcome, 1)
+			go func() {
+				_, found, err := tools.Capability[capabilityMarker](chainOf())
+				done <- outcome{found: found, err: err}
+			}()
 
-	_, ok, err := tools.Capability[capabilityMarker](first)
-	if ok || !errors.Is(err, tools.ErrInvalidWrappingChain) {
-		t.Fatalf("Capability() = _, %v, %v; want false, ErrInvalidWrappingChain", ok, err)
+			select {
+			case got := <-done:
+				if got.found || !errors.Is(got.err, tools.ErrInvalidWrappingChain) {
+					t.Fatalf("Capability() = _, %v, %v; want false, ErrInvalidWrappingChain", got.found, got.err)
+				}
+			// A correct lookup is a bounded run of type assertions with no I/O, so
+			// it returns in microseconds however loaded the machine is. This only
+			// has to be long enough to never fire on a healthy build.
+			case <-time.After(5 * time.Second):
+				t.Fatal("Capability did not return on a wrapping chain that never ends")
+			}
+		})
 	}
 }
 

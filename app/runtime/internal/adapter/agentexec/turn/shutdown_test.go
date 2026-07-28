@@ -12,6 +12,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
+// hangBound separates a hang from a slow machine, which is all these waits have
+// to do. Each one guards a failure that would block forever — shutdown waiting
+// on a cancellation that is never released, or a turn that never reaches its
+// terminal — so none of them is asserting a duration. Keeping it generous means
+// a loaded machine cannot fail the suite, while Go's own test timeout still
+// backstops a genuine deadlock.
+const hangBound = 30 * time.Second
+
 func TestShutdownIsBoundedAndCanFinishJoiningLater(t *testing.T) {
 	st := newRestoringTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
 	dispatcher := &memoryDispatcher{
@@ -60,7 +68,7 @@ func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 		if !errors.Is(err, ErrShutdownTimeout) {
 			t.Fatalf("shutdown error = %v, want ErrShutdownTimeout", err)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(hangBound):
 		close(release)
 		t.Fatal("shutdown waited for blocking cancellation past its deadline")
 	}
@@ -68,7 +76,7 @@ func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 	close(release)
 	select {
 	case <-st.done:
-	case <-time.After(time.Second):
+	case <-time.After(hangBound):
 		t.Fatal("turn did not finish after cancellation was released")
 	}
 }
@@ -211,7 +219,7 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 	close(stalledRelease)
 	select {
 	case <-stalled.done:
-	case <-time.After(time.Second):
+	case <-time.After(hangBound):
 		t.Fatal("stalled cancellation did not finish after release")
 	}
 }

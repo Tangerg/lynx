@@ -38,6 +38,24 @@ func installTurnTraceCapture(t *testing.T) (*sdktrace.TracerProvider, *tracetest
 	return turnTraceProvider, turnTraceExporter
 }
 
+// turnSpan selects the span belonging to one turn.
+//
+// The exporter is process-global — the tracer provider has to be, because the
+// code under test uses the global one — and a sibling test's drive or cleanup
+// goroutine can still be ending its span after this test resets it. Asserting a
+// total span count therefore measures other tests' timing, not this turn's
+// behaviour. Selecting by run id measures only what this turn recorded.
+func turnSpan(spans tracetest.SpanStubs, turnID string) (tracetest.SpanStub, bool) {
+	for _, span := range spans {
+		for _, attr := range span.Attributes {
+			if string(attr.Key) == "run.id" && attr.Value.AsString() == turnID {
+				return span, true
+			}
+		}
+	}
+	return tracetest.SpanStub{}, false
+}
+
 func TestTerminalDiscardFailureIsRecordedUntilCleanupSucceeds(t *testing.T) {
 	discardErr := errors.New("snapshot discard failed")
 	_, exporter := installTurnTraceCapture(t)
@@ -67,11 +85,11 @@ func TestTerminalDiscardFailureIsRecordedUntilCleanupSucceeds(t *testing.T) {
 		t.Fatalf("Cancel after joined terminal cleanup = %v, want ErrTurnNotFound", err)
 	}
 
-	spans := exporter.GetSpans()
-	if len(spans) != 1 {
-		t.Fatalf("spans = %d, want 1", len(spans))
+	span, ok := turnSpan(exporter.GetSpans(), handle.TurnID)
+	if !ok {
+		t.Fatalf("no turn span was recorded for turn %q", handle.TurnID)
 	}
-	for _, event := range spans[0].Events {
+	for _, event := range span.Events {
 		for _, attr := range event.Attributes {
 			if event.Name == "exception" && string(attr.Key) == "exception.message" && strings.Contains(attr.Value.AsString(), discardErr.Error()) {
 				return
