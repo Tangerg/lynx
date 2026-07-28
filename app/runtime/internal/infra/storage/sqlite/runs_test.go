@@ -159,6 +159,8 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 // TestRunAdmitEnforcesOneActivePerSession proves the durable §8.2 guarantee: the
 // partial unique index rejects a second non-terminal run for the same session,
 // a different session is independent, and terminalizing frees the slot.
+//
+// It is the admission boundary's evidence for session_has_at_most_one_open_run.
 func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
@@ -395,6 +397,10 @@ func TestReconcileOrphansTerminalizesParkWhoseProcessSnapshotIsMissing(t *testin
 	}
 }
 
+// TestReconcileOrphansRepairsWholeDurableLifecycle is the recovery boundary's
+// evidence for terminal_run_carries_its_result: the boot sweep does not merely mark
+// an abandoned run terminal, it lands the run_lost result explaining why — the only
+// chance to, since the executor that could have said is gone.
 func TestReconcileOrphansRepairsWholeDurableLifecycle(t *testing.T) {
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
@@ -481,6 +487,10 @@ func TestReconcileOrphansDoesNotLetStaleInterruptProtectRunningRun(t *testing.T)
 	}
 }
 
+// TestReconcileOrphansRejectsPartialParkWithoutMutatingIt is the recovery boundary's
+// evidence for parked_run_has_exactly_one_open_interrupt_set: a park missing half its
+// triplet is neither resumed nor half-repaired, because a park the sweep "fixed" into
+// an inconsistent state is a run the client waits on forever.
 func TestReconcileOrphansRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	store, ints, _, _ := newRunRecoveryStores(t)
 	ctx := t.Context()

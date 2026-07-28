@@ -234,6 +234,10 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	}
 }
 
+// TestCommitEventParkProducesBootResumableTriplet is the event boundary's evidence
+// for parked_run_has_exactly_one_open_interrupt_set: one park commit lands the
+// interrupt, the item and the suspended run together, and the proof it is exactly one
+// set is that boot recovery leaves it alone while a fresh admission is refused.
 func TestCommitEventParkProducesBootResumableTriplet(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
@@ -304,4 +308,118 @@ func sqliteEffects(stores sqliteOpeningStores, cfg Config) *Effects {
 	cfg.Interrupts = stores.interrupts
 	cfg.Transcript = stores.transcript
 	return New(cfg)
+}
+
+// TestCommitOpeningRefusesASecondOpenRun is the integration evidence that the
+// opening transaction maintains session_has_at_most_one_open_run.
+//
+// The store's own Admit enforces the slot, but the invariant is about the whole
+// opening write-set: an admission that loses the race must not leave the items it
+// had already projected. Committing the projections and then failing the admit
+// would produce a session whose history mentions a run that does not exist, and no
+// later write supplies it.
+func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	created := time.Now().UTC()
+	history := sqlite.NewTranscriptStore(db)
+	state := sqlite.NewRunStore(db)
+	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: created}); err != nil {
+		t.Fatalf("admit the first run: %v", err)
+	}
+
+	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
+		RunState: state,
+		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+	})
+	second := execution.RunDraft{RunID: "run_2", SessionID: "ses_1", CreatedAt: created}
+	err = effects.CommitOpening(ctx, runs.OpeningCommit{
+		Admit: &second,
+		Events: []runs.EventCommit{{
+			RunID:     "run_2",
+			SessionID: "ses_1",
+			Items: []transcript.Item{{
+				SessionID: "ses_1", RunID: "run_2", ID: "item_second", CreatedAt: created,
+				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
+				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "me too"}},
+			}},
+		}},
+	})
+	if !errors.Is(err, execution.ErrSessionBusy) {
+		t.Fatalf("CommitOpening against a busy session = %v, want ErrSessionBusy", err)
+	}
+	recorded, listErr := history.List(ctx, "ses_1")
+	if listErr != nil || len(recorded) != 0 {
+		t.Fatalf("history items=%d err=%v, want the refused opening to have written nothing", len(recorded), listErr)
+	}
+	var runRows int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM runs WHERE session_id = ?`, "ses_1").Scan(&runRows); err != nil {
+		t.Fatalf("count runs: %v", err)
+	}
+	if runRows != 1 {
+		t.Fatalf("runs rows = %d, want only the run that holds the slot", runRows)
+	}
+}
+
+// TestCommitEventPersistsTheTerminalRunsResult is the integration evidence that
+// the event transaction maintains terminal_run_carries_its_result.
+//
+// The store refuses a terminal row without an outcome, but that is one table's
+// rule. What the invariant is about is the durable projection a client later reads:
+// a run that says it ended must come back with the facts explaining how, because no
+// later write will supply them. Reading it back through ListRuns is the only way to
+// see whether the commit carried them or merely flipped a state column.
+func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
+	db, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	history := sqlite.NewTranscriptStore(db)
+	state := sqlite.NewRunStore(db)
+	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", CreatedAt: time.Unix(1, 0).UTC()}
+	if err := state.Admit(ctx, draft); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+
+	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
+		RunState: state,
+		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+	})
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeError)
+	finished.MessageMark = 0
+	finished.Detail = "the provider rejected the request"
+	finished.Result = &transcript.RunResult{
+		Steps: 3,
+		Error: &transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "rejected"},
+	}
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
+		Outcome: execution.OutcomeError, Run: finished,
+	}); err != nil {
+		t.Fatalf("CommitEvent: %v", err)
+	}
+
+	recorded, err := state.ListRuns(ctx, draft.SessionID)
+	if err != nil || len(recorded) != 1 {
+		t.Fatalf("ListRuns = %d runs, %v", len(recorded), err)
+	}
+	run := recorded[0]
+	switch {
+	case run.State != execution.Failed:
+		t.Errorf("run state = %v, want Failed", run.State)
+	case run.Outcome == nil || *run.Outcome != execution.OutcomeError:
+		t.Errorf("run outcome = %v, want the outcome it terminated with", run.Outcome)
+	case run.Result == nil || run.Result.Steps != 3:
+		t.Errorf("run result = %+v, want the facts the terminal commit carried", run.Result)
+	case run.Detail != "the provider rejected the request":
+		t.Errorf("run detail = %q, want the explanation it ended with", run.Detail)
+	case run.FinishedAt.IsZero():
+		t.Error("terminal run has no finish time")
+	}
 }

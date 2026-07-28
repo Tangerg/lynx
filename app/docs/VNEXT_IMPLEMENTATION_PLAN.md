@@ -555,7 +555,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | B3 | 生成器与 14 类产物（含 TS wire types + typed client stubs）。生成器置于**环外** build-time 工具。`streamingMethods` 转生成 | `DONE` | 见下（**14/14**） |
 | B4 | CI drift gate 18 项。依赖 C 才有意义的 3 项（#16/#17/#18）先建骨架标 pending | `IN PROGRESS` | 见下 |
 
-#### ⚠️ B4 进度（2026-07-29）：18 项中 11 项已落，1 项部分，2 项待编，4 项待 C
+#### ⚠️ B4 进度（2026-07-29）：18 项中 12 项已落，1 项待编，1 项部分待 C，4 项待 C
 
 | gate | 内容 | 状态 |
 |---|---|---|
@@ -572,7 +572,7 @@ delivery                   只传 opaque token；把拒绝映射成 invalid_para
 | 10 | canonical samples 三方 | ✅ **真三方**：binding 收成一份（`protocol/canonical_samples.go`，非测试代码，生成器投影进 manifest 与 `wire.samples.generated.ts`），84 个 fixture 各过三关 —— Go round-trip / TS 编译出的 checks / **ajv 读已发布的 `contract/schema.json`**。第三关不可省：前两关都从同一棵 schema 树派生，编译器里的 bug 会让它们互相认同；只有一个没参与生产的实现能回答"第三方拿到的那份文档接受运行时真发的帧吗"。三关各带反例（缺 required / variant 串字段），否则 84 个合法样本对"什么都接受"的 schema 也全过 |
 | 14 | state key fixture | ⏸ 待编（`StateKeySpec` 已声明 recovery/scope/writer/payload 且注册期校验 recovery 是已注册方法；缺 event↔query 同形 fixture，`state.changed` 那半依赖 C） |
 | — | **新增守卫（非 18 项之列，但同类）** | ✅ `TestEveryWireStructIsPublished`：protocol 的每个 exported struct 要么在 bundle 里、要么带理由列入 `notOnTheWire`（"两者都是"也报错）—— shape 漏发是**静默**的，这条让它出声 |
-| 8 | invariant integration fixture | ⏸ 待编 —— **本轮已把证据审完**，见下「gate 8 证据审计」：13 个 (invariant, boundary) 对里 10 个已有跨 projection fixture，3 个是真缺口 |
+| 8 | invariant integration fixture | ✅ `TestEverySystemInvariantHasAnIntegrationFixture` —— 13 个 (invariant, boundary) 对逐一有跨 projection fixture，**双向链接**（索引点名 fixture，fixture 的 godoc 写明它守哪条 invariant）。补了 3 条新 fixture，纠正了审计里 1 处误判 |
 | 11 | list query fixture | ⏸ 待编（`sqlite:TestListRunning{OrdersByAdmission,SeeksPastItsAnchor,SeesOnlyWorkInProgress}` 已覆盖固定排序与 cursor seek 的一半；缺 scope/filter cursor binding 与"下一页方向"的成套 fixture） |
 | 15 / 16 / 17 / 18 | Artifact v7 round-trip / 三项 compatibility diff | ⏸ 依赖 C（按计划先留骨架） |
 
@@ -799,9 +799,19 @@ validator / JSON Schema **分别验证同一批 fixture**，"同一批"要有指
 也知道它是承重的）。**不采用**「fixture 里调 `Covers(t, key, boundary)` 运行时登记」：Go 的 test binary 按包分，跨包的
 全局登记表根本汇不到一起，而要靠 AST 反查 `contract.BoundaryX` 这个标识符对应哪个字面量，又得再手写一张 name→value 表。
 
-**为什么本轮没直接写**：上面 3 个 ❌ / 2 个 ⚠️ 要么得新写跨 projection fixture，要么得判定「某条既有测试算不算这条
-invariant 在这个 boundary 上的证据」。把判断错的映射写进索引，等于**发布一个假的覆盖声明** —— 那正是第二法则要打回的
-「看起来修好了」。所以本轮只把功课做完落进文档，实现留给下一轮按上表逐对补齐。
+**实现结果（同日落地）**：先把功课落进文档再动手是对的 —— 上表里**有一处审计误判**：`goal_never_outlives_its_session`
+@ `sessions.rollback` 其实早有证据，`TestApplyRollbackDropsRunsAndFreesAdmission` 本来就断言 goal 被清掉（我先读了
+`applyRollback` 的 `withGoalMutation` 就以为 rollback 只 quiesce 不清）。真缺口是 3 条，都已补：
+
+- `runsegment:TestCommitOpeningRefusesASecondOpenRun` —— 已 park 的 session 再 `CommitOpening{Admit}` 得 `ErrSessionBusy`，
+  且**已经投影的 item 一条都不许留**（否则 session 的历史里会提到一个不存在的 run，而后续没有任何写会补上它）。
+- `runsegment:TestCommitEventPersistsTheTerminalRunsResult` —— 通过 `ListRuns` **回读**终态 run 的 outcome / result /
+  detail / finishedAt。原先最接近的那条只断言 `runs.state = 'terminal'`，那只能证明状态列翻了，证不了"解释它为何结束的事实
+  也落盘了"。写这条时顺手撞到 store 的既有牙齿：`OutcomeError` 的 run 必须带 `Result.Error`，否则 terminalize 直接拒。
+- `server:TestSessionImportRejectsATerminalRunWithoutItsResult` —— 走 **use case**（不是 `Snapshot.Validate()` 纯函数）
+  拒掉"自称终态却什么都没带"的 artifact，并断言 session 没被留下半个。
+
+gate 的两条腿都验过会响：改错 fixture 名 → "named as the fixture ... and does not exist"；漏写 godoc → 一次点出 10 条。
 
 #### ⚠️ B2 实施记录（2026-07-29）：spec **现在**就用反射自校验，不等生成器
 

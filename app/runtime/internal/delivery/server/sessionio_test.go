@@ -23,6 +23,8 @@ import (
 // artifact, wipes it, and imports it back — verifying identity, chat history,
 // items, and runs all survive the round trip under the original id (restore
 // semantics).
+//
+// It is the import boundary's evidence for imported_session_keeps_its_identity.
 func TestSessionExportImport_RoundTrip(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
@@ -468,5 +470,41 @@ func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
 	})
 	if !errors.Is(err, protocol.ErrCwdUnavailable) {
 		t.Fatalf("import error = %v, want ErrCwdUnavailable", err)
+	}
+}
+
+// TestSessionImportRejectsATerminalRunWithoutItsResult is the integration evidence
+// that the import boundary maintains terminal_run_carries_its_result.
+//
+// The snapshot validator refuses this shape, but a pure-function test on the
+// validator only proves the rule exists — not that the write set is behind it. What
+// the invariant protects against is an artifact restoring a run row that claims to
+// have ended while carrying nothing that explains how, which no later write repairs.
+// So the rejection is asked of the use case, and the session is checked to be absent
+// afterwards: a partial import is the same defect arriving one step later.
+func TestSessionImportRejectsATerminalRunWithoutItsResult(t *testing.T) {
+	s, rt := rollbackHarness(t)
+	ctx := t.Context()
+	created := time.Unix(1, 0).UTC()
+
+	_, err := s.ImportSession(ctx, protocol.ImportSessionRequest{
+		Artifact: protocol.SessionArtifact{
+			Version: protocol.SessionArtifactVersion,
+			Session: protocol.ArtifactSession{
+				ID: "ses_unexplained", Title: "Restored", CreatedAt: created, UpdatedAt: created,
+			},
+			Runs: []protocol.ArtifactRun{{
+				ID: "run_1", SessionID: "ses_unexplained",
+				// Terminal by its own account, with nothing to show for it.
+				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeCompleted},
+				CreatedAt: created, FinishedAt: created, UpdatedAt: created,
+			}},
+		},
+	})
+	if !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("import err = %v, want ErrInvalidParams", err)
+	}
+	if _, err := rt.sess.Get(ctx, "ses_unexplained"); err == nil {
+		t.Fatal("the refused import left a session behind")
 	}
 }

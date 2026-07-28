@@ -253,6 +253,9 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 // TestApplyRollbackDropsRunsAndFreesAdmission: a rollback that abandons a parked
 // run drops its interrupt and its Run record — which is also how the session's
 // admission slot is released.
+//
+// It is the rollback boundary's evidence for two invariants:
+// dropped_run_leaves_nothing_behind and goal_never_outlives_its_session.
 func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
@@ -321,6 +324,8 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 // TestApplyDeleteRemovesRunRows: the delete cascade removes the session's durable
 // admission rows, so the runs table keeps no dead rows for a deleted session (and
 // the slot is free).
+//
+// It is the delete boundary's evidence for dropped_run_leaves_nothing_behind.
 func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
@@ -530,6 +535,8 @@ func seedGoal(t *testing.T, ss sessionStores, sessionID string) {
 
 // TestApplyDeleteClearsSessionGoal proves a goal is part of the atomic delete
 // cascade (D1): a deleted session leaves no orphan goal behind.
+//
+// It is the delete boundary's evidence for goal_never_outlives_its_session.
 func TestApplyDeleteClearsSessionGoal(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := context.Background()

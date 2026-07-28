@@ -263,6 +263,10 @@ func TestGoalStore_ClearThenRecreateRejectsStaleLease(t *testing.T) {
 	}
 }
 
+// TestGoalStoreRejectsMissingSession is the lifecycle boundary's evidence for
+// goal_never_outlives_its_session: the CAS that opens a goal cannot open one for a
+// session that is not there, so no lifecycle transition can resurrect a goal whose
+// session has already gone.
 func TestGoalStoreRejectsMissingSession(t *testing.T) {
 	store, _ := newGoalStore(t)
 	g, _ := goal.New("missing", "obj", modelref.Selection{}, goal.Budget{}, "lease-missing", time.Unix(0, 0))
