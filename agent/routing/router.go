@@ -38,8 +38,9 @@ func (c Candidate) Agent() core.AgentDescriptor { return c.agent }
 // Goal returns the non-executable target being ranked.
 func (c Candidate) Goal() core.GoalDescriptor { return c.goal }
 
-// String renders "<agent>:<goal>" — used by the LLM prompt and by
-// human-readable logging.
+// String renders "<agent>:<goal>". A Candidate a caller built by hand, rather
+// than through [Router.Candidates], renders as a placeholder instead of a
+// half-formed identity.
 func (c Candidate) String() string {
 	if c.goal.Name() == "" {
 		return invalidCandidate
@@ -63,10 +64,10 @@ type Choice struct {
 	Rationale  string
 }
 
-// Ranker scores how well each Candidate matches userInput. It MUST
-// return one [Choice] per input candidate (positionally aligned;
-// callers may rely on len(out) == len(candidates)). The Router
-// layer sorts and filters; Rankers don't need to.
+// Ranker scores how well each Candidate matches the input. It MUST return one
+// [Choice] per candidate, positionally aligned — the Router verifies that and
+// rejects a ranker that reorders or drops one. Sorting and filtering belong to
+// the Router, not here.
 type Ranker interface {
 	Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error)
 }
@@ -127,10 +128,8 @@ func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
 	return &Router{runtime: agentRuntime, ranker: ranker, config: config}, nil
 }
 
-// Candidates enumerates the (agent, goal) pool currently visible to
-// the orchestrator after AgentFilter / GoalFilter have run. Exposed
-// so callers can inspect what the Ranker will see, e.g. for
-// debugging or UI.
+// Candidates enumerates the (agent, goal) pool left after AgentFilter and
+// GoalFilter have run — exactly what [Router.Choose] will hand the Ranker.
 func (r *Router) Candidates() []Candidate {
 	var candidates []Candidate
 	for _, deployment := range r.runtime.ActiveDeployments() {
@@ -155,10 +154,10 @@ func (r *Router) Candidates() []Candidate {
 	return candidates
 }
 
-// Choose ranks candidates against userInput and returns the top
-// match, or [ErrNoMatch] when the top score is below the
-// configured cutoff. Ties (equal Confidence) are broken by the
-// Ranker's input order.
+// Choose ranks the candidates against input and returns the top match, or
+// [ErrNoMatch] when the top score is below the configured cutoff. Ties are
+// broken by the order the Ranker received them, so an indecisive ranker still
+// routes deterministically.
 func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 	candidates := r.Candidates()
 	if len(candidates) == 0 {

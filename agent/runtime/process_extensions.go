@@ -62,10 +62,8 @@ func (p *Process) childExtensions(childExtensions []core.Extension) ([]core.Exte
 	return childExtensions, nil
 }
 
-// combinedExtensions returns engine extensions followed by process
-// extensions — the natural ordering for onion / wrap chains where
-// engine sits outermost (registered earliest) and process sits
-// innermost (registered last). Goal-approver dispatch reads this list.
+// combinedExtensions orders engine extensions before process ones, which puts
+// the engine outermost in every onion chain built from the result.
 func (p *Process) combinedExtensions() []extensionEntry {
 	return mergeExtensions(p.engineExtensions(), p.processExtensions())
 }

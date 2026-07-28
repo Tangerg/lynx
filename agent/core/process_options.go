@@ -60,18 +60,14 @@ type ProcessOptions struct {
 	// composition and are not constrained.
 	Dependencies *Dependencies
 
-	// Extensions are process-scoped plug-ins active for the lifetime of
-	// this single process. They merge with engine-scoped extensions at
-	// dispatch time — process extensions take inner / higher priority; for
-	// example, a process ActionMiddleware sits inside every engine middleware.
-	// Only capabilities documented for process scope are accepted; deploy-time
-	// AgentValidator, IDGenerator, and Blackboard prototype capabilities belong
-	// to engine scope. Use Blackboard above for an explicit process override.
-	// Within Extensions, each
-	// [Extension.Name] must be unique; the runtime returns an error
-	// from Run / Start / Continue when this constraint
-	// is violated. Process-scope Names may collide with engine-scope
-	// Names — that's the explicit override mechanism.
+	// Extensions are plug-ins scoped to this one process. They merge with the
+	// engine-scoped set at dispatch time, taking the inner position, so a
+	// process middleware runs inside every engine one. Each capability
+	// documents the scopes it is valid in; one that only makes sense engine-wide
+	// is rejected here.
+	//
+	// Names must be unique within Extensions, but may deliberately collide with
+	// an engine-scope Name — that collision is how a process overrides.
 	Extensions []Extension
 
 	// ChatMiddleware is composed outside the engine-level middleware for this

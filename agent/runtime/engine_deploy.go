@@ -191,11 +191,9 @@ func (e *Engine) idGenerator() extensionCapability[core.IDGenerator] {
 	return extensionCapability[core.IDGenerator]{name: core.UUIDGeneratorName, value: defaultIDGenerator}
 }
 
-// blackboardPrototype returns the most-recently-registered
-// [core.Blackboard] extension. The runtime treats it as a
-// prototype: every new process gets its own instance via
-// [core.Blackboard.Clone] so per-process state stays isolated. Callers
-// fall back to the in-memory implementation when no prototype is registered.
+// blackboardPrototype returns the most-recently-registered [core.Blackboard]
+// extension: registering a second one overrides the first rather than being
+// rejected.
 func (e *Engine) blackboardPrototype() (extensionCapability[core.Blackboard], bool) {
 	return lastExtension[core.Blackboard](e.extensions.list)
 }

@@ -241,10 +241,10 @@ func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (
 	return planResult, false
 }
 
-// formulatePlan runs the configured planner against the current world
-// state, honoring the running exclusion list. The planning.Domain is
-// allocated once per process at createProcess time so its KnownConditions
-// cache survives across ticks.
+// formulatePlan runs the configured planner against the current world state,
+// honoring the running exclusion list. The [planning.Domain] is allocated once
+// when the process is built rather than per tick, so its condition cache
+// survives the whole run.
 //
 // Registered [core.GoalApprover] extensions filter the goal set before
 // the planner sees it — an unanimous "yes" is required for a goal to

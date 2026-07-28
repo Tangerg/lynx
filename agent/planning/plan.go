@@ -129,12 +129,10 @@ func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 	return total
 }
 
-// NetValue ranks competing plans: goal value plus the accumulated value of
-// the plan's actions, minus total plan cost. Follows the standard plan-value
-// pattern (goal.value + actionsValue − cost) — the actions-value term rewards
-// plans whose constituent actions are independently valuable, not just the
-// cheapest path to the goal. Most actions leave Value at [core.FixedScore](0),
-// so this reduces to goal value − cost in the common case.
+// NetValue ranks competing plans as goal value plus [Plan.ActionsValue] minus
+// [Plan.Cost]. The actions term is what stops the ranking from always preferring
+// the cheapest path to a goal; most actions leave Value at
+// [core.FixedScore](0), so it contributes nothing unless an author opts in.
 func (p *Plan) NetValue(worldState core.WorldState) float64 {
 	return p.Value(worldState) + p.ActionsValue(worldState) - p.Cost(worldState)
 }

@@ -40,10 +40,9 @@ type Process struct {
 	domain       *planning.Domain
 	engine       *Engine
 
-	// processEvents is the per-process multicast populated from
-	// EventListener extensions on ProcessOptions.Extensions. Wired by
-	// wireRuntimeDeps on every construction path (createProcess +
-	// Restore); publishEvent still nil-guards it for safety.
+	// processEvents is populated from the EventListener extensions on
+	// ProcessOptions.Extensions. A process built without [Process.wireRuntimeDeps]
+	// leaves it nil, which is why publishing nil-guards it.
 	processEvents *event.Multicast
 }
 
@@ -95,15 +94,10 @@ func (p *Process) agent() *core.Agent {
 	return p.deployment.agent
 }
 
-// wireRuntimeDeps finishes the parts of construction that need the
-// *Process pointer itself: the state reader (which wires the process
-// as the [core.ProcessView] user-defined conditions evaluate against) and
-// the per-process event multicast (subscribing process-scope
-// EventListener extensions). Split out of newProcess because both
-// fields close over the assembled pointer, and shared by every path
-// that builds a process — createProcess for fresh runs, restore
-// for snapshots re-entering the tick loop. A restored process that
-// skips this panics on its first observe (nil state reader).
+// wireRuntimeDeps assigns the fields that close over the assembled *Process,
+// which is why they cannot be set in the constructor. Every path that builds a
+// process must call it: one that skips it panics on its first observe against a
+// nil state reader.
 func (p *Process) wireRuntimeDeps(extensions []extensionEntry) {
 	p.stateReader = newWorldStateReader(p.domain, p.blackboard, p)
 	p.processEvents = event.NewMulticast()

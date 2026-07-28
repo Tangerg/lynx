@@ -27,11 +27,9 @@ func (p *Process) TerminalError() error {
 	return fmt.Errorf("ended in %s", status)
 }
 
-// failProcess transitions to StatusFailed and records the failure.
-// It deliberately does NOT publish [event.ProcessFailed] — every run
-// exit funnels through [publishTerminalEvent], which is the single
-// publisher of terminal events (publishing here too double-fired
-// ProcessFailed on planner errors).
+// failProcess deliberately does not publish [event.ProcessFailed]. Every run
+// exit funnels through the single terminal-event publisher; firing here as well
+// double-publishes on a planner error.
 func (p *Process) failProcess(err error) {
 	p.state.fail(err)
 }

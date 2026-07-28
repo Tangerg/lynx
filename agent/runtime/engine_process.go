@@ -132,15 +132,11 @@ func (e *Engine) createChild(
 	if options.Blackboard == nil {
 		return nil, errors.New("runtime.Engine.createChild: child blackboard is nil")
 	}
-	// A child shares its parent's event stream: process-scope
-	// SubtreeEventListener extensions propagate down so the whole delegation
-	// subtree surfaces on the listener the parent registered (each event
-	// keeps its own ProcessID, so a consumer can tell parent from child).
-	// Listeners are the only capability inherited — blackboard / planner /
-	// tool extensions stay scoped to the process that declared them. No-op
-	// when the parent registered no listeners, so the historical "child
-	// events reach only the engine multicast" behavior is unchanged for
-	// callers that don't observe per-process.
+	// Listeners are the only capability a child inherits: a subtree listener
+	// must see the whole delegation tree to be worth registering, while a
+	// blackboard, planner, or tool extension belongs to the process that chose
+	// it. Each event still carries its own ProcessID, so one listener can tell
+	// parent from child.
 	extensions, err := parent.childExtensions(options.Extensions)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Engine.createChild: extensions: %w", err)
