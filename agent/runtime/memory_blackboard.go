@@ -51,6 +51,9 @@ type storedBlackboardValue struct {
 
 func storeBlackboardValue(value any) (storedBlackboardValue, error) {
 	stored := storedBlackboardValue{typ: reflect.TypeOf(value)}
+	if err := requirePortableType(stored.typ); err != nil {
+		return storedBlackboardValue{}, err
+	}
 	data, err := json.Marshal(value)
 	if err != nil {
 		return storedBlackboardValue{}, fmt.Errorf("encode %T: %w", value, err)

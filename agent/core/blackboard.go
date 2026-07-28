@@ -1,12 +1,18 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	pkgstrings "github.com/Tangerg/lynx/pkg/strings"
 )
+
+// ErrUnportableValue reports a write of a value whose Go state cannot survive
+// the blackboard's portable form. Implementations wrap it so callers can tell a
+// contract violation from a transport or storage failure.
+var ErrUnportableValue = errors.New("core: value has no portable form")
 
 // BlackboardReader is the read-only slice of [Blackboard] — passed to
 // contexts that observe state but should not mutate it (e.g. condition
@@ -49,8 +55,8 @@ type BlackboardReader interface {
 type BlackboardWriter interface {
 	// Store saves by name and appends to the ordered objects list, making the
 	// value reachable both by name and by latest-of-type lookup. The blackboard
-	// takes ownership of a serialized copy and returns an error when value
-	// cannot satisfy the portable state contract.
+	// takes ownership of a serialized copy and returns [ErrUnportableValue] when
+	// value's Go state would not survive that form.
 	Store(key string, value any) error
 
 	// Add appends without binding to a name. Used when an action wants
@@ -91,6 +97,14 @@ type BlackboardWriter interface {
 // Values are portable immutable snapshots: implementations take ownership on
 // write and return ownership-isolated copies on read. Runtime handles and other
 // non-portable capabilities belong in [Dependencies], not planner state.
+//
+// Ownership is taken of the value's portable form, so a stored type's Go state
+// survives only where that form carries it. A write whose state would be
+// dropped — unexported fields, an interface-typed field whose concrete type
+// cannot be recovered — is rejected with [ErrUnportableValue] rather than
+// silently truncated. A type that needs unexported state on the blackboard owns
+// its own portable form by implementing both marshal and unmarshal for the
+// implementation's encoding.
 //
 // Implementations MUST be safe for concurrent use by host code. Framework
 // workflow fan-out does not share values or writes: every branch receives

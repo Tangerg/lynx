@@ -284,6 +284,7 @@ core: var ErrInvalidBudget = errors.New("budget: invalid")
 core: var ErrInvalidUsage = errors.New("usage: invalid")
 core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle control is unavailable")
 core: var ErrParallelBranchControl = errors.New("agent: parallel workflow branch cannot control process lifecycle")
+core: var ErrUnportableValue = errors.New("core: value has no portable form")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" )
 event: func (*NamedSubtreeListener) ObserveSubtree()
 event: func (ActionFinished) Kind() Kind

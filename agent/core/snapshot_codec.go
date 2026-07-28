@@ -30,9 +30,14 @@ func (tv TaggedValue) Validate() error {
 }
 
 // EncodeBlackboard converts snapshot values into their strict tagged wire form.
-// Every non-builtin concrete type must be declared by an action input/output
-// on this Agent. Callers should store undeclared runtime objects through the
-// Blackboard transient API instead.
+// Every non-builtin concrete type must be declared by an action input/output or
+// by [AgentConfig.SnapshotState] on this Agent: the declaration is what lets
+// [Agent.DecodeBlackboard] recover the exact Go type from a tag, so an
+// undeclared type is a value this Agent could encode but never restore.
+//
+// Undeclared state has no home on the blackboard. Runtime handles and other
+// values that must not be carried across a restore belong in [Dependencies] or
+// on the request context, not in planner state.
 func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]TaggedValue, []TaggedValue, error) {
 	if a == nil {
 		return nil, nil, errors.New("agent.Agent.EncodeBlackboard: agent is nil")
