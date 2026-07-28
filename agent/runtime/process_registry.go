@@ -59,16 +59,31 @@ func (r *processRegistry) registerTree(processes []*Process) bool {
 	return true
 }
 
-func (r *processRegistry) reserveProcesses(processes []*Process) bool {
-	expected := make(map[string]*Process, len(processes))
+// identifyTree indexes an already-registered tree by process id. Reservation and
+// its release are a pair, so they have to agree on what a valid tree argument is:
+// no nil node, and one id never naming two different processes. A repeat of the
+// same pointer is accepted because a caller may list a node twice while walking.
+//
+// registerTree deliberately does not share this: it publishes a rebuilt tree, so
+// any repeated id there is a collision rather than a repeat.
+func identifyTree(processes []*Process) (map[string]*Process, bool) {
+	identified := make(map[string]*Process, len(processes))
 	for _, process := range processes {
 		if process == nil {
-			return false
+			return nil, false
 		}
-		if previous, duplicate := expected[process.id]; duplicate && previous != process {
-			return false
+		if previous, duplicate := identified[process.id]; duplicate && previous != process {
+			return nil, false
 		}
-		expected[process.id] = process
+		identified[process.id] = process
+	}
+	return identified, true
+}
+
+func (r *processRegistry) reserveProcesses(processes []*Process) bool {
+	expected, ok := identifyTree(processes)
+	if !ok {
+		return false
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -109,15 +124,9 @@ func (r *processRegistry) available(process *Process) bool {
 }
 
 func (r *processRegistry) unregisterReservedTree(processes []*Process) bool {
-	expected := make(map[string]*Process, len(processes))
-	for _, process := range processes {
-		if process == nil {
-			return false
-		}
-		if previous, duplicate := expected[process.id]; duplicate && previous != process {
-			return false
-		}
-		expected[process.id] = process
+	expected, ok := identifyTree(processes)
+	if !ok {
+		return false
 	}
 
 	r.mu.Lock()
